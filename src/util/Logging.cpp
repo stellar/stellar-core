@@ -134,10 +134,25 @@ Logging::init(bool truncate)
             // and always pass 'truncate=false' to spdlog, so it always opens in
             // "ab" == O_APPEND mode. The "portable" way to truncate is to open
             // an ofstream in out|trunc mode, then immediately close it.
+            std::ofstream out;
             if (truncate)
             {
-                std::ofstream truncator(filename, std::ios_base::out |
-                                                      std::ios_base::trunc);
+                out.open(filename, std::ios_base::out | std::ios_base::trunc);
+            }
+            else
+            {
+                out.open(filename, std::ios_base::out | std::ios_base::app);
+            }
+
+            if (out.fail())
+            {
+                throw std::runtime_error(fmt::format(
+                    "Could not open log file {}, check access rights",
+                    filename));
+            }
+            else
+            {
+                out.close();
             }
 
             sinks.emplace_back(
@@ -209,7 +224,19 @@ Logging::setLoggingToFile(std::string const& filename)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     mLastFilenamePattern = filename;
     deinit();
-    init();
+    try
+    {
+        init();
+    }
+    catch (std::runtime_error& e)
+    {
+        // Could not initialize logging to file, fallback on
+        // console-only logging and throw
+        mLastFilenamePattern.clear();
+        deinit();
+        init();
+        throw;
+    }
 #endif
 }
 
