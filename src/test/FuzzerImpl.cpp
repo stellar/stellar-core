@@ -35,6 +35,7 @@ namespace FuzzUtils
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
+auto constexpr NUMBER_OF_ASSETS_TO_USE = 8U;
 auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
@@ -67,16 +68,92 @@ getShortKey(PublicKey const& pk)
     return getShortKey(pk.ed25519());
 }
 
-// constructs an Asset structure for an asset issued by an account id comprised
-// of bytes reading [0,0,...,i] and an alphanum4 asset code of "Ast + i"
+uint8_t
+getShortKey(AssetCode4 const& code)
+{
+    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+}
+
+uint8_t
+getShortKey(AssetCode12 const& code)
+{
+    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+}
+
+uint8_t
+getShortKey(Asset const& asset)
+{
+    switch (asset.type())
+    {
+    case ASSET_TYPE_NATIVE:
+        return 0;
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return getShortKey(asset.alphaNum4().issuer);
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return getShortKey(asset.alphaNum12().issuer);
+    }
+    throw std::runtime_error("Invalid Asset type");
+}
+
+uint8_t
+getShortKey(AssetCode const& code)
+{
+    switch (code.type())
+    {
+    case ASSET_TYPE_NATIVE:
+        return 0;
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return getShortKey(code.assetCode4());
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return getShortKey(code.assetCode12());
+    }
+    throw std::runtime_error("Invalid AssetCode type");
+}
+
+// Sets "code" to a 4-byte alphanumeric AssetCode "Ast<digit>".
+void
+setAssetCode4(AssetCode4& code, int digit)
+{
+    assert(digit < 10);
+    strToAssetCode(code, "Ast" + std::to_string(digit));
+}
+
+// Requires "digit" in [0..9].
+// For digit == 0, returns native Asset.
+// For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
+// and an issuer whose public key has "digit" in byte 0 and whose other bytes
+// are all 0.
 Asset
-makeAsset(int i)
+makeAsset(int digit)
 {
     Asset asset;
-    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
-    setShortKey(asset.alphaNum4().issuer, i);
+    if (digit == 0)
+    {
+        asset.type(ASSET_TYPE_NATIVE);
+    }
+    else
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        setAssetCode4(asset.alphaNum4().assetCode, digit);
+        setShortKey(asset.alphaNum4().issuer, digit);
+    }
     return asset;
+}
+
+AssetCode
+makeAssetCode(int digit)
+{
+    AssetCode code;
+    if (digit == 0)
+    {
+        code.type(ASSET_TYPE_NATIVE);
+    }
+    else
+    {
+        code.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        setAssetCode4(code.assetCode4(), digit);
+    }
+    return code;
 }
 
 SequenceNumber
@@ -196,7 +273,9 @@ struct xdr_fuzzer_compactor
 
     template <typename T>
     typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value) &&
+                             !std::is_same<stellar::MuxedAccount, T>::value &&
+                             !std::is_same<stellar::Asset, T>::value &&
+                             !std::is_same<stellar::AssetCode, T>::value) &&
                             (xdr_traits<T>::is_class ||
                              xdr_traits<T>::is_container)>::type
     operator()(T const& t)
@@ -223,6 +302,26 @@ struct xdr_fuzzer_compactor
                                   : m.med25519().ed25519;
         check(1);
         auto b = stellar::FuzzUtils::getShortKey(ed25519);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::Asset, T>::value>::type
+    operator()(T const& asset)
+    {
+        // Convert Asset to 1 byte.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(asset);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AssetCode, T>::value>::type
+    operator()(T const& code)
+    {
+        // Convert AssetCode to 1 byte.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(code);
         put_bytes(&b, 1);
     }
 };
@@ -337,7 +436,9 @@ struct xdr_fuzzer_unpacker
 
     template <typename T>
     typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value) &&
+                             !std::is_same<stellar::MuxedAccount, T>::value &&
+                             !std::is_same<stellar::Asset, T>::value &&
+                             !std::is_same<stellar::AssetCode, T>::value) &&
                             (xdr_traits<T>::is_class ||
                              xdr_traits<T>::is_container)>::type
     operator()(T& t)
@@ -362,6 +463,28 @@ struct xdr_fuzzer_unpacker
         check(1);
         std::uint8_t v = get_byte();
         stellar::FuzzUtils::setShortKey(m.ed25519(), v);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::Asset, T>::value>::type
+    operator()(T& asset)
+    {
+        // 1 byte --> Asset
+        check(1);
+        std::uint8_t v = get_byte();
+        asset = stellar::FuzzUtils::makeAsset(
+            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AssetCode, T>::value>::type
+    operator()(T& code)
+    {
+        // 1 byte --> AssetCode
+        check(1);
+        std::uint8_t v = get_byte();
+        code = stellar::FuzzUtils::makeAssetCode(
+            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     }
 
     void
