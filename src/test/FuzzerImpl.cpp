@@ -5,6 +5,7 @@
 #include "test/FuzzerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/TrustLineWrapper.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -110,6 +111,31 @@ getShortKey(AssetCode const& code)
     throw std::runtime_error("Invalid AssetCode type");
 }
 
+uint8_t
+getShortKey(ClaimableBalanceID const& balanceID)
+{
+    return balanceID.v0()[0];
+}
+
+uint8_t
+getShortKey(LedgerKey const& key)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        return getShortKey(key.account().accountID);
+    case OFFER:
+        return getShortKey(key.offer().sellerID);
+    case TRUSTLINE:
+        return getShortKey(key.trustLine().accountID);
+    case DATA:
+        return getShortKey(key.data().accountID);
+    case CLAIMABLE_BALANCE:
+        return getShortKey(key.claimableBalance().balanceID);
+    }
+    throw std::runtime_error("Unknown key type");
+}
+
 // Sets "code" to a 4-byte alphanumeric AssetCode "Ast<digit>".
 void
 setAssetCode4(AssetCode4& code, int digit)
@@ -154,6 +180,36 @@ makeAssetCode(int digit)
         setAssetCode4(code.assetCode4(), digit);
     }
     return code;
+}
+
+void
+generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
+                         StoredLedgerKeys::iterator end)
+{
+    if (std::distance(begin, end) <= NUM_UNVALIDATED_LEDGER_KEYS)
+    {
+        throw std::runtime_error("No room for unvalidated ledger keys");
+    }
+
+    auto const firstUnvalidatedLedgerKey = end - NUM_UNVALIDATED_LEDGER_KEYS;
+
+    // Generate valid ledger entry keys.
+    std::generate(begin, firstUnvalidatedLedgerKey, []() {
+        return LedgerEntryKey(LedgerTestUtils::generateValidLedgerEntry());
+    });
+
+    // Generate unvalidated ledger entry keys.
+    std::generate(firstUnvalidatedLedgerKey, end, []() {
+        size_t const entrySize = 3;
+        return autocheck::generator<LedgerKey>()(entrySize);
+    });
+}
+
+void
+setShortKey(std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
+            LedgerKey& key, uint8_t byte)
+{
+    key = storedKeys[byte % NUM_STORED_LEDGER_KEYS];
 }
 
 SequenceNumber
@@ -272,12 +328,14 @@ struct xdr_fuzzer_compactor
     }
 
     template <typename T>
-    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value &&
-                             !std::is_same<stellar::Asset, T>::value &&
-                             !std::is_same<stellar::AssetCode, T>::value) &&
-                            (xdr_traits<T>::is_class ||
-                             xdr_traits<T>::is_container)>::type
+    typename std::enable_if<
+        (!std::is_same<stellar::AccountID, T>::value &&
+         !std::is_same<stellar::MuxedAccount, T>::value &&
+         !std::is_same<stellar::Asset, T>::value &&
+         !std::is_same<stellar::AssetCode, T>::value &&
+         !std::is_same<stellar::ClaimableBalanceID, T>::value &&
+         !std::is_same<stellar::LedgerKey, T>::value) &&
+        (xdr_traits<T>::is_class || xdr_traits<T>::is_container)>::type
     operator()(T const& t)
     {
         xdr_traits<T>::save(*this, t);
@@ -324,6 +382,29 @@ struct xdr_fuzzer_compactor
         auto b = stellar::FuzzUtils::getShortKey(code);
         put_bytes(&b, 1);
     }
+
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::ClaimableBalanceID, T>::value>::type
+    operator()(T const& balanceID)
+    {
+        // Convert ClaimableBalanceID to 1 byte for indexing into an array of
+        // LedgerKeys that have been mentioned in the XDR of fuzzer operations.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(balanceID);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::LedgerKey, T>::value>::type
+    operator()(T const& key)
+    {
+        // Convert LedgerKey to 1 byte for indexing into an array of LedgerKeys
+        // that have been mentioned in the XDR of fuzzer operations.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(key);
+        put_bytes(&b, 1);
+    }
 };
 
 template <typename... Args>
@@ -339,17 +420,23 @@ xdr_to_fuzzer_opaque(Args const&... args)
 
 struct xdr_fuzzer_unpacker
 {
+    stellar::FuzzUtils::StoredLedgerKeys mStoredLedgerKeys;
     std::uint8_t const* mCur;
     std::uint8_t const* const mEnd;
 
-    xdr_fuzzer_unpacker(void const* start, void const* end)
-        : mCur(reinterpret_cast<std::uint8_t const*>(start))
+    xdr_fuzzer_unpacker(
+        stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        void const* start, void const* end)
+        : mStoredLedgerKeys(storedLedgerKeys)
+        , mCur(reinterpret_cast<std::uint8_t const*>(start))
         , mEnd(reinterpret_cast<std::uint8_t const*>(end))
     {
         assert(mCur <= mEnd);
     }
-    xdr_fuzzer_unpacker(msg_ptr const& m)
-        : xdr_fuzzer_unpacker(m->data(), m->end())
+    xdr_fuzzer_unpacker(
+        stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        msg_ptr const& m)
+        : xdr_fuzzer_unpacker(storedLedgerKeys, m->data(), m->end())
     {
     }
 
@@ -435,12 +522,14 @@ struct xdr_fuzzer_unpacker
     }
 
     template <typename T>
-    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value &&
-                             !std::is_same<stellar::Asset, T>::value &&
-                             !std::is_same<stellar::AssetCode, T>::value) &&
-                            (xdr_traits<T>::is_class ||
-                             xdr_traits<T>::is_container)>::type
+    typename std::enable_if<
+        (!std::is_same<stellar::AccountID, T>::value &&
+         !std::is_same<stellar::MuxedAccount, T>::value &&
+         !std::is_same<stellar::Asset, T>::value &&
+         !std::is_same<stellar::AssetCode, T>::value &&
+         !std::is_same<stellar::ClaimableBalanceID, T>::value &&
+         !std::is_same<stellar::LedgerKey, T>::value) &&
+        (xdr_traits<T>::is_class || xdr_traits<T>::is_container)>::type
     operator()(T& t)
     {
         xdr_traits<T>::load(*this, t);
@@ -487,6 +576,37 @@ struct xdr_fuzzer_unpacker
             v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     }
 
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::ClaimableBalanceID, T>::value>::type
+    operator()(T& balanceID)
+    {
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::LedgerKey key;
+        stellar::FuzzUtils::setShortKey(mStoredLedgerKeys, key, v);
+        // If this one byte indexes a stored LedgerKey for a ClaimableBalanceID,
+        // use that; otherwise just use the byte itself as the balance ID.
+        if (key.type() == stellar::CLAIMABLE_BALANCE)
+        {
+            balanceID = key.claimableBalance().balanceID;
+        }
+        else
+        {
+            balanceID.type(stellar::CLAIMABLE_BALANCE_ID_TYPE_V0);
+            balanceID.v0()[0] = v;
+        }
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::LedgerKey, T>::value>::type
+    operator()(T& key)
+    {
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::FuzzUtils::setShortKey(mStoredLedgerKeys, key, v);
+    }
+
     void
     done()
     {
@@ -499,10 +619,11 @@ struct xdr_fuzzer_unpacker
 
 template <typename Bytes, typename... Args>
 auto
-xdr_from_fuzzer_opaque(Bytes const& m, Args&... args)
-    -> decltype(detail::bytes_to_void(m))
+xdr_from_fuzzer_opaque(
+    stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+    Bytes const& m, Args&... args) -> decltype(detail::bytes_to_void(m))
 {
-    xdr_fuzzer_unpacker g(m.data(), m.data() + m.size());
+    xdr_fuzzer_unpacker g(storedLedgerKeys, m.data(), m.data() + m.size());
     xdr_argpack_archive(g, args...);
     g.done();
 }
@@ -1073,9 +1194,40 @@ TransactionFuzzer::initialize()
         ltx.commit();
     }
 
+    storeSetupLedgerKeys(ltxOuter);
+
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
     ltxOuter.commit();
+}
+
+void
+TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
+{
+    // Get the list of ledger entries created during setup to place into
+    // mStoredLedgerKeys.
+    std::vector<LedgerEntry> init, live;
+    std::vector<LedgerKey> dead;
+    ltx.getAllEntries(init, live, dead);
+
+    // Setup should only create entries; there should be no dead entries, and
+    // only one "live" (modified) one:  the root account.
+    assert(dead.empty());
+    assert(live.size() == 1);
+    assert(live[0].data.type() == ACCOUNT);
+    assert(live[0].data.account().accountID ==
+           txtest::getRoot(mApp->getNetworkID()).getPublicKey());
+
+    // If we ever create more ledger entries during setup than we have room for
+    // in mStoredLedgerEntries, then we will have to do something further.
+    assert(init.size() <= FuzzUtils::NUM_VALIDATED_LEDGER_KEYS);
+
+    // Store the ledger entries created during setup in mStoredLedgerKeys.
+    auto firstGeneratedLedgerKey = std::transform(
+        init.cbegin(), init.cend(), mStoredLedgerKeys.begin(), LedgerEntryKey);
+
+    stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
+                                                 mStoredLedgerKeys.end());
 }
 
 void
@@ -1108,7 +1260,7 @@ TransactionFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(bins, ops);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, ops);
     }
     catch (std::exception const& e)
     {
@@ -1178,6 +1330,8 @@ void
 OverlayFuzzer::initialize()
 {
     resetRandomSeed();
+    stellar::FuzzUtils::generateStoredLedgerKeys(mStoredLedgerKeys.begin(),
+                                                 mStoredLedgerKeys.end());
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     mSimulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
                                                networkID, getFuzzConfig);
@@ -1233,7 +1387,7 @@ OverlayFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(bins, msg);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, msg);
     }
     catch (...)
     {
