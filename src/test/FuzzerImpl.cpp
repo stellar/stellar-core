@@ -668,17 +668,17 @@ getFuzzConfig(int instanceNumber)
 }
 
 static void
-resetRandomSeed()
+resetRandomSeed(unsigned int seed)
 {
     // seed randomness
-    srand(1);
-    gRandomEngine.seed(1);
+    srand(seed);
+    gRandomEngine.seed(seed);
 }
 
 static void
 resetTxInternalState(Application& app)
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
 // reset caches to clear persistent state
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     app.getLedgerTxnRoot().resetForFuzzer();
@@ -979,7 +979,7 @@ std::array<OfferParameters, 28> constexpr orderBookParameters{
 void
 TransactionFuzzer::initialize()
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
     auto root = TestAccount::createRoot(*mApp);
     mSourceAccountID = root.getPublicKey();
@@ -1295,7 +1295,7 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    gRandomEngine.seed(std::random_device()());
+    resetRandomSeed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
@@ -1329,7 +1329,7 @@ OverlayFuzzer::shutdown()
 void
 OverlayFuzzer::initialize()
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
     stellar::FuzzUtils::generateStoredLedgerKeys(mStoredLedgerKeys.begin(),
                                                  mStoredLedgerKeys.end());
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -1435,6 +1435,7 @@ OverlayFuzzer::xdrSizeLimit()
 void
 OverlayFuzzer::genFuzz(std::string const& filename)
 {
+    resetRandomSeed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
