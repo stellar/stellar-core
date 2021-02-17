@@ -708,11 +708,11 @@ class FuzzTransactionFrame : public TransactionFrame
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
-        auto isInvalidOperationXDR = [&](auto const& op) {
+        auto isInvalidOperation = [&](auto const& op) {
             return !op->checkValid(signatureChecker, ltx, false);
         };
         if (std::any_of(mOperations.begin(), mOperations.end(),
-                        isInvalidOperationXDR))
+                        isInvalidOperation))
         {
             return;
         }
