@@ -646,13 +646,14 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
     return m.type() == AUTH || m.type() == ERROR_MSG || m.type() == HELLO;
 }
 
-// Empties "ops" as operations are applied.  If `throwIfTxFails` is `false`,
-// ignores failures and might apply further transactions after failures.
+// Empties "ops" as operations are applied.  Throws if any operations fail.
+// Handles breaking up the list of operations into multiple transactions, if the
+// caller provides more operations than fit in a single transaction.
 static void
-attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                  xdr::xvector<Operation>::const_iterator begin,
-                  xdr::xvector<Operation>::const_iterator end, Application& app,
-                  bool const throwIfTxFails = true)
+applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                     xdr::xvector<Operation>::const_iterator begin,
+                     xdr::xvector<Operation>::const_iterator end,
+                     Application& app)
 {
     while (begin != end)
     {
@@ -664,46 +665,55 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
         txFramePtr->attemptApplication(app, ltx);
         begin = endOpsInThisTx;
 
-        if (throwIfTxFails)
+        if (txFramePtr->getResultCode() != txSUCCESS)
         {
-            if (txFramePtr->getResultCode() != txSUCCESS)
+            auto const msg =
+                fmt::format(FMT_STRING("Error {} while setting up fuzzing -- "
+                                       "transaction result {}"),
+                            txFramePtr->getResultCode(),
+                            xdr_to_string(txFramePtr->getResult()));
+            LOG_FATAL(DEFAULT_LOG, "{}", msg);
+            throw std::runtime_error(msg);
+        }
+
+        for (auto const& opFrame : txFramePtr->getOperations())
+        {
+            auto const& op = opFrame->getOperation();
+            auto const& tr = opFrame->getResult().tr();
+            auto const opType = op.body.type();
+
+            if ((opType == MANAGE_BUY_OFFER &&
+                 tr.manageBuyOfferResult().success().offer.effect() ==
+                     MANAGE_OFFER_DELETED) ||
+                (opType == MANAGE_SELL_OFFER &&
+                 tr.manageSellOfferResult().success().offer.effect() ==
+                     MANAGE_OFFER_DELETED) ||
+                (opType == CREATE_PASSIVE_SELL_OFFER &&
+                 tr.createPassiveSellOfferResult().success().offer.effect() ==
+                     MANAGE_OFFER_DELETED))
             {
-                auto const msg = fmt::format(
-                    FMT_STRING("Error {} while applying operations "
-                               "while fuzzing: transaction result {}"),
-                    txFramePtr->getResultCode(),
-                    xdr_to_string(txFramePtr->getResult()));
+                auto const msg =
+                    fmt::format(FMT_STRING("MANAGE_OFFER_DELETED while setting "
+                                           "up fuzzing -- operation is {}"),
+                                xdr_to_string(op));
                 LOG_FATAL(DEFAULT_LOG, "{}", msg);
                 throw std::runtime_error(msg);
             }
-
-            for (auto const& opFrame : txFramePtr->getOperations())
-            {
-                auto const& op = opFrame->getOperation();
-                auto const& tr = opFrame->getResult().tr();
-                auto const opType = op.body.type();
-
-                if ((opType == MANAGE_BUY_OFFER &&
-                     tr.manageBuyOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED) ||
-                    (opType == MANAGE_SELL_OFFER &&
-                     tr.manageSellOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED) ||
-                    (opType == CREATE_PASSIVE_SELL_OFFER &&
-                     tr.createPassiveSellOfferResult()
-                             .success()
-                             .offer.effect() == MANAGE_OFFER_DELETED))
-                {
-                    auto const msg = fmt::format(
-                        FMT_STRING("MANAGE_OFFER_DELETED while setting "
-                                   "up fuzzing -- operation is {}"),
-                        xdr_to_string(op));
-                    LOG_FATAL(DEFAULT_LOG, "{}", msg);
-                    throw std::runtime_error(msg);
-                }
-            }
         }
     }
+}
+
+// Requires a set of operations small enough to fit in a single transaction.
+// Tolerates the failure of transaction application.
+static void
+applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                    xdr::xvector<Operation>::const_iterator begin,
+                    xdr::xvector<Operation>::const_iterator end,
+                    Application& app)
+{
+    auto txFramePtr = createFuzzTransactionFrame(ltx, sourceAccount, begin, end,
+                                                 app.getNetworkID());
+    txFramePtr->attemptApplication(app, ltx);
 }
 
 struct AccountParameters
@@ -899,8 +909,8 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
-                          *mApp);
+        applySetupOperations(ltx, root.getPublicKey(), ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -958,7 +968,8 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -985,7 +996,8 @@ TransactionFuzzer::initialize()
             ops.emplace_back(op);
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -1055,7 +1067,8 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -1116,8 +1129,7 @@ TransactionFuzzer::inject(std::string const& filename)
     resetTxInternalState(*mApp);
     LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({}): {}", ops.size(), xdr_to_string(ops));
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
-    attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp,
-                      false);
+    applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 int
