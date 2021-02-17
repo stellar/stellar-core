@@ -106,6 +106,19 @@ it might be partly hidden depending on the color scheme of your terminal, as it
 makes use of bold color highlighting. There are a lot of [interesting statistics][12]
 displayed here.
 
+When evaluating changes or posting a PR, include screenshots of the TUI
+after similar runtimes from before and after the changes.  We've seen
+~15% variability in metrics such as "total paths" after 10 minutes, so
+you should choose a time significantly longer than that.  The [user guide][13]
+documents interpretation of the many metrics.  At a minimum, we're interested
+in:
+
+- Exec speed
+- Total paths
+- Stability
+- Whether the TUI displays any metrics in red (indicating values it considers
+undesirable)
+
 While it runs, it will write new crashes to files in `fuzz-findings`; before
 pouncing on these as definite evidence of a flaw, you should confirm the crash
 by feeding it to an instance of `stellar-core fuzz` run by hand, elsewhere (in
@@ -183,4 +196,5 @@ part of staging-tests", here are some directions I think we should take fuzzing:
 [10]: https://github.com/trailofbits/deepstate
 [11]: https://llvm.org/docs/LibFuzzer.html
 [12]: https://github.com/google/AFL/blob/master/docs/status_screen.txt
+[13]: https://afl-1.readthedocs.io/en/latest/user_guide.html
 
