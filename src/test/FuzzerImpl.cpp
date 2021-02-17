@@ -479,7 +479,7 @@ class FuzzTransactionFrame : public TransactionFrame
 };
 
 std::shared_ptr<FuzzTransactionFrame>
-createFuzzTransactionFrame(PublicKey sourceAccountID,
+createFuzzTransactionFrame(PublicKey const& sourceAccountID,
                            std::vector<Operation>::const_iterator begin,
                            std::vector<Operation>::const_iterator end,
                            Hash const& networkID)
