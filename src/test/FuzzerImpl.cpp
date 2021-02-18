@@ -35,7 +35,6 @@ namespace FuzzUtils
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
-auto constexpr NUMBER_OF_ASSETS_TO_ISSUE = 4U;
 auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
@@ -575,12 +574,15 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
 
 struct AccountParameters
 {
-    constexpr AccountParameters(int64_t assetAvailableForTestActivity)
+    constexpr AccountParameters(int64_t assetAvailableForTestActivity,
+                                bool issueAsset)
         : mAssetAvailableForTestActivity(assetAvailableForTestActivity)
+        , mIssueAsset(issueAsset)
     {
     }
 
     int64_t const mAssetAvailableForTestActivity;
+    bool const mIssueAsset;
 };
 
 auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
@@ -588,22 +590,22 @@ auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
 std::array<
     AccountParameters,
     FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
-    {{DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY}}};
+    {{DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false}}};
 
 // Unlike Asset, this can be a constexpr.
 struct AssetID
@@ -743,18 +745,18 @@ TransactionFuzzer::initialize()
         xdr::xvector<Operation> ops;
 
         // For now we have every pregenerated account trust everything for some
-        // assets issued by account indexed 1..NUMBER_OF_ASSETS_TO_ISSUE. We
-        // also distribute some of these assets to everyone so that they can
-        // make trades, payments, etc.
+        // assets issued by accounts with "mIssueAsset" set to true.  We also
+        // distribute some of these assets to everyone so that they can make
+        // trades, payments, etc.
         for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey account;
             FuzzUtils::setShortKey(account, i);
 
-            for (int j = 1; j <= FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE; ++j)
+            for (int j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
-                if (i != j)
+                if (i != j && accountParameters[j].mIssueAsset)
                 {
                     // trust asset issuer
                     auto trustOp = txtest::changeTrust(
@@ -832,10 +834,11 @@ TransactionFuzzer::initialize()
                 ops.emplace_back(reduceNativeBalanceOp);
             }
 
-            for (uint8_t j = 1; j <= FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE; ++j)
+            for (uint8_t j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS;
+                 ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
-                if (i != j)
+                if (i != j && accountParameters[j].mIssueAsset)
                 {
                     PublicKey issuer;
                     FuzzUtils::setShortKey(issuer, j);
