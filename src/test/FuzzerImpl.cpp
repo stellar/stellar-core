@@ -558,7 +558,11 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
                          MANAGE_OFFER_DELETED) ||
                     (opType == MANAGE_SELL_OFFER &&
                      tr.manageSellOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED))
+                         MANAGE_OFFER_DELETED) ||
+                    (opType == CREATE_PASSIVE_SELL_OFFER &&
+                     tr.createPassiveSellOfferResult()
+                             .success()
+                             .offer.effect() == MANAGE_OFFER_DELETED))
                 {
                     auto const msg = fmt::format(
                         FMT_STRING("MANAGE_OFFER_DELETED while setting "
@@ -633,13 +637,15 @@ struct OfferParameters
 {
     constexpr OfferParameters(int publicKey, AssetID const bid,
                               AssetID const sell, int64_t amount,
-                              int32_t priceNumerator, int32_t priceDenominator)
+                              int32_t priceNumerator, int32_t priceDenominator,
+                              bool passive)
         : mPublicKey(publicKey)
         , mBid(bid)
         , mSell(sell)
         , mAmount(amount)
         , mNumerator(priceNumerator)
         , mDenominator(priceDenominator)
+        , mPassive(passive)
     {
     }
 
@@ -649,6 +655,7 @@ struct OfferParameters
     int64_t const mAmount;
     int32_t const mNumerator;
     int32_t const mDenominator;
+    bool const mPassive;
 };
 
 // The current order book setup generates identical configurations for the
@@ -666,7 +673,8 @@ struct OfferParameters
 // +------------+-----+------+--------+------------------------------+
 // | 0          | A   | B    |     10 | 3/2                          |
 // | 1 (issuer) | A   | B    |     50 | 3/2                          |
-// | 2          | A   | B    |    100 | 1/1                          |
+// | 2          | A   | B    |    100 | 1/1 (passive)                |
+// | 2          | B   | A    |    100 | 1/1 (passive)                |
 // | 3 (issuer) | B   | A    |     10 | 10/9                         |
 // | 4          | B   | A    |     50 | 10/9                         |
 // | 0          | B   | A    |    100 | 22/7                         |
@@ -674,34 +682,38 @@ struct OfferParameters
 //
 // (This is far more symmetric than it needs to be; we will introduce more
 // variety.  In the long run, we plan to fuzz the setup itself.)
-std::array<OfferParameters, 24> constexpr orderBookParameters{
-    {{13, AssetID(), AssetID(1), 10, 3, 2}, // asset pair 0
-     {14, AssetID(), AssetID(1), 50, 3, 2},
-     {15, AssetID(), AssetID(1), 100, 1, 1},
-     {1, AssetID(1), AssetID(), 10, 10, 9},
-     {12, AssetID(1), AssetID(), 50, 10, 9},
-     {13, AssetID(1), AssetID(), 100, 22, 7},
+std::array<OfferParameters, 28> constexpr orderBookParameters{
+    {{13, AssetID(), AssetID(1), 10, 3, 2, false}, // asset pair 0
+     {14, AssetID(), AssetID(1), 50, 3, 2, false},
+     {15, AssetID(), AssetID(1), 100, 1, 1, true},
+     {15, AssetID(1), AssetID(), 100, 1, 1, true},
+     {1, AssetID(1), AssetID(), 10, 10, 9, false},
+     {12, AssetID(1), AssetID(), 50, 10, 9, false},
+     {13, AssetID(1), AssetID(), 100, 22, 7, false},
 
-     {11, AssetID(1), AssetID(2), 10, 3, 2}, // asset pair 1
-     {1, AssetID(1), AssetID(2), 50, 3, 2},
-     {12, AssetID(1), AssetID(2), 100, 1, 1},
-     {2, AssetID(2), AssetID(1), 10, 10, 9},
-     {10, AssetID(2), AssetID(1), 50, 10, 9},
-     {11, AssetID(2), AssetID(1), 100, 22, 7},
+     {11, AssetID(1), AssetID(2), 10, 3, 2, false}, // asset pair 1
+     {1, AssetID(1), AssetID(2), 50, 3, 2, false},
+     {12, AssetID(1), AssetID(2), 100, 1, 1, true},
+     {12, AssetID(2), AssetID(1), 100, 1, 1, true},
+     {2, AssetID(2), AssetID(1), 10, 10, 9, false},
+     {10, AssetID(2), AssetID(1), 50, 10, 9, false},
+     {11, AssetID(2), AssetID(1), 100, 22, 7, false},
 
-     {13, AssetID(2), AssetID(3), 10, 3, 2}, // asset pair 2
-     {2, AssetID(2), AssetID(3), 50, 3, 2},
-     {14, AssetID(2), AssetID(3), 100, 1, 1},
-     {3, AssetID(3), AssetID(2), 10, 10, 9},
-     {15, AssetID(3), AssetID(2), 50, 10, 9},
-     {13, AssetID(3), AssetID(2), 100, 22, 7},
+     {13, AssetID(2), AssetID(3), 10, 3, 2, false}, // asset pair 2
+     {2, AssetID(2), AssetID(3), 50, 3, 2, false},
+     {14, AssetID(2), AssetID(3), 100, 1, 1, true},
+     {14, AssetID(3), AssetID(2), 100, 1, 1, true},
+     {3, AssetID(3), AssetID(2), 10, 10, 9, false},
+     {15, AssetID(3), AssetID(2), 50, 10, 9, false},
+     {13, AssetID(3), AssetID(2), 100, 22, 7, false},
 
-     {6, AssetID(3), AssetID(4), 10, 3, 2}, // asset pair 3
-     {3, AssetID(3), AssetID(4), 50, 3, 2},
-     {7, AssetID(3), AssetID(4), 100, 1, 1},
-     {4, AssetID(4), AssetID(3), 10, 10, 9},
-     {8, AssetID(4), AssetID(3), 50, 10, 9},
-     {6, AssetID(4), AssetID(3), 100, 22, 7}}};
+     {6, AssetID(3), AssetID(4), 10, 3, 2, false}, // asset pair 3
+     {3, AssetID(3), AssetID(4), 50, 3, 2, false},
+     {7, AssetID(3), AssetID(4), 100, 1, 1, true},
+     {7, AssetID(4), AssetID(3), 100, 1, 1, true},
+     {4, AssetID(4), AssetID(3), 10, 10, 9, false},
+     {8, AssetID(4), AssetID(3), 50, 10, 9, false},
+     {6, AssetID(4), AssetID(3), 100, 22, 7, false}}};
 
 void
 TransactionFuzzer::initialize()
@@ -790,9 +802,15 @@ TransactionFuzzer::initialize()
 
         for (auto const& param : orderBookParameters)
         {
-            auto op = txtest::manageOffer(
-                0, param.mBid.toAsset(), param.mSell.toAsset(),
-                Price{param.mNumerator, param.mDenominator}, param.mAmount);
+            auto op = param.mPassive
+                          ? txtest::createPassiveOffer(
+                                param.mBid.toAsset(), param.mSell.toAsset(),
+                                Price{param.mNumerator, param.mDenominator},
+                                param.mAmount)
+                          : txtest::manageOffer(
+                                0, param.mBid.toAsset(), param.mSell.toAsset(),
+                                Price{param.mNumerator, param.mDenominator},
+                                param.mAmount);
             PublicKey pkA;
             FuzzUtils::setShortKey(pkA, param.mPublicKey);
             op.sourceAccount.activate() = toMuxedAccount(pkA);
