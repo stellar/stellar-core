@@ -755,9 +755,10 @@ TransactionFuzzer::initialize()
 
             for (int j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++j)
             {
-                auto const asset = FuzzUtils::makeAsset(j);
                 if (i != j && accountParameters[j].mIssueAsset)
                 {
+                    auto const asset = FuzzUtils::makeAsset(j);
+
                     // trust asset issuer
                     auto trustOp = txtest::changeTrust(
                         asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
@@ -837,9 +838,10 @@ TransactionFuzzer::initialize()
             for (uint8_t j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS;
                  ++j)
             {
-                auto const asset = FuzzUtils::makeAsset(j);
                 if (i != j && accountParameters[j].mIssueAsset)
                 {
+                    auto const asset = FuzzUtils::makeAsset(j);
+
                     PublicKey issuer;
                     FuzzUtils::setShortKey(issuer, j);
 
