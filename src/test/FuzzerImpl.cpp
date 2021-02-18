@@ -40,7 +40,6 @@ auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
 auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
-auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
 
 // must be strictly less than 255
 uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16U;
@@ -574,6 +573,38 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
     }
 }
 
+struct AccountParameters
+{
+    constexpr AccountParameters(int64_t assetAvailableForTestActivity)
+        : mAssetAvailableForTestActivity(assetAvailableForTestActivity)
+    {
+    }
+
+    int64_t const mAssetAvailableForTestActivity;
+};
+
+auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
+
+std::array<
+    AccountParameters,
+    FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
+    {{DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY},
+     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY}}};
+
 // Unlike Asset, this can be a constexpr.
 struct AssetID
 {
@@ -787,7 +818,7 @@ TransactionFuzzer::initialize()
             auto const availableBalance =
                 getAvailableBalance(ltx.loadHeader(), ae);
             auto const targetAvailableBalance =
-                FuzzUtils::DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY +
+                accountParameters[i].mAssetAvailableForTestActivity +
                 FuzzUtils::FUZZING_FEE *
                     FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
 
@@ -815,7 +846,7 @@ TransactionFuzzer::initialize()
                     auto const availableTLBalance =
                         tle.getAvailableBalance(ltx.loadHeader());
                     auto const targetAvailableTLBalance =
-                        FuzzUtils::DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY;
+                        accountParameters[i].mAssetAvailableForTestActivity;
 
                     if (availableTLBalance > targetAvailableTLBalance)
                     {
