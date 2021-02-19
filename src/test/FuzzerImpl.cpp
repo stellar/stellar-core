@@ -714,6 +714,7 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         isInvalidOperation))
         {
+            markResultFailed();
             return;
         }
         // while the following method's result is not captured, regardless, for
