@@ -1030,7 +1030,7 @@ TransactionFuzzer::initialize()
             }
         }
 
-        applySetupOperations(ltx, root.getPublicKey(), ops.begin(), ops.end(),
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
                              *mApp);
 
         ltx.commit();
