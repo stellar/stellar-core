@@ -524,17 +524,15 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
                   xdr::xvector<Operation>::const_iterator end, Application& app,
                   bool const throwIfTxFails = true)
 {
-    for (auto beginOpsInThisTx = begin; beginOpsInThisTx != end;)
+    while (begin != end)
     {
-        auto endOpsInThisTx =
-            std::distance(beginOpsInThisTx, end) <= MAX_OPS_PER_TX
-                ? end
-                : begin + MAX_OPS_PER_TX;
-        auto txFramePtr =
-            createFuzzTransactionFrame(sourceAccount, beginOpsInThisTx,
-                                       endOpsInThisTx, app.getNetworkID());
+        auto endOpsInThisTx = std::distance(begin, end) <= MAX_OPS_PER_TX
+                                  ? end
+                                  : begin + MAX_OPS_PER_TX;
+        auto txFramePtr = createFuzzTransactionFrame(
+            sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
         txFramePtr->attemptApplication(app, ltx);
-        beginOpsInThisTx = endOpsInThisTx;
+        begin = endOpsInThisTx;
 
         if (throwIfTxFails)
         {
