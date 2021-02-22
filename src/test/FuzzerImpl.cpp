@@ -805,19 +805,19 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
             auto const opType = op.body.type();
 
             if ((opType == MANAGE_BUY_OFFER &&
-                 tr.manageBuyOfferResult().success().offer.effect() ==
-                     MANAGE_OFFER_DELETED) ||
+                 tr.manageBuyOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED) ||
                 (opType == MANAGE_SELL_OFFER &&
-                 tr.manageSellOfferResult().success().offer.effect() ==
-                     MANAGE_OFFER_DELETED) ||
+                 tr.manageSellOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED) ||
                 (opType == CREATE_PASSIVE_SELL_OFFER &&
-                 tr.createPassiveSellOfferResult().success().offer.effect() ==
-                     MANAGE_OFFER_DELETED))
+                 tr.createPassiveSellOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED))
             {
-                auto const msg =
-                    fmt::format(FMT_STRING("MANAGE_OFFER_DELETED while setting "
-                                           "up fuzzing -- operation is {}"),
-                                xdr_to_string(op));
+                auto const msg = fmt::format(
+                    FMT_STRING("Manage offer result {} while setting "
+                               "up fuzzing -- operation is {}"),
+                    xdr_to_string(tr), xdr_to_string(op));
                 LOG_FATAL(DEFAULT_LOG, "{}", msg);
                 throw std::runtime_error(msg);
             }
