@@ -416,6 +416,13 @@ By default, stellar-core will perform this automatic maintenance, so be sure to 
 
 If you need to regenerate the meta data, the simplest way is to replay ledgers for the range you're interested in after (optionally) clearing the database with `newdb`.
 
+Note that in some cases automatic maintenance has just too much work to do in order to get back to the nominal state.
+This can occur following large catchup operations such as when performing a full catchup that may create a backlog of 10s of millions of ledgers.
+
+If this happens, database performance can be restored; the node will take some downtime while performing the following recovery commands:
+1. run the `maintenance` http command manually with a large number of ledgers,
+2. perform a database maintenance operation such as `VACUUM FULL` to reclaim/rebuild the database as needed
+
 ##### Meta data snapshots and restoration
 
 Some deployments of stellar-core and Horizon will want to retain meta data for the _entire history_ of the network. This meta data can be quite large and computationally expensive to regenerate anew by replaying ledgers in stellar-core from an empty initial database state, as described in the previous section.
