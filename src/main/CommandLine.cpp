@@ -1412,19 +1412,25 @@ fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
 int
 runFuzz(CommandLineArgs const& args)
 {
-    LogLevel logLevel{LogLevel::LVL_INFO};
+    LogLevel logLevel{LogLevel::LVL_FATAL};
     std::vector<std::string> metrics;
     std::string fileName;
+    std::string outputFile;
     int processID = 0;
     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
     std::string fuzzerModeArg = "overlay";
 
     return runWithHelp(args,
                        {logLevelParser(logLevel), metricsParser(metrics),
-                        fileNameParser(fileName), processIDParser(processID),
+                        fileNameParser(fileName), outputFileParser(outputFile),
+                        processIDParser(processID),
                         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
                        [&] {
                            Logging::setLogLevel(logLevel, nullptr);
+                           if (!outputFile.empty())
+                           {
+                               Logging::setLoggingToFile(outputFile);
+                           }
 
                            fuzz(fileName, metrics, processID, fuzzerMode);
                            return 0;
@@ -1434,15 +1440,25 @@ runFuzz(CommandLineArgs const& args)
 int
 runGenFuzz(CommandLineArgs const& args)
 {
+    LogLevel logLevel{LogLevel::LVL_FATAL};
     std::string fileName;
+    std::string outputFile;
     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
     std::string fuzzerModeArg = "overlay";
     int processID = 0;
 
     return runWithHelp(
         args,
-        {fileNameParser(fileName), fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+        {logLevelParser(logLevel), fileNameParser(fileName),
+         outputFileParser(outputFile),
+         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
         [&] {
+            Logging::setLogLevel(logLevel, nullptr);
+            if (!outputFile.empty())
+            {
+                Logging::setLoggingToFile(outputFile);
+            }
+
             FuzzUtils::createFuzzer(processID, fuzzerMode)->genFuzz(fileName);
             return 0;
         });

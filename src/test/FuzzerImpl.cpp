@@ -5,6 +5,7 @@
 #include "test/FuzzerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/TrustLineWrapper.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -35,6 +36,7 @@ namespace FuzzUtils
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
+auto constexpr NUMBER_OF_ASSETS_TO_USE = 8U;
 auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
@@ -67,16 +69,154 @@ getShortKey(PublicKey const& pk)
     return getShortKey(pk.ed25519());
 }
 
-// constructs an Asset structure for an asset issued by an account id comprised
-// of bytes reading [0,0,...,i] and an alphanum4 asset code of "Ast + i"
+uint8_t
+getShortKey(AssetCode4 const& code)
+{
+    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+}
+
+uint8_t
+getShortKey(AssetCode12 const& code)
+{
+    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+}
+
+uint8_t
+getShortKey(Asset const& asset)
+{
+    switch (asset.type())
+    {
+    case ASSET_TYPE_NATIVE:
+        return 0;
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return getShortKey(asset.alphaNum4().issuer);
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return getShortKey(asset.alphaNum12().issuer);
+    }
+    throw std::runtime_error("Invalid Asset type");
+}
+
+uint8_t
+getShortKey(AssetCode const& code)
+{
+    switch (code.type())
+    {
+    case ASSET_TYPE_NATIVE:
+        return 0;
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return getShortKey(code.assetCode4());
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return getShortKey(code.assetCode12());
+    }
+    throw std::runtime_error("Invalid AssetCode type");
+}
+
+uint8_t
+getShortKey(ClaimableBalanceID const& balanceID)
+{
+    return balanceID.v0()[0];
+}
+
+uint8_t
+getShortKey(LedgerKey const& key)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        return getShortKey(key.account().accountID);
+    case OFFER:
+        return getShortKey(key.offer().sellerID);
+    case TRUSTLINE:
+        return getShortKey(key.trustLine().accountID);
+    case DATA:
+        return getShortKey(key.data().accountID);
+    case CLAIMABLE_BALANCE:
+        return getShortKey(key.claimableBalance().balanceID);
+    }
+    throw std::runtime_error("Unknown key type");
+}
+
+// Sets "code" to a 4-byte alphanumeric AssetCode "Ast<digit>".
+void
+setAssetCode4(AssetCode4& code, int digit)
+{
+    assert(digit < 10);
+    strToAssetCode(code, "Ast" + std::to_string(digit));
+}
+
+// Requires "digit" in [0..9].
+// For digit == 0, returns native Asset.
+// For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
+// and an issuer whose public key has "digit" in byte 0 and whose other bytes
+// are all 0.
 Asset
-makeAsset(int i)
+makeAsset(int digit)
 {
     Asset asset;
-    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
-    setShortKey(asset.alphaNum4().issuer, i);
+    if (digit == 0)
+    {
+        asset.type(ASSET_TYPE_NATIVE);
+    }
+    else
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        setAssetCode4(asset.alphaNum4().assetCode, digit);
+        setShortKey(asset.alphaNum4().issuer, digit);
+    }
     return asset;
+}
+
+AssetCode
+makeAssetCode(int digit)
+{
+    AssetCode code;
+    if (digit == 0)
+    {
+        code.type(ASSET_TYPE_NATIVE);
+    }
+    else
+    {
+        code.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        setAssetCode4(code.assetCode4(), digit);
+    }
+    return code;
+}
+
+void
+generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
+                         StoredLedgerKeys::iterator end)
+{
+    if (std::distance(begin, end) <= NUM_UNVALIDATED_LEDGER_KEYS)
+    {
+        throw std::runtime_error("No room for unvalidated ledger keys");
+    }
+
+    auto const firstUnvalidatedLedgerKey = end - NUM_UNVALIDATED_LEDGER_KEYS;
+
+    // Generate valid ledger entry keys.
+    std::generate(begin, firstUnvalidatedLedgerKey, []() {
+        return LedgerEntryKey(LedgerTestUtils::generateValidLedgerEntry());
+    });
+
+    // Generate unvalidated ledger entry keys.
+    std::generate(firstUnvalidatedLedgerKey, end, []() {
+        size_t const entrySize = 3;
+        return autocheck::generator<LedgerKey>()(entrySize);
+    });
+}
+
+void
+setShortKey(std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
+            LedgerKey& key, uint8_t byte)
+{
+    key = storedKeys[byte % NUM_STORED_LEDGER_KEYS];
+}
+
+SequenceNumber
+getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
+{
+    auto account = loadAccount(ltx, sourceAccountID);
+    return account.current().data.account().seqNum;
 }
 }
 }
@@ -188,10 +328,14 @@ struct xdr_fuzzer_compactor
     }
 
     template <typename T>
-    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value) &&
-                            (xdr_traits<T>::is_class ||
-                             xdr_traits<T>::is_container)>::type
+    typename std::enable_if<
+        (!std::is_same<stellar::AccountID, T>::value &&
+         !std::is_same<stellar::MuxedAccount, T>::value &&
+         !std::is_same<stellar::Asset, T>::value &&
+         !std::is_same<stellar::AssetCode, T>::value &&
+         !std::is_same<stellar::ClaimableBalanceID, T>::value &&
+         !std::is_same<stellar::LedgerKey, T>::value) &&
+        (xdr_traits<T>::is_class || xdr_traits<T>::is_container)>::type
     operator()(T const& t)
     {
         xdr_traits<T>::save(*this, t);
@@ -218,6 +362,49 @@ struct xdr_fuzzer_compactor
         auto b = stellar::FuzzUtils::getShortKey(ed25519);
         put_bytes(&b, 1);
     }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::Asset, T>::value>::type
+    operator()(T const& asset)
+    {
+        // Convert Asset to 1 byte.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(asset);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AssetCode, T>::value>::type
+    operator()(T const& code)
+    {
+        // Convert AssetCode to 1 byte.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(code);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::ClaimableBalanceID, T>::value>::type
+    operator()(T const& balanceID)
+    {
+        // Convert ClaimableBalanceID to 1 byte for indexing into an array of
+        // LedgerKeys that have been mentioned in the XDR of fuzzer operations.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(balanceID);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::LedgerKey, T>::value>::type
+    operator()(T const& key)
+    {
+        // Convert LedgerKey to 1 byte for indexing into an array of LedgerKeys
+        // that have been mentioned in the XDR of fuzzer operations.
+        check(1);
+        auto b = stellar::FuzzUtils::getShortKey(key);
+        put_bytes(&b, 1);
+    }
 };
 
 template <typename... Args>
@@ -233,17 +420,23 @@ xdr_to_fuzzer_opaque(Args const&... args)
 
 struct xdr_fuzzer_unpacker
 {
+    stellar::FuzzUtils::StoredLedgerKeys mStoredLedgerKeys;
     std::uint8_t const* mCur;
     std::uint8_t const* const mEnd;
 
-    xdr_fuzzer_unpacker(void const* start, void const* end)
-        : mCur(reinterpret_cast<std::uint8_t const*>(start))
+    xdr_fuzzer_unpacker(
+        stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        void const* start, void const* end)
+        : mStoredLedgerKeys(storedLedgerKeys)
+        , mCur(reinterpret_cast<std::uint8_t const*>(start))
         , mEnd(reinterpret_cast<std::uint8_t const*>(end))
     {
         assert(mCur <= mEnd);
     }
-    xdr_fuzzer_unpacker(msg_ptr const& m)
-        : xdr_fuzzer_unpacker(m->data(), m->end())
+    xdr_fuzzer_unpacker(
+        stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        msg_ptr const& m)
+        : xdr_fuzzer_unpacker(storedLedgerKeys, m->data(), m->end())
     {
     }
 
@@ -329,10 +522,14 @@ struct xdr_fuzzer_unpacker
     }
 
     template <typename T>
-    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
-                             !std::is_same<stellar::MuxedAccount, T>::value) &&
-                            (xdr_traits<T>::is_class ||
-                             xdr_traits<T>::is_container)>::type
+    typename std::enable_if<
+        (!std::is_same<stellar::AccountID, T>::value &&
+         !std::is_same<stellar::MuxedAccount, T>::value &&
+         !std::is_same<stellar::Asset, T>::value &&
+         !std::is_same<stellar::AssetCode, T>::value &&
+         !std::is_same<stellar::ClaimableBalanceID, T>::value &&
+         !std::is_same<stellar::LedgerKey, T>::value) &&
+        (xdr_traits<T>::is_class || xdr_traits<T>::is_container)>::type
     operator()(T& t)
     {
         xdr_traits<T>::load(*this, t);
@@ -357,6 +554,59 @@ struct xdr_fuzzer_unpacker
         stellar::FuzzUtils::setShortKey(m.ed25519(), v);
     }
 
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::Asset, T>::value>::type
+    operator()(T& asset)
+    {
+        // 1 byte --> Asset
+        check(1);
+        std::uint8_t v = get_byte();
+        asset = stellar::FuzzUtils::makeAsset(
+            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AssetCode, T>::value>::type
+    operator()(T& code)
+    {
+        // 1 byte --> AssetCode
+        check(1);
+        std::uint8_t v = get_byte();
+        code = stellar::FuzzUtils::makeAssetCode(
+            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+    }
+
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::ClaimableBalanceID, T>::value>::type
+    operator()(T& balanceID)
+    {
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::LedgerKey key;
+        stellar::FuzzUtils::setShortKey(mStoredLedgerKeys, key, v);
+        // If this one byte indexes a stored LedgerKey for a ClaimableBalanceID,
+        // use that; otherwise just use the byte itself as the balance ID.
+        if (key.type() == stellar::CLAIMABLE_BALANCE)
+        {
+            balanceID = key.claimableBalance().balanceID;
+        }
+        else
+        {
+            balanceID.type(stellar::CLAIMABLE_BALANCE_ID_TYPE_V0);
+            balanceID.v0()[0] = v;
+        }
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::LedgerKey, T>::value>::type
+    operator()(T& key)
+    {
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::FuzzUtils::setShortKey(mStoredLedgerKeys, key, v);
+    }
+
     void
     done()
     {
@@ -369,10 +619,11 @@ struct xdr_fuzzer_unpacker
 
 template <typename Bytes, typename... Args>
 auto
-xdr_from_fuzzer_opaque(Bytes const& m, Args&... args)
-    -> decltype(detail::bytes_to_void(m))
+xdr_from_fuzzer_opaque(
+    stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+    Bytes const& m, Args&... args) -> decltype(detail::bytes_to_void(m))
 {
-    xdr_fuzzer_unpacker g(m.data(), m.data() + m.size());
+    xdr_fuzzer_unpacker g(storedLedgerKeys, m.data(), m.data() + m.size());
     xdr_argpack_archive(g, args...);
     g.done();
 }
@@ -417,17 +668,17 @@ getFuzzConfig(int instanceNumber)
 }
 
 static void
-resetRandomSeed()
+resetRandomSeed(unsigned int seed)
 {
     // seed randomness
-    srand(1);
-    gRandomEngine.seed(1);
+    srand(seed);
+    gRandomEngine.seed(seed);
 }
 
 static void
 resetTxInternalState(Application& app)
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
 // reset caches to clear persistent state
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     app.getLedgerTxnRoot().resetForFuzzer();
@@ -451,24 +702,26 @@ class FuzzTransactionFrame : public TransactionFrame
         // reset results of operations
         resetResults(ltx.getHeader(), 0, true);
 
-        // attempt application of transaction without accounting for sequence
-        // number, processing the fee, or committing the LedgerTxn
+        // attempt application of transaction without processing the fee or
+        // committing the LedgerTxn
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
-        auto isInvalidOperationXDR = [&](auto const& op) {
+        auto isInvalidOperation = [&](auto const& op) {
             return !op->checkValid(signatureChecker, ltx, false);
         };
         if (std::any_of(mOperations.begin(), mOperations.end(),
-                        isInvalidOperationXDR))
+                        isInvalidOperation))
         {
+            markResultFailed();
             return;
         }
         // while the following method's result is not captured, regardless, for
         // protocols < 8, this triggered buggy caching, and potentially may do
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
+        processSeqNum(ltx);
         TransactionMeta tm(2);
         applyOperations(signatureChecker, app, ltx, tm);
         if (getResultCode() == txINTERNAL_ERROR)
@@ -479,7 +732,8 @@ class FuzzTransactionFrame : public TransactionFrame
 };
 
 std::shared_ptr<FuzzTransactionFrame>
-createFuzzTransactionFrame(PublicKey sourceAccountID,
+createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
+                           PublicKey const& sourceAccountID,
                            std::vector<Operation>::const_iterator begin,
                            std::vector<Operation>::const_iterator end,
                            Hash const& networkID)
@@ -492,7 +746,7 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
     auto& tx1 = txEnv.v1();
     tx1.tx.sourceAccount = toMuxedAccount(sourceAccountID);
     tx1.tx.fee = 0;
-    tx1.tx.seqNum = 1;
+    tx1.tx.seqNum = FuzzUtils::getSequenceNumber(ltx, sourceAccountID) + 1;
     std::copy(begin, end, std::back_inserter(tx1.tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
@@ -514,13 +768,14 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
     return m.type() == AUTH || m.type() == ERROR_MSG || m.type() == HELLO;
 }
 
-// Empties "ops" as operations are applied.  If `throwIfTxFails` is `false`,
-// ignores failures and might apply further transactions after failures.
+// Empties "ops" as operations are applied.  Throws if any operations fail.
+// Handles breaking up the list of operations into multiple transactions, if the
+// caller provides more operations than fit in a single transaction.
 static void
-attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                  xdr::xvector<Operation>::const_iterator begin,
-                  xdr::xvector<Operation>::const_iterator end, Application& app,
-                  bool const throwIfTxFails = true)
+applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                     xdr::xvector<Operation>::const_iterator begin,
+                     xdr::xvector<Operation>::const_iterator end,
+                     Application& app)
 {
     while (begin != end)
     {
@@ -528,50 +783,59 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
                                   ? end
                                   : begin + MAX_OPS_PER_TX;
         auto txFramePtr = createFuzzTransactionFrame(
-            sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
+            ltx, sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
         txFramePtr->attemptApplication(app, ltx);
         begin = endOpsInThisTx;
 
-        if (throwIfTxFails)
+        if (txFramePtr->getResultCode() != txSUCCESS)
         {
-            if (txFramePtr->getResultCode() != txSUCCESS)
+            auto const msg =
+                fmt::format(FMT_STRING("Error {} while setting up fuzzing -- "
+                                       "transaction result {}"),
+                            txFramePtr->getResultCode(),
+                            xdr_to_string(txFramePtr->getResult()));
+            LOG_FATAL(DEFAULT_LOG, "{}", msg);
+            throw std::runtime_error(msg);
+        }
+
+        for (auto const& opFrame : txFramePtr->getOperations())
+        {
+            auto const& op = opFrame->getOperation();
+            auto const& tr = opFrame->getResult().tr();
+            auto const opType = op.body.type();
+
+            if ((opType == MANAGE_BUY_OFFER &&
+                 tr.manageBuyOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED) ||
+                (opType == MANAGE_SELL_OFFER &&
+                 tr.manageSellOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED) ||
+                (opType == CREATE_PASSIVE_SELL_OFFER &&
+                 tr.createPassiveSellOfferResult().success().offer.effect() !=
+                     MANAGE_OFFER_CREATED))
             {
                 auto const msg = fmt::format(
-                    FMT_STRING("Error {} while applying operations "
-                               "while fuzzing: transaction result {}"),
-                    txFramePtr->getResultCode(),
-                    xdr_to_string(txFramePtr->getResult()));
+                    FMT_STRING("Manage offer result {} while setting "
+                               "up fuzzing -- operation is {}"),
+                    xdr_to_string(tr), xdr_to_string(op));
                 LOG_FATAL(DEFAULT_LOG, "{}", msg);
                 throw std::runtime_error(msg);
             }
-
-            for (auto const& opFrame : txFramePtr->getOperations())
-            {
-                auto const& op = opFrame->getOperation();
-                auto const& tr = opFrame->getResult().tr();
-                auto const opType = op.body.type();
-
-                if ((opType == MANAGE_BUY_OFFER &&
-                     tr.manageBuyOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED) ||
-                    (opType == MANAGE_SELL_OFFER &&
-                     tr.manageSellOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED) ||
-                    (opType == CREATE_PASSIVE_SELL_OFFER &&
-                     tr.createPassiveSellOfferResult()
-                             .success()
-                             .offer.effect() == MANAGE_OFFER_DELETED))
-                {
-                    auto const msg = fmt::format(
-                        FMT_STRING("MANAGE_OFFER_DELETED while setting "
-                                   "up fuzzing -- operation is {}"),
-                        xdr_to_string(op));
-                    LOG_FATAL(DEFAULT_LOG, "{}", msg);
-                    throw std::runtime_error(msg);
-                }
-            }
         }
     }
+}
+
+// Requires a set of operations small enough to fit in a single transaction.
+// Tolerates the failure of transaction application.
+static void
+applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                    xdr::xvector<Operation>::const_iterator begin,
+                    xdr::xvector<Operation>::const_iterator end,
+                    Application& app)
+{
+    auto txFramePtr = createFuzzTransactionFrame(ltx, sourceAccount, begin, end,
+                                                 app.getNetworkID());
+    txFramePtr->attemptApplication(app, ltx);
 }
 
 struct AccountParameters
@@ -716,7 +980,7 @@ std::array<OfferParameters, 28> constexpr orderBookParameters{
 void
 TransactionFuzzer::initialize()
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
     auto root = TestAccount::createRoot(*mApp);
     mSourceAccountID = root.getPublicKey();
@@ -732,6 +996,10 @@ TransactionFuzzer::initialize()
         // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
         xdr::xvector<Operation> ops;
+        uint8_t const SPONSOR_ACCOUNT = 1, SPONSORED_ACCOUNT = 2;
+        PublicKey sponsorPublicKey;
+        FuzzUtils::setShortKey(sponsorPublicKey, SPONSOR_ACCOUNT);
+
         for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey publicKey;
@@ -740,11 +1008,31 @@ TransactionFuzzer::initialize()
             auto createOp = txtest::createAccount(
                 publicKey, FuzzUtils::INITIAL_ACCOUNT_BALANCE);
 
+            // Test sponsorships, for the moment creating just one, of account 2
+            // by account 1.
+            bool const createSponsorship = (i == SPONSORED_ACCOUNT);
+
+            if (createSponsorship)
+            {
+                auto sponsorshipOp =
+                    txtest::beginSponsoringFutureReserves(publicKey);
+                sponsorshipOp.sourceAccount.activate() =
+                    toMuxedAccount(sponsorPublicKey);
+                ops.emplace_back(sponsorshipOp);
+            }
             ops.emplace_back(createOp);
+
+            if (createSponsorship)
+            {
+                auto sponsorshipOp = txtest::endSponsoringFutureReserves();
+                sponsorshipOp.sourceAccount.activate() =
+                    toMuxedAccount(publicKey);
+                ops.emplace_back(sponsorshipOp);
+            }
         }
 
-        attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
-                          *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -784,11 +1072,26 @@ TransactionFuzzer::initialize()
                     distributeOp.sourceAccount.activate() =
                         toMuxedAccount(issuer);
                     ops.emplace_back(distributeOp);
+
+                    // Create a claimable balance representing the "send" part
+                    // of a payment like the above distribution.
+                    ClaimPredicate predicate;
+                    predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+                    Claimant claimant;
+                    claimant.v0().predicate = predicate;
+                    claimant.v0().destination = account;
+                    auto claimableBalanceOp = txtest::createClaimableBalance(
+                        asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
+                        {claimant});
+                    claimableBalanceOp.sourceAccount.activate() =
+                        toMuxedAccount(issuer);
+                    ops.emplace_back(claimableBalanceOp);
                 }
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -815,7 +1118,8 @@ TransactionFuzzer::initialize()
             ops.emplace_back(op);
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
@@ -885,14 +1189,46 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
 
         ltx.commit();
     }
 
+    storeSetupLedgerKeys(ltxOuter);
+
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
     ltxOuter.commit();
+}
+
+void
+TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
+{
+    // Get the list of ledger entries created during setup to place into
+    // mStoredLedgerKeys.
+    std::vector<LedgerEntry> init, live;
+    std::vector<LedgerKey> dead;
+    ltx.getAllEntries(init, live, dead);
+
+    // Setup should only create entries; there should be no dead entries, and
+    // only one "live" (modified) one:  the root account.
+    assert(dead.empty());
+    assert(live.size() == 1);
+    assert(live[0].data.type() == ACCOUNT);
+    assert(live[0].data.account().accountID ==
+           txtest::getRoot(mApp->getNetworkID()).getPublicKey());
+
+    // If we ever create more ledger entries during setup than we have room for
+    // in mStoredLedgerEntries, then we will have to do something further.
+    assert(init.size() <= FuzzUtils::NUM_VALIDATED_LEDGER_KEYS);
+
+    // Store the ledger entries created during setup in mStoredLedgerKeys.
+    auto firstGeneratedLedgerKey = std::transform(
+        init.cbegin(), init.cend(), mStoredLedgerKeys.begin(), LedgerEntryKey);
+
+    stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
+                                                 mStoredLedgerKeys.end());
 }
 
 void
@@ -925,7 +1261,7 @@ TransactionFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(bins, ops);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, ops);
     }
     catch (std::exception const& e)
     {
@@ -946,8 +1282,7 @@ TransactionFuzzer::inject(std::string const& filename)
     resetTxInternalState(*mApp);
     LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({}): {}", ops.size(), xdr_to_string(ops));
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
-    attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp,
-                      false);
+    applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 int
@@ -961,7 +1296,7 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    gRandomEngine.seed(std::random_device()());
+    resetRandomSeed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
@@ -995,7 +1330,9 @@ OverlayFuzzer::shutdown()
 void
 OverlayFuzzer::initialize()
 {
-    resetRandomSeed();
+    resetRandomSeed(1);
+    stellar::FuzzUtils::generateStoredLedgerKeys(mStoredLedgerKeys.begin(),
+                                                 mStoredLedgerKeys.end());
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     mSimulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
                                                networkID, getFuzzConfig);
@@ -1051,7 +1388,7 @@ OverlayFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(bins, msg);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, msg);
     }
     catch (...)
     {
@@ -1099,6 +1436,7 @@ OverlayFuzzer::xdrSizeLimit()
 void
 OverlayFuzzer::genFuzz(std::string const& filename)
 {
+    resetRandomSeed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
