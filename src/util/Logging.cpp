@@ -228,7 +228,7 @@ Logging::setLoggingToFile(std::string const& filename)
     {
         init();
     }
-    catch (std::runtime_error& e)
+    catch (std::runtime_error const&)
     {
         // Could not initialize logging to file, fallback on
         // console-only logging and throw
