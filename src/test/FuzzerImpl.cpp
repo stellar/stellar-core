@@ -874,23 +874,31 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 // Unlike Asset, this can be a constexpr.
 struct AssetID
 {
-    constexpr AssetID() : mIsNative(true), mId(0)
+    constexpr AssetID() : mIsNative(true), mIssuer(0), mSuffixDigit(0)
     {
     }
 
-    constexpr AssetID(int id) : mIsNative(false), mId(id)
+    constexpr AssetID(int id) : AssetID(id, id)
     {
+    }
+
+    constexpr AssetID(int issuer, int digit)
+        : mIsNative(false), mIssuer(issuer), mSuffixDigit(digit)
+    {
+        assert(mSuffixDigit != 0); // id 0 is for native asset
+        assert(mSuffixDigit < FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     }
 
     Asset
     toAsset() const
     {
         return mIsNative ? txtest::makeNativeAsset()
-                         : FuzzUtils::makeAsset(mId);
+                         : FuzzUtils::makeAsset(mIssuer, mSuffixDigit);
     }
 
     bool const mIsNative;
-    int const mId; // meaningful only if !isNative
+    int const mIssuer;      // non-zero only if !isNative
+    int const mSuffixDigit; // non-zero only if !isNative
 };
 
 struct AccountParameters
