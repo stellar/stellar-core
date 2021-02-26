@@ -901,6 +901,27 @@ struct AssetID
     int const mSuffixDigit; // non-zero only if !isNative
 };
 
+struct SponsoredEntryParameters
+{
+    constexpr SponsoredEntryParameters() : SponsoredEntryParameters(false, 0)
+    {
+    }
+
+    constexpr SponsoredEntryParameters(int sponsorKey)
+        : SponsoredEntryParameters(true, sponsorKey)
+    {
+    }
+
+    bool const mSponsored;
+    int const mSponsorKey; // meaningful only if mSponsored is true
+
+  private:
+    constexpr SponsoredEntryParameters(bool sponsored, int sponsorKey)
+        : mSponsored(sponsored), mSponsorKey(sponsorKey)
+    {
+    }
+};
+
 struct AccountParameters
 {
     constexpr AccountParameters(int64_t assetAvailableForTestActivity,
