@@ -986,6 +986,42 @@ std::array<
      {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
      {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false}}};
 
+struct ClaimableBalanceParameters : public SponsoredEntryParameters
+{
+    constexpr ClaimableBalanceParameters(int const sender, int const claimant,
+                                         AssetID const& asset, int64_t amount)
+        : SponsoredEntryParameters()
+        , mSender(sender)
+        , mClaimant(claimant)
+        , mAsset(asset)
+        , mAmount(amount)
+    {
+    }
+
+    constexpr ClaimableBalanceParameters(int const sender, int const claimant,
+                                         AssetID const& asset, int64_t amount,
+                                         int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mSender(sender)
+        , mClaimant(claimant)
+        , mAsset(asset)
+        , mAmount(amount)
+    {
+    }
+
+    int const mSender;
+    int const mClaimant;
+    AssetID const mAsset;
+    int64_t const mAmount;
+};
+
+std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
+    {0, 1, AssetID(), 10},     // native asset
+    {2, 3, AssetID(4), 5},     // non-native asset
+    {4, 5, AssetID(4), 20, 6}, // sponsored by account 6
+    {4, 3, AssetID(3), 30}     // issuer is claimant
+}};
+
 struct OfferParameters
 {
     constexpr OfferParameters(int publicKey, AssetID const bid,
@@ -1163,22 +1199,42 @@ TransactionFuzzer::initialize()
                     distributeOp.sourceAccount.activate() =
                         toMuxedAccount(issuer);
                     ops.emplace_back(distributeOp);
-
-                    // Create a claimable balance representing the "send" part
-                    // of a payment like the above distribution.
-                    ClaimPredicate predicate;
-                    predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
-                    Claimant claimant;
-                    claimant.v0().predicate = predicate;
-                    claimant.v0().destination = account;
-                    auto claimableBalanceOp = txtest::createClaimableBalance(
-                        asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
-                        {claimant});
-                    claimableBalanceOp.sourceAccount.activate() =
-                        toMuxedAccount(issuer);
-                    ops.emplace_back(claimableBalanceOp);
                 }
             }
+        }
+
+        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
+                             *mApp);
+
+        ltx.commit();
+    }
+
+    {
+        LedgerTxn ltx(ltxOuter);
+
+        xdr::xvector<Operation> ops;
+
+        for (auto const& param : claimableBalanceParameters)
+        {
+            PublicKey claimantKey;
+            FuzzUtils::setShortKey(claimantKey, param.mClaimant);
+
+            PublicKey senderKey;
+            FuzzUtils::setShortKey(senderKey, param.mSender);
+
+            ClaimPredicate predicate;
+            predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+            Claimant claimant;
+            claimant.v0().predicate = predicate;
+            claimant.v0().destination = claimantKey;
+
+            auto claimableBalanceOp = txtest::createClaimableBalance(
+                param.mAsset.toAsset(), param.mAmount, {claimant});
+            claimableBalanceOp.sourceAccount.activate() =
+                toMuxedAccount(senderKey);
+            FuzzUtils::emplaceConditionallySponsored(
+                ops, claimableBalanceOp, param.mSponsored, param.mSponsorKey,
+                senderKey);
         }
 
         applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
