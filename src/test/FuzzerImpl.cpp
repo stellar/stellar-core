@@ -246,6 +246,35 @@ getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
     auto account = loadAccount(ltx, sourceAccountID);
     return account.current().data.account().seqNum;
 }
+
+// Append "newOp" to "ops", optionally after enclosing it in a sandwich of
+// begin/end-sponsoring-future-reserves.
+void
+emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
+                              Operation const& newOp, bool isSponsored,
+                              int sponsorShortKey,
+                              PublicKey const& sponsoredKey)
+{
+    if (isSponsored)
+    {
+        PublicKey sponsorKey;
+        FuzzUtils::setShortKey(sponsorKey, sponsorShortKey);
+
+        auto beginSponsoringOp =
+            txtest::beginSponsoringFutureReserves(sponsoredKey);
+        beginSponsoringOp.sourceAccount.activate() = toMuxedAccount(sponsorKey);
+        ops.emplace_back(beginSponsoringOp);
+    }
+
+    ops.emplace_back(newOp);
+
+    if (isSponsored)
+    {
+        auto endSponsoringOp = txtest::endSponsoringFutureReserves();
+        endSponsoringOp.sourceAccount.activate() = toMuxedAccount(sponsoredKey);
+        ops.emplace_back(endSponsoringOp);
+    }
+}
 }
 }
 
