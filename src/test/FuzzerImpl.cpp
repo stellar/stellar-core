@@ -1495,8 +1495,8 @@ TransactionFuzzer::initialize()
 
         xdr::xvector<Operation> ops;
 
-        // Reduce trustline balances so that fuzzing has a better chance of
-        // exercising edge cases.
+        // Reduce trustline balances and limits so that fuzzing has a better
+        // chance of exercising edge cases.
         for (auto const& trustLine : trustLineParameters)
         {
             auto const trustor = trustLine.mTrustor;
@@ -1524,6 +1524,22 @@ TransactionFuzzer::initialize()
             reduceNonNativeBalanceOp.sourceAccount.activate() =
                 toMuxedAccount(account);
             ops.emplace_back(reduceNonNativeBalanceOp);
+
+            // Reduce this trustline's limit.
+            assert(paymentAmount <= tle.getBalance());
+            auto const trustLineBalanceAfterPayment =
+                tle.getBalance() - paymentAmount;
+            auto const buyingLiabilities =
+                tle.getBuyingLiabilities(ltx.loadHeader());
+            auto const targetTrustLineLimit = trustLineBalanceAfterPayment +
+                                              buyingLiabilities +
+                                              trustLine.mSpareLimitAfterSetup;
+
+            auto changeTrustLineLimitOp =
+                txtest::changeTrust(asset, targetTrustLineLimit);
+            changeTrustLineLimitOp.sourceAccount.activate() =
+                toMuxedAccount(account);
+            ops.emplace_back(changeTrustLineLimitOp);
         }
 
         applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
