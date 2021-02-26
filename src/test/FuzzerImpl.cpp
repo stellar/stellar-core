@@ -871,6 +871,28 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
     txFramePtr->attemptApplication(app, ltx);
 }
 
+// Unlike Asset, this can be a constexpr.
+struct AssetID
+{
+    constexpr AssetID() : mIsNative(true), mId(0)
+    {
+    }
+
+    constexpr AssetID(int id) : mIsNative(false), mId(id)
+    {
+    }
+
+    Asset
+    toAsset() const
+    {
+        return mIsNative ? txtest::makeNativeAsset()
+                         : FuzzUtils::makeAsset(mId);
+    }
+
+    bool const mIsNative;
+    int const mId; // meaningful only if !isNative
+};
+
 struct AccountParameters
 {
     constexpr AccountParameters(int64_t assetAvailableForTestActivity,
@@ -905,28 +927,6 @@ std::array<
      {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
      {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
      {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false}}};
-
-// Unlike Asset, this can be a constexpr.
-struct AssetID
-{
-    constexpr AssetID() : mIsNative(true), mId(0)
-    {
-    }
-
-    constexpr AssetID(int id) : mIsNative(false), mId(id)
-    {
-    }
-
-    Asset
-    toAsset() const
-    {
-        return mIsNative ? txtest::makeNativeAsset()
-                         : FuzzUtils::makeAsset(mId);
-    }
-
-    bool const mIsNative;
-    int const mId; // meaningful only if !isNative
-};
 
 struct OfferParameters
 {
