@@ -2653,10 +2653,11 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         if (!newOffersLoaded &&
             areEntriesMissingInCacheForOffer(iter->data.offer()))
         {
+            bool fullBatch =
+                static_cast<size_t>(std::distance(iter, offers.cend())) >
+                mMaxBestOffersBatchSize;
             auto lastOfferIter =
-                std::distance(iter, offers.cend()) > mMaxBestOffersBatchSize
-                    ? iter + mMaxBestOffersBatchSize
-                    : offers.cend();
+                fullBatch ? iter + mMaxBestOffersBatchSize : offers.cend();
             populateEntryCacheFromBestOffers(iter, lastOfferIter);
         }
 
