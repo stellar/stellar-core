@@ -659,12 +659,17 @@ template <>
 void
 generator_t::operator()(stellar::PublicKey& t) const
 {
-    // note that we include NUMBER_OF_PREGENERATED_ACCOUNTS as to also cover the
-    // case of non existing accounts
+    // Generate account IDs in a somewhat larger range than the number of
+    // accounts created during setup, so that the fuzzer can generate some
+    // unused accounts (and also generate operation sequences in which it
+    // creates a new account and then uses it in a later operation).
+    uint8_t constexpr NUMBER_OF_ACCOUNT_IDS_TO_GENERATE = 32;
+    static_assert(NUMBER_OF_ACCOUNT_IDS_TO_GENERATE >
+                      stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS,
+                  "Range of generated accounts too small");
     stellar::FuzzUtils::setShortKey(
-        t.ed25519(),
-        static_cast<uint8_t>(stellar::rand_uniform<int>(
-            0, stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS)));
+        t.ed25519(), static_cast<uint8_t>(stellar::rand_uniform<int>(
+                         0, NUMBER_OF_ACCOUNT_IDS_TO_GENERATE - 1)));
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 }
