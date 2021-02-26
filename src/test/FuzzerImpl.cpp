@@ -1022,13 +1022,29 @@ std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
     {4, 3, AssetID(3), 30}     // issuer is claimant
 }};
 
-struct OfferParameters
+struct OfferParameters : public SponsoredEntryParameters
 {
-    constexpr OfferParameters(int publicKey, AssetID const bid,
-                              AssetID const sell, int64_t amount,
+    constexpr OfferParameters(int publicKey, AssetID const& bid,
+                              AssetID const& sell, int64_t amount,
                               int32_t priceNumerator, int32_t priceDenominator,
                               bool passive)
-        : mPublicKey(publicKey)
+        : SponsoredEntryParameters()
+        , mPublicKey(publicKey)
+        , mBid(bid)
+        , mSell(sell)
+        , mAmount(amount)
+        , mNumerator(priceNumerator)
+        , mDenominator(priceDenominator)
+        , mPassive(passive)
+    {
+    }
+
+    constexpr OfferParameters(int publicKey, AssetID const& bid,
+                              AssetID const& sell, int64_t amount,
+                              int32_t priceNumerator, int32_t priceDenominator,
+                              bool passive, int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mPublicKey(publicKey)
         , mBid(bid)
         , mSell(sell)
         , mAmount(amount)
@@ -1073,7 +1089,8 @@ struct OfferParameters
 // variety.  In the long run, we plan to fuzz the setup itself.)
 std::array<OfferParameters, 28> constexpr orderBookParameters{
     {{13, AssetID(), AssetID(1), 10, 3, 2, false}, // asset pair 0
-     {14, AssetID(), AssetID(1), 50, 3, 2, false},
+     {14, AssetID(), AssetID(1), 50, 3, 2, false,
+      15}, // sponsored by account 15
      {15, AssetID(), AssetID(1), 100, 1, 1, true},
      {15, AssetID(1), AssetID(), 100, 1, 1, true},
      {1, AssetID(1), AssetID(), 10, 10, 9, false},
@@ -1262,7 +1279,8 @@ TransactionFuzzer::initialize()
             PublicKey pkA;
             FuzzUtils::setShortKey(pkA, param.mPublicKey);
             op.sourceAccount.activate() = toMuxedAccount(pkA);
-            ops.emplace_back(op);
+            FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
+                                                     param.mSponsorKey, pkA);
         }
 
         applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
