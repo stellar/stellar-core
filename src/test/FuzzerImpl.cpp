@@ -25,6 +25,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
+#include <cstdint>
 #include <exception>
 #include <fmt/format.h>
 #include <xdrpp/autocheck.h>
@@ -36,7 +37,6 @@ namespace FuzzUtils
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
-auto constexpr NUMBER_OF_ASSETS_TO_USE = 8U;
 auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
@@ -69,21 +69,41 @@ getShortKey(PublicKey const& pk)
     return getShortKey(pk.ed25519());
 }
 
+uint8_t constexpr NUMBER_OF_ASSET_ISSUER_BITS = 5;
+uint8_t constexpr NUMBER_OF_ASSET_CODE_BITS = 8 - NUMBER_OF_ASSET_ISSUER_BITS;
+uint8_t constexpr NUMBER_OF_ASSETS_TO_USE = 1 << NUMBER_OF_ASSET_CODE_BITS;
+uint8_t constexpr ENCODE_ASSET_CODE_MASK = NUMBER_OF_ASSETS_TO_USE - 1;
+
 uint8_t
 getShortKey(AssetCode4 const& code)
 {
-    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+    return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
 uint8_t
 getShortKey(AssetCode12 const& code)
 {
-    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+    return code.data()[0] & ENCODE_ASSET_CODE_MASK;
+}
+
+uint8_t
+decodeAssetIssuer(uint8_t byte)
+{
+    return byte >> NUMBER_OF_ASSET_CODE_BITS;
+}
+
+uint8_t
+decodeAssetCodeDigit(uint8_t byte)
+{
+    return byte & ENCODE_ASSET_CODE_MASK;
 }
 
 uint8_t
 getShortKey(Asset const& asset)
 {
+    // This encoding does _not_ make compacting a left-inverse of unpack.  We
+    // could make it so, but it's not necessary -- compacting, which alone uses
+    // this function, is operating on a randomly-generated Asset anyway.
     switch (asset.type())
     {
     case ASSET_TYPE_NATIVE:
@@ -140,17 +160,18 @@ getShortKey(LedgerKey const& key)
 void
 setAssetCode4(AssetCode4& code, int digit)
 {
-    assert(digit < 10);
+    static_assert(
+        FuzzUtils::NUMBER_OF_ASSETS_TO_USE <= 10,
+        "asset code generation supports only single-digit asset numbers");
+    assert(digit < FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     strToAssetCode(code, "Ast" + std::to_string(digit));
 }
 
-// Requires "digit" in [0..9].
 // For digit == 0, returns native Asset.
 // For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
-// and an issuer whose public key has "digit" in byte 0 and whose other bytes
-// are all 0.
+// and an issuer with the given public key.
 Asset
-makeAsset(int digit)
+makeAsset(int issuer, int digit)
 {
     Asset asset;
     if (digit == 0)
@@ -161,15 +182,22 @@ makeAsset(int digit)
     {
         asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
         setAssetCode4(asset.alphaNum4().assetCode, digit);
-        setShortKey(asset.alphaNum4().issuer, digit);
+        setShortKey(asset.alphaNum4().issuer, issuer);
     }
     return asset;
 }
 
+Asset
+makeAsset(uint8_t byte)
+{
+    return makeAsset(decodeAssetIssuer(byte), decodeAssetCodeDigit(byte));
+}
+
 AssetCode
-makeAssetCode(int digit)
+makeAssetCode(uint8_t byte)
 {
     AssetCode code;
+    auto digit = decodeAssetCodeDigit(byte);
     if (digit == 0)
     {
         code.type(ASSET_TYPE_NATIVE);
@@ -561,8 +589,7 @@ struct xdr_fuzzer_unpacker
         // 1 byte --> Asset
         check(1);
         std::uint8_t v = get_byte();
-        asset = stellar::FuzzUtils::makeAsset(
-            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+        asset = stellar::FuzzUtils::makeAsset(v);
     }
 
     template <typename T>
@@ -572,8 +599,7 @@ struct xdr_fuzzer_unpacker
         // 1 byte --> AssetCode
         check(1);
         std::uint8_t v = get_byte();
-        code = stellar::FuzzUtils::makeAssetCode(
-            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+        code = stellar::FuzzUtils::makeAssetCode(v);
     }
 
     template <typename T>
