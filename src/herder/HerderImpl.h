@@ -105,6 +105,11 @@ class HerderImpl : public Herder
                                                     bool fullKeys) override;
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const override;
 
+    virtual StellarValue
+    makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+                     xdr::xvector<UpgradeType, 6> const& upgrades,
+                     SecretKey const& s) override;
+
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
@@ -119,8 +124,6 @@ class HerderImpl : public Herder
 
     // helper function to verify SCPValues are signed
     bool verifyStellarValueSignature(StellarValue const& sv);
-    // helper function to sign SCPValues
-    void signStellarValue(SecretKey const& s, StellarValue& sv);
 
   private:
     // return true if values referenced by envelope have a valid close time:

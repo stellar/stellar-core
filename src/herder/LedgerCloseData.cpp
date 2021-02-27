@@ -18,9 +18,6 @@ LedgerCloseData::LedgerCloseData(
     StellarValue const& v)
     : mLedgerSeq(ledgerSeq), mTxSet(txSet), mValue(v)
 {
-    Value x;
-    Value y(x.begin(), x.end());
-
     assert(txSet->getContentsHash() == mValue.txSetHash);
 }
 

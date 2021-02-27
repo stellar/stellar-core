@@ -30,8 +30,6 @@
 
 namespace stellar
 {
-uint32_t const HerderSCPDriver::FIRST_PROTOCOL_WITH_TXSET_CLOSETIME_AFFINITY =
-    14;
 
 Hash
 HerderSCPDriver::getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const
@@ -219,7 +217,15 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 {
     uint64_t lastCloseTime;
     ZoneScoped;
-    if (b.ext.v() == STELLAR_VALUE_SIGNED)
+    if (b.ext.v() != STELLAR_VALUE_SIGNED)
+    {
+        CLOG_TRACE(Herder,
+                   "HerderSCPDriver::validateValue i: {} invalid value type - "
+                   "expected SIGNED",
+                   slotIndex);
+        return SCPDriver::kInvalidValue;
+    }
+
     {
         ZoneNamedN(sigZone, "signature check", true);
         if (!mHerder.verifyStellarValueSignature(b))
@@ -327,33 +333,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         return SCPDriver::kInvalidValue;
     }
 
-    bool const expectSignedValue =
-        nomination || (compositeValueType() == STELLAR_VALUE_SIGNED);
-    if (!expectSignedValue && (b.ext.v() != STELLAR_VALUE_BASIC))
-    {
-        CLOG_TRACE(Herder,
-                   "HerderSCPDriver::validateValue i: {} invalid value type - "
-                   "expected BASIC",
-                   slotIndex);
-        return SCPDriver::kInvalidValue;
-    }
-    if (expectSignedValue && (b.ext.v() != STELLAR_VALUE_SIGNED))
-    {
-        CLOG_TRACE(Herder,
-                   "HerderSCPDriver::validateValue i: {} invalid value type - "
-                   "expected SIGNED",
-                   slotIndex);
-        return SCPDriver::kInvalidValue;
-    }
-
     Hash const& txSetHash = b.txSetHash;
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
-    auto closeTimeOffset = curProtocolPreservesTxSetCloseTimeAffinity()
-                               ? (b.closeTime - lastCloseTime)
-                               : 0;
+    auto closeTimeOffset = b.closeTime - lastCloseTime;
 
     if (!txSet)
     {
@@ -631,10 +616,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     CLOG_DEBUG(Herder, "Combining {} candidates", candidates.size());
     mSCPMetrics.mCombinedCandidates.Mark(candidates.size());
 
-    Hash h;
-
-    StellarValue comp(h, 0, emptyUpgradeSteps, STELLAR_VALUE_BASIC);
-
     std::map<LedgerUpgradeType, LedgerUpgrade> upgrades;
 
     std::set<TransactionFramePtr> aggSet;
@@ -645,8 +626,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
     std::vector<StellarValue> candidateValues;
 
-    TimePoint maxCloseTime = 0;
-
     for (auto const& c : candidates)
     {
         candidateValues.emplace_back();
@@ -655,10 +634,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         xdr::xdr_from_opaque(c->getValue(), sv);
         candidatesHash ^= sha256(c->getValue());
 
-        if (maxCloseTime < sv.closeTime)
-        {
-            maxCloseTime = sv.closeTime;
-        }
         for (auto const& upgrade : sv.upgrades)
         {
             LedgerUpgrade lupgrade;
@@ -703,6 +678,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         }
     }
 
+    StellarValue comp;
     // take the txSet with the biggest size, highest xored hash that we have
     {
         auto highest = candidateValues.cend();
@@ -727,11 +703,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                 "No highest candidate transaction set found");
         }
         comp = *highest;
-    }
-    if (!curProtocolPreservesTxSetCloseTimeAffinity())
-    {
-        comp.closeTime = maxCloseTime;
-        comp.ext.v(STELLAR_VALUE_BASIC);
     }
     comp.upgrades.clear();
     for (auto const& upgrade : upgrades)
@@ -839,13 +810,6 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     {
         mHerder.valueExternalized(slotIndex, b);
     }
-}
-
-bool
-HerderSCPDriver::curProtocolPreservesTxSetCloseTimeAffinity() const
-{
-    return mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion >=
-           FIRST_PROTOCOL_WITH_TXSET_CLOSETIME_AFFINITY;
 }
 
 void
@@ -1130,13 +1094,6 @@ HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex)
     }
 
     getSCP().purgeSlots(maxSlotIndex);
-}
-
-StellarValueType
-HerderSCPDriver::compositeValueType() const
-{
-    return curProtocolPreservesTxSetCloseTimeAffinity() ? STELLAR_VALUE_SIGNED
-                                                        : STELLAR_VALUE_BASIC;
 }
 
 void

@@ -149,6 +149,12 @@ class Herder
 
     virtual void forceSCPStateIntoSyncWithLastClosedLedger() = 0;
 
+    // helper function to craft an SCPValue
+    virtual StellarValue
+    makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+                     xdr::xvector<UpgradeType, 6> const& upgrades,
+                     SecretKey const& s) = 0;
+
     virtual ~Herder()
     {
     }
