@@ -112,6 +112,86 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     closeLedgerOn(*app, 2, 1, 1, 2016);
 
+    SECTION("transact more than INT64_MAX in a path payment")
+    {
+        auto a1 = root.create("A1", minBalance4);
+        auto a2 = root.create("A2", minBalance4);
+
+        a1.changeTrust(idr, trustLineLimit);
+        a1.changeTrust(cur1, trustLineLimit);
+        a1.changeTrust(cur2, trustLineLimit);
+
+        a2.changeTrust(idr, trustLineLimit);
+        a2.changeTrust(cur1, trustLineLimit);
+        a2.changeTrust(cur2, trustLineLimit);
+
+        for_versions_from(10, *app, [&] {
+            SECTION("issue more than INT64_MAX")
+            {
+                // in this test, gateway will issue 2 * INT64_MAX of cur2
+                gateway.pay(a1, idr, trustLineLimit);
+                gateway.pay(a2, cur1, trustLineLimit);
+
+                // the offers below are in the order that they will be taken
+
+                // offer to issue cur2 for idr
+                gateway.manageOffer(0, cur2, idr, Price{1, 1}, INT64_MAX,
+                                    MANAGE_OFFER_CREATED);
+
+                // a2 is buying cur2. This is neccesary so a1 can get rid of the
+                // first INT64_MAX cur2 during the path payment so it can cross
+                // the issuers second offer to get another INT64_MAX cur2
+                a2.manageOffer(0, cur1, cur2, Price{1, 1}, INT64_MAX,
+                               MANAGE_OFFER_CREATED);
+
+                // offer to issue cur2 for cur1
+                gateway.createPassiveOffer(cur2, cur1, Price{1, 1}, INT64_MAX,
+                                           MANAGE_OFFER_CREATED);
+
+                REQUIRE(a1.getTrustlineBalance(cur2) == 0);
+                REQUIRE(a2.getTrustlineBalance(cur2) == 0);
+
+                // IDR -> CUR2 -> CUR1 -> CUR2
+                a1.pay(a1, idr, INT64_MAX, cur2, INT64_MAX, {cur2, cur1});
+
+                REQUIRE(a1.getTrustlineBalance(cur2) == INT64_MAX);
+                REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX);
+            }
+
+            SECTION("burn more than INT64_MAX")
+            {
+                // in this test, a1 and a2 will burn 2 * INT64_MAX of cur2
+                gateway.pay(a1, cur2, trustLineLimit);
+                gateway.pay(a2, cur2, trustLineLimit);
+
+                // the offers below are in the order that they will be taken
+
+                // offer to burn cur2 for idr.
+                gateway.manageOffer(0, idr, cur2, Price{1, 1}, INT64_MAX,
+                                    MANAGE_OFFER_CREATED);
+
+                // a2 is buying idr for cur2. This is neccesary so a1 can get
+                // more cur2 to cross the issuers second offer and burn another
+                // INT64_MAX cur2.
+                a2.createPassiveOffer(cur2, idr, Price{1, 1}, INT64_MAX,
+                                      MANAGE_OFFER_CREATED);
+
+                // offer to burn cur2 for cur1
+                gateway.manageOffer(0, cur1, cur2, Price{1, 1}, INT64_MAX,
+                                    MANAGE_OFFER_CREATED);
+
+                REQUIRE(a1.getTrustlineBalance(cur2) == INT64_MAX);
+                REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX);
+
+                // CUR2 -> IDR -> CUR2 -> CUR1
+                a1.pay(gateway, cur2, INT64_MAX, cur1, INT64_MAX, {idr, cur2});
+
+                REQUIRE(a1.getTrustlineBalance(cur2) == 0);
+                REQUIRE(a2.getTrustlineBalance(cur2) == 0);
+            }
+        });
+    }
+
     SECTION("path payment destination amount 0")
     {
         auto market = TestMarket{*app};
