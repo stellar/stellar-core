@@ -132,6 +132,11 @@ class TestAccount
     nextSequenceNumber()
     {
         updateSequenceNumber();
+        if (mSn == std::numeric_limits<SequenceNumber>::max())
+        {
+            throw std::runtime_error(
+                "Sequence number overflow in test account");
+        }
         return ++mSn;
     }
     SequenceNumber loadSequenceNumber();
