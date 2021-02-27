@@ -512,8 +512,10 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         upgrades.push_back(UpgradeType{v.begin(), v.end()});
     }
 
-    StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
-                    STELLAR_VALUE_BASIC);
+    StellarValue sv =
+        mApp.getHerder().makeStellarValue(txSet->getContentsHash(), closeTime,
+                                          upgrades, mApp.getConfig().NODE_SEED);
+
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
 

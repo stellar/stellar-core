@@ -6,6 +6,7 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
+#include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -1493,8 +1494,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txSet->add(txFrame);
 
             // close this ledger
-            StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps,
-                            STELLAR_VALUE_BASIC);
+            StellarValue sv = app->getHerder().makeStellarValue(
+                txSet->getContentsHash(), 1, emptyUpgradeSteps,
+                app->getConfig().NODE_SEED);
             LedgerCloseData ledgerData(1, txSet, sv);
             app->getLedgerManager().closeLedger(ledgerData);
 

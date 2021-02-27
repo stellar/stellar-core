@@ -4,6 +4,7 @@
 
 #include "util/asio.h"
 #include "crypto/Hex.h"
+#include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -72,8 +73,9 @@ TEST_CASE("ledgerheader", "[ledger]")
         TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
 
         // close this ledger
-        StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps,
-                        STELLAR_VALUE_BASIC);
+        StellarValue sv = app->getHerder().makeStellarValue(
+            txSet->getContentsHash(), 1, emptyUpgradeSteps,
+            app->getConfig().NODE_SEED);
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 

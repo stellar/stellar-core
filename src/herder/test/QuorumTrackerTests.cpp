@@ -15,11 +15,10 @@
 using namespace stellar;
 
 void
-testQuorumTracker(uint32 protocolVersion)
+testQuorumTracker()
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     cfg.MANUAL_CLOSE = false;
-    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
 
     std::vector<SecretKey> otherKeys;
     int const kKeysCount = 7;
@@ -58,7 +57,6 @@ testQuorumTracker(uint32 protocolVersion)
 
     struct ValuesTxSet
     {
-        Value mBasicV;
         Value mSignedV;
         TxSetFramePtr mTxSet;
     };
@@ -103,10 +101,7 @@ testQuorumTracker(uint32 protocolVersion)
         envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
         auto& ext = envelope.statement.pledges.externalize();
         ext.commit.counter = UINT32_MAX;
-        ext.commit.value = (herder->getHerderSCPDriver().compositeValueType() ==
-                            STELLAR_VALUE_SIGNED)
-                               ? v.mSignedV
-                               : v.mBasicV;
+        ext.commit.value = v.mSignedV;
         ext.nH = UINT32_MAX;
 
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
@@ -117,14 +112,11 @@ testQuorumTracker(uint32 protocolVersion)
     auto makeValue = [&](int i) {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
-        auto sv = StellarValue{txSet->getContentsHash(),
-                               lcl.header.scpValue.closeTime + i,
-                               emptyUpgradeSteps, STELLAR_VALUE_BASIC};
+        StellarValue sv = herder->makeStellarValue(
+            txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
+            emptyUpgradeSteps, valSigner);
         auto v = xdr::xdr_to_opaque(sv);
-        herder->signStellarValue(valSigner, sv);
-        auto vSigned = xdr::xdr_to_opaque(sv);
-
-        return ValuesTxSet{v, vSigned, txSet};
+        return ValuesTxSet{v, txSet};
     };
 
     auto vv = makeValue(1);
@@ -190,14 +182,7 @@ testQuorumTracker(uint32 protocolVersion)
 
 TEST_CASE("quorum tracker", "[quorum][herder]")
 {
-    SECTION("pre-CAP-0034 protocol")
-    {
-        testQuorumTracker(13);
-    }
-    SECTION("post-CAP-0034 protocol")
-    {
-        testQuorumTracker(14);
-    }
+    testQuorumTracker();
 }
 
 TEST_CASE("quorum tracker closest validators", "[quorum][herder]")

@@ -6,6 +6,7 @@
 #include "crypto/ByteSlice.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -418,8 +419,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
-    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
-                    STELLAR_VALUE_BASIC);
+    StellarValue sv = app.getHerder().makeStellarValue(
+        txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+        app.getConfig().NODE_SEED);
+
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 

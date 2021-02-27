@@ -266,10 +266,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             auto ct = std::max<uint64>(
                 lcl.header.scpValue.closeTime + 1,
                 VirtualClock::to_time_t(inApp->getClock().system_now()));
-            StellarValue sv(txSet.getContentsHash(), ct, emptyUpgradeSteps,
-                            STELLAR_VALUE_BASIC);
-
-            herder.signStellarValue(keys[0], sv);
+            StellarValue sv = herder.makeStellarValue(
+                txSet.getContentsHash(), ct, emptyUpgradeSteps, keys[0]);
 
             SCPEnvelope envelope;
 

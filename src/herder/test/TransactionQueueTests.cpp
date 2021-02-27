@@ -1432,8 +1432,9 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 
-        StellarValue sv{txSet->getContentsHash(), 2,
-                        xdr::xvector<UpgradeType, 6>{}, STELLAR_VALUE_BASIC};
+        StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(), 2,
+                                                  emptyUpgradeSteps,
+                                                  app->getConfig().NODE_SEED);
         herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                       xdr::xdr_to_opaque(sv));
     }
