@@ -42,6 +42,39 @@ using namespace stellar::txtest;
     double spend
 */
 
+TEST_CASE("txset - correct apply order", "[tx][envelope]")
+{
+    Config cfg = getTestConfig();
+    cfg.NODE_SEED = SecretKey::fromSeed(sha256("NODE_SEED"));
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    // set up world
+    auto root = TestAccount::createRoot(*app);
+    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+
+    auto a1 = root.create("a1", paymentAmount);
+    auto b1 = root.create("b1", paymentAmount);
+    a1.pay(b1, 1000);
+    closeLedgerOn(*app, 2, 1, 1, 2016);
+
+    auto tx1 = b1.tx({accountMerge(a1)});
+    auto tx2 = a1.tx({b1.op(payment(root, 110)), root.op(payment(a1, 101))});
+
+    auto txSet = std::make_shared<TxSetFrame>(
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+    txSet->add(tx1);
+    txSet->add(tx2);
+
+    // Sort for apply re-orders transaction set
+    auto txs = txSet->sortForApply();
+    REQUIRE(txs.size() == 2);
+    REQUIRE(txs[1]->getFullHash() == tx1->getFullHash());
+    REQUIRE(txs[0]->getFullHash() == tx2->getFullHash());
+}
+
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
     Config cfg = getTestConfig();
