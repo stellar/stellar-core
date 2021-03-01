@@ -673,6 +673,7 @@ resetRandomSeed(unsigned int seed)
     // seed randomness
     srand(seed);
     gRandomEngine.seed(seed);
+    autocheck::rng().seed(seed);
 }
 
 static void
