@@ -745,8 +745,9 @@ TEST_CASE("ExchangeV10", "[exchange]")
             else
             {
                 REQUIRE(res.wheatStays ==
-                        (maxWheatSend * p.n >
-                         std::min(maxSheepSend * p.d, maxWheatReceive * p.n)));
+                        bigMultiply(maxWheatSend, p.n) >
+                            std::min(bigMultiply(maxSheepSend, p.d),
+                                     bigMultiply(maxWheatReceive, p.n)));
             }
             REQUIRE(res.numWheatReceived == wheatReceive);
             REQUIRE(res.numSheepSend == sheepSend);
