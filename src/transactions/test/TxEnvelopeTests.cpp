@@ -635,7 +635,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                             // merge b1 into a1 and attempt the payment tx
                             auto r = closeLedgerOn(*app, 3, 1, 2, 2016,
-                                                   {txMerge, tx});
+                                                   {txMerge, tx},
+                                                   /* strictOrder */ true);
 
                             if (txAccountMissing)
                             {
@@ -2001,8 +2002,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                      setOptions(setSigner(makeSigner(b, 2)))});
                     tx2->addSignature(b);
 
-                    auto r =
-                        closeLedgerOn(*app, 2, 1, 2, 2016, {tx1, tx2}, true);
+                    auto r = closeLedgerOn(*app, 2, 1, 2, 2016, {tx1, tx2});
 
                     REQUIRE(tx1->getResultCode() == txSUCCESS);
                     REQUIRE(tx2->getResultCode() == txFAILED);
