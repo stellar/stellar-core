@@ -1310,53 +1310,7 @@ TransactionFuzzer::initialize()
 
     initializeAccounts(ltxOuter);
 
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        for (auto const& trustLine : trustLineParameters)
-        {
-            auto const trustor = trustLine.mTrustor;
-            PublicKey account;
-            FuzzUtils::setShortKey(account, trustor);
-
-            auto const asset = trustLine.mAssetID.toAsset();
-
-            // Trust the asset issuer.
-            auto trustOp =
-                txtest::changeTrust(asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
-            trustOp.sourceAccount.activate() = toMuxedAccount(account);
-            FuzzUtils::emplaceConditionallySponsored(
-                ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey,
-                account);
-
-            PublicKey issuer;
-            auto const issuerID = trustLine.mAssetID.mIssuer;
-            FuzzUtils::setShortKey(issuer, issuerID);
-
-            // Set trust line flags if specified.
-            if (trustLine.mCallAllowTrustOp)
-            {
-                auto allowTrustOp = txtest::allowTrust(
-                    account, asset, trustLine.mAllowTrustFlags);
-                allowTrustOp.sourceAccount.activate() = toMuxedAccount(issuer);
-                ops.emplace_back(allowTrustOp);
-            }
-
-            // Distribute the starting amount of the asset (to be reduced after
-            // orders have been placed).
-            auto distributeOp = txtest::payment(
-                account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
-            distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
-            ops.emplace_back(distributeOp);
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    initializeTrustLines(ltxOuter);
 
     {
         LedgerTxn ltx(ltxOuter);
@@ -1584,6 +1538,54 @@ TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
             optionsOp.sourceAccount.activate() = toMuxedAccount(publicKey);
             ops.emplace_back(optionsOp);
         }
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        // Trust the asset issuer.
+        auto trustOp =
+            txtest::changeTrust(asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
+        trustOp.sourceAccount.activate() = toMuxedAccount(account);
+        FuzzUtils::emplaceConditionallySponsored(
+            ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
+
+        PublicKey issuer;
+        auto const issuerID = trustLine.mAssetID.mIssuer;
+        FuzzUtils::setShortKey(issuer, issuerID);
+
+        // Set trust line flags if specified.
+        if (trustLine.mCallAllowTrustOp)
+        {
+            auto allowTrustOp =
+                txtest::allowTrust(account, asset, trustLine.mAllowTrustFlags);
+            allowTrustOp.sourceAccount.activate() = toMuxedAccount(issuer);
+            ops.emplace_back(allowTrustOp);
+        }
+
+        // Distribute the starting amount of the asset (to be reduced after
+        // orders have been placed).
+        auto distributeOp = txtest::payment(
+            account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
+        distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
+        ops.emplace_back(distributeOp);
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
