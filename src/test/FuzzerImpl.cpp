@@ -1314,34 +1314,7 @@ TransactionFuzzer::initialize()
 
     initializeClaimableBalances(ltxOuter);
 
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        for (auto const& param : orderBookParameters)
-        {
-            auto op = param.mPassive
-                          ? txtest::createPassiveOffer(
-                                param.mBid.toAsset(), param.mSell.toAsset(),
-                                Price{param.mNumerator, param.mDenominator},
-                                param.mAmount)
-                          : txtest::manageOffer(
-                                0, param.mBid.toAsset(), param.mSell.toAsset(),
-                                Price{param.mNumerator, param.mDenominator},
-                                param.mAmount);
-            PublicKey pkA;
-            FuzzUtils::setShortKey(pkA, param.mPublicKey);
-            op.sourceAccount.activate() = toMuxedAccount(pkA);
-            FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
-                                                     param.mSponsorKey, pkA);
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    initializeOffers(ltxOuter);
 
     {
         LedgerTxn ltx(ltxOuter);
@@ -1584,6 +1557,36 @@ TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
         FuzzUtils::emplaceConditionallySponsored(ops, claimableBalanceOp,
                                                  param.mSponsored,
                                                  param.mSponsorKey, senderKey);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : orderBookParameters)
+    {
+        auto op = param.mPassive
+                      ? txtest::createPassiveOffer(
+                            param.mBid.toAsset(), param.mSell.toAsset(),
+                            Price{param.mNumerator, param.mDenominator},
+                            param.mAmount)
+                      : txtest::manageOffer(
+                            0, param.mBid.toAsset(), param.mSell.toAsset(),
+                            Price{param.mNumerator, param.mDenominator},
+                            param.mAmount);
+        PublicKey pkA;
+        FuzzUtils::setShortKey(pkA, param.mPublicKey);
+        op.sourceAccount.activate() = toMuxedAccount(pkA);
+        FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
+                                                 param.mSponsorKey, pkA);
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);

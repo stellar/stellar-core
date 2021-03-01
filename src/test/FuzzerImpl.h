@@ -46,6 +46,7 @@ class TransactionFuzzer : public Fuzzer
     void initializeAccounts(AbstractLedgerTxn& ltxOuter);
     void initializeTrustLines(AbstractLedgerTxn& ltxOuter);
     void initializeClaimableBalances(AbstractLedgerTxn& ltxOuter);
+    void initializeOffers(AbstractLedgerTxn& ltxOuter);
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;
