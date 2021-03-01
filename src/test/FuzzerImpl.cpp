@@ -1308,39 +1308,7 @@ TransactionFuzzer::initialize()
     resetTxInternalState(*mApp);
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
 
-    {
-        LedgerTxn ltx(ltxOuter);
-        xdr::xvector<Operation> ops;
-
-        for (auto const& param : accountParameters)
-        {
-            PublicKey publicKey;
-            FuzzUtils::setShortKey(publicKey, param.mShortKey);
-
-            FuzzUtils::emplaceConditionallySponsored(
-                ops,
-                txtest::createAccount(publicKey,
-                                      FuzzUtils::INITIAL_ACCOUNT_BALANCE),
-                param.mSponsored, param.mSponsorKey, publicKey);
-
-            // Set options for any accounts whose parameters specify flags to
-            // add.
-            auto const optionFlags = param.mOptionFlags;
-
-            if (optionFlags != 0)
-            {
-                auto optionsOp =
-                    txtest::setOptions(txtest::setFlags(optionFlags));
-                optionsOp.sourceAccount.activate() = toMuxedAccount(publicKey);
-                ops.emplace_back(optionsOp);
-            }
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    initializeAccounts(ltxOuter);
 
     {
         LedgerTxn ltx(ltxOuter);
@@ -1587,6 +1555,40 @@ TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
 
     stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
                                                  mStoredLedgerKeys.end());
+}
+
+void
+TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : accountParameters)
+    {
+        PublicKey publicKey;
+        FuzzUtils::setShortKey(publicKey, param.mShortKey);
+
+        FuzzUtils::emplaceConditionallySponsored(
+            ops,
+            txtest::createAccount(publicKey,
+                                  FuzzUtils::INITIAL_ACCOUNT_BALANCE),
+            param.mSponsored, param.mSponsorKey, publicKey);
+
+        // Set options for any accounts whose parameters specify flags to
+        // add.
+        auto const optionFlags = param.mOptionFlags;
+
+        if (optionFlags != 0)
+        {
+            auto optionsOp = txtest::setOptions(txtest::setFlags(optionFlags));
+            optionsOp.sourceAccount.activate() = toMuxedAccount(publicKey);
+            ops.emplace_back(optionsOp);
+        }
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
 }
 
 void
