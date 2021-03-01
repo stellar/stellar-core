@@ -1212,6 +1212,11 @@ TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
     std::vector<LedgerKey> dead;
     ltx.getAllEntries(init, live, dead);
 
+    // getAllEntries() does not guarantee anything about the order in which
+    // entries are returned, so to minimize non-determinism in fuzzing setup, we
+    // sort them.
+    std::sort(init.begin(), init.end());
+
     // Setup should only create entries; there should be no dead entries, and
     // only one "live" (modified) one:  the root account.
     assert(dead.empty());
