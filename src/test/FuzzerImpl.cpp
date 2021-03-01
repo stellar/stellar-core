@@ -1312,39 +1312,7 @@ TransactionFuzzer::initialize()
 
     initializeTrustLines(ltxOuter);
 
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        for (auto const& param : claimableBalanceParameters)
-        {
-            PublicKey claimantKey;
-            FuzzUtils::setShortKey(claimantKey, param.mClaimant);
-
-            PublicKey senderKey;
-            FuzzUtils::setShortKey(senderKey, param.mSender);
-
-            ClaimPredicate predicate;
-            predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
-            Claimant claimant;
-            claimant.v0().predicate = predicate;
-            claimant.v0().destination = claimantKey;
-
-            auto claimableBalanceOp = txtest::createClaimableBalance(
-                param.mAsset.toAsset(), param.mAmount, {claimant});
-            claimableBalanceOp.sourceAccount.activate() =
-                toMuxedAccount(senderKey);
-            FuzzUtils::emplaceConditionallySponsored(
-                ops, claimableBalanceOp, param.mSponsored, param.mSponsorKey,
-                senderKey);
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    initializeClaimableBalances(ltxOuter);
 
     {
         LedgerTxn ltx(ltxOuter);
@@ -1586,6 +1554,36 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
             account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
         distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
         ops.emplace_back(distributeOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : claimableBalanceParameters)
+    {
+        Claimant claimant;
+        claimant.v0().predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+        FuzzUtils::setShortKey(claimant.v0().destination, param.mClaimant);
+
+        auto claimableBalanceOp = txtest::createClaimableBalance(
+            param.mAsset.toAsset(), param.mAmount, {claimant});
+
+        PublicKey senderKey;
+        FuzzUtils::setShortKey(senderKey, param.mSender);
+
+        claimableBalanceOp.sourceAccount.activate() = toMuxedAccount(senderKey);
+        FuzzUtils::emplaceConditionallySponsored(ops, claimableBalanceOp,
+                                                 param.mSponsored,
+                                                 param.mSponsorKey, senderKey);
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
