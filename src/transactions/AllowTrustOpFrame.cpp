@@ -58,7 +58,8 @@ bool
 AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "AllowTrustOp apply", true);
-    if (ltx.loadHeader().current().ledgerVersion > 2)
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    if (ledgerVersion > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
         {
@@ -128,16 +129,15 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
                              mAllowTrust.authorize == 0;
     }
 
-    auto header = ltx.loadHeader();
-    if (header.current().ledgerVersion >= 10 && shouldRemoveOffers)
+    if (ledgerVersion >= 10 && shouldRemoveOffers)
     {
         // Delete all offers owned by the trustor that are either buying or
         // selling the asset which had authorization revoked.
-        removeOffersByAccountAndAsset(ltx, header, mAllowTrust.trustor, mAsset);
+        removeOffersByAccountAndAsset(ltx, mAllowTrust.trustor, mAsset);
     }
 
     auto trustLineEntry = ltx.load(key);
-    setAuthorized(header, trustLineEntry, mAllowTrust.authorize);
+    setAuthorized(ltx.loadHeader(), trustLineEntry, mAllowTrust.authorize);
 
     innerResult().code(ALLOW_TRUST_SUCCESS);
     return true;

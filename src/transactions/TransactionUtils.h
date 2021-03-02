@@ -193,7 +193,6 @@ Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 
 bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb);
 void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
-                                   LedgerTxnHeader const& header,
                                    AccountID const& account,
                                    Asset const& asset);
 }

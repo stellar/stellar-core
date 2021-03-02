@@ -1026,11 +1026,13 @@ claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
 }
 
 void
-removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
-                              LedgerTxnHeader const& header,
-                              AccountID const& account, Asset const& asset)
+removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
+                              Asset const& asset)
 {
-    auto offers = ltx.loadOffersByAccountAndAsset(account, asset);
+    LedgerTxn ltxInner(ltx);
+
+    auto header = ltxInner.loadHeader();
+    auto offers = ltxInner.loadOffersByAccountAndAsset(account, asset);
     for (auto& offer : offers)
     {
         auto const& oe = offer.current().data.offer();
@@ -1044,12 +1046,13 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
                 "Offer not buying or selling expected asset");
         }
 
-        releaseLiabilities(ltx, header, offer);
-        auto trustAcc = stellar::loadAccount(ltx, account);
-        removeEntryWithPossibleSponsorship(ltx, header, offer.current(),
+        releaseLiabilities(ltxInner, header, offer);
+        auto trustAcc = stellar::loadAccount(ltxInner, account);
+        removeEntryWithPossibleSponsorship(ltxInner, header, offer.current(),
                                            trustAcc);
         offer.erase();
     }
+    ltxInner.commit();
 }
 
 namespace detail
