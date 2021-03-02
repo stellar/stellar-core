@@ -165,6 +165,7 @@ bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
+bool isClawbackEnabledOnTrustline(TrustLineEntry const& tl);
 bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerTxnEntry const& entry);

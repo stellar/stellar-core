@@ -833,10 +833,15 @@ isAuthRequired(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnTrustline(TrustLineEntry const& tl)
+{
+    return (tl.flags & TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 {
-    return (entry.current().data.trustLine().flags &
-            TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+    return isClawbackEnabledOnTrustline(entry.current().data.trustLine());
 }
 
 bool

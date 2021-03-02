@@ -40,7 +40,8 @@ class LedgerEntryIsValid : public Invariant
     std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
                              uint32_t ledgerSeq, uint32 version) const;
     std::string checkIsValid(AccountEntry const& ae, uint32 version) const;
-    std::string checkIsValid(TrustLineEntry const& tl, uint32 version) const;
+    std::string checkIsValid(TrustLineEntry const& tl,
+                             LedgerEntry const* previous, uint32 version) const;
     std::string checkIsValid(OfferEntry const& oe, uint32 version) const;
     std::string checkIsValid(DataEntry const& de, uint32 version) const;
     std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
