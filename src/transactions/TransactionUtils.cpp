@@ -803,10 +803,15 @@ isAuthorized(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isAuthorizedToMaintainLiabilities(uint32_t flags)
+{
+    return (flags & TRUSTLINE_AUTH_FLAGS) != 0;
+}
+
+bool
 isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
-    return isAuthorized(le) || (le.data.trustLine().flags &
-                                AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) != 0;
+    return isAuthorizedToMaintainLiabilities(le.data.trustLine().flags);
 }
 
 bool
