@@ -10,7 +10,6 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 
@@ -134,27 +133,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         // Delete all offers owned by the trustor that are either buying or
         // selling the asset which had authorization revoked.
-        auto offers =
-            ltx.loadOffersByAccountAndAsset(mAllowTrust.trustor, mAsset);
-        for (auto& offer : offers)
-        {
-            auto const& oe = offer.current().data.offer();
-            if (!(oe.sellerID == mAllowTrust.trustor))
-            {
-                throw std::runtime_error("Offer not owned by expected account");
-            }
-            else if (!(oe.buying == mAsset || oe.selling == mAsset))
-            {
-                throw std::runtime_error(
-                    "Offer not buying or selling expected asset");
-            }
-
-            releaseLiabilities(ltx, header, offer);
-            auto trustAcc = stellar::loadAccount(ltx, mAllowTrust.trustor);
-            removeEntryWithPossibleSponsorship(ltx, header, offer.current(),
-                                               trustAcc);
-            offer.erase();
-        }
+        removeOffersByAccountAndAsset(ltx, header, mAllowTrust.trustor, mAsset);
     }
 
     auto trustLineEntry = ltx.load(key);

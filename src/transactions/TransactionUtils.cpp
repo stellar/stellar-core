@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/SponsorshipUtils.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -1022,6 +1023,33 @@ claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
     }
 
     return true;
+}
+
+void
+removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
+                              LedgerTxnHeader const& header,
+                              AccountID const& account, Asset const& asset)
+{
+    auto offers = ltx.loadOffersByAccountAndAsset(account, asset);
+    for (auto& offer : offers)
+    {
+        auto const& oe = offer.current().data.offer();
+        if (!(oe.sellerID == account))
+        {
+            throw std::runtime_error("Offer not owned by expected account");
+        }
+        else if (!(oe.buying == asset || oe.selling == asset))
+        {
+            throw std::runtime_error(
+                "Offer not buying or selling expected asset");
+        }
+
+        releaseLiabilities(ltx, header, offer);
+        auto trustAcc = stellar::loadAccount(ltx, account);
+        removeEntryWithPossibleSponsorship(ltx, header, offer.current(),
+                                           trustAcc);
+        offer.erase();
+    }
 }
 
 namespace detail
