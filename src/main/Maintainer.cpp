@@ -6,8 +6,10 @@
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/numeric.h"
+
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -63,6 +65,11 @@ Maintainer::performMaintenance(uint32_t count)
 {
     ZoneScoped;
     LOG_INFO(DEFAULT_LOG, "Performing maintenance");
+    auto logSlow = LogSlowExecution(
+        "Performing maintenance", LogSlowExecution::Mode::AUTOMATIC_RAII,
+        "performance issue: check database or perform a large manual "
+        "maintenance followed by database maintenance. Maintenance took",
+        std::chrono::seconds{2});
     ExternalQueue ps{mApp};
     ps.deleteOldEntries(count);
 }
