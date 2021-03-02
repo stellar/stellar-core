@@ -3734,10 +3734,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("pull sponsored offers when authorization is revoked")
     {
-        auto pullSponsoredOffers = [&](TrustFlagOp flagOp) {
-            const int64_t minBalance3 =
-                app->getLedgerManager().getLastMinBalance(3);
-            auto sponsor = root.create("sponsor", minBalance3);
+        auto pullSponsoredOffers = [&](TrustFlagOp flagOp,
+                                       TestAccount& sponsor) {
             auto acc1 = root.create("a2", minBalance2);
 
             auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
@@ -3798,13 +3796,30 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         };
 
-        SECTION("allow trust")
+        SECTION("sponsor is issuer")
         {
-            pullSponsoredOffers(TrustFlagOp::ALLOW_TRUST);
+            SECTION("allow trust")
+            {
+                pullSponsoredOffers(TrustFlagOp::ALLOW_TRUST, issuer);
+            }
+            SECTION("set trustline flags")
+            {
+                pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS, issuer);
+            }
         }
-        SECTION("set trustline flags")
+
+        SECTION("sponsor is not issuer")
         {
-            pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS);
+            auto sponsor = root.create(
+                "sponsor", app->getLedgerManager().getLastMinBalance(3));
+            SECTION("allow trust")
+            {
+                pullSponsoredOffers(TrustFlagOp::ALLOW_TRUST, sponsor);
+            }
+            SECTION("set trustline flags")
+            {
+                pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS, sponsor);
+            }
         }
     }
 
