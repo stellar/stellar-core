@@ -54,6 +54,8 @@ uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
 int32_t const EXPECTED_CLOSE_TIME_MULT = 2;
 size_t const MAX_OFFERS_TO_CROSS = 1000;
+uint32_t const TRUSTLINE_AUTH_FLAGS =
+    AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
 
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 

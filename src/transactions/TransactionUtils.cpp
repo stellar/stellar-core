@@ -882,9 +882,10 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
     else
     {
-        uint32_t invalidAuthCombo =
-            AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-        if ((flag & invalidAuthCombo) == invalidAuthCombo)
+        static_assert(TRUSTLINE_AUTH_FLAGS == 3,
+                      "condition only works for two flags");
+        // multiple auth flags can't be set
+        if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
         {
             return false;
         }

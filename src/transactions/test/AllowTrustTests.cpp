@@ -224,11 +224,8 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
             "be used together")
     {
         for_versions_from(13, *app, [&] {
-            REQUIRE_THROWS_AS(
-                gateway.allowTrust(idr, a1,
-                                   AUTHORIZED_FLAG |
-                                       AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG),
-                ex_ALLOW_TRUST_MALFORMED);
+            REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, TRUSTLINE_AUTH_FLAGS),
+                              ex_ALLOW_TRUST_MALFORMED);
         });
     }
 
