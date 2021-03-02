@@ -876,28 +876,38 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
+    return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           (ledgerVersion < 13 || trustLineFlagAuthIsValid(flag));
+}
+
+bool
+trustLineFlagAuthIsValid(uint32_t flag)
+{
+    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
+                  "condition only works for two flags");
+    // multiple auth flags can't be set
+    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
     if (ledgerVersion < 13)
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
     }
+    else if (ledgerVersion < 16)
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
+    }
     else
     {
-        static_assert(TRUSTLINE_AUTH_FLAGS == 3,
-                      "condition only works for two flags");
-        // multiple auth flags can't be set
-        if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
-        {
-            return false;
-        }
-
-        if (ledgerVersion < 16)
-        {
-            return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
-        }
-        else
-        {
-            return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
-        }
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
     }
 }
 

@@ -180,6 +180,8 @@ MuxedAccount toMuxedAccount(AccountID const& a);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
+bool trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool trustLineFlagAuthIsValid(uint32_t flag);
 
 bool accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
