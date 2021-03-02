@@ -56,10 +56,10 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
-    , mExternalizeLag(
-          app.getMetrics().NewTimer({"scp", "timing", "externalize-lag"}))
-    , mExternalizeDelay(
-          app.getMetrics().NewTimer({"scp", "timing", "externalize-delay"}))
+    , mFirstToSelfExternalizeLag(app.getMetrics().NewTimer(
+          {"scp", "timing", "first-to-self-externalize-lag"}))
+    , mSelfToOthersExternalizeLag(app.getMetrics().NewTimer(
+          {"scp", "timing", "self-to-others-externalize-lag"}))
 {
 }
 
@@ -1026,7 +1026,8 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
         if (!timing.mSelfExternalize)
         {
             recordLogTiming(*timing.mFirstExternalize, now,
-                            mSCPMetrics.mExternalizeLag, "externalize lag",
+                            mSCPMetrics.mFirstToSelfExternalizeLag,
+                            "first to self externalize lag",
                             std::chrono::nanoseconds::zero(), slotIndex);
         }
         if (!timing.mSelfExternalize || forceUpdateSelf)
@@ -1041,16 +1042,18 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
         if (timing.mSelfExternalize)
         {
             recordLogTiming(
-                *timing.mSelfExternalize, now, mSCPMetrics.mExternalizeDelay,
-                fmt::format("externalize delay ({})", toShortString(id)),
+                *timing.mSelfExternalize, now,
+                mSCPMetrics.mSelfToOthersExternalizeLag,
+                fmt::format("self to {} externalize lag", toShortString(id)),
                 std::chrono::nanoseconds::zero(), slotIndex);
         }
 
         // Record lag for other nodes
         auto& lag = mQSetLag[id];
-        recordLogTiming(*timing.mFirstExternalize, now, lag,
-                        fmt::format("externalize lag ({})", toShortString(id)),
-                        std::chrono::nanoseconds::zero(), slotIndex);
+        recordLogTiming(
+            *timing.mFirstExternalize, now, lag,
+            fmt::format("first to {} externalize lag", toShortString(id)),
+            std::chrono::nanoseconds::zero(), slotIndex);
     }
 }
 
