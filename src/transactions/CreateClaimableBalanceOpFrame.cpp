@@ -27,7 +27,7 @@ setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
     cb.ext.v1().flags = CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG;
 }
 
-int64_t
+static int64_t
 relativeToAbsolute(TimePoint closeTime, int64_t relative)
 {
     return closeTime > static_cast<uint64_t>(INT64_MAX - relative)
@@ -36,7 +36,7 @@ relativeToAbsolute(TimePoint closeTime, int64_t relative)
 }
 
 // convert all relative predicates to absolute predicates
-void
+static void
 updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 {
     switch (pred.type())
@@ -81,7 +81,7 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
     }
 }
 
-bool
+static bool
 validatePredicate(ClaimPredicate const& pred, uint32_t depth)
 {
     if (depth > 4)
