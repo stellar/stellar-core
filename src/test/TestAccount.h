@@ -17,7 +17,14 @@ class Application;
 namespace txtest
 {
 struct SetOptionsArguments;
+struct SetTrustLineFlagsArguments;
 }
+
+enum class TrustFlagOp
+{
+    ALLOW_TRUST,
+    SET_TRUST_LINE_FLAGS
+};
 
 class TestAccount
 {
@@ -43,9 +50,15 @@ class TestAccount
     void changeTrust(Asset const& asset, int64_t limit);
     void allowTrust(Asset const& asset, PublicKey const& trustor,
                     uint32_t flag);
-    void allowTrust(Asset const& asset, PublicKey const& trustor);
-    void denyTrust(Asset const& asset, PublicKey const& trustor);
-    void allowMaintainLiabilities(Asset const& asset, PublicKey const& trustor);
+    void allowTrust(Asset const& asset, PublicKey const& trustor,
+                    TrustFlagOp op = TrustFlagOp::ALLOW_TRUST);
+    void denyTrust(Asset const& asset, PublicKey const& trustor,
+                   TrustFlagOp op = TrustFlagOp::ALLOW_TRUST);
+    void allowMaintainLiabilities(Asset const& asset, PublicKey const& trustor,
+                                  TrustFlagOp op = TrustFlagOp::ALLOW_TRUST);
+
+    void setTrustLineFlags(Asset const& asset, PublicKey const& trustor,
+                           txtest::SetTrustLineFlagsArguments const& arguments);
 
     TrustLineEntry loadTrustLine(Asset const& asset) const;
     bool hasTrustLine(Asset const& asset) const;
@@ -148,6 +161,7 @@ class TestAccount
         return mAccountID;
     }
 
+    uint32_t getTrustlineFlags(Asset const& asset) const;
     int64_t getTrustlineBalance(Asset const& asset) const;
     int64_t getBalance() const;
     int64_t getAvailableBalance() const;
