@@ -1980,13 +1980,28 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                             size_t prefetchBatchSize)
-    : mImpl(std::make_unique<Impl>(db, entryCacheSize, prefetchBatchSize))
+                             size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                             ,
+                             bool bestOfferDebuggingEnabled
+#endif
+                             )
+    : mImpl(std::make_unique<Impl>(db, entryCacheSize, prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                                   ,
+                                   bestOfferDebuggingEnabled
+#endif
+                                   ))
 {
 }
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
-                          size_t prefetchBatchSize)
+                          size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                          ,
+                          bool bestOfferDebuggingEnabled
+#endif
+                          )
     : mMaxBestOffersBatchSize(
           std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
                    MAX_OFFERS_TO_CROSS))
@@ -1995,6 +2010,9 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
+#ifdef BEST_OFFER_DEBUGGING
+    , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
+#endif
 {
 }
 

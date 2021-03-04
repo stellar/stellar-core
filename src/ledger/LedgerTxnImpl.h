@@ -686,6 +686,10 @@ class LedgerTxnRoot::Impl
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
 
+#ifdef BEST_OFFER_DEBUGGING
+    bool const mBestOfferDebuggingEnabled;
+#endif
+
     void throwIfChild() const;
 
     std::shared_ptr<LedgerEntry const> loadAccount(LedgerKey const& key) const;
@@ -776,7 +780,12 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize);
+    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+         ,
+         bool bestOfferDebuggingEnabled
+#endif
+    );
 
     ~Impl();
 

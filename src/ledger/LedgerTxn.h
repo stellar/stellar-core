@@ -719,7 +719,12 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
   public:
     explicit LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                           size_t prefetchBatchSize);
+                           size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+                           ,
+                           bool bestOfferDebuggingEnabled
+#endif
+    );
 
     virtual ~LedgerTxnRoot();
 

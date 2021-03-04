@@ -21,8 +21,16 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 {
     std::unique_ptr<LedgerHeader> mHeader;
 
+#ifdef BEST_OFFER_DEBUGGING
+    bool const mBestOfferDebuggingEnabled;
+#endif
+
   public:
-    InMemoryLedgerTxnRoot();
+    InMemoryLedgerTxnRoot(
+#ifdef BEST_OFFER_DEBUGGING
+        bool bestOfferDebuggingEnabled
+#endif
+    );
     void addChild(AbstractLedgerTxn& child) override;
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
     void rollbackChild() override;

@@ -10,8 +10,15 @@
 namespace stellar
 {
 
-InMemoryLedgerTxnRoot::InMemoryLedgerTxnRoot()
+InMemoryLedgerTxnRoot::InMemoryLedgerTxnRoot(
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled
+#endif
+    )
     : mHeader(std::make_unique<LedgerHeader>())
+#ifdef BEST_OFFER_DEBUGGING
+    , mBestOfferDebuggingEnabled(bestOfferDebuggingEnabled)
+#endif
 {
 }
 
