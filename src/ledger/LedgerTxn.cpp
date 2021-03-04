@@ -80,6 +80,29 @@ AssetPairHash::operator()(AssetPair const& key) const
     return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
 }
 
+#ifdef BEST_OFFER_DEBUGGING
+void
+compareOffers(std::shared_ptr<LedgerEntry const> debugBest,
+              std::shared_ptr<LedgerEntry const> best)
+{
+    if ((bool)debugBest ^ (bool)best)
+    {
+        if (best)
+        {
+            printErrorAndAbort("best offer not null when it should be");
+        }
+        else
+        {
+            printErrorAndAbort("best offer null when it should not be");
+        }
+    }
+    if (best && *best != *debugBest)
+    {
+        printErrorAndAbort("best offer mismatch");
+    }
+}
+#endif
+
 // Implementation of AbstractLedgerTxnParent --------------------------------
 AbstractLedgerTxnParent::~AbstractLedgerTxnParent()
 {
@@ -646,10 +669,118 @@ LedgerTxn::Impl::getAllOffers()
     return offers;
 }
 
+#ifdef BEST_OFFER_DEBUGGING
+bool
+LedgerTxn::bestOfferDebuggingEnabled() const
+{
+    return getImpl()->bestOfferDebuggingEnabled();
+}
+
+bool
+LedgerTxn::Impl::bestOfferDebuggingEnabled() const
+{
+    return mParent.bestOfferDebuggingEnabled();
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxn::getBestOfferSlow(Asset const& buying, Asset const& selling,
+                            OfferDescriptor const* worseThan,
+                            std::unordered_set<int64_t>& exclude)
+{
+    return getImpl()->getBestOfferSlow(buying, selling, worseThan, exclude);
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxn::Impl::getBestOfferSlow(Asset const& buying, Asset const& selling,
+                                  OfferDescriptor const* worseThan,
+                                  std::unordered_set<int64_t>& exclude)
+{
+    std::shared_ptr<InternalLedgerEntry const> selfBest;
+    for (auto const& kv : mEntry)
+    {
+        if (kv.first.type() != InternalLedgerEntryType::LEDGER_ENTRY)
+        {
+            continue;
+        }
+
+        auto const& key = kv.first.ledgerKey();
+        if (key.type() != OFFER)
+        {
+            continue;
+        }
+
+        if (!exclude.insert(key.offer().offerID).second)
+        {
+            continue;
+        }
+
+        if (kv.second)
+        {
+            auto const& le = kv.second->ledgerEntry();
+            if (!(le.data.offer().buying == buying &&
+                  le.data.offer().selling == selling))
+            {
+                continue;
+            }
+
+            if (worseThan && !isBetterOffer(*worseThan, le))
+            {
+                continue;
+            }
+
+            if (!selfBest || isBetterOffer(le, selfBest->ledgerEntry()))
+            {
+                selfBest = kv.second;
+            }
+        }
+    }
+
+    auto parentBest =
+        mParent.getBestOfferSlow(buying, selling, worseThan, exclude);
+    if (selfBest && !parentBest)
+    {
+        return std::make_shared<LedgerEntry const>(selfBest->ledgerEntry());
+    }
+    else if (parentBest && !selfBest)
+    {
+        return std::make_shared<LedgerEntry const>(*parentBest);
+    }
+    else if (parentBest && selfBest)
+    {
+        return isBetterOffer(selfBest->ledgerEntry(), *parentBest)
+                   ? std::make_shared<LedgerEntry const>(
+                         selfBest->ledgerEntry())
+                   : std::make_shared<LedgerEntry const>(*parentBest);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxn::Impl::checkBestOffer(Asset const& buying, Asset const& selling,
+                                OfferDescriptor const* worseThan,
+                                std::shared_ptr<LedgerEntry const> best)
+{
+    if (!bestOfferDebuggingEnabled())
+    {
+        return best;
+    }
+
+    std::unordered_set<int64_t> exclude;
+    auto debugBest = getBestOfferSlow(buying, selling, worseThan, exclude);
+    compareOffers(debugBest, best);
+    return best;
+}
+#endif
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling)
 {
+#ifdef BEST_OFFER_DEBUGGING
+    return getImpl()->checkBestOffer(buying, selling, nullptr,
+                                     getImpl()->getBestOffer(buying, selling));
+#else
     return getImpl()->getBestOffer(buying, selling);
+#endif
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -752,7 +883,13 @@ std::shared_ptr<LedgerEntry const>
 LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
                         OfferDescriptor const& worseThan)
 {
+#ifdef BEST_OFFER_DEBUGGING
+    return getImpl()->checkBestOffer(
+        buying, selling, &worseThan,
+        getImpl()->getBestOffer(buying, selling, worseThan));
+#else
     return getImpl()->getBestOffer(buying, selling, worseThan);
+#endif
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -2502,17 +2639,98 @@ LedgerTxnRoot::Impl::getAllOffers()
     return offersByKey;
 }
 
+#ifdef BEST_OFFER_DEBUGGING
+bool
+LedgerTxnRoot::bestOfferDebuggingEnabled() const
+{
+    return mImpl->bestOfferDebuggingEnabled();
+}
+
+bool
+LedgerTxnRoot::Impl::bestOfferDebuggingEnabled() const
+{
+    return mBestOfferDebuggingEnabled;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::getBestOfferSlow(Asset const& buying, Asset const& selling,
+                                OfferDescriptor const* worseThan,
+                                std::unordered_set<int64_t>& exclude)
+{
+    return mImpl->getBestOfferSlow(buying, selling, worseThan, exclude);
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::Impl::getBestOfferSlow(Asset const& buying, Asset const& selling,
+                                      OfferDescriptor const* worseThan,
+                                      std::unordered_set<int64_t>& exclude)
+{
+    size_t const BATCH_SIZE = 1024;
+    size_t nOffers = 0;
+    std::deque<LedgerEntry> offers;
+    do
+    {
+        nOffers += BATCH_SIZE;
+        loadBestOffers(offers, buying, selling, nOffers);
+
+        for (auto const& le : offers)
+        {
+            if (worseThan && !isBetterOffer(*worseThan, le))
+            {
+                continue;
+            }
+
+            if (exclude.find(le.data.offer().offerID) == exclude.end())
+            {
+                return std::make_shared<LedgerEntry const>(le);
+            }
+        }
+
+        offers.clear();
+    } while (offers.size() == nOffers);
+
+    return nullptr;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::Impl::checkBestOffer(Asset const& buying, Asset const& selling,
+                                    OfferDescriptor const* worseThan,
+                                    std::shared_ptr<LedgerEntry const> best)
+{
+    if (!bestOfferDebuggingEnabled())
+    {
+        return best;
+    }
+
+    std::unordered_set<int64_t> exclude;
+    auto debugBest = getBestOfferSlow(buying, selling, worseThan, exclude);
+    compareOffers(debugBest, best);
+    return best;
+}
+#endif
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling)
 {
+#ifdef BEST_OFFER_DEBUGGING
+    return mImpl->checkBestOffer(buying, selling, nullptr,
+                                 mImpl->getBestOffer(buying, selling, nullptr));
+#else
     return mImpl->getBestOffer(buying, selling, nullptr);
+#endif
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
                             OfferDescriptor const& worseThan)
 {
+#ifdef BEST_OFFER_DEBUGGING
+    return mImpl->checkBestOffer(
+        buying, selling, &worseThan,
+        mImpl->getBestOffer(buying, selling, &worseThan));
+#else
     return mImpl->getBestOffer(buying, selling, &worseThan);
+#endif
 }
 
 static std::deque<LedgerEntry>::const_iterator

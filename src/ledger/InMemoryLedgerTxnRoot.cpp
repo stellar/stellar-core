@@ -147,4 +147,21 @@ InMemoryLedgerTxnRoot::resetForFuzzer()
     abort();
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+#ifdef BEST_OFFER_DEBUGGING
+bool
+InMemoryLedgerTxnRoot::bestOfferDebuggingEnabled() const
+{
+    return mBestOfferDebuggingEnabled;
+}
+
+std::shared_ptr<LedgerEntry const>
+InMemoryLedgerTxnRoot::getBestOfferSlow(Asset const& buying,
+                                        Asset const& selling,
+                                        OfferDescriptor const* worseThan,
+                                        std::unordered_set<int64_t>& exclude)
+{
+    return nullptr;
+}
+#endif
 }

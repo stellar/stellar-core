@@ -586,6 +586,20 @@ class LedgerTxn::Impl
 #ifdef BUILD_TESTS
     MultiOrderBook const& getOrderBook();
 #endif
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude);
+
+    std::shared_ptr<LedgerEntry const>
+    checkBestOffer(Asset const& buying, Asset const& selling,
+                   OfferDescriptor const* worseThan,
+                   std::shared_ptr<LedgerEntry const> best);
+#endif
 };
 
 class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
@@ -867,6 +881,20 @@ class LedgerTxnRoot::Impl
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude);
+
+    std::shared_ptr<LedgerEntry const>
+    checkBestOffer(Asset const& buying, Asset const& selling,
+                   OfferDescriptor const* worseThan,
+                   std::shared_ptr<LedgerEntry const> best);
+#endif
 };
 
 #ifdef USE_POSTGRES

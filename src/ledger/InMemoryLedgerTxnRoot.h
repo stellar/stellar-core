@@ -69,5 +69,14 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     void resetForFuzzer() override;
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const override;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude) override;
+#endif
 };
 }

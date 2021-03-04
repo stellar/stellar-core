@@ -453,6 +453,15 @@ class AbstractLedgerTxnParent
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     virtual void resetForFuzzer() = 0;
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+#ifdef BEST_OFFER_DEBUGGING
+    virtual bool bestOfferDebuggingEnabled() const = 0;
+
+    virtual std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude) = 0;
+#endif
 };
 
 // An abstraction for an object that is an AbstractLedgerTxnParent and has
@@ -710,6 +719,15 @@ class LedgerTxn final : public AbstractLedgerTxn
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     void resetForFuzzer() override;
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const override;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude) override;
+#endif
 };
 
 class LedgerTxnRoot : public AbstractLedgerTxnParent
@@ -772,5 +790,14 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     double getPrefetchHitRate() const override;
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const override;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude) override;
+#endif
 };
 }
