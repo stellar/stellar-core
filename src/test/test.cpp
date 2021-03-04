@@ -191,6 +191,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // only spin up a small number of worker threads
         thisConfig.WORKER_THREADS = 2;
         thisConfig.QUORUM_INTERSECTION_CHECKER = false;
+#ifdef BEST_OFFER_DEBUGGING
+        thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;
+#endif
     }
     return *cfgs[instanceNumber];
 }
