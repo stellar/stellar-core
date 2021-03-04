@@ -282,13 +282,16 @@ InternalLedgerKey::toString() const
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        return xdr_to_string(ledgerKey());
+        return xdr_to_string(ledgerKey(), "LedgerKey");
+
     case InternalLedgerEntryType::SPONSORSHIP:
-        return fmt::format("{{\n  sponsoredID = {}\n}}\n",
-                           xdr_to_string(sponsorshipKey().sponsoredID));
+        return fmt::format(
+            "{{\n  {}\n}}\n",
+            xdr_to_string(sponsorshipKey().sponsoredID, "sponsoredID"));
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        return fmt::format("{{\n  sponsoringID = {}\n}}\n",
-                           xdr_to_string(sponsorshipCounterKey().sponsoringID));
+        return fmt::format("{{\n  {}\n}}\n",
+                           xdr_to_string(sponsorshipCounterKey().sponsoringID,
+                                         "sponsoringID"));
     default:
         abort();
     }
@@ -558,16 +561,17 @@ InternalLedgerEntry::toString() const
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        return xdr_to_string(ledgerEntry());
+        return xdr_to_string(ledgerEntry(), "LedgerEntry");
     case InternalLedgerEntryType::SPONSORSHIP:
-        return fmt::format("{{\n  sponsoredID = {},\n  sponsoringID = {}\n}}\n",
-                           xdr_to_string(sponsorshipEntry().sponsoredID),
-                           xdr_to_string(sponsorshipEntry().sponsoringID));
-    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return fmt::format(
-            "{{\n  sponsoringID = {},\n  numSponsoring = {}\n}}\n",
-            xdr_to_string(sponsorshipCounterEntry().sponsoringID),
-            sponsorshipCounterEntry().numSponsoring);
+            "{{\n  {},\n  {}\n}}\n",
+            xdr_to_string(sponsorshipEntry().sponsoredID, "sponsoredID"),
+            xdr_to_string(sponsorshipEntry().sponsoringID, "sponsoringID"));
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
+        return fmt::format("{{\n  {},\n  numSponsoring = {}\n}}\n",
+                           xdr_to_string(sponsorshipCounterEntry().sponsoringID,
+                                         "sponsoringID"),
+                           sponsorshipCounterEntry().numSponsoring);
     default:
         abort();
     }

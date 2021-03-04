@@ -23,7 +23,7 @@ struct StringMaker<T, typename std::enable_if<xdr::xdr_traits<T>::valid>::type>
     static std::string
     convert(T const& val)
     {
-        return xdr_to_string(val);
+        return xdr_to_string(val, "value");
     }
 };
 

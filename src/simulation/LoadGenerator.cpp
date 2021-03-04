@@ -647,8 +647,8 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     {
         CLOG_INFO(LoadGen, "tx rejected '{}': {} ===> {}",
                   TX_STATUS_STRING[static_cast<int>(status)],
-                  xdr_to_string(txf->getEnvelope()),
-                  xdr_to_string(txf->getResult()));
+                  xdr_to_string(txf->getEnvelope(), "TransactionEnvelope"),
+                  xdr_to_string(txf->getResult(), "TransactionResult"));
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             code = txf->getResultCode();

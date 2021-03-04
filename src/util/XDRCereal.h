@@ -34,21 +34,36 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
                  field);
 }
 
-// We still need one explicit composite-container override because cereal
-// appears to process arrays-of-arrays internally, without calling back through
-// an NVP adaptor.
-template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar,
-                const xdr::xarray<stellar::Hash, N>& s, const char* field)
+template <typename T>
+std::enable_if_t<xdr::xdr_traits<T>::is_container>
+cereal_override(cereal::JSONOutputArchive& ar, T const& t, const char* field)
 {
-    std::vector<std::string> tmp;
-    for (auto const& h : s)
+    // CEREAL_SAVE_FUNCTION_NAME in include/cereal/archives/json.hpp runs
+    // ar.setNextName() and ar(). ar() in turns calls process() in
+    // include/cereal/cereal.hpp which calls prologue(), processImpl(),
+    // epilogue(). We are imitating this behavior here by creating a sub-object
+    // using prologue(), printing the content with xdr::archive, and finally
+    // calling epilogue(). We must use xdr::archive instead of ar() because we
+    // need to access the nested cereal_overrides.
+    //
+    // tl;dr This does what ar(cereal::make_nvp(...)) does while using nested
+    // cereal_overrides.
+    ar.setNextName(field);
+    cereal::prologue(ar, t);
+
+    // It does not matter what value we pass here to cereal::make_size_tag
+    // since it will be ignored. See the comment
+    //
+    // > SizeTags are strictly ignored for JSON, they just indicate
+    // > that the current node should be made into an array
+    //
+    // in include/cereal/archives/json.hpp
+    ar(cereal::make_size_tag(0));
+    for (auto const& element : t)
     {
-        tmp.emplace_back(
-            stellar::binToHex(stellar::ByteSlice(h.data(), h.size())));
+        xdr::archive(ar, element);
     }
-    xdr::archive(ar, tmp, field);
+    cereal::epilogue(ar, t);
 }
 
 template <uint32_t N>
@@ -104,11 +119,10 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
 // during the enable_if call in the cereal adaptor fails to find them.
 #include <xdrpp/cereal.h>
 
-// If name is a nonempty string, the output string begins with it.
 // If compact = true, the output string will not contain any indentation.
 template <typename T>
 std::string
-xdr_to_string(const T& t, std::string const& name = "", bool compact = false)
+xdr_to_string(const T& t, std::string const& name, bool compact = false)
 {
     std::stringstream os;
 
@@ -118,14 +132,7 @@ xdr_to_string(const T& t, std::string const& name = "", bool compact = false)
         cereal::JSONOutputArchive ar(
             os, compact ? cereal::JSONOutputArchive::Options::NoIndent()
                         : cereal::JSONOutputArchive::Options::Default());
-        if (!name.empty())
-        {
-            ar(cereal::make_nvp(name, t));
-        }
-        else
-        {
-            ar(t);
-        }
+        xdr::archive(ar, t, name.c_str());
     }
     return os.str();
 }

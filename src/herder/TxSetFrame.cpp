@@ -298,12 +298,13 @@ TxSetFrame::checkOrTrim(Application& app,
             {
                 if (justCheck)
                 {
-                    CLOG_DEBUG(Herder,
-                               "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
-                               "result: {}",
-                               hexAbbrev(mPreviousLedgerHash), lastSeq,
-                               xdr_to_string(tx->getEnvelope()),
-                               tx->getResultCode());
+                    CLOG_DEBUG(
+                        Herder,
+                        "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
+                        "result: {}",
+                        hexAbbrev(mPreviousLedgerHash), lastSeq,
+                        xdr_to_string(tx->getEnvelope(), "TransactionEnvelope"),
+                        tx->getResultCode());
                     return false;
                 }
                 trimmed.emplace_back(tx);
@@ -343,7 +344,8 @@ TxSetFrame::checkOrTrim(Application& app,
                     CLOG_DEBUG(Herder,
                                "Got bad txSet: {} account can't pay fee tx: {}",
                                hexAbbrev(mPreviousLedgerHash),
-                               xdr_to_string(tx->getEnvelope()));
+                               xdr_to_string(tx->getEnvelope(),
+                                             "TransactionEnvelope"));
                     return false;
                 }
                 while (iter != kv.second.end())

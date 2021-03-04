@@ -66,9 +66,9 @@ checkOperationResults(xdr::xvector<OperationResult> const& expected,
     {
         if (expected[i].code() != actual[i].code())
         {
-            CLOG_ERROR(History, "Expected operation result {} but got {}",
-                       xdr_to_string(expected[i].code()),
-                       xdr_to_string(actual[i].code()));
+            CLOG_ERROR(History, "Expected {} but got {}",
+                       xdr_to_string(expected[i].code(), "OperationResultCode"),
+                       xdr_to_string(actual[i].code(), "OperationResultCode"));
             continue;
         }
 
@@ -154,10 +154,10 @@ checkOperationResults(xdr::xvector<OperationResult> const& expected,
 
         if (!match)
         {
-            CLOG_ERROR(History, "Expected operation result: {}",
-                       xdr_to_string(expectedOpRes));
-            CLOG_ERROR(History, "Actual operation result: {}",
-                       xdr_to_string(actualOpRes));
+            CLOG_ERROR(History, "Expected {}",
+                       xdr_to_string(expectedOpRes, "OperationResult"));
+            CLOG_ERROR(History, "Actual {}",
+                       xdr_to_string(actualOpRes, "OperationResult"));
         }
     }
 }
@@ -179,9 +179,9 @@ checkResults(Application& app, uint32_t ledger,
         if (dbRes.code() != archiveRes.code())
         {
             CLOG_ERROR(
-                History,
-                "Expected result code {} does not agree with {} for tx {}",
-                xdr_to_string(archiveRes.code()), xdr_to_string(dbRes.code()),
+                History, "Expected {} does not agree with {} for tx {}",
+                xdr_to_string(archiveRes.code(), "TransactionResultCode"),
+                xdr_to_string(dbRes.code(), "TransactionResultCode"),
                 binToHex(results[i].transactionHash));
         }
         else if (dbRes.code() == txFEE_BUMP_INNER_FAILED ||
@@ -193,11 +193,13 @@ checkResults(Application& app, uint32_t ledger,
             {
                 CLOG_ERROR(
                     History,
-                    "Expected result code {} does not agree with {} for "
+                    "Expected {} does not agree with {} for "
                     "fee-bump inner tx {}",
                     xdr_to_string(
-                        archiveRes.innerResultPair().result.result.code()),
-                    xdr_to_string(dbRes.innerResultPair().result.result.code()),
+                        archiveRes.innerResultPair().result.result.code(),
+                        "TransactionResultCode"),
+                    xdr_to_string(dbRes.innerResultPair().result.result.code(),
+                                  "TransactionResultCode"),
                     binToHex(archiveRes.innerResultPair().transactionHash));
             }
             else if (dbRes.innerResultPair().result.result.code() == txFAILED ||

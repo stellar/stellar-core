@@ -817,19 +817,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     }
     catch (std::exception& e)
     {
-        CLOG_ERROR(Tx,
-                   "Exception while applying operations (fullHash= {}, "
-                   "contentsHash= {}): {}",
-                   xdr_to_string(getFullHash()),
-                   xdr_to_string(getContentsHash()), e.what());
+        CLOG_ERROR(Tx, "Exception while applying operations ({}, {}): {}",
+                   xdr_to_string(getFullHash(), "fullHash"),
+                   xdr_to_string(getContentsHash(), "contentsHash"), e.what());
     }
     catch (...)
     {
-        CLOG_ERROR(Tx,
-                   "Unknown exception while applying operations (fullHash= {}, "
-                   "contentsHash= {})",
-                   xdr_to_string(getFullHash()),
-                   xdr_to_string(getContentsHash()));
+        CLOG_ERROR(Tx, "Unknown exception while applying operations ({}, {})",
+                   xdr_to_string(getFullHash(), "fullHash"),
+                   xdr_to_string(getContentsHash(), "contentsHash"));
     }
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
