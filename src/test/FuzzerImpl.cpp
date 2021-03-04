@@ -1316,42 +1316,7 @@ TransactionFuzzer::initialize()
 
     initializeOffers(ltxOuter);
 
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        for (auto const& param : accountParameters)
-        {
-            PublicKey account;
-            FuzzUtils::setShortKey(account, param.mShortKey);
-
-            // Reduce "account"'s native balance by paying the root, so that
-            // fuzzing has a better chance of exercising edge cases.
-            auto ae = stellar::loadAccount(ltx, account);
-            auto const availableBalance =
-                getAvailableBalance(ltx.loadHeader(), ae);
-            auto const targetAvailableBalance =
-                param.mNativeAssetAvailableForTestActivity +
-                FuzzUtils::FUZZING_FEE *
-                    FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
-
-            if (availableBalance > targetAvailableBalance)
-            {
-                auto reduceNativeBalanceOp =
-                    txtest::payment(mSourceAccountID,
-                                    availableBalance - targetAvailableBalance);
-                reduceNativeBalanceOp.sourceAccount.activate() =
-                    toMuxedAccount(account);
-                ops.emplace_back(reduceNativeBalanceOp);
-            }
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    reduceNativeBalancesAfterSetup(ltxOuter);
 
     {
         LedgerTxn ltx(ltxOuter);
@@ -1587,6 +1552,40 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
         op.sourceAccount.activate() = toMuxedAccount(pkA);
         FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
                                                  param.mSponsorKey, pkA);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : accountParameters)
+    {
+        PublicKey account;
+        FuzzUtils::setShortKey(account, param.mShortKey);
+
+        // Reduce "account"'s native balance by paying the root, so that
+        // fuzzing has a better chance of exercising edge cases.
+        auto ae = stellar::loadAccount(ltx, account);
+        auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);
+        auto const targetAvailableBalance =
+            param.mNativeAssetAvailableForTestActivity +
+            FuzzUtils::FUZZING_FEE *
+                FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
+
+        assert(availableBalance > targetAvailableBalance);
+        auto reduceNativeBalanceOp = txtest::payment(
+            mSourceAccountID, availableBalance - targetAvailableBalance);
+        reduceNativeBalanceOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(reduceNativeBalanceOp);
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
