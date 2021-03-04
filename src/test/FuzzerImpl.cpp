@@ -1318,63 +1318,9 @@ TransactionFuzzer::initialize()
 
     reduceNativeBalancesAfterSetup(ltxOuter);
 
-    {
-        LedgerTxn ltx(ltxOuter);
+    reduceTrustLineBalancesAfterSetup(ltxOuter);
 
-        xdr::xvector<Operation> ops;
-
-        // Reduce trustline balances and limits so that fuzzing has a better
-        // chance of exercising edge cases.
-        for (auto const& trustLine : trustLineParameters)
-        {
-            auto const trustor = trustLine.mTrustor;
-            PublicKey account;
-            FuzzUtils::setShortKey(account, trustor);
-
-            auto const asset = trustLine.mAssetID.toAsset();
-
-            PublicKey issuer;
-            FuzzUtils::setShortKey(issuer, trustLine.mAssetID.mIssuer);
-
-            // Reduce "account"'s balance of this asset by paying the
-            // issuer.
-            auto tle = stellar::loadTrustLine(ltx, account, asset);
-            auto const availableTLBalance =
-                tle.getAvailableBalance(ltx.loadHeader());
-            auto const targetAvailableTLBalance =
-                trustLine.mAssetAvailableForTestActivity;
-            auto const paymentAmount =
-                availableTLBalance - targetAvailableTLBalance;
-
-            assert(availableTLBalance > targetAvailableTLBalance);
-            auto reduceNonNativeBalanceOp =
-                txtest::payment(issuer, asset, paymentAmount);
-            reduceNonNativeBalanceOp.sourceAccount.activate() =
-                toMuxedAccount(account);
-            ops.emplace_back(reduceNonNativeBalanceOp);
-
-            // Reduce this trustline's limit.
-            assert(paymentAmount <= tle.getBalance());
-            auto const trustLineBalanceAfterPayment =
-                tle.getBalance() - paymentAmount;
-            auto const buyingLiabilities =
-                tle.getBuyingLiabilities(ltx.loadHeader());
-            auto const targetTrustLineLimit = trustLineBalanceAfterPayment +
-                                              buyingLiabilities +
-                                              trustLine.mSpareLimitAfterSetup;
-
-            auto changeTrustLineLimitOp =
-                txtest::changeTrust(asset, targetTrustLineLimit);
-            changeTrustLineLimitOp.sourceAccount.activate() =
-                toMuxedAccount(account);
-            ops.emplace_back(changeTrustLineLimitOp);
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    reduceTrustLineLimitsAfterSetup(ltxOuter);
 
     storeSetupLedgerKeys(ltxOuter);
 
@@ -1586,6 +1532,85 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
         reduceNativeBalanceOp.sourceAccount.activate() =
             toMuxedAccount(account);
         ops.emplace_back(reduceNativeBalanceOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
+    AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    // Reduce trustline balances so that fuzzing has a better chance of
+    // exercising edge cases.
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        PublicKey issuer;
+        FuzzUtils::setShortKey(issuer, trustLine.mAssetID.mIssuer);
+
+        // Reduce "account"'s balance of this asset by paying the
+        // issuer.
+        auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const availableTLBalance =
+            tle.getAvailableBalance(ltx.loadHeader());
+        auto const targetAvailableTLBalance =
+            trustLine.mAssetAvailableForTestActivity;
+        auto const paymentAmount =
+            availableTLBalance - targetAvailableTLBalance;
+
+        assert(availableTLBalance > targetAvailableTLBalance);
+        auto reduceNonNativeBalanceOp =
+            txtest::payment(issuer, asset, paymentAmount);
+        reduceNonNativeBalanceOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(reduceNonNativeBalanceOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    // Reduce trustline limits so that fuzzing has a better chance of exercising
+    // edge cases.
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        // Reduce this trustline's limit.
+        auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const targetTrustLineLimit =
+            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader()) +
+            trustLine.mSpareLimitAfterSetup;
+
+        auto changeTrustLineLimitOp =
+            txtest::changeTrust(asset, targetTrustLineLimit);
+        changeTrustLineLimitOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(changeTrustLineLimitOp);
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
