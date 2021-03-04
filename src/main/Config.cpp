@@ -192,6 +192,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
+
+#ifdef BEST_OFFER_DEBUGGING
+    BEST_OFFER_DEBUGGING_ENABLED = false;
+#endif
 }
 
 namespace

@@ -385,6 +385,10 @@ class Config : public std::enable_shared_from_this<Config>
     bool TEST_CASES_ENABLED;
 #endif
 
+#ifdef BEST_OFFER_DEBUGGING
+    bool BEST_OFFER_DEBUGGING_ENABLED;
+#endif
+
     // Any transaction that reaches the TransactionQueue will be rejected if it
     // contains an operation in this list.
     std::vector<OperationType> EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
