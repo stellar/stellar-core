@@ -888,8 +888,9 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
                 History, "Closing synthetic ledger {} with {} txs (txhash:{})",
                 ledgerSeq, txSet->size(lm.getLastClosedLedgerHeader().header),
                 hexAbbrev(txSet->getContentsHash()));
-            StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
-                            STELLAR_VALUE_BASIC);
+            StellarValue sv = a->getHerder().makeStellarValue(
+                txSet->getContentsHash(), closeTime, upgrades,
+                a->getConfig().NODE_SEED);
             lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         }
 

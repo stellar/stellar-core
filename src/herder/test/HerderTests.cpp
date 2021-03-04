@@ -1075,8 +1075,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 }
 
 static void
-testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
-              bool const expectTxSetCloseTimeAffinity)
+testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 {
     using SVUpgrades = decltype(StellarValue::upgrades);
 
@@ -1101,22 +1100,17 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
     auto makeTxUpgradePair = [&](HerderImpl& herder, TxSetFramePtr txSet,
-                                 uint64_t closeTime, SVUpgrades const& upgrades,
-                                 bool sig) {
+                                 uint64_t closeTime,
+                                 SVUpgrades const& upgrades) {
         txSet->sortForHash();
-        auto sv = StellarValue(txSet->getContentsHash(), closeTime, upgrades,
-                               STELLAR_VALUE_BASIC);
-        if (sig)
-        {
-            herder.signStellarValue(root.getSecretKey(), sv);
-        }
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), closeTime, upgrades, root.getSecretKey());
         auto v = xdr::xdr_to_opaque(sv);
         return TxPair{v, txSet};
     };
     auto makeTxPair = [&](HerderImpl& herder, TxSetFramePtr txSet,
-                          uint64_t closeTime, bool sig) {
-        return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps,
-                                 sig);
+                          uint64_t closeTime) {
+        return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps);
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
                              uint64_t slotIndex, bool nomination) {
@@ -1217,13 +1211,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
                 Value upgrade(xdr::xdr_to_opaque(ledgerUpgrade));
                 SVUpgrades upgrades;
                 upgrades.emplace_back(upgrade.begin(), upgrade.end());
-                addToCandidates(makeTxUpgradePair(herder, txSet, spec.closeTime,
-                                                  upgrades, true));
+                addToCandidates(
+                    makeTxUpgradePair(herder, txSet, spec.closeTime, upgrades));
             }
             else
             {
-                addToCandidates(
-                    makeTxPair(herder, txSet, spec.closeTime, true));
+                addToCandidates(makeTxPair(herder, txSet, spec.closeTime));
             }
 
             // Compute the expected transaction set, close time, and upgrade
@@ -1233,10 +1226,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
                 std::max_element(txSetSizes.begin(), txSetSizes.end()));
             REQUIRE(txSetSizes.size() == closeTimes.size());
             auto const expectedHash = txSetHashes[bestTxSetIndex];
-            auto const expectedCloseTime =
-                expectTxSetCloseTimeAffinity
-                    ? closeTimes[bestTxSetIndex]
-                    : *std::max_element(closeTimes.begin(), closeTimes.end());
+            auto const expectedCloseTime = closeTimes[bestTxSetIndex];
             SVUpgrades expectedUpgradeVector;
             if (!baseFees.empty())
             {
@@ -1259,8 +1249,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
             // Compare the returned StellarValue's contents with the
             // expected ones that we computed above.
-            REQUIRE(sv.ext.v() ==
-                    herder.getHerderSCPDriver().compositeValueType());
+            REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
             REQUIRE(sv.txSetHash == expectedHash);
             REQUIRE(sv.closeTime == expectedCloseTime);
             REQUIRE(sv.upgrades == expectedUpgradeVector);
@@ -1283,13 +1272,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         REQUIRE(txSetOpSizes[bestTxSetIndex] == expectedOps);
 
         TxSetFramePtr txSetL = makeTransactions(lcl.hash, maxTxSize, 1, 101);
-        addToCandidates(makeTxPair(herder, txSetL, 20, true));
+        addToCandidates(makeTxPair(herder, txSetL, 20));
         TxSetFramePtr txSetL2 = makeTransactions(lcl.hash, maxTxSize, 1, 1000);
-        addToCandidates(makeTxPair(herder, txSetL2, 20, true));
+        addToCandidates(makeTxPair(herder, txSetL2, 20));
         auto v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         StellarValue sv;
         xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(sv.ext.v() == herder.getHerderSCPDriver().compositeValueType());
+        REQUIRE(sv.ext.v() == STELLAR_VALUE_SIGNED);
         REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
     }
 
@@ -1299,17 +1288,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto& scp = herder.getHerderSCPDriver();
         auto seq = herder.getCurrentLedgerSeq() + 1;
         auto ct = app->timeNow() + 1;
-        auto const signedBallots =
-            (scp.compositeValueType() == STELLAR_VALUE_SIGNED);
-
-        REQUIRE(signedBallots == expectTxSetCloseTimeAffinity);
-        REQUIRE(scp.curProtocolPreservesTxSetCloseTimeAffinity() ==
-                expectTxSetCloseTimeAffinity);
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
         {
             // make sure that txSet0 is loaded
-            auto p = makeTxPair(herder, txSet0, ct, true);
+            auto p = makeTxPair(herder, txSet0, ct);
             auto envelope = makeEnvelope(herder, p, {}, seq, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
@@ -1318,49 +1301,62 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
         SECTION("valid")
         {
-            auto nomV = makeTxPair(herder, txSet0, ct, true);
+            auto nomV = makeTxPair(herder, txSet0, ct);
             REQUIRE(scp.validateValue(seq, nomV.first, true) ==
                     SCPDriver::kFullyValidatedValue);
 
-            auto balV = makeTxPair(herder, txSet0, ct, signedBallots);
+            auto balV = makeTxPair(herder, txSet0, ct);
             REQUIRE(scp.validateValue(seq, balV.first, false) ==
                     SCPDriver::kFullyValidatedValue);
         }
         SECTION("invalid")
         {
-            auto nomV = makeTxPair(herder, txSet0, ct, false);
-            REQUIRE(scp.validateValue(seq, nomV.first, true) ==
-                    SCPDriver::kInvalidValue);
-
-            auto balV = makeTxPair(herder, txSet0, ct, !signedBallots);
-            REQUIRE(scp.validateValue(seq, balV.first, false) ==
-                    SCPDriver::kInvalidValue);
-
-            auto p = makeTxPair(herder, txSet0, ct, true);
-            StellarValue sv;
-            xdr::xdr_from_opaque(p.first, sv);
-
-            auto checkInvalid = [&](StellarValue const& sv) {
+            auto checkInvalid = [&](StellarValue const& sv, bool nomination) {
                 auto v = xdr::xdr_to_opaque(sv);
-                REQUIRE(scp.validateValue(seq, v, true) ==
+                REQUIRE(scp.validateValue(seq, v, nomination) ==
                         SCPDriver::kInvalidValue);
             };
 
-            // mutate in a few ways
-            SECTION("missing signature")
+            auto testInvalidValue = [&](bool isNomination) {
+                SECTION("basic value")
+                {
+                    auto basicVal =
+                        StellarValue(txSet0->getContentsHash(), ct,
+                                     emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+                    checkInvalid(basicVal, isNomination);
+                }
+                SECTION("signed value")
+                {
+                    auto p = makeTxPair(herder, txSet0, ct);
+                    StellarValue sv;
+                    xdr::xdr_from_opaque(p.first, sv);
+
+                    // mutate in a few ways
+                    SECTION("missing signature")
+                    {
+                        sv.ext.lcValueSignature().signature.clear();
+                        checkInvalid(sv, isNomination);
+                    }
+                    SECTION("wrong signature")
+                    {
+                        sv.ext.lcValueSignature().signature[0] ^= 1;
+                        checkInvalid(sv, isNomination);
+                    }
+                    SECTION("wrong signature 2")
+                    {
+                        sv.ext.lcValueSignature().nodeID.ed25519()[0] ^= 1;
+                        checkInvalid(sv, isNomination);
+                    }
+                }
+            };
+
+            SECTION("nomination")
             {
-                sv.ext.lcValueSignature().signature.clear();
-                checkInvalid(sv);
+                testInvalidValue(/* isNomination */ true);
             }
-            SECTION("wrong signature")
+            SECTION("ballot")
             {
-                sv.ext.lcValueSignature().signature[0] ^= 1;
-                checkInvalid(sv);
-            }
-            SECTION("wrong signature 2")
-            {
-                sv.ext.lcValueSignature().nodeID.ed25519()[0] ^= 1;
-                checkInvalid(sv);
+                testInvalidValue(/* isNomination */ false);
             }
         }
     }
@@ -1397,7 +1393,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
             // Build a StellarValue containing the transaction set we just built
             // and the given next closeTime.
-            auto val = makeTxPair(herder, txSet, nextCloseTime, true);
+            auto val = makeTxPair(herder, txSet, nextCloseTime);
             auto const seq = herder.getCurrentLedgerSeq() + 1;
             auto envelope = makeEnvelope(herder, val, {}, seq, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
@@ -1412,9 +1408,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             // Confirm that trimInvalid() as used by
             // HerderImpl::triggerNextLedger() trims the transaction if and only
             // if we expect it to be invalid.
-            auto closeTimeOffset = expectTxSetCloseTimeAffinity
-                                       ? (nextCloseTime - lclCloseTime)
-                                       : 0;
+            auto closeTimeOffset = nextCloseTime - lclCloseTime;
             auto removed =
                 txSet->trimInvalid(*app, closeTimeOffset, closeTimeOffset);
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
@@ -1427,14 +1421,14 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             testTxBounds(0, t1, t1, true);
         }
 
-        SECTION("expired (invalid maxTime) with txSet/closeTime affinity")
+        SECTION("invalid time bounds: expired (invalid maxTime)")
         {
-            testTxBounds(0, t1, t2, !expectTxSetCloseTimeAffinity);
+            testTxBounds(0, t1, t2, false);
         }
 
-        SECTION("premature (invalid minTime) without txSet/closeTime affinity")
+        SECTION("valid time bounds: premature minTime")
         {
-            testTxBounds(t1, 0, t1, expectTxSetCloseTimeAffinity);
+            testTxBounds(t1, 0, t1, true);
         }
     }
 
@@ -1479,8 +1473,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto transactions1 = makeTransactions(lcl.hash, 5, 1, 100);
         auto transactions2 = makeTransactions(lcl.hash, 4, 1, 100);
-        auto p1 = makeTxPair(herder, transactions1, 10, true);
-        auto p2 = makeTxPair(herder, transactions1, 10, true);
+        auto p1 = makeTxPair(herder, transactions1, 10);
+        auto p2 = makeTxPair(herder, transactions1, 10);
         // use current + 1 to allow for any value (old values get filtered more)
         auto lseq = herder.getCurrentLedgerSeq() + 1;
         auto saneEnvelopeQ1T1 =
@@ -1607,13 +1601,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
 TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
-    SECTION("protocol 13")
-    {
-        testSCPDriver(13, 1000, 15, false);
-    }
     SECTION("protocol current")
     {
-        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15, true);
+        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
     }
 }
 
@@ -2299,13 +2289,8 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
-    StellarValue sv{txSet->getContentsHash(), 2, xdr::xvector<UpgradeType, 6>{},
-                    STELLAR_VALUE_BASIC};
-    if (herder.getHerderSCPDriver().compositeValueType() ==
-        STELLAR_VALUE_SIGNED)
-    {
-        herder.signStellarValue(sk, sv);
-    }
+    StellarValue sv = herder.makeStellarValue(
+        txSet->getContentsHash(), 2, xdr::xvector<UpgradeType, 6>{}, sk);
     herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                   xdr::xdr_to_opaque(sv));
 }
@@ -2594,14 +2579,10 @@ TEST_CASE("slot herder policy", "[herder]")
         auto& ext = envelope.statement.pledges.externalize();
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(prevHash);
 
-        StellarValue sv{txSet->getContentsHash(), (TimePoint)slotIndex,
-                        xdr::xvector<UpgradeType, 6>{}, STELLAR_VALUE_BASIC};
-        if (herder.getHerderSCPDriver().compositeValueType() ==
-            STELLAR_VALUE_SIGNED)
-        {
-            // sign values with the same secret key
-            herder.signStellarValue(v1SecretKey, sv);
-        }
+        // sign values with the same secret key
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), (TimePoint)slotIndex,
+            xdr::xvector<UpgradeType, 6>{}, v1SecretKey);
         ext.commit.counter = 1;
         ext.commit.value = xdr::xdr_to_opaque(sv);
         ext.commitQuorumSetHash = qsetHash;

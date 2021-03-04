@@ -154,7 +154,7 @@ clearFutures(Application::pointer app, BucketList& bl)
 }
 
 static Hash
-closeLedger(Application& app)
+closeLedger(Application& app, optional<SecretKey> skToSignValue)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
@@ -163,11 +163,20 @@ closeLedger(Application& app)
               ledgerNum, hexAbbrev(lcl.hash),
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
-    StellarValue sv(txSet->getContentsHash(), lcl.header.scpValue.closeTime,
-                    emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+    StellarValue sv = app.getHerder().makeStellarValue(
+        txSet->getContentsHash(), lcl.header.scpValue.closeTime,
+        emptyUpgradeSteps,
+        (skToSignValue ? *skToSignValue : app.getConfig().NODE_SEED));
+
     LedgerCloseData lcd(ledgerNum, txSet, sv);
     lm.valueExternalized(lcd);
     return lm.getLastClosedLedgerHeader().hash;
+}
+
+static Hash
+closeLedger(Application& app)
+{
+    return closeLedger(app, nullopt<SecretKey>());
 }
 }
 
@@ -1406,10 +1415,12 @@ TEST_CASE("bucket persistence over app restart",
 
         // First, run an application through two ledger closes, picking up
         // the bucket and ledger closes at each.
+        optional<SecretKey> sk;
         {
             VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg0);
             app->start();
+            sk = make_optional<SecretKey>(cfg0.NODE_SEED);
             BucketList& bl = app->getBucketManager().getBucketList();
 
             uint32_t i = 2;
@@ -1457,7 +1468,8 @@ TEST_CASE("bucket persistence over app restart",
                 i++;
             }
 
-            REQUIRE(hexAbbrev(Lh1) == hexAbbrev(closeLedger(*app)));
+            REQUIRE(sk);
+            REQUIRE(hexAbbrev(Lh1) == hexAbbrev(closeLedger(*app, sk)));
             REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
 
             // Confirm that there are merges-in-progress in this checkpoint.
@@ -1497,7 +1509,7 @@ TEST_CASE("bucket persistence over app restart",
 
             // Confirm that merges-in-progress finished with expected
             // results.
-            REQUIRE(hexAbbrev(Lh2) == hexAbbrev(closeLedger(*app)));
+            REQUIRE(hexAbbrev(Lh2) == hexAbbrev(closeLedger(*app, sk)));
             REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
         }
     });

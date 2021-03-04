@@ -6,6 +6,7 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
+#include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -40,6 +41,39 @@ using namespace stellar::txtest;
     authz/authn
     double spend
 */
+
+TEST_CASE("txset - correct apply order", "[tx][envelope]")
+{
+    Config cfg = getTestConfig();
+    cfg.NODE_SEED = SecretKey::fromSeed(sha256("NODE_SEED"));
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    // set up world
+    auto root = TestAccount::createRoot(*app);
+    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
+
+    auto a1 = root.create("a1", paymentAmount);
+    auto b1 = root.create("b1", paymentAmount);
+    a1.pay(b1, 1000);
+    closeLedgerOn(*app, 2, 1, 1, 2016);
+
+    auto tx1 = b1.tx({accountMerge(a1)});
+    auto tx2 = a1.tx({b1.op(payment(root, 110)), root.op(payment(a1, 101))});
+
+    auto txSet = std::make_shared<TxSetFrame>(
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+    txSet->add(tx1);
+    txSet->add(tx2);
+
+    // Sort for apply re-orders transaction set
+    auto txs = txSet->sortForApply();
+    REQUIRE(txs.size() == 2);
+    REQUIRE(txs[1]->getFullHash() == tx1->getFullHash());
+    REQUIRE(txs[0]->getFullHash() == tx2->getFullHash());
+}
 
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
@@ -634,7 +668,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                             // merge b1 into a1 and attempt the payment tx
                             auto r = closeLedgerOn(*app, 3, 1, 2, 2016,
-                                                   {txMerge, tx});
+                                                   {txMerge, tx},
+                                                   /* strictOrder */ true);
 
                             if (txAccountMissing)
                             {
@@ -1493,8 +1528,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txSet->add(txFrame);
 
             // close this ledger
-            StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps,
-                            STELLAR_VALUE_BASIC);
+            StellarValue sv = app->getHerder().makeStellarValue(
+                txSet->getContentsHash(), 1, emptyUpgradeSteps,
+                app->getConfig().NODE_SEED);
             LedgerCloseData ledgerData(1, txSet, sv);
             app->getLedgerManager().closeLedger(ledgerData);
 
@@ -1999,8 +2035,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                      setOptions(setSigner(makeSigner(b, 2)))});
                     tx2->addSignature(b);
 
-                    auto r =
-                        closeLedgerOn(*app, 2, 1, 2, 2016, {tx1, tx2}, true);
+                    auto r = closeLedgerOn(*app, 2, 1, 2, 2016, {tx1, tx2});
 
                     REQUIRE(tx1->getResultCode() == txSUCCESS);
                     REQUIRE(tx2->getResultCode() == txFAILED);

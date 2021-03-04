@@ -229,7 +229,8 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    StellarValue sv{txSet->getContentsHash(), 2, upgrades, STELLAR_VALUE_BASIC};
+    StellarValue sv = app.getHerder().makeStellarValue(
+        txSet->getContentsHash(), 2, upgrades, app.getConfig().NODE_SEED);
     LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
 
     app.getLedgerManager().closeLedger(ledgerData);
@@ -1462,8 +1463,10 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             CLOG_INFO(Ledger, "Ledger {} upgrading to v{}", ledgerSeq,
                       newProto);
         }
-        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
-                        STELLAR_VALUE_BASIC);
+
+        StellarValue sv = app->getHerder().makeStellarValue(
+            txSet->getContentsHash(), closeTime, upgrades,
+            app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto mc = bm.readMergeCounters();
@@ -1577,8 +1580,9 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             CLOG_INFO(Ledger, "Ledger {} upgrading to v{}", ledgerSeq,
                       newProto);
         }
-        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
-                        STELLAR_VALUE_BASIC);
+        StellarValue sv = app->getHerder().makeStellarValue(
+            txSet->getContentsHash(), closeTime, upgrades,
+            app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto& bl = bm.getBucketList();
@@ -1675,9 +1679,10 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
                                               ledgerSeq, emptyTxSet);
 
         auto upgrade = toUpgradeType(makeProtocolVersionUpgrade(13));
-        StellarValue sv{emptyTxSet->getContentsHash(), 2,
-                        xdr::xvector<UpgradeType, 6>({upgrade}),
-                        STELLAR_VALUE_BASIC};
+        StellarValue sv =
+            herder.makeStellarValue(emptyTxSet->getContentsHash(), 2,
+                                    xdr::xvector<UpgradeType, 6>({upgrade}),
+                                    app->getConfig().NODE_SEED);
         herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                       xdr::xdr_to_opaque(sv));
     }

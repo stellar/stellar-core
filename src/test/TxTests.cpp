@@ -6,6 +6,7 @@
 #include "crypto/ByteSlice.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -394,18 +395,41 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              std::vector<TransactionFrameBasePtr> const& txs, bool skipValid)
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
     return closeLedgerOn(app, ledgerSeq, getTestDate(day, month, year), txs,
-                         skipValid);
+                         strictOrder);
 }
+
+class TxSetFrameStrictOrderForTesting : public TxSetFrame
+{
+  public:
+    TxSetFrameStrictOrderForTesting(Hash const& previousLedgerHash)
+        : TxSetFrame(previousLedgerHash){};
+
+    std::vector<TransactionFrameBasePtr>
+    sortForApply() override
+    {
+        return mTransactions;
+    };
+
+    void sortForHash() override{};
+};
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
-              std::vector<TransactionFrameBasePtr> const& txs, bool skipValid)
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
-    auto txSet = std::make_shared<TxSetFrame>(
-        app.getLedgerManager().getLastClosedLedgerHeader().hash);
+    std::shared_ptr<TxSetFrame> txSet;
+    auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
+    if (strictOrder)
+    {
+        txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(lclHash);
+    }
+    else
+    {
+        txSet = std::make_shared<TxSetFrame>(lclHash);
+    }
 
     for (auto const& tx : txs)
     {
@@ -413,13 +437,15 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     }
 
     txSet->sortForHash();
-    if (!skipValid)
+    if (!strictOrder)
     {
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
-    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
-                    STELLAR_VALUE_BASIC);
+    StellarValue sv = app.getHerder().makeStellarValue(
+        txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+        app.getConfig().NODE_SEED);
+
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 

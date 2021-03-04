@@ -77,7 +77,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     Hash& previousLedgerHash();
     Hash const& previousLedgerHash() const override;
 
-    void sortForHash();
+    virtual void sortForHash();
 
     std::vector<TransactionFrameBasePtr> sortForApply() override;
 

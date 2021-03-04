@@ -1032,18 +1032,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // validate here -- 'nextCloseTime'.  (The _offset_, therefore, is
     // the difference between 'nextCloseTime' and the last ledger close time.)
     TimePoint upperBoundCloseTimeOffset, lowerBoundCloseTimeOffset;
-    if (getHerderSCPDriver().curProtocolPreservesTxSetCloseTimeAffinity())
-    {
-        upperBoundCloseTimeOffset =
-            nextCloseTime - lcl.header.scpValue.closeTime;
-        lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
-    }
-    else
-    {
-        upperBoundCloseTimeOffset =
-            getUpperBoundCloseTimeOffset(mApp, lcl.header.scpValue.closeTime);
-        lowerBoundCloseTimeOffset = 0;
-    }
+    upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
+    lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
     auto removed = proposedSet->trimInvalid(mApp, lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset);
@@ -1077,8 +1067,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-    StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
-                                  STELLAR_VALUE_BASIC);
+    auto newUpgrades = emptyUpgradeSteps;
 
     // see if we need to include some upgrades
     auto upgrades = mUpgrades.createUpgradesFor(lcl.header);
@@ -1096,7 +1085,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
         else
         {
-            newProposedValue.upgrades.emplace_back(v.begin(), v.end());
+            newUpgrades.emplace_back(v.begin(), v.end());
         }
     }
 
@@ -1109,7 +1098,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         return;
     }
 
-    signStellarValue(mApp.getConfig().NODE_SEED, newProposedValue);
+    StellarValue newProposedValue = makeStellarValue(
+        txSetHash, nextCloseTime, newUpgrades, mApp.getConfig().NODE_SEED);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
 }
@@ -1820,14 +1810,21 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
     return b;
 }
 
-void
-HerderImpl::signStellarValue(SecretKey const& s, StellarValue& sv)
+StellarValue
+HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
+                             xdr::xvector<UpgradeType, 6> const& upgrades,
+                             SecretKey const& s)
 {
     ZoneScoped;
+    StellarValue sv;
     sv.ext.v(STELLAR_VALUE_SIGNED);
+    sv.txSetHash = txSetHash;
+    sv.closeTime = closeTime;
+    sv.upgrades = upgrades;
     sv.ext.lcValueSignature().nodeID = s.getPublicKey();
     sv.ext.lcValueSignature().signature =
         s.sign(xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
                                   sv.txSetHash, sv.closeTime));
+    return sv;
 }
 }
