@@ -25,6 +25,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
+#include <cstdint>
 #include <exception>
 #include <fmt/format.h>
 #include <xdrpp/autocheck.h>
@@ -36,7 +37,6 @@ namespace FuzzUtils
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
 auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
 auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
-auto constexpr NUMBER_OF_ASSETS_TO_USE = 8U;
 auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
@@ -69,21 +69,41 @@ getShortKey(PublicKey const& pk)
     return getShortKey(pk.ed25519());
 }
 
+uint8_t constexpr NUMBER_OF_ASSET_ISSUER_BITS = 5;
+uint8_t constexpr NUMBER_OF_ASSET_CODE_BITS = 8 - NUMBER_OF_ASSET_ISSUER_BITS;
+uint8_t constexpr NUMBER_OF_ASSETS_TO_USE = 1 << NUMBER_OF_ASSET_CODE_BITS;
+uint8_t constexpr ENCODE_ASSET_CODE_MASK = NUMBER_OF_ASSETS_TO_USE - 1;
+
 uint8_t
 getShortKey(AssetCode4 const& code)
 {
-    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+    return code.data()[0] & ENCODE_ASSET_CODE_MASK;
 }
 
 uint8_t
 getShortKey(AssetCode12 const& code)
 {
-    return code.data()[0] % NUMBER_OF_ASSETS_TO_USE;
+    return code.data()[0] & ENCODE_ASSET_CODE_MASK;
+}
+
+uint8_t
+decodeAssetIssuer(uint8_t byte)
+{
+    return byte >> NUMBER_OF_ASSET_CODE_BITS;
+}
+
+uint8_t
+decodeAssetCodeDigit(uint8_t byte)
+{
+    return byte & ENCODE_ASSET_CODE_MASK;
 }
 
 uint8_t
 getShortKey(Asset const& asset)
 {
+    // This encoding does _not_ make compacting a left-inverse of unpack.  We
+    // could make it so, but it's not necessary -- compacting, which alone uses
+    // this function, is operating on a randomly-generated Asset anyway.
     switch (asset.type())
     {
     case ASSET_TYPE_NATIVE:
@@ -140,17 +160,18 @@ getShortKey(LedgerKey const& key)
 void
 setAssetCode4(AssetCode4& code, int digit)
 {
-    assert(digit < 10);
+    static_assert(
+        FuzzUtils::NUMBER_OF_ASSETS_TO_USE <= 10,
+        "asset code generation supports only single-digit asset numbers");
+    assert(digit < FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     strToAssetCode(code, "Ast" + std::to_string(digit));
 }
 
-// Requires "digit" in [0..9].
 // For digit == 0, returns native Asset.
 // For digit != 0, returns an Asset with a 4-byte alphanumeric code "Ast<digit>"
-// and an issuer whose public key has "digit" in byte 0 and whose other bytes
-// are all 0.
+// and an issuer with the given public key.
 Asset
-makeAsset(int digit)
+makeAsset(int issuer, int digit)
 {
     Asset asset;
     if (digit == 0)
@@ -161,15 +182,22 @@ makeAsset(int digit)
     {
         asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
         setAssetCode4(asset.alphaNum4().assetCode, digit);
-        setShortKey(asset.alphaNum4().issuer, digit);
+        setShortKey(asset.alphaNum4().issuer, issuer);
     }
     return asset;
 }
 
+Asset
+makeAsset(uint8_t byte)
+{
+    return makeAsset(decodeAssetIssuer(byte), decodeAssetCodeDigit(byte));
+}
+
 AssetCode
-makeAssetCode(int digit)
+makeAssetCode(uint8_t byte)
 {
     AssetCode code;
+    auto digit = decodeAssetCodeDigit(byte);
     if (digit == 0)
     {
         code.type(ASSET_TYPE_NATIVE);
@@ -217,6 +245,35 @@ getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
 {
     auto account = loadAccount(ltx, sourceAccountID);
     return account.current().data.account().seqNum;
+}
+
+// Append "newOp" to "ops", optionally after enclosing it in a sandwich of
+// begin/end-sponsoring-future-reserves.
+void
+emplaceConditionallySponsored(xdr::xvector<Operation>& ops,
+                              Operation const& newOp, bool isSponsored,
+                              int sponsorShortKey,
+                              PublicKey const& sponsoredKey)
+{
+    if (isSponsored)
+    {
+        PublicKey sponsorKey;
+        FuzzUtils::setShortKey(sponsorKey, sponsorShortKey);
+
+        auto beginSponsoringOp =
+            txtest::beginSponsoringFutureReserves(sponsoredKey);
+        beginSponsoringOp.sourceAccount.activate() = toMuxedAccount(sponsorKey);
+        ops.emplace_back(beginSponsoringOp);
+    }
+
+    ops.emplace_back(newOp);
+
+    if (isSponsored)
+    {
+        auto endSponsoringOp = txtest::endSponsoringFutureReserves();
+        endSponsoringOp.sourceAccount.activate() = toMuxedAccount(sponsoredKey);
+        ops.emplace_back(endSponsoringOp);
+    }
 }
 }
 }
@@ -561,8 +618,7 @@ struct xdr_fuzzer_unpacker
         // 1 byte --> Asset
         check(1);
         std::uint8_t v = get_byte();
-        asset = stellar::FuzzUtils::makeAsset(
-            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+        asset = stellar::FuzzUtils::makeAsset(v);
     }
 
     template <typename T>
@@ -572,8 +628,7 @@ struct xdr_fuzzer_unpacker
         // 1 byte --> AssetCode
         check(1);
         std::uint8_t v = get_byte();
-        code = stellar::FuzzUtils::makeAssetCode(
-            v % stellar::FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
+        code = stellar::FuzzUtils::makeAssetCode(v);
     }
 
     template <typename T>
@@ -633,12 +688,17 @@ template <>
 void
 generator_t::operator()(stellar::PublicKey& t) const
 {
-    // note that we include NUMBER_OF_PREGENERATED_ACCOUNTS as to also cover the
-    // case of non existing accounts
+    // Generate account IDs in a somewhat larger range than the number of
+    // accounts created during setup, so that the fuzzer can generate some
+    // unused accounts (and also generate operation sequences in which it
+    // creates a new account and then uses it in a later operation).
+    uint8_t constexpr NUMBER_OF_ACCOUNT_IDS_TO_GENERATE = 32;
+    static_assert(NUMBER_OF_ACCOUNT_IDS_TO_GENERATE >
+                      stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS,
+                  "Range of generated accounts too small");
     stellar::FuzzUtils::setShortKey(
-        t.ed25519(),
-        static_cast<uint8_t>(stellar::rand_uniform<int>(
-            0, stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS)));
+        t.ed25519(), static_cast<uint8_t>(stellar::rand_uniform<int>(
+                         0, NUMBER_OF_ACCOUNT_IDS_TO_GENERATE - 1)));
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 }
@@ -840,70 +900,327 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
     txFramePtr->attemptApplication(app, ltx);
 }
 
-struct AccountParameters
-{
-    constexpr AccountParameters(int64_t assetAvailableForTestActivity,
-                                bool issueAsset)
-        : mAssetAvailableForTestActivity(assetAvailableForTestActivity)
-        , mIssueAsset(issueAsset)
-    {
-    }
-
-    int64_t const mAssetAvailableForTestActivity;
-    bool const mIssueAsset;
-};
-
-auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
-
-std::array<
-    AccountParameters,
-    FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
-    {{DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, true},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false},
-     {DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY, false}}};
-
 // Unlike Asset, this can be a constexpr.
 struct AssetID
 {
-    constexpr AssetID() : mIsNative(true), mId(0)
+    constexpr AssetID() : mIsNative(true), mIssuer(0), mSuffixDigit(0)
     {
     }
 
-    constexpr AssetID(int id) : mIsNative(false), mId(id)
+    constexpr AssetID(int id) : AssetID(id, id)
     {
+    }
+
+    constexpr AssetID(int issuer, int digit)
+        : mIsNative(false), mIssuer(issuer), mSuffixDigit(digit)
+    {
+        assert(mSuffixDigit != 0); // id 0 is for native asset
+        assert(mSuffixDigit < FuzzUtils::NUMBER_OF_ASSETS_TO_USE);
     }
 
     Asset
     toAsset() const
     {
         return mIsNative ? txtest::makeNativeAsset()
-                         : FuzzUtils::makeAsset(mId);
+                         : FuzzUtils::makeAsset(mIssuer, mSuffixDigit);
     }
 
     bool const mIsNative;
-    int const mId; // meaningful only if !isNative
+    int const mIssuer;      // non-zero only if !isNative
+    int const mSuffixDigit; // non-zero only if !isNative
 };
 
-struct OfferParameters
+struct SponsoredEntryParameters
 {
-    constexpr OfferParameters(int publicKey, AssetID const bid,
-                              AssetID const sell, int64_t amount,
+    constexpr SponsoredEntryParameters() : SponsoredEntryParameters(false, 0)
+    {
+    }
+
+    constexpr SponsoredEntryParameters(int sponsorKey)
+        : SponsoredEntryParameters(true, sponsorKey)
+    {
+    }
+
+    bool const mSponsored;
+    int const mSponsorKey; // meaningful only if mSponsored is true
+
+  private:
+    constexpr SponsoredEntryParameters(bool sponsored, int sponsorKey)
+        : mSponsored(sponsored), mSponsorKey(sponsorKey)
+    {
+    }
+};
+
+struct AccountParameters : public SponsoredEntryParameters
+{
+    constexpr AccountParameters(int shortKey,
+                                int64_t nativeAssetAvailableForTestActivity,
+                                uint32_t optionFlags)
+        : SponsoredEntryParameters()
+        , mShortKey(shortKey)
+        , mNativeAssetAvailableForTestActivity(
+              nativeAssetAvailableForTestActivity)
+        , mOptionFlags(optionFlags)
+    {
+    }
+
+    constexpr AccountParameters(int shortKey,
+                                int64_t nativeAssetAvailableForTestActivity,
+                                uint32_t optionFlags, int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mShortKey(shortKey)
+        , mNativeAssetAvailableForTestActivity(
+              nativeAssetAvailableForTestActivity)
+        , mOptionFlags(optionFlags)
+    {
+    }
+
+    int const mShortKey;
+    int64_t const mNativeAssetAvailableForTestActivity;
+    uint32_t const mOptionFlags;
+};
+
+std::array<
+    AccountParameters,
+    FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
+    {{0, 256, 0},
+     {1, 256, 0},
+     {2, 256, 0, 1}, // sponsored by account 1
+     {3, 256, AUTH_REQUIRED_FLAG},
+     {4, 256, 0},
+     {5, 256, 0},
+     {6, 256, 0},
+     {7, 256, 0},
+     {8, 256, 0},
+     {9, 256, 0},
+     {10, 256, 0},
+     {11, 256, 0},
+     {12, 256, 0},
+     {13, 256, 0},
+     {14, 256, 0},
+     {15, 256, 0}}};
+
+struct TrustLineParameters : public SponsoredEntryParameters
+{
+    constexpr TrustLineParameters(int trustor, AssetID const& assetID,
+                                  int64_t assetAvailableForTestActivity,
+                                  int64_t spareLimitAfterSetup)
+        : TrustLineParameters(trustor, assetID, assetAvailableForTestActivity,
+                              spareLimitAfterSetup, false, 0)
+    {
+        assert(!mAssetID.mIsNative);
+    }
+
+    static TrustLineParameters constexpr withAllowTrust(
+        int trustor, AssetID const& assetID,
+        int64_t assetAvailableForTestActivity, int64_t spareLimitAfterSetup,
+        uint32_t allowTrustFlags)
+    {
+        return TrustLineParameters(trustor, assetID,
+                                   assetAvailableForTestActivity,
+                                   spareLimitAfterSetup, true, allowTrustFlags);
+    }
+
+    static TrustLineParameters constexpr withSponsor(
+        int trustor, AssetID const& assetID,
+        int64_t assetAvailableForTestActivity, int64_t spareLimitAfterSetup,
+        int sponsorKey)
+    {
+        return TrustLineParameters(trustor, assetID,
+                                   assetAvailableForTestActivity,
+                                   spareLimitAfterSetup, false, 0, sponsorKey);
+    }
+
+    static TrustLineParameters constexpr withAllowTrustAndSponsor(
+        int trustor, AssetID const& assetID,
+        int64_t assetAvailableForTestActivity, int64_t spareLimitAfterSetup,
+        uint32_t allowTrustFlags, int sponsorKey)
+    {
+        return TrustLineParameters(
+            trustor, assetID, assetAvailableForTestActivity,
+            spareLimitAfterSetup, true, allowTrustFlags, sponsorKey);
+    }
+
+    int const mTrustor;
+    AssetID const mAssetID;
+    int64_t const mAssetAvailableForTestActivity;
+    int64_t const mSpareLimitAfterSetup;
+    bool const mCallAllowTrustOp;
+    uint32_t const mAllowTrustFlags;
+
+  private:
+    constexpr TrustLineParameters(int const trustor, AssetID const& assetID,
+                                  int64_t assetAvailableForTestActivity,
+                                  int64_t spareLimitAfterSetup,
+                                  bool callAllowTrustOp,
+                                  uint32_t allowTrustFlags)
+        : SponsoredEntryParameters()
+        , mTrustor(trustor)
+        , mAssetID(assetID)
+        , mAssetAvailableForTestActivity(assetAvailableForTestActivity)
+        , mSpareLimitAfterSetup(spareLimitAfterSetup)
+        , mCallAllowTrustOp(callAllowTrustOp)
+        , mAllowTrustFlags(allowTrustFlags)
+    {
+        assert(!mAssetID.mIsNative);
+    }
+
+    constexpr TrustLineParameters(int const trustor, AssetID const& assetID,
+                                  int64_t assetAvailableForTestActivity,
+                                  int64_t spareLimitAfterSetup,
+                                  bool callAllowTrustOp,
+                                  uint32_t allowTrustFlags, int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mTrustor(trustor)
+        , mAssetID(assetID)
+        , mAssetAvailableForTestActivity(assetAvailableForTestActivity)
+        , mSpareLimitAfterSetup(spareLimitAfterSetup)
+        , mCallAllowTrustOp(callAllowTrustOp)
+        , mAllowTrustFlags(allowTrustFlags)
+    {
+        assert(!mAssetID.mIsNative);
+    }
+};
+
+std::array<TrustLineParameters, 60> constexpr trustLineParameters{
+    {{0, AssetID(1), 256, 256},
+     {0, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(0, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {0, AssetID(4), 256, 256},
+     {1, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(1, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {1, AssetID(4), 256, 256},
+     {2, AssetID(1), 256, 256},
+     TrustLineParameters::withAllowTrust(2, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {2, AssetID(4), 256, 256},
+     {3, AssetID(1), 256, 256},
+     {3, AssetID(2), 256, 256},
+     {3, AssetID(4), 256, 256},
+     {4, AssetID(1), 256, 256},
+     TrustLineParameters::withSponsor(4, AssetID(2), 256, 256,
+                                      3), // sponsored by account 3
+     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {5, AssetID(1), 256, 256},
+     {5, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(5, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {5, AssetID(4, 3), 256, 256},
+     {6, AssetID(1), 256, 256},
+     {6, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(6, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {6, AssetID(4), 256, 256},
+     {7, AssetID(1), 256, 256},
+     {7, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(7, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {7, AssetID(4), 256, 256},
+     {8, AssetID(1), 256, 256},
+     {8, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(8, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {8, AssetID(4), 256, 256},
+     {9, AssetID(1), 256, 256},
+     {9, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(9, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {9, AssetID(4), 256, 256},
+     {10, AssetID(1), 256, 256},
+     {10, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(10, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {10, AssetID(4), 256, 256},
+     {11, AssetID(1), 256, 256},
+     {11, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrustAndSponsor(
+         11, AssetID(3), 256, 256, AUTHORIZED_FLAG,
+         10), // sponsored by account 10
+     {11, AssetID(4), 256, 256},
+     {12, AssetID(1), 256, 256},
+     {12, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(12, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     TrustLineParameters::withSponsor(12, AssetID(4), 256, 256,
+                                      11), // sponsored by account 11
+     {13, AssetID(1), 256, 256},
+     {13, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(13, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {13, AssetID(4), 256, 256},
+     {14, AssetID(1), 256, 256},
+     {14, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(14, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {14, AssetID(4), 256, 256},
+     {15, AssetID(1), 256, 256},
+     {15, AssetID(2), 256, 256},
+     TrustLineParameters::withAllowTrust(15, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+     {15, AssetID(4), 256, 256}}};
+
+struct ClaimableBalanceParameters : public SponsoredEntryParameters
+{
+    constexpr ClaimableBalanceParameters(int const sender, int const claimant,
+                                         AssetID const& asset, int64_t amount)
+        : SponsoredEntryParameters()
+        , mSender(sender)
+        , mClaimant(claimant)
+        , mAsset(asset)
+        , mAmount(amount)
+    {
+    }
+
+    constexpr ClaimableBalanceParameters(int const sender, int const claimant,
+                                         AssetID const& asset, int64_t amount,
+                                         int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mSender(sender)
+        , mClaimant(claimant)
+        , mAsset(asset)
+        , mAmount(amount)
+    {
+    }
+
+    int const mSender;
+    int const mClaimant;
+    AssetID const mAsset;
+    int64_t const mAmount;
+};
+
+std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
+    {0, 1, AssetID(), 10},     // native asset
+    {2, 3, AssetID(4), 5},     // non-native asset
+    {4, 5, AssetID(4), 20, 6}, // sponsored by account 6
+    {4, 3, AssetID(3), 30}     // issuer is claimant
+}};
+
+struct OfferParameters : public SponsoredEntryParameters
+{
+    constexpr OfferParameters(int publicKey, AssetID const& bid,
+                              AssetID const& sell, int64_t amount,
                               int32_t priceNumerator, int32_t priceDenominator,
                               bool passive)
-        : mPublicKey(publicKey)
+        : SponsoredEntryParameters()
+        , mPublicKey(publicKey)
+        , mBid(bid)
+        , mSell(sell)
+        , mAmount(amount)
+        , mNumerator(priceNumerator)
+        , mDenominator(priceDenominator)
+        , mPassive(passive)
+    {
+    }
+
+    constexpr OfferParameters(int publicKey, AssetID const& bid,
+                              AssetID const& sell, int64_t amount,
+                              int32_t priceNumerator, int32_t priceDenominator,
+                              bool passive, int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mPublicKey(publicKey)
         , mBid(bid)
         , mSell(sell)
         , mAmount(amount)
@@ -948,7 +1265,8 @@ struct OfferParameters
 // variety.  In the long run, we plan to fuzz the setup itself.)
 std::array<OfferParameters, 28> constexpr orderBookParameters{
     {{13, AssetID(), AssetID(1), 10, 3, 2, false}, // asset pair 0
-     {14, AssetID(), AssetID(1), 50, 3, 2, false},
+     {14, AssetID(), AssetID(1), 50, 3, 2, false,
+      15}, // sponsored by account 15
      {15, AssetID(), AssetID(1), 100, 1, 1, true},
      {15, AssetID(1), AssetID(), 100, 1, 1, true},
      {1, AssetID(1), AssetID(), 10, 10, 9, false},
@@ -990,212 +1308,19 @@ TransactionFuzzer::initialize()
     resetTxInternalState(*mApp);
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
 
-    {
-        LedgerTxn ltx(ltxOuter);
-        // Setup the state, for this we only need to pregenerate some
-        // accounts. For now we create NUMBER_OF_PREGENERATED_ACCOUNTS accounts,
-        // or enough to fill the first few bits such that we have a pregenerated
-        // account for the last few bits of the 32nd byte of a public key, thus
-        // account creation is over a deterministic range of public keys
-        xdr::xvector<Operation> ops;
-        uint8_t const SPONSOR_ACCOUNT = 1, SPONSORED_ACCOUNT = 2;
-        PublicKey sponsorPublicKey;
-        FuzzUtils::setShortKey(sponsorPublicKey, SPONSOR_ACCOUNT);
+    initializeAccounts(ltxOuter);
 
-        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
-        {
-            PublicKey publicKey;
-            FuzzUtils::setShortKey(publicKey, i);
+    initializeTrustLines(ltxOuter);
 
-            auto createOp = txtest::createAccount(
-                publicKey, FuzzUtils::INITIAL_ACCOUNT_BALANCE);
+    initializeClaimableBalances(ltxOuter);
 
-            // Test sponsorships, for the moment creating just one, of account 2
-            // by account 1.
-            bool const createSponsorship = (i == SPONSORED_ACCOUNT);
+    initializeOffers(ltxOuter);
 
-            if (createSponsorship)
-            {
-                auto sponsorshipOp =
-                    txtest::beginSponsoringFutureReserves(publicKey);
-                sponsorshipOp.sourceAccount.activate() =
-                    toMuxedAccount(sponsorPublicKey);
-                ops.emplace_back(sponsorshipOp);
-            }
-            ops.emplace_back(createOp);
+    reduceNativeBalancesAfterSetup(ltxOuter);
 
-            if (createSponsorship)
-            {
-                auto sponsorshipOp = txtest::endSponsoringFutureReserves();
-                sponsorshipOp.sourceAccount.activate() =
-                    toMuxedAccount(publicKey);
-                ops.emplace_back(sponsorshipOp);
-            }
-        }
+    reduceTrustLineBalancesAfterSetup(ltxOuter);
 
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
-
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        // For now we have every pregenerated account trust everything for some
-        // assets issued by accounts with "mIssueAsset" set to true.  We also
-        // distribute some of these assets to everyone so that they can make
-        // trades, payments, etc.
-        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
-        {
-            PublicKey account;
-            FuzzUtils::setShortKey(account, i);
-
-            for (int j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++j)
-            {
-                if (i != j && accountParameters[j].mIssueAsset)
-                {
-                    auto const asset = FuzzUtils::makeAsset(j);
-
-                    // trust asset issuer
-                    auto trustOp = txtest::changeTrust(
-                        asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
-                    trustOp.sourceAccount.activate() = toMuxedAccount(account);
-                    ops.emplace_back(trustOp);
-
-                    PublicKey issuer;
-                    FuzzUtils::setShortKey(issuer, j);
-
-                    // distribute asset
-                    auto distributeOp = txtest::payment(
-                        account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
-                    distributeOp.sourceAccount.activate() =
-                        toMuxedAccount(issuer);
-                    ops.emplace_back(distributeOp);
-
-                    // Create a claimable balance representing the "send" part
-                    // of a payment like the above distribution.
-                    ClaimPredicate predicate;
-                    predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
-                    Claimant claimant;
-                    claimant.v0().predicate = predicate;
-                    claimant.v0().destination = account;
-                    auto claimableBalanceOp = txtest::createClaimableBalance(
-                        asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
-                        {claimant});
-                    claimableBalanceOp.sourceAccount.activate() =
-                        toMuxedAccount(issuer);
-                    ops.emplace_back(claimableBalanceOp);
-                }
-            }
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
-
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        for (auto const& param : orderBookParameters)
-        {
-            auto op = param.mPassive
-                          ? txtest::createPassiveOffer(
-                                param.mBid.toAsset(), param.mSell.toAsset(),
-                                Price{param.mNumerator, param.mDenominator},
-                                param.mAmount)
-                          : txtest::manageOffer(
-                                0, param.mBid.toAsset(), param.mSell.toAsset(),
-                                Price{param.mNumerator, param.mDenominator},
-                                param.mAmount);
-            PublicKey pkA;
-            FuzzUtils::setShortKey(pkA, param.mPublicKey);
-            op.sourceAccount.activate() = toMuxedAccount(pkA);
-            ops.emplace_back(op);
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
-
-    {
-        LedgerTxn ltx(ltxOuter);
-
-        xdr::xvector<Operation> ops;
-
-        // Reduce account balances so that fuzzing has a better chance
-        // of exercising limits.
-        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
-        {
-            PublicKey account;
-            FuzzUtils::setShortKey(account, i);
-
-            // Reduce "account"'s native balance by paying the root.
-            auto ae = stellar::loadAccount(ltx, account);
-            auto const availableBalance =
-                getAvailableBalance(ltx.loadHeader(), ae);
-            auto const targetAvailableBalance =
-                accountParameters[i].mAssetAvailableForTestActivity +
-                FuzzUtils::FUZZING_FEE *
-                    FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
-
-            if (availableBalance > targetAvailableBalance)
-            {
-                auto reduceNativeBalanceOp =
-                    txtest::payment(mSourceAccountID,
-                                    availableBalance - targetAvailableBalance);
-                reduceNativeBalanceOp.sourceAccount.activate() =
-                    toMuxedAccount(account);
-                ops.emplace_back(reduceNativeBalanceOp);
-            }
-
-            for (uint8_t j = 0; j < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS;
-                 ++j)
-            {
-                if (i != j && accountParameters[j].mIssueAsset)
-                {
-                    auto const asset = FuzzUtils::makeAsset(j);
-
-                    PublicKey issuer;
-                    FuzzUtils::setShortKey(issuer, j);
-
-                    // Reduce "account"'s balance of asset "j" by paying the
-                    // issuer.
-                    auto tle = stellar::loadTrustLine(ltx, account, asset);
-                    auto const availableTLBalance =
-                        tle.getAvailableBalance(ltx.loadHeader());
-                    auto const targetAvailableTLBalance =
-                        accountParameters[i].mAssetAvailableForTestActivity;
-
-                    if (availableTLBalance > targetAvailableTLBalance)
-                    {
-                        auto reduceNonNativeBalanceOp = txtest::payment(
-                            issuer, asset,
-                            availableTLBalance - targetAvailableTLBalance);
-                        reduceNonNativeBalanceOp.sourceAccount.activate() =
-                            toMuxedAccount(account);
-                        ops.emplace_back(reduceNonNativeBalanceOp);
-                    }
-                    // Here we could also reduce account "i"'s trust line limit
-                    // for asset "j" (testing the buying liabilities to
-                    // determine by how much).
-                }
-            }
-        }
-
-        applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(),
-                             *mApp);
-
-        ltx.commit();
-    }
+    reduceTrustLineLimitsAfterSetup(ltxOuter);
 
     storeSetupLedgerKeys(ltxOuter);
 
@@ -1236,6 +1361,261 @@ TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
 
     stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
                                                  mStoredLedgerKeys.end());
+}
+
+void
+TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : accountParameters)
+    {
+        PublicKey publicKey;
+        FuzzUtils::setShortKey(publicKey, param.mShortKey);
+
+        FuzzUtils::emplaceConditionallySponsored(
+            ops,
+            txtest::createAccount(publicKey,
+                                  FuzzUtils::INITIAL_ACCOUNT_BALANCE),
+            param.mSponsored, param.mSponsorKey, publicKey);
+
+        // Set options for any accounts whose parameters specify flags to
+        // add.
+        auto const optionFlags = param.mOptionFlags;
+
+        if (optionFlags != 0)
+        {
+            auto optionsOp = txtest::setOptions(txtest::setFlags(optionFlags));
+            optionsOp.sourceAccount.activate() = toMuxedAccount(publicKey);
+            ops.emplace_back(optionsOp);
+        }
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        // Trust the asset issuer.
+        auto trustOp =
+            txtest::changeTrust(asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
+        trustOp.sourceAccount.activate() = toMuxedAccount(account);
+        FuzzUtils::emplaceConditionallySponsored(
+            ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
+
+        PublicKey issuer;
+        auto const issuerID = trustLine.mAssetID.mIssuer;
+        FuzzUtils::setShortKey(issuer, issuerID);
+
+        // Set trust line flags if specified.
+        if (trustLine.mCallAllowTrustOp)
+        {
+            auto allowTrustOp =
+                txtest::allowTrust(account, asset, trustLine.mAllowTrustFlags);
+            allowTrustOp.sourceAccount.activate() = toMuxedAccount(issuer);
+            ops.emplace_back(allowTrustOp);
+        }
+
+        // Distribute the starting amount of the asset (to be reduced after
+        // orders have been placed).
+        auto distributeOp = txtest::payment(
+            account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
+        distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
+        ops.emplace_back(distributeOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : claimableBalanceParameters)
+    {
+        Claimant claimant;
+        claimant.v0().predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+        FuzzUtils::setShortKey(claimant.v0().destination, param.mClaimant);
+
+        auto claimableBalanceOp = txtest::createClaimableBalance(
+            param.mAsset.toAsset(), param.mAmount, {claimant});
+
+        PublicKey senderKey;
+        FuzzUtils::setShortKey(senderKey, param.mSender);
+
+        claimableBalanceOp.sourceAccount.activate() = toMuxedAccount(senderKey);
+        FuzzUtils::emplaceConditionallySponsored(ops, claimableBalanceOp,
+                                                 param.mSponsored,
+                                                 param.mSponsorKey, senderKey);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : orderBookParameters)
+    {
+        auto op = param.mPassive
+                      ? txtest::createPassiveOffer(
+                            param.mBid.toAsset(), param.mSell.toAsset(),
+                            Price{param.mNumerator, param.mDenominator},
+                            param.mAmount)
+                      : txtest::manageOffer(
+                            0, param.mBid.toAsset(), param.mSell.toAsset(),
+                            Price{param.mNumerator, param.mDenominator},
+                            param.mAmount);
+        PublicKey pkA;
+        FuzzUtils::setShortKey(pkA, param.mPublicKey);
+        op.sourceAccount.activate() = toMuxedAccount(pkA);
+        FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
+                                                 param.mSponsorKey, pkA);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : accountParameters)
+    {
+        PublicKey account;
+        FuzzUtils::setShortKey(account, param.mShortKey);
+
+        // Reduce "account"'s native balance by paying the root, so that
+        // fuzzing has a better chance of exercising edge cases.
+        auto ae = stellar::loadAccount(ltx, account);
+        auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);
+        auto const targetAvailableBalance =
+            param.mNativeAssetAvailableForTestActivity +
+            FuzzUtils::FUZZING_FEE *
+                FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
+
+        assert(availableBalance > targetAvailableBalance);
+        auto reduceNativeBalanceOp = txtest::payment(
+            mSourceAccountID, availableBalance - targetAvailableBalance);
+        reduceNativeBalanceOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(reduceNativeBalanceOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
+    AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    // Reduce trustline balances so that fuzzing has a better chance of
+    // exercising edge cases.
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        PublicKey issuer;
+        FuzzUtils::setShortKey(issuer, trustLine.mAssetID.mIssuer);
+
+        // Reduce "account"'s balance of this asset by paying the
+        // issuer.
+        auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const availableTLBalance =
+            tle.getAvailableBalance(ltx.loadHeader());
+        auto const targetAvailableTLBalance =
+            trustLine.mAssetAvailableForTestActivity;
+        auto const paymentAmount =
+            availableTLBalance - targetAvailableTLBalance;
+
+        assert(availableTLBalance > targetAvailableTLBalance);
+        auto reduceNonNativeBalanceOp =
+            txtest::payment(issuer, asset, paymentAmount);
+        reduceNonNativeBalanceOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(reduceNonNativeBalanceOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    // Reduce trustline limits so that fuzzing has a better chance of exercising
+    // edge cases.
+    for (auto const& trustLine : trustLineParameters)
+    {
+        auto const trustor = trustLine.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        auto const asset = trustLine.mAssetID.toAsset();
+
+        // Reduce this trustline's limit.
+        auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const targetTrustLineLimit =
+            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader()) +
+            trustLine.mSpareLimitAfterSetup;
+
+        auto changeTrustLineLimitOp =
+            txtest::changeTrust(asset, targetTrustLineLimit);
+        changeTrustLineLimitOp.sourceAccount.activate() =
+            toMuxedAccount(account);
+        ops.emplace_back(changeTrustLineLimitOp);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
 }
 
 void
