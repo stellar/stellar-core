@@ -51,7 +51,12 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
                 REQUIRE(a.loadSequenceNumber() == newSeq);
                 SECTION("no more tx when INT64_MAX is reached")
                 {
-                    REQUIRE_THROWS_AS(a.pay(root, 1), ex_txBAD_SEQ);
+                    REQUIRE_THROWS_AS(
+                        applyTx(
+                            {a.tx({payment(root, 1)},
+                                  std::numeric_limits<SequenceNumber>::min())},
+                            *app),
+                        ex_txBAD_SEQ);
                 }
             }
             SECTION("backward jump (no-op)")
