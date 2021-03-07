@@ -6,23 +6,25 @@
 
 #include "cereal/cereal.hpp"
 #include <memory>
+#include <optional>
 
 namespace stellar
 {
-template <typename T> using optional = std::shared_ptr<T>;
 
-template <typename T, class... Args>
-optional<T>
-make_optional(Args&&... args)
+template <class T> using optional = std::optional<T>;
+
+template <class T>
+auto
+make_optional(auto arg)
 {
-    return std::make_shared<T>(std::forward<Args>(args)...);
+    return std::optional<T>(arg);
 }
 
 template <typename T>
 optional<T>
 nullopt()
 {
-    return std::shared_ptr<T>();
+    return std::optional<T>();
 };
 }
 

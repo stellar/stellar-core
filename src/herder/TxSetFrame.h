@@ -41,11 +41,11 @@ class AbstractTxSetFrameForApply
 
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
-    optional<Hash> mHash{nullptr};
+    optional<Hash> mHash;
 
     // mValid caches both the last app LCL that we checked
     // vaidity for, and the result of that validity check.
-    optional<std::pair<Hash, bool>> mValid{nullptr};
+    optional<std::pair<Hash, bool>> mValid;
 
     Hash mPreviousLedgerHash;
 

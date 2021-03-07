@@ -296,7 +296,7 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         {
             throw std::runtime_error("--start-at-hash requires --in-memory");
         }
-        return nullptr;
+        return std::optional<CatchupConfiguration>();
     }
 
     // Adjust configs for in-memory-replay mode
@@ -321,12 +321,12 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         config.MODE_AUTO_STARTS_OVERLAY = false;
         LedgerNumHashPair pair;
         pair.first = startAtLedger;
-        pair.second = make_optional<Hash>(hexToBin256(startAtHash));
+        pair.second = std::optional<Hash>(hexToBin256(startAtHash));
         uint32_t count = 0;
         auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
         return make_optional<CatchupConfiguration>(pair, count, mode);
     }
-    return nullptr;
+    return std::optional<CatchupConfiguration>();
 }
 
 clara::Opt

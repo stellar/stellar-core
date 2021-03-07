@@ -131,7 +131,7 @@ VerifyLedgerChainWork::onReset()
 {
     CLOG_INFO(History, "Verifying ledgers {}", mRange.toString());
 
-    mVerifiedAhead = LedgerNumHashPair(0, nullptr);
+    mVerifiedAhead = LedgerNumHashPair(0, std::optional<Hash>());
     mMaxVerifiedLedgerOfMinCheckpoint = {};
     mVerifiedLedgers.clear();
     mCurrCheckpoint = mRange.mCount == 0
@@ -302,7 +302,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // If so, there should be no "saved" incoming hash-link value from
         // a previous iteration.
         releaseAssert(incoming.first == 0);
-        releaseAssert(incoming.second.get() == nullptr);
+        releaseAssert(!incoming.second.has_value());
 
         // Instead, there _should_ be a value in the shared_future this work
         // object reads its initial trust from. If anything went wrong upstream

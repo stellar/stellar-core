@@ -315,7 +315,7 @@ HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
     if (st.got_data())
     {
         auto h = hexToBin256(qsethHex);
-        res = make_optional<Hash>(std::move(h));
+        res = std::make_optional<Hash>(std::move(h));
     }
     return res;
 }

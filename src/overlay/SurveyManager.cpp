@@ -420,7 +420,7 @@ SurveyManager::clearOldLedgers(uint32_t lastClosedledgerSeq)
 Json::Value const&
 SurveyManager::getJsonResults()
 {
-    mResults["surveyInProgress"] = mRunningSurveyType != nullptr;
+    mResults["surveyInProgress"] = mRunningSurveyType.has_value();
 
     auto& jsonBacklog = mResults["backlog"];
     jsonBacklog.clear();
