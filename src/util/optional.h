@@ -7,15 +7,16 @@
 #include "cereal/cereal.hpp"
 #include <memory>
 #include <optional>
+#include <type_traits>
 
 namespace stellar
 {
 
 template <class T> using optional = std::optional<T>;
 
-template <class T>
-auto
-make_optional(auto arg)
+template <typename T>
+constexpr optional<T>
+make_optional(T const& arg)
 {
     return std::optional<T>(arg);
 }
