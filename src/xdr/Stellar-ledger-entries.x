@@ -357,6 +357,27 @@ case CLAIMABLE_BALANCE_ID_TYPE_V0:
     Hash v0;
 };
 
+enum ClaimableBalanceFlags
+{
+    // If set, the issuer account of the asset held by the claimable balance may
+    // clawback the claimable balance
+    CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG = 0x1
+};
+
+const MASK_CLAIMABLE_BALANCE_FLAGS = 0x1;
+
+struct ClaimableBalanceEntryExtensionV1
+{
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+
+    uint32 flags; // see ClaimableBalanceFlags
+};
+
 struct ClaimableBalanceEntry
 {
     // Unique identifier for this ClaimableBalanceEntry
@@ -376,6 +397,8 @@ struct ClaimableBalanceEntry
     {
     case 0:
         void;
+    case 1:
+        ClaimableBalanceEntryExtensionV1 v1;
     }
     ext;
 };

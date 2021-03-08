@@ -419,6 +419,24 @@ throwIf(ClawbackResult const& result)
 }
 
 void
+throwIf(ClawbackClaimableBalanceResult const& result)
+{
+    switch (result.code())
+    {
+    case CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST:
+        throw ex_CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST{};
+    case CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER:
+        throw ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER{};
+    case CLAWBACK_CLAIMABLE_BALANCE_NOT_CLAWBACK_ENABLED:
+        throw ex_CLAWBACK_CLAIMABLE_BALANCE_NOT_CLAWBACK_ENABLED{};
+    case CLAWBACK_CLAIMABLE_BALANCE_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -510,6 +528,9 @@ throwIf(TransactionResult const& result)
         break;
     case CLAWBACK:
         throwIf(opResult.tr().clawbackResult());
+        break;
+    case CLAWBACK_CLAIMABLE_BALANCE:
+        throwIf(opResult.tr().clawbackClaimableBalanceResult());
         break;
     }
 }

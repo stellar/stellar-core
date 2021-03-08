@@ -458,4 +458,13 @@ TestAccount::clawback(PublicKey const& from, Asset const& asset, int64_t amount)
 {
     applyTx(tx({txtest::clawback(from, asset, amount)}), mApp);
 }
+
+void
+TestAccount::clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
+{
+    applyTx(tx({txtest::clawbackClaimableBalance(balanceID)}), mApp);
+
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    REQUIRE(!stellar::loadClaimableBalance(ltx, balanceID));
+}
 };

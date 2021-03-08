@@ -311,6 +311,21 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     }
 
     auto const& cbe = le.data.claimableBalance();
+    if (version < 16 && cbe.ext.v() == 1)
+    {
+        return "ClaimableBalance has v1 extension before protocol version 16";
+    }
+
+    if (isClawbackEnabledOnClaimableBalance(le) &&
+        cbe.asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return "ClaimableBalance clawback set on native balance";
+    }
+
+    if (!claimableBalanceFlagIsValid(cbe))
+    {
+        return "ClaimableBalance flags are invalid";
+    }
 
     if (previous)
     {

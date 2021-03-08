@@ -14,7 +14,20 @@
 namespace stellar
 {
 
-int64_t
+static void
+setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
+{
+    if (cb.ext.v() != 0)
+    {
+        throw std::runtime_error(
+            "unexpected ClaimableBalanceEntry ext version");
+    }
+
+    cb.ext.v(1);
+    cb.ext.v1().flags = CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG;
+}
+
+static int64_t
 relativeToAbsolute(TimePoint closeTime, int64_t relative)
 {
     return closeTime > static_cast<uint64_t>(INT64_MAX - relative)
@@ -23,7 +36,7 @@ relativeToAbsolute(TimePoint closeTime, int64_t relative)
 }
 
 // convert all relative predicates to absolute predicates
-void
+static void
 updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 {
     switch (pred.type())
@@ -68,7 +81,7 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
     }
 }
 
-bool
+static bool
 validatePredicate(ClaimPredicate const& pred, uint32_t depth)
 {
     if (depth > 4)
@@ -149,6 +162,12 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
     auto const& asset = mCreateClaimableBalance.asset;
     auto amount = mCreateClaimableBalance.amount;
 
+    // Create claimable balance entry
+    LedgerEntry newClaimableBalance;
+    newClaimableBalance.data.type(CLAIMABLE_BALANCE);
+
+    auto& claimableBalanceEntry = newClaimableBalance.data.claimableBalance();
+
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         if (getAvailableBalance(header, sourceAccount) < amount)
@@ -179,13 +198,26 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(CREATE_CLAIMABLE_BALANCE_UNDERFUNDED);
             return false;
         }
+
+        if (header.current().ledgerVersion >= 16)
+        {
+            bool enableClawback;
+            if (getSourceID() == getIssuer(asset))
+            {
+                enableClawback = isClawbackEnabledOnAccount(sourceAccount);
+            }
+            else
+            {
+                enableClawback = trustline.isClawbackEnabled();
+            }
+
+            if (enableClawback)
+            {
+                setClaimableBalanceClawbackEnabled(claimableBalanceEntry);
+            }
+        }
     }
 
-    // Create claimable balance entry
-    LedgerEntry newClaimableBalance;
-    newClaimableBalance.data.type(CLAIMABLE_BALANCE);
-
-    auto& claimableBalanceEntry = newClaimableBalance.data.claimableBalance();
     claimableBalanceEntry.amount = amount;
     claimableBalanceEntry.asset = asset;
 

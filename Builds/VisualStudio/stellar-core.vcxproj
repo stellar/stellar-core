@@ -336,6 +336,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ClawbackOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ClawbackClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\FeeBumpTransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
@@ -355,6 +356,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\EndSponsoringFutureReservesTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\ClawbackTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\ClawbackClaimableBalanceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp" />
@@ -696,6 +698,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ClawbackOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ClawbackClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\FeeBumpTransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
