@@ -96,9 +96,16 @@ HistoryArchiveManager::checkSensibleConfig() const
 
     if (readOnlyArchives.empty() && readWriteArchives.empty())
     {
-        CLOG_FATAL(History,
-                   "No readable archives configured, catchup will fail.");
-        badArchives = true;
+        if (mApp.getConfig().RUN_STANDALONE)
+        {
+            CLOG_INFO(History, "No readable archives configured.");
+        }
+        else
+        {
+            CLOG_FATAL(History,
+                       "No readable archives configured, catchup will fail.");
+            badArchives = true;
+        }
     }
 
     if (readWriteArchives.empty())
