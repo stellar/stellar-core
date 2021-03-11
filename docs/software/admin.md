@@ -170,7 +170,7 @@ The version number scheme that we follow is `protocol_version.release_number.pat
 See the [INSTALL](https://github.com/stellar/stellar-core/blob/master/INSTALL.md) for build instructions.
 
 ### Package based Installation
-If you are using Ubuntu 16.04 LTS we provide the latest stable releases of [stellar-core](https://github.com/stellar/stellar-core) and [stellar-horizon](https://github.com/stellar/go/tree/master/services/horizon) in Debian binary package format.
+If you are using a recent LTS version of Ubuntu we provide the latest stable releases of [stellar-core](https://github.com/stellar/stellar-core) and [stellar-horizon](https://github.com/stellar/go/tree/master/services/horizon) in Debian binary package format.
 
 See [detailed installation instructions](https://github.com/stellar/packages#sdf---packages)
 
