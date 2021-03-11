@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See https://go.microsoft.com/fwlink/?linkid=2090316 for license information.
 #-------------------------------------------------------------------------------------------------------------
-FROM ubuntu:xenial
+FROM ubuntu:focal
 
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,7 +22,7 @@ RUN sed -i -e 's/http:\/\/us.archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mir
 
 # Configure apt and install packages
 RUN apt-get update \
-    && apt-get -y install --no-install-recommends apt-utils dialog 2>&1 \
+    && apt-get -y install --no-install-recommends apt-utils dialog ca-certificates 2>&1 \
     #
     # Verify git, process tools, lsb-release (common in install instructions for CLIs) installed
     && apt-get -y install git iproute2 procps lsb-release \
@@ -39,18 +39,24 @@ RUN apt-get update \
 # NOTE: newer version of the compilers are not
 #    provided by stock distributions
 #    and are provided by the /test toolchain
-RUN apt-get update \
-    && apt-get -y install software-properties-common \
-    && add-apt-repository ppa:ubuntu-toolchain-r/test \
-    && apt-get update
+# RUN apt-get -y install software-properties-common \
+#     && add-apt-repository ppa:ubuntu-toolchain-r/test \
+#    && apt-get update
 
 # Install common compilation tools
 RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
 
 # Update compiler tools
-RUN apt-get -y install gcc-7 g++-7 cpp-7 libstdc++-7-dev
-ENV CC=gcc-7
-ENV CXX=g++-7
+RUN apt-get -y install libstdc++-7-dev clang-format-8 ccache
+
+# gcc
+RUN apt-get -y install cpp-7 gcc-7 g++-7
+# clang
+RUN apt-get -y install clang-8 llvm-8
+
+# clang by default
+ENV CC=clang-8
+ENV CXX=clang++-8
 
 # Install postgresql to enable tests under make check
 RUN apt-get -y install postgresql

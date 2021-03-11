@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/vscode-remote/devcontainer.json or the definition README at
 // https://github.com/microsoft/vscode-dev-containers/tree/master/containers/ubuntu-18.04-git
 {
-	"name": "Ubuntu 16.04 & Git",
+	"name": "Ubuntu 20.04 & Git",
 	"dockerFile": "Dockerfile",
 	// The optional 'runArgs' property can be used to specify additional runtime arguments.
 	"runArgs": [
