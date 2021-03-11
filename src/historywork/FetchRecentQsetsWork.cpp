@@ -17,12 +17,8 @@
 namespace stellar
 {
 
-FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app,
-                                           InferredQuorum& inferredQuorum,
-                                           uint32_t ledgerNum)
-    : Work(app, "fetch-recent-qsets")
-    , mInferredQuorum(inferredQuorum)
-    , mLedgerNum(ledgerNum)
+FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app, uint32_t ledgerNum)
+    : Work(app, "fetch-recent-qsets"), mLedgerNum(ledgerNum)
 {
 }
 
@@ -97,7 +93,6 @@ FetchRecentQsetsWork::doWork()
             {
                 break;
             }
-            mInferredQuorum.noteSCPHistory(tmp);
         }
     }
 

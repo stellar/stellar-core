@@ -7,7 +7,6 @@
 #include "catchup/CatchupConfiguration.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
-#include "history/InferredQuorumUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
@@ -747,20 +746,6 @@ runPublish(CommandLineArgs const& args)
 }
 
 int
-runCheckQuorum(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    uint32_t ledgerNum = 0;
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
-        [&] {
-            checkQuorumIntersection(configOption.getConfig(), ledgerNum);
-            return 0;
-        });
-}
-
-int
 runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
 {
     std::string outputFile;
@@ -925,20 +910,6 @@ runSelfCheck(CommandLineArgs const& args)
 
     return runWithHelp(args, {configurationParser(configOption)},
                        [&] { return selfCheck(configOption.getConfig()); });
-}
-
-int
-runInferQuorum(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    uint32_t ledgerNum = 0;
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
-        [&] {
-            inferQuorumAndWrite(configOption.getConfig(), ledgerNum);
-            return 0;
-        });
 }
 
 int
@@ -1122,22 +1093,6 @@ runVersion(CommandLineArgs const&)
 {
     std::cout << STELLAR_CORE_VERSION << std::endl;
     return 0;
-}
-
-int
-runWriteQuorum(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    std::string outputFile;
-    uint32_t ledgerNum = 0;
-    return runWithHelp(
-        args,
-        {configurationParser(configOption), historyLedgerNumber(ledgerNum),
-         outputFileParser(outputFile)},
-        [&] {
-            writeQuorumGraph(configOption.getConfig(), outputFile, ledgerNum);
-            return 0;
-        });
 }
 
 #ifdef BUILD_TESTS
@@ -1473,8 +1428,6 @@ handleCommandLine(int argc, char* const* argv)
           "execute catchup from history archives without connecting to "
           "network",
           runCatchup},
-         {"check-quorum", "check quorum intersection of last network activity",
-          runCheckQuorum},
          {"verify-checkpoints", "write verified checkpoint ledger hashes",
           runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
@@ -1485,8 +1438,6 @@ handleCommandLine(int argc, char* const* argv)
          {"http-command", "send a command to local stellar-core",
           runHttpCommand},
          {"self-check", "performs sanity checks", runSelfCheck},
-         {"infer-quorum", "print a quorum set inferred from history",
-          runInferQuorum},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
@@ -1528,8 +1479,6 @@ handleCommandLine(int argc, char* const* argv)
          {"simulate-bucketlist", "simulate bucketlist", runSimulateBuckets},
          {"test", "execute test suite", runTest},
 #endif
-         {"write-quorum", "print a quorum set graph from history",
-          runWriteQuorum},
          {"version", "print version information", runVersion}}};
 
     auto adjustedCommandLine = commandLine.adjustCommandLine({argc, argv});
