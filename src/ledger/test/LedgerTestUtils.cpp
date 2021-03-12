@@ -236,6 +236,10 @@ makeValid(ClaimableBalanceEntry& c)
     c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");
 
+    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 16)
+    {
+        c.ext.v(0);
+    }
     if (c.ext.v() == 1)
     {
         c.ext.v1().flags = MASK_CLAIMABLE_BALANCE_FLAGS;
