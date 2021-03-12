@@ -158,7 +158,7 @@ AC_ARG_ENABLE([extrachecks],
         [build with additional debugging checks enabled]))
 AS_IF([test "x$enable_extrachecks" = "xyes"], [
   # don't try to detect which c++ library we're using
-  CXXFLAGS="$CXXFLAGS -D_GLIBCXX_DEBUG=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -D_LIBCPP_DEBUG=0"
+  CXXFLAGS="$CXXFLAGS -D_GLIBCXX_DEBUG=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -D_LIBCPP_DEBUG=0 -DBEST_OFFER_DEBUGGING"
 ])
 
 AC_ARG_ENABLE([ccache],

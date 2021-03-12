@@ -151,9 +151,17 @@ ApplicationImpl::initialize(bool createNewDB)
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
 
+#ifdef BEST_OFFER_DEBUGGING
+    auto const bestOfferDebuggingEnabled = mConfig.BEST_OFFER_DEBUGGING_ENABLED;
+#endif
+
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
-        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>();
+        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>(
+#ifdef BEST_OFFER_DEBUGGING
+            bestOfferDebuggingEnabled
+#endif
+        );
         mNeverCommittingLedgerTxn =
             std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
     }
@@ -166,9 +174,13 @@ ApplicationImpl::initialize(bool createNewDB)
                         "of 20000",
                         mConfig.ENTRY_CACHE_SIZE);
         }
-
         mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-            *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
+            *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
+#ifdef BEST_OFFER_DEBUGGING
+            ,
+            bestOfferDebuggingEnabled
+#endif
+        );
     }
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);

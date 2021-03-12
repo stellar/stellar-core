@@ -586,6 +586,20 @@ class LedgerTxn::Impl
 #ifdef BUILD_TESTS
     MultiOrderBook const& getOrderBook();
 #endif
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude);
+
+    std::shared_ptr<LedgerEntry const>
+    checkBestOffer(Asset const& buying, Asset const& selling,
+                   OfferDescriptor const* worseThan,
+                   std::shared_ptr<LedgerEntry const> best);
+#endif
 };
 
 class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
@@ -686,6 +700,10 @@ class LedgerTxnRoot::Impl
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
 
+#ifdef BEST_OFFER_DEBUGGING
+    bool const mBestOfferDebuggingEnabled;
+#endif
+
     void throwIfChild() const;
 
     std::shared_ptr<LedgerEntry const> loadAccount(LedgerKey const& key) const;
@@ -776,7 +794,12 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize);
+    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize
+#ifdef BEST_OFFER_DEBUGGING
+         ,
+         bool bestOfferDebuggingEnabled
+#endif
+    );
 
     ~Impl();
 
@@ -858,6 +881,20 @@ class LedgerTxnRoot::Impl
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
+
+#ifdef BEST_OFFER_DEBUGGING
+    bool bestOfferDebuggingEnabled() const;
+
+    std::shared_ptr<LedgerEntry const>
+    getBestOfferSlow(Asset const& buying, Asset const& selling,
+                     OfferDescriptor const* worseThan,
+                     std::unordered_set<int64_t>& exclude);
+
+    std::shared_ptr<LedgerEntry const>
+    checkBestOffer(Asset const& buying, Asset const& selling,
+                   OfferDescriptor const* worseThan,
+                   std::shared_ptr<LedgerEntry const> best);
+#endif
 };
 
 #ifdef USE_POSTGRES
