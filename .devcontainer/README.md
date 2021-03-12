@@ -1,7 +1,7 @@
-# Ubuntu 16.04 Remote Dev Container Instructions
+# Ubuntu 20.04 Remote Dev Container Instructions
 
 ## Who's interested in this and why?
-* For those developers who'd like to validate their changes on Ubuntu 16.04, we provide a sandboxed development environment using the 'Remote Development Container' features of Microsoft's Visual Studio Code.
+* For those developers who'd like to validate their changes on Ubuntu 20.04, we provide a sandboxed development environment using the 'Remote Development Container' features of Microsoft's Visual Studio Code.
 * This feature pre-configures a dev environment with all the tools you'll need to build stellar-core
 
 
@@ -64,6 +64,7 @@ git reset --hard
 On some platforms (Windows), there is a large overhead when building from the workspace folder (and if you're using WSL2 on Windows, cross OS file speed is [slower than WSL1](https://docs.microsoft.com/en-us/windows/wsl/wsl2-ux-changes#cross-os-file-speed-will-be-slower-in-initial-preview-builds)), the alternative
 is to simply mirror your workspace into your home directory from within the container with a command such as
 ```
+mkdir ~/src
 (
   cd /workspaces/stellar-core/
   find .git -print

@@ -47,12 +47,12 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 
 ### Ubuntu
 
-#### Ubuntu 16.04
-You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core.
+#### Ubuntu 18.04
+You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core with the latest version of the llvm toolchain.
 
-Alternatively, if you want to just depend on stock 16.04, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
+Alternatively, if you want to just depend on stock Ubuntu, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
-Ubuntu 16.04 has clang-8 available, that you can install with
+Ubuntu 18.04 has clang-8 available, that you can install with
 
     # install clang-8 toolchain
     sudo apt-get install clang-8
@@ -60,7 +60,7 @@ Ubuntu 16.04 has clang-8 available, that you can install with
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
 
-#### Adding the test toolchain
+#### Adding the test toolchain (optional)
     # NOTE: newer version of the compilers are not
     #    provided by stock distributions
     #    and are provided by the /test toolchain
@@ -83,7 +83,6 @@ In order to make changes, you'll need to install the proper version of clang-for
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
 
     sudo apt-get install clang-format-8
-
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
@@ -117,7 +116,7 @@ On some systems, building with `libc++`, [LLVM's version of the standard library
 
 NB: there are newer versions available of both clang and libc++, you will have to use the versions suited for your system.
 
-You may need to install additional packages for this, for example, on Linux Ubuntu 16.04 LTS with clang-8:
+You may need to install additional packages for this, for example, on Linux Ubuntu 18.04 LTS with clang-8:
 
     # install libc++ headers
     sudo apt-get install libc++-8-dev libc++abi-8-dev
