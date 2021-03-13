@@ -186,8 +186,8 @@ class HerderSCPDriver : public SCPDriver
         medida::Timer& mPrepareToExternalize;
 
         // Timers tracking externalize messages
-        medida::Timer& mExternalizeLag;
-        medida::Timer& mExternalizeDelay;
+        medida::Timer& mFirstToSelfExternalizeLag;
+        medida::Timer& mSelfToOthersExternalizeLag;
 
         SCPMetrics(Application& app);
     };
