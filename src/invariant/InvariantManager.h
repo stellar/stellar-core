@@ -48,6 +48,11 @@ class InvariantManager
 
     virtual void enableInvariant(std::string const& name) = 0;
 
+#ifdef BUILD_TESTS
+    virtual void snapshotForFuzzer() = 0;
+    virtual void resetForFuzzer() = 0;
+#endif // BUILD_TESTS
+
     template <typename T, typename... Args>
     std::shared_ptr<T>
     registerInvariant(Args&&... args)

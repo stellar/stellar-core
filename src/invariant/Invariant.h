@@ -53,5 +53,17 @@ class Invariant
     {
         return std::string{};
     }
+
+#ifdef BUILD_TESTS
+    virtual void
+    snapshotForFuzzer()
+    {
+    }
+
+    virtual void
+    resetForFuzzer()
+    {
+    }
+#endif // BUILD_TESTS
 };
 }

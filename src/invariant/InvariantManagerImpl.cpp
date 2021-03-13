@@ -231,4 +231,24 @@ InvariantManagerImpl::handleInvariantFailure(
         CLOG_ERROR(Invariant, "{}", REPORT_INTERNAL_BUG);
     }
 }
+
+#ifdef BUILD_TESTS
+void
+InvariantManagerImpl::snapshotForFuzzer()
+{
+    for (auto const& invariant : mEnabled)
+    {
+        invariant->snapshotForFuzzer();
+    }
+}
+
+void
+InvariantManagerImpl::resetForFuzzer()
+{
+    for (auto const& invariant : mEnabled)
+    {
+        invariant->resetForFuzzer();
+    }
+}
+#endif // BUILD_TESTS
 }
