@@ -741,9 +741,10 @@ resetTxInternalState(Application& app)
 {
     resetRandomSeed(1);
 // reset caches to clear persistent state
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
     app.getLedgerTxnRoot().resetForFuzzer();
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    app.getInvariantManager().resetForFuzzer();
+#endif // BUILD_TESTS
     app.getDatabase().clearPreparedStatementCache();
 }
 
@@ -1327,6 +1328,10 @@ TransactionFuzzer::initialize()
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
     ltxOuter.commit();
+
+#ifdef BUILD_TESTS
+    mApp->getInvariantManager().snapshotForFuzzer();
+#endif // BUILD_TESTS
 }
 
 void
