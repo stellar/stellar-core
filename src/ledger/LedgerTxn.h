@@ -450,9 +450,9 @@ class AbstractLedgerTxnParent
     // than a (real or stub) root LedgerTxn.
     virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
     virtual void resetForFuzzer() = 0;
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
 #ifdef BEST_OFFER_DEBUGGING
     virtual bool bestOfferDebuggingEnabled() const = 0;
@@ -715,10 +715,9 @@ class LedgerTxn final : public AbstractLedgerTxn
         std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
         AssetPairHash> const&
     getOrderBook();
-#endif
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
     void resetForFuzzer() override;
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
 #ifdef BEST_OFFER_DEBUGGING
     bool bestOfferDebuggingEnabled() const override;
@@ -762,9 +761,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropTrustLines() override;
     void dropClaimableBalances() override;
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
     void resetForFuzzer() override;
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 

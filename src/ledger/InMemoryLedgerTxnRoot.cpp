@@ -140,13 +140,13 @@ InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
     return 0;
 }
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
 void
 InMemoryLedgerTxnRoot::resetForFuzzer()
 {
     abort();
 }
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
 #ifdef BEST_OFFER_DEBUGGING
 bool
