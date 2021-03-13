@@ -165,7 +165,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
         return false;
     }
 
-    bool res =
+    bool const res =
         mInnerTx->checkValid(ltx, current, false, lowerBoundCloseTimeOffset,
                              upperBoundCloseTimeOffset);
     updateResult(getResult(), mInnerTx);
