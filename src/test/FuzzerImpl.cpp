@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/FuzzerImpl.h"
+#include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/TrustLineWrapper.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -1303,6 +1304,7 @@ TransactionFuzzer::initialize()
 {
     resetRandomSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
+    OrderBookIsNotCrossed::registerAndEnableInvariant(*mApp);
     auto root = TestAccount::createRoot(*mApp);
     mSourceAccountID = root.getPublicKey();
 
