@@ -1222,6 +1222,18 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
     return r;
 }
 
+bool
+HerderImpl::checkPartiallyValid(TransactionFrameBasePtr tx)
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto const closeTime = mApp.getLedgerManager()
+                               .getLastClosedLedgerHeader()
+                               .header.scpValue.closeTime;
+
+    return tx->checkValid(ltx, 0, 0,
+                          getUpperBoundCloseTimeOffset(mApp, closeTime), false);
+}
+
 Json::Value
 HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 {
