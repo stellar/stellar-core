@@ -76,12 +76,17 @@ class TransactionFrame : public TransactionFrameBase
 
     virtual bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const;
 
-    ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter,
-                               SequenceNumber current, bool applying,
-                               bool chargeFee,
-                               uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset);
+    // If "fullCheck" is false, then a "kInvalid" return definitively
+    // establishes the invalidity of the transaction, but a "kMaybeValid" return
+    // does not definitively establish that a call with a true "fullCheck"
+    // parameter would have returned "kMaybeValid".  In particular, if
+    // "fullCheck" is false, then commonValid() will not perform any checks that
+    // could require checking signatures or accessing the database.
+    ValidationType
+    commonValid(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltxOuter,
+                SequenceNumber current, bool applying, bool chargeFee,
+                uint64_t lowerBoundCloseTimeOffset,
+                uint64_t upperBoundCloseTimeOffset, bool fullCheck);
 
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
