@@ -484,6 +484,12 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                                     acc1.createClaimableBalance(asset, amount,
                                                                 validClaimants),
                                     ex_CREATE_CLAIMABLE_BALANCE_MALFORMED);
+
+                                auto tx =
+                                    acc1.tx({txtest::createClaimableBalance(
+                                        asset, amount, validClaimants)});
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                txtest::requireCheckValidFormsBothFail(tx, ltx);
                             };
 
                         SECTION("invalid andPredicate size")
