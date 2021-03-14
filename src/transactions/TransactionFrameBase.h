@@ -28,9 +28,13 @@ class TransactionFrameBase
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMeta& meta) = 0;
 
+    // A partial check ("fullCheck" == false) can only definitively establish
+    // that a transaction is invalid, not that it is valid.  A partial check
+    // does not do signature verification or database access.
     virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) = 0;
+                            uint64_t upperBoundCloseTimeOffset,
+                            bool fullCheck) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 

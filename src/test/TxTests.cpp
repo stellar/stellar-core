@@ -396,10 +396,10 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 bool
 checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
            SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
-           uint64_t upperBoundCloseTimeOffset)
+           uint64_t upperBoundCloseTimeOffset, bool fullCheck)
 {
     return tx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
-                          upperBoundCloseTimeOffset);
+                          upperBoundCloseTimeOffset, fullCheck);
 }
 
 TxSetResultMeta

@@ -145,7 +145,8 @@ bool
 FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
-                                    uint64_t upperBoundCloseTimeOffset)
+                                    uint64_t upperBoundCloseTimeOffset,
+                                    bool fullCheck)
 {
     LedgerTxn ltx(ltxOuter);
     auto minBaseFee = ltx.loadHeader().current().baseFee;
@@ -154,12 +155,12 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false, true) !=
+    if (commonValid(signatureChecker, ltx, false, fullCheck) !=
         ValidationType::kFullyValid)
     {
         return false;
     }
-    if (!signatureChecker.checkAllSignaturesUsed())
+    if (fullCheck && !signatureChecker.checkAllSignaturesUsed())
     {
         getResult().result.code(txBAD_AUTH_EXTRA);
         return false;
@@ -167,7 +168,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 
     bool const res =
         mInnerTx->checkValid(ltx, current, false, lowerBoundCloseTimeOffset,
-                             upperBoundCloseTimeOffset);
+                             upperBoundCloseTimeOffset, fullCheck);
     updateResult(getResult(), mInnerTx);
     return res;
 }
