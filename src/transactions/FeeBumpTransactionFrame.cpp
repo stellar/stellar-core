@@ -173,7 +173,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 }
 
 bool
-FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
+FeeBumpTransactionFrame::commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -205,12 +205,6 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (!stellar::loadAccount(ltx, getFeeSourceID()))
-    {
-        getResult().result.code(txNO_ACCOUNT);
-        return false;
-    }
-
     return true;
 }
 
@@ -221,12 +215,19 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ltx))
+    if (!commonValidPreSourceAccountLoad(ltx))
     {
         return res;
     }
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
+
+    if (!feeSource)
+    {
+        getResult().result.code(txNO_ACCOUNT);
+        return res;
+    }
+
     if (!checkSignature(
             signatureChecker, feeSource,
             feeSource.current().data.account().thresholds[THRESHOLD_LOW]))

@@ -70,9 +70,9 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
 
-    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
-                              uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset);
+    bool commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx, bool chargeFee,
+                                         uint64_t lowerBoundCloseTimeOffset,
+                                         uint64_t upperBoundCloseTimeOffset);
 
     virtual bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const;
 
