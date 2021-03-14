@@ -77,8 +77,12 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
+    // If "checkType" is FOR_VALIDITY_PARTIAL, then while a "false" return
+    // guarantees that the transaction is invalid, a "true" return does not
+    // guarantee that the transaction is valid.  In particular, a "partial"
+    // check does not check signatures or load accounts.
     bool checkValid(SignatureChecker& signatureChecker,
-                    AbstractLedgerTxn& ltxOuter, bool forApply);
+                    AbstractLedgerTxn& ltxOuter, CheckType checkType);
 
     bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx);
 
