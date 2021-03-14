@@ -76,9 +76,21 @@ bool applyCheck(TransactionFramePtr tx, Application& app,
                 bool checkSeqNum = true);
 void applyTx(TransactionFramePtr const& tx, Application& app,
              bool checkSeqNum = true);
+
+enum class ValidateTxResultsType
+{
+    VALIDATE_CONSISTENCY_ONLY,
+    VALIDATE_BOTH_FAIL,
+    VALIDATE_BOTH_PASS,
+    VALIDATE_ONLY_FULL_CHECK_FAILS
+};
+
 void validateTxResults(TransactionFramePtr const& tx, Application& app,
                        ValidationResult validationResult,
-                       TransactionResult const& applyResult = {});
+                       TransactionResult const& applyResult = {},
+                       ValidateTxResultsType validateType =
+                           ValidateTxResultsType::VALIDATE_CONSISTENCY_ONLY);
+
 bool checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
                 SequenceNumber current = 0,
                 uint64_t lowerBoundCloseTimeOffset = 0,

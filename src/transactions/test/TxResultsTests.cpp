@@ -95,7 +95,9 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({});
-                    validateTxResults(tx, *app, {baseFee, txMISSING_OPERATION});
+                    validateTxResults(
+                        tx, *app, {baseFee, txMISSING_OPERATION}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -104,7 +106,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     setMinTime(tx, getCloseTime() + 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_EARLY}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -113,7 +117,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     setMaxTime(tx, getCloseTime() - 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_LATE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -122,7 +128,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
-                    validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_FEE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -130,7 +138,9 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 for_all_versions(*app, [&] {
                     auto tx = f.tx({payment(root, 1)});
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
+                    validateTxResults(
+                        tx, *app, {baseFee, txNO_ACCOUNT}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -139,7 +149,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     setSeqNum(tx, tx->getSeqNum() + 1);
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
+                    validateTxResults(
+                        tx, *app, {baseFee, txBAD_SEQ}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -147,8 +159,9 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 for_all_versions(*app, [&] {
                     auto tx = g.tx({payment(root, 1)});
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_BALANCE}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
         }
@@ -160,7 +173,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({});
                     getSignatures(tx).clear();
-                    validateTxResults(tx, *app, {baseFee, txMISSING_OPERATION});
+                    validateTxResults(
+                        tx, *app, {baseFee, txMISSING_OPERATION}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -170,7 +185,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     getSignatures(tx).clear();
                     setMinTime(tx, getCloseTime() + 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_EARLY}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -180,7 +197,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     getSignatures(tx).clear();
                     setMaxTime(tx, getCloseTime() - 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_LATE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -190,7 +209,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     getSignatures(tx).clear();
                     setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
-                    validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_FEE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -199,7 +220,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = f.tx({payment(root, 1)});
                     getSignatures(tx).clear();
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
+                    validateTxResults(
+                        tx, *app, {baseFee, txNO_ACCOUNT}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -209,7 +232,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     getSignatures(tx).clear();
                     setSeqNum(tx, tx->getSeqNum() + 1);
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
+                    validateTxResults(
+                        tx, *app, {baseFee, txBAD_SEQ}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -218,18 +243,23 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_versions_to(6, *app, [&] {
                     auto tx = g.tx({payment(root, 1)});
                     getSignatures(tx).clear();
-                    validateTxResults(tx, *app, {baseFee, txBAD_AUTH});
+                    validateTxResults(
+                        tx, *app, {baseFee, txBAD_AUTH}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
                 for_versions({7}, *app, [&] {
                     auto tx = g.tx({payment(root, 1)});
                     getSignatures(tx).clear();
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_BALANCE}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
                 for_versions_from(8, *app, [&] {
                     auto tx = g.tx({payment(root, 1)});
                     getSignatures(tx).clear();
-                    validateTxResults(tx, *app, {baseFee, txBAD_AUTH});
+                    validateTxResults(
+                        tx, *app, {baseFee, txBAD_AUTH}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
         }
@@ -241,7 +271,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({});
                     tx->addSignature(a);
-                    validateTxResults(tx, *app, {baseFee, txMISSING_OPERATION});
+                    validateTxResults(
+                        tx, *app, {baseFee, txMISSING_OPERATION}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -251,7 +283,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     tx->addSignature(a);
                     setMinTime(tx, getCloseTime() + 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_EARLY}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -261,7 +295,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     tx->addSignature(a);
                     setMaxTime(tx, getCloseTime() - 1);
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txTOO_LATE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -271,7 +307,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     tx->addSignature(a);
                     setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
-                    validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_FEE}, {},
+                        ValidateTxResultsType::VALIDATE_BOTH_FAIL);
                 });
             }
 
@@ -280,7 +318,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = f.tx({payment(root, 1)});
                     tx->addSignature(a);
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
+                    validateTxResults(
+                        tx, *app, {baseFee, txNO_ACCOUNT}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -290,7 +330,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                     auto tx = a.tx({payment(root, 1)});
                     tx->addSignature(a);
                     setSeqNum(tx, tx->getSeqNum() + 1);
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
+                    validateTxResults(
+                        tx, *app, {baseFee, txBAD_SEQ}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
 
@@ -299,8 +341,9 @@ TEST_CASE("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = g.tx({payment(root, 1)});
                     tx->addSignature(a);
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
+                    validateTxResults(
+                        tx, *app, {baseFee, txINSUFFICIENT_BALANCE}, {},
+                        ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
                 });
             }
         }
@@ -317,7 +360,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             for_all_versions(*app, [&] {
                 auto tx = a.tx({payment(b, 1000), accountMerge(root)});
                 validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
-                                  applyResult);
+                                  applyResult,
+                                  ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
 
@@ -328,7 +372,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                     {payment(b, 1000), accountMerge(root), payment(c, 1000)});
                 validateTxResults(
                     tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
+                    expectedResult(baseFee * 3, 3, txINTERNAL_ERROR),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
             for_versions_from(8, *app, [&] {
                 auto tx = a.tx(
@@ -339,7 +384,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                                    {PAYMENT_SUCCESS,
                                     {ACCOUNT_MERGE_SUCCESS,
                                      startAmount - tx->getFeeBid() - 1000},
-                                    opNO_ACCOUNT}));
+                                    opNO_ACCOUNT}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
     }
@@ -352,7 +398,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = root.tx({createAccount(f, startAmount)});
                 validateTxResults(tx, *app, {baseFee * 1, txSUCCESS},
                                   expectedResult(baseFee * 1, 1, txSUCCESS,
-                                                 {CREATE_ACCOUNT_SUCCESS}));
+                                                 {CREATE_ACCOUNT_SUCCESS}),
+                                  ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
 
@@ -365,7 +412,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                 validateTxResults(
                     tx, *app, {baseFee * 2, txSUCCESS},
                     expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS}));
+                                   {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
     }
@@ -382,7 +430,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                 validateTxResults(
                     tx, *app, {baseFee * 2, txSUCCESS},
                     expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS}));
+                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
 
@@ -395,7 +444,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                     tx, *app, {baseFee * 3, txSUCCESS},
                     expectedResult(
                         baseFee * 3, 3, txFAILED,
-                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
             for_versions({8, 9}, *app, [&] {
                 auto tx =
@@ -404,7 +454,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                     tx, *app, {baseFee * 3, txSUCCESS},
                     expectedResult(
                         baseFee * 3, 3, txFAILED,
-                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
             for_versions_from({7, 10}, *app, [&] {
                 auto tx =
@@ -413,7 +464,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                     tx, *app, {baseFee * 3, txSUCCESS},
                     expectedResult(baseFee * 3, 3, txSUCCESS,
                                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                    PAYMENT_SUCCESS}));
+                                    PAYMENT_SUCCESS}),
+                    ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
 
@@ -422,17 +474,22 @@ TEST_CASE("txresults", "[tx][txresults]")
             a.setOptions(th);
             for_versions_to(6, *app, [&] {
                 auto tx = a.tx({payment(b, 1000)});
-                validateTxResults(tx, *app, {baseFee * 1, txFAILED});
+                validateTxResults(
+                    tx, *app, {baseFee * 1, txFAILED}, {},
+                    ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
             });
             for_versions({7}, *app, [&] {
                 auto tx = a.tx({payment(b, 1000)});
                 validateTxResults(tx, *app, {baseFee * 1, txSUCCESS},
                                   expectedResult(baseFee * 1, 1, txSUCCESS,
-                                                 {PAYMENT_SUCCESS}));
+                                                 {PAYMENT_SUCCESS}),
+                                  ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
             for_versions_from(8, *app, [&] {
                 auto tx = a.tx({payment(b, 1000)});
-                validateTxResults(tx, *app, {baseFee * 1, txFAILED});
+                validateTxResults(
+                    tx, *app, {baseFee * 1, txFAILED}, {},
+                    ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
             });
         }
     }
@@ -453,11 +510,14 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = acc.tx({payment(root, 1)});
                 auto res =
                     expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
+                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res,
+                                  ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
             for_versions_from(10, *app, [&] {
                 auto tx = acc.tx({payment(root, 1)});
-                validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_BALANCE});
+                validateTxResults(
+                    tx, *app, {baseFee, txINSUFFICIENT_BALANCE}, {},
+                    ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS);
             });
         }
         SECTION("buying liabilities")
@@ -469,7 +529,8 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = acc.tx({payment(root, 1)});
                 auto res =
                     expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
+                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res,
+                                  ValidateTxResultsType::VALIDATE_BOTH_PASS);
             });
         }
     }

@@ -358,7 +358,8 @@ applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 void
 validateTxResults(TransactionFramePtr const& tx, Application& app,
                   ValidationResult validationResult,
-                  TransactionResult const& applyResult)
+                  TransactionResult const& applyResult,
+                  ValidateTxResultsType validateType)
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
 
@@ -366,7 +367,22 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
         app.getNetworkID(), tx->getEnvelope());
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkValid(checkedTx, ltx) == shouldValidateOk);
+
+        switch (validateType)
+        {
+        case ValidateTxResultsType::VALIDATE_CONSISTENCY_ONLY:
+            REQUIRE(checkValid(checkedTx, ltx) == shouldValidateOk);
+            break;
+        case ValidateTxResultsType::VALIDATE_BOTH_FAIL:
+            requireCheckValidFormsBothFail(checkedTx, ltx);
+            break;
+        case ValidateTxResultsType::VALIDATE_BOTH_PASS:
+            requireCheckValidFormsBothPass(checkedTx, ltx);
+            break;
+        case ValidateTxResultsType::VALIDATE_ONLY_FULL_CHECK_FAILS:
+            requireOnlyFullCheckFails(checkedTx, ltx);
+            break;
+        }
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);
