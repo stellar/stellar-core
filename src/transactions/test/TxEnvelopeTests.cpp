@@ -501,7 +501,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setup();
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                                REQUIRE(!txtest::checkValid(tx, ltx));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -1093,7 +1093,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMeta txm(2);
                                 REQUIRE(
-                                    insideSignerTx->checkValid(ltx, 0, 0, 0));
+                                    txtest::checkValid(insideSignerTx, ltx));
                                 REQUIRE(insideSignerTx->apply(*app, ltx, txm));
                                 REQUIRE(insideSignerTx->getResultCode() ==
                                         txSUCCESS);
@@ -1111,7 +1111,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMeta txm(2);
                                 REQUIRE(
-                                    outsideSignerTx->checkValid(ltx, 0, 0, 0));
+                                    txtest::checkValid(outsideSignerTx, ltx));
                                 REQUIRE(outsideSignerTx->apply(*app, ltx, txm));
                                 REQUIRE(outsideSignerTx->getResultCode() ==
                                         txSUCCESS);
@@ -1333,7 +1333,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!txtest::checkValid(tx, ltx));
                 }
 
                 applyCheck(tx, *app);
@@ -1357,7 +1357,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(!txtest::checkValid(tx, ltx));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -1371,7 +1371,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(txtest::checkValid(tx, ltx));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1388,7 +1388,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(txtest::checkValid(tx, ltx));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1413,7 +1413,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(!txtest::checkValid(tx, ltx));
                         }
 
                         applyCheck(tx, *app);
@@ -1440,7 +1440,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(txtest::checkValid(tx, ltx));
                         }
 
                         applyCheck(tx, *app);
@@ -1466,7 +1466,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(txtest::checkValid(tx, ltx));
                         }
 
                         applyCheck(tx, *app);
@@ -1556,7 +1556,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setup();
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(!txtest::checkValid(txFrame, ltx));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1642,8 +1642,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 txFrame->addSignature(root);
                                 {
                                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                                    REQUIRE(txFrame->checkValid(
-                                                ltx, 0, lowerBound, 0) ==
+                                    REQUIRE(txtest::checkValid(txFrame, ltx, 0,
+                                                               lowerBound, 0) ==
                                             expectSuccess);
                                 }
                                 REQUIRE(
@@ -1723,8 +1723,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                                 {
                                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                                    REQUIRE(
-                                        txFrame->checkValid(ltx, 0, 0, offset));
+                                    REQUIRE(txtest::checkValid(txFrame, ltx, 0,
+                                                               0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
@@ -1736,8 +1736,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                                 {
                                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                                    REQUIRE(!txFrame->checkValid(ltx, 0, 0,
-                                                                 offset));
+                                    REQUIRE(!txtest::checkValid(txFrame, ltx, 0,
+                                                                0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
@@ -1765,7 +1765,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setSeqNum(txFrame, txFrame->getSeqNum() - 1);
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(!txtest::checkValid(txFrame, ltx));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);

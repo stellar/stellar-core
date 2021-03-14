@@ -2999,7 +2999,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
         };
@@ -3038,7 +3038,7 @@ TEST_CASE("create offer", "[tx][offers]")
             auto expOfferID = ltx.loadHeader().current().idPool + 1;
 
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(tx->apply(*app, ltx, txm));
 
             auto const& results = tx->getResult().result.results();
@@ -3767,7 +3767,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 offerIdIdrXlm = ltx.loadHeader().current().idPool + 3;
 
                 TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx, ltx));
                 REQUIRE(tx->apply(*app, ltx, txm));
 
                 REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdUsdXlm));

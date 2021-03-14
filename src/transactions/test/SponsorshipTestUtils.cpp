@@ -135,7 +135,7 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
 
             LedgerTxn ltx(app.getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(!tx->apply(app, ltx, txm));
             REQUIRE(check(getOperationResult(tx, 1)));
             ltx.commit();
@@ -205,7 +205,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx(app.getLedgerTxnRoot());
                 TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx, ltx));
                 REQUIRE(tx->apply(app, ltx, txm));
 
                 check(ltx);
@@ -219,7 +219,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx2(app.getLedgerTxnRoot());
                 TransactionMeta txm2(2);
-                REQUIRE(tx2->checkValid(ltx2, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx2, ltx2));
                 REQUIRE(tx2->apply(app, ltx2, txm2));
 
                 check(ltx2);
@@ -233,7 +233,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx3(app.getLedgerTxnRoot());
                 TransactionMeta txm3(2);
-                REQUIRE(tx3->checkValid(ltx3, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx3, ltx3));
                 REQUIRE(tx3->apply(app, ltx3, txm3));
 
                 check(ltx3);
@@ -248,7 +248,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             {
                 LedgerTxn ltx4(app.getLedgerTxnRoot());
                 TransactionMeta txm4(2);
-                REQUIRE(tx4->checkValid(ltx4, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx4, ltx4));
                 REQUIRE(tx4->apply(app, ltx4, txm4));
 
                 if (rso.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
@@ -346,7 +346,7 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
 
                 LedgerTxn ltx(app.getLedgerTxnRoot());
                 TransactionMeta txm1(2);
-                REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx1, ltx));
                 REQUIRE(tx1->apply(app, ltx, txm1));
                 ltx.commit();
             }
@@ -360,7 +360,7 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
 
                 LedgerTxn ltx(app.getLedgerTxnRoot());
                 TransactionMeta txm2(2);
-                REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx2, ltx));
                 REQUIRE(!tx2->apply(app, ltx, txm2));
                 REQUIRE(tx2->getResult().result.results()[1].code() ==
                         opTOO_MANY_SPONSORING);

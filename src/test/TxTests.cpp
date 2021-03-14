@@ -130,7 +130,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     {
         LedgerTxn ltxFeeProc(ltx);
         // use checkedTx here for validity check as to keep tx untouched
-        check = checkedTx->checkValid(ltxFeeProc, 0, 0, 0);
+        check = checkValid(checkedTx, ltxFeeProc);
         checkResult = checkedTx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -366,7 +366,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
         app.getNetworkID(), tx->getEnvelope());
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkedTx->checkValid(ltx, 0, 0, 0) == shouldValidateOk);
+        REQUIRE(checkValid(checkedTx, ltx) == shouldValidateOk);
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);
@@ -392,6 +392,15 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     REQUIRE(tx->getResult() == applyResult);
     REQUIRE(applyOk == shouldApplyOk);
 };
+
+bool
+checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
+           SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+           uint64_t upperBoundCloseTimeOffset)
+{
+    return tx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset);
+}
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

@@ -49,7 +49,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
                 {root.op(beginSponsoringFutureReserves(a1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx, ltx));
             ltx.commit();
 
             REQUIRE(getOperationResultCode(tx, 0) == opNOT_SUPPORTED);
@@ -64,7 +64,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
                 {root.op(beginSponsoringFutureReserves(root))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx, ltx));
             ltx.commit();
 
             REQUIRE(getBeginSponsoringFutureReservesResultCode(tx, 0) ==
@@ -84,7 +84,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -106,7 +106,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -129,7 +129,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -156,7 +156,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -180,7 +180,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -206,7 +206,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMeta txm1(2);
-        REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+        REQUIRE(txtest::checkValid(tx1, ltx));
         REQUIRE(tx1->apply(*app, ltx, txm1));
 
         checkSponsorship(ltx, trustlineKey(a1, cur1), 1, &root.getPublicKey());
@@ -219,7 +219,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
                                     {a1});
 
         TransactionMeta txm2(2);
-        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+        REQUIRE(txtest::checkValid(tx2, ltx));
         REQUIRE(tx2->apply(*app, ltx, txm2));
 
         checkSponsorship(ltx, a1.getPublicKey(), signer.key, 2,

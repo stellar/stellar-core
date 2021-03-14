@@ -52,11 +52,11 @@ TEST_CASE("create account", "[tx][createaccount]")
                 {root.op(createAccount(key.getPublicKey(), 1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx1, ltx));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx2, ltx));
         });
 
         for_versions_from(14, *app, [&] {
@@ -70,11 +70,11 @@ TEST_CASE("create account", "[tx][createaccount]")
                 {root.op(createAccount(key.getPublicKey(), 0))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx1, ltx));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx2, ltx));
         });
     }
 
@@ -86,7 +86,7 @@ TEST_CASE("create account", "[tx][createaccount]")
                                         {root.op(createAccount(root, -1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx, ltx));
             REQUIRE(getCreateAccountResultCode(tx, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
         });
@@ -183,7 +183,7 @@ TEST_CASE("create account", "[tx][createaccount]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx, ltx));
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
             }
