@@ -519,7 +519,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         {
             auto sourceAccount = loadSourceAccount(ltx, header);
             auto le = buildOffer(0, 0, extension);
-            removeEntryWithPossibleSponsorship(ltx, header, le, sourceAccount);
+            removeEntryWithPossibleSponsorship(ltx, header, le, &sourceAccount);
         }
     }
 

@@ -1034,7 +1034,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             }
             else
             {
-                removeEntryWithPossibleSponsorship(ltx, header, dataLe, acc);
+                removeEntryWithPossibleSponsorship(ltx, header, dataLe, &acc);
             }
 
             REQUIRE(getSellingLiabilities(header, acc) ==

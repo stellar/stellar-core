@@ -1070,7 +1070,7 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
         releaseLiabilities(ltxInner, header, offer);
         auto trustAcc = stellar::loadAccount(ltxInner, account);
         removeEntryWithPossibleSponsorship(ltxInner, header, offer.current(),
-                                           trustAcc);
+                                           &trustAcc);
         offer.erase();
     }
     ltxInner.commit();
