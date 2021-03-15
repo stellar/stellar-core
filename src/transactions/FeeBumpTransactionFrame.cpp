@@ -172,12 +172,12 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 }
 
 bool
-FeeBumpTransactionFrame::commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx)
+FeeBumpTransactionFrame::commonValidPreFeeSourceLoad(
+    LedgerTxnHeader const& header)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    auto header = ltx.loadHeader();
     if (header.current().ledgerVersion < 13)
     {
         getResult().result.code(txNOT_SUPPORTED);
@@ -214,8 +214,9 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
+    auto header = ltx.loadHeader();
 
-    if (!commonValidPreSourceAccountLoad(ltx))
+    if (!commonValidPreFeeSourceLoad(header))
     {
         return res;
     }
@@ -243,7 +244,6 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
     res = ValidationType::kInvalidPostAuth;
 
-    auto header = ltx.loadHeader();
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance

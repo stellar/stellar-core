@@ -353,13 +353,12 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
 
 bool
 TransactionFrame::commonValidPreSourceAccountLoad(
-    AbstractLedgerTxn& ltx, bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset)
+    LedgerTxnHeader const& header, bool chargeFee,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
-    auto header = ltx.loadHeader();
     uint32_t ledgerVersion = header.current().ledgerVersion;
     if ((ledgerVersion < 13 && (mEnvelope.type() == ENVELOPE_TYPE_TX ||
                                 hasMuxedAccount(mEnvelope))) ||
@@ -498,7 +497,9 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             "Applying transaction with non-current closeTime");
     }
 
-    if (!commonValidPreSourceAccountLoad(ltx, chargeFee,
+    auto header = ltx.loadHeader();
+
+    if (!commonValidPreSourceAccountLoad(header, chargeFee,
                                          lowerBoundCloseTimeOffset,
                                          upperBoundCloseTimeOffset))
     {
@@ -510,7 +511,6 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return kMaybeValid;
     }
 
-    auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
 
     if (!sourceAccount)
