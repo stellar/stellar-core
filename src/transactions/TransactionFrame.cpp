@@ -480,15 +480,16 @@ TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
-                              SequenceNumber current, bool applying,
-                              bool chargeFee,
+                              SequenceNumber current, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
-                              bool fullCheck)
+                              CheckType checkType)
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
+
+    auto const applying = checkType == CheckType::FOR_APPLY;
 
     if (applying &&
         (lowerBoundCloseTimeOffset != 0 || upperBoundCloseTimeOffset != 0))
@@ -506,7 +507,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return res;
     }
 
-    if (!fullCheck)
+    if (checkType == CheckType::FOR_VALIDITY_PARTIAL)
     {
         return kMaybeValid;
     }
@@ -663,20 +664,21 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     int64_t minBaseFee = chargeFee ? ltx.loadHeader().current().baseFee : 0;
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
+    auto const checkType = fullCheck ? CheckType::FOR_VALIDITY_FULL
+                                     : CheckType::FOR_VALIDITY_PARTIAL;
+
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
-    bool res = commonValid(signatureChecker, ltx, current, false, chargeFee,
+    bool res = commonValid(signatureChecker, ltx, current, chargeFee,
                            lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-                           fullCheck) == ValidationType::kMaybeValid;
+                           checkType) == ValidationType::kMaybeValid;
     if (res)
     {
-        auto const opCheckType = fullCheck ? CheckType::FOR_VALIDITY_FULL
-                                           : CheckType::FOR_VALIDITY_PARTIAL;
 
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, ltx, opCheckType))
+            if (!op->checkValid(signatureChecker, ltx, checkType))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -872,8 +874,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv = commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0, 0,
-                              true);
+        auto cv = commonValid(signatureChecker, ltxTx, 0, chargeFee, 0, 0,
+                              CheckType::FOR_APPLY);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);
