@@ -1,5 +1,6 @@
 *.a
 *.o
+*.o.tmp
 *.obj
 *.la
 *.lo
