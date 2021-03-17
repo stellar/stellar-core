@@ -701,15 +701,41 @@ TEST_CASE("merge", "[tx][merge]")
             };
 
         for_versions_from(14, *app, [&] {
+            uint32_t ledgerVersion;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+            }
             SECTION("with sponsored signers")
             {
                 // add non-sponsored signer
                 a1.setOptions(setSigner(makeSigner(gateway, 5)));
                 addSponsoredSigner(a1, 0, nullptr, 0, 2, 1, 0);
 
-                a1.merge(b1);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2, 0, 0);
+                SECTION("into non-sponsoring account")
+                {
+                    a1.merge(b1);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2, 0,
+                                     0);
+                }
+                SECTION("into sponsoring account")
+                {
+                    if (ledgerVersion < 16)
+                    {
+                        REQUIRE_THROWS(a1.merge(sponsoringAcc));
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
+                                         1, 0);
+                    }
+                    else
+                    {
+                        REQUIRE_NOTHROW(a1.merge(sponsoringAcc));
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
+                                         0, 0);
+                    }
+                }
             }
 
             SECTION("with sponsored account")
@@ -734,28 +760,52 @@ TEST_CASE("merge", "[tx][merge]")
                     ltx.commit();
                 }
 
-                auto merge = [&](bool addSigner) {
+                auto merge = [&](bool addSigner, AccountID const& dest) {
                     if (addSigner)
                     {
                         addSponsoredSigner(
                             acc1, 0, &sponsoringAcc.getPublicKey(), 0, 2, 3, 0);
                     }
 
-                    acc1.merge(b1);
+                    if (ledgerVersion < 16 &&
+                        dest == sponsoringAcc.getPublicKey())
+                    {
+                        REQUIRE_THROWS(acc1.merge(dest));
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    checkSponsorship(ltx, sponsoringAcc.getPublicKey(), 0,
-                                     nullptr, 0, 2, 0, 0);
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+                        uint32_t numSponsoring = addSigner ? 3 : 2;
+                        checkSponsorship(ltx, sponsoringAcc.getPublicKey(), 0,
+                                         nullptr, 0, 2, numSponsoring, 0);
+                    }
+                    else
+                    {
+                        REQUIRE_NOTHROW(acc1.merge(dest));
+
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        checkSponsorship(ltx, sponsoringAcc.getPublicKey(), 0,
+                                         nullptr, 0, 2, 0, 0);
+                    }
                 };
 
                 SECTION("without sponsored signer")
                 {
-                    merge(false);
+                    merge(false, b1);
                 }
 
                 SECTION("with sponsored signer")
                 {
-                    merge(true);
+                    merge(true, b1);
+                }
+
+                SECTION("without sponsored signer into sponsoring account")
+                {
+                    merge(false, sponsoringAcc);
+                }
+
+                SECTION("with sponsored signer into sponsoring account")
+                {
+                    merge(true, sponsoringAcc);
                 }
             }
 
