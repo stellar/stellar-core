@@ -25,11 +25,15 @@ convertForV13(TransactionEnvelope const& input)
     auto& envV1 = res.v1();
     auto& txV1 = envV1.tx;
 
+    Preconditions cond(PRECOND_TIME);
+    auto& timeBounds = cond.timeBounds();
+    timeBounds = *txV0.timeBounds;
+
     envV1.signatures = envV0.signatures;
     txV1.sourceAccount.ed25519() = txV0.sourceAccountEd25519;
     txV1.fee = txV0.fee;
+    txV1.cond = cond;
     txV1.seqNum = txV0.seqNum;
-    txV1.timeBounds = txV0.timeBounds;
     txV1.memo = txV0.memo;
     txV1.operations = txV0.operations;
 
@@ -113,19 +117,13 @@ setFee(TransactionFramePtr tx, uint32_t fee)
 void
 setMinTime(TransactionFramePtr tx, int64_t minTime)
 {
-    auto& env = tx->getEnvelope();
-    auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
-                                                 : env.v1().tx.timeBounds;
-    tb.activate().minTime = minTime;
+    tx->getTimeBounds().activate().minTime = minTime;
 }
 
 void
 setMaxTime(TransactionFramePtr tx, int64_t maxTime)
 {
-    auto& env = tx->getEnvelope();
-    auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
-                                                 : env.v1().tx.timeBounds;
-    tb.activate().maxTime = maxTime;
+    tx->getTimeBounds().activate().maxTime = maxTime;
 }
 #endif
 }

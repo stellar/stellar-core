@@ -181,6 +181,38 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
     }
 }
 
+xdr::pointer<TimeBounds>
+TransactionFrame::getTimeBounds() const
+{
+    xdr::pointer<TimeBounds> tb;
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        tb = mEnvelope.v0().tx.timeBounds;
+    }
+    else
+    {
+        switch (mEnvelope.v1().tx.cond.type())
+        {
+        case PRECOND_NONE:
+        {
+            break;
+        }
+        case PRECOND_TIME:
+        {
+            auto ptb = mEnvelope.v1().tx.cond.timeBounds();
+            tb.reset(&ptb);
+            break;
+        }
+        case PRECOND_GENERAL:
+        {
+            tb = mEnvelope.v1().tx.cond.general().timeBounds;
+            break;
+        }
+        }
+    }
+    return tb;
+}
+
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
@@ -314,9 +346,7 @@ bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto tb = getTimeBounds();
     if (tb)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
@@ -330,9 +360,7 @@ bool
 TransactionFrame::isTooLate(LedgerTxnHeader const& header,
                             uint64_t upperBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto tb = getTimeBounds();
     if (tb)
     {
         // Prior to consensus, we can pass in an upper bound estimate on when we

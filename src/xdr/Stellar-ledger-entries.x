@@ -13,6 +13,7 @@ typedef string string32<32>;
 typedef string string64<64>;
 typedef int64 SequenceNumber;
 typedef uint64 TimePoint;
+typedef uint64 Duration;
 typedef opaque DataValue<64>;
 
 // 1-4 alphanumeric characters right-padded with 0 bytes
@@ -126,6 +127,24 @@ const MAX_SIGNERS = 20;
 
 typedef AccountID* SponsorshipDescriptor;
 
+
+const ACCTENTRY_EXT_CUR_V = 3;
+
+struct AccountEntryExtensionV3
+{
+    Liabilities liabilities;
+
+    uint32 numSponsored;
+    uint32 numSponsoring;
+    SponsorshipDescriptor signerSponsoringIDs<MAX_SIGNERS>;
+
+    // Ledger number at which `seqNum` took on its present value.
+    uint32 seqLedger;
+
+    // Time at which `seqNum` took on its present value.
+    TimePoint seqTime;
+};
+
 struct AccountEntryExtensionV2
 {
     uint32 numSponsored;
@@ -187,6 +206,8 @@ struct AccountEntry
         void;
     case 1:
         AccountEntryExtensionV1 v1;
+    case 3:
+        AccountEntryExtensionV3 cur;
     }
     ext;
 };
@@ -325,10 +346,10 @@ case CLAIM_PREDICATE_OR:
 case CLAIM_PREDICATE_NOT:
     ClaimPredicate* notPredicate;
 case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
-    int64 absBefore; // Predicate will be true if closeTime < absBefore
+    TimePoint absBefore; // Predicate will be true if closeTime < absBefore
 case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
-    int64 relBefore; // Seconds since closeTime of the ledger in which the
-                     // ClaimableBalanceEntry was created
+    Duration relBefore; // Seconds since closeTime of the ledger in which the
+                        // ClaimableBalanceEntry was created
 };
 
 enum ClaimantType

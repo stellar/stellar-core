@@ -458,12 +458,12 @@ TEST_CASE("manualclose", "[commandhandler]")
             auto dataOp = txtest::manageData(de.dataName, &de.dataValue);
             auto txFrame = root.tx({dataOp});
             REQUIRE(txFrame->getEnvelope().type() == stellar::ENVELOPE_TYPE_TX);
-            txFrame->getEnvelope().v1().tx.timeBounds.activate();
-            txFrame->getEnvelope().v1().tx.timeBounds->minTime = 0;
+            txFrame->getTimeBounds().activate();
+            txFrame->getTimeBounds()->minTime = 0;
             TimePoint const maxTime =
                 lastCloseTime() + defaultManualCloseTimeInterval +
                 getUpperBoundCloseTimeOffset(*app, lastCloseTime());
-            txFrame->getEnvelope().v1().tx.timeBounds->maxTime = maxTime;
+            txFrame->getTimeBounds()->maxTime = maxTime;
             txFrame->getEnvelope().v1().signatures.clear();
             txFrame->addSignature(root);
 

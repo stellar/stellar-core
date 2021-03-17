@@ -8,6 +8,7 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/types.h"
+#include "xdr/Stellar-transaction.h"
 
 #include <memory>
 #include <set>
@@ -164,6 +165,8 @@ class TransactionFrame : public TransactionFrameBase
 
     virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
                            bool applying) const override;
+
+    xdr::pointer<TimeBounds> getTimeBounds() const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);

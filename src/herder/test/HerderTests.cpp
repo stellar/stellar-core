@@ -393,9 +393,7 @@ testTxSet(uint32 protocolVersion)
         {
             auto tx = std::static_pointer_cast<TransactionFrame>(
                 txSet->mTransactions[0]);
-            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
-                           : tx->getEnvelope().v1().tx.timeBounds.activate();
+            auto& tb = tx->getTimeBounds().activate();
             tb.maxTime = UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
@@ -1377,9 +1375,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
             // be any transaction that is valid in all ways aside from its time
             // bounds) with the given minTime and maxTime.
             auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
-            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
-                           : tx->getEnvelope().v1().tx.timeBounds.activate();
+            auto& tb = tx->getTimeBounds().activate();
             tb.minTime = minTime;
             tb.maxTime = maxTime;
             auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
