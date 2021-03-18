@@ -51,7 +51,14 @@ signHashX(const ByteSlice& x)
     DecoratedSignature result;
     Signature out(0, 0);
     out.resize(static_cast<uint32_t>(x.size()));
-    std::memcpy(out.data(), x.data(), x.size());
+    if (!x.empty() && x.data())
+    {
+        std::memcpy(out.data(), x.data(), x.size());
+    }
+    else
+    {
+        assert(x.empty());
+    }
     result.signature = out;
     result.hint = getHint(sha256(x));
     return result;
