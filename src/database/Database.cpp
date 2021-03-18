@@ -650,7 +650,7 @@ Database::getPool()
             soci::session& sess = mPool->at(i);
             sess.open(c.value);
             DatabaseConfigureSessionOp op(sess);
-            doDatabaseTypeSpecificOperation(op);
+            stellar::doDatabaseTypeSpecificOperation(sess, op);
         }
     }
     assert(mPool);

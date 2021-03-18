@@ -208,9 +208,10 @@ class Database : NonMovableOrCopyable
 
 template <typename T>
 T
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
+doDatabaseTypeSpecificOperation(soci::session& session,
+                                DatabaseTypeSpecificOperation<T>& op)
 {
-    auto b = mSession.get_backend();
+    auto b = session.get_backend();
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
     {
         return op.doSqliteSpecificOperation(sq);
@@ -226,6 +227,13 @@ Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
         // Extend this with other cases if we support more databases.
         abort();
     }
+}
+
+template <typename T>
+T
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
+{
+    return stellar::doDatabaseTypeSpecificOperation(mSession, op);
 }
 
 // Select a set of records using a client-defined query string, then map
