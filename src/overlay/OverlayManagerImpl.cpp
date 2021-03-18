@@ -316,6 +316,15 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
     {
+        if (availableOutboundPendingSlots() <= 0)
+        {
+            CLOG_DEBUG(Overlay,
+                       "Peer rejected - all outbound pending connections "
+                       "taken: {} @{}",
+                       currentConnection->toString(),
+                       mApp.getConfig().PEER_PORT);
+            return false;
+        }
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
         return addOutboundConnection(TCPPeer::initiate(mApp, address));
     }
@@ -697,8 +706,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
     assert(peer->getRole() == Peer::WE_CALLED_REMOTE);
     mOutboundPeers.mConnectionsAttempted.Mark();
 
-    if (mShuttingDown || mOutboundPeers.mPending.size() >=
-                             mApp.getConfig().MAX_OUTBOUND_PENDING_CONNECTIONS)
+    if (mShuttingDown || availableOutboundPendingSlots() <= 0)
     {
         if (!mShuttingDown)
         {
