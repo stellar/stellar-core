@@ -1344,12 +1344,18 @@ TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
     std::sort(init.begin(), init.end());
 
     // Setup should only create entries; there should be no dead entries, and
-    // only one "live" (modified) one:  the root account.
+    // at most one "live" (modified) one:  the root account.
     assert(dead.empty());
-    assert(live.size() == 1);
-    assert(live[0].data.type() == ACCOUNT);
-    assert(live[0].data.account().accountID ==
-           txtest::getRoot(mApp->getNetworkID()).getPublicKey());
+    if (live.size() == 1)
+    {
+        assert(live[0].data.type() == ACCOUNT);
+        assert(live[0].data.account().accountID ==
+               txtest::getRoot(mApp->getNetworkID()).getPublicKey());
+    }
+    else
+    {
+        assert(live.empty());
+    }
 
     // If we ever create more ledger entries during setup than we have room for
     // in mStoredLedgerEntries, then we will have to do something further.
@@ -1486,11 +1492,11 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
     {
         auto op = param.mPassive
                       ? txtest::createPassiveOffer(
-                            param.mBid.toAsset(), param.mSell.toAsset(),
+                            param.mSell.toAsset(), param.mBid.toAsset(),
                             Price{param.mNumerator, param.mDenominator},
                             param.mAmount)
                       : txtest::manageOffer(
-                            0, param.mBid.toAsset(), param.mSell.toAsset(),
+                            0, param.mSell.toAsset(), param.mBid.toAsset(),
                             Price{param.mNumerator, param.mDenominator},
                             param.mAmount);
         PublicKey pkA;
