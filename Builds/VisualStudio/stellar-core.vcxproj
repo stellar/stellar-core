@@ -400,8 +400,6 @@ exit /b 0
     <ClCompile Include="..\..\src\history\HistoryArchiveManager.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchiveReportWork.cpp" />
     <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp" />
-    <ClCompile Include="..\..\src\history\InferredQuorum.cpp" />
-    <ClCompile Include="..\..\src\history\InferredQuorumUtils.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp" />
@@ -756,8 +754,6 @@ exit /b 0
     <ClInclude Include="..\..\src\history\HistoryManager.h" />
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
     <ClInclude Include="..\..\src\history\HistoryTestsUtils.h" />
-    <ClInclude Include="..\..\src\history\InferredQuorum.h" />
-    <ClInclude Include="..\..\src\history\InferredQuorumUtils.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\history\test\HistoryTestsUtils.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />

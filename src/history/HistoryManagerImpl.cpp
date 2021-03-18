@@ -156,15 +156,6 @@ HistoryManagerImpl::localFilename(std::string const& basename)
     return this->getTmpDir() + "/" + basename;
 }
 
-InferredQuorum
-HistoryManagerImpl::inferQuorum(uint32_t ledgerNum)
-{
-    InferredQuorum iq;
-    CLOG_INFO(History, "Starting FetchRecentQsetsWork");
-    mApp.getWorkScheduler().executeWork<FetchRecentQsetsWork>(iq, ledgerNum);
-    return iq;
-}
-
 uint32_t
 HistoryManagerImpl::getMinLedgerQueuedToPublish()
 {

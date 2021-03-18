@@ -75,8 +75,6 @@ class HistoryManagerImpl : public HistoryManager
                           std::vector<std::string> const& originalBuckets,
                           bool success) override;
 
-    InferredQuorum inferQuorum(uint32_t ledgerNum) override;
-
     std::string const& getTmpDir() override;
 
     std::string localFilename(std::string const& basename) override;

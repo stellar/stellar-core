@@ -29,8 +29,6 @@ Command options can only by placed after command.
   Option **--trusted-checkpoint-hashes <FILE-NAME>** checks the destination
   ledger hash against the provided reference list of trusted hashes. See the
   command verify-checkpoints for details.
-* **check-quorum**:   Check quorum intersection from history to ensure there is
-  closure over all the validators in the network.
 * **convert-id <ID>**: Will output the passed ID in all known forms and then
   exit. Useful for determining the public key that corresponds to a given
   private key. For example:
@@ -47,7 +45,6 @@ Command options can only by placed after command.
 
 `$ stellar-core http-command info`
 
-* **infer-quorum**:   Print a potential quorum set inferred from history.
 * **load-xdr <FILE-NAME>**:  Load an XDR bucket file, for testing.
 * **new-db**: Clears the local database and resets it to the genesis ledger. If
   you connect to the network after that it will catch up from scratch.
@@ -117,7 +114,6 @@ Command options can only by placed after command.
   Option **--output-filename <FILE-NAME>** is mandatory and specifies the file
   to write the trusted checkpoint hashes to.
 * **version**: Print version info and then exit.
-* **write-quorum**: Print a quorum set graph from history.
 
 ## HTTP Commands
 By default stellar-core listens for connections from localhost on port 11626. 

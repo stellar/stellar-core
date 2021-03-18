@@ -17,6 +17,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/HashOfHash.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
 

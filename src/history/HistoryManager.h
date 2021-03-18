@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/HistoryArchive.h"
-#include "history/InferredQuorum.h"
 #include "overlay/StellarXDR.h"
 #include <functional>
 #include <memory>
@@ -353,9 +352,6 @@ class HistoryManager
     historyPublished(uint32_t ledgerSeq,
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
-
-    // Infer a quorum set by reading SCP messages in history archives.
-    virtual InferredQuorum inferQuorum(uint32_t ledgerNum) = 0;
 
     // Return the name of the HistoryManager's tmpdir (used for storing files in
     // transit).
