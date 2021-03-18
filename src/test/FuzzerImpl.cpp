@@ -1492,11 +1492,11 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
     {
         auto op = param.mPassive
                       ? txtest::createPassiveOffer(
-                            param.mBid.toAsset(), param.mSell.toAsset(),
+                            param.mSell.toAsset(), param.mBid.toAsset(),
                             Price{param.mNumerator, param.mDenominator},
                             param.mAmount)
                       : txtest::manageOffer(
-                            0, param.mBid.toAsset(), param.mSell.toAsset(),
+                            0, param.mSell.toAsset(), param.mBid.toAsset(),
                             Price{param.mNumerator, param.mDenominator},
                             param.mAmount);
         PublicKey pkA;
