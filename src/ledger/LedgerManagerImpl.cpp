@@ -119,8 +119,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mOperationCount(
           app.getMetrics().NewHistogram({"ledger", "operation", "count"}))
     , mPrefetchHitRate(
-          app.getMetrics().NewHistogram({"ledger", "prefetch", "hit-rate"},
-                                        medida::SamplingInterface::kSliding))
+          app.getMetrics().NewHistogram({"ledger", "prefetch", "hit-rate"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewBuckets(
           {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
