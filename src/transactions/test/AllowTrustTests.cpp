@@ -71,6 +71,12 @@ template <int V> struct TestStub
     }
 
     static void
+    for_all_versions(Application& app, std::function<void(void)> const& f)
+    {
+        for_versions(0, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
+    }
+
+    static void
     testAuthorizedToMaintainLiabilities()
     {
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
