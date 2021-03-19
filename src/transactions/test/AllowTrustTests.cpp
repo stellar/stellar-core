@@ -10,6 +10,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;
