@@ -50,6 +50,28 @@ template <int V> struct AuthorizedToMaintainLiabilities
     using GetException = typename GetExceptionHelper<T, V>::Value;
 
     static void
+    for_versions(uint32 from, uint32 to, Application& app,
+                 std::function<void()> const& f)
+    {
+        uint32 lbound = V == 0 ? 0 : 16;
+        stellar::for_versions(std::max(from, lbound), to, app,
+                              f);
+    }
+
+    static void
+    for_versions_to(uint32 to, Application& app, std::function<void()> const& f)
+    {
+        for_versions(0, to, app, f);
+    }
+
+    static void
+    for_versions_from(uint32 from, Application& app,
+                      std::function<void()> const& f)
+    {
+        for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
+    }
+
+    static void
     test()
     {
         auto const& cfg = getTestConfig();
