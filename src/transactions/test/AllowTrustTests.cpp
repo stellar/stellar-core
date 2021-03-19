@@ -25,8 +25,30 @@ namespace allowTrustTests
 namespace detail
 {
 
-struct AuthorizedToMaintainLiabilities
+template <int V> struct AuthorizedToMaintainLiabilities
 {
+    template <typename, int> struct GetExceptionHelper;
+
+    template <typename T> struct GetExceptionHelper<T, 0>
+    {
+        typedef T Value;
+    };
+
+#define SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(M) \
+    template <> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1> \
+    { \
+        typedef ex_SET_TRUST_LINE_FLAGS_##M Value; \
+    };
+
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(MALFORMED);
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(NO_TRUST_LINE);
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(CANT_REVOKE);
+
+#undef SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST
+
+    template <typename T>
+    using GetException = typename GetExceptionHelper<T, V>::Value;
+
     static void
     test()
     {
@@ -320,7 +342,7 @@ struct AuthorizedToMaintainLiabilities
 
 TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 {
-    detail::AuthorizedToMaintainLiabilities::test();
+    detail::AuthorizedToMaintainLiabilities<0>::test();
 }
 
 TEST_CASE("allow trust", "[tx][allowtrust]")
