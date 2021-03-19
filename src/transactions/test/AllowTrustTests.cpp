@@ -417,19 +417,22 @@ template <int V> struct TestStub
                 }
                 SECTION("do not set revocable flag")
                 {
-                    REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_NO_TRUST_LINE);
+                    REQUIRE_THROWS_AS(
+                        gateway.allowTrust(idr, a1, flagOp),
+                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
                 }
                 SECTION("set revocable flag")
                 {
                     gateway.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
 
-                    REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_NO_TRUST_LINE);
-                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_NO_TRUST_LINE);
+                    REQUIRE_THROWS_AS(
+                        gateway.allowTrust(idr, a1, flagOp),
+                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
+                    REQUIRE_THROWS_AS(
+                        gateway.denyTrust(idr, a1, flagOp),
+                        GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
                 }
             });
         }
@@ -468,11 +471,11 @@ template <int V> struct TestStub
                 SECTION("do not set revocable flag")
                 {
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
                     a1.pay(gateway, idr, trustLineStartingBalance);
 
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
-                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                                      GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
                 }
                 SECTION("set revocable flag")
                 {
@@ -509,9 +512,9 @@ template <int V> struct TestStub
 
                 for_versions_from(16, *app, [&] {
                     REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway, flagOp),
-                                      ex_ALLOW_TRUST_MALFORMED);
+                                      GetException<ex_ALLOW_TRUST_MALFORMED>);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway, flagOp),
-                                      ex_ALLOW_TRUST_MALFORMED);
+                                      GetException<ex_ALLOW_TRUST_MALFORMED>);
                 });
             }
 
@@ -538,10 +541,10 @@ template <int V> struct TestStub
                     for_versions_from(16, *app, [&] {
                         REQUIRE_THROWS_AS(
                             gateway.allowTrust(idr, gateway, flagOp),
-                            ex_ALLOW_TRUST_MALFORMED);
+                            GetException<ex_ALLOW_TRUST_MALFORMED>);
                         REQUIRE_THROWS_AS(
                             gateway.denyTrust(idr, gateway, flagOp),
-                            ex_ALLOW_TRUST_MALFORMED);
+                            GetException<ex_ALLOW_TRUST_MALFORMED>);
                     });
                 }
                 SECTION("set revocable flag")
@@ -563,10 +566,10 @@ template <int V> struct TestStub
                     for_versions_from(16, *app, [&] {
                         REQUIRE_THROWS_AS(
                             gateway.allowTrust(idr, gateway, flagOp),
-                            ex_ALLOW_TRUST_MALFORMED);
+                            GetException<ex_ALLOW_TRUST_MALFORMED>);
                         REQUIRE_THROWS_AS(
                             gateway.denyTrust(idr, gateway, flagOp),
-                            ex_ALLOW_TRUST_MALFORMED);
+                            GetException<ex_ALLOW_TRUST_MALFORMED>);
                     });
                 }
             }
@@ -662,7 +665,14 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 
 TEST_CASE("allow trust", "[tx][allowtrust]")
 {
-    detail::TestStub<0>::testAllowTrust();
+    SECTION("allow trust")
+    {
+        detail::TestStub<0>::testAllowTrust();
+    }
+    SECTION("set trust line flags")
+    {
+        detail::TestStub<1>::testAllowTrust();
+    }
 }
 
 }
