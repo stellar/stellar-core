@@ -28,11 +28,6 @@ SurveyMessageLimiter::addAndValidateRequest(
         return false;
     }
 
-    if (request.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
-    {
-        return false;
-    }
-
     auto ledgerIt = mRecordMap.find(request.ledgerNum);
     if (ledgerIt == mRecordMap.end())
     {
@@ -47,18 +42,19 @@ SurveyMessageLimiter::addAndValidateRequest(
         return true;
     }
 
+    bool surveyorIsSelf =
+        request.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey();
     auto& surveyorToSurveyedMap = ledgerIt->second;
-
-    // limit by number of requests for this surveyor. We can only send 1 request
-    // per node, so # of requests == # of surveyed nodes
-    if (surveyorToSurveyedMap.size() >= mMaxRequestLimit)
-    {
-        return false;
-    }
-
     auto surveyorIt = surveyorToSurveyedMap.find(request.surveyorPeerID);
     if (surveyorIt == surveyorToSurveyedMap.end())
     {
+        // The number of unique surveyors is at limit, toss
+        // Allow self even if the surveyor map is at capacity
+        if (!surveyorIsSelf && surveyorToSurveyedMap.size() >= mMaxRequestLimit)
+        {
+            return false;
+        }
+
         if (!onSuccessValidation())
         {
             return false;
@@ -70,6 +66,14 @@ SurveyMessageLimiter::addAndValidateRequest(
     }
 
     auto& surveyedMap = surveyorIt->second;
+
+    // limit by number of requests for this surveyor. We can only send 1 request
+    // per node, so # of requests == # of surveyed nodes
+    if (!surveyorIsSelf && surveyedMap.size() >= mMaxRequestLimit)
+    {
+        return false;
+    }
+
     auto surveyedIt = surveyedMap.find(request.surveyedPeerID);
     if (surveyedIt == surveyedMap.end())
     {
@@ -94,12 +98,6 @@ SurveyMessageLimiter::recordAndValidateResponse(
     if (!surveyLedgerNumValid(response.ledgerNum))
     {
         return false;
-    }
-
-    // Don't filter responses if node is the requestor
-    if (response.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
-    {
-        return onSuccessValidation();
     }
 
     auto ledgerIt = mRecordMap.find(response.ledgerNum);
