@@ -25,7 +25,7 @@ namespace allowTrustTests
 namespace detail
 {
 
-template <int V> struct AuthorizedToMaintainLiabilities
+template <int V> struct TestStub
 {
     template <typename, int> struct GetExceptionHelper;
 
@@ -54,8 +54,7 @@ template <int V> struct AuthorizedToMaintainLiabilities
                  std::function<void()> const& f)
     {
         uint32 lbound = V == 0 ? 0 : 16;
-        stellar::for_versions(std::max(from, lbound), to, app,
-                              f);
+        stellar::for_versions(std::max(from, lbound), to, app, f);
     }
 
     static void
@@ -72,7 +71,7 @@ template <int V> struct AuthorizedToMaintainLiabilities
     }
 
     static void
-    test()
+    testAuthorizedToMaintainLiabilities()
     {
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
@@ -374,11 +373,11 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 {
     SECTION("allow trust")
     {
-        detail::AuthorizedToMaintainLiabilities<0>::test();
+        detail::TestStub<0>::testAuthorizedToMaintainLiabilities();
     }
     SECTION("set trust line flags")
     {
-        detail::AuthorizedToMaintainLiabilities<1>::test();
+        detail::TestStub<1>::testAuthorizedToMaintainLiabilities();
     }
 }
 
