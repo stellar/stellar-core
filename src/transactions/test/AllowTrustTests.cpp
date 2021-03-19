@@ -13,285 +13,314 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
-using namespace stellar;
-using namespace stellar::txtest;
+namespace stellar
+{
+
+namespace txtest
+{
+
+namespace allowTrustTests
+{
+
+namespace detail
+{
+
+struct AuthorizedToMaintainLiabilities
+{
+    static void
+    test()
+    {
+        auto const& cfg = getTestConfig();
+
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+
+        app->start();
+
+        const int64_t trustLineLimit = INT64_MAX;
+        const int64_t trustLineStartingBalance = 20000;
+
+        auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
+
+        // set up world
+        auto root = TestAccount::createRoot(*app);
+        auto gateway = root.create("gw", minBalance4);
+        auto a1 = root.create("A1", minBalance4 + 10000);
+        auto a2 = root.create("A2", minBalance4);
+
+        auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
+                     static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+
+        gateway.setOptions(setFlags(toSet));
+
+        auto native = makeNativeAsset();
+
+        auto usd = makeAsset(gateway, "USD");
+
+        a1.changeTrust(usd, trustLineLimit);
+        gateway.allowTrust(usd, a1);
+
+        auto idr = makeAsset(gateway, "IDR");
+
+        a1.changeTrust(idr, trustLineLimit);
+        gateway.allowTrust(idr, a1);
+
+        gateway.pay(a1, usd, trustLineStartingBalance);
+        gateway.pay(a1, idr, trustLineStartingBalance);
+
+        auto market = TestMarket{*app};
+        auto offer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(a1, {usd, idr, Price{1, 1}, 1000});
+        });
+
+        auto offerTest = [&](bool buyIsOnlyAllowedToMaintainLiabilities) {
+            auto& maintainLiabilitiesAsset =
+                buyIsOnlyAllowedToMaintainLiabilities ? idr : usd;
+
+            market.requireChanges({}, [&] {
+                gateway.allowMaintainLiabilities(maintainLiabilitiesAsset, a1);
+            });
+
+            SECTION("don't pull orders until denyTrust")
+            {
+                SECTION("denyTrust on buying asset")
+                {
+                    market.requireChanges({{offer.key, OfferState::DELETED}},
+                                          [&] { gateway.denyTrust(idr, a1); });
+                }
+
+                SECTION("denyTrust on selling asset")
+                {
+                    market.requireChanges({{offer.key, OfferState::DELETED}},
+                                          [&] { gateway.denyTrust(usd, a1); });
+                }
+            }
+
+            SECTION("can't update offer")
+            {
+                SECTION("try updating amount")
+                {
+                    OfferState updatedOffer = offer.state;
+                    SECTION("increase amount")
+                    {
+                        ++updatedOffer.amount;
+                    }
+                    SECTION("decrease amount")
+                    {
+                        --updatedOffer.amount;
+                    }
+
+                    if (buyIsOnlyAllowedToMaintainLiabilities)
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
+                    }
+                    else
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
+                    }
+                }
+                SECTION("try updating price")
+                {
+                    OfferState updatedOffer = offer.state;
+                    SECTION("increase price")
+                    {
+                        ++updatedOffer.price.n;
+                    }
+                    SECTION("decrease price")
+                    {
+                        ++updatedOffer.price.d;
+                    }
+
+                    if (buyIsOnlyAllowedToMaintainLiabilities)
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
+                    }
+                    else
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
+                    }
+                }
+                SECTION("swap assets")
+                {
+                    OfferState updatedOffer = offer.state;
+                    std::swap(updatedOffer.selling, updatedOffer.buying);
+
+                    if (buyIsOnlyAllowedToMaintainLiabilities)
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
+                    }
+                    else
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
+                    }
+                }
+
+                SECTION("change selling asset")
+                {
+                    OfferState updatedOffer = offer.state;
+                    updatedOffer.selling = native;
+                    if (buyIsOnlyAllowedToMaintainLiabilities)
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
+                    }
+                    else
+                    {
+                        market.updateOffer(a1, offer.key.offerID, updatedOffer);
+                    }
+                }
+
+                SECTION("change buying asset")
+                {
+                    OfferState updatedOffer = offer.state;
+                    updatedOffer.buying = native;
+                    if (buyIsOnlyAllowedToMaintainLiabilities)
+                    {
+                        market.updateOffer(a1, offer.key.offerID, updatedOffer);
+                    }
+                    else
+                    {
+                        REQUIRE_THROWS_AS(
+                            market.updateOffer(a1, offer.key.offerID,
+                                               updatedOffer),
+                            ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
+                    }
+                }
+            }
+
+            SECTION("can't add offer")
+            {
+                OfferState offerState(usd, idr, Price{1, 1}, 1000);
+                if (buyIsOnlyAllowedToMaintainLiabilities)
+                {
+                    REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
+                                      ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
+                }
+                else
+                {
+                    REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
+                                      ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
+                }
+            }
+
+            SECTION("delete offer")
+            {
+                market.requireChanges({{offer.key, OfferState::DELETED}}, [&] {
+                    market.updateOffer(a1, offer.key.offerID,
+                                       {usd, idr, Price{1, 1}, 0},
+                                       OfferState::DELETED);
+                });
+            }
+        };
+
+        SECTION("allowMaintainLiabilities only works from version 12")
+        {
+            for_versions_to(12, *app, [&] {
+                REQUIRE_THROWS_AS(gateway.allowMaintainLiabilities(idr, a1),
+                                  ex_ALLOW_TRUST_MALFORMED);
+            });
+        }
+
+        SECTION(
+            "AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't "
+            "be used together")
+        {
+            for_versions_from(13, *app, [&] {
+                REQUIRE_THROWS_AS(
+                    gateway.allowTrust(idr, a1, TRUSTLINE_AUTH_FLAGS),
+                    ex_ALLOW_TRUST_MALFORMED);
+            });
+        }
+
+        for_versions_from(13, *app, [&] {
+            SECTION("offer tests")
+            {
+                SECTION("buying asset is only allowed to maintain liabilities")
+                {
+                    offerTest(true);
+                }
+                SECTION("selling asset is only allowed to maintain liabilities")
+                {
+                    offerTest(false);
+                }
+            }
+
+            SECTION("payment tests")
+            {
+                market.requireChanges(
+                    {}, [&] { gateway.allowMaintainLiabilities(idr, a1); });
+
+                SECTION("can't send payment")
+                {
+                    REQUIRE_THROWS_AS(
+                        a1.pay(gateway, idr, trustLineStartingBalance),
+                        ex_PAYMENT_SRC_NOT_AUTHORIZED);
+                }
+
+                SECTION("can't receive payment")
+                {
+                    a2.changeTrust(idr, trustLineLimit);
+                    gateway.allowTrust(idr, a2);
+                    gateway.pay(a2, idr, trustLineStartingBalance);
+
+                    REQUIRE_THROWS_AS(a2.pay(a1, idr, 1),
+                                      ex_PAYMENT_NOT_AUTHORIZED);
+                }
+            }
+
+            SECTION("auth transition tests")
+            {
+                auto issuer = root.create("issuer", minBalance4);
+                issuer.setOptions(
+                    setFlags(static_cast<uint32_t>(AUTH_REQUIRED_FLAG)));
+
+                auto iss = makeAsset(issuer, "iss");
+
+                auto a3 = root.create("A3", minBalance4);
+                a3.changeTrust(iss, trustLineLimit);
+
+                SECTION("authorized -> authorized to maintain liabilities")
+                {
+                    issuer.allowTrust(iss, a3);
+                    REQUIRE_THROWS_AS(issuer.allowMaintainLiabilities(iss, a3),
+                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                }
+
+                SECTION("authorized to maintain liabilities -> not authorized")
+                {
+                    issuer.allowMaintainLiabilities(iss, a3);
+                    REQUIRE_THROWS_AS(issuer.denyTrust(iss, a3),
+                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                }
+            }
+        });
+    }
+};
+}
 
 TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 {
-    auto const& cfg = getTestConfig();
-
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-
-    app->start();
-
-    const int64_t trustLineLimit = INT64_MAX;
-    const int64_t trustLineStartingBalance = 20000;
-
-    auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
-
-    // set up world
-    auto root = TestAccount::createRoot(*app);
-    auto gateway = root.create("gw", minBalance4);
-    auto a1 = root.create("A1", minBalance4 + 10000);
-    auto a2 = root.create("A2", minBalance4);
-
-    auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
-                 static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
-
-    gateway.setOptions(setFlags(toSet));
-
-    auto native = makeNativeAsset();
-
-    auto usd = makeAsset(gateway, "USD");
-
-    a1.changeTrust(usd, trustLineLimit);
-    gateway.allowTrust(usd, a1);
-
-    auto idr = makeAsset(gateway, "IDR");
-
-    a1.changeTrust(idr, trustLineLimit);
-    gateway.allowTrust(idr, a1);
-
-    gateway.pay(a1, usd, trustLineStartingBalance);
-    gateway.pay(a1, idr, trustLineStartingBalance);
-
-    auto market = TestMarket{*app};
-    auto offer = market.requireChangesWithOffer({}, [&] {
-        return market.addOffer(a1, {usd, idr, Price{1, 1}, 1000});
-    });
-
-    auto offerTest = [&](bool buyIsOnlyAllowedToMaintainLiabilities) {
-        auto& maintainLiabilitiesAsset =
-            buyIsOnlyAllowedToMaintainLiabilities ? idr : usd;
-
-        market.requireChanges({}, [&] {
-            gateway.allowMaintainLiabilities(maintainLiabilitiesAsset, a1);
-        });
-
-        SECTION("don't pull orders until denyTrust")
-        {
-            SECTION("denyTrust on buying asset")
-            {
-                market.requireChanges({{offer.key, OfferState::DELETED}},
-                                      [&] { gateway.denyTrust(idr, a1); });
-            }
-
-            SECTION("denyTrust on selling asset")
-            {
-                market.requireChanges({{offer.key, OfferState::DELETED}},
-                                      [&] { gateway.denyTrust(usd, a1); });
-            }
-        }
-
-        SECTION("can't update offer")
-        {
-            SECTION("try updating amount")
-            {
-                OfferState updatedOffer = offer.state;
-                SECTION("increase amount")
-                {
-                    ++updatedOffer.amount;
-                }
-                SECTION("decrease amount")
-                {
-                    --updatedOffer.amount;
-                }
-
-                if (buyIsOnlyAllowedToMaintainLiabilities)
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
-                }
-            }
-            SECTION("try updating price")
-            {
-                OfferState updatedOffer = offer.state;
-                SECTION("increase price")
-                {
-                    ++updatedOffer.price.n;
-                }
-                SECTION("decrease price")
-                {
-                    ++updatedOffer.price.d;
-                }
-
-                if (buyIsOnlyAllowedToMaintainLiabilities)
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
-                }
-            }
-            SECTION("swap assets")
-            {
-                OfferState updatedOffer = offer.state;
-                std::swap(updatedOffer.selling, updatedOffer.buying);
-
-                if (buyIsOnlyAllowedToMaintainLiabilities)
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
-                }
-            }
-
-            SECTION("change selling asset")
-            {
-                OfferState updatedOffer = offer.state;
-                updatedOffer.selling = native;
-                if (buyIsOnlyAllowedToMaintainLiabilities)
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
-                }
-                else
-                {
-                    market.updateOffer(a1, offer.key.offerID, updatedOffer);
-                }
-            }
-
-            SECTION("change buying asset")
-            {
-                OfferState updatedOffer = offer.state;
-                updatedOffer.buying = native;
-                if (buyIsOnlyAllowedToMaintainLiabilities)
-                {
-                    market.updateOffer(a1, offer.key.offerID, updatedOffer);
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(
-                        market.updateOffer(a1, offer.key.offerID, updatedOffer),
-                        ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
-                }
-            }
-        }
-
-        SECTION("can't add offer")
-        {
-            OfferState offerState(usd, idr, Price{1, 1}, 1000);
-            if (buyIsOnlyAllowedToMaintainLiabilities)
-            {
-                REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
-                                  ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
-            }
-            else
-            {
-                REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
-                                  ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
-            }
-        }
-
-        SECTION("delete offer")
-        {
-            market.requireChanges({{offer.key, OfferState::DELETED}}, [&] {
-                market.updateOffer(a1, offer.key.offerID,
-                                   {usd, idr, Price{1, 1}, 0},
-                                   OfferState::DELETED);
-            });
-        }
-    };
-
-    SECTION("allowMaintainLiabilities only works from version 12")
-    {
-        for_versions_to(12, *app, [&] {
-            REQUIRE_THROWS_AS(gateway.allowMaintainLiabilities(idr, a1),
-                              ex_ALLOW_TRUST_MALFORMED);
-        });
-    }
-
-    SECTION("AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't "
-            "be used together")
-    {
-        for_versions_from(13, *app, [&] {
-            REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, TRUSTLINE_AUTH_FLAGS),
-                              ex_ALLOW_TRUST_MALFORMED);
-        });
-    }
-
-    for_versions_from(13, *app, [&] {
-        SECTION("offer tests")
-        {
-            SECTION("buying asset is only allowed to maintain liabilities")
-            {
-                offerTest(true);
-            }
-            SECTION("selling asset is only allowed to maintain liabilities")
-            {
-                offerTest(false);
-            }
-        }
-
-        SECTION("payment tests")
-        {
-            market.requireChanges(
-                {}, [&] { gateway.allowMaintainLiabilities(idr, a1); });
-
-            SECTION("can't send payment")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pay(gateway, idr, trustLineStartingBalance),
-                    ex_PAYMENT_SRC_NOT_AUTHORIZED);
-            }
-
-            SECTION("can't receive payment")
-            {
-                a2.changeTrust(idr, trustLineLimit);
-                gateway.allowTrust(idr, a2);
-                gateway.pay(a2, idr, trustLineStartingBalance);
-
-                REQUIRE_THROWS_AS(a2.pay(a1, idr, 1),
-                                  ex_PAYMENT_NOT_AUTHORIZED);
-            }
-        }
-
-        SECTION("auth transition tests")
-        {
-            auto issuer = root.create("issuer", minBalance4);
-            issuer.setOptions(
-                setFlags(static_cast<uint32_t>(AUTH_REQUIRED_FLAG)));
-
-            auto iss = makeAsset(issuer, "iss");
-
-            auto a3 = root.create("A3", minBalance4);
-            a3.changeTrust(iss, trustLineLimit);
-
-            SECTION("authorized -> authorized to maintain liabilities")
-            {
-                issuer.allowTrust(iss, a3);
-                REQUIRE_THROWS_AS(issuer.allowMaintainLiabilities(iss, a3),
-                                  ex_ALLOW_TRUST_CANT_REVOKE);
-            }
-
-            SECTION("authorized to maintain liabilities -> not authorized")
-            {
-                issuer.allowMaintainLiabilities(iss, a3);
-                REQUIRE_THROWS_AS(issuer.denyTrust(iss, a3),
-                                  ex_ALLOW_TRUST_CANT_REVOKE);
-            }
-        }
-    });
+    detail::AuthorizedToMaintainLiabilities::test();
 }
 
 TEST_CASE("allow trust", "[tx][allowtrust]")
@@ -553,4 +582,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
             });
         }
     }
+}
+
+}
+}
 }
