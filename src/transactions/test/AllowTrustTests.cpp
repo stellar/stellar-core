@@ -74,6 +74,9 @@ template <int V> struct AuthorizedToMaintainLiabilities
     static void
     test()
     {
+        TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
+                                    : TrustFlagOp::SET_TRUST_LINE_FLAGS;
+
         auto const& cfg = getTestConfig();
 
         VirtualClock clock;
@@ -122,21 +125,24 @@ template <int V> struct AuthorizedToMaintainLiabilities
                 buyIsOnlyAllowedToMaintainLiabilities ? idr : usd;
 
             market.requireChanges({}, [&] {
-                gateway.allowMaintainLiabilities(maintainLiabilitiesAsset, a1);
+                gateway.allowMaintainLiabilities(maintainLiabilitiesAsset, a1,
+                                                 flagOp);
             });
 
             SECTION("don't pull orders until denyTrust")
             {
                 SECTION("denyTrust on buying asset")
                 {
-                    market.requireChanges({{offer.key, OfferState::DELETED}},
-                                          [&] { gateway.denyTrust(idr, a1); });
+                    market.requireChanges(
+                        {{offer.key, OfferState::DELETED}},
+                        [&] { gateway.denyTrust(idr, a1, flagOp); });
                 }
 
                 SECTION("denyTrust on selling asset")
                 {
-                    market.requireChanges({{offer.key, OfferState::DELETED}},
-                                          [&] { gateway.denyTrust(usd, a1); });
+                    market.requireChanges(
+                        {{offer.key, OfferState::DELETED}},
+                        [&] { gateway.denyTrust(usd, a1, flagOp); });
                 }
             }
 
@@ -311,8 +317,9 @@ template <int V> struct AuthorizedToMaintainLiabilities
 
             SECTION("payment tests")
             {
-                market.requireChanges(
-                    {}, [&] { gateway.allowMaintainLiabilities(idr, a1); });
+                market.requireChanges({}, [&] {
+                    gateway.allowMaintainLiabilities(idr, a1, flagOp);
+                });
 
                 SECTION("can't send payment")
                 {
@@ -324,7 +331,7 @@ template <int V> struct AuthorizedToMaintainLiabilities
                 SECTION("can't receive payment")
                 {
                     a2.changeTrust(idr, trustLineLimit);
-                    gateway.allowTrust(idr, a2);
+                    gateway.allowTrust(idr, a2, flagOp);
                     gateway.pay(a2, idr, trustLineStartingBalance);
 
                     REQUIRE_THROWS_AS(a2.pay(a1, idr, 1),
@@ -345,15 +352,16 @@ template <int V> struct AuthorizedToMaintainLiabilities
 
                 SECTION("authorized -> authorized to maintain liabilities")
                 {
-                    issuer.allowTrust(iss, a3);
-                    REQUIRE_THROWS_AS(issuer.allowMaintainLiabilities(iss, a3),
-                                      ex_ALLOW_TRUST_CANT_REVOKE);
+                    issuer.allowTrust(iss, a3, flagOp);
+                    REQUIRE_THROWS_AS(
+                        issuer.allowMaintainLiabilities(iss, a3, flagOp),
+                        ex_ALLOW_TRUST_CANT_REVOKE);
                 }
 
                 SECTION("authorized to maintain liabilities -> not authorized")
                 {
-                    issuer.allowMaintainLiabilities(iss, a3);
-                    REQUIRE_THROWS_AS(issuer.denyTrust(iss, a3),
+                    issuer.allowMaintainLiabilities(iss, a3, flagOp);
+                    REQUIRE_THROWS_AS(issuer.denyTrust(iss, a3, flagOp),
                                       ex_ALLOW_TRUST_CANT_REVOKE);
                 }
             }
