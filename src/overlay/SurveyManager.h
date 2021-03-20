@@ -38,10 +38,11 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     Json::Value const& getJsonResults();
 
     static std::string getMsgSummary(StellarMessage const& msg);
+    StellarMessage makeSurveyRequest(NodeID const& nodeToSurvey) const;
 
   private:
     // topology specific methods
-    void sendTopologyRequest(NodeID const& nodeToSurvey) const;
+    void sendTopologyRequest(NodeID const& nodeToSurvey);
     void processTopologyResponse(NodeID const& surveyedPeerID,
                                  SurveyResponseBody const& body);
     void processTopologyRequest(SurveyRequestMessage const& request) const;

@@ -5,6 +5,7 @@
 #include "crypto/Curve25519.h"
 #include "lib/catch.hpp"
 #include "main/CommandHandler.h"
+#include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
@@ -202,6 +203,36 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         {
             REQUIRE(value.isNull());
         }
+    }
+    SECTION("A (surveyor) filters out unknown responses")
+    {
+        auto getSM = [&](NodeID const& key) -> auto&
+        {
+            return simulation->getNode(key)
+                ->getOverlayManager()
+                .getSurveyManager();
+        };
+
+        // A sends survey request to B
+        sendRequest(keyList[A], keyList[B]);
+
+        // D responds to A's request, even though A did not ask
+        // Create a fake request so that D can respond
+        auto request = getSM(keyList[A]).makeSurveyRequest(keyList[D]);
+        auto peers = simulation->getNode(keyList[D])
+                         ->getOverlayManager()
+                         .getOutboundAuthenticatedPeers();
+        REQUIRE(peers.find(keyList[A]) != peers.end());
+        getSM(keyList[D]).relayOrProcessRequest(request, peers[keyList[A]]);
+
+        crankForSurvey();
+        auto result = getResults(keyList[A]);
+        Json::Value topology = result["topology"];
+
+        // A receives a response from D, but it gets filtered out
+        // Result only contains response from B
+        REQUIRE(topology.size() == 1);
+        REQUIRE(topology.isMember(KeyUtils::toStrKey(keyList[B])));
     }
 
     simulation->stopAllNodes();

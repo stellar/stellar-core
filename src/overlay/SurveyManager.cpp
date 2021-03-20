@@ -5,7 +5,9 @@
 #include "SurveyManager.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
@@ -109,12 +111,9 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
         return;
     }
 
-    // mMessageLimiter doesn't filter out responses for the requesting node, so
-    // it's possible for this message to be a duplicate.
-    if (!mApp.getOverlayManager().recvFloodedMsg(msg, peer))
-    {
-        return;
-    }
+    // mMessageLimiter filters out duplicates, so here we are guaranteed
+    // to record the message for the first time
+    mApp.getOverlayManager().recvFloodedMsg(msg, peer);
 
     if (response.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
@@ -161,29 +160,44 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
 
     SurveyRequestMessage const& request = signedRequest.request;
 
-    // perform all validation checks before signature validation so we don't
-    // waste time verifying signatures
-    auto const& surveyorKeys = mApp.getConfig().SURVEYOR_KEYS;
-    if (surveyorKeys.empty())
+    auto surveyorIsSelf =
+        request.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey();
+    if (!surveyorIsSelf)
     {
-        auto const& quorumMap = mApp.getHerder().getCurrentlyTrackedQuorum();
-        if (quorumMap.count(request.surveyorPeerID) == 0)
+        releaseAssert(peer);
+
+        // perform all validation checks before signature validation so we don't
+        // waste time verifying signatures
+        auto const& surveyorKeys = mApp.getConfig().SURVEYOR_KEYS;
+
+        if (surveyorKeys.empty())
         {
-            return;
+            auto const& quorumMap =
+                mApp.getHerder().getCurrentlyTrackedQuorum();
+            if (quorumMap.count(request.surveyorPeerID) == 0)
+            {
+                return;
+            }
         }
-    }
-    else
-    {
-        if (surveyorKeys.count(request.surveyorPeerID) == 0)
+        else
         {
-            return;
+            if (surveyorKeys.count(request.surveyorPeerID) == 0)
+            {
+                return;
+            }
         }
     }
 
     auto onSuccessValidation = [&]() -> bool {
-        return dropPeerIfSigInvalid(request.surveyorPeerID,
-                                    signedRequest.requestSignature,
-                                    xdr::xdr_to_opaque(request), peer);
+        auto res = dropPeerIfSigInvalid(request.surveyorPeerID,
+                                        signedRequest.requestSignature,
+                                        xdr::xdr_to_opaque(request), peer);
+        if (!res && surveyorIsSelf)
+        {
+            CLOG_ERROR(Overlay, "Unexpected invalid survey request: {} ",
+                       REPORT_INTERNAL_BUG);
+        }
+        return res;
     };
 
     if (!mMessageLimiter.addAndValidateRequest(request, onSuccessValidation))
@@ -191,7 +205,10 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
         return;
     }
 
-    mApp.getOverlayManager().recvFloodedMsg(msg, peer);
+    if (peer)
+    {
+        mApp.getOverlayManager().recvFloodedMsg(msg, peer);
+    }
 
     if (request.surveyedPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
@@ -203,8 +220,8 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
     }
 }
 
-void
-SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey) const
+StellarMessage
+SurveyManager::makeSurveyRequest(NodeID const& nodeToSurvey) const
 {
     StellarMessage newMsg;
     newMsg.type(SURVEY_REQUEST);
@@ -222,7 +239,14 @@ SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey) const
     auto sigBody = xdr::xdr_to_opaque(request);
     signedRequest.requestSignature = mApp.getConfig().NODE_SEED.sign(sigBody);
 
-    broadcast(newMsg);
+    return newMsg;
+}
+
+void
+SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey)
+{
+    // Record the request in message limiter and broadcast
+    relayOrProcessRequest(makeSurveyRequest(nodeToSurvey), nullptr);
 }
 
 void
@@ -526,7 +550,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
 {
     bool success = PubKeyUtils::verifySig(key, signature, bin);
 
-    if (!success)
+    if (!success && peer)
     {
         // we drop the connection to keep a bad peer from pegging the CPU with
         // signature verification
