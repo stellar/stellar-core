@@ -82,6 +82,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& getFullHash() const override;
     Hash const& getInnerFullHash() const;
 
+    Hash const& getNetworkID() const override;
+
     uint32_t getNumOperations() const override;
 
     TransactionResult& getResult() override;

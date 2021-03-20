@@ -46,6 +46,8 @@ class TransactionFrameBase
     virtual Hash const& getContentsHash() const = 0;
     virtual Hash const& getFullHash() const = 0;
 
+    virtual Hash const& getNetworkID() const = 0;
+
     virtual uint32_t getNumOperations() const = 0;
 
     virtual TransactionResult& getResult() = 0;

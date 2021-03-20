@@ -124,6 +124,8 @@ class TransactionFrame : public TransactionFrameBase
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
 
+    Hash const& getNetworkID() const override;
+
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {

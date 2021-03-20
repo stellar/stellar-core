@@ -321,6 +321,12 @@ FeeBumpTransactionFrame::getInnerFullHash() const
     return mInnerTx->getFullHash();
 }
 
+Hash const&
+FeeBumpTransactionFrame::getNetworkID() const
+{
+    return mNetworkID;
+}
+
 uint32_t
 FeeBumpTransactionFrame::getNumOperations() const
 {
