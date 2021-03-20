@@ -19,7 +19,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     TransactionFramePtr mInnerTx;
 
-    Hash const& mNetworkID;
     mutable Hash mContentsHash;
     mutable Hash mFullHash;
 
@@ -56,8 +55,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope);
 #ifdef BUILD_TESTS
-    FeeBumpTransactionFrame(Hash const& networkID,
-                            TransactionEnvelope const& envelope,
+    FeeBumpTransactionFrame(TransactionEnvelope const& envelope,
                             TransactionFramePtr innerTx);
 #endif
 
