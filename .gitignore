@@ -40,6 +40,7 @@ compile_commands.json
 
 /INSTALL
 
+/src/archtmp-*
 /src/main/StellarCoreVersion.cpp
 /src/testdata
 /src/xdr/*.h
