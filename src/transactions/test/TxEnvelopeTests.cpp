@@ -1625,6 +1625,33 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
 
+                    SECTION("precond none")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().v1().tx.cond.type(PRECOND_NONE);
+                        getSignatures(txFrame).clear();
+                        txFrame->addSignature(root);
+
+                        closeLedgerOn(*app, 3, start + 1);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
+
+                    SECTION("precond general")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().v1().tx.cond.type(
+                            PRECOND_GENERAL);
+                        getSignatures(txFrame).clear();
+                        txFrame->addSignature(root);
+
+                        closeLedgerOn(*app, 3, start + 1);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
+
                     SECTION("lower bound offset")
                     {
                         txFrame = root.tx(

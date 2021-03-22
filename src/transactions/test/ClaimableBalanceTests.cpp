@@ -504,20 +504,6 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                                 .emplace_back(makeSimplePredicate(1));
                             invalidPredicateTest(pred);
                         }
-                        SECTION("invalid absBefore")
-                        {
-                            ClaimPredicate pred;
-                            pred.type(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME)
-                                .absBefore() = -1;
-                            invalidPredicateTest(pred);
-                        }
-                        SECTION("invalid relBefore")
-                        {
-                            ClaimPredicate pred;
-                            pred.type(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME)
-                                .relBefore() = -1;
-                            invalidPredicateTest(pred);
-                        }
                         SECTION("invalid null not")
                         {
                             ClaimPredicate pred;
@@ -525,19 +511,23 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                                 nullptr;
                             invalidPredicateTest(pred);
                         }
-                        SECTION("invalid not nested")
-                        {
-                            ClaimPredicate insidePred;
-                            insidePred
-                                .type(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME)
-                                .relBefore() = -1;
+                        // TODO: Replace with a suitable test for testing
+                        // malformed nested predicates. Using the abs/rel time
+                        // predicates is no longer appropriate since time is now
+                        // uint64 and not int64.
+                        // SECTION("invalid not nested")
+                        // {
+                        //     ClaimPredicate insidePred;
+                        //     insidePred
+                        //         .type(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME)
+                        //         .relBefore() = -1;
 
-                            ClaimPredicate notPred;
-                            notPred.type(CLAIM_PREDICATE_NOT)
-                                .notPredicate()
-                                .activate() = insidePred;
-                            invalidPredicateTest(notPred);
-                        }
+                        //     ClaimPredicate notPred;
+                        //     notPred.type(CLAIM_PREDICATE_NOT)
+                        //         .notPredicate()
+                        //         .activate() = insidePred;
+                        //     invalidPredicateTest(notPred);
+                        // }
                         SECTION("invalid predicate height")
                         {
                             // make sure AND, OR, and NOT account for depth

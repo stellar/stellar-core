@@ -394,10 +394,7 @@ testTxSet(uint32 protocolVersion)
         {
             auto tx = std::static_pointer_cast<TransactionFrame>(
                 txSet->mTransactions[0]);
-            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
-                           : tx->getEnvelope().v1().tx.timeBounds.activate();
-            tb.maxTime = UINT64_MAX;
+            setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app, 0, 0));
@@ -1369,51 +1366,47 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         auto const lclCloseTime = lcl.header.scpValue.closeTime;
 
-        auto testTxBounds = [&](TimePoint const minTime,
-                                TimePoint const maxTime,
-                                TimePoint const nextCloseTime,
-                                bool const expectValid) {
-            REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
-            // Build a transaction set containing one transaction (which could
-            // be any transaction that is valid in all ways aside from its time
-            // bounds) with the given minTime and maxTime.
-            auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
-            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
-                           : tx->getEnvelope().v1().tx.timeBounds.activate();
-            tb.minTime = minTime;
-            tb.maxTime = maxTime;
-            auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                            ? tx->getEnvelope().v0().signatures
-                            : tx->getEnvelope().v1().signatures;
-            sig.clear();
-            tx->addSignature(root.getSecretKey());
-            auto txSet = std::make_shared<TxSetFrame>(
-                app->getLedgerManager().getLastClosedLedgerHeader().hash);
-            txSet->add(tx);
+        auto testTxBounds =
+            [&](TimePoint const minTime, TimePoint const maxTime,
+                TimePoint const nextCloseTime, bool const expectValid) {
+                REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
+                // Build a transaction set containing one transaction (which
+                // could be any transaction that is valid in all ways aside from
+                // its time bounds) with the given minTime and maxTime.
+                auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
+                setMinTime(tx, minTime);
+                setMaxTime(tx, maxTime);
+                auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                                ? tx->getEnvelope().v0().signatures
+                                : tx->getEnvelope().v1().signatures;
+                sig.clear();
+                tx->addSignature(root.getSecretKey());
+                auto txSet = std::make_shared<TxSetFrame>(
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                txSet->add(tx);
 
-            // Build a StellarValue containing the transaction set we just built
-            // and the given next closeTime.
-            auto val = makeTxPair(herder, txSet, nextCloseTime);
-            auto const seq = herder.getCurrentLedgerSeq() + 1;
-            auto envelope = makeEnvelope(herder, val, {}, seq, true);
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(txSet->getContentsHash(), *txSet));
+                // Build a StellarValue containing the transaction set we just
+                // built and the given next closeTime.
+                auto val = makeTxPair(herder, txSet, nextCloseTime);
+                auto const seq = herder.getCurrentLedgerSeq() + 1;
+                auto envelope = makeEnvelope(herder, val, {}, seq, true);
+                REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(herder.recvTxSet(txSet->getContentsHash(), *txSet));
 
-            // Validate the StellarValue.
-            REQUIRE(scp.validateValue(seq, val.first, true) ==
-                    (expectValid ? SCPDriver::kFullyValidatedValue
-                                 : SCPDriver::kInvalidValue));
+                // Validate the StellarValue.
+                REQUIRE(scp.validateValue(seq, val.first, true) ==
+                        (expectValid ? SCPDriver::kFullyValidatedValue
+                                     : SCPDriver::kInvalidValue));
 
-            // Confirm that trimInvalid() as used by
-            // HerderImpl::triggerNextLedger() trims the transaction if and only
-            // if we expect it to be invalid.
-            auto closeTimeOffset = nextCloseTime - lclCloseTime;
-            auto removed =
-                txSet->trimInvalid(*app, closeTimeOffset, closeTimeOffset);
-            REQUIRE(removed.size() == (expectValid ? 0 : 1));
-        };
+                // Confirm that trimInvalid() as used by
+                // HerderImpl::triggerNextLedger() trims the transaction if and
+                // only if we expect it to be invalid.
+                auto closeTimeOffset = nextCloseTime - lclCloseTime;
+                auto removed =
+                    txSet->trimInvalid(*app, closeTimeOffset, closeTimeOffset);
+                REQUIRE(removed.size() == (expectValid ? 0 : 1));
+            };
 
         auto t1 = lclCloseTime + 1, t2 = lclCloseTime + 2;
 
