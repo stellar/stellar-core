@@ -33,6 +33,8 @@ void setFee(TransactionFramePtr tx, uint32_t fee);
 void setMinTime(TransactionFramePtr tx, int64_t minTime);
 
 void setMaxTime(TransactionFramePtr tx, int64_t maxTime);
+
+void setGeneralPrecond(TransactionFramePtr tx, GeneralPreconditions general);
 #endif
 }
 }

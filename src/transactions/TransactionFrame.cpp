@@ -212,6 +212,20 @@ TransactionFrame::getTimeBounds() const
     }
 }
 
+const xdr::pointer<SequenceNumber>
+TransactionFrame::getMinSeqNum() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_GENERAL)
+        {
+            return cond.general().minSeqNum;
+        }
+    }
+    return xdr::pointer<SequenceNumber>();
+}
+
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
@@ -501,7 +515,18 @@ TransactionFrame::processSignatures(ValidationType cv,
 bool
 TransactionFrame::isBadSeq(int64_t seqNum) const
 {
-    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
+    if (seqNum == INT64_MAX)
+    {
+        return true;
+    }
+
+    auto minSeqNum = getMinSeqNum();
+    if (minSeqNum)
+    {
+        return seqNum < minSeqNum.activate() || seqNum >= getSeqNum();
+    }
+
+    return seqNum + 1 != getSeqNum();
 }
 
 TransactionFrame::ValidationType

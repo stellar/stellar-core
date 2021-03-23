@@ -278,8 +278,10 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 auto header = ltxTx.loadHeader();
                 if (checkSeqNum && ledgerVersion >= 10 && !earlyFailure)
                 {
+                    REQUIRE(srcAccountAfter.current().data.account().seqNum >
+                            srcAccountBefore.seqNum);
                     REQUIRE(srcAccountAfter.current().data.account().seqNum ==
-                            (srcAccountBefore.seqNum + 1));
+                            tx->getSeqNum());
                 }
                 // on failure, no other changes should have been made
                 if (!res)

@@ -1788,6 +1788,49 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 });
             }
 
+            SECTION("general preconditions")
+            {
+                for_versions_from(16, *app, [&] {
+                    SECTION("empty")
+                    {
+                        setup();
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+
+                        GeneralPreconditions general;
+                        setGeneralPrecond(txFrame, general);
+
+                        getSignatures(txFrame).clear();
+                        txFrame->addSignature(root);
+
+                        applyCheck(txFrame, *app);
+
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
+
+                    SECTION("minSeqNum")
+                    {
+                        setup();
+                        auto accountSeqNum = root.getLastSequenceNumber();
+                        auto txSeqNum = accountSeqNum + 10;
+                        txFrame =
+                            root.tx({payment(a1.getPublicKey(), paymentAmount)},
+                                    txSeqNum);
+
+                        GeneralPreconditions general;
+                        general.minSeqNum.activate() = accountSeqNum;
+                        setGeneralPrecond(txFrame, general);
+
+                        getSignatures(txFrame).clear();
+                        txFrame->addSignature(root);
+
+                        applyCheck(txFrame, *app);
+
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
+                });
+            }
+
             SECTION("transaction gap")
             {
                 for_versions_to(9, *app, [&] {

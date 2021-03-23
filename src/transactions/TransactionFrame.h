@@ -166,6 +166,7 @@ class TransactionFrame : public TransactionFrameBase
     virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
                            bool applying) const override;
 
+    const xdr::pointer<SequenceNumber> getMinSeqNum() const;
     const xdr::pointer<TimeBounds> getTimeBounds() const;
 
     void addSignature(SecretKey const& secretKey);

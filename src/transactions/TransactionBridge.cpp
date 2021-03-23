@@ -163,6 +163,15 @@ setMaxTime(TransactionFramePtr tx, int64_t maxTime)
         }
     }
 }
+
+void
+setGeneralPrecond(TransactionFramePtr tx, GeneralPreconditions general)
+{
+    auto& env = tx->getEnvelope();
+    auto& cond = env.v1().tx.cond;
+    cond.type(PRECOND_GENERAL);
+    cond.general() = general;
+}
 #endif
 }
 }
