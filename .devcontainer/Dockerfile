@@ -15,17 +15,19 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
+# setup apt / certificates
+RUN apt-get update \
+    && apt-get -y install --no-install-recommends apt-utils dialog ca-certificates 2>&1
+
 # use mirrors instead of hardcoded location for performance
 RUN sed -i -e 's/http:\/\/us.archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
     && sed -i -e 's/http:\/\/security/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
     && sed -i -e 's/http:\/\/archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list
 
-# Configure apt and install packages
+# install base container packages and prep for VSCode
 RUN apt-get update \
-    && apt-get -y install --no-install-recommends apt-utils dialog ca-certificates 2>&1 \
-    #
-    # Verify git, process tools, lsb-release (common in install instructions for CLIs) installed
-    && apt-get -y install git iproute2 procps lsb-release \
+    # Verify process tools, lsb-release (common in install instructions for CLIs) installed
+    && apt-get -y install iproute2 procps lsb-release \
     #
     # Create a non-root user to use if preferred - see https://aka.ms/vscode-remote/containers/non-root-user.
     && groupadd --gid $USER_GID $USERNAME \
