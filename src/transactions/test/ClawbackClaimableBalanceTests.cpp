@@ -112,7 +112,7 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
                                      &account.getPublicKey());
 
                     // a1 has one subentry - a trustline
-                    checkSponsorship(ltx, a1, 0, nullptr, 1, 0, 0, 0);
+                    checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
                     checkSponsorship(ltx, account, 0, nullptr, 0, 2, 1, 0);
                     ltx.commit();
                 }

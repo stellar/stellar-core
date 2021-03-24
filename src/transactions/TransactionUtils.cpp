@@ -43,6 +43,20 @@ prepareAccountEntryExtensionV2(AccountEntry& ae)
     return extV1.ext.v2();
 }
 
+AccountEntryExtensionV3&
+prepareAccountEntryExtensionV3(AccountEntry& ae)
+{
+    auto& extV2 = prepareAccountEntryExtensionV2(ae);
+    if (extV2.ext.v() == 0)
+    {
+        extV2.ext.v(3);
+        auto& extV3 = extV2.ext.v3();
+        extV3.seqTime = 0;
+        extV3.seqLedger = 0;
+    }
+    return extV2.ext.v3();
+}
+
 TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
 {
@@ -73,6 +87,17 @@ getAccountEntryExtensionV2(AccountEntry& ae)
         throw std::runtime_error("expected AccountEntry extension V2");
     }
     return ae.ext.v1().ext.v2();
+}
+
+AccountEntryExtensionV3&
+getAccountEntryExtensionV3(AccountEntry& ae)
+{
+    if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2 ||
+        ae.ext.v1().ext.v2().ext.v() != 3)
+    {
+        throw std::runtime_error("expected AccountEntry extension V3");
+    }
+    return ae.ext.v1().ext.v2().ext.v3();
 }
 
 LedgerEntryExtensionV1&
@@ -1010,6 +1035,13 @@ bool
 hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
+}
+
+bool
+hasAccountEntryExtV3(AccountEntry const& ae)
+{
+    return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2 &&
+           ae.ext.v1().ext.v2().ext.v() == 3;
 }
 
 Asset

@@ -449,11 +449,23 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
     if (header.current().ledgerVersion >= 10)
     {
         auto sourceAccount = loadSourceAccount(ltx, header);
-        if (sourceAccount.current().data.account().seqNum > getSeqNum())
+        auto& acc = sourceAccount.current().data.account();
+        if (acc.seqNum > getSeqNum())
         {
             throw std::runtime_error("unexpected sequence number");
         }
-        sourceAccount.current().data.account().seqNum = getSeqNum();
+        acc.seqNum = getSeqNum();
+
+        if (header.current().ledgerVersion >= 16)
+        {
+            if (!hasAccountEntryExtV3(acc))
+            {
+                prepareAccountEntryExtensionV3(acc);
+            }
+            auto& extV3 = getAccountEntryExtensionV3(acc);
+            extV3.seqTime = header.current().scpValue.closeTime;
+            extV3.seqLedger = header.current().ledgerSeq;
+        }
     }
 }
 

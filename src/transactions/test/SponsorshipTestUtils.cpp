@@ -99,6 +99,7 @@ checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& acc, int leExt,
     auto le = loadAccount(ltx, acc);
     auto const& ae = le.current().data.account();
     REQUIRE(ae.numSubEntries == numSubEntries);
+
     switch (aeExt)
     {
     case 0:

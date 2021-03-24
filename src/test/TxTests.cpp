@@ -282,6 +282,22 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                             srcAccountBefore.seqNum);
                     REQUIRE(srcAccountAfter.current().data.account().seqNum ==
                             tx->getSeqNum());
+                    if (ledgerVersion >= 16)
+                    {
+                        REQUIRE(srcAccountAfter.current()
+                                    .data.account()
+                                    .ext.v1()
+                                    .ext.v2()
+                                    .ext.v3()
+                                    .seqTime ==
+                                header.current().scpValue.closeTime);
+                        REQUIRE(srcAccountAfter.current()
+                                    .data.account()
+                                    .ext.v1()
+                                    .ext.v2()
+                                    .ext.v3()
+                                    .seqLedger == header.current().ledgerSeq);
+                    }
                 }
                 // on failure, no other changes should have been made
                 if (!res)
@@ -321,6 +337,13 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                                 // should make the accounts equivalent
                                 currAcc.signers = prevAcc.signers;
                                 currAcc.numSubEntries = prevAcc.numSubEntries;
+                                if (hasAccountEntryExtV2(currAcc))
+                                {
+                                    getAccountEntryExtensionV2(currAcc)
+                                        .signerSponsoringIDs =
+                                        getAccountEntryExtensionV2(prevAcc)
+                                            .signerSponsoringIDs;
+                                }
                                 REQUIRE(currAcc == prevAcc);
                             }
                         }
