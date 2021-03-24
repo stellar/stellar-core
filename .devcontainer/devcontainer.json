@@ -3,6 +3,11 @@
 {
 	"name": "Ubuntu 20.04 & Git",
 	"dockerFile": "Dockerfile",
+	"build": {
+		"args": {
+			"APT_MIRROR": "${localEnv:APT_MIRROR}"
+		}
+	},
 	// The optional 'runArgs' property can be used to specify additional runtime arguments.
 	"runArgs": [
 		// Uncomment the line if you will use a ptrace-based debugger like C++, Go, and Rust.
