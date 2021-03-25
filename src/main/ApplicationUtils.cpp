@@ -85,10 +85,8 @@ runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
         if (cc)
         {
             Json::Value catchupInfo;
-            std::shared_ptr<HistoryArchive> archive;
-            auto const& ham = app->getHistoryArchiveManager();
-            archive = ham.selectRandomReadableHistoryArchive();
-            int res = catchup(app, *cc, catchupInfo, archive);
+            // Allow catchup from any readable archive
+            int res = catchup(app, *cc, catchupInfo, /* archive */ nullptr);
             if (res != 0)
             {
                 return res;
