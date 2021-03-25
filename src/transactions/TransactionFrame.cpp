@@ -226,6 +226,34 @@ TransactionFrame::getMinSeqNum() const
     return xdr::pointer<SequenceNumber>();
 }
 
+Duration
+TransactionFrame::getMinSeqAge() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_GENERAL)
+        {
+            return cond.general().minSeqAge;
+        }
+    }
+    return 0;
+}
+
+uint32_t
+TransactionFrame::getMinSeqLedgerGap() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_GENERAL)
+        {
+            return cond.general().minSeqLedgerGap;
+        }
+    }
+    return 0;
+}
+
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
@@ -387,6 +415,59 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
 }
 
 bool
+TransactionFrame::isTooEarlyForAccount(AbstractLedgerTxn& ltx,
+                                       LedgerTxnHeader const& header,
+                                       uint64_t lowerBoundCloseTimeOffset)
+{
+    // This function validates whether it is too early for this transaction to
+    // be processed according to the account.
+
+    if (header.current().ledgerVersion < 16)
+    {
+        return false;
+    }
+
+    auto sourceAccount = loadSourceAccount(ltx, header);
+
+    // TODO: If an account doesn't have a seqTime and seqLedger because the
+    // account has not processed a seqNum since v3 extensions were rolled out,
+    // should a minSeqAge and minSeqLedgerGap always be valid, or always be
+    // invalid? This assumes it should always be valid, but that might not be
+    // the most appropriate assumption to make.
+    if (!hasAccountEntryExtV3(sourceAccount.current().data.account()))
+    {
+        return false;
+    }
+
+    auto extV3 =
+        getAccountEntryExtensionV3(sourceAccount.current().data.account());
+
+    auto minSeqAge = getMinSeqAge();
+    auto closeTime = header.current().scpValue.closeTime;
+    if ((extV3.seqTime + minSeqAge) > (closeTime + lowerBoundCloseTimeOffset))
+    {
+        std::cout << "LEIGH: closeTime: " << closeTime << "\n";
+        std::cout << "LEIGH: lowerBoundCloseTimeOffset: "
+                  << lowerBoundCloseTimeOffset << "\n";
+        std::cout << "LEIGH: extV3.seqTime: " << extV3.seqTime << "\n";
+        std::cout << "LEIGH: tx.minSeqAge: " << minSeqAge << "\n";
+        return true;
+    }
+
+    auto minSeqLedgerGap = getMinSeqLedgerGap();
+    auto ledgerSeq = header.current().ledgerSeq;
+    if ((extV3.seqLedger + minSeqLedgerGap) > ledgerSeq)
+    {
+        std::cout << "LEIGH: ledgerSeq: " << ledgerSeq << "\n";
+        std::cout << "LEIGH: tx.minSeqLedgerGap: " << minSeqLedgerGap << "\n";
+        std::cout << "LEIGH: extV3.seqLedger: " << extV3.seqLedger << "\n";
+        return true;
+    }
+
+    return false;
+}
+
+bool
 TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                                        uint64_t lowerBoundCloseTimeOffset,
                                        uint64_t upperBoundCloseTimeOffset)
@@ -435,6 +516,21 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
     if (!loadSourceAccount(ltx, header))
     {
         getResult().result.code(txNO_ACCOUNT);
+        return false;
+    }
+
+    // TODO: Answer the question, does these validations belong here? This
+    // function has a comment stating that the validations within are
+    // independent of account state. This validation is clearly dependent on
+    // account state, but then again, the validation immediately above is also
+    // dependent on account state, so it is unclear how meaningful that comment
+    // is. If this code doesn't belong here maybe it belongs in commonValid. The
+    // thing I like about putting it here though is that this check much occur
+    // prior to sequence number update and must circumvent it, so from a
+    // conceptual point-of-view it seems to belong here.
+    if (isTooEarlyForAccount(ltx, header, lowerBoundCloseTimeOffset))
+    {
+        getResult().result.code(txTOO_EARLY);
         return false;
     }
 

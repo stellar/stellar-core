@@ -70,6 +70,9 @@ class TransactionFrame : public TransactionFrameBase
                             uint64_t lowerBoundCloseTimeOffset) const;
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
+    virtual bool isTooEarlyForAccount(AbstractLedgerTxn& ltx,
+                                      LedgerTxnHeader const& header,
+                                      uint64_t lowerBoundCloseTimeOffset);
 
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
@@ -167,6 +170,8 @@ class TransactionFrame : public TransactionFrameBase
                            bool applying) const override;
 
     const xdr::pointer<SequenceNumber> getMinSeqNum() const;
+    Duration getMinSeqAge() const;
+    uint32_t getMinSeqLedgerGap() const;
     const xdr::pointer<TimeBounds> getTimeBounds() const;
 
     void addSignature(SecretKey const& secretKey);
