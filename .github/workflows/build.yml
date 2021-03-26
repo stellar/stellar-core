@@ -13,7 +13,7 @@ jobs:
         toolchain: [ "gcc", "clang"]
     steps:
       - name: Cancel Stale Workflows
-        uses: styfle/cancel-workflow-action@0.6.0
+        uses: styfle/cancel-workflow-action@0.8.0
         with:
           access_token: ${{ github.token }}
       - name: Compute cache key
@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "::set-output name=id::$(( $(date +'%s') / 60 / 60 ))"
       - name: Cache
-        uses: actions/cache@v2
+        uses: actions/cache@v2.1.4
         with:
           path: |
             /home/runner/.ccache
