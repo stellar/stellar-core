@@ -27,7 +27,10 @@ namespace detail
 
 template <int V> struct TestStub
 {
-    template <typename, int> struct GetExceptionHelper;
+    // The standard prior to C++17 doesn't allow explicit specialization in
+    // non-namespace scope, so we added the dummy parameter D here to bypass
+    // this issue. D can be removed once we move to C++17.
+    template <typename, int, typename D = void> struct GetExceptionHelper;
 
     template <typename T> struct GetExceptionHelper<T, 0>
     {
@@ -35,7 +38,7 @@ template <int V> struct TestStub
     };
 
 #define SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(M) \
-    template <> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1> \
+    template <typename D> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1, D> \
     { \
         typedef ex_SET_TRUST_LINE_FLAGS_##M Value; \
     };
