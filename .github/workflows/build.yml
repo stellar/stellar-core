@@ -11,6 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ "gcc", "clang"]
+        protocol: ["current", "next"]
     steps:
       - name: Cancel Stale Workflows
         uses: styfle/cancel-workflow-action@0.8.0
@@ -33,9 +34,9 @@ jobs:
         with:
           path: |
             /home/runner/.ccache
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
@@ -64,4 +65,4 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          ./ci-build.sh --use-temp-db
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
