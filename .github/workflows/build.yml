@@ -44,11 +44,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
-      - name: add testing toolchain
-        run: |
-          sudo apt-get -y install software-properties-common
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
       - name: install tool chain
         run: |
           sudo apt-get -y install libstdc++-7-dev clang-format-8 ccache
