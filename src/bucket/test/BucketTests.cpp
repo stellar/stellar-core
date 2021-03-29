@@ -272,7 +272,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            std::random_shuffle(live.begin(), live.end());
+            std::shuffle(live.begin(), live.end(), gRandomEngine);
             size_t liveCount = live.size();
             for (auto& e : live)
             {
