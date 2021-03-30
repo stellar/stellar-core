@@ -50,6 +50,11 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void enableInvariant(std::string const& name) override;
 
+#ifdef BUILD_TESTS
+    void snapshotForFuzzer() override;
+    void resetForFuzzer() override;
+#endif // BUILD_TESTS
+
   private:
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
                             std::string const& message, uint32_t ledger);

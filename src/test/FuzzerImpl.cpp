@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/FuzzerImpl.h"
+#include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/TrustLineWrapper.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -741,9 +742,10 @@ resetTxInternalState(Application& app)
 {
     resetRandomSeed(1);
 // reset caches to clear persistent state
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
     app.getLedgerTxnRoot().resetForFuzzer();
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    app.getInvariantManager().resetForFuzzer();
+#endif // BUILD_TESTS
     app.getDatabase().clearPreparedStatementCache();
 }
 
@@ -1302,6 +1304,7 @@ TransactionFuzzer::initialize()
 {
     resetRandomSeed(1);
     mApp = createTestApplication(mClock, getFuzzConfig(0));
+    OrderBookIsNotCrossed::registerAndEnableInvariant(*mApp);
     auto root = TestAccount::createRoot(*mApp);
     mSourceAccountID = root.getPublicKey();
 
@@ -1327,6 +1330,10 @@ TransactionFuzzer::initialize()
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
     ltxOuter.commit();
+
+#ifdef BUILD_TESTS
+    mApp->getInvariantManager().snapshotForFuzzer();
+#endif // BUILD_TESTS
 }
 
 void

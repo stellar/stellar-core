@@ -825,9 +825,9 @@ class LedgerTxnRoot::Impl
     void dropTrustLines();
     void dropClaimableBalances();
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
     void resetForFuzzer();
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then

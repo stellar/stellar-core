@@ -410,6 +410,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp" />
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
+    <ClCompile Include="..\..\src\invariant\OrderBookIsNotCrossed.cpp" />
     <ClCompile Include="..\..\src\invariant\SponsorshipCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\test\AccountSubEntriesCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\BucketListIsConsistentWithDatabaseTests.cpp" />
@@ -417,6 +418,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\test\InvariantTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\InvariantTestUtils.cpp" />
     <ClCompile Include="..\..\src\invariant\test\LiabilitiesMatchOffersTests.cpp" />
+    <ClCompile Include="..\..\src\invariant\test\OrderBookIsNotCrossedTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
@@ -768,6 +770,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
+    <ClInclude Include="..\..\src\invariant\OrderBookIsNotCrossed.h" />
     <ClInclude Include="..\..\src\invariant\SponsorshipCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />

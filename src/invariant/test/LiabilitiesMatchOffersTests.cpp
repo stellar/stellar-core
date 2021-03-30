@@ -145,27 +145,6 @@ TEST_CASE("Account below minimum balance decreases",
 }
 
 static LedgerEntry
-generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
-              Price price)
-{
-    REQUIRE(!(selling == buying));
-    REQUIRE(amount >= 1);
-
-    LedgerEntry le;
-    le.lastModifiedLedgerSeq = 2;
-    le.data.type(OFFER);
-
-    auto offer = LedgerTestUtils::generateValidOfferEntry();
-    offer.amount = amount;
-    offer.price = price;
-    offer.selling = selling;
-    offer.buying = buying;
-
-    le.data.offer() = offer;
-    return le;
-}
-
-static LedgerEntry
 generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
                            uint32_t authorized)
 {

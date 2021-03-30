@@ -12,14 +12,18 @@ namespace stellar
 
 class Application;
 class AbstractLedgerTxn;
+struct Asset;
 struct AccountEntry;
 struct LedgerEntry;
 struct OperationResult;
+struct Price;
 
 namespace InvariantTestUtils
 {
 
 LedgerEntry generateRandomAccount(uint32_t ledgerSeq);
+LedgerEntry generateOffer(Asset const& selling, Asset const& buying,
+                          int64_t amount, Price price);
 
 typedef std::vector<
     std::tuple<std::shared_ptr<LedgerEntry>, std::shared_ptr<LedgerEntry>>>

@@ -1711,13 +1711,13 @@ LedgerTxn::getPrefetchHitRate() const
     return getImpl()->getPrefetchHitRate();
 }
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
 void
 LedgerTxn::resetForFuzzer()
 {
     abort();
 }
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
 double
 LedgerTxn::Impl::getPrefetchHitRate() const
@@ -2165,7 +2165,7 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef BUILD_TESTS
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
 {
@@ -2178,7 +2178,7 @@ LedgerTxnRoot::resetForFuzzer()
 {
     mImpl->resetForFuzzer();
 }
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#endif // BUILD_TESTS
 
 void
 LedgerTxnRoot::addChild(AbstractLedgerTxn& child)
