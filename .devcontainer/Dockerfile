@@ -19,10 +19,21 @@ ARG USER_GID=$USER_UID
 RUN apt-get update \
     && apt-get -y install --no-install-recommends apt-utils dialog ca-certificates 2>&1
 
-# use mirrors instead of hardcoded location for performance
-RUN sed -i -e 's/http:\/\/us.archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
-    && sed -i -e 's/http:\/\/security/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
-    && sed -i -e 's/http:\/\/archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list
+# use apt mirror instead of default archives if specified
+# to use, specify the build arg or as an env var on the host machine
+# e.g.:
+#   mirror://mirrors.ubuntu.com/mirrors.txt
+#   mirror://mirrors.ubuntu.com/<country-code>.txt
+#   http://<country-code>.archive.ubuntu.com/ubuntu/
+#   http://<aws-region>.ec2.archive.ubuntu.com/ubuntu
+ARG APT_MIRROR=
+RUN if [ ! -z "${APT_MIRROR}" ]; then \
+    sed -i \
+        -e "s|http://archive.ubuntu.com/ubuntu/|${APT_MIRROR}|" \
+        -e "s|http://security.ubuntu.com/ubuntu/|${APT_MIRROR}|" \
+        /etc/apt/sources.list \
+    ; fi \
+    ; grep "^[^#;]" /etc/apt/sources.list
 
 # install base container packages and prep for VSCode
 RUN apt-get update \
