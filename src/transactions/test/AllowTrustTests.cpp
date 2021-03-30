@@ -404,12 +404,52 @@ template <int V> struct TestStub
 
         SECTION("allow trust not required")
         {
-            for_all_versions(*app, [&] {
+            for_versions_to(15, *app, [&] {
                 REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1),
                                   ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
                 REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1),
                                   ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
             });
+
+            for_versions_from(16, *app, [&] {
+                REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1, flagOp),
+                                  GetException<ex_ALLOW_TRUST_NO_TRUST_LINE>);
+                REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1, flagOp),
+                                  GetException<ex_ALLOW_TRUST_CANT_REVOKE>);
+            });
+        }
+
+        SECTION("authorize when AUTH_REQUIRED is not set")
+        {
+            // the result of these operations is that the trustline will not be
+            // authorized, and AUTH_REQUIRED_FLAG will not be set on the issuer
+            gateway.setOptions(setFlags(AUTH_REQUIRED_FLAG));
+            a1.changeTrust(idr, trustLineLimit);
+            gateway.setOptions(clearFlags(AUTH_REQUIRED_FLAG));
+
+            for_versions_to(15, *app, [&] {
+                REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1),
+                                  ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
+            });
+
+            for_versions_from(16, *app, [&] {
+                gateway.allowTrust(idr, a1, flagOp);
+                gateway.pay(a1, idr, 1);
+            });
+        }
+
+        SECTION("revoke when AUTH_REQUIRED is not set")
+        {
+            a1.changeTrust(idr, trustLineLimit);
+            gateway.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+
+            for_versions_to(15, *app, [&] {
+                REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1),
+                                  ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
+            });
+
+            for_versions_from(16, *app,
+                              [&] { gateway.denyTrust(idr, a1, flagOp); });
         }
 
         SECTION("allow trust without trustline")
