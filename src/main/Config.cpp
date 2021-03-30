@@ -211,7 +211,7 @@ readBool(ConfigItem const& item)
 {
     if (!item.second->as<bool>())
     {
-        throw std::invalid_argument(fmt::format("invalid {}", item.first));
+        throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
     return item.second->as<bool>()->get();
 }
@@ -221,7 +221,7 @@ readDouble(ConfigItem const& item)
 {
     if (!item.second->as<double>())
     {
-        throw std::invalid_argument(fmt::format("invalid {}", item.first));
+        throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
     return item.second->as<double>()->get();
 }
@@ -231,7 +231,7 @@ readString(ConfigItem const& item)
 {
     if (!item.second->as<std::string>())
     {
-        throw std::invalid_argument(fmt::format("invalid {}", item.first));
+        throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
     return item.second->as<std::string>()->get();
 }
@@ -243,14 +243,14 @@ readStringArray(ConfigItem const& item)
     if (!item.second->is_array())
     {
         throw std::invalid_argument(
-            fmt::format("{} must be an array", item.first));
+            fmt::format("'{}' must be an array", item.first));
     }
     for (auto v : item.second->as_array()->get())
     {
         if (!v->as<std::string>())
         {
             throw std::invalid_argument(
-                fmt::format("invalid element of {}", item.first));
+                fmt::format("invalid element of '{}'", item.first));
         }
         result.push_back(v->as<std::string>()->get());
     }
@@ -264,12 +264,12 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
 {
     if (!item.second->as<int64_t>())
     {
-        throw std::invalid_argument(fmt::format("invalid {}", item.first));
+        throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
     int64_t v = item.second->as<int64_t>()->get();
     if (v < min || v > max)
     {
-        throw std::invalid_argument(fmt::format("bad {}", item.first));
+        throw std::invalid_argument(fmt::format("bad '{}'", item.first));
     }
     return static_cast<T>(v);
 }
@@ -291,21 +291,21 @@ readXdrEnumArray(ConfigItem const& item)
     if (!item.second->is_array())
     {
         throw std::invalid_argument(
-            fmt::format("{} must be an array", item.first));
+            fmt::format("'{}' must be an array", item.first));
     }
     for (auto v : item.second->as_array()->get())
     {
         if (!v->as<std::string>())
         {
             throw std::invalid_argument(
-                fmt::format("invalid element of {}", item.first));
+                fmt::format("invalid element of '{}'", item.first));
         }
 
         auto name = v->as<std::string>()->get();
         if (enumNames.find(name) == enumNames.end())
         {
             throw std::invalid_argument(
-                fmt::format("invalid element of {}", item.first));
+                fmt::format("invalid element of '{}'", item.first));
         }
         result.push_back(enumNames[name]);
     }
@@ -401,7 +401,7 @@ Config::addHistoryArchive(std::string const& name, std::string const& get,
     if (!r.second)
     {
         throw std::invalid_argument(
-            fmt::format("Conflicting archive name {}", name));
+            fmt::format("Conflicting archive name '{}'", name));
     }
 }
 
@@ -428,7 +428,7 @@ Config::parseQuality(std::string const& q) const
     }
     else
     {
-        throw std::invalid_argument(fmt::format("Unknown QUALITY {}", q));
+        throw std::invalid_argument(fmt::format("Unknown QUALITY '{}'", q));
     }
     return res;
 }
@@ -499,7 +499,7 @@ Config::parseValidators(
         if (pubKey.empty() || ve.mHomeDomain.empty())
         {
             throw std::invalid_argument(
-                fmt::format("malformed VALIDATORS entry {}", ve.mName));
+                fmt::format("malformed VALIDATORS entry '{}'", ve.mName));
         }
         auto globQualityIt = domainQualityMap.find(ve.mHomeDomain);
         if (globQualityIt != domainQualityMap.end())
@@ -507,8 +507,8 @@ Config::parseValidators(
             if (qualitySet)
             {
                 throw std::invalid_argument(
-                    fmt::format("malformed VALIDATORS entry {}: quality "
-                                "already defined in home domain {}",
+                    fmt::format("malformed VALIDATORS entry '{}': quality "
+                                "already defined in home domain '{}'",
                                 ve.mName, ve.mHomeDomain));
             }
             else
@@ -520,7 +520,7 @@ Config::parseValidators(
         if (!qualitySet)
         {
             throw std::invalid_argument(fmt::format(
-                "malformed VALIDATORS entry {} (missing quality)", ve.mName));
+                "malformed VALIDATORS entry '{}' (missing quality)", ve.mName));
         }
         addValidatorName(pubKey, ve.mName);
         ve.mKey = KeyUtils::fromStrKey<PublicKey>(pubKey);
@@ -533,10 +533,10 @@ Config::parseValidators(
              ve.mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY) &&
             hist.empty())
         {
-            throw std::invalid_argument(fmt::format(
-                "malformed VALIDATORS entry {} (critical and high quality must "
-                "have an archive)",
-                ve.mName));
+            throw std::invalid_argument(
+                fmt::format("malformed VALIDATORS entry '{}' (critical and "
+                            "high quality must have an archive)",
+                            ve.mName));
         }
         res.emplace_back(ve);
     }
@@ -577,19 +577,19 @@ Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
             else
             {
                 throw std::invalid_argument(
-                    fmt::format("Unknown field {} in HOME_DOMAINS", f.first));
+                    fmt::format("Unknown field '{}' in HOME_DOMAINS", f.first));
             }
         }
         if (!qualitySet || domain.empty())
         {
             throw std::invalid_argument(
-                fmt::format("Malformed HOME_DOMAINS {}", domain));
+                fmt::format("Malformed HOME_DOMAINS '{}'", domain));
         }
         auto p = res.emplace(std::make_pair(domain, quality));
         if (!p.second)
         {
             throw std::invalid_argument(
-                fmt::format("Malformed HOME_DOMAINS: duplicate {}", domain));
+                fmt::format("Malformed HOME_DOMAINS: duplicate '{}'", domain));
         }
     }
     return res;
@@ -619,7 +619,7 @@ Config::load(std::string const& filename)
             if (!ifs)
             {
                 throw std::runtime_error(
-                    fmt::format("Error opening file {}", filename));
+                    fmt::format("Error opening file '{}'", filename));
             }
             ifs.exceptions(std::ios::badbit);
             load(ifs);
@@ -704,16 +704,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         {
             if (item.second->template as<bool>()->get())
             {
-                LOG_INFO(DEFAULT_LOG, "{}",
-                         fmt::format("{} enabled in configuration file - {}",
-                                     item.first, message));
+                LOG_INFO(DEFAULT_LOG, "'{}' enabled in configuration file - {}",
+                         item.first, message);
             }
         }
         else
         {
-            LOG_INFO(DEFAULT_LOG, "{}",
-                     fmt::format("{} set in configuration file - {}",
-                                 item.first, message));
+            LOG_INFO(DEFAULT_LOG, "'{}' set in configuration file - {}",
+                     item.first, message);
         }
     };
 
@@ -1347,8 +1345,7 @@ Config::validateConfig(ValidationThresholdLevels thresholdLevel)
     const char* errString = nullptr;
     if (!isQuorumSetSane(QUORUM_SET, !UNSAFE_QUORUM, errString))
     {
-        LOG_FATAL(DEFAULT_LOG, "{}",
-                  fmt::format("Invalid QUORUM_SET: {}", errString));
+        LOG_FATAL(DEFAULT_LOG, "Invalid QUORUM_SET: {}", errString);
         throw std::invalid_argument("Invalid QUORUM_SET");
     }
 }
@@ -1579,9 +1576,9 @@ Config::generateQuorumSetHelper(
         {
             if (it2->mQuality != it->mQuality)
             {
-                throw std::invalid_argument(
-                    fmt::format("Validators {} and {} must have same quality",
-                                it->mName, it2->mName));
+                throw std::invalid_argument(fmt::format(
+                    "Validators '{}' and '{}' must have same quality",
+                    it->mName, it2->mName));
             }
             vals.emplace_back(it2->mKey);
         }
@@ -1590,9 +1587,9 @@ Config::generateQuorumSetHelper(
              it->mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY))
         {
             throw std::invalid_argument(
-                fmt::format("Critical and High quality validators {} must have "
-                            "redundancy of at least 3",
-                            it->mName));
+                fmt::format("Critical and High quality validators for '{}' "
+                            "must have redundancy of at least 3",
+                            it->mHomeDomain));
         }
         innerSet.threshold = computeDefaultThreshold(
             innerSet, ValidationThresholdLevels::SIMPLE_MAJORITY);
@@ -1605,7 +1602,7 @@ Config::generateQuorumSetHelper(
         if (it->mQuality > curQuality)
         {
             throw std::invalid_argument(fmt::format(
-                "invalid validator quality for {} (must be ascending)",
+                "invalid validator quality for '{}' (must be ascending)",
                 it->mName));
         }
         auto lowQ = generateQuorumSetHelper(it, end, it->mQuality);
