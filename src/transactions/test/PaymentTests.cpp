@@ -1518,7 +1518,7 @@ TEST_CASE("payment", "[tx][payment]")
     }
     SECTION("authorize flag")
     {
-        for_all_versions(*app, [&] {
+        auto authorizeFlag = [&](TrustFlagOp flagOp) {
             gateway.setOptions(
                 setFlags(uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG}));
 
@@ -1527,20 +1527,33 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE_THROWS_AS(gateway.pay(a1, idr, trustLineStartingBalance),
                               ex_PAYMENT_NOT_AUTHORIZED);
 
-            gateway.allowTrust(idr, a1);
+            gateway.allowTrust(idr, a1, flagOp);
 
             gateway.pay(a1, idr, trustLineStartingBalance);
 
             // send it all back
-            gateway.denyTrust(idr, a1);
+            gateway.denyTrust(idr, a1, flagOp);
 
             REQUIRE_THROWS_AS(a1.pay(gateway, idr, trustLineStartingBalance),
                               ex_PAYMENT_SRC_NOT_AUTHORIZED);
 
-            gateway.allowTrust(idr, a1);
+            gateway.allowTrust(idr, a1, flagOp);
 
             a1.pay(gateway, idr, trustLineStartingBalance);
-        });
+        };
+
+        SECTION("allow trust")
+        {
+            for_all_versions(*app,
+                             [&] { authorizeFlag(TrustFlagOp::ALLOW_TRUST); });
+        }
+
+        SECTION("set trustline flags")
+        {
+            for_versions_from(16, *app, [&] {
+                authorizeFlag(TrustFlagOp::SET_TRUST_LINE_FLAGS);
+            });
+        }
     }
 
     for_all_versions(*app, [&] {

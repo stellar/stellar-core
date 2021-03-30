@@ -101,7 +101,7 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     case ACCOUNT:
         return checkIsValid(le.data.account(), version);
     case TRUSTLINE:
-        return checkIsValid(le.data.trustLine(), version);
+        return checkIsValid(le.data.trustLine(), previous, version);
     case OFFER:
         return checkIsValid(le.data.offer(), version);
     case DATA:
@@ -173,7 +173,9 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl, uint32 version) const
+LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
+                                 LedgerEntry const* previous,
+                                 uint32 version) const
 {
     if (tl.asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -199,6 +201,11 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl, uint32 version) const
     if (!trustLineFlagIsValid(tl.flags, version))
     {
         return "TrustLine flags are invalid";
+    }
+    if (previous && !isClawbackEnabledOnTrustline(previous->data.trustLine()) &&
+        isClawbackEnabledOnTrustline(tl))
+    {
+        return "TrustLine clawback flag was enabled";
     }
     return {};
 }

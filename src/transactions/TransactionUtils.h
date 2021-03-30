@@ -54,6 +54,8 @@ uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
 int32_t const EXPECTED_CLOSE_TIME_MULT = 2;
 size_t const MAX_OFFERS_TO_CROSS = 1000;
+uint32_t const TRUSTLINE_AUTH_FLAGS =
+    AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
 
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 
@@ -156,12 +158,14 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
 bool isAuthorized(ConstLedgerTxnEntry const& entry);
 
+bool isAuthorizedToMaintainLiabilities(uint32_t flags);
 bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le);
 bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry);
 bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
+bool isClawbackEnabledOnTrustline(TrustLineEntry const& tl);
 bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerTxnEntry const& entry);
@@ -178,6 +182,8 @@ MuxedAccount toMuxedAccount(AccountID const& a);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
+bool trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool trustLineFlagAuthIsValid(uint32_t flag);
 
 bool accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
@@ -192,4 +198,7 @@ bool hasAccountEntryExtV2(AccountEntry const& ae);
 Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 
 bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb);
+void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
+                                   AccountID const& account,
+                                   Asset const& asset);
 }

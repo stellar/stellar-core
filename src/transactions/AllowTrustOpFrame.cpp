@@ -10,7 +10,6 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 
@@ -26,10 +25,7 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
         throw std::runtime_error("trying to set invalid trust line flag");
     }
 
-    const uint32_t authFlags =
-        AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-
-    if ((authorized & ~authFlags) != 0)
+    if ((authorized & ~TRUSTLINE_AUTH_FLAGS) != 0)
     {
         throw std::runtime_error(
             "setAuthorized can only modify authorization flags");
@@ -37,7 +33,7 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 
     auto& tl = entry.current().data.trustLine();
 
-    tl.flags &= ~authFlags;
+    tl.flags &= ~TRUSTLINE_AUTH_FLAGS;
     tl.flags |= authorized;
 }
 
@@ -59,7 +55,8 @@ bool
 AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "AllowTrustOp apply", true);
-    if (ltx.loadHeader().current().ledgerVersion > 2)
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    if (ledgerVersion > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
         {
@@ -129,36 +126,15 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
                              mAllowTrust.authorize == 0;
     }
 
-    auto header = ltx.loadHeader();
-    if (header.current().ledgerVersion >= 10 && shouldRemoveOffers)
+    if (ledgerVersion >= 10 && shouldRemoveOffers)
     {
         // Delete all offers owned by the trustor that are either buying or
         // selling the asset which had authorization revoked.
-        auto offers =
-            ltx.loadOffersByAccountAndAsset(mAllowTrust.trustor, mAsset);
-        for (auto& offer : offers)
-        {
-            auto const& oe = offer.current().data.offer();
-            if (!(oe.sellerID == mAllowTrust.trustor))
-            {
-                throw std::runtime_error("Offer not owned by expected account");
-            }
-            else if (!(oe.buying == mAsset || oe.selling == mAsset))
-            {
-                throw std::runtime_error(
-                    "Offer not buying or selling expected asset");
-            }
-
-            releaseLiabilities(ltx, header, offer);
-            auto trustAcc = stellar::loadAccount(ltx, mAllowTrust.trustor);
-            removeEntryWithPossibleSponsorship(ltx, header, offer.current(),
-                                               trustAcc);
-            offer.erase();
-        }
+        removeOffersByAccountAndAsset(ltx, mAllowTrust.trustor, mAsset);
     }
 
     auto trustLineEntry = ltx.load(key);
-    setAuthorized(header, trustLineEntry, mAllowTrust.authorize);
+    setAuthorized(ltx.loadHeader(), trustLineEntry, mAllowTrust.authorize);
 
     innerResult().code(ALLOW_TRUST_SUCCESS);
     return true;

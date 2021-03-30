@@ -59,6 +59,15 @@ struct SetOptionsArguments
                                          SetOptionsArguments const& y);
 };
 
+struct SetTrustLineFlagsArguments
+{
+    uint32_t setFlags = 0;
+    uint32_t clearFlags = 0;
+};
+
+SetTrustLineFlagsArguments operator|(SetTrustLineFlagsArguments const& x,
+                                     SetTrustLineFlagsArguments const& y);
+
 TransactionResult expectedResult(int64_t fee, size_t opsCount,
                                  TransactionResultCode code,
                                  std::vector<ExpectedOpResult> ops = {});
@@ -110,6 +119,9 @@ TransactionFramePtr transactionFromOperations(Application& app,
                                               int fee = 0);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
+
+Operation allowTrust(PublicKey const& trustor, Asset const& asset,
+                     uint32_t authorize);
 
 Operation allowTrust(PublicKey const& trustor, Asset const& asset,
                      uint32_t authorize);
@@ -190,6 +202,12 @@ SetOptionsArguments setFlags(uint32_t setFlags);
 SetOptionsArguments clearFlags(uint32_t clearFlags);
 SetOptionsArguments setInflationDestination(AccountID inflationDest);
 SetOptionsArguments setHomeDomain(std::string const& homeDomain);
+
+Operation setTrustLineFlags(PublicKey const& trustor, Asset const& asset,
+                            SetTrustLineFlagsArguments const& arguments);
+
+SetTrustLineFlagsArguments setTrustLineFlags(uint32_t setFlags);
+SetTrustLineFlagsArguments clearTrustLineFlags(uint32_t clearFlags);
 
 Operation beginSponsoringFutureReserves(PublicKey const& sponsoredID);
 Operation endSponsoringFutureReserves();

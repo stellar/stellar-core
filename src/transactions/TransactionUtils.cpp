@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/SponsorshipUtils.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -802,10 +803,15 @@ isAuthorized(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isAuthorizedToMaintainLiabilities(uint32_t flags)
+{
+    return (flags & TRUSTLINE_AUTH_FLAGS) != 0;
+}
+
+bool
 isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
-    return isAuthorized(le) || (le.data.trustLine().flags &
-                                AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) != 0;
+    return isAuthorizedToMaintainLiabilities(le.data.trustLine().flags);
 }
 
 bool
@@ -827,10 +833,15 @@ isAuthRequired(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnTrustline(TrustLineEntry const& tl)
+{
+    return (tl.flags & TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 {
-    return (entry.current().data.trustLine().flags &
-            TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+    return isClawbackEnabledOnTrustline(entry.current().data.trustLine());
 }
 
 bool
@@ -875,27 +886,38 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
+    return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           (ledgerVersion < 13 || trustLineFlagAuthIsValid(flag));
+}
+
+bool
+trustLineFlagAuthIsValid(uint32_t flag)
+{
+    static_assert(TRUSTLINE_AUTH_FLAGS == 3,
+                  "condition only works for two flags");
+    // multiple auth flags can't be set
+    if ((flag & TRUSTLINE_AUTH_FLAGS) == TRUSTLINE_AUTH_FLAGS)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
     if (ledgerVersion < 13)
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
     }
+    else if (ledgerVersion < 16)
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
+    }
     else
     {
-        uint32_t invalidAuthCombo =
-            AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-        if ((flag & invalidAuthCombo) == invalidAuthCombo)
-        {
-            return false;
-        }
-
-        if (ledgerVersion < 16)
-        {
-            return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
-        }
-        else
-        {
-            return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
-        }
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
     }
 }
 
@@ -1022,6 +1044,36 @@ claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
     }
 
     return true;
+}
+
+void
+removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
+                              Asset const& asset)
+{
+    LedgerTxn ltxInner(ltx);
+
+    auto header = ltxInner.loadHeader();
+    auto offers = ltxInner.loadOffersByAccountAndAsset(account, asset);
+    for (auto& offer : offers)
+    {
+        auto const& oe = offer.current().data.offer();
+        if (!(oe.sellerID == account))
+        {
+            throw std::runtime_error("Offer not owned by expected account");
+        }
+        else if (!(oe.buying == asset || oe.selling == asset))
+        {
+            throw std::runtime_error(
+                "Offer not buying or selling expected asset");
+        }
+
+        releaseLiabilities(ltxInner, header, offer);
+        auto trustAcc = stellar::loadAccount(ltxInner, account);
+        removeEntryWithPossibleSponsorship(ltxInner, header, offer.current(),
+                                           trustAcc);
+        offer.erase();
+    }
+    ltxInner.commit();
 }
 
 namespace detail

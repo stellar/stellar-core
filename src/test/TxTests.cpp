@@ -1128,6 +1128,48 @@ setHomeDomain(std::string const& homeDomain)
     return result;
 }
 
+SetTrustLineFlagsArguments
+operator|(SetTrustLineFlagsArguments const& x,
+          SetTrustLineFlagsArguments const& y)
+{
+    auto result = SetTrustLineFlagsArguments{};
+    result.setFlags = y.setFlags | x.setFlags;
+    result.clearFlags = y.clearFlags | x.clearFlags;
+    return result;
+}
+
+Operation
+setTrustLineFlags(PublicKey const& trustor, Asset const& asset,
+                  SetTrustLineFlagsArguments const& arguments)
+{
+    Operation op;
+    op.body.type(SET_TRUST_LINE_FLAGS);
+
+    SetTrustLineFlagsOp& setOp = op.body.setTrustLineFlagsOp();
+    setOp.trustor = trustor;
+    setOp.asset = asset;
+    setOp.setFlags = arguments.setFlags;
+    setOp.clearFlags = arguments.clearFlags;
+
+    return op;
+}
+
+SetTrustLineFlagsArguments
+setTrustLineFlags(uint32_t setFlags)
+{
+    SetTrustLineFlagsArguments result;
+    result.setFlags = setFlags;
+    return result;
+}
+
+SetTrustLineFlagsArguments
+clearTrustLineFlags(uint32_t clearFlags)
+{
+    SetTrustLineFlagsArguments result;
+    result.clearFlags = clearFlags;
+    return result;
+}
+
 Operation
 inflation()
 {
