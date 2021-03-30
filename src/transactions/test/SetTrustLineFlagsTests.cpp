@@ -224,6 +224,15 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
                     gateway.setTrustLineFlags(native, a1, emptyFlag),
                     ex_SET_TRUST_LINE_FLAGS_MALFORMED);
 
+                // invalid asset
+                auto invalidAssets = testutil::getInvalidAssets(gateway);
+                for (auto const& asset : invalidAssets)
+                {
+                    REQUIRE_THROWS_AS(
+                        gateway.setTrustLineFlags(asset, a1, emptyFlag),
+                        ex_SET_TRUST_LINE_FLAGS_MALFORMED);
+                }
+
                 {
                     // set and clear flags can't overlap
                     auto setFlag = setTrustLineFlags(AUTHORIZED_FLAG);
