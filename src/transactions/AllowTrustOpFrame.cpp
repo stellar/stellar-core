@@ -72,9 +72,9 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         auto header = ltxSource.loadHeader();
         auto sourceAccountEntry = loadSourceAccount(ltxSource, header);
         auto const& sourceAccount = sourceAccountEntry.current().data.account();
-        if (!(sourceAccount.flags & AUTH_REQUIRED_FLAG))
-        { // this account doesn't require authorization to
-            // hold credit
+        if (header.current().ledgerVersion < 16 &&
+            !(sourceAccount.flags & AUTH_REQUIRED_FLAG))
+        {
             innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
             return false;
         }
