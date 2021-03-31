@@ -290,7 +290,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Note `mVerifiedAhead` is written here after being read moments
         // before. We're currently writing the value to be used in the _next_
         // call to this method.
-        auto hash = make_optional<Hash>(first.header.previousLedgerHash);
+        auto hash = std::make_optional<Hash>(first.header.previousLedgerHash);
         mVerifiedAhead = LedgerNumHashPair(first.header.ledgerSeq - 1, hash);
     }
 
@@ -347,7 +347,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Write outgoing trust-link to shared write-once variable.
         LedgerNumHashPair outgoing;
         outgoing.first = first.header.ledgerSeq - 1;
-        outgoing.second = make_optional<Hash>(first.header.previousLedgerHash);
+        outgoing.second =
+            std::make_optional<Hash>(first.header.previousLedgerHash);
 
         try
         {
@@ -370,7 +371,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     mVerifiedLedgers.emplace_back(curr.header.ledgerSeq,
-                                  make_optional<Hash>(curr.hash));
+                                  std::make_optional<Hash>(curr.hash));
     return HistoryManager::VERIFY_STATUS_OK;
 }
 

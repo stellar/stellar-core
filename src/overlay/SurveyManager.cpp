@@ -48,7 +48,7 @@ SurveyManager::startSurvey(SurveyMessageCommandType type,
     mPeersToSurvey.clear();
     mPeersToSurveyQueue = std::queue<NodeID>();
 
-    mRunningSurveyType = make_optional<SurveyMessageCommandType>(type);
+    mRunningSurveyType = std::make_optional<SurveyMessageCommandType>(type);
 
     mCurve25519SecretKey = curve25519RandomSecret();
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);

@@ -9,9 +9,9 @@
 #include <chrono>
 #include <map>
 #include <medida/medida.h>
+#include <optional>
 #include <queue>
 #include <set>
-#include <util/optional.h>
 
 /*
 SCP messages that you have received but are waiting to get the info of

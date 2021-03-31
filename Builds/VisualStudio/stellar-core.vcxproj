@@ -892,7 +892,6 @@ exit /b 0
     <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\NonCopyable.h" />
     <ClInclude Include="..\..\src\util\numeric.h" />
-    <ClInclude Include="..\..\src\util\optional.h" />
     <ClInclude Include="..\..\src\util\SecretValue.h" />
     <ClInclude Include="..\..\src\util\SociNoWarnings.h" />
     <ClInclude Include="..\..\src\util\StatusManager.h" />

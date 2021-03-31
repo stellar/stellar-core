@@ -13,6 +13,7 @@
 #include "util/XDRStream.h"
 #include <Tracy.hpp>
 
+#include <optional>
 #include <soci.h>
 #include <xdrpp/marshal.h>
 
@@ -296,7 +297,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
     return n;
 }
 
-optional<Hash>
+std::optional<Hash>
 HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
                                     NodeID const& nodeID)
 {
@@ -311,7 +312,7 @@ HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
 
     st.execute(true);
 
-    optional<Hash> res;
+    std::optional<Hash> res;
     if (st.got_data())
     {
         auto h = hexToBin256(qsethHex);
