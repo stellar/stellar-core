@@ -350,14 +350,24 @@ bool
 Logging::logDebug(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::LVL_DEBUG;
+    auto it = mPartitionLogLevels.find(partition);
+    if (it != mPartitionLogLevels.end())
+    {
+        return it->second >= LogLevel::LVL_DEBUG;
+    }
+    return mGlobalLogLevel >= LogLevel::LVL_DEBUG;
 }
 
 bool
 Logging::logTrace(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::LVL_TRACE;
+    auto it = mPartitionLogLevels.find(partition);
+    if (it != mPartitionLogLevels.end())
+    {
+        return it->second >= LogLevel::LVL_TRACE;
+    }
+    return mGlobalLogLevel >= LogLevel::LVL_TRACE;
 }
 
 void
