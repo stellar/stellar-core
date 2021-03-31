@@ -274,11 +274,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         {
             // if we're not tracking, there is not much more we can do to
             // validate
-            if (Logging::logTrace("Herder"))
-            {
-                CLOG_TRACE(Herder, "MaybeValidValue (not tracking) for slot {}",
-                           slotIndex);
-            }
+            CLOG_TRACE(Herder, "MaybeValidValue (not tracking) for slot {}",
+                       slotIndex);
             return SCPDriver::kMaybeValidValue;
         }
 
@@ -287,13 +284,9 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         {
             // we already moved on from this slot
             // still send it through for emitting the final messages
-            if (Logging::logTrace("Herder"))
-            {
-                CLOG_TRACE(
-                    Herder,
-                    "MaybeValidValue (already moved on) for slot {}, at {}",
-                    slotIndex, nextConsensusLedgerIndex());
-            }
+            CLOG_TRACE(Herder,
+                       "MaybeValidValue (already moved on) for slot {}, at {}",
+                       slotIndex, nextConsensusLedgerIndex());
             return SCPDriver::kMaybeValidValue;
         }
         if (nextConsensusLedgerIndex() < slotIndex)
@@ -317,12 +310,9 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
 
         // this is as far as we can go if we don't have the state
-        if (Logging::logTrace("Herder"))
-        {
-            CLOG_TRACE(Herder,
-                       "Can't validate locally, value may be valid for slot {}",
-                       slotIndex);
-        }
+        CLOG_TRACE(Herder,
+                   "Can't validate locally, value may be valid for slot {}",
+                   slotIndex);
         return SCPDriver::kMaybeValidValue;
     }
 
@@ -349,18 +339,16 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
     }
     else if (!txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset))
     {
-        if (Logging::logDebug("Herder"))
-            CLOG_DEBUG(Herder,
-                       "HerderSCPDriver::validateValue i: {} invalid txSet {}",
-                       slotIndex, hexAbbrev(txSetHash));
+        CLOG_DEBUG(Herder,
+                   "HerderSCPDriver::validateValue i: {} invalid txSet {}",
+                   slotIndex, hexAbbrev(txSetHash));
         res = SCPDriver::kInvalidValue;
     }
     else
     {
-        if (Logging::logDebug("Herder"))
-            CLOG_DEBUG(Herder,
-                       "HerderSCPDriver::validateValue i: {} valid txSet {}",
-                       slotIndex, hexAbbrev(txSetHash));
+        CLOG_DEBUG(Herder,
+                   "HerderSCPDriver::validateValue i: {} valid txSet {}",
+                   slotIndex, hexAbbrev(txSetHash));
         res = SCPDriver::kFullyValidatedValue;
     }
     return res;
@@ -863,9 +851,8 @@ HerderSCPDriver::ballotDidHearFromQuorum(uint64_t, SCPBallot const&)
 void
 HerderSCPDriver::nominatingValue(uint64_t slotIndex, Value const& value)
 {
-    if (Logging::logDebug("Herder"))
-        CLOG_DEBUG(Herder, "nominatingValue i:{} v: {}", slotIndex,
-                   getValueString(value));
+    CLOG_DEBUG(Herder, "nominatingValue i:{} v: {}", slotIndex,
+               getValueString(value));
 }
 
 void
@@ -1031,14 +1018,9 @@ HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
 {
     auto delta =
         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    if (Logging::logDebug("Herder"))
-    {
-        auto msCount =
-            std::chrono::duration_cast<std::chrono::milliseconds>(delta)
-                .count();
-        CLOG_DEBUG(Herder, "{} delta for slot {} is {} ms", logStr, slotIndex,
-                   msCount);
-    }
+    CLOG_DEBUG(
+        Herder, "{} delta for slot {} is {} ms", logStr, slotIndex,
+        std::chrono::duration_cast<std::chrono::milliseconds>(delta).count());
     if (delta >= threshold)
     {
         timer.Update(delta);

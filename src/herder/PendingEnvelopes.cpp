@@ -331,15 +331,12 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);
-            if (Logging::logTrace("Perf"))
-            {
-                CLOG_TRACE(Perf,
-                           "Herder fetched for envelope {} with txsets {} and "
-                           "qset {} in {} seconds",
-                           hexAbbrev(xdrSha256(envelope)),
-                           txSetsToStr(envelope), hexAbbrev(h),
-                           std::chrono::duration<double>(durationNano).count());
-            }
+            CLOG_TRACE(Perf,
+                       "Herder fetched for envelope {} with txsets {} and "
+                       "qset {} in {} seconds",
+                       hexAbbrev(xdrSha256(envelope)), txSetsToStr(envelope),
+                       hexAbbrev(h),
+                       std::chrono::duration<double>(durationNano).count());
 
             // move the item from fetching to processed
             processed.emplace(envelope);
@@ -519,12 +516,9 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
     ZoneScoped;
     auto slot = envelope.statement.slotIndex;
-    if (Logging::logTrace("Herder"))
-    {
-        CLOG_TRACE(Herder, "Envelope ready {} i:{} t:{}",
-                   hexAbbrev(xdrSha256(envelope)), slot,
-                   envelope.statement.pledges.type());
-    }
+    CLOG_TRACE(Herder, "Envelope ready {} i:{} t:{}",
+               hexAbbrev(xdrSha256(envelope)), slot,
+               envelope.statement.pledges.type());
 
     // envelope has been fetched completely, but SCP has not done
     // any validation on values yet. Regardless, record cost of this
@@ -579,7 +573,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         }
     }
 
-    if (needSomething && Logging::logTrace("Herder"))
+    if (needSomething)
     {
         CLOG_TRACE(Herder, "StartFetch env {} i:{} t:{}",
                    hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
@@ -599,12 +593,9 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
         mTxSetFetcher.stopFetch(h2, envelope);
     }
 
-    if (Logging::logTrace("Herder"))
-    {
-        CLOG_TRACE(Herder, "StopFetch env {} i:{} t:{}",
-                   hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
-                   envelope.statement.pledges.type());
-    }
+    CLOG_TRACE(Herder, "StopFetch env {} i:{} t:{}",
+               hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
+               envelope.statement.pledges.type());
 }
 
 void

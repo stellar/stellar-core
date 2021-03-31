@@ -500,9 +500,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
                              bool timedout)
 {
     ZoneScoped;
-    if (Logging::logDebug("SCP"))
-        CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
-                   mSlot.getSCP().getValueString(value->getValue()));
+    CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
+               mSlot.getSCP().getValueString(value->getValue()));
 
     bool updated = false;
 

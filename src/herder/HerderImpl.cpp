@@ -159,12 +159,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     ZoneScoped;
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
 
-    if (Logging::logDebug("Herder"))
-    {
-        CLOG_DEBUG(Herder,
-                   "HerderSCPDriver::valueExternalized index: {} txSet: {}",
-                   slotIndex, hexAbbrev(value.txSetHash));
-    }
+    CLOG_DEBUG(Herder, "HerderSCPDriver::valueExternalized index: {} txSet: {}",
+               slotIndex, hexAbbrev(value.txSetHash));
 
     if (getSCP().isValidator() && !validated)
     {
@@ -351,10 +347,9 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     ZoneScoped;
     uint64 slotIndex = envelope.statement.slotIndex;
 
-    if (Logging::logDebug("Herder"))
-        CLOG_DEBUG(Herder, "emitEnvelope s:{} i:{} a:{}",
-                   envelope.statement.pledges.type(), slotIndex,
-                   mApp.getStateHuman());
+    CLOG_DEBUG(Herder, "emitEnvelope s:{} i:{} a:{}",
+               envelope.statement.pledges.type(), slotIndex,
+               mApp.getStateHuman());
 
     persistSCPState(slotIndex);
 
@@ -368,10 +363,9 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
     auto result = mTransactionQueue.tryAdd(tx);
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        if (Logging::logTrace("Herder"))
-            CLOG_TRACE(Herder, "recv transaction {} for {}",
-                       hexAbbrev(tx->getFullHash()),
-                       KeyUtils::toShortString(tx->getSourceID()));
+        CLOG_TRACE(Herder, "recv transaction {} for {}",
+                   hexAbbrev(tx->getFullHash()),
+                   KeyUtils::toShortString(tx->getSourceID()));
     }
     return result;
 }
@@ -473,7 +467,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
         abort();
     }
 
-    if (!b && Logging::logTrace("Herder"))
+    if (!b)
     {
         CLOG_TRACE(Herder, "Invalid close time processing {}",
                    getSCP().envToStr(st));
@@ -586,14 +580,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     {
         std::string txt("READY");
         ZoneText(txt.c_str(), txt.size());
-        if (Logging::logDebug("Herder"))
-        {
-            CLOG_DEBUG(
-                Herder, "recvSCPEnvelope (ready) from: {} s:{} i:{} a:{}",
-                mApp.getConfig().toShortString(envelope.statement.nodeID),
-                envelope.statement.pledges.type(), envelope.statement.slotIndex,
-                mApp.getStateHuman());
-        }
+        CLOG_DEBUG(Herder, "recvSCPEnvelope (ready) from: {} s:{} i:{} a:{}",
+                   mApp.getConfig().toShortString(envelope.statement.nodeID),
+                   envelope.statement.pledges.type(),
+                   envelope.statement.slotIndex, mApp.getStateHuman());
 
         processSCPQueue();
     }
@@ -609,14 +599,11 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             std::string txt("PROCESSED");
             ZoneText(txt.c_str(), txt.size());
         }
-        if (Logging::logTrace("Herder"))
-        {
-            CLOG_TRACE(
-                Herder, "recvSCPEnvelope ({}) from: {} s:{} i:{} a:{}", status,
-                mApp.getConfig().toShortString(envelope.statement.nodeID),
-                envelope.statement.pledges.type(), envelope.statement.slotIndex,
-                mApp.getStateHuman());
-        }
+        CLOG_TRACE(Herder, "recvSCPEnvelope ({}) from: {} s:{} i:{} a:{}",
+                   status,
+                   mApp.getConfig().toShortString(envelope.statement.nodeID),
+                   envelope.statement.pledges.type(),
+                   envelope.statement.slotIndex, mApp.getStateHuman());
     }
     return status;
 }

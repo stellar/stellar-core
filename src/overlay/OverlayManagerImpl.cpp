@@ -976,14 +976,11 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
 {
     ZoneScoped;
     auto logMessage = [&](bool unique, std::string const& msgType) {
-        if (Logging::logTrace("Overlay"))
-        {
-            CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {}",
-                       (unique ? "unique" : "duplicate"),
-                       peer->msgSummary(stellarMsg), msgType,
-                       xdr::xdr_argpack_size(stellarMsg),
-                       mApp.getConfig().toShortString(peer->getPeerID()));
-        }
+        CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {}",
+                   (unique ? "unique" : "duplicate"),
+                   peer->msgSummary(stellarMsg), msgType,
+                   xdr::xdr_argpack_size(stellarMsg),
+                   mApp.getConfig().toShortString(peer->getPeerID()));
     };
 
     bool flood = false;

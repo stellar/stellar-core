@@ -910,8 +910,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     }
     else
     {
-        if (Logging::logTrace("Overlay"))
-            CLOG_TRACE(Overlay, "No quorum set: {}", hexAbbrev(msg.qSetHash()));
+        CLOG_TRACE(Overlay, "No quorum set: {}", hexAbbrev(msg.qSetHash()));
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
