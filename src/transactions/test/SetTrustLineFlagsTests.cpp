@@ -91,22 +91,6 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
                               ex_PAYMENT_SRC_NOT_AUTHORIZED);
         }
 
-        SECTION("remove offers by pulling auth while clawback is enabled")
-        {
-            auto market = TestMarket{*app};
-
-            gateway.setOptions(setFlags(AUTH_CLAWBACK_ENABLED_FLAG));
-            a2.changeTrust(idr, trustLineLimit);
-
-            auto offer = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(a2, {native, idr, Price{1, 1}, 1});
-            });
-
-            market.requireChanges({{offer.key, OfferState::DELETED}}, [&] {
-                gateway.denyTrust(idr, a2, TrustFlagOp::SET_TRUST_LINE_FLAGS);
-            });
-        }
-
         SECTION("empty flags")
         {
             // verify that the setTrustLineFlags call is a noop
