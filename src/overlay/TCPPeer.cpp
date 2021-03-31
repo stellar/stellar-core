@@ -83,15 +83,14 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
     if (!ec)
     {
-        CLOG_DEBUG(Overlay, "TCPPeer:accept@{}", app.getConfig().PEER_PORT);
+        CLOG_DEBUG(Overlay, "TCPPeer:accept");
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
         result->startRecurrentTimer();
         result->startRead();
     }
     else
     {
-        CLOG_DEBUG(Overlay, "TCPPeer:accept@{} error {}",
-                   app.getConfig().PEER_PORT, ec.message());
+        CLOG_DEBUG(Overlay, "TCPPeer:accept error {}", ec.message());
     }
 
     return result;

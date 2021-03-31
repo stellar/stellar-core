@@ -87,8 +87,7 @@ void
 OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "Removing peer {} @{}", peer->toString(),
-               mOverlayManager.mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "Removing peer {}", peer->toString());
     assert(peer->getState() == Peer::CLOSING);
 
     auto pendingIt =
@@ -122,9 +121,8 @@ bool
 OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {} @{}",
-               peer->toString(), peer->getState(),
-               mOverlayManager.mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {}",
+               peer->toString(), peer->getState());
     auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
     if (pendingIt == std::end(mPending))
     {
@@ -161,8 +159,8 @@ bool
 OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {} @{}",
-               peer->toString(), mOverlayManager.mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {}",
+               peer->toString());
     if (mOverlayManager.isPreferred(peer.get()))
     {
         if (mAuthenticated.size() < mMaxAuthenticatedCount)
@@ -310,8 +308,7 @@ bool
 OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
                                   bool forceoutbound)
 {
-    CLOG_TRACE(Overlay, "Connect to {} @{}", address.toString(),
-               mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -320,9 +317,8 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
         {
             CLOG_DEBUG(Overlay,
                        "Peer rejected - all outbound pending connections "
-                       "taken: {} @{}",
-                       currentConnection->toString(),
-                       mApp.getConfig().PEER_PORT);
+                       "taken: {}",
+                       currentConnection->toString());
             return false;
         }
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
@@ -504,8 +500,7 @@ void
 OverlayManagerImpl::tick()
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "OverlayManagerImpl tick  @{}",
-               mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "OverlayManagerImpl tick");
 
     if (futureIsReady(mResolvedPeers))
     {
@@ -683,8 +678,7 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
                    Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
-    CLOG_DEBUG(Overlay, "New (inbound) connected peer {} @{}", peer->toString(),
-               mApp.getConfig().PEER_PORT);
+    CLOG_DEBUG(Overlay, "New (inbound) connected peer {}", peer->toString());
     mInboundPeers.mConnectionsEstablished.Mark();
     mInboundPeers.mPending.push_back(peer);
     updateSizeCounters();
@@ -711,8 +705,8 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
         if (!mShuttingDown)
         {
             CLOG_DEBUG(Overlay,
-                       "Peer rejected - all outbound connections taken: {} @{}",
-                       peer->toString(), mApp.getConfig().PEER_PORT);
+                       "Peer rejected - all outbound connections taken: {}",
+                       peer->toString());
             CLOG_DEBUG(Overlay, "If you wish to allow for more pending "
                                 "outbound connections, please update "
                                 "your MAX_PENDING_CONNECTIONS setting in "
@@ -725,8 +719,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
                    Peer::DropMode::IGNORE_WRITE_QUEUE);
         return false;
     }
-    CLOG_DEBUG(Overlay, "New (outbound) connected peer {} @{}",
-               peer->toString(), mApp.getConfig().PEER_PORT);
+    CLOG_DEBUG(Overlay, "New (outbound) connected peer {}", peer->toString());
     mOutboundPeers.mConnectionsEstablished.Mark();
     mOutboundPeers.mPending.push_back(peer);
     updateSizeCounters();
@@ -822,8 +815,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     if (mConfigurationPreferredPeers.find(peer->getAddress()) !=
         mConfigurationPreferredPeers.end())
     {
-        CLOG_DEBUG(Overlay, "Peer {} is preferred  @{}", pstr,
-                   mApp.getConfig().PEER_PORT);
+        CLOG_DEBUG(Overlay, "Peer {} is preferred", pstr);
         return true;
     }
 
@@ -831,15 +823,13 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     {
         if (mApp.getConfig().PREFERRED_PEER_KEYS.count(peer->getPeerID()) != 0)
         {
-            CLOG_DEBUG(Overlay, "Peer key {} is preferred @{}",
-                       mApp.getConfig().toShortString(peer->getPeerID()),
-                       mApp.getConfig().PEER_PORT);
+            CLOG_DEBUG(Overlay, "Peer key {} is preferred",
+                       mApp.getConfig().toShortString(peer->getPeerID()));
             return true;
         }
     }
 
-    CLOG_TRACE(Overlay, "Peer {} is not preferred @{}", pstr,
-               mApp.getConfig().PEER_PORT);
+    CLOG_TRACE(Overlay, "Peer {} is not preferred", pstr);
     return false;
 }
 
@@ -988,12 +978,11 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     auto logMessage = [&](bool unique, std::string const& msgType) {
         if (Logging::logTrace("Overlay"))
         {
-            CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {} @{}",
+            CLOG_TRACE(Overlay, "recv: {} {} ({}) of size: {} from: {}",
                        (unique ? "unique" : "duplicate"),
                        peer->msgSummary(stellarMsg), msgType,
                        xdr::xdr_argpack_size(stellarMsg),
-                       mApp.getConfig().toShortString(peer->getPeerID()),
-                       mApp.getConfig().PEER_PORT);
+                       mApp.getConfig().toShortString(peer->getPeerID()));
         }
     };
 

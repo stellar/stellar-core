@@ -72,8 +72,7 @@ PeerDoor::acceptNextPeer()
 void
 PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
-    CLOG_DEBUG(Overlay, "PeerDoor handleKnock() @{}",
-               mApp.getConfig().PEER_PORT);
+    CLOG_DEBUG(Overlay, "PeerDoor handleKnock()");
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
     if (peer)
     {
