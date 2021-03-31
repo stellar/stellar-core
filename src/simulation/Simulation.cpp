@@ -14,6 +14,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/finally.h"
 #include "util/types.h"
 
 #include <fmt/format.h>
@@ -378,6 +379,14 @@ Simulation::crankAllNodes(int nbTicks)
 
     VirtualTimer mainQuantumTimer(*mIdleApp);
 
+    bool debugFmt = Logging::logDebug("Process");
+
+    auto h = gsl::finally([&]() {
+        if (debugFmt)
+        {
+            Logging::setFmt("<test>");
+        }
+    });
     int i = 0;
     do
     {
@@ -435,6 +444,11 @@ Simulation::crankAllNodes(int nbTicks)
                         // node caught up, don't give it any compute
                         continue;
                     }
+                }
+                if (debugFmt)
+                {
+                    Logging::setFmt(fmt::format(
+                        "<test-{}>", p.second.mApp->getConfig().PEER_PORT));
                 }
                 crankNode(p.first, nextTime);
             }

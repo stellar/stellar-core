@@ -209,11 +209,15 @@ void
 Logging::setFmt(std::string const& peerID, bool timestamps)
 {
 #if defined(USE_SPDLOG)
+    auto pattern =
+        fmt::format("%Y-%m-%dT%H:%M:%S.%e {} [%^%n %l%$] %v", peerID);
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    init();
-    mLastPattern = std::string("%Y-%m-%dT%H:%M:%S.%e ") + peerID +
-                   std::string(" [%^%n %l%$] %v");
-    spdlog::set_pattern(mLastPattern);
+    if (pattern != mLastPattern)
+    {
+        init();
+        mLastPattern = std::move(pattern);
+        spdlog::set_pattern(mLastPattern);
+    }
 #endif
 }
 
