@@ -242,6 +242,8 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     cfg1.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
 #endif
 
+    bool const unsafeEmitMeta = GENERATE(true, false);
+
     // Step 3: pass it to an application and have it catch up to the generated
     // history, streaming ledgerCloseMeta to the file descriptor.
     Hash hash;
@@ -257,6 +259,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.MODE_USES_IN_MEMORY_LEDGER = false;
         cfg.MODE_ENABLES_BUCKETLIST = true;
         cfg.MODE_KEEPS_BUCKETS = false;
+        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg, /*newdb=*/false);
 
@@ -279,6 +282,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
 
     // Step 4: reopen the file as an XDR stream and read back the LCMs
     // and check they have the expected content.
+    //
+    // The !UNSAFE_EMIT_META_EARLY case should still have streamed the latest
+    // meta, because catchup should have validated that ledger's hash by
+    // validating a chain of hashes back from one obtained from consensus.
     XDRInputFileStream stream;
     stream.open(path);
     LedgerCloseMeta lcm;
