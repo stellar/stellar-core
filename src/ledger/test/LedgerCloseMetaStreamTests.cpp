@@ -298,3 +298,55 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     REQUIRE(nLcm == 0x13f);
     REQUIRE(lcm.v0().ledgerHeader.hash == hash);
 }
+
+TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
+          "[ledgerclosemetastreamlive][ledgerclosemetastreamreplay]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+
+    SECTION("UNSAFE_EMIT_META_EARLY may take either value (which is ignored) "
+            "without "
+            "METADATA_OUTPUT_STREAM")
+    {
+        cfg.METADATA_OUTPUT_STREAM = "";
+        auto const unsafeEmitMeta = GENERATE(false, true);
+        auto const inMemory = GENERATE(false, true);
+        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
+        cfg.MODE_USES_IN_MEMORY_LEDGER = inMemory;
+        REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
+    }
+
+    SECTION(
+        "!UNSAFE_EMIT_META_EARLY together with METADATA_OUTPUT_STREAM requires "
+        "--in-memory")
+    {
+        TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
+        TmpDir td = tdm.tmpDir("streams");
+        std::string path = td.getName() + "/stream.xdr";
+        std::string metaStream;
+
+#ifdef _WIN32
+        metaStream = path;
+#else
+        int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
+        REQUIRE(fd != -1);
+        metaStream = fmt::format("fd:{}", fd);
+#endif
+
+        cfg.METADATA_OUTPUT_STREAM = metaStream;
+        auto const unsafeEmitMeta = GENERATE(false, true);
+        auto const inMemory = GENERATE(false, true);
+        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
+        cfg.MODE_USES_IN_MEMORY_LEDGER = inMemory;
+        if (!unsafeEmitMeta && !inMemory)
+        {
+            REQUIRE_THROWS_AS(createTestApplication(clock, cfg)->start(),
+                              std::invalid_argument);
+        }
+        else
+        {
+            REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
+        }
+    }
+}
