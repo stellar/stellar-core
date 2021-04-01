@@ -7,6 +7,7 @@
 #include "TxSetFrame.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include "util/optional.h"
 #include <string>
 
 namespace stellar
@@ -22,6 +23,11 @@ namespace stellar
 class LedgerCloseData
 {
   public:
+    LedgerCloseData(uint32_t ledgerSeq,
+                    std::shared_ptr<AbstractTxSetFrameForApply> txSet,
+                    StellarValue const& v,
+                    optional<Hash> const& expectedLedgerHash);
+
     LedgerCloseData(uint32_t ledgerSeq,
                     std::shared_ptr<AbstractTxSetFrameForApply> txSet,
                     StellarValue const& v);
@@ -41,11 +47,17 @@ class LedgerCloseData
     {
         return mValue;
     }
+    optional<Hash> const&
+    getExpectedHash() const
+    {
+        return mExpectedLedgerHash;
+    }
 
   private:
     uint32_t mLedgerSeq;
     std::shared_ptr<AbstractTxSetFrameForApply> mTxSet;
     StellarValue mValue;
+    optional<Hash> mExpectedLedgerHash;
 };
 
 std::string stellarValueToString(Config const& c, StellarValue const& sv);
