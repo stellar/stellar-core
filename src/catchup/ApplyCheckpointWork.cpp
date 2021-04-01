@@ -239,8 +239,9 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     }
 #endif
 
-    return std::make_shared<LedgerCloseData>(header.ledgerSeq, txset,
-                                             header.scpValue);
+    return std::make_shared<LedgerCloseData>(
+        header.ledgerSeq, txset, header.scpValue,
+        make_optional<Hash>(mHeaderHistoryEntry.hash));
 }
 
 BasicWork::State
