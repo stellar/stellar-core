@@ -2586,7 +2586,7 @@ TEST_CASE("slot herder policy", "[herder]")
     Config cfg(getTestConfig());
 
     // start in sync
-    cfg.FORCE_SCP = true;
+    cfg.FORCE_SCP = false;
     cfg.MANUAL_CLOSE = false;
     cfg.NODE_SEED = v0SecretKey;
     cfg.MAX_SLOTS_TO_REMEMBER = 5;
@@ -2599,6 +2599,7 @@ TEST_CASE("slot herder policy", "[herder]")
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
+    app->start();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 

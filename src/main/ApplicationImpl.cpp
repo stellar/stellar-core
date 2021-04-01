@@ -401,21 +401,8 @@ ApplicationImpl::timeNow()
 }
 
 void
-ApplicationImpl::start()
+ApplicationImpl::validateAndLogConfig()
 {
-    if (mStarted)
-    {
-        CLOG_INFO(Ledger, "Skipping application start up");
-        return;
-    }
-    CLOG_INFO(Ledger, "Starting up application");
-    mStarted = true;
-
-    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
-    {
-        mHerder->setUpgrades(mConfig);
-    }
-
     if (mConfig.FORCE_SCP && !mConfig.NODE_IS_VALIDATOR)
     {
         throw std::invalid_argument(
@@ -467,6 +454,23 @@ ApplicationImpl::start()
     }
 
     mConfig.logBasicInfo();
+}
+
+void
+ApplicationImpl::start()
+{
+    if (mStarted)
+    {
+        CLOG_INFO(Ledger, "Skipping application start up");
+        return;
+    }
+    CLOG_INFO(Ledger, "Starting up application");
+    mStarted = true;
+
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
 
     bool done = false;
     mLedgerManager->loadLastKnownLedger([this,

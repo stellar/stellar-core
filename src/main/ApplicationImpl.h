@@ -94,6 +94,8 @@ class ApplicationImpl : public Application
     // returns.
     virtual void joinAllThreads() override;
 
+    virtual void validateAndLogConfig() override;
+
     virtual std::string
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) override;
