@@ -167,6 +167,22 @@ network's most recent checkpoint, but this behaviour can be further modified usi
 cause the node to start with a fast in-memory catchup to ledger `N` with hash `HEXHASH`, and then
 replay ledgers forward to the current state of the network.
 
+A stateless and meta-streaming node can additionally be configured with
+`UNSAFE_EMIT_META_EARLY=false` (if unspecified, the default is `true`).  If
+`UNSAFE_EMIT_META_EARLY` is `false`, then the node will defer emitting meta for
+a ledger `<N>` until the _next_ ledger, `<N+1>`, closes.  The idea is that if a
+node suffers local corruption in a ledger because of a software bug or hardware
+fault, it will be unable to close the _next_ ledger because it won't be able to
+reach consensus with other nodes. Therefore, the meta for the corrupted ledger
+will never be emitted.  With `UNSAFE_EMIT_META_EARLY` set to `true`, local
+corruption could cause a node to emit meta that were inconsistent with what the
+network reached consensus on.  Setting `UNSAFE_EMIT_META_EARLY` to `false` does
+have a cost, though:  clients waiting for the meta to determine the result of a
+transaction will have to wait for an extra ledger close duration.
+
+During catchup from history archives, a stateless node can emit meta for the
+latest ledger replayed even if `UNSAFE_EMIT_META_EARLY` is `false`, because it
+can validate the latest ledger's hash from the history archive.
 
 #### Publish backlog
 There is a command `publish` that allows to flush the publish backlog without starting

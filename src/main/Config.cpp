@@ -119,6 +119,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
+    UNSAFE_EMIT_META_EARLY = true;
     // automatic maintenance settings:
     // 11 minutes is relatively short and prime with 1 hour
     // which will cause automatic maintenance to rarely conflict with any other
@@ -779,6 +780,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "METADATA_OUTPUT_STREAM")
             {
                 METADATA_OUTPUT_STREAM = readString(item);
+            }
+            else if (item.first == "UNSAFE_EMIT_META_EARLY")
+            {
+                UNSAFE_EMIT_META_EARLY = readBool(item);
             }
             else if (item.first == "KNOWN_CURSORS")
             {

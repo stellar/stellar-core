@@ -204,6 +204,10 @@ class Config : public std::enable_shared_from_this<Config>
     // production validators.
     bool MODE_USES_IN_MEMORY_LEDGER;
 
+    // A config parameter that can be set to false (in a captive-core
+    // configuration) to defer emitting metadata by one ledger.
+    bool UNSAFE_EMIT_META_EARLY;
+
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY;

@@ -432,6 +432,18 @@ ApplicationImpl::start()
             "RUN_STANDALONE is not set");
     }
 
+    // UNSAFE_EMIT_META_EARLY is only meaningful when there's a
+    // METADATA_OUTPUT_STREAM.  We only allow !UNSAFE_EMIT_META_EARLY on a
+    // captive core, without a persistent database; old-style ingestion which
+    // reads from the core database could do the delaying itself.
+    if (mConfig.METADATA_OUTPUT_STREAM != "" &&
+        !mConfig.UNSAFE_EMIT_META_EARLY && !mConfig.MODE_USES_IN_MEMORY_LEDGER)
+    {
+        throw std::invalid_argument("Using a METADATA_OUTPUT_STREAM with "
+                                    "UNSAFE_EMIT_META_EARLY set to false "
+                                    "requires --in-memory");
+    }
+
     if (isNetworkedValidator)
     {
         bool inMemory = mConfig.DATABASE.value == "sqlite3://:memory:" &&
