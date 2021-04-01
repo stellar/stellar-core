@@ -55,6 +55,8 @@ class LedgerManagerImpl : public LedgerManager
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
     medida::Timer& mCatchupDuration;
 
+    std::unique_ptr<LedgerCloseMeta> mNextMetaToEmit;
+
     void
     processFeesSeqNums(std::vector<TransactionFrameBasePtr>& txs,
                        AbstractLedgerTxn& ltxOuter, int64_t baseFee,
@@ -74,6 +76,8 @@ class LedgerManagerImpl : public LedgerManager
 
     State mState;
     void setState(State s);
+
+    void emitNextMeta();
 
   protected:
     virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,

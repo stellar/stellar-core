@@ -504,6 +504,16 @@ LedgerManagerImpl::syncMetrics()
     mApp.syncOwnMetrics();
 }
 
+void
+LedgerManagerImpl::emitNextMeta()
+{
+    releaseAssert(mNextMetaToEmit);
+    releaseAssert(mMetaStream);
+    mMetaStream->writeOne(*mNextMetaToEmit);
+    mMetaStream->flush();
+    mNextMetaToEmit.reset();
+}
+
 /*
     This is the main method that closes the current ledger based on
 the close context that was computed by SCP or by the historical module
@@ -579,12 +589,17 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
-    std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
     if (mMetaStream)
     {
-        ledgerCloseMeta = std::make_unique<LedgerCloseMeta>();
-        ledgerCloseMeta->v0().txProcessing.reserve(txSet->sizeTx());
-        txSet->toXDR(ledgerCloseMeta->v0().txSet);
+        if (mNextMetaToEmit)
+        {
+            releaseAssert(mNextMetaToEmit->v0().ledgerHeader.hash ==
+                          getLastClosedLedgerHeader().hash);
+            emitNextMeta();
+        }
+        mNextMetaToEmit = std::make_unique<LedgerCloseMeta>();
+        mNextMetaToEmit->v0().txProcessing.reserve(txSet->sizeTx());
+        txSet->toXDR(mNextMetaToEmit->v0().txSet);
     }
 
     // the transaction set that was agreed upon by consensus
@@ -595,11 +610,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // first, prefetch source accounts fot txset, then charge fees
     prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx, txSet->getBaseFee(header.current()),
-                       ledgerCloseMeta);
+                       mNextMetaToEmit);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
+    applyTransactions(txs, ltx, txResultSet, mNextMetaToEmit);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -632,9 +647,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
             auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
             LedgerEntryChanges changes = ltxUpgrade.getChanges();
-            if (ledgerCloseMeta)
+            if (mNextMetaToEmit)
             {
-                auto& up = ledgerCloseMeta->v0().upgradesProcessing;
+                auto& up = mNextMetaToEmit->v0().upgradesProcessing;
                 up.emplace_back();
                 UpgradeEntryMeta& uem = up.back();
                 uem.upgrade = lupgrade;
@@ -662,12 +677,23 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     ledgerClosed(ltx);
 
+    if (ledgerData.getExpectedHash() &&
+        *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
+    {
+        throw std::runtime_error("Local node's ledger corrupted during close");
+    }
+
     if (mMetaStream)
     {
-        releaseAssert(ledgerCloseMeta);
-        ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
-        mMetaStream->writeOne(*ledgerCloseMeta);
-        mMetaStream->flush();
+        releaseAssert(mNextMetaToEmit);
+        mNextMetaToEmit->v0().ledgerHeader = mLastClosedLedger;
+        // If the LedgerCloseData provided an expected hash, then we validated
+        // it above.
+        if (mApp.getConfig().UNSAFE_EMIT_META_EARLY ||
+            ledgerData.getExpectedHash())
+        {
+            emitNextMeta();
+        }
     }
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
