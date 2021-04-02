@@ -23,7 +23,7 @@ At this point you're waiting on us. We like to at least comment on pull requests
 * Try to separate logically distinct changes into separate commits and thematically distinct
   commits into separate pull requests.
 * Please ensure that all tests pass before submitting changes. The local testsuite can be run as
-  `make check` or `src/stellar-core test`, see [README](./README.md) for details on running tests.
+  `make check` or `src/stellar-core test`, see [Running Tests](#running-tests).
 
 ### Keeping our commit history clean
 
@@ -40,7 +40,7 @@ master as you pull changes from upstream.
 ### Testing
 
 Please ensure that all tests pass before submitting changes. The local testsuite can be run as
-`make check` or `src/stellar-core --test`, see [README](./README.md) for details on running tests.
+`make check` or `src/stellar-core --test`, see [Running Tests](#running-tests).
 
 ### Code Style
 
@@ -72,7 +72,7 @@ need):
 
     ./configure --enable-extrachecks --enable-asan
 
-### enable-extrachecks
+#### enable-extrachecks
 This enables additional debug checks such as passed the end iterators.
 
 More information can be found:
@@ -80,6 +80,14 @@ More information can be found:
 * [libc++ debug mode](https://libcxx.llvm.org/docs/DesignDocs/DebugMode.html#using-debug-mode)
   * Note that when using the default libc++, we set `_LIBCPP_DEBUG=0` to avoid compatibility issues with the default shared runtimes.
   * To enable full debug mode `_LIBCPP_DEBUG=1`, you need to build a custom libc++ with the same flags, including `_LIBCPP_DEBUG=1` (see below on how to do this)
+
+### Special configure flags for unreleased protocol versions
+
+When building with `configure`, the flag below must be used to enable unreleased protocol
+versions. If this flag is not provided code and tests relating to the next protocol version will
+not execute.
+
+    ./configure --enable-next-protocol-version-unsafe-for-production
 
 ## Sanitizers
 
@@ -123,7 +131,14 @@ to the configure script).
 
 # Running tests
 
-## Running tests basics
+There are two ways to run tests:
+
+- `src/stellar-core test`
+- `make check`
+
+Always build before running tests, unless using `make check` which will build for you. See [INSTALL.md](./INSTALL.md) for instructions for how to build.
+
+## Running tests basics with `src/stellar-core test`
 run tests with:
   `src/stellar-core test`
 
@@ -135,9 +150,9 @@ run one test category with:
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
-Tests tagged as [.] or [hide] are not part of the default test.
+Tests tagged as `[.]` or `[hide]` are not part of the default test.
 
-Tests tagged as [acceptance] are not part of `make check` test runs.
+Tests tagged as `[acceptance]` are not part of `make check` test runs.
 
 supported test options can be seen with
   `src/stellar-core test --help`
@@ -147,6 +162,8 @@ display tests timing information:
 
 xml test output (includes nested section information):
   `src/stellar-core test -r xml '[categoryName]'`
+
+Tests may also be run with `make check`, see [Running tests in parallel](#running tests-in-parallel-with-make-check).
 
 ## Running tests against postgreSQL
 
@@ -166,17 +183,19 @@ are appropriately set, then run the following from bash:
 You will need to set the `TEMP_POSTGRES` environment variable to 0
 in order to use an existing database cluster.
 
-## Running tests in parallel
+## Running tests in parallel with `make check`
 
-The `make check` command also supports parallelization. This functionality is
-enabled with the following environment variables:
+The `make check` command runs tests and supports parallelization. This functionality is enabled with the following environment variables:
+* `ALL_VERSIONS`: If 0, runs the latest protocol version, if 1 runs all protocol version tests.
 * `TEST_SPEC`: Used to run just a subset of the tests (default: "~[.]")
 * `NUM_PARTITIONS`: Partitions the test suite (after applying `TEST_SPEC`) into
 `$NUM_PARTITIONS` disjoint sets (default: 1)
+* `BATCH_SIZE`: The number of tests to be batched together to reduce setup overhead. (default: 5)
 * `RUN_PARTITIONS`: Run only a subset of the partitions, indexed from 0
 (default: "$(seq 0 $((NUM_PARTITIONS-1)))")
 * `TEMP_POSTGRES`: Automatically generates temporary database clusters instead
 of using an existing cluster (default: 1)
+* `RND_SEED`: Can be set to a specific value to affect the random test ordering. (default: 1)
 
 For example,
 `env TEST_SPEC="[history]" NUM_PARTITIONS=4 RUN_PARTITIONS="0 1 3" make check`
