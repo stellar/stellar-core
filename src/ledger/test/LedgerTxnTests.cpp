@@ -3707,3 +3707,66 @@ TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
         }
     }
 }
+
+TEST_CASE("LedgerTxn best offers cache eviction", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto buying = autocheck::generator<Asset>()(UINT32_MAX);
+    auto selling = autocheck::generator<Asset>()(UINT32_MAX);
+    while (buying == selling)
+    {
+        selling = autocheck::generator<Asset>()(UINT32_MAX);
+    }
+
+    // Populate the database with two offers involving the same asset pair
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        LedgerEntry le;
+        le.data.type(OFFER);
+        auto& oe = le.data.offer();
+        oe.offerID = 1;
+        oe.price = Price{1, 1};
+        oe.buying = buying;
+        oe.selling = selling;
+        ltx.create(le);
+
+        oe.offerID = 2;
+        ltx.create(le);
+
+        ltx.commit();
+    }
+
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+        // If the implementation involves caching, try to churn the cache
+        {
+            LedgerTxn ltx2(ltx1);
+            auto ltxe1 = ltx2.loadBestOffer(buying, selling);
+            REQUIRE(ltxe1.current().data.offer().offerID == 1);
+            ltxe1.erase();
+
+            for (size_t i = 0; i < 100; ++i)
+            {
+                auto a1 = autocheck::generator<Asset>()(UINT32_MAX);
+                auto a2 = autocheck::generator<Asset>()(UINT32_MAX);
+                if (!(a1 == a2))
+                {
+                    ltx2.loadBestOffer(a1, a2);
+                }
+            }
+
+            auto ltxe2 = ltx2.loadBestOffer(buying, selling);
+            REQUIRE(ltxe2.current().data.offer().offerID == 2);
+        }
+
+        // Access the cache to check if it is valid
+        auto ltxe = ltx1.loadBestOffer(buying, selling);
+        REQUIRE(ltxe.current().data.offer().offerID == 1);
+    }
+}
