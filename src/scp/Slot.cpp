@@ -83,10 +83,8 @@ Slot::setStateFromEnvelope(SCPEnvelopeWrapperPtr env)
     }
     else
     {
-        if (Logging::logTrace("SCP"))
-            CLOG_TRACE(SCP,
-                       "Slot::setStateFromEnvelope invalid envelope i: {} {}",
-                       getSlotIndex(), mSCP.envToStr(e));
+        CLOG_TRACE(SCP, "Slot::setStateFromEnvelope invalid envelope i: {} {}",
+                   getSlotIndex(), mSCP.envToStr(e));
     }
 }
 
@@ -130,9 +128,8 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 {
     dbgAssert(envelope->getStatement().slotIndex == mSlotIndex);
 
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "Slot::processEnvelope i: {} {}", getSlotIndex(),
-                   mSCP.envToStr(envelope->getEnvelope()));
+    CLOG_TRACE(SCP, "Slot::processEnvelope i: {} {}", getSlotIndex(),
+               mSCP.envToStr(envelope->getEnvelope()));
 
     SCP::EnvelopeState res;
 

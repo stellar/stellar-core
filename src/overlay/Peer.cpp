@@ -70,8 +70,7 @@ void
 Peer::sendHello()
 {
     ZoneScoped;
-    CLOG_DEBUG(Overlay, "Peer::sendHello to {} @{}", toString(),
-               mApp.getConfig().PEER_PORT);
+    CLOG_DEBUG(Overlay, "Peer::sendHello to {}", toString());
     StellarMessage msg;
     msg.type(HELLO);
     Hello& elo = msg.hello();
@@ -210,8 +209,7 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
-        CLOG_DEBUG(Overlay, "Connected to {} @{}", toString(),
-                   mApp.getConfig().PEER_PORT);
+        CLOG_DEBUG(Overlay, "Connected to {}", toString());
         connected();
         mState = CONNECTED;
         sendHello();
@@ -397,12 +395,8 @@ void
 Peer::sendMessage(StellarMessage const& msg, bool log)
 {
     ZoneScoped;
-    //    if (log && Logging::logTrace("Overlay"))
-    //    {
-    CLOG_TRACE(Overlay, "send: {} to : {} @{}", msgSummary(msg),
-               mApp.getConfig().toShortString(mPeerID),
-               mApp.getConfig().PEER_PORT);
-    //    }
+    CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(msg),
+               mApp.getConfig().toShortString(mPeerID));
 
     // There are really _two_ layers of queues, one in Scheduler for actions and
     // one in Peer (and its subclasses) for outgoing writes. We enforce a
@@ -916,8 +910,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     }
     else
     {
-        if (Logging::logTrace("Overlay"))
-            CLOG_TRACE(Overlay, "No quorum set: {}", hexAbbrev(msg.qSetHash()));
+        CLOG_TRACE(Overlay, "No quorum set: {}", hexAbbrev(msg.qSetHash()));
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
@@ -1107,8 +1100,7 @@ Peer::recvHello(Hello const& elo)
     mAddress =
         PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
 
-    CLOG_DEBUG(Overlay, "recvHello from {} @{}", toString(),
-               mApp.getConfig().PEER_PORT);
+    CLOG_DEBUG(Overlay, "recvHello from {}", toString());
 
     auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)

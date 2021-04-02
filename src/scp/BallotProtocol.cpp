@@ -375,9 +375,8 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
         newb.value = value;
     }
 
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::bumpState i: {} v: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(newb));
+    CLOG_TRACE(SCP, "BallotProtocol::bumpState i: {} v: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(newb));
 
     bool updated = updateCurrentValue(newb);
 
@@ -452,9 +451,8 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
     ZoneValue(static_cast<int64_t>(mSlot.getSlotIndex()));
     ZoneValue(static_cast<int64_t>(ballot.counter));
 
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::bumpToBallot i: {} b: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
+    CLOG_TRACE(SCP, "BallotProtocol::bumpToBallot i: {} b: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
 
     // `bumpToBallot` should be never called once we committed.
     dbgAssert(mPhase != SCP_PHASE_EXTERNALIZE);
@@ -891,9 +889,8 @@ bool
 BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
 {
     ZoneScoped;
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::setAcceptPrepared i: {} b: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
+    CLOG_TRACE(SCP, "BallotProtocol::setAcceptPrepared i: {} b: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(ballot));
 
     // update our state
     bool didWork = setPrepared(ballot);
@@ -1049,9 +1046,8 @@ bool
 BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
 {
     ZoneScoped;
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::setConfirmPrepared i: {} h: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(newH));
+    CLOG_TRACE(SCP, "BallotProtocol::setConfirmPrepared i: {} h: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(newH));
 
     bool didWork = false;
 
@@ -1311,11 +1307,9 @@ bool
 BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 {
     ZoneScoped;
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP,
-                   "BallotProtocol::setAcceptCommit i: {} new c: {} new h: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
-                   mSlot.getSCP().ballotToStr(h));
+    CLOG_TRACE(SCP, "BallotProtocol::setAcceptCommit i: {} new c: {} new h: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
+               mSlot.getSCP().ballotToStr(h));
 
     bool didWork = false;
 
@@ -1514,11 +1508,10 @@ bool
 BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
 {
     ZoneScoped;
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP,
-                   "BallotProtocol::setConfirmCommit i: {} new c: {} new h: {}",
-                   mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
-                   mSlot.getSCP().ballotToStr(h));
+    CLOG_TRACE(SCP,
+               "BallotProtocol::setConfirmCommit i: {} new c: {} new h: {}",
+               mSlot.getSlotIndex(), mSlot.getSCP().ballotToStr(c),
+               mSlot.getSCP().ballotToStr(h));
 
     mCommit = makeBallot(c);
     mHighBallot = makeBallot(h);
@@ -1870,9 +1863,8 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
 {
     ZoneScoped;
     mCurrentMessageLevel++;
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::advanceSlot {} {}",
-                   mCurrentMessageLevel, getLocalState());
+    CLOG_TRACE(SCP, "BallotProtocol::advanceSlot {} {}", mCurrentMessageLevel,
+               getLocalState());
 
     if (mCurrentMessageLevel >= MAX_ADVANCE_SLOT_RECURSION)
     {
@@ -1911,9 +1903,8 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
         checkHeardFromQuorum();
     }
 
-    if (Logging::logTrace("SCP"))
-        CLOG_TRACE(SCP, "BallotProtocol::advanceSlot {} - exiting {}",
-                   mCurrentMessageLevel, getLocalState());
+    CLOG_TRACE(SCP, "BallotProtocol::advanceSlot {} - exiting {}",
+               mCurrentMessageLevel, getLocalState());
 
     --mCurrentMessageLevel;
 

@@ -405,8 +405,7 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     auto peer = load(address);
     if (!peer.second)
     {
-        CLOG_TRACE(Overlay, "Learned peer {} @{}", address.toString(),
-                   mApp.getConfig().PEER_PORT);
+        CLOG_TRACE(Overlay, "Learned peer {}", address.toString());
         store(address, peer.first, peer.second);
     }
 }

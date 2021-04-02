@@ -209,11 +209,15 @@ void
 Logging::setFmt(std::string const& peerID, bool timestamps)
 {
 #if defined(USE_SPDLOG)
+    auto pattern =
+        fmt::format("%Y-%m-%dT%H:%M:%S.%e {} [%^%n %l%$] %v", peerID);
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    init();
-    mLastPattern = std::string("%Y-%m-%dT%H:%M:%S.%e ") + peerID +
-                   std::string(" [%^%n %l%$] %v");
-    spdlog::set_pattern(mLastPattern);
+    if (pattern != mLastPattern)
+    {
+        init();
+        mLastPattern = std::move(pattern);
+        spdlog::set_pattern(mLastPattern);
+    }
 #endif
 }
 
@@ -346,14 +350,24 @@ bool
 Logging::logDebug(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::LVL_DEBUG;
+    auto it = mPartitionLogLevels.find(partition);
+    if (it != mPartitionLogLevels.end())
+    {
+        return it->second >= LogLevel::LVL_DEBUG;
+    }
+    return mGlobalLogLevel >= LogLevel::LVL_DEBUG;
 }
 
 bool
 Logging::logTrace(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::LVL_TRACE;
+    auto it = mPartitionLogLevels.find(partition);
+    if (it != mPartitionLogLevels.end())
+    {
+        return it->second >= LogLevel::LVL_TRACE;
+    }
+    return mGlobalLogLevel >= LogLevel::LVL_TRACE;
 }
 
 void

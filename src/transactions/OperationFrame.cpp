@@ -126,18 +126,12 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
 {
     ZoneScoped;
     bool res;
-    if (Logging::logTrace("Tx"))
-    {
-        CLOG_TRACE(Tx, "{}", xdr_to_string(mOperation, "Operation"));
-    }
+    CLOG_TRACE(Tx, "{}", xdr_to_string(mOperation, "Operation"));
     res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
         res = doApply(ltx);
-        if (Logging::logTrace("Tx"))
-        {
-            CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
-        }
+        CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
     return res;
