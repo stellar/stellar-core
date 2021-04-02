@@ -11,6 +11,8 @@ CACHE_MAX_DAYS=30
 WITH_TESTS=1
 export TEMP_POSTGRES=0
 
+PROTOCOL_CONFIG=""
+
 while [[ -n "$1" ]]; do
     COMMAND="$1"
     shift
@@ -23,6 +25,22 @@ while [[ -n "$1" ]]; do
     "--use-temp-db")
             export TEMP_POSTGRES=1
             echo Using temp database
+            ;;
+    "--protocol")
+            PROTOCOL="$1"
+            shift
+            echo Testing with protocol $PROTOCOL
+            case "${PROTOCOL}" in
+            "current")
+                ;;
+            "next")
+                PROTOCOL_CONFIG="--enable-next-protocol-version-unsafe-for-production"
+                ;;
+            *)
+                echo Unknown protocol ${PROTOCOL}
+                exit 1
+                ;;
+            esac
             ;;
     "")
             ;;
@@ -81,7 +99,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-next-protocol-version-unsafe-for-production"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
 export CFLAGS="-O2 -g1"
 export CXXFLAGS="-w -O2 -g1"
 
