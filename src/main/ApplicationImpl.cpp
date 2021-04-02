@@ -135,13 +135,24 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize(bool createNewDB)
 {
+    // Subtle: initialize the bucket manager first before initializing the
+    // database. This is needed as some modes in core (such as in-memory) use a
+    // small database inside the bucket directory.
+    mBucketManager = BucketManager::create(*this);
+
+    bool initNewDB =
+        createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
+    if (initNewDB)
+    {
+        mBucketManager->dropAll();
+    }
+
     mDatabase = createDatabase();
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
-    mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -192,13 +203,13 @@ ApplicationImpl::initialize(bool createNewDB)
     SponsorshipCountIsValid::registerInvariant(*this);
     enableInvariantsFromConfig();
 
-    if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")
+    if (initNewDB)
     {
         newDB();
     }
     else
     {
-        upgradeDB();
+        mDatabase->upgradeToCurrentSchema();
     }
 
     // Subtle: process manager should come to existence _after_ BucketManager
@@ -213,14 +224,7 @@ ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     mDatabase->upgradeToCurrentSchema();
-    mBucketManager->dropAll();
     mLedgerManager->startNewLedger();
-}
-
-void
-ApplicationImpl::upgradeDB()
-{
-    mDatabase->upgradeToCurrentSchema();
 }
 
 void

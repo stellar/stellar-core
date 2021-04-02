@@ -145,9 +145,9 @@ class ApplicationImpl : public Application
     asio::io_context mWorkerIOContext;
     std::unique_ptr<asio::io_context::work> mWork;
 
+    std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<OverlayManager> mOverlayManager;
-    std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<CatchupManager> mCatchupManager;
     std::unique_ptr<HerderPersistence> mHerderPersistence;
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
@@ -197,7 +197,6 @@ class ApplicationImpl : public Application
     Hash mNetworkID;
 
     void newDB();
-    void upgradeDB();
 
     void shutdownMainIOContext();
     void shutdownWorkScheduler();
