@@ -10,7 +10,6 @@
 #include "is_one_of.hpp"
 #include "function.hpp"
 #include "generator_combinators.hpp"
-#include "apply.hpp"
 
 namespace autocheck {
 
@@ -21,16 +20,24 @@ namespace autocheck {
     return rng;
   }
 
+  namespace detail {
+    template <int N, int... Is>
+    struct range : range<N - 1, N - 1, Is...> {};
+
+    template <int... Is>
+    struct range<0, Is...> {};
+  }
+
   template <typename T, typename... Gens, int... Is>
   T generate(std::tuple<Gens...>& gens, size_t size,
-      const range<0, Is...>&)
+      const detail::range<0, Is...>&)
   {
     return T(std::get<Is>(gens)(size)...);
   }
 
   template <typename T, typename... Gens>
   T generate(std::tuple<Gens...>& gens, size_t size) {
-    return generate<T>(gens, size, range<sizeof...(Gens)>());
+    return generate<T>(gens, size, detail::range<sizeof...(Gens)>());
   }
 
   /* Generators produce an infinite sequence. */
