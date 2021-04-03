@@ -101,6 +101,11 @@ to `overlay` and then `make fuzz`; this will do the following:
   - Create a directory `fuzz-findings` for storing crash-producing inputs
   - Run `afl-fuzz` on `stellar-core fuzz`, using those corpus directories
 
+If `stellar-core fuzz` (or `afl-fuzz`) produces output such as 'Warning: AFL++
+tools will need to set AFL_MAP_SIZE to 757616 to be able to run this
+instrumented program!', then you can set this environment variable to something
+sufficient, such as `export AFL_MAP_SIZE=786432`.
+
 You should get a nice old-school textmode TUI to monitor the fuzzer's progress;
 it might be partly hidden depending on the color scheme of your terminal, as it
 makes use of bold color highlighting. There are a lot of [interesting statistics][12]

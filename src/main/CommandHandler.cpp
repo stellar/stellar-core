@@ -37,6 +37,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #endif
+#include <optional>
 #include <regex>
 
 using std::placeholders::_1;
@@ -167,7 +168,7 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
 }
 
 template <typename T>
-optional<T>
+std::optional<T>
 parseOptionalParam(std::map<std::string, std::string> const& map,
                    std::string const& key)
 {
@@ -185,10 +186,10 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
                 fmt::format("Failed to parse '{}' argument", key);
             throw std::runtime_error(errorMsg);
         }
-        return make_optional<T>(val);
+        return std::make_optional<T>(val);
     }
 
-    return nullopt<T>();
+    return std::optional<T>();
 }
 
 // If the key exists and the value successfully parses, return that value.
@@ -199,7 +200,7 @@ T
 parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
                             std::string const& key, T const& defaultValue)
 {
-    optional<T> res = parseOptionalParam<T>(map, key);
+    std::optional<T> res = parseOptionalParam<T>(map, key);
     if (res)
     {
         return *res;

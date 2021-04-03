@@ -9,7 +9,6 @@
 #define SOCI_QUERY_TRANSFORMATION_H_INCLUDED
 
 #include "soci-config.h"
-#include <functional>
 #include <string>
 
 namespace soci
@@ -27,12 +26,11 @@ namespace details
 // unary function takes any type converible-to std::string
 // and returns std::string.
 
-class query_transformation_function 
-    : public std::unary_function<std::string const&, std::string>
+class query_transformation_function
 {
 public:
     virtual ~query_transformation_function() {}
-    virtual result_type operator()(argument_type a) const = 0;
+    virtual std::string operator()(std::string const& a) const = 0;
 };
 
 template <typename T>
@@ -43,7 +41,7 @@ public:
         : callback_(callback)
     {}
 
-    result_type operator()(argument_type query) const
+    std::string operator()(std::string const& query) const
     {
         return callback_(query);
     }

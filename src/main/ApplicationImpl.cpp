@@ -57,6 +57,7 @@
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -576,8 +577,8 @@ ApplicationImpl::joinAllThreads()
 }
 
 std::string
-ApplicationImpl::manualClose(optional<uint32_t> const& manualLedgerSeq,
-                             optional<TimePoint> const& manualCloseTime)
+ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
+                             std::optional<TimePoint> const& manualCloseTime)
 {
     assertThreadIsMain();
 
@@ -650,7 +651,7 @@ ApplicationImpl::manualClose(optional<uint32_t> const& manualLedgerSeq,
 
 uint32_t
 ApplicationImpl::targetManualCloseLedgerSeqNum(
-    optional<uint32_t> const& explicitlyProvidedSeqNum)
+    std::optional<uint32_t> const& explicitlyProvidedSeqNum)
 {
     auto const startLedgerSeq = getLedgerManager().getLastClosedLedgerNum();
 
@@ -692,7 +693,7 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
 
 void
 ApplicationImpl::setManualCloseVirtualTime(
-    optional<TimePoint> const& explicitlyProvidedCloseTime)
+    std::optional<TimePoint> const& explicitlyProvidedCloseTime)
 {
     TimePoint constexpr firstSecondOfYear2200GMT = 7'258'118'400ULL;
 

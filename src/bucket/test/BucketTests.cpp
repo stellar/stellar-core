@@ -272,7 +272,24 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            std::random_shuffle(live.begin(), live.end());
+            // We could just shuffle the live values, but libstdc++7 has a bug
+            // that causes self-moves when shuffling such types, in a way that
+            // traps in debug mode. Instead we shuffle indexes. See
+            // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85828
+            std::vector<size_t> liveIdxs;
+            for (size_t i = 0; i < live.size(); ++i)
+            {
+                liveIdxs.emplace_back(i);
+            }
+            std::shuffle(liveIdxs.begin(), liveIdxs.end(), gRandomEngine);
+            for (size_t src = 0; src < live.size(); ++src)
+            {
+                size_t dst = liveIdxs.at(src);
+                if (dst != src)
+                {
+                    std::swap(live.at(src), live.at(dst));
+                }
+            }
             size_t liveCount = live.size();
             for (auto& e : live)
             {
