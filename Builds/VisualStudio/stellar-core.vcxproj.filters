@@ -2177,6 +2177,9 @@
     <None Include="..\..\src\util\LogPartitions.def">
       <Filter>util</Filter>
     </None>
+    <None Include="..\..\docs\stellar-core_testnet_validator.cfg">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">

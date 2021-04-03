@@ -649,12 +649,18 @@ Config::addSelfToValidators(
     std::vector<ValidatorEntry>& validators,
     UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
 {
-    auto it = domainQualityMap.find(NODE_HOME_DOMAIN);
+    if (NODE_HOME_DOMAIN.empty())
+    {
+        throw std::invalid_argument("NODE_HOME_DOMAIN must be set");
+    }
+
     ValidatorEntry self;
     self.mKey = NODE_SEED.getPublicKey();
     self.mHomeDomain = NODE_HOME_DOMAIN;
     self.mName = "self";
     self.mHasHistory = false;
+
+    auto it = domainQualityMap.find(NODE_HOME_DOMAIN);
     if (it != domainQualityMap.end())
     {
         self.mQuality = it->second;
@@ -662,7 +668,9 @@ Config::addSelfToValidators(
     else
     {
         throw std::invalid_argument(
-            "Must specify a matching HOME_DOMAINS for self");
+            fmt::format("Validator configured with NODE_HOME_DOMAIN='{}' "
+                        "but there is no matching HOME_DOMAINS",
+                        NODE_HOME_DOMAIN));
     }
     validators.emplace_back(self);
 }
