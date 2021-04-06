@@ -434,10 +434,13 @@ ApplicationImpl::start()
 
     if (isNetworkedValidator)
     {
-        if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
+        bool inMemory = mConfig.DATABASE.value == "sqlite3://:memory:" &&
+                        !mConfig.MODE_STORES_HISTORY &&
+                        !mConfig.MODE_KEEPS_BUCKETS;
+        if (inMemory)
         {
             throw std::invalid_argument(
-                "MODE_USES_IN_MEMORY_LEDGER is set, NODE_IS_VALIDATOR is set, "
+                "In-memory mode is set, NODE_IS_VALIDATOR is set, "
                 "and RUN_STANDALONE is not set");
         }
     }

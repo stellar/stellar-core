@@ -301,8 +301,9 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
     // Adjust configs for in-memory-replay mode
     config.DATABASE = SecretValue{"sqlite3://:memory:"};
     config.MODE_STORES_HISTORY = false;
-    config.MODE_USES_IN_MEMORY_LEDGER = true;
+    config.MODE_USES_IN_MEMORY_LEDGER = false;
     config.MODE_ENABLES_BUCKETLIST = true;
+    config.MODE_KEEPS_BUCKETS = false;
     // And don't bother fsyncing buckets without a DB,
     // they're temporary anyways.
     config.DISABLE_XDR_FSYNC = true;
@@ -764,8 +765,9 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
             cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
             cfg.MODE_STORES_HISTORY = false;
             cfg.MODE_DOES_CATCHUP = false;
-            cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+            cfg.MODE_USES_IN_MEMORY_LEDGER = false;
             cfg.MODE_ENABLES_BUCKETLIST = true;
+            cfg.MODE_KEEPS_BUCKETS = false;
             cfg.DISABLE_XDR_FSYNC = true;
 
             auto app = Application::create(clock, cfg, false);
