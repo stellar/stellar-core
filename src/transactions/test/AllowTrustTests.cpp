@@ -25,27 +25,30 @@ namespace allowTrustTests
 namespace detail
 {
 
-template <typename, int> struct GetExceptionHelper;
-
-template <typename T> struct GetExceptionHelper<T, 0>
+template <int V> struct TestStub
 {
-    typedef T Value;
-};
+    // The standard prior to C++17 doesn't allow explicit specialization in
+    // non-namespace scope, so we added the dummy parameter D here to bypass
+    // this issue. D can be removed once we move to C++17.
+    template <typename, int, typename D = void> struct GetExceptionHelper;
+
+    template <typename T> struct GetExceptionHelper<T, 0>
+    {
+        typedef T Value;
+    };
 
 #define SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(M) \
-    template <> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1> \
+    template <typename D> struct GetExceptionHelper<ex_ALLOW_TRUST_##M, 1, D> \
     { \
         typedef ex_SET_TRUST_LINE_FLAGS_##M Value; \
     };
 
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(MALFORMED);
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(NO_TRUST_LINE);
-SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(CANT_REVOKE);
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(MALFORMED);
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(NO_TRUST_LINE);
+    SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST(CANT_REVOKE);
 
 #undef SET_TRUST_LINE_FLAGS_FROM_ALLOW_TRUST
 
-template <int V> struct TestStub
-{
     template <typename T>
     using GetException = typename GetExceptionHelper<T, V>::Value;
 

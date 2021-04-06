@@ -24,8 +24,8 @@
 #include "transactions/TransactionUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
+#include "util/optional.h"
 #include <fmt/format.h>
-#include <optional>
 #include <xdrpp/marshal.h>
 
 using namespace stellar;
@@ -96,8 +96,8 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     qSet.validators.push_back(keys[1].getPublicKey());
     qSet.validators.push_back(keys[2].getPublicKey());
 
-    auto setUpgrade = [](std::optional<uint32>& o, uint32 v) {
-        o = std::make_optional<uint32>(v);
+    auto setUpgrade = [](optional<uint32>& o, uint32 v) {
+        o = make_optional<uint32>(v);
     };
     // create nodes
     for (size_t i = 0; i < nodes.size(); i++)

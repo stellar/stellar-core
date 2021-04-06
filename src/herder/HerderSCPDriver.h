@@ -9,7 +9,6 @@
 #include "medida/timer.h"
 #include "scp/SCPDriver.h"
 #include "xdr/Stellar-ledger.h"
-#include <optional>
 
 namespace medida
 {
@@ -142,7 +141,7 @@ class HerderSCPDriver : public SCPDriver
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot) override;
 
-    std::optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
+    optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
     // converts a Value into a StellarValue
     // returns false on error
@@ -205,8 +204,8 @@ class HerderSCPDriver : public SCPDriver
 
     struct SCPTiming
     {
-        std::optional<VirtualClock::time_point> mNominationStart;
-        std::optional<VirtualClock::time_point> mPrepareStart;
+        optional<VirtualClock::time_point> mNominationStart;
+        optional<VirtualClock::time_point> mPrepareStart;
 
         // Nomination timeouts before first prepare
         int64_t mNominationTimeoutCount{0};
@@ -214,8 +213,8 @@ class HerderSCPDriver : public SCPDriver
         int64_t mPrepareTimeoutCount{0};
 
         // externalize timing information
-        std::optional<VirtualClock::time_point> mFirstExternalize;
-        std::optional<VirtualClock::time_point> mSelfExternalize;
+        optional<VirtualClock::time_point> mFirstExternalize;
+        optional<VirtualClock::time_point> mSelfExternalize;
     };
 
     // Map of time points for each slot to measure key protocol metrics:

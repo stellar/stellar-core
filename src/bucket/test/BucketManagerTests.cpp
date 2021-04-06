@@ -29,7 +29,6 @@
 #include "util/Timer.h"
 
 #include <cstdio>
-#include <optional>
 
 using namespace stellar;
 using namespace BucketTests;
@@ -155,7 +154,7 @@ clearFutures(Application::pointer app, BucketList& bl)
 }
 
 static Hash
-closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
+closeLedger(Application& app, optional<SecretKey> skToSignValue)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
@@ -177,7 +176,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
 static Hash
 closeLedger(Application& app)
 {
-    return closeLedger(app, std::optional<SecretKey>());
+    return closeLedger(app, nullopt<SecretKey>());
 }
 }
 
@@ -1416,12 +1415,12 @@ TEST_CASE("bucket persistence over app restart",
 
         // First, run an application through two ledger closes, picking up
         // the bucket and ledger closes at each.
-        std::optional<SecretKey> sk;
+        optional<SecretKey> sk;
         {
             VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg0);
             app->start();
-            sk = std::make_optional<SecretKey>(cfg0.NODE_SEED);
+            sk = make_optional<SecretKey>(cfg0.NODE_SEED);
             BucketList& bl = app->getBucketManager().getBucketList();
 
             uint32_t i = 2;

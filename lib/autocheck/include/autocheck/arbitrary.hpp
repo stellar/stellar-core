@@ -7,6 +7,7 @@
 #include "function.hpp"
 #include "generator.hpp"
 #include "value.hpp"
+#include "apply.hpp"
 
 namespace autocheck {
 

@@ -276,11 +276,11 @@ std::string session::get_query() const
 }
 
 void session::set_query_transformation_(
-        std::unique_ptr<details::query_transformation_function> qtf)
+        std::auto_ptr<details::query_transformation_function> qtf)
 {
     if (isFromPool_)
     {
-        pool_->at(poolPosition_).set_query_transformation_(std::move(qtf));
+        pool_->at(poolPosition_).set_query_transformation_(qtf);
     }
     else
     {

@@ -25,7 +25,6 @@
 #include <fmt/format.h>
 #include <medida/metrics_registry.h>
 #include <numeric>
-#include <optional>
 #include <stdexcept>
 #include <xdrpp/marshal.h>
 
@@ -884,10 +883,10 @@ HerderSCPDriver::acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot)
 {
 }
 
-std::optional<VirtualClock::time_point>
+optional<VirtualClock::time_point>
 HerderSCPDriver::getPrepareStart(uint64_t slotIndex)
 {
-    std::optional<VirtualClock::time_point> res;
+    optional<VirtualClock::time_point> res;
     auto it = mSCPExecutionTimes.find(slotIndex);
     if (it != mSCPExecutionTimes.end())
     {
@@ -953,12 +952,11 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
     if (isNomination)
     {
         timing.mNominationStart =
-            std::make_optional<VirtualClock::time_point>(start);
+            make_optional<VirtualClock::time_point>(start);
     }
     else
     {
-        timing.mPrepareStart =
-            std::make_optional<VirtualClock::time_point>(start);
+        timing.mPrepareStart = make_optional<VirtualClock::time_point>(start);
     }
 }
 
@@ -971,8 +969,7 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
 
     if (!timing.mFirstExternalize)
     {
-        timing.mFirstExternalize =
-            std::make_optional<VirtualClock::time_point>(now);
+        timing.mFirstExternalize = make_optional<VirtualClock::time_point>(now);
     }
 
     if (id == mSCP.getLocalNodeID())
@@ -987,7 +984,7 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
         if (!timing.mSelfExternalize || forceUpdateSelf)
         {
             timing.mSelfExternalize =
-                std::make_optional<VirtualClock::time_point>(now);
+                make_optional<VirtualClock::time_point>(now);
         }
     }
     else

@@ -8,9 +8,9 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
 #include "util/UnorderedMap.h"
+#include "util/optional.h"
 #include <deque>
 #include <functional>
-#include <optional>
 
 namespace stellar
 {
@@ -41,11 +41,11 @@ class AbstractTxSetFrameForApply
 
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
-    std::optional<Hash> mHash;
+    optional<Hash> mHash{nullptr};
 
     // mValid caches both the last app LCL that we checked
     // vaidity for, and the result of that validity check.
-    std::optional<std::pair<Hash, bool>> mValid;
+    optional<std::pair<Hash, bool>> mValid{nullptr};
 
     Hash mPreviousLedgerHash;
 

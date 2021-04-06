@@ -1262,6 +1262,9 @@
     <ClInclude Include="..\..\src\util\NonCopyable.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\optional.h">
+      <Filter>util</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\util\XDRStream.h">
       <Filter>util</Filter>
     </ClInclude>

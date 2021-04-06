@@ -47,6 +47,7 @@ AC_DEFUN([AX_FRESH_COMPILER],
                 auto a = sizeof(std::max_align_t);
                 auto b = std::get_new_handler();
                 auto c = std::get_terminate();
+                auto d = std::get_unexpected();
             ]
         )],
         [AC_MSG_RESULT(yes)],

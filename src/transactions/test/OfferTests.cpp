@@ -3804,7 +3804,10 @@ TEST_CASE("create offer", "[tx][offers]")
             }
             SECTION("set trustline flags")
             {
-                pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS, issuer);
+                for_versions_from(16, *app, [&]() {
+                    pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS,
+                                        issuer);
+                });
             }
         }
 
@@ -3818,7 +3821,10 @@ TEST_CASE("create offer", "[tx][offers]")
             }
             SECTION("set trustline flags")
             {
-                pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS, sponsor);
+                for_versions_from(16, *app, [&]() {
+                    pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS,
+                                        sponsor);
+                });
             }
         }
     }

@@ -33,15 +33,12 @@ namespace stellar
 using namespace std;
 
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
-    : mHash(std::optional<Hash>())
-    , mValid(std::optional<std::pair<Hash, bool>>())
-    , mPreviousLedgerHash(previousLedgerHash)
+    : mHash(nullptr), mValid(nullptr), mPreviousLedgerHash(previousLedgerHash)
 {
 }
 
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
-    : mHash(std::optional<Hash>())
-    , mValid(std::optional<std::pair<Hash, bool>>())
+    : mHash(nullptr), mValid(nullptr)
 {
     ZoneScoped;
     for (auto const& env : xdrSet.txs)
@@ -398,7 +395,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {}, expected {}",
                    hexAbbrev(mPreviousLedgerHash), hexAbbrev(lcl.hash));
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
@@ -406,7 +403,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: too many txs {} > {}",
                    this->size(lcl.header), lcl.header.maxTxSetSize);
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
@@ -417,14 +414,14 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {} not sorted correctly",
                    hexAbbrev(mPreviousLedgerHash));
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
     std::vector<TransactionFrameBasePtr> trimmed;
     bool valid = checkOrTrim(app, trimmed, true, lowerBoundCloseTimeOffset,
                              upperBoundCloseTimeOffset);
-    mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
+    mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
     return valid;
 }
 
@@ -451,7 +448,7 @@ TxSetFrame::getContentsHash()
         {
             hasher.add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
         }
-        mHash = std::make_optional<Hash>(hasher.finish());
+        mHash = make_optional<Hash>(hasher.finish());
     }
     return *mHash;
 }

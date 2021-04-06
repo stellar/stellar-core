@@ -9,10 +9,10 @@
 #include "util/SecretValue.h"
 #include "util/Timer.h"
 #include "util/UnorderedMap.h"
+#include "util/optional.h"
 
 #include <map>
 #include <memory>
-#include <optional>
 #include <set>
 #include <string>
 
