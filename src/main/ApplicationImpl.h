@@ -10,8 +10,8 @@
 #include "medida/timer_context.h"
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
+#include "util/optional.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include <optional>
 #include <thread>
 
 namespace medida
@@ -95,8 +95,8 @@ class ApplicationImpl : public Application
     virtual void joinAllThreads() override;
 
     virtual std::string
-    manualClose(std::optional<uint32_t> const& manualLedgerSeq,
-                std::optional<TimePoint> const& manualCloseTime) override;
+    manualClose(optional<uint32_t> const& manualLedgerSeq,
+                optional<TimePoint> const& manualCloseTime) override;
 
 #ifdef BUILD_TESTS
     virtual void generateLoad(bool isCreate, uint32_t nAccounts,
@@ -209,10 +209,10 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<Database> createDatabase();
 
     uint32_t targetManualCloseLedgerSeqNum(
-        std::optional<uint32_t> const& explicitlyProvidedSeqNum);
+        optional<uint32_t> const& explicitlyProvidedSeqNum);
 
     void setManualCloseVirtualTime(
-        std::optional<TimePoint> const& explicitlyProvidedCloseTime);
+        optional<TimePoint> const& explicitlyProvidedCloseTime);
 
     void
     advanceToLedgerBeforeManualCloseTarget(uint32_t const& targetLedgerSeq);

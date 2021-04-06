@@ -48,7 +48,7 @@ SurveyManager::startSurvey(SurveyMessageCommandType type,
     mPeersToSurvey.clear();
     mPeersToSurveyQueue = std::queue<NodeID>();
 
-    mRunningSurveyType = std::make_optional<SurveyMessageCommandType>(type);
+    mRunningSurveyType = make_optional<SurveyMessageCommandType>(type);
 
     mCurve25519SecretKey = curve25519RandomSecret();
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);
@@ -420,7 +420,7 @@ SurveyManager::clearOldLedgers(uint32_t lastClosedledgerSeq)
 Json::Value const&
 SurveyManager::getJsonResults()
 {
-    mResults["surveyInProgress"] = mRunningSurveyType.has_value();
+    mResults["surveyInProgress"] = mRunningSurveyType != nullptr;
 
     auto& jsonBacklog = mResults["backlog"];
     jsonBacklog.clear();

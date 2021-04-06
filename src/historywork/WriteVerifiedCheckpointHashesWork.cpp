@@ -98,7 +98,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
 
     auto const lclHe = mApp.getLedgerManager().getLastClosedLedgerHeader();
     LedgerNumHashPair const lcl(lclHe.header.ledgerSeq,
-                                std::make_optional<Hash>(lclHe.hash));
+                                make_optional<Hash>(lclHe.hash));
     uint32_t const span = mNestedBatchSize * freq;
     uint32_t const last = mCurrCheckpoint;
     uint32_t const first =

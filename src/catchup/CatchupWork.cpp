@@ -89,8 +89,8 @@ CatchupWork::doReset()
     mGetHistoryArchiveStateWork.reset();
     mApplyBufferedLedgersWork.reset();
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    mLastClosedLedgerHashPair = LedgerNumHashPair(
-        lcl.header.ledgerSeq, std::make_optional<Hash>(lcl.hash));
+    mLastClosedLedgerHashPair =
+        LedgerNumHashPair(lcl.header.ledgerSeq, make_optional<Hash>(lcl.hash));
     mCatchupSeq.reset();
     mGetBucketStateWork.reset();
     mVerifyTxResults.reset();

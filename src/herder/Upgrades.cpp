@@ -20,9 +20,7 @@
 #include <Tracy.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
-#include <cereal/types/optional.hpp>
 #include <fmt/format.h>
-#include <optional>
 #include <xdrpp/marshal.h>
 
 namespace cereal
@@ -184,8 +182,7 @@ Upgrades::toString() const
     std::stringstream r;
     bool first = true;
 
-    auto appendInfo = [&](std::string const& s,
-                          std::optional<uint32> const& o) {
+    auto appendInfo = [&](std::string const& s, optional<uint32> const& o) {
         if (o)
         {
             if (first)
@@ -220,7 +217,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     if (res.mUpgradeTime + Upgrades::UPDGRADE_EXPIRATION_HOURS <=
         VirtualClock::from_time_t(closeTime))
     {
-        auto resetParamIfSet = [&](std::optional<uint32>& o) {
+        auto resetParamIfSet = [&](optional<uint32>& o) {
             if (o)
             {
                 o.reset();
@@ -236,7 +233,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         return res;
     }
 
-    auto resetParam = [&](std::optional<uint32>& o, uint32 v) {
+    auto resetParam = [&](optional<uint32>& o, uint32 v) {
         if (o && *o == v)
         {
             o.reset();

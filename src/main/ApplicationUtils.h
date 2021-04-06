@@ -6,14 +6,13 @@
 
 #include "history/HistoryArchive.h"
 #include "main/Application.h"
-#include <optional>
 
 namespace stellar
 {
 
 class CatchupConfiguration;
 
-int runWithConfig(Config cfg, std::optional<CatchupConfiguration> cc);
+int runWithConfig(Config cfg, optional<CatchupConfiguration> cc);
 void setForceSCPFlag();
 void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);

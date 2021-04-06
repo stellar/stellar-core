@@ -5,11 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "util/optional.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
 #include <lib/json/json.h>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace asio
@@ -248,8 +248,8 @@ class Application
     // Non-default parameters may be specified only if additionally
     // config.RUN_STANDALONE=true.
     virtual std::string
-    manualClose(std::optional<uint32_t> const& manualLedgerSeq,
-                std::optional<TimePoint> const& manualCloseTime) = 0;
+    manualClose(optional<uint32_t> const& manualLedgerSeq,
+                optional<TimePoint> const& manualCloseTime) = 0;
 
 #ifdef BUILD_TESTS
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load

@@ -11,7 +11,7 @@
 #include <deque>
 #include <functional>
 #include <map>
-#include <optional>
+#include <util/optional.h>
 
 namespace medida
 {

@@ -11,7 +11,6 @@
 #include "util/Timer.h"
 #include "util/UnorderedSet.h"
 #include <lib/json/json.h>
-#include <optional>
 
 namespace stellar
 {
@@ -74,7 +73,7 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     uint32_t const NUM_LEDGERS_BEFORE_IGNORE;
     uint32_t const MAX_REQUEST_LIMIT_PER_LEDGER;
 
-    std::optional<SurveyMessageCommandType> mRunningSurveyType;
+    optional<SurveyMessageCommandType> mRunningSurveyType;
     Curve25519Secret mCurve25519SecretKey;
     Curve25519Public mCurve25519PublicKey;
     SurveyMessageLimiter mMessageLimiter;

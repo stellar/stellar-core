@@ -131,7 +131,7 @@ VerifyLedgerChainWork::onReset()
 {
     CLOG_INFO(History, "Verifying ledgers {}", mRange.toString());
 
-    mVerifiedAhead = LedgerNumHashPair(0, std::optional<Hash>());
+    mVerifiedAhead = LedgerNumHashPair(0, nullptr);
     mMaxVerifiedLedgerOfMinCheckpoint = {};
     mVerifiedLedgers.clear();
     mCurrCheckpoint = mRange.mCount == 0
@@ -290,7 +290,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Note `mVerifiedAhead` is written here after being read moments
         // before. We're currently writing the value to be used in the _next_
         // call to this method.
-        auto hash = std::make_optional<Hash>(first.header.previousLedgerHash);
+        auto hash = make_optional<Hash>(first.header.previousLedgerHash);
         mVerifiedAhead = LedgerNumHashPair(first.header.ledgerSeq - 1, hash);
     }
 
@@ -302,7 +302,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // If so, there should be no "saved" incoming hash-link value from
         // a previous iteration.
         releaseAssert(incoming.first == 0);
-        releaseAssert(!incoming.second.has_value());
+        releaseAssert(incoming.second.get() == nullptr);
 
         // Instead, there _should_ be a value in the shared_future this work
         // object reads its initial trust from. If anything went wrong upstream
@@ -347,8 +347,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Write outgoing trust-link to shared write-once variable.
         LedgerNumHashPair outgoing;
         outgoing.first = first.header.ledgerSeq - 1;
-        outgoing.second =
-            std::make_optional<Hash>(first.header.previousLedgerHash);
+        outgoing.second = make_optional<Hash>(first.header.previousLedgerHash);
 
         try
         {
@@ -371,7 +370,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     mVerifiedLedgers.emplace_back(curr.header.ledgerSeq,
-                                  std::make_optional<Hash>(curr.hash));
+                                  make_optional<Hash>(curr.hash));
     return HistoryManager::VERIFY_STATUS_OK;
 }
 

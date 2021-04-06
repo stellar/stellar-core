@@ -18,8 +18,8 @@
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
+#include "util/optional.h"
 #include <algorithm>
-#include <optional>
 #include <random>
 
 using namespace stellar;
@@ -410,7 +410,7 @@ class SchemaUpgradeTestApplication : public TestApplication
 // validating their contents after the upgrade to SCHEMA_VERSION.
 TEST_CASE("schema upgrade test", "[db]")
 {
-    using OptLiabilities = std::optional<Liabilities>;
+    using OptLiabilities = stellar::optional<Liabilities>;
 
     auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
                                      AccountEntry const& ae) {
@@ -560,23 +560,23 @@ TEST_CASE("schema upgrade test", "[db]")
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid account.
         auto const accOptLiabilities = {
-            std::optional<Liabilities>(),
-            std::make_optional<Liabilities>(Liabilities{12, 17}),
-            std::make_optional<Liabilities>(Liabilities{4, 0}),
-            std::optional<Liabilities>(),
-            std::make_optional<Liabilities>(Liabilities{3, 0}),
-            std::make_optional<Liabilities>(Liabilities{11, 11}),
-            std::make_optional<Liabilities>(Liabilities{0, 0})};
+            nullopt<Liabilities>(),
+            make_optional<Liabilities>(Liabilities{12, 17}),
+            make_optional<Liabilities>(Liabilities{4, 0}),
+            nullopt<Liabilities>(),
+            make_optional<Liabilities>(Liabilities{3, 0}),
+            make_optional<Liabilities>(Liabilities{11, 11}),
+            make_optional<Liabilities>(Liabilities{0, 0})};
 
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid trustline.
         auto const tlOptLiabilities = {
-            std::make_optional<Liabilities>(Liabilities{1, 0}),
-            std::make_optional<Liabilities>(Liabilities{0, 6}),
-            std::optional<Liabilities>(),
-            std::make_optional<Liabilities>(Liabilities{0, 0}),
-            std::make_optional<Liabilities>(Liabilities{5, 8}),
-            std::optional<Liabilities>()};
+            make_optional<Liabilities>(Liabilities{1, 0}),
+            make_optional<Liabilities>(Liabilities{0, 6}),
+            nullopt<Liabilities>(),
+            make_optional<Liabilities>(Liabilities{0, 0}),
+            make_optional<Liabilities>(Liabilities{5, 8}),
+            nullopt<Liabilities>()};
 
         // Generate from each of the optional liabilities in accOptLiabilities a
         // new valid account.

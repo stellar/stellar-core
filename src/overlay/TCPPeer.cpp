@@ -32,6 +32,8 @@ using namespace std;
 // TCPPeer
 ///////////////////////////////////////////////////////////////////////
 
+const size_t TCPPeer::BUFSZ;
+
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role), mSocket(socket)

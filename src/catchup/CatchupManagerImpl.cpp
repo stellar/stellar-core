@@ -329,7 +329,7 @@ CatchupManagerImpl::startOnlineCatchup()
     // buffered ledger with last one downloaded from history
     auto const& lcd = mSyncingLedgers.begin()->second;
     auto firstBufferedLedgerSeq = lcd.getLedgerSeq();
-    auto hash = std::make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
+    auto hash = make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
     startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
                   getCatchupCount(), CatchupConfiguration::Mode::ONLINE},
                  nullptr);
