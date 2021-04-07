@@ -290,8 +290,10 @@ loadOffersBeforeV16(StatementContext& prep, std::deque<LedgerEntry>& offers)
         // ledgerext always contains v0 prior to 32747294
         bool extraCond =
             le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        if (ledgerExtInd == soci::i_ok && extraCond)
+        {
+            decodeOpaqueXDR(ledgerExtStr, le.ext);
+        }
 
         offers.emplace_back(le);
         st.fetch();
@@ -339,11 +341,7 @@ loadOffersFromV16(StatementContext& prep, std::deque<LedgerEntry>& offers)
 
         decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
 
-        // ledgerext always contains v0 prior to 32747294
-        bool extraCond =
-            le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
 
         offers.emplace_back(le);
         st.fetch();
@@ -406,8 +404,10 @@ loadOffersBeforeV16(StatementContext& prep)
         // ledgerext always contains v0 prior to 32747294
         bool extraCond =
             le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        if (ledgerExtInd == soci::i_ok && extraCond)
+        {
+            decodeOpaqueXDR(ledgerExtStr, le.ext);
+        }
 
         offers.emplace_back(le);
         st.fetch();
@@ -455,11 +455,7 @@ loadOffersFromV16(StatementContext& prep)
 
         decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
 
-        // ledgerext always contains v0 prior to 32747294
-        bool extraCond =
-            le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
 
         offers.emplace_back(le);
         st.fetch();
