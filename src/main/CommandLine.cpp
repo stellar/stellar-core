@@ -744,6 +744,10 @@ runCatchup(CommandLineArgs const& args)
                         "Cleaning historical data (this may take a while)");
                     auto& lm = app->getLedgerManager();
                     lm.deleteNewerEntries(app->getDatabase(), range.first());
+                    // checkpoints
+                    app->getHistoryManager().deleteCheckpointsNewerThan(
+                        range.first());
+
                     // need to delete genesis ledger data (so that we can reset
                     // to it)
                     lm.deleteOldEntries(app->getDatabase(),
