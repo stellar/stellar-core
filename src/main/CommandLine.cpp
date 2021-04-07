@@ -13,6 +13,7 @@
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
+#include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "overlay/OverlayManager.h"
@@ -739,6 +740,17 @@ runCatchup(CommandLineArgs const& args)
                         throw std::runtime_error(
                             "force can only be used when buckets get applied");
                     }
+                    // by dropping persistant state, we ensure that we don't
+                    // leave the database in some half-reset state until
+                    // startNewLedger completes later on
+                    {
+                        auto& ps = app->getPersistentState();
+                        ps.setState(PersistentState::kLastClosedLedger, "");
+                        ps.setState(PersistentState::kHistoryArchiveState, "");
+                        ps.setState(PersistentState::kLastSCPData, "");
+                        ps.setState(PersistentState::kLedgerUpgrades, "");
+                    }
+
                     LOG_INFO(
                         DEFAULT_LOG,
                         "Cleaning historical data (this may take a while)");
