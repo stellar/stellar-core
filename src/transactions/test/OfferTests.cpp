@@ -2163,7 +2163,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
         SECTION("set trustline flags")
         {
-            for_versions_from(16, *app, [&] {
+            for_versions_from(17, *app, [&] {
                 unauthorizedOffer(TrustFlagOp::SET_TRUST_LINE_FLAGS);
             });
         }
@@ -3804,7 +3804,7 @@ TEST_CASE("create offer", "[tx][offers]")
             }
             SECTION("set trustline flags")
             {
-                for_versions_from(16, *app, [&]() {
+                for_versions_from(17, *app, [&]() {
                     pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS,
                                         issuer);
                 });
@@ -3821,7 +3821,7 @@ TEST_CASE("create offer", "[tx][offers]")
             }
             SECTION("set trustline flags")
             {
-                for_versions_from(16, *app, [&]() {
+                for_versions_from(17, *app, [&]() {
                     pullSponsoredOffers(TrustFlagOp::SET_TRUST_LINE_FLAGS,
                                         sponsor);
                 });

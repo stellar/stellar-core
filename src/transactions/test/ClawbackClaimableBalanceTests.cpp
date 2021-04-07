@@ -40,8 +40,8 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
     validClaimant.v0().destination = gateway;
     validClaimant.v0().predicate = u;
 
-    for_versions_to(15, *app, [&] {
-        SECTION("pre V16 errors")
+    for_versions_to(16, *app, [&] {
+        SECTION("pre V17 errors")
         {
             ClaimableBalanceID balanceID;
             REQUIRE_THROWS_AS(gateway.clawbackClaimableBalance(balanceID),
@@ -49,7 +49,7 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
         }
     });
 
-    for_versions_from(16, *app, [&] {
+    for_versions_from(17, *app, [&] {
         auto toSet = static_cast<uint32_t>(AUTH_CLAWBACK_ENABLED_FLAG |
                                            AUTH_REVOCABLE_FLAG);
         gateway.setOptions(setFlags(toSet));

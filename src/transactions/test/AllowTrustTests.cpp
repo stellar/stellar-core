@@ -56,7 +56,7 @@ template <int V> struct TestStub
     for_versions(uint32 from, uint32 to, Application& app,
                  std::function<void()> const& f)
     {
-        uint32 lbound = V == 0 ? 0 : 16;
+        uint32 lbound = V == 0 ? 0 : 17;
         stellar::for_versions(std::max(from, lbound), to, app, f);
     }
 

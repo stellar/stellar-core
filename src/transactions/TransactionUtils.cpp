@@ -911,7 +911,7 @@ trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
     }
-    else if (ledgerVersion < 16)
+    else if (ledgerVersion < 17)
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
     }
@@ -931,7 +931,7 @@ accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 bool
 accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    if (ledgerVersion >= 16 && (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
+    if (ledgerVersion >= 17 && (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
         ((flag & AUTH_REVOCABLE_FLAG) == 0))
     {
         return false;
@@ -943,7 +943,7 @@ accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
 bool
 accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    if (ledgerVersion < 16)
+    if (ledgerVersion < 17)
     {
         return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
     }
