@@ -302,8 +302,9 @@ loadOffersBeforeV16(StatementContext& prep, std::deque<LedgerEntry>& offers)
     return offers.cend() - n;
 }
 
-static std::deque<LedgerEntry>::const_iterator
-loadOffersFromV16(StatementContext& prep, std::deque<LedgerEntry>& offers)
+template <typename T>
+static typename T::const_iterator
+loadOffersFromV16(StatementContext& prep, T& offers)
 {
     std::string actIDStrKey;
     int64_t offerID;
@@ -429,56 +430,7 @@ static std::vector<LedgerEntry>
 loadOffersFromV16(StatementContext& prep)
 {
     std::vector<LedgerEntry> offers;
-
-    std::string actIDStrKey;
-    int64_t offerID;
-    std::string sellingAsset, buyingAsset;
-    int64_t amount;
-    Price price;
-    uint32_t flags, lastModified;
-    std::string extensionStr;
-    soci::indicator extensionInd;
-    std::string ledgerExtStr;
-    soci::indicator ledgerExtInd;
-
-    auto& st = prep.statement();
-    st.exchange(soci::into(actIDStrKey));
-    st.exchange(soci::into(offerID));
-    st.exchange(soci::into(sellingAsset));
-    st.exchange(soci::into(buyingAsset));
-    st.exchange(soci::into(amount));
-    st.exchange(soci::into(price.n));
-    st.exchange(soci::into(price.d));
-    st.exchange(soci::into(flags));
-    st.exchange(soci::into(lastModified));
-    st.exchange(soci::into(extensionStr, extensionInd));
-    st.exchange(soci::into(ledgerExtStr, ledgerExtInd));
-    st.define_and_bind();
-    st.execute(true);
-
-    while (st.got_data())
-    {
-        offers.emplace_back();
-        auto& le = offers.back();
-        le.data.type(OFFER);
-        auto& oe = le.data.offer();
-
-        oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        oe.offerID = offerID;
-        oe.selling = processAsset(sellingAsset);
-        oe.buying = processAsset(buyingAsset);
-        oe.amount = amount;
-        oe.price = price;
-        oe.flags = flags;
-        le.lastModifiedLedgerSeq = lastModified;
-
-        decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
-
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
-
-        st.fetch();
-    }
-
+    loadOffersFromV16(prep, offers);
     return offers;
 }
 
