@@ -20,6 +20,8 @@
 
 namespace stellar
 {
+extern bool gIsProductionNetwork;
+
 struct HistoryArchiveConfiguration
 {
     std::string mName;
