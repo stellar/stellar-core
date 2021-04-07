@@ -168,6 +168,14 @@ deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
                                           "ledgerheaders", "ledgerseq");
 }
 
+void
+deleteNewerEntries(Database& db, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
+                                            "ledgerheaders", "ledgerseq");
+}
+
 size_t
 copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
              uint32_t ledgerCount, XDROutputFileStream& headersOut)

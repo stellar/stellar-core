@@ -289,4 +289,15 @@ deleteOldTransactionHistoryEntries(Database& db, uint32_t ledgerSeq,
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "txfeehistory", "ledgerseq");
 }
+
+void
+deleteNewerTransactionHistoryEntries(Database& db, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
+                                            "txhistory", "ledgerseq");
+    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
+                                            "txfeehistory", "ledgerseq");
+}
+
 }

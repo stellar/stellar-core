@@ -122,6 +122,8 @@ class LedgerManagerImpl : public LedgerManager
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
 
+    void deleteNewerEntries(Database& db, uint32_t ledgerSeq) override;
+
     void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
 

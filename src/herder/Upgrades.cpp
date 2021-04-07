@@ -429,6 +429,14 @@ Upgrades::deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
                                           "upgradehistory", "ledgerseq");
 }
 
+void
+Upgrades::deleteNewerEntries(Database& db, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
+                                            "upgradehistory", "ledgerseq");
+}
+
 static void
 addLiabilities(std::map<Asset, std::unique_ptr<int64_t>>& liabilities,
                AccountID const& accountID, Asset const& asset, int64_t delta)

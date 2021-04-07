@@ -734,6 +734,25 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
 }
 
 void
+LedgerManagerImpl::deleteNewerEntries(Database& db, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    soci::transaction txscope(db.getSession());
+    db.clearPreparedStatementCache();
+
+    // as we use this method only when we apply buckets, we have to preserve
+    // data for everything but ledger header
+    LedgerHeaderUtils::deleteNewerEntries(db, ledgerSeq);
+    // for other data we delete data *after*
+    ++ledgerSeq;
+    deleteNewerTransactionHistoryEntries(db, ledgerSeq);
+    HerderPersistence::deleteNewerEntries(db, ledgerSeq);
+    Upgrades::deleteNewerEntries(db, ledgerSeq);
+    db.clearPreparedStatementCache();
+    txscope.commit();
+}
+
+void
 LedgerManagerImpl::setLastClosedLedger(
     LedgerHeaderHistoryEntry const& lastClosed)
 {
