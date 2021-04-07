@@ -157,8 +157,9 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.DISABLE_XDR_FSYNC = true;
         cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
         cfg.MODE_STORES_HISTORY = false;
-        cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+        cfg.MODE_USES_IN_MEMORY_LEDGER = false;
         cfg.MODE_ENABLES_BUCKETLIST = true;
+        cfg.MODE_KEEPS_BUCKETS = false;
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg, /*newdb=*/false);
 

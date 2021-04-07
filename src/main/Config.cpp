@@ -99,6 +99,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_STORES_HISTORY = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
+    MODE_KEEPS_BUCKETS = true;
     OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
 
     FORCE_SCP = false;
