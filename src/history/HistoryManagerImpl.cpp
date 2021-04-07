@@ -431,6 +431,18 @@ HistoryManagerImpl::historyPublished(
                           "HistoryManagerImpl: publishQueuedHistory");
 }
 
+void
+HistoryManagerImpl::deleteCheckpointsNewerThan(uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "DELETE FROM publishqueue WHERE ledger >= :lg;");
+    auto& st = prep.statement();
+    st.exchange(soci::use(ledgerSeq));
+    st.define_and_bind();
+    st.execute(true);
+}
+
 uint64_t
 HistoryManagerImpl::getPublishQueueCount() const
 {

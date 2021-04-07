@@ -48,6 +48,7 @@ class HerderPersistence
     static void dropAll(Database& db);
     static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                  uint32_t count);
+    static void deleteNewerEntries(Database& db, uint32_t ledgerSeq);
 
     static void createQuorumTrackingTable(soci::session& sess);
 };

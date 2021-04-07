@@ -36,4 +36,6 @@ void dropTransactionHistory(Database& db);
 
 void deleteOldTransactionHistoryEntries(Database& db, uint32_t ledgerSeq,
                                         uint32_t count);
+
+void deleteNewerTransactionHistoryEntries(Database& db, uint32_t ledgerSeq);
 }

@@ -353,6 +353,9 @@ class HistoryManager
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
 
+    // clear the publish queue for any ledgers more recent than ledgerSeq
+    virtual void deleteCheckpointsNewerThan(uint32_t ledgerSeq) = 0;
+
     // Return the name of the HistoryManager's tmpdir (used for storing files in
     // transit).
     virtual std::string const& getTmpDir() = 0;
