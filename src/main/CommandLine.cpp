@@ -5,6 +5,7 @@
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
+#include "catchup/CatchupRange.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/LedgerManager.h"
@@ -597,6 +598,7 @@ runCatchup(CommandLineArgs const& args)
     bool completeValidation = false;
     bool replayInMemory = false;
     bool inMemory = false;
+    bool forceBack = false;
     uint32_t startAtLedger = 0;
     std::string startAtHash;
     std::string stream;
@@ -649,6 +651,12 @@ runCatchup(CommandLineArgs const& args)
             "deprecated: use --in-memory flag, common to 'catchup' and 'run'");
     };
 
+    auto forceBackParser = [](bool& forceBackClean) {
+        return clara::Opt{forceBackClean}["--force-back"](
+            "force ledger state to a previous state, preserving older "
+            "historical data");
+    };
+
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
@@ -658,7 +666,7 @@ runCatchup(CommandLineArgs const& args)
          validationParser(completeValidation),
          replayInMemoryParser(replayInMemory), inMemoryParser(inMemory),
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
-         metadataOutputStreamParser(stream)},
+         metadataOutputStreamParser(stream), forceBackParser(forceBack)},
         [&] {
             auto config = configOption.getConfig();
             // Don't call config.setNoListen() here as we might want to
@@ -718,6 +726,34 @@ runCatchup(CommandLineArgs const& args)
                     LOG_INFO(DEFAULT_LOG, "Found trusted hash {} for ledger {}",
                              hexAbbrev(h), cc.toLedger());
                     cc = CatchupConfiguration(pair, cc.count(), cc.mode());
+                }
+
+                if (forceBack)
+                {
+                    CatchupRange range(LedgerManager::GENESIS_LEDGER_SEQ, cc,
+                                       app->getHistoryManager());
+                    LOG_INFO(DEFAULT_LOG, "Force applying range {}-{}",
+                             range.first(), range.last());
+                    if (!range.applyBuckets())
+                    {
+                        throw std::runtime_error(
+                            "force can only be used when buckets get applied");
+                    }
+                    LOG_INFO(
+                        DEFAULT_LOG,
+                        "Cleaning historical data (this may take a while)");
+                    auto& lm = app->getLedgerManager();
+                    lm.deleteNewerEntries(app->getDatabase(), range.first());
+                    // need to delete genesis ledger data (so that we can reset
+                    // to it)
+                    lm.deleteOldEntries(app->getDatabase(),
+                                        LedgerManager::GENESIS_LEDGER_SEQ, 1);
+                    LOG_INFO(
+                        DEFAULT_LOG,
+                        "Resetting ledger state to genesis before catching up");
+                    auto& lsRoot = app->getLedgerTxnRoot();
+                    lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+                    lm.startNewLedger();
                 }
 
                 Json::Value catchupInfo;
