@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "main/Config.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
@@ -288,7 +289,11 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
 
         decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
 
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
+        // ledgerext always contains v0 prior to 32747294
+        bool extraCond =
+            le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
+        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
+                        le.ext);
 
         offers.emplace_back(le);
         st.fetch();
@@ -337,7 +342,11 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 
         decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
 
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
+        // ledgerext always contains v0 prior to 32747294
+        bool extraCond =
+            le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
+        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
+                        le.ext);
 
         offers.emplace_back(le);
         st.fetch();

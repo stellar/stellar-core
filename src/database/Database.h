@@ -313,11 +313,18 @@ decodeOpaqueXDR(std::string const& in, T& out)
 
 template <typename T>
 void
-decodeOpaqueXDR(std::string const& in, soci::indicator const& ind, T& out)
+decodeOpaqueXDR(std::string const& in, bool ind, T& out)
 {
-    if (ind == soci::i_ok)
+    if (ind)
     {
         decodeOpaqueXDR(in, out);
     }
+}
+
+template <typename T>
+void
+decodeOpaqueXDR(std::string const& in, soci::indicator const& ind, T& out)
+{
+    decodeOpaqueXDR(in, ind == soci::i_ok, out);
 }
 }

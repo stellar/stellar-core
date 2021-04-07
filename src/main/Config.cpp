@@ -33,6 +33,8 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 15
 #endif
     ;
 
+bool gIsProductionNetwork = false;
+
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "RUN_STANDALONE",
@@ -1067,6 +1069,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 throw std::invalid_argument(err);
             }
         }
+
+        gIsProductionNetwork = NETWORK_PASSPHRASE ==
+                               "Public Global Stellar Network ; September 2015";
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
