@@ -1,6 +1,6 @@
----
-title: Process-level architecture
----
+
+Process-Level Architecture
+==========================
 
 Application owns a ledger-forming component, a p2p "overlay" component for
 connecting to peers and flooding messages between peers, a set-synchronization
@@ -57,7 +57,7 @@ Other details:
     floating point, etc.)
 
 
-Network-level architecture
+Network-Level Architecture
 ==========================
 
 Validators are kept as simple as possible and offload as much responsibility as
