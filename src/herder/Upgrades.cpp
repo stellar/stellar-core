@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Upgrades.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -851,6 +853,51 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
               nUpdatedOffers[UpdateOfferResult::Erase]);
 }
 
+static void
+upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
+{
+    if (gIsProductionNetwork)
+    {
+        auto const sellerStrKey =
+            "GBGP52VDS2U3F4VZHEMD4MDDM7YIODXLYVGOZLYSTAD6PZK45JXILTAX";
+        auto const offerID = 289733046;
+
+        auto const sellerID = KeyUtils::fromStrKey<PublicKey>(sellerStrKey);
+        auto seller = stellar::loadAccountWithoutRecord(ltx, sellerID);
+        auto offer = stellar::loadOffer(ltx, sellerID, offerID);
+
+        if (offer)
+        {
+            // Seller exists if offer exists
+            auto const& ae = seller.current().data.account();
+            if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+            {
+                CLOG_ERROR(Ledger,
+                           "Account {} has AccountEntryExtensionV2, cannot "
+                           "complete upgrade",
+                           sellerStrKey);
+                return;
+            }
+
+            auto const sponsorStrKey =
+                "GAS3CQSW3HE27IF5KDWKCM7K6FG6AHRHWOUVBUWIRV4ZGTJMPBXNGATF";
+            auto const sponsorID =
+                KeyUtils::fromStrKey<PublicKey>(sponsorStrKey);
+            auto const& le = offer.current();
+            if (le.ext.v() == 1 && le.ext.v1().sponsoringID &&
+                *le.ext.v1().sponsoringID == sponsorID)
+            {
+                offer.current().ext.v(0);
+                CLOG_ERROR(Ledger, "Sponsorship removed from offer {}",
+                           offerID);
+                return;
+            }
+        }
+
+        CLOG_ERROR(Ledger, "Offer {} does not exist", offerID);
+    }
+}
+
 void
 Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
 {
@@ -861,6 +908,10 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
     if (header.current().ledgerVersion >= 10 && prevVersion < 10)
     {
         prepareLiabilities(ltx, header);
+    }
+    else if (header.current().ledgerVersion == 16 && prevVersion == 15)
+    {
+        upgradeFromProtocol15To16(ltx);
     }
 }
 

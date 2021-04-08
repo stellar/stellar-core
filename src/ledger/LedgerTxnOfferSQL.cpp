@@ -248,11 +248,9 @@ processAsset(std::string const& asset)
     return res;
 }
 
-std::deque<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
-                                std::deque<LedgerEntry>& offers) const
+static std::deque<LedgerEntry>::const_iterator
+loadOffersBeforeV16(StatementContext& prep, std::deque<LedgerEntry>& offers)
 {
-    ZoneScoped;
     std::string actIDStrKey;
     std::string sellingAsset, buyingAsset;
     std::string extensionStr;
@@ -292,8 +290,10 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
         // ledgerext always contains v0 prior to 32747294
         bool extraCond =
             le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        if (ledgerExtInd == soci::i_ok && extraCond)
+        {
+            decodeOpaqueXDR(ledgerExtStr, le.ext);
+        }
 
         offers.emplace_back(le);
         st.fetch();
@@ -302,10 +302,79 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     return offers.cend() - n;
 }
 
-std::vector<LedgerEntry>
-LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
+template <typename T>
+static typename T::const_iterator
+loadOffersFromV16(StatementContext& prep, T& offers)
+{
+    std::string actIDStrKey;
+    int64_t offerID;
+    std::string sellingAsset, buyingAsset;
+    int64_t amount;
+    Price price;
+    uint32_t flags, lastModified;
+    std::string extensionStr;
+    soci::indicator extensionInd;
+    std::string ledgerExtStr;
+    soci::indicator ledgerExtInd;
+
+    auto& st = prep.statement();
+    st.exchange(soci::into(actIDStrKey));
+    st.exchange(soci::into(offerID));
+    st.exchange(soci::into(sellingAsset));
+    st.exchange(soci::into(buyingAsset));
+    st.exchange(soci::into(amount));
+    st.exchange(soci::into(price.n));
+    st.exchange(soci::into(price.d));
+    st.exchange(soci::into(flags));
+    st.exchange(soci::into(lastModified));
+    st.exchange(soci::into(extensionStr, extensionInd));
+    st.exchange(soci::into(ledgerExtStr, ledgerExtInd));
+    st.define_and_bind();
+    st.execute(true);
+
+    size_t n = 0;
+    while (st.got_data())
+    {
+        ++n;
+        offers.emplace_back();
+        auto& le = offers.back();
+        le.data.type(OFFER);
+        auto& oe = le.data.offer();
+
+        oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
+        oe.offerID = offerID;
+        oe.selling = processAsset(sellingAsset);
+        oe.buying = processAsset(buyingAsset);
+        oe.amount = amount;
+        oe.price = price;
+        oe.flags = flags;
+        le.lastModifiedLedgerSeq = lastModified;
+
+        decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
+
+        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
+
+        st.fetch();
+    }
+
+    return offers.cend() - n;
+}
+
+std::deque<LedgerEntry>::const_iterator
+LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
+                                std::deque<LedgerEntry>& offers) const
 {
     ZoneScoped;
+    if (getHeader().ledgerVersion < 16)
+    {
+        return loadOffersBeforeV16(prep, offers);
+    }
+    return loadOffersFromV16(prep, offers);
+}
+
+static std::vector<LedgerEntry>
+loadOffersBeforeV16(StatementContext& prep)
+{
     std::vector<LedgerEntry> offers;
 
     std::string actIDStrKey;
@@ -345,14 +414,35 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
         // ledgerext always contains v0 prior to 32747294
         bool extraCond =
             le.lastModifiedLedgerSeq > 32747293 || !gIsProductionNetwork;
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd == soci::i_ok && extraCond,
-                        le.ext);
+        if (ledgerExtInd == soci::i_ok && extraCond)
+        {
+            decodeOpaqueXDR(ledgerExtStr, le.ext);
+        }
 
         offers.emplace_back(le);
         st.fetch();
     }
 
     return offers;
+}
+
+static std::vector<LedgerEntry>
+loadOffersFromV16(StatementContext& prep)
+{
+    std::vector<LedgerEntry> offers;
+    loadOffersFromV16(prep, offers);
+    return offers;
+}
+
+std::vector<LedgerEntry>
+LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
+{
+    ZoneScoped;
+    if (getHeader().ledgerVersion < 16)
+    {
+        return loadOffersBeforeV16(prep);
+    }
+    return loadOffersFromV16(prep);
 }
 
 class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
