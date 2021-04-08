@@ -1550,7 +1550,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("set trustline flags")
         {
-            for_versions_from(16, *app, [&] {
+            for_versions_from(17, *app, [&] {
                 authorizeFlag(TrustFlagOp::SET_TRUST_LINE_FLAGS);
             });
         }

@@ -19,7 +19,7 @@ ClawbackOpFrame::ClawbackOpFrame(Operation const& op, OperationResult& res,
 bool
 ClawbackOpFrame::isVersionSupported(uint32_t protocolVersion) const
 {
-    return protocolVersion >= 16;
+    return protocolVersion >= 17;
 }
 
 bool

@@ -46,15 +46,15 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
 
     SetTrustLineFlagsArguments emptyFlag;
 
-    SECTION("not supported before version 16")
+    SECTION("not supported before version 17")
     {
-        for_versions_to(15, *app, [&] {
+        for_versions_to(16, *app, [&] {
             REQUIRE_THROWS_AS(gateway.setTrustLineFlags(idr, a1, emptyFlag),
                               ex_opNOT_SUPPORTED);
         });
     }
 
-    for_versions_from(16, *app, [&] {
+    for_versions_from(17, *app, [&] {
         SECTION("small test")
         {
             gateway.pay(a1, idr, 5);

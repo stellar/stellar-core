@@ -318,9 +318,9 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     }
 
     auto const& cbe = le.data.claimableBalance();
-    if (version < 16 && cbe.ext.v() == 1)
+    if (version < 17 && cbe.ext.v() == 1)
     {
-        return "ClaimableBalance has v1 extension before protocol version 16";
+        return "ClaimableBalance has v1 extension before protocol version 17";
     }
 
     if (isClawbackEnabledOnClaimableBalance(le) &&

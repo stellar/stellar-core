@@ -41,9 +41,9 @@ TEST_CASE("clawback", "[tx][clawback]")
         });
     }
 
-    SECTION("pre V16 errors")
+    SECTION("pre V17 errors")
     {
-        for_versions_to(15, *app, [&] {
+        for_versions_to(16, *app, [&] {
             REQUIRE_THROWS_AS(
                 gateway.setOptions(setFlags(AUTH_CLAWBACK_ENABLED_FLAG)),
                 ex_SET_OPTIONS_UNKNOWN_FLAG);
@@ -56,9 +56,9 @@ TEST_CASE("clawback", "[tx][clawback]")
         });
     }
 
-    SECTION("from V16")
+    SECTION("from V17")
     {
-        for_versions_from(16, *app, [&] {
+        for_versions_from(17, *app, [&] {
             auto toSet = static_cast<uint32_t>(AUTH_CLAWBACK_ENABLED_FLAG |
                                                AUTH_REVOCABLE_FLAG);
             gateway.setOptions(setFlags(toSet));

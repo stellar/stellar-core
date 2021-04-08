@@ -199,7 +199,7 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        if (header.current().ledgerVersion >= 16)
+        if (header.current().ledgerVersion >= 17)
         {
             bool enableClawback;
             if (getSourceID() == getIssuer(asset))

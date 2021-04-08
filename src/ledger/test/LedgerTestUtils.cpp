@@ -236,7 +236,7 @@ makeValid(ClaimableBalanceEntry& c)
     c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");
 
-    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 16)
+    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 17)
     {
         c.ext.v(0);
     }
