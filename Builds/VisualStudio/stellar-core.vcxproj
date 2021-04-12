@@ -942,6 +942,7 @@ exit /b 0
     <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\stellar-core_example_validators.cfg" />
     <None Include="..\..\docs\stellar-core_standalone.cfg" />
+    <None Include="..\..\docs\stellar-core_testnet_validator.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg" />
     <None Include="..\..\docs\transaction.md" />

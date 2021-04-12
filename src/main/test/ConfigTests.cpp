@@ -389,7 +389,8 @@ TEST_CASE("load example configs", "[config]")
     Config c;
     std::vector<std::string> testFiles = {
         "stellar-core_example.cfg", "stellar-core_standalone.cfg",
-        "stellar-core_testnet_legacy.cfg", "stellar-core_testnet.cfg"};
+        "stellar-core_testnet_legacy.cfg", "stellar-core_testnet.cfg",
+        "stellar-core_testnet_validator.cfg"};
     for (auto const& fn : testFiles)
     {
         std::string fnPath = "testdata/";
