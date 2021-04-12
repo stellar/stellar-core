@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "crypto/Hex.h"
+#include "crypto/Random.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "ledger/LedgerManager.h"
@@ -24,9 +26,7 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     , mArchive(archive)
     , mRetries(maxRetries)
     , mLocalFilename(
-          archive ? HistoryArchiveState::localName(app, archive->getName())
-                  : app.getHistoryManager().localFilename(
-                        HistoryArchiveState::baseName()))
+          HistoryArchiveState::localName(app, binToHex(randomBytes(8))))
     , mGetHistoryArchiveStateSuccess(app.getMetrics().NewMeter(
           {"history", "download-history-archive-state" + std::move(mode),
            "success"},

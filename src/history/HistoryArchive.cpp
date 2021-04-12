@@ -191,9 +191,10 @@ HistoryArchiveState::remoteName(uint32_t snapshotNumber)
 }
 
 std::string
-HistoryArchiveState::localName(Application& app, std::string const& archiveName)
+HistoryArchiveState::localName(Application& app,
+                               std::string const& uniquePrefix)
 {
-    return app.getHistoryManager().localFilename(archiveName + "-" +
+    return app.getHistoryManager().localFilename(uniquePrefix + "-" +
                                                  baseName());
 }
 

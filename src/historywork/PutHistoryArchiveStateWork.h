@@ -17,7 +17,7 @@ class PutHistoryArchiveStateWork : public Work
 {
     HistoryArchiveState const& mState;
     std::shared_ptr<HistoryArchive> mArchive;
-    std::string mLocalFilename;
+    std::string const mLocalFilename;
     std::shared_ptr<WorkSequence> mPutRemoteFileWork;
 
     void spawnPublishWork();
