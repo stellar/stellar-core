@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/PutHistoryArchiveStateWork.h"
+#include "crypto/Hex.h"
+#include "crypto/Random.h"
 #include "history/HistoryArchive.h"
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
@@ -21,7 +23,8 @@ PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
     : Work(app, "put-history-archive-state", BasicWork::RETRY_ONCE)
     , mState(state)
     , mArchive(archive)
-    , mLocalFilename(HistoryArchiveState::localName(app, archive->getName()))
+    , mLocalFilename(
+          HistoryArchiveState::localName(app, binToHex(randomBytes(8))))
 {
     if (!mState.containsValidBuckets(mApp))
     {
