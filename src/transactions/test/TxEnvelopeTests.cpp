@@ -63,8 +63,9 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({b1.op(payment(root, 110)), root.op(payment(a1, 101))});
 
-    auto txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+    Hash h;
+    h[0] = 2;
+    auto txSet = std::make_shared<TxSetFrame>(h);
     txSet->add(tx1);
     txSet->add(tx2);
 
