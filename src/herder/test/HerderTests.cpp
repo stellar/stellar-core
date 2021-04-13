@@ -1771,8 +1771,9 @@ TEST_CASE("SCP State", "[herder][acceptance]")
 TEST_CASE("values externalized out of order", "[herder]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation =
-        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID,
+        [](int i) { return getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE); });
 
     auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
     auto validatorBKey = SecretKey::fromSeed(sha256("validator-B"));
@@ -1796,13 +1797,16 @@ TEST_CASE("values externalized out of order", "[herder]")
     simulation->startAllNodes();
     auto A = simulation->getNode(validatorAKey.getPublicKey());
     auto B = simulation->getNode(validatorBKey.getPublicKey());
-    auto C = simulation->getNode(validatorCKey.getPublicKey());
+
+    auto getC = [&]() {
+        return simulation->getNode(validatorCKey.getPublicKey());
+    };
 
     auto currentALedger = [&]() {
         return A->getLedgerManager().getLastClosedLedgerNum();
     };
     auto currentCLedger = [&]() {
-        return C->getLedgerManager().getLastClosedLedgerNum();
+        return getC()->getLedgerManager().getLastClosedLedgerNum();
     };
 
     auto waitForLedgers = [&](int nLedgers) {
@@ -1841,10 +1845,10 @@ TEST_CASE("values externalized out of order", "[herder]")
 
     HerderImpl& herderA = *static_cast<HerderImpl*>(&A->getHerder());
     HerderImpl& herderB = *static_cast<HerderImpl*>(&B->getHerder());
-    HerderImpl& herderC = *static_cast<HerderImpl*>(&C->getHerder());
+    HerderImpl& herderC = *static_cast<HerderImpl*>(&getC()->getHerder());
 
-    auto const& lmC = C->getLedgerManager();
-    auto const& cmC = C->getCatchupManager();
+    auto const& lmC = getC()->getLedgerManager();
+    auto const& cmC = getC()->getCatchupManager();
 
     // Now construct a few future externalize messages
     // Make sure out of order messages are still within the validity range
@@ -2031,7 +2035,43 @@ TEST_CASE("values externalized out of order", "[herder]")
 
         waitForA(fewLedgers);
         REQUIRE(currentALedger() == nextLedger);
-        REQUIRE(currentCLedger() == nextLedger);
+        // C is at most a ledger behind
+        REQUIRE(currentCLedger() >= nextLedger - 1);
+    }
+    SECTION("older externalized slots do not trigger next ledger")
+    {
+        // Reconnect nodes to crank the simulation just enough to purge older
+        // slots
+        auto configC = getC()->getConfig();
+        simulation->addConnection(validatorAKey.getPublicKey(),
+                                  validatorBKey.getPublicKey());
+        simulation->addConnection(validatorAKey.getPublicKey(),
+                                  validatorCKey.getPublicKey());
+        waitForLedgers(configC.MAX_SLOTS_TO_REMEMBER + 1);
+
+        // Restart C with higher MAX_SLOTS_TO_REMEMBER config, to allow
+        // processing of older slots
+        simulation->removeNode(validatorCKey.getPublicKey());
+        configC.MAX_SLOTS_TO_REMEMBER += 5;
+        auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
+        newC->start();
+
+        // Wait until C goes out of sync
+        simulation->crankForAtLeast(3 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+                                    false);
+        HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
+        REQUIRE(!newHerderC.getHerderSCPDriver().trackingSCP());
+
+        auto newMsgB = validatorSCPMessagesB[destinationLedger];
+        auto newMsgA = validatorSCPMessagesA[destinationLedger];
+
+        // Let Herder process older messages
+        REQUIRE(newHerderC.recvSCPEnvelope(newMsgA.first, qset,
+                                           *(newMsgA.second)) ==
+                Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(newHerderC.recvSCPEnvelope(newMsgB.first, qset,
+                                           *(newMsgB.second)) ==
+                Herder::ENVELOPE_STATUS_READY);
     }
 }
 
