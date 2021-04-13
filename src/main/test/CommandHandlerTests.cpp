@@ -268,8 +268,8 @@ TEST_CASE("manualclose", "[commandhandler]")
         commandHandler.manualClose(params, retStr);
     };
 
-    auto const noLedgerSeq = std::optional<uint32_t>();
-    auto const noCloseTime = std::optional<TimePoint>();
+    std::optional<uint32_t> noLedgerSeq;
+    std::optional<TimePoint> noCloseTime;
 
     SECTION("manual close with no parameters increments sequence number and "
             "increases close time")

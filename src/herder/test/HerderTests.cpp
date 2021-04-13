@@ -1260,7 +1260,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         // combineCandidates() and the one we compute at each step.
 
         std::vector<CandidateSpec> const specs{
-            {0, 1, 100, 10, std::optional<uint32>()},
+            {0, 1, 100, 10, std::nullopt},
             {10, 1, 100, 5, std::make_optional<uint32>(1)},
             {5, 3, 100, 20, std::make_optional<uint32>(2)},
             {7, 2, 5, 30, std::make_optional<uint32>(3)}};
