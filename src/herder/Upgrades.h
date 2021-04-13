@@ -8,7 +8,7 @@
 
 #include "main/Config.h"
 #include "util/Timer.h"
-#include "util/optional.h"
+#include <optional>
 #include <stdint.h>
 #include <vector>
 
@@ -36,17 +36,19 @@ class Upgrades
         {
             mUpgradeTime = cfg.TESTING_UPGRADE_DATETIME;
             mProtocolVersion =
-                make_optional<uint32>(cfg.LEDGER_PROTOCOL_VERSION);
-            mBaseFee = make_optional<uint32>(cfg.TESTING_UPGRADE_DESIRED_FEE);
+                std::make_optional<uint32>(cfg.LEDGER_PROTOCOL_VERSION);
+            mBaseFee =
+                std::make_optional<uint32>(cfg.TESTING_UPGRADE_DESIRED_FEE);
             mMaxTxSize =
-                make_optional<uint32>(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-            mBaseReserve = make_optional<uint32>(cfg.TESTING_UPGRADE_RESERVE);
+                std::make_optional<uint32>(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+            mBaseReserve =
+                std::make_optional<uint32>(cfg.TESTING_UPGRADE_RESERVE);
         }
         VirtualClock::system_time_point mUpgradeTime;
-        optional<uint32> mProtocolVersion;
-        optional<uint32> mBaseFee;
-        optional<uint32> mMaxTxSize;
-        optional<uint32> mBaseReserve;
+        std::optional<uint32> mProtocolVersion;
+        std::optional<uint32> mBaseFee;
+        std::optional<uint32> mMaxTxSize;
+        std::optional<uint32> mBaseReserve;
 
         std::string toJson() const;
         void fromJson(std::string const& s);

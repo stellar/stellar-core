@@ -40,7 +40,7 @@ class SOCI_DECL session
 {
 private:
 
-    void set_query_transformation_(std::auto_ptr<details::query_transformation_function> qtf);
+    void set_query_transformation_(std::unique_ptr<details::query_transformation_function> qtf);
 
 public:
     session();
@@ -77,8 +77,8 @@ public:
     template <typename T>
     void set_query_transformation(T callback)
     {
-        std::auto_ptr<details::query_transformation_function> qtf(new details::query_transformation<T>(callback));
-        set_query_transformation_(qtf);
+        std::unique_ptr<details::query_transformation_function> qtf(new details::query_transformation<T>(callback));
+        set_query_transformation_(std::move(qtf));
 
         assert(qtf.get() == NULL);
     }

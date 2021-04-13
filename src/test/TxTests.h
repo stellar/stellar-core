@@ -7,7 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
 #include "overlay/StellarXDR.h"
-#include "util/optional.h"
+#include <optional>
 
 namespace stellar
 {
@@ -45,15 +45,15 @@ struct ValidationResult
 
 struct SetOptionsArguments
 {
-    optional<int> masterWeight;
-    optional<int> lowThreshold;
-    optional<int> medThreshold;
-    optional<int> highThreshold;
-    optional<Signer> signer;
-    optional<uint32_t> setFlags;
-    optional<uint32_t> clearFlags;
-    optional<AccountID> inflationDest;
-    optional<std::string> homeDomain;
+    std::optional<int> masterWeight;
+    std::optional<int> lowThreshold;
+    std::optional<int> medThreshold;
+    std::optional<int> highThreshold;
+    std::optional<Signer> signer;
+    std::optional<uint32_t> setFlags;
+    std::optional<uint32_t> clearFlags;
+    std::optional<AccountID> inflationDest;
+    std::optional<std::string> homeDomain;
 
     friend SetOptionsArguments operator|(SetOptionsArguments const& x,
                                          SetOptionsArguments const& y);

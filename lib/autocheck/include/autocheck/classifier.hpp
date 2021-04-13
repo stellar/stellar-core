@@ -5,7 +5,6 @@
 #include <sstream>
 
 #include "function.hpp"
-#include "apply.hpp"
 
 namespace autocheck {
 

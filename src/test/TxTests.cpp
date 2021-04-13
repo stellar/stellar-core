@@ -1060,7 +1060,7 @@ SetOptionsArguments
 setMasterWeight(int master)
 {
     SetOptionsArguments result;
-    result.masterWeight = make_optional<int>(master);
+    result.masterWeight = std::make_optional<int>(master);
     return result;
 }
 
@@ -1068,7 +1068,7 @@ SetOptionsArguments
 setLowThreshold(int low)
 {
     SetOptionsArguments result;
-    result.lowThreshold = make_optional<int>(low);
+    result.lowThreshold = std::make_optional<int>(low);
     return result;
 }
 
@@ -1076,7 +1076,7 @@ SetOptionsArguments
 setMedThreshold(int med)
 {
     SetOptionsArguments result;
-    result.medThreshold = make_optional<int>(med);
+    result.medThreshold = std::make_optional<int>(med);
     return result;
 }
 
@@ -1084,7 +1084,7 @@ SetOptionsArguments
 setHighThreshold(int high)
 {
     SetOptionsArguments result;
-    result.highThreshold = make_optional<int>(high);
+    result.highThreshold = std::make_optional<int>(high);
     return result;
 }
 
@@ -1092,7 +1092,7 @@ SetOptionsArguments
 setSigner(Signer signer)
 {
     SetOptionsArguments result;
-    result.signer = make_optional<Signer>(signer);
+    result.signer = std::make_optional<Signer>(signer);
     return result;
 }
 
@@ -1100,7 +1100,7 @@ SetOptionsArguments
 setFlags(uint32_t setFlags)
 {
     SetOptionsArguments result;
-    result.setFlags = make_optional<uint32_t>(setFlags);
+    result.setFlags = std::make_optional<uint32_t>(setFlags);
     return result;
 }
 
@@ -1108,7 +1108,7 @@ SetOptionsArguments
 clearFlags(uint32_t clearFlags)
 {
     SetOptionsArguments result;
-    result.clearFlags = make_optional<uint32_t>(clearFlags);
+    result.clearFlags = std::make_optional<uint32_t>(clearFlags);
     return result;
 }
 
@@ -1116,7 +1116,7 @@ SetOptionsArguments
 setInflationDestination(AccountID inflationDest)
 {
     SetOptionsArguments result;
-    result.inflationDest = make_optional<AccountID>(inflationDest);
+    result.inflationDest = std::make_optional<AccountID>(inflationDest);
     return result;
 }
 
@@ -1124,7 +1124,7 @@ SetOptionsArguments
 setHomeDomain(std::string const& homeDomain)
 {
     SetOptionsArguments result;
-    result.homeDomain = make_optional<std::string>(homeDomain);
+    result.homeDomain = std::make_optional<std::string>(homeDomain);
     return result;
 }
 
