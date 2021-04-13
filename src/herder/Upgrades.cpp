@@ -25,6 +25,7 @@
 #include <cereal/types/optional.hpp>
 #include <fmt/format.h>
 #include <optional>
+#include <regex>
 #include <xdrpp/marshal.h>
 
 namespace cereal
@@ -33,6 +34,9 @@ template <class Archive>
 void
 save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
 {
+    // NB: See 'rewriteOptionalFieldKeys' below before adding any new fields to
+    // this type, and in particular avoid using field names "has" or "val",
+    // or serializing any text fields that might have embedded/quoted JSON.
     ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
     ar(make_nvp("version", p.mProtocolVersion));
     ar(make_nvp("fee", p.mBaseFee));
@@ -70,10 +74,50 @@ Upgrades::UpgradeParameters::toJson() const
     return out.str();
 }
 
+static std::string
+rewriteOptionalFieldKeys(std::string s)
+{
+    // When transitioning from C++14 to C++17, we migrated from a custom
+    // implementation of 'optional' types, to using std::optional.
+    //
+    // Unfortunately our previous optional-type serialized like this:
+    //
+    //   {
+    //     "has": true,
+    //     "val": 12345
+    //   }
+    //
+    // Whereas cereal's built-in support for (de)serializing std::optional will
+    // write the same content like this, with the sense of the flag inverted and
+    // the names of both fields changed:
+    //
+    //   {
+    //     "nullopt": false,
+    //     "data": 12345
+    //   }
+    //
+    // We therefore do a very crude (but safe) string-level rewrite of the
+    // former into the latter here. This is safe since none of the fields
+    // serialized in the upgrades structure can collide with the string values
+    // being substituted, and this is the only structure in the entire program
+    // that has this issue.
+    //
+    // Once this code has been in the field long enough to have processed any
+    // pending upgrades deserialized from a database, it should be removed.
+
+    s = std::regex_replace(s, std::regex("\"has\": false"),
+                           "\"nullopt\": true");
+    s = std::regex_replace(s, std::regex("\"has\": true"),
+                           "\"nullopt\": false");
+    s = std::regex_replace(s, std::regex("\"val\":"), "\"data\":");
+    return s;
+}
+
 void
 Upgrades::UpgradeParameters::fromJson(std::string const& s)
 {
-    std::istringstream in(s);
+    std::string s1 = rewriteOptionalFieldKeys(s);
+    std::istringstream in(s1);
     {
         cereal::JSONInputArchive ar(in);
         cereal::load(ar, *this);
