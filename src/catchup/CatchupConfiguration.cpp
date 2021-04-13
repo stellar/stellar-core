@@ -18,7 +18,9 @@ CatchupConfiguration::CatchupConfiguration(LedgerNumHashPair ledgerHashPair,
 
 CatchupConfiguration::CatchupConfiguration(uint32_t toLedger, uint32_t count,
                                            Mode mode)
-    : mCount{count}, mLedgerHashPair{toLedger, nullptr}, mMode{mode}
+    : mCount{count}
+    , mLedgerHashPair{toLedger, std::optional<Hash>()}
+    , mMode{mode}
 {
 }
 

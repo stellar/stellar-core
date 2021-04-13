@@ -154,8 +154,8 @@ private:
 
     unsigned int refs_;
 
-    const std::auto_ptr<statement> st_;
-    const std::auto_ptr<T> define_;
+    const std::unique_ptr<statement> st_;
+    const std::unique_ptr<T> define_;
 
     // Non-copyable
     rowset_impl(rowset_impl const &);

@@ -226,9 +226,9 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
                                      LedgerHeaderHistoryEntry lcl,
                                      LedgerHeaderHistoryEntry last) {
         auto lclPair = LedgerNumHashPair(lcl.header.ledgerSeq,
-                                         make_optional<Hash>(lcl.hash));
-        auto ledgerRangeEnd = LedgerNumHashPair(last.header.ledgerSeq,
-                                                make_optional<Hash>(last.hash));
+                                         std::make_optional<Hash>(lcl.hash));
+        auto ledgerRangeEnd = LedgerNumHashPair(
+            last.header.ledgerSeq, std::make_optional<Hash>(last.hash));
         std::promise<LedgerNumHashPair> ledgerRangeEndPromise;
         std::shared_future<LedgerNumHashPair> ledgerRangeEndFuture =
             ledgerRangeEndPromise.get_future().share();

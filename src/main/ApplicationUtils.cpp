@@ -25,12 +25,13 @@
 
 #include <lib/http/HttpClient.h>
 #include <locale>
+#include <optional>
 
 namespace stellar
 {
 
 int
-runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
+runWithConfig(Config cfg, std::optional<CatchupConfiguration> cc)
 {
     VirtualClock::Mode clockMode = VirtualClock::REAL_TIME;
 

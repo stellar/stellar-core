@@ -8,6 +8,8 @@
 #include "catchup/CatchupRange.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
+#include "historywork/BatchDownloadWork.h"
+#include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
@@ -18,14 +20,10 @@
 #include "main/dumpxdr.h"
 #include "overlay/OverlayManager.h"
 #include "scp/QuorumSetUtils.h"
-#include "util/Logging.h"
-#include "util/optional.h"
-#include "util/types.h"
-
-#include "historywork/BatchDownloadWork.h"
-#include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
+#include "util/Logging.h"
+#include "util/types.h"
 #include "work/WorkScheduler.h"
 
 #ifdef BUILD_TESTS
@@ -37,6 +35,7 @@
 #include <fmt/format.h>
 #include <iostream>
 #include <lib/clara.hpp>
+#include <optional>
 
 namespace stellar
 {
@@ -88,7 +87,7 @@ class CommandLine
     using AdjustedCommandLine =
         std::pair<std::string, std::vector<std::string>>;
     AdjustedCommandLine adjustCommandLine(clara::detail::Args const& args);
-    optional<Command> selectCommand(std::string const& commandName);
+    std::optional<Command> selectCommand(std::string const& commandName);
     void writeToStream(std::string const& exeName, std::ostream& os) const;
 
   private:
@@ -283,7 +282,7 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-optional<CatchupConfiguration>
+std::optional<CatchupConfiguration>
 maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
                               uint32_t startAtLedger,
                               std::string const& startAtHash)
@@ -298,7 +297,7 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         {
             throw std::runtime_error("--start-at-hash requires --in-memory");
         }
-        return nullptr;
+        return std::optional<CatchupConfiguration>();
     }
 
     // Adjust configs for in-memory-replay mode
@@ -324,12 +323,12 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         config.MODE_AUTO_STARTS_OVERLAY = false;
         LedgerNumHashPair pair;
         pair.first = startAtLedger;
-        pair.second = make_optional<Hash>(hexToBin256(startAtHash));
+        pair.second = std::optional<Hash>(hexToBin256(startAtHash));
         uint32_t count = 0;
         auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
-        return make_optional<CatchupConfiguration>(pair, count, mode);
+        return std::make_optional<CatchupConfiguration>(pair, count, mode);
     }
-    return nullptr;
+    return std::optional<CatchupConfiguration>();
 }
 
 clara::Opt
@@ -539,7 +538,7 @@ CommandLine::adjustCommandLine(clara::detail::Args const& args)
     return CommandLine::AdjustedCommandLine{command, remainingTokens};
 }
 
-optional<CommandLine::Command>
+std::optional<CommandLine::Command>
 CommandLine::selectCommand(std::string const& commandName)
 {
     auto command = std::find_if(
@@ -547,7 +546,7 @@ CommandLine::selectCommand(std::string const& commandName)
         [&](Command const& command) { return command.name() == commandName; });
     if (command != std::end(mCommands))
     {
-        return make_optional<Command>(*command);
+        return std::make_optional<Command>(*command);
     }
 
     command = std::find_if(
@@ -555,9 +554,9 @@ CommandLine::selectCommand(std::string const& commandName)
         [&](Command const& command) { return command.name() == "help"; });
     if (command != std::end(mCommands))
     {
-        return make_optional<Command>(*command);
+        return std::make_optional<Command>(*command);
     }
-    return nullopt<Command>();
+    return std::optional<Command>();
 }
 
 void
@@ -723,7 +722,7 @@ runCatchup(CommandLineArgs const& args)
                     }
                     LedgerNumHashPair pair;
                     pair.first = cc.toLedger();
-                    pair.second = make_optional<Hash>(h);
+                    pair.second = std::make_optional<Hash>(h);
                     LOG_INFO(DEFAULT_LOG, "Found trusted hash {} for ledger {}",
                              hexAbbrev(h), cc.toLedger());
                     cc = CatchupConfiguration(pair, cc.count(), cc.mode());
@@ -839,7 +838,7 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
                         "Found authenticated checkpoint hash {} for ledger {}",
                         hexAbbrev(h), seq);
                     authPair.first = seq;
-                    authPair.second = make_optional<Hash>(h);
+                    authPair.second = std::make_optional<Hash>(h);
                 }
                 else if (authPair.first != seq)
                 {
@@ -1078,7 +1077,7 @@ run(CommandLineArgs const& args)
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
-            optional<CatchupConfiguration> cc;
+            std::optional<CatchupConfiguration> cc;
             try
             {
                 cfg = configOption.getConfig();

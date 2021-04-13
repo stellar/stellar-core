@@ -6,6 +6,7 @@
 
 #include "ledger/LedgerRange.h"
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace stellar
@@ -71,7 +72,7 @@ class CatchupConfiguration
         return mCount;
     }
 
-    optional<Hash>
+    std::optional<Hash>
     hash() const
     {
         return mLedgerHashPair.second;

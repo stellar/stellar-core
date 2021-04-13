@@ -187,25 +187,25 @@ bitset_count(const bitset_t* bitset)
     // assumes that long long is 8 bytes
     for (; k + 7 < bitset->arraysize; k += 8)
     {
-        card += __builtin_popcountll(bitset->array[k]);
-        card += __builtin_popcountll(bitset->array[k + 1]);
-        card += __builtin_popcountll(bitset->array[k + 2]);
-        card += __builtin_popcountll(bitset->array[k + 3]);
-        card += __builtin_popcountll(bitset->array[k + 4]);
-        card += __builtin_popcountll(bitset->array[k + 5]);
-        card += __builtin_popcountll(bitset->array[k + 6]);
-        card += __builtin_popcountll(bitset->array[k + 7]);
+        card += bitset_popcountll(bitset->array[k]);
+        card += bitset_popcountll(bitset->array[k + 1]);
+        card += bitset_popcountll(bitset->array[k + 2]);
+        card += bitset_popcountll(bitset->array[k + 3]);
+        card += bitset_popcountll(bitset->array[k + 4]);
+        card += bitset_popcountll(bitset->array[k + 5]);
+        card += bitset_popcountll(bitset->array[k + 6]);
+        card += bitset_popcountll(bitset->array[k + 7]);
     }
     for (; k + 3 < bitset->arraysize; k += 4)
     {
-        card += __builtin_popcountll(bitset->array[k]);
-        card += __builtin_popcountll(bitset->array[k + 1]);
-        card += __builtin_popcountll(bitset->array[k + 2]);
-        card += __builtin_popcountll(bitset->array[k + 3]);
+        card += bitset_popcountll(bitset->array[k]);
+        card += bitset_popcountll(bitset->array[k + 1]);
+        card += bitset_popcountll(bitset->array[k + 2]);
+        card += bitset_popcountll(bitset->array[k + 3]);
     }
     for (; k < bitset->arraysize; k++)
     {
-        card += __builtin_popcountll(bitset->array[k]);
+        card += bitset_popcountll(bitset->array[k]);
     }
     return card;
 }
@@ -238,7 +238,7 @@ bitset_minimum(const bitset_t* bitset)
         uint64_t w = bitset->array[k];
         if (w != 0)
         {
-            return __builtin_ctzll(w) + k * 64;
+            return bitset_ctzll(w) + k * 64;
         }
     }
     return 0;
@@ -252,7 +252,7 @@ bitset_maximum(const bitset_t* bitset)
         uint64_t w = bitset->array[k - 1];
         if (w != 0)
         {
-            return 63 - __builtin_clzll(w) + (k - 1) * 64;
+            return 63 - bitset_clzll(w) + (k - 1) * 64;
         }
     }
     return 0;
@@ -267,28 +267,28 @@ bitset_union_count(const bitset_t* b1, const bitset_t* b2)
     size_t k = 0;
     for (; k + 3 < minlength; k += 4)
     {
-        answer += __builtin_popcountll(b1->array[k] | b2->array[k]);
-        answer += __builtin_popcountll(b1->array[k + 1] | b2->array[k + 1]);
-        answer += __builtin_popcountll(b1->array[k + 2] | b2->array[k + 2]);
-        answer += __builtin_popcountll(b1->array[k + 3] | b2->array[k + 3]);
+        answer += bitset_popcountll(b1->array[k] | b2->array[k]);
+        answer += bitset_popcountll(b1->array[k + 1] | b2->array[k + 1]);
+        answer += bitset_popcountll(b1->array[k + 2] | b2->array[k + 2]);
+        answer += bitset_popcountll(b1->array[k + 3] | b2->array[k + 3]);
     }
     for (; k < minlength; ++k)
     {
-        answer += __builtin_popcountll(b1->array[k] | b2->array[k]);
+        answer += bitset_popcountll(b1->array[k] | b2->array[k]);
     }
     if (b2->arraysize > b1->arraysize)
     {
         // k = b1->arraysize;
         for (; k + 3 < b2->arraysize; k += 4)
         {
-            answer += __builtin_popcountll(b2->array[k]);
-            answer += __builtin_popcountll(b2->array[k + 1]);
-            answer += __builtin_popcountll(b2->array[k + 2]);
-            answer += __builtin_popcountll(b2->array[k + 3]);
+            answer += bitset_popcountll(b2->array[k]);
+            answer += bitset_popcountll(b2->array[k + 1]);
+            answer += bitset_popcountll(b2->array[k + 2]);
+            answer += bitset_popcountll(b2->array[k + 3]);
         }
         for (; k < b2->arraysize; ++k)
         {
-            answer += __builtin_popcountll(b2->array[k]);
+            answer += bitset_popcountll(b2->array[k]);
         }
     }
     else
@@ -296,14 +296,14 @@ bitset_union_count(const bitset_t* b1, const bitset_t* b2)
         // k = b2->arraysize;
         for (; k + 3 < b1->arraysize; k += 4)
         {
-            answer += __builtin_popcountll(b1->array[k]);
-            answer += __builtin_popcountll(b1->array[k + 1]);
-            answer += __builtin_popcountll(b1->array[k + 2]);
-            answer += __builtin_popcountll(b1->array[k + 3]);
+            answer += bitset_popcountll(b1->array[k]);
+            answer += bitset_popcountll(b1->array[k + 1]);
+            answer += bitset_popcountll(b1->array[k + 2]);
+            answer += bitset_popcountll(b1->array[k + 3]);
         }
         for (; k < b1->arraysize; ++k)
         {
-            answer += __builtin_popcountll(b1->array[k]);
+            answer += bitset_popcountll(b1->array[k]);
         }
     }
     return answer;
@@ -346,11 +346,11 @@ bitset_difference_count(const bitset_t* b1, const bitset_t* b2)
     size_t answer = 0;
     for (; k < minlength; ++k)
     {
-        answer += __builtin_popcountll(b1->array[k] & ~(b2->array[k]));
+        answer += bitset_popcountll(b1->array[k] & ~(b2->array[k]));
     }
     for (; k < b1->arraysize; ++k)
     {
-        answer += __builtin_popcountll(b1->array[k]);
+        answer += bitset_popcountll(b1->array[k]);
     }
     return answer;
 }
@@ -385,20 +385,20 @@ bitset_symmetric_difference_count(const bitset_t* b1, const bitset_t* b2)
     size_t answer = 0;
     for (; k < minlength; ++k)
     {
-        answer += __builtin_popcountll(b1->array[k] ^ b2->array[k]);
+        answer += bitset_popcountll(b1->array[k] ^ b2->array[k]);
     }
     if (b2->arraysize > b1->arraysize)
     {
         for (; k < b2->arraysize; ++k)
         {
-            answer += __builtin_popcountll(b2->array[k]);
+            answer += bitset_popcountll(b2->array[k]);
         }
     }
     else
     {
         for (; k < b1->arraysize; ++k)
         {
-            answer += __builtin_popcountll(b1->array[k]);
+            answer += bitset_popcountll(b1->array[k]);
         }
     }
     return answer;

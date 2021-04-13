@@ -24,8 +24,8 @@
 #include "transactions/TransactionUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
-#include "util/optional.h"
 #include <fmt/format.h>
+#include <optional>
 #include <xdrpp/marshal.h>
 
 using namespace stellar;
@@ -96,8 +96,8 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     qSet.validators.push_back(keys[1].getPublicKey());
     qSet.validators.push_back(keys[2].getPublicKey());
 
-    auto setUpgrade = [](optional<uint32>& o, uint32 v) {
-        o = make_optional<uint32>(v);
+    auto setUpgrade = [](std::optional<uint32>& o, uint32 v) {
+        o = std::make_optional<uint32>(v);
     };
     // create nodes
     for (size_t i = 0; i < nodes.size(); i++)
@@ -2318,4 +2318,34 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(upgrades.mMaxTxSize);
         REQUIRE(upgrades.mBaseReserve);
     }
+}
+
+TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
+{
+    std::string in = R"({
+    "time": 1618016242,
+    "version": {
+        "has": true,
+        "val": 17
+    },
+    "fee": {
+        "has": false
+    },
+    "maxtxsize": {
+        "has": true,
+        "val": 10000
+    },
+    "reserve": {
+        "has": false
+    }
+})";
+    Upgrades::UpgradeParameters up;
+    up.fromJson(in);
+    REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
+    REQUIRE(up.mProtocolVersion.has_value());
+    REQUIRE(up.mProtocolVersion.value() == 17);
+    REQUIRE(!up.mBaseFee.has_value());
+    REQUIRE(up.mMaxTxSize.has_value());
+    REQUIRE(up.mMaxTxSize.value() == 10000);
+    REQUIRE(!up.mBaseReserve.has_value());
 }

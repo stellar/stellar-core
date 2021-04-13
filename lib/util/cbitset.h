@@ -172,7 +172,7 @@ bitset_intersection_count(const bitset_t* b1, const bitset_t* b2)
     size_t minlength = b1->arraysize < b2->arraysize ? b1->arraysize : b2->arraysize;
     for (size_t k = 0; k < minlength; ++k)
     {
-        answer += __builtin_popcountll(b1->array[k] & b2->array[k]);
+        answer += bitset_popcountll(b1->array[k] & b2->array[k]);
     }
     return answer;
 }
@@ -216,7 +216,7 @@ nextSetBit(const bitset_t* bitset, size_t* i)
     w >>= (*i & 63);
     if (w != 0)
     {
-        *i += __builtin_ctzll(w);
+        *i += bitset_ctzll(w);
         return true;
     }
     x++;
@@ -225,7 +225,7 @@ nextSetBit(const bitset_t* bitset, size_t* i)
         w = bitset->array[x];
         if (w != 0)
         {
-            *i = x * 64 + __builtin_ctzll(w);
+            *i = x * 64 + bitset_ctzll(w);
             return true;
         }
         x++;
@@ -262,7 +262,7 @@ nextSetBits(const bitset_t* bitset, size_t* buffer, size_t capacity,
         while (w != 0)
         {
             uint64_t t = w & (~w + 1);
-            int r = __builtin_ctzll(w);
+            int r = bitset_ctzll(w);
             buffer[howmany++] = r + base;
             if (howmany == capacity)
                 goto end;
@@ -297,7 +297,7 @@ bitset_for_each(const bitset_t* b, bitset_iterator iterator, void* ptr)
         while (w != 0)
         {
             uint64_t t = w & (~w + 1);
-            int r = __builtin_ctzll(w);
+            int r = bitset_ctzll(w);
             if (!iterator(r + base, ptr))
                 return false;
             w ^= t;
