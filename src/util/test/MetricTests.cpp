@@ -134,7 +134,8 @@ struct Percentiles
         {
             std::ostringstream oss;
             bool first = true;
-            for (auto dbl : snap.getValues())
+            auto values = snap.getValues();
+            for (auto dbl : values)
             {
                 if (first)
                 {
@@ -146,6 +147,7 @@ struct Percentiles
                 }
                 oss << dbl;
             }
+            printDistribution(values);
             LOG_ERROR(DEFAULT_LOG, "failing samples: {}", oss.str());
         }
     }
