@@ -218,6 +218,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     ltx.create(rootEntry);
 
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
+    CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
     ledgerClosed(ltx);
     ltx.commit();
