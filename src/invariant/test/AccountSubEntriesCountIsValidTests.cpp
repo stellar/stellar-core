@@ -44,12 +44,12 @@ static LedgerEntry
 generateRandomSubEntry(LedgerEntry const& acc)
 {
     static auto validAccountIDGenerator =
-        autocheck::map([](AccountID&& id, size_t s) { return id; },
+        autocheck::map([](AccountID&& id, size_t s) { return std::move(id); },
                        autocheck::generator<AccountID>());
     static auto validDataNameGenerator = autocheck::map(
         [](string64&& dn, size_t s) {
             LedgerTestUtils::replaceControlCharacters(dn, 64);
-            return dn;
+            return std::move(dn);
         },
         autocheck::generator<string64>());
 
@@ -119,7 +119,7 @@ static auto validSignerGenerator = autocheck::map(
         {
             signer.weight = 100;
         }
-        return signer;
+        return std::move(signer);
     },
     autocheck::generator<Signer>());
 
