@@ -741,6 +741,11 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
 void
 HerderImpl::maybeTriggerNextLedger(bool synchronous)
 {
+    if (!mHerderSCPDriver.trackingSCP())
+    {
+        return;
+    }
+
     mTriggerTimer.cancel();
 
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
