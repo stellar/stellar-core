@@ -92,8 +92,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
 
         cfg4.UNSAFE_EMIT_META_EARLY = true;
         cfg5.UNSAFE_EMIT_META_EARLY = false;
-        cfg5.MODE_USES_IN_MEMORY_LEDGER =
-            true; // required by !UNSAFE_EMIT_META_EARLY
+        cfg5.setInMemoryMode(); // required by !UNSAFE_EMIT_META_EARLY
 
         // Step 3: Run simulation a few steps to stream metadata.
         auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
@@ -252,13 +251,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.NODE_IS_VALIDATOR = false;
         cfg.FORCE_SCP = false;
         cfg.RUN_STANDALONE = true;
-        // Replay-in-memory configs
-        cfg.DISABLE_XDR_FSYNC = true;
-        cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
-        cfg.MODE_STORES_HISTORY = false;
-        cfg.MODE_USES_IN_MEMORY_LEDGER = false;
-        cfg.MODE_ENABLES_BUCKETLIST = true;
-        cfg.MODE_KEEPS_BUCKETS = false;
+        cfg.setInMemoryMode();
         cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg, /*newdb=*/false);
@@ -313,7 +306,10 @@ TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
         auto const unsafeEmitMeta = GENERATE(false, true);
         auto const inMemory = GENERATE(false, true);
         cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
-        cfg.MODE_USES_IN_MEMORY_LEDGER = inMemory;
+        if (inMemory)
+        {
+            cfg.setInMemoryMode();
+        }
         REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
     }
 
@@ -338,7 +334,10 @@ TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
         auto const unsafeEmitMeta = GENERATE(false, true);
         auto const inMemory = GENERATE(false, true);
         cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
-        cfg.MODE_USES_IN_MEMORY_LEDGER = inMemory;
+        if (inMemory)
+        {
+            cfg.setInMemoryMode();
+        }
         if (!unsafeEmitMeta && !inMemory)
         {
             REQUIRE_THROWS_AS(createTestApplication(clock, cfg)->start(),

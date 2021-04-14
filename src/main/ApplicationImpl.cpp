@@ -437,24 +437,18 @@ ApplicationImpl::start()
     // captive core, without a persistent database; old-style ingestion which
     // reads from the core database could do the delaying itself.
     if (mConfig.METADATA_OUTPUT_STREAM != "" &&
-        !mConfig.UNSAFE_EMIT_META_EARLY && !mConfig.MODE_USES_IN_MEMORY_LEDGER)
+        !mConfig.UNSAFE_EMIT_META_EARLY && !mConfig.isInMemoryMode())
     {
         throw std::invalid_argument("Using a METADATA_OUTPUT_STREAM with "
                                     "UNSAFE_EMIT_META_EARLY set to false "
                                     "requires --in-memory");
     }
 
-    if (isNetworkedValidator)
+    if (isNetworkedValidator && mConfig.isInMemoryMode())
     {
-        bool inMemory = mConfig.DATABASE.value == "sqlite3://:memory:" &&
-                        !mConfig.MODE_STORES_HISTORY &&
-                        !mConfig.MODE_KEEPS_BUCKETS;
-        if (inMemory)
-        {
-            throw std::invalid_argument(
-                "In-memory mode is set, NODE_IS_VALIDATOR is set, "
-                "and RUN_STANDALONE is not set");
-        }
+        throw std::invalid_argument(
+            "In-memory mode is set, NODE_IS_VALIDATOR is set, "
+            "and RUN_STANDALONE is not set");
     }
 
     if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
