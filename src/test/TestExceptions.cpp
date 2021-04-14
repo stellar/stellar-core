@@ -546,6 +546,12 @@ throwIf(TransactionResult const& result)
     case CLAIM_CLAIMABLE_BALANCE:
         throwIf(opResult.tr().claimClaimableBalanceResult());
         break;
+    case BEGIN_SPONSORING_FUTURE_RESERVES:
+    case END_SPONSORING_FUTURE_RESERVES:
+    case REVOKE_SPONSORSHIP:
+        // Sponsorship tests catch error codes at a higher level than this.
+        throw std::runtime_error("got error-result in test sponsorship tx");
+        break;
     case CLAWBACK:
         throwIf(opResult.tr().clawbackResult());
         break;

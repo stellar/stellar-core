@@ -297,7 +297,7 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         {
             throw std::runtime_error("--start-at-hash requires --in-memory");
         }
-        return std::optional<CatchupConfiguration>();
+        return std::nullopt;
     }
 
     // Adjust configs for in-memory-replay mode
@@ -328,7 +328,7 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
         return std::make_optional<CatchupConfiguration>(pair, count, mode);
     }
-    return std::optional<CatchupConfiguration>();
+    return std::nullopt;
 }
 
 clara::Opt
@@ -556,7 +556,7 @@ CommandLine::selectCommand(std::string const& commandName)
     {
         return std::make_optional<Command>(*command);
     }
-    return std::optional<Command>();
+    return std::nullopt;
 }
 
 void

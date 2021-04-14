@@ -559,24 +559,24 @@ TEST_CASE("schema upgrade test", "[db]")
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const dbMode) {
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid account.
-        auto const accOptLiabilities = {
-            std::optional<Liabilities>(),
+        std::vector<std::optional<Liabilities>> const accOptLiabilities = {
+            std::nullopt,
             std::make_optional<Liabilities>(Liabilities{12, 17}),
             std::make_optional<Liabilities>(Liabilities{4, 0}),
-            std::optional<Liabilities>(),
+            std::nullopt,
             std::make_optional<Liabilities>(Liabilities{3, 0}),
             std::make_optional<Liabilities>(Liabilities{11, 11}),
             std::make_optional<Liabilities>(Liabilities{0, 0})};
 
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid trustline.
-        auto const tlOptLiabilities = {
+        std::vector<std::optional<Liabilities>> const tlOptLiabilities = {
             std::make_optional<Liabilities>(Liabilities{1, 0}),
             std::make_optional<Liabilities>(Liabilities{0, 6}),
-            std::optional<Liabilities>(),
+            std::nullopt,
             std::make_optional<Liabilities>(Liabilities{0, 0}),
             std::make_optional<Liabilities>(Liabilities{5, 8}),
-            std::optional<Liabilities>()};
+            std::nullopt};
 
         // Generate from each of the optional liabilities in accOptLiabilities a
         // new valid account.

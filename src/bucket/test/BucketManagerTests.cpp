@@ -177,7 +177,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
 static Hash
 closeLedger(Application& app)
 {
-    return closeLedger(app, std::optional<SecretKey>());
+    return closeLedger(app, std::nullopt);
 }
 }
 

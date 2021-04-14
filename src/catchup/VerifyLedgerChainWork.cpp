@@ -131,7 +131,7 @@ VerifyLedgerChainWork::onReset()
 {
     CLOG_INFO(History, "Verifying ledgers {}", mRange.toString());
 
-    mVerifiedAhead = LedgerNumHashPair(0, std::optional<Hash>());
+    mVerifiedAhead = LedgerNumHashPair(0, std::nullopt);
     mMaxVerifiedLedgerOfMinCheckpoint = {};
     mVerifiedLedgers.clear();
     mCurrCheckpoint = mRange.mCount == 0

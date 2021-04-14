@@ -189,7 +189,7 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
         return std::make_optional<T>(val);
     }
 
-    return std::optional<T>();
+    return std::nullopt;
 }
 
 // If the key exists and the value successfully parses, return that value.

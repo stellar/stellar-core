@@ -33,15 +33,14 @@ namespace stellar
 using namespace std;
 
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
-    : mHash(std::optional<Hash>())
-    , mValid(std::optional<std::pair<Hash, bool>>())
+    : mHash(std::nullopt)
+    , mValid(std::nullopt)
     , mPreviousLedgerHash(previousLedgerHash)
 {
 }
 
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
-    : mHash(std::optional<Hash>())
-    , mValid(std::optional<std::pair<Hash, bool>>())
+    : mHash(std::nullopt), mValid(std::nullopt)
 {
     ZoneScoped;
     for (auto const& env : xdrSet.txs)
