@@ -1023,15 +1023,18 @@ runPrintXdr(CommandLineArgs const& args)
     std::string fileType{"auto"};
     auto base64 = false;
     auto compact = false;
+    auto rawMode = false;
 
     auto fileTypeOpt = clara::Opt(fileType, "FILE-TYPE")["--filetype"](
         "[auto|ledgerheader|meta|result|resultpair|tx|txfee]");
 
     return runWithHelp(args,
                        {fileNameParser(xdr), fileTypeOpt, base64Parser(base64),
-                        compactParser(compact)},
+                        compactParser(compact),
+                        clara::Opt{rawMode}["--raw"](
+                            "raw mode, do not normalize some objects")},
                        [&] {
-                           printXdr(xdr, fileType, base64, compact);
+                           printXdr(xdr, fileType, base64, compact, rawMode);
                            return 0;
                        });
 }
