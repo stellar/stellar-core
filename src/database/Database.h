@@ -194,16 +194,6 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
-
-  protected:
-    // Give clients the opportunity to perform operations on databases while
-    // they're still using old schemas (prior to the upgrade that occurs either
-    // immediately after database creation or after loading a version of
-    // stellar-core that introduces a new schema).
-    virtual void
-    actBeforeDBSchemaUpgrade()
-    {
-    }
 };
 
 template <typename T>
