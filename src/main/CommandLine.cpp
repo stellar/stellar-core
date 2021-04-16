@@ -1044,44 +1044,43 @@ runReportLastHistoryCheckpoint(CommandLineArgs const& args)
 std::vector<std::pair<uint32_t, uint32_t>>
 parseSimulateSleepPerOpList(std::string const& simulateSleepPerOpListInput)
 {
+    // The input must be of the form
+    // w_1*d_1,w_2*d_2,...,w_k*d_k
+    // where
+    //     * 1 <= k
+    //     * 1 <= w_i <= 100
+    //     * 0 <= d_i
+    //     * w_1 + ... + w_k = 100.
     std::stringstream ss;
-    char nextNonDigitChar = '*';
     for (auto c : simulateSleepPerOpListInput)
     {
-        if ('0' <= c && c <= '9')
-        {
-            ss << c;
-        }
-        if (c == nextNonDigitChar)
-        {
-            ss << " ";
-            nextNonDigitChar ^= '*' ^ ',';
-        }
-        else
-        {
-            throw std::runtime_error(
-                fmt::format("Unable to parse simulateSleepPerOpList. "
-                            "Unrecognized character {}",
-                            c));
-        }
-    }
-    if (nextNonDigitChar != '*')
-    {
-        throw std::runtime_error(
-            "Unable to parse simulateSleepPerOpList. Each comma separated term "
-            "must contain both the weight and duration");
+        ss << (isdigit(c) ? c : ' ');
     }
     uint32_t weight, duration, totalWeight{0};
     std::vector<std::pair<uint32_t, uint32_t>> ret;
+    std::stringstream reconstruct;
     while (ss >> weight >> duration)
     {
+        reconstruct << (ret.empty() ? "" : ",") << weight << "*" << duration;
         ret.push_back(std::make_pair(weight, duration));
         totalWeight += weight;
     }
-    if (totalWeight != weight)
+    if (reconstruct.str() != simulateSleepPerOpListInput)
     {
-        throw std::runtime_error("Unable to parse simulateSleepPerOpList. The "
-                                 "sum of the weight must equal 100");
+        throw std::runtime_error(
+            fmt::format("Unable to parse --simulate-apply-per-op-list. Did you "
+                        "mean to type \"{}\"?",
+                        reconstruct.str()));
+    }
+    if (totalWeight != 100)
+    {
+        throw std::runtime_error("The sum of the weight in "
+                                 "--simulate-apply-per-op-list must equal 100");
+    }
+    for (auto const& p : ret)
+    {
+        LOG_INFO(DEFAULT_LOG, "Sleeps for {} usec {}\% of the time", p.second,
+                 p.first);
     }
     return ret;
 }
@@ -1119,7 +1118,7 @@ run(CommandLineArgs const& args)
             {
                 cfg = configOption.getConfig();
                 cfg.DISABLE_BUCKET_GC = disableBucketGC;
-                if (simulateSleepPerOpListInput.empty())
+                if (!simulateSleepPerOpListInput.empty())
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
