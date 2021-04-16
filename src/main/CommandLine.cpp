@@ -1041,30 +1041,76 @@ runReportLastHistoryCheckpoint(CommandLineArgs const& args)
         });
 }
 
+std::vector<std::pair<uint32_t, uint32_t>>
+parseSimulateSleepPerOpList(std::string const& simulateSleepPerOpListInput)
+{
+    std::stringstream ss;
+    char nextNonDigitChar = '*';
+    for (auto c : simulateSleepPerOpListInput)
+    {
+        if ('0' <= c && c <= '9')
+        {
+            ss << c;
+        }
+        if (c == nextNonDigitChar)
+        {
+            ss << " ";
+            nextNonDigitChar ^= '*' ^ ',';
+        }
+        else
+        {
+            throw std::runtime_error(
+                fmt::format("Unable to parse simulateSleepPerOpList. "
+                            "Unrecognized character {}",
+                            c));
+        }
+    }
+    if (nextNonDigitChar != '*')
+    {
+        throw std::runtime_error(
+            "Unable to parse simulateSleepPerOpList. Each comma separated term "
+            "must contain both the weight and duration");
+    }
+    uint32_t weight, duration, totalWeight{0};
+    std::vector<std::pair<uint32_t, uint32_t>> ret;
+    while (ss >> weight >> duration)
+    {
+        ret.push_back(std::make_pair(weight, duration));
+        totalWeight += weight;
+    }
+    if (totalWeight != weight)
+    {
+        throw std::runtime_error("Unable to parse simulateSleepPerOpList. The "
+                                 "sum of the weight must equal 100");
+    }
+    return ret;
+}
+
 int
 run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
-    uint32_t simulateSleepPerOp = 0;
     std::string stream;
     bool inMemory = false;
     bool waitForConsensus = false;
     uint32_t startAtLedger = 0;
     std::string startAtHash;
+    std::string simulateSleepPerOpListInput;
 
-    auto simulateParser = [](uint32_t& simulateSleepPerOp) {
-        return clara::Opt{simulateSleepPerOp,
-                          "MICROSECONDS"}["--simulate-apply-per-op"](
-            "simulate application time per operation");
+    auto simulateParser = [](std::string& simulateSleepPerOpListInput) {
+        return clara::Opt{simulateSleepPerOpListInput,
+                          "WEIGHTED_LIST"}["--simulate-apply-per-op-list"](
+            "Weighted list containing simulate application time per operation");
     };
 
     return runWithHelp(
         args,
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
-         simulateParser(simulateSleepPerOp), metadataOutputStreamParser(stream),
-         inMemoryParser(inMemory), waitForConsensusParser(waitForConsensus),
+         simulateParser(simulateSleepPerOpListInput),
+         metadataOutputStreamParser(stream), inMemoryParser(inMemory),
+         waitForConsensusParser(waitForConsensus),
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
@@ -1073,10 +1119,12 @@ run(CommandLineArgs const& args)
             {
                 cfg = configOption.getConfig();
                 cfg.DISABLE_BUCKET_GC = disableBucketGC;
-                if (simulateSleepPerOp > 0)
+                if (simulateSleepPerOpListInput.empty())
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
-                    cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING = simulateSleepPerOp;
+                    cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
+                        parseSimulateSleepPerOpList(
+                            simulateSleepPerOpListInput);
                     cfg.MODE_STORES_HISTORY = false;
                     cfg.MODE_USES_IN_MEMORY_LEDGER = false;
                     cfg.MODE_ENABLES_BUCKETLIST = false;

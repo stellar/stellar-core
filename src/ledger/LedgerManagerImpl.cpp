@@ -739,17 +739,45 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
-    // Maybe sleep for parameterized amount of time in simulation mode
-    auto sleepFor = std::chrono::microseconds{
-        mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING * txSet->sizeOp()};
-    std::chrono::microseconds applicationTime =
-        closeLedgerTime.checkElapsedTime();
-    if (applicationTime < sleepFor)
+    if (!mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING.empty())
     {
-        sleepFor -= applicationTime;
-        CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
-                   sleepFor.count());
-        std::this_thread::sleep_for(sleepFor);
+        // Sleep for a parameterized amount of time in simulation mode
+        int sample = rand_uniform(1, 100);
+        uint32_t chosenDuration = 0;
+        // Pick the i-th duration if only if the sample above lies within
+        // [weight_0 + ... + weight_{i-1} + 1, weight_0 + ... + weight_i]
+        // As the sum of the weights equals 100, this gives us the i-th duration
+        // weight_i percent of the time.
+        for (auto const& p : mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING)
+        {
+            sample -= p.first;
+            if (sample <= 0)
+            {
+                chosenDuration = p.second;
+            }
+        }
+        std::cout << "[[[[[[[[[[[[[[[" << std::endl;
+        std::cout << "[[[[[[[[[[[[[[[" << std::endl;
+        std::cout << "[[[[[[[[[[[[[[[" << std::endl;
+        std::cout << "[[[[[[[[[[[[[[[" << std::endl;
+        std::cout << "[[[[[[[[[[[[[[[" << std::endl;
+        std::cout << "chosenDuration = [" << chosenDuration << "]" << std::endl;
+        std::cout << "]]]]]]]]]]]]]]]" << std::endl;
+        std::cout << "]]]]]]]]]]]]]]]" << std::endl;
+        std::cout << "]]]]]]]]]]]]]]]" << std::endl;
+        std::cout << "]]]]]]]]]]]]]]]" << std::endl;
+        std::cout << "]]]]]]]]]]]]]]]" << std::endl;
+        auto sleepFor =
+            std::chrono::microseconds{chosenDuration * txSet->sizeOp()};
+        std::chrono::microseconds applicationTime =
+            closeLedgerTime.checkElapsedTime();
+        if (applicationTime < sleepFor)
+        {
+            sleepFor -= applicationTime;
+            CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
+                       sleepFor.count());
+            std::this_thread::sleep_for(sleepFor);
+        }
     }
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();

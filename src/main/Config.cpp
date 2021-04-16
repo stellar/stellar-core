@@ -102,7 +102,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
     MODE_KEEPS_BUCKETS = true;
-    OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
+    OP_APPLY_SLEEP_TIME_FOR_TESTING =
+        std::vector<std::pair<uint32_t, uint32_t>>();
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;

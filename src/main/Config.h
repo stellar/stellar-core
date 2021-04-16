@@ -190,9 +190,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
     // A config parameter that forces transaction application during ledger
-    // close to sleep for a given number of microseconds. This option is only
-    // for consensus and overlay simulation testing.
-    uint32_t OP_APPLY_SLEEP_TIME_FOR_TESTING;
+    // close to sleep. This option is only for consensus and overlay simulation
+    // testing. Each element in the vector is in the form of (weight, duration)
+    // where the chance of sleeping `duration` microseconds is equal to `weight`
+    // percent.
+    std::vector<std::pair<uint32_t, uint32_t>> OP_APPLY_SLEEP_TIME_FOR_TESTING;
 
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
