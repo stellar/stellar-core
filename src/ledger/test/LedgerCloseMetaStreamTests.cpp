@@ -28,7 +28,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     // validator and record metadata streams at the same time (to avoid the
     // unbounded-latency stream-write step): N nodes participating in consensus,
     // and two watching and streaming metadata -- the second one using
-    // !UNSAFE_EMIT_META_EARLY.
+    // EXPERIMENTAL_PRECAUTION_DELAY_META.
 
     Hash expectedLastUnsafeHash, expectedLastSafeHash;
     TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
@@ -57,8 +57,11 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         SIMULATION_CREATE_NODE(Node2); // Validator
         SIMULATION_CREATE_NODE(Node3); // Validator
 
-        SIMULATION_CREATE_NODE(Node4); // Watcher, UNSAFE_EMIT_META_EARLY
-        SIMULATION_CREATE_NODE(Node5); // Watcher, !UNSAFE_EMIT_META_EARLY
+        // Watcher, !EXPERIMENTAL_PRECAUTION_DELAY_META
+        SIMULATION_CREATE_NODE(Node4);
+
+        // Watcher, EXPERIMENTAL_PRECAUTION_DELAY_META
+        SIMULATION_CREATE_NODE(Node5);
 
         SCPQuorumSet qSet;
         qSet.threshold = 3;
@@ -90,9 +93,9 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         cfg5.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fdSafe);
 #endif
 
-        cfg4.UNSAFE_EMIT_META_EARLY = true;
-        cfg5.UNSAFE_EMIT_META_EARLY = false;
-        cfg5.setInMemoryMode(); // required by !UNSAFE_EMIT_META_EARLY
+        cfg4.EXPERIMENTAL_PRECAUTION_DELAY_META = false;
+        cfg5.EXPERIMENTAL_PRECAUTION_DELAY_META = true;
+        cfg5.setInMemoryMode(); // needed by EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 3: Run simulation a few steps to stream metadata.
         auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
@@ -189,8 +192,9 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     // The "- 1" is because we don't stream meta for the genesis ledger.
     REQUIRE(lcms.size() == expectedLastWatcherLedger - 1);
     REQUIRE(lcms.back().v0().ledgerHeader.hash == expectedLastUnsafeHash);
-    // The node with !UNSAFE_EMIT_META_EARLY should not have streamed the meta
-    // for the latest ledger (or the latest ledger before the corrupt one) yet.
+    // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
+    // the meta for the latest ledger (or the latest ledger before the corrupt
+    // one) yet.
     REQUIRE(lcmsSafe.size() == lcms.size() - 1);
     REQUIRE(lcmsSafe.back().v0().ledgerHeader.hash == expectedLastSafeHash);
     REQUIRE(lcmsSafe ==
@@ -241,7 +245,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     cfg1.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
 #endif
 
-    bool const unsafeEmitMeta = GENERATE(true, false);
+    bool const delayMeta = GENERATE(true, false);
 
     // Step 3: pass it to an application and have it catch up to the generated
     // history, streaming ledgerCloseMeta to the file descriptor.
@@ -252,7 +256,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.FORCE_SCP = false;
         cfg.RUN_STANDALONE = true;
         cfg.setInMemoryMode();
-        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
+        cfg.EXPERIMENTAL_PRECAUTION_DELAY_META = delayMeta;
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg, /*newdb=*/false);
 
@@ -276,9 +280,9 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     // Step 4: reopen the file as an XDR stream and read back the LCMs
     // and check they have the expected content.
     //
-    // The !UNSAFE_EMIT_META_EARLY case should still have streamed the latest
-    // meta, because catchup should have validated that ledger's hash by
-    // validating a chain of hashes back from one obtained from consensus.
+    // The EXPERIMENTAL_PRECAUTION_DELAY_META case should still have streamed
+    // the latest meta, because catchup should have validated that ledger's hash
+    // by validating a chain of hashes back from one obtained from consensus.
     XDRInputFileStream stream;
     stream.open(path);
     LedgerCloseMeta lcm;
@@ -292,20 +296,19 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     REQUIRE(lcm.v0().ledgerHeader.hash == hash);
 }
 
-TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
+TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
           "[ledgerclosemetastreamlive][ledgerclosemetastreamreplay]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
 
-    SECTION("UNSAFE_EMIT_META_EARLY may take either value (which is ignored) "
-            "without "
-            "METADATA_OUTPUT_STREAM")
+    SECTION("EXPERIMENTAL_PRECAUTION_DELAY_META may take either value "
+            "(which is ignored) without METADATA_OUTPUT_STREAM")
     {
         cfg.METADATA_OUTPUT_STREAM = "";
-        auto const unsafeEmitMeta = GENERATE(false, true);
+        auto const delayMeta = GENERATE(false, true);
         auto const inMemory = GENERATE(false, true);
-        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
+        cfg.EXPERIMENTAL_PRECAUTION_DELAY_META = delayMeta;
         if (inMemory)
         {
             cfg.setInMemoryMode();
@@ -313,9 +316,8 @@ TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
         REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
     }
 
-    SECTION(
-        "!UNSAFE_EMIT_META_EARLY together with METADATA_OUTPUT_STREAM requires "
-        "--in-memory")
+    SECTION("EXPERIMENTAL_PRECAUTION_DELAY_META together with "
+            "METADATA_OUTPUT_STREAM requires --in-memory")
     {
         TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
         TmpDir td = tdm.tmpDir("streams");
@@ -331,14 +333,14 @@ TEST_CASE("UNSAFE_EMIT_META_EARLY configuration",
 #endif
 
         cfg.METADATA_OUTPUT_STREAM = metaStream;
-        auto const unsafeEmitMeta = GENERATE(false, true);
+        auto const delayMeta = GENERATE(false, true);
         auto const inMemory = GENERATE(false, true);
-        cfg.UNSAFE_EMIT_META_EARLY = unsafeEmitMeta;
+        cfg.EXPERIMENTAL_PRECAUTION_DELAY_META = delayMeta;
         if (inMemory)
         {
             cfg.setInMemoryMode();
         }
-        if (!unsafeEmitMeta && !inMemory)
+        if (delayMeta && !inMemory)
         {
             REQUIRE_THROWS_AS(createTestApplication(clock, cfg)->start(),
                               std::invalid_argument);

@@ -689,7 +689,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         mNextMetaToEmit->v0().ledgerHeader = mLastClosedLedger;
         // If the LedgerCloseData provided an expected hash, then we validated
         // it above.
-        if (mApp.getConfig().UNSAFE_EMIT_META_EARLY ||
+        if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
             ledgerData.getExpectedHash())
         {
             emitNextMeta();

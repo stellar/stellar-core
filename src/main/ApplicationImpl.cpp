@@ -432,16 +432,17 @@ ApplicationImpl::start()
             "RUN_STANDALONE is not set");
     }
 
-    // UNSAFE_EMIT_META_EARLY is only meaningful when there's a
-    // METADATA_OUTPUT_STREAM.  We only allow !UNSAFE_EMIT_META_EARLY on a
-    // captive core, without a persistent database; old-style ingestion which
-    // reads from the core database could do the delaying itself.
+    // EXPERIMENTAL_PRECAUTION_DELAY_META is only meaningful when there's a
+    // METADATA_OUTPUT_STREAM.  We only allow EXPERIMENTAL_PRECAUTION_DELAY_META
+    // on a captive core, without a persistent database; old-style ingestion
+    // which reads from the core database could do the delaying itself.
     if (mConfig.METADATA_OUTPUT_STREAM != "" &&
-        !mConfig.UNSAFE_EMIT_META_EARLY && !mConfig.isInMemoryMode())
+        mConfig.EXPERIMENTAL_PRECAUTION_DELAY_META && !mConfig.isInMemoryMode())
     {
-        throw std::invalid_argument("Using a METADATA_OUTPUT_STREAM with "
-                                    "UNSAFE_EMIT_META_EARLY set to false "
-                                    "requires --in-memory");
+        throw std::invalid_argument(
+            "Using a METADATA_OUTPUT_STREAM with "
+            "EXPERIMENTAL_PRECAUTION_DELAY_META set to true "
+            "requires --in-memory");
     }
 
     if (isNetworkedValidator && mConfig.isInMemoryMode())
