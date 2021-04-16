@@ -43,7 +43,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
-    "OP_APPLY_SLEEP_TIME_FOR_TESTING"};
+    "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
+    "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -102,7 +103,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
-    OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
+    OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
+        std::vector<std::chrono::microseconds>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<unsigned short>();
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -239,10 +242,11 @@ readString(ConfigItem const& item)
     return item.second->as<std::string>()->get();
 }
 
-std::vector<std::string>
-readStringArray(ConfigItem const& item)
+template <typename T>
+std::vector<T>
+readArray(ConfigItem const& item)
 {
-    auto result = std::vector<std::string>{};
+    auto result = std::vector<T>{};
     if (!item.second->is_array())
     {
         throw std::invalid_argument(
@@ -250,12 +254,12 @@ readStringArray(ConfigItem const& item)
     }
     for (auto v : item.second->as_array()->get())
     {
-        if (!v->as<std::string>())
+        if (!v->as<T>())
         {
             throw std::invalid_argument(
                 fmt::format("invalid element of '{}'", item.first));
         }
-        result.push_back(v->as<std::string>()->get());
+        result.push_back(v->as<T>()->get());
     }
     return result;
 }
@@ -350,7 +354,7 @@ Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
         }
         else if (item.first == "VALIDATORS")
         {
-            auto values = readStringArray(item);
+            auto values = readArray<std::string>(item);
             for (auto v : values)
             {
                 PublicKey nodeID;
@@ -707,6 +711,39 @@ Config::verifyHistoryValidatorsBlocking(
     }
 }
 
+std::vector<std::chrono::microseconds>
+Config::processOpApplySleepTimeForTestingConfigs()
+{
+    if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
+        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.size())
+    {
+        throw std::invalid_argument(
+            "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING and "
+            "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be defined together "
+            "and have the same size");
+    }
+    if (std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
+                        OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(), 0) != 100)
+    {
+        throw std::invalid_argument(
+            "The sum of the weights in "
+            "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must equal 100");
+    }
+    std::vector<std::chrono::microseconds> ret;
+    ret.reserve(100);
+    for (size_t i = 0; i < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size(); i++)
+    {
+        LOG_INFO(DEFAULT_LOG, "Sleeps for {} {}\% of the time",
+                 OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i],
+                 OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]);
+        for (size_t j = 0; j < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]; j++)
+        {
+            ret.push_back(OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i]);
+        }
+    }
+    return ret;
+}
+
 void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
 {
@@ -789,7 +826,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "KNOWN_CURSORS")
             {
-                KNOWN_CURSORS = readStringArray(item);
+                KNOWN_CURSORS = readArray<std::string>(item);
                 for (auto const& c : KNOWN_CURSORS)
                 {
                     if (!ExternalQueue::validateResourceID(c))
@@ -871,7 +908,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "NODE_NAMES")
             {
-                auto names = readStringArray(item);
+                auto names = readArray<std::string>(item);
                 for (auto v : names)
                 {
                     PublicKey nodeID;
@@ -943,7 +980,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "PREFERRED_PEERS")
             {
-                PREFERRED_PEERS = readStringArray(item);
+                PREFERRED_PEERS = readArray<std::string>(item);
             }
             else if (item.first == "PREFERRED_PEER_KEYS")
             {
@@ -955,7 +992,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "KNOWN_PEERS")
             {
-                auto peers = readStringArray(item);
+                auto peers = readArray<std::string>(item);
                 KNOWN_PEERS.insert(KNOWN_PEERS.begin(), peers.begin(),
                                    peers.end());
             }
@@ -965,7 +1002,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "COMMANDS")
             {
-                COMMANDS = readStringArray(item);
+                COMMANDS = readArray<std::string>(item);
             }
             else if (item.first == "WORKER_THREADS")
             {
@@ -1041,7 +1078,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "INVARIANT_CHECKS")
             {
-                INVARIANT_CHECKS = readStringArray(item);
+                INVARIANT_CHECKS = readArray<std::string>(item);
             }
             else if (item.first == "ENTRY_CACHE_SIZE")
             {
@@ -1074,6 +1111,27 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
                     readXdrEnumArray<OperationType>(item);
             }
+            else if (item.first == "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to std::chrono::microseconds
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(
+                        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                    [](int64_t x) { return std::chrono::microseconds(x); });
+            }
+            else if (item.first == "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to unsigned short
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING),
+                    [](int64_t x) { return static_cast<unsigned short>(x); });
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -1081,6 +1139,13 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 err += "'";
                 throw std::invalid_argument(err);
             }
+        }
+
+        if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
+            !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+        {
+            mOpApplySleepTimeForTesting =
+                processOpApplySleepTimeForTestingConfigs();
         }
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
@@ -1449,7 +1514,7 @@ Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
         auto nodes = t->get(configStr);
         if (nodes)
         {
-            auto values = readStringArray(ConfigItem{configStr, nodes});
+            auto values = readArray<std::string>(ConfigItem{configStr, nodes});
             for (auto const& v : values)
             {
                 PublicKey nodeID;
@@ -1699,5 +1764,12 @@ Config::toString(SCPQuorumSet const& qset)
     return fw.write(json);
 }
 
+std::vector<std::chrono::microseconds> const&
+Config::getOpApplySleepTimeForTesting() const
+{
+    return mOpApplySleepTimeForTesting;
+}
+
 std::string const Config::STDIN_SPECIAL_NAME = "/dev/stdin";
+
 }

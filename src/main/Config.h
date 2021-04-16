@@ -101,6 +101,8 @@ class Config : public std::enable_shared_from_this<Config>
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);
 
+    std::vector<std::chrono::microseconds> mOpApplySleepTimeForTesting;
+
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 
@@ -189,10 +191,14 @@ class Config : public std::enable_shared_from_this<Config>
     // system.
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
-    // A config parameter that forces transaction application during ledger
-    // close to sleep for a given number of microseconds. This option is only
-    // for consensus and overlay simulation testing.
-    uint32_t OP_APPLY_SLEEP_TIME_FOR_TESTING;
+    // Config parameters that force transaction application during ledger
+    // close to sleep for OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i]
+    // microseconds OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]% of the time for
+    // each i. These options are only for consensus and overlay simulation
+    // testing. These two must be used together.
+    std::vector<std::chrono::microseconds>
+        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
+    std::vector<unsigned short> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
 
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
@@ -436,5 +442,11 @@ class Config : public std::enable_shared_from_this<Config>
     // A special name to be used for stdin in stead of a file name in command
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;
+
+    std::vector<std::chrono::microseconds> const&
+    getOpApplySleepTimeForTesting() const;
+
+    std::vector<std::chrono::microseconds>
+    processOpApplySleepTimeForTestingConfigs();
 };
 }
