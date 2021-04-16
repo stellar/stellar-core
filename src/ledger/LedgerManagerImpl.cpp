@@ -589,6 +589,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
+    std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
     if (mMetaStream)
     {
         if (mNextMetaToEmit)
@@ -597,9 +598,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                           getLastClosedLedgerHeader().hash);
             emitNextMeta();
         }
-        mNextMetaToEmit = std::make_unique<LedgerCloseMeta>();
-        mNextMetaToEmit->v0().txProcessing.reserve(txSet->sizeTx());
-        txSet->toXDR(mNextMetaToEmit->v0().txSet);
+        releaseAssert(!mNextMetaToEmit);
+        // Write to a local variable rather than a member variable first: this
+        // enables us to discard incomplete meta and retry, should anything in
+        // this method throw.
+        ledgerCloseMeta = std::make_unique<LedgerCloseMeta>();
+        ledgerCloseMeta->v0().txProcessing.reserve(txSet->sizeTx());
+        txSet->toXDR(ledgerCloseMeta->v0().txSet);
     }
 
     // the transaction set that was agreed upon by consensus
@@ -610,11 +615,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // first, prefetch source accounts fot txset, then charge fees
     prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx, txSet->getBaseFee(header.current()),
-                       mNextMetaToEmit);
+                       ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, mNextMetaToEmit);
+    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -647,9 +652,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
             auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
             LedgerEntryChanges changes = ltxUpgrade.getChanges();
-            if (mNextMetaToEmit)
+            if (ledgerCloseMeta)
             {
-                auto& up = mNextMetaToEmit->v0().upgradesProcessing;
+                auto& up = ledgerCloseMeta->v0().upgradesProcessing;
                 up.emplace_back();
                 UpgradeEntryMeta& uem = up.back();
                 uem.upgrade = lupgrade;
@@ -685,8 +690,14 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     if (mMetaStream)
     {
-        releaseAssert(mNextMetaToEmit);
-        mNextMetaToEmit->v0().ledgerHeader = mLastClosedLedger;
+        releaseAssert(ledgerCloseMeta);
+        ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
+
+        // At this point we've got a complete meta and we can store it to the
+        // member variable: if we throw while committing below, we will at worst
+        // emit duplicate meta, when retrying.
+        mNextMetaToEmit = std::move(ledgerCloseMeta);
+
         // If the LedgerCloseData provided an expected hash, then we validated
         // it above.
         if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
