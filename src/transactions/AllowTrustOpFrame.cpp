@@ -149,7 +149,7 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if ((mAllowTrust.authorize & TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0)
+    if (mAllowTrust.authorize > AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)
     {
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;

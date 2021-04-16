@@ -71,6 +71,7 @@ TEST_CASE("clawback", "[tx][clawback]")
                 gateway.clawback(a1, idr, 75);
                 REQUIRE(a1.getTrustlineBalance(idr) == 25);
             }
+
             SECTION("clawback after removing liabilites")
             {
                 gateway.setOptions(setFlags(AUTH_REQUIRED_FLAG));
@@ -87,18 +88,27 @@ TEST_CASE("clawback", "[tx][clawback]")
                 gateway.clawback(a1, idr, 75);
                 REQUIRE(a1.getTrustlineBalance(idr) == 25);
             }
+
             SECTION("allow trust")
             {
                 gateway.setOptions(setFlags(AUTH_REQUIRED_FLAG));
 
-                SECTION("allow trust can't clear clawback")
-                {
-                    // this shouldn't clear clawback
-                    gateway.allowTrust(idr, a1, 0);
+                auto revokeAuthTest = [&](int authFlag) {
+                    gateway.allowTrust(idr, a1, authFlag);
 
                     // we can clawback from a trustline that isn't authorized
                     gateway.clawback(a1, idr, 75);
                     REQUIRE(a1.getTrustlineBalance(idr) == 25);
+                };
+
+                SECTION("clawback after revoking auth")
+                {
+                    revokeAuthTest(0);
+                }
+                SECTION("clawback after revoking auth to "
+                        "AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG")
+                {
+                    revokeAuthTest(AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
                 }
                 SECTION("allow trust can't set clawback")
                 {
@@ -111,6 +121,13 @@ TEST_CASE("clawback", "[tx][clawback]")
                     // the above op failed
                     gateway.allowTrust(idr, a1, 0);
                 }
+            }
+
+            SECTION("clawback when issuer already has INT64_MAX liabilities")
+            {
+                auto usd = makeAsset(gateway, "USD");
+                gateway.manageOffer(0, usd, idr, Price{1, 1}, INT64_MAX);
+                gateway.clawback(a1, idr, 75);
             }
 
             SECTION("errors")
@@ -133,6 +150,7 @@ TEST_CASE("clawback", "[tx][clawback]")
                     gateway.setOptions(clearFlags(AUTH_CLAWBACK_ENABLED_FLAG |
                                                   AUTH_REVOCABLE_FLAG));
                 }
+
                 SECTION("set options clawback immutable")
                 {
                     gateway.setOptions(setFlags(AUTH_IMMUTABLE_FLAG));
@@ -146,6 +164,7 @@ TEST_CASE("clawback", "[tx][clawback]")
                             AUTH_CLAWBACK_ENABLED_FLAG | AUTH_REVOCABLE_FLAG)),
                         ex_SET_OPTIONS_CANT_CHANGE);
                 }
+
                 SECTION("check validity")
                 {
                     // clawback from self
@@ -174,6 +193,7 @@ TEST_CASE("clawback", "[tx][clawback]")
                     REQUIRE_THROWS_AS(a1.clawback(gateway, idr, 75),
                                       ex_CLAWBACK_MALFORMED);
                 }
+
                 SECTION("apply")
                 {
                     SECTION("no trust")

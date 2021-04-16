@@ -83,6 +83,18 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
             gateway.clawbackClaimableBalance(balanceID);
         }
 
+        SECTION("clawback when issuer already has INT64_MAX liabilities")
+        {
+            auto usd = makeAsset(gateway, "USD");
+            gateway.manageOffer(0, usd, idr, Price{1, 1}, INT64_MAX);
+
+            validClaimant.v0().destination = a1;
+            auto balanceID =
+                a1.createClaimableBalance(idr, 99, {validClaimant});
+
+            gateway.clawbackClaimableBalance(balanceID);
+        }
+
         SECTION("clawback sponsored claimable balance")
         {
             auto sponsoredClaimableBalance = [&](TestAccount& account) {

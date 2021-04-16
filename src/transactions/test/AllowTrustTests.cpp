@@ -507,6 +507,11 @@ template <int V> struct TestStub
                             idr, a1,
                             AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG + 1),
                         ex_ALLOW_TRUST_MALFORMED);
+
+                    REQUIRE_THROWS_AS(
+                        gateway.allowTrust(idr, a1,
+                                           TRUSTLINE_CLAWBACK_ENABLED_FLAG),
+                        ex_ALLOW_TRUST_MALFORMED);
                 }
                 SECTION("do not set revocable flag")
                 {
@@ -686,6 +691,50 @@ template <int V> struct TestStub
                         [&] { gateway.denyTrust(idr, a1, flagOp); });
                 });
             }
+        }
+
+        SECTION("with clawback")
+        {
+            for_versions_from(17, *app, [&] {
+                auto toSet = static_cast<uint32_t>(AUTH_CLAWBACK_ENABLED_FLAG |
+                                                   AUTH_REVOCABLE_FLAG);
+                gateway.setOptions(setFlags(toSet));
+                a1.changeTrust(idr, trustLineLimit);
+
+                SECTION(
+                    "remove offers by pulling auth while clawback is enabled")
+                {
+                    auto market = TestMarket{*app};
+                    auto native = makeNativeAsset();
+
+                    auto offer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(a1,
+                                               {native, idr, Price{1, 1}, 1});
+                    });
+
+                    market.requireChanges(
+                        {{offer.key, OfferState::DELETED}},
+                        [&] { gateway.denyTrust(idr, a1, flagOp); });
+
+                    REQUIRE(
+                        isClawbackEnabledOnTrustline(a1.loadTrustLine(idr)));
+                }
+
+                SECTION("trustline auth changes while clawback is enabled")
+                {
+                    gateway.allowMaintainLiabilities(idr, a1, flagOp);
+                    REQUIRE(
+                        isClawbackEnabledOnTrustline(a1.loadTrustLine(idr)));
+
+                    gateway.denyTrust(idr, a1, flagOp);
+                    REQUIRE(
+                        isClawbackEnabledOnTrustline(a1.loadTrustLine(idr)));
+
+                    gateway.allowTrust(idr, a1, flagOp);
+                    REQUIRE(
+                        isClawbackEnabledOnTrustline(a1.loadTrustLine(idr)));
+                }
+            });
         }
     }
 };

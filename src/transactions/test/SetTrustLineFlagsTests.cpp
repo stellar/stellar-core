@@ -55,6 +55,27 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
     }
 
     for_versions_from(17, *app, [&] {
+        // this lambda is used to verify offers are not pulled in non-revoke
+        // scenarios
+        auto market = TestMarket{*app};
+        auto setFlagAndCheckOffer =
+            [&](Asset const& asset, TestAccount& trustor,
+                txtest::SetTrustLineFlagsArguments const& arguments,
+                bool addOffer = true) {
+                if (addOffer)
+                {
+                    auto offer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(trustor,
+                                               {native, asset, Price{1, 1}, 1});
+                    });
+                }
+
+                // no offer should be deleted
+                market.requireChanges({}, [&] {
+                    gateway.setTrustLineFlags(asset, trustor, arguments);
+                });
+            };
+
         SECTION("small test")
         {
             gateway.pay(a1, idr, 5);
@@ -63,33 +84,18 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
             auto flags =
                 setTrustLineFlags(AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) |
                 clearTrustLineFlags(AUTHORIZED_FLAG);
-            gateway.setTrustLineFlags(idr, a1, flags);
+
+            setFlagAndCheckOffer(idr, a1, flags);
 
             REQUIRE_THROWS_AS(a1.pay(gateway, idr, trustLineStartingBalance),
                               ex_PAYMENT_SRC_NOT_AUTHORIZED);
-        }
-
-        SECTION("remove offers by pulling auth while clawback is enabled")
-        {
-            auto market = TestMarket{*app};
-
-            gateway.setOptions(setFlags(AUTH_CLAWBACK_ENABLED_FLAG));
-            a2.changeTrust(idr, trustLineLimit);
-
-            auto offer = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(a2, {native, idr, Price{1, 1}, 1});
-            });
-
-            market.requireChanges({{offer.key, OfferState::DELETED}}, [&] {
-                gateway.denyTrust(idr, a2, TrustFlagOp::SET_TRUST_LINE_FLAGS);
-            });
         }
 
         SECTION("empty flags")
         {
             // verify that the setTrustLineFlags call is a noop
             auto flag = a1.getTrustlineFlags(idr);
-            gateway.setTrustLineFlags(idr, a1, emptyFlag);
+            setFlagAndCheckOffer(idr, a1, emptyFlag);
             REQUIRE(flag == a1.getTrustlineFlags(idr));
         }
 
@@ -102,7 +108,7 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
             gateway.clawback(a2, idr, 25);
 
             // clear the clawback flag and then try to clawback
-            gateway.setTrustLineFlags(
+            setFlagAndCheckOffer(
                 idr, a2, clearTrustLineFlags(TRUSTLINE_CLAWBACK_ENABLED_FLAG));
             REQUIRE_THROWS_AS(gateway.clawback(a2, idr, 25),
                               ex_CLAWBACK_NOT_CLAWBACK_ENABLED);
@@ -110,13 +116,24 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
 
         SECTION("upgrade auth when not revocable")
         {
-            SECTION("authorized to maintain liabilities -> authorized")
+            SECTION("authorized -> authorized to maintain liabilities -> "
+                    "authorized - with offers")
             {
-                gateway.allowMaintainLiabilities(
-                    idr, a1, TrustFlagOp::SET_TRUST_LINE_FLAGS);
+                // authorized -> authorized to maintain liabilities
+                auto maintainLiabilitiesflags =
+                    setTrustLineFlags(AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) |
+                    clearTrustLineFlags(AUTHORIZED_FLAG);
+
+                setFlagAndCheckOffer(idr, a1, maintainLiabilitiesflags);
+
                 gateway.setOptions(clearFlags(AUTH_REVOCABLE_FLAG));
 
-                gateway.allowTrust(idr, a1, TrustFlagOp::SET_TRUST_LINE_FLAGS);
+                // authorized to maintain liabilities -> authorized
+                auto authorizedFlags =
+                    setTrustLineFlags(AUTHORIZED_FLAG) |
+                    clearTrustLineFlags(
+                        AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
+                setFlagAndCheckOffer(idr, a1, authorizedFlags, false);
             }
 
             SECTION("0 -> authorized")
@@ -223,6 +240,15 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
                 REQUIRE_THROWS_AS(
                     gateway.setTrustLineFlags(native, a1, emptyFlag),
                     ex_SET_TRUST_LINE_FLAGS_MALFORMED);
+
+                // invalid asset
+                auto invalidAssets = testutil::getInvalidAssets(gateway);
+                for (auto const& asset : invalidAssets)
+                {
+                    REQUIRE_THROWS_AS(
+                        gateway.setTrustLineFlags(asset, a1, emptyFlag),
+                        ex_SET_TRUST_LINE_FLAGS_MALFORMED);
+                }
 
                 {
                     // set and clear flags can't overlap
