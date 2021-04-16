@@ -167,6 +167,24 @@ network's most recent checkpoint, but this behaviour can be further modified usi
 cause the node to start with a fast in-memory catchup to ledger `N` with hash `HEXHASH`, and then
 replay ledgers forward to the current state of the network.
 
+A stateless and meta-streaming node can additionally be configured with
+`EXPERIMENTAL_PRECAUTION_DELAY_META=true` (if unspecified, the default is
+`false`).  If `EXPERIMENTAL_PRECAUTION_DELAY_META` is `true`, then the node will
+delay emitting meta for a ledger `<N>` until the _next_ ledger, `<N+1>`, closes.
+The idea is that if a node suffers local corruption in a ledger because of a
+software bug or hardware fault, it will be unable to close the _next_ ledger
+because it won't be able to reach consensus with other nodes on the input state
+of the next ledger. Therefore, the meta for the corrupted ledger will never be
+emitted.  With `EXPERIMENTAL_PRECAUTION_DELAY_META` set to `false`, a local
+corruption bug could cause a node to emit meta that is inconsistent with that of
+other nodes on the network. Setting `EXPERIMENTAL_PRECAUTION_DELAY_META` to
+`true` does have a cost, though: clients waiting for the meta to determine the
+result of a transaction will have to wait for an extra ledger close duration.
+
+During catchup from history archives, a stateless node will emit meta for any
+historical ledger without delay, even if `EXPERIMENTAL_PRECAUTION_DELAY_META` is
+`true`, because the ledger's results are already part of the validated consensus
+history.
 
 #### Publish backlog
 There is a command `publish` that allows to flush the publish backlog without starting

@@ -432,17 +432,24 @@ ApplicationImpl::start()
             "RUN_STANDALONE is not set");
     }
 
-    if (isNetworkedValidator)
+    // EXPERIMENTAL_PRECAUTION_DELAY_META is only meaningful when there's a
+    // METADATA_OUTPUT_STREAM.  We only allow EXPERIMENTAL_PRECAUTION_DELAY_META
+    // on a captive core, without a persistent database; old-style ingestion
+    // which reads from the core database could do the delaying itself.
+    if (mConfig.METADATA_OUTPUT_STREAM != "" &&
+        mConfig.EXPERIMENTAL_PRECAUTION_DELAY_META && !mConfig.isInMemoryMode())
     {
-        bool inMemory = mConfig.DATABASE.value == "sqlite3://:memory:" &&
-                        !mConfig.MODE_STORES_HISTORY &&
-                        !mConfig.MODE_KEEPS_BUCKETS;
-        if (inMemory)
-        {
-            throw std::invalid_argument(
-                "In-memory mode is set, NODE_IS_VALIDATOR is set, "
-                "and RUN_STANDALONE is not set");
-        }
+        throw std::invalid_argument(
+            "Using a METADATA_OUTPUT_STREAM with "
+            "EXPERIMENTAL_PRECAUTION_DELAY_META set to true "
+            "requires --in-memory");
+    }
+
+    if (isNetworkedValidator && mConfig.isInMemoryMode())
+    {
+        throw std::invalid_argument(
+            "In-memory mode is set, NODE_IS_VALIDATOR is set, "
+            "and RUN_STANDALONE is not set");
     }
 
     if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())

@@ -204,6 +204,10 @@ class Config : public std::enable_shared_from_this<Config>
     // production validators.
     bool MODE_USES_IN_MEMORY_LEDGER;
 
+    // A config parameter that can be set to true (in a captive-core
+    // configuration) to delay emitting metadata by one ledger.
+    bool EXPERIMENTAL_PRECAUTION_DELAY_META;
+
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY;
@@ -416,6 +420,9 @@ class Config : public std::enable_shared_from_this<Config>
     bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
 
     std::chrono::seconds getExpectedLedgerCloseTime() const;
+
+    void setInMemoryMode();
+    bool isInMemoryMode() const;
 
     void logBasicInfo();
     void setNoListen();

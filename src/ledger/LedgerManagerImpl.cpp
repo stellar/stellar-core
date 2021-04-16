@@ -505,6 +505,16 @@ LedgerManagerImpl::syncMetrics()
     mApp.syncOwnMetrics();
 }
 
+void
+LedgerManagerImpl::emitNextMeta()
+{
+    releaseAssert(mNextMetaToEmit);
+    releaseAssert(mMetaStream);
+    mMetaStream->writeOne(*mNextMetaToEmit);
+    mMetaStream->flush();
+    mNextMetaToEmit.reset();
+}
+
 /*
     This is the main method that closes the current ledger based on
 the close context that was computed by SCP or by the historical module
@@ -583,6 +593,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
     if (mMetaStream)
     {
+        if (mNextMetaToEmit)
+        {
+            releaseAssert(mNextMetaToEmit->v0().ledgerHeader.hash ==
+                          getLastClosedLedgerHeader().hash);
+            emitNextMeta();
+        }
+        releaseAssert(!mNextMetaToEmit);
+        // Write to a local variable rather than a member variable first: this
+        // enables us to discard incomplete meta and retry, should anything in
+        // this method throw.
         ledgerCloseMeta = std::make_unique<LedgerCloseMeta>();
         ledgerCloseMeta->v0().txProcessing.reserve(txSet->sizeTx());
         txSet->toXDR(ledgerCloseMeta->v0().txSet);
@@ -663,12 +683,29 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     ledgerClosed(ltx);
 
+    if (ledgerData.getExpectedHash() &&
+        *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
+    {
+        throw std::runtime_error("Local node's ledger corrupted during close");
+    }
+
     if (mMetaStream)
     {
         releaseAssert(ledgerCloseMeta);
         ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
-        mMetaStream->writeOne(*ledgerCloseMeta);
-        mMetaStream->flush();
+
+        // At this point we've got a complete meta and we can store it to the
+        // member variable: if we throw while committing below, we will at worst
+        // emit duplicate meta, when retrying.
+        mNextMetaToEmit = std::move(ledgerCloseMeta);
+
+        // If the LedgerCloseData provided an expected hash, then we validated
+        // it above.
+        if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
+            ledgerData.getExpectedHash())
+        {
+            emitNextMeta();
+        }
     }
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.

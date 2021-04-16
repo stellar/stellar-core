@@ -119,6 +119,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
+    EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     // automatic maintenance settings:
     // 11 minutes is relatively short and prime with 1 hour
     // which will cause automatic maintenance to rarely conflict with any other
@@ -779,6 +780,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "METADATA_OUTPUT_STREAM")
             {
                 METADATA_OUTPUT_STREAM = readString(item);
+            }
+            else if (item.first == "EXPERIMENTAL_PRECAUTION_DELAY_META")
+            {
+                EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
             }
             else if (item.first == "KNOWN_CURSORS")
             {
@@ -1547,6 +1552,29 @@ Config::getExpectedLedgerCloseTime() const
         return std::chrono::seconds{1};
     }
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+}
+
+void
+Config::setInMemoryMode()
+{
+    // For the time being, --in-memory mode on the command line does not enable
+    // MODE_USES_IN_MEMORY_LEDGER; rather it uses in-memory sqlite. This change
+    // happened when mitigating the protocol 16 issue, funneling all database
+    // access through the sqlite layer; it may be reverted once a different
+    // workaround for that issue is in place.
+    MODE_USES_IN_MEMORY_LEDGER = false;
+    DATABASE = SecretValue{"sqlite3://:memory:"};
+    MODE_STORES_HISTORY = false;
+    MODE_ENABLES_BUCKETLIST = true;
+    MODE_KEEPS_BUCKETS = false;
+}
+
+bool
+Config::isInMemoryMode() const
+{
+    return ((MODE_USES_IN_MEMORY_LEDGER ||
+             DATABASE.value == "sqlite3://:memory:") &&
+            !MODE_STORES_HISTORY && !MODE_KEEPS_BUCKETS);
 }
 
 void
