@@ -53,6 +53,14 @@ It then follows that:
 
 # List of releases
 
+## v16.0.0 (2021-04-09)
+
+* `Ledger` - protocol - fixed potential local state corruption when loading offers that could potentially corrupt sponsorships. Upgrade fixed offer 289733046 corrupted when constructing ledger 34793621 on the public network.
+
+## v15.5.0 (2021-04-07)
+
+* `Ledger` - work around a local corruption issues when loading offers that would lead to Offers potentially getting corrupt sponsorships.
+
 ## v15.0.0 (2020-10-27)
 
 * `Ledger` - protocol - CAP0023 - Fixed `LedgerKey` input validation issue
