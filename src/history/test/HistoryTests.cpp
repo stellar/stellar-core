@@ -660,7 +660,7 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
             "and closing ledger was externalized")
     {
         // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
-        // 3 ledgers are buffered, 1 ledger is cloding
+        // 3 ledgers are buffered, 1 ledger is closing
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
         catchupSimulation.ensurePublishesComplete();
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));

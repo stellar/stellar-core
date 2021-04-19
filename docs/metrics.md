@@ -43,12 +43,12 @@ herder.pending-txs.delay                 | timer     | time for transactions to 
 history-archive.<X>.failure              | meter     | accessing history archive <X> failed
 history-archive.<X>.success              | meter     | accessing history archive <X> succeeded
 history.apply-ledger-chain.failure       | meter     | apply ledger chain failed
-history.apply-ledger-chain.success       | meter     | apply ledger chain completed successfuly
+history.apply-ledger-chain.success       | meter     | apply ledger chain completed successfully
 history.download-<X>.failure             | meter     | download of <X> failed
-history.download-<X>.success             | meter     | download of <X> completed successfuly
+history.download-<X>.success             | meter     | download of <X> completed successfully
 history.publish.failure                  | meter     | published failed
-history.publish.success                  | meter     | published completed successfuly
-history.publish.time                     | timer     | time to successfuly publish history
+history.publish.success                  | meter     | published completed successfully
+history.publish.time                     | timer     | time to successfully publish history
 history.verify-<X>.failure               | meter     | verification of <X> failed
 history.verify-<X>.success               | meter     | verification of <X> succeeded
 ledger.age.closed                        | bucket     | time between ledgers
@@ -63,7 +63,7 @@ ledger.transaction.apply                 | timer     | time to apply one transac
 ledger.transaction.count                 | histogram | number of transactions per ledger
 ledger.transaction.internal-error        | counter   | number of internal errors since start
 loadgen.account.created                  | meter     | loadgenerator: account created
-loadgen.payment.native                   | meter     | loadgenerator: native payment submited
+loadgen.payment.native                   | meter     | loadgenerator: native payment submitted
 loadgen.run.complete                     | meter     | loadgenerator: run complete
 loadgen.step.count                       | meter     | loadgenerator: generated some transactions
 loadgen.step.submit                      | timer     | loadgenerator: time spent submiting transactions per step

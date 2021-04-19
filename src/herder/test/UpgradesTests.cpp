@@ -170,7 +170,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     if (checkUpgradeStatus)
     {
-        // at least one node should show message thats it has some
+        // at least one node should show message that it has some
         // pending upgrades
         REQUIRE(std::any_of(
             std::begin(keys), std::end(keys), [&](SecretKey const& key) {

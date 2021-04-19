@@ -138,7 +138,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 gateway.manageOffer(0, cur2, idr, Price{1, 1}, INT64_MAX,
                                     MANAGE_OFFER_CREATED);
 
-                // a2 is buying cur2. This is neccesary so a1 can get rid of the
+                // a2 is buying cur2. This is necessary so a1 can get rid of the
                 // first INT64_MAX cur2 during the path payment so it can cross
                 // the issuers second offer to get another INT64_MAX cur2
                 a2.manageOffer(0, cur1, cur2, Price{1, 1}, INT64_MAX,
@@ -170,7 +170,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 gateway.manageOffer(0, idr, cur2, Price{1, 1}, INT64_MAX,
                                     MANAGE_OFFER_CREATED);
 
-                // a2 is buying idr for cur2. This is neccesary so a1 can get
+                // a2 is buying idr for cur2. This is necessary so a1 can get
                 // more cur2 to cross the issuers second offer and burn another
                 // INT64_MAX cur2.
                 a2.createPassiveOffer(cur2, idr, Price{1, 1}, INT64_MAX,

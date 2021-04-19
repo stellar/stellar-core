@@ -33,7 +33,7 @@ class BitSet
 
     // If mPtr == &mInlineBitset then we are using the inline bitset
     // (mInlineBitset.array === &mInlineBits) and do not need to free either the
-    // desriptor or the array. If mPtr != &mInlineBitset then it's pointing to
+    // descriptor or the array. If mPtr != &mInlineBitset then it's pointing to
     // an out-of-line bitset which we need to free.
     bitset_t* mPtr{nullptr};
     bitset_t mInlineBitset{nullptr, INLINE_NWORDS, INLINE_NWORDS};

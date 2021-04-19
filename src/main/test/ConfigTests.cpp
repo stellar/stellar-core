@@ -95,7 +95,7 @@ TEST_CASE("resolve node id", "[config]")
         REQUIRE(!result);
     }
 
-    SECTION("node alias abbrevation")
+    SECTION("node alias abbreviation")
     {
         auto publicKey = PublicKey{};
         auto result = cfg.resolveNodeID("$core", publicKey);

@@ -21,7 +21,7 @@ class CatchupRange;
 
 using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
-// CatchupWork does all the neccessary work to perform any type of catchup.
+// CatchupWork does all the necessary work to perform any type of catchup.
 // It accepts CatchupConfiguration structure to know from which ledger to which
 // one do the catchup and if it involves only applying ledgers or ledgers and
 // buckets.

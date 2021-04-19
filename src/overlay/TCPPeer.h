@@ -71,7 +71,7 @@ class TCPPeer : public Peer
 
     TCPPeer(Application& app, Peer::PeerRole role,
             std::shared_ptr<SocketType> socket); // hollow
-                                                 // constuctor; use
+                                                 // constructor; use
                                                  // `initiate` or
                                                  // `accept` instead
 

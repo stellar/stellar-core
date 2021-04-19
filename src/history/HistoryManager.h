@@ -142,7 +142,7 @@
  * Depending on how it's invoked, the catchup system will then usually define
  * RESUME as either equal to NEXT or LAST, or in unusual cases some ledger
  * between the two. RESUME is the ledger at which the ledger state is
- * reconstituted "directly" from the bucket list, and from which hisory blocks
+ * reconstituted "directly" from the bucket list, and from which history blocks
  * are replayed thereafter. It is therefore, practically, a kind of "new
  * beginning of history". At least the history that will be contiguously seen
  * on-hand on this peer.

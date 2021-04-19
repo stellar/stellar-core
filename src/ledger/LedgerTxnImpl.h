@@ -318,8 +318,9 @@ class LedgerTxn::Impl
     // The exact definition / invariant of the WorstBestOfferMap's data is
     // unfortunately a bit subtle.
     //
-    // In what follows, we will only work with offer-descriptors. The defintions
-    // are equally valid with any instance of offer-descriptor changed to offer.
+    // In what follows, we will only work with offer-descriptors. The
+    // definitions are equally valid with any instance of offer-descriptor
+    // changed to offer.
     //
     // We say an offer-descriptor A is worse than an offer-descriptor B if
     //

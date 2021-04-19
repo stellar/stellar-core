@@ -129,12 +129,12 @@ See the "Closing ledger" section for more detail on what happens when
 closing a ledger.
 
 ## LedgerDelta
-This class represents all side effects that occured while applying transactions.
+This class represents all side effects that occurred while applying transactions.
 It keeps tracks of creation, modification and deletion of Ledger Entries as
 well as changes to the ledgerHeader.
 LedgerDelta is a nestable structure, which allows fine grain control of which
 subset of changes to include or not in the final set of changes that will be
-commited to the ledger.
+committed to the ledger.
 
 For more detail see the "Closing a ledger" section.
 

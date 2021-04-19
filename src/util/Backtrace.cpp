@@ -112,7 +112,7 @@ printCurrentBacktrace()
         switch (res)
         {
         case 0:
-            // Demangling succceeded, might or might-not have realloc'ed
+            // Demangling succeeded, might or might-not have realloc'ed
             if (d != demangleBuf || dsz != demangleBufSz)
             {
                 // Did realloc successfully; save the new realloc'ed

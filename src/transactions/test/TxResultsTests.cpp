@@ -118,7 +118,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent fee")
+            SECTION("insufficient fee")
             {
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
@@ -144,7 +144,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent balance")
+            SECTION("insufficient balance")
             {
                 for_all_versions(*app, [&] {
                     auto tx = g.tx({payment(root, 1)});
@@ -185,7 +185,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent fee")
+            SECTION("insufficient fee")
             {
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
@@ -214,7 +214,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent balance")
+            SECTION("insufficient balance")
             {
                 for_versions_to(6, *app, [&] {
                     auto tx = g.tx({payment(root, 1)});
@@ -266,7 +266,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent fee")
+            SECTION("insufficient fee")
             {
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
@@ -295,7 +295,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
 
-            SECTION("insufficent balance")
+            SECTION("insufficient balance")
             {
                 for_all_versions(*app, [&] {
                     auto tx = g.tx({payment(root, 1)});

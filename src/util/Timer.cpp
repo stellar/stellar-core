@@ -123,7 +123,7 @@ VirtualClock::to_time_t(system_time_point point)
 time_t
 timegm(struct tm* tm)
 {
-    // Timezone independant version
+    // Timezone independent version
     return _mkgmtime(tm);
 }
 #endif

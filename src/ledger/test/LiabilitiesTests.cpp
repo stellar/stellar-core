@@ -160,7 +160,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 REQUIRE(!addSellingLiabilitiesUninitialized(
                     0, lm.getLastMinBalance(0), 1));
 
-                // Uninitialized remains unitialized after success of delta 0
+                // Uninitialized remains uninitialized after success of delta 0
                 REQUIRE(addSellingLiabilitiesUninitialized(
                     0, lm.getLastMinBalance(0), 0));
 
@@ -619,7 +619,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 // Uninitialized remains uninitialized after failure
                 REQUIRE(!addSellingLiabilitiesUninitialized(1, 0, 1));
 
-                // Uninitialized remains unitialized after success of delta 0
+                // Uninitialized remains uninitialized after success of delta 0
                 REQUIRE(addSellingLiabilitiesUninitialized(1, 1, 0));
 
                 // Uninitialized is initialized after success of delta != 0
@@ -759,7 +759,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 // Uninitialized remains uninitialized after failure
                 REQUIRE(!addBuyingLiabilitiesUninitialized(1, 0, 2));
 
-                // Uninitialized remains unitialized after success of delta 0
+                // Uninitialized remains uninitialized after success of delta 0
                 REQUIRE(addBuyingLiabilitiesUninitialized(1, 0, 0));
 
                 // Uninitialized is initialized after success of delta != 0

@@ -124,7 +124,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         validateTrustLineIsConst();
 
         for_versions_to(2, *app, [&] {
-            // create a trustline with a limit of INT64_MAX - 1 wil lfail
+            // create a trustline with a limit of INT64_MAX - 1 will fail
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
             validateTrustLineIsConst();

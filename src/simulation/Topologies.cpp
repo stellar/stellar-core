@@ -372,7 +372,7 @@ Topologies::customA(Simulation::Mode mode, Hash const& networkID,
 }
 
 Simulation::pointer
-Topologies::assymetric(Simulation::Mode mode, Hash const& networkID,
+Topologies::asymmetric(Simulation::Mode mode, Hash const& networkID,
                        Simulation::ConfigGen confGen, int connections,
                        Simulation::QuorumSetAdjuster qSetAdjust)
 {

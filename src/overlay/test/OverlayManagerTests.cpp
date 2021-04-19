@@ -32,12 +32,12 @@ class PeerStub : public Peer
   public:
     int sent = 0;
 
-    PeerStub(Application& app, PeerBareAddress const& addres)
+    PeerStub(Application& app, PeerBareAddress const& address)
         : Peer(app, WE_CALLED_REMOTE)
     {
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
-        mAddress = addres;
+        mAddress = address;
     }
     virtual std::string
     getIP() const override

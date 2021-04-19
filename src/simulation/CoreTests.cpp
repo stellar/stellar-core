@@ -104,7 +104,7 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
     LOG_DEBUG(DEFAULT_LOG, "done with core3 test");
 }
 
-TEST_CASE("assymetric topology report cost", "[simulation][!hide]")
+TEST_CASE("asymmetric topology report cost", "[simulation][!hide]")
 {
     // Ensure we close enough ledgers to start purging slots
     // (which is when cost gets reported)
@@ -112,7 +112,7 @@ TEST_CASE("assymetric topology report cost", "[simulation][!hide]")
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
-        Topologies::assymetric(Simulation::OVER_LOOPBACK, networkID);
+        Topologies::asymmetric(Simulation::OVER_LOOPBACK, networkID);
     simulation->startAllNodes();
 
     simulation->crankUntil(

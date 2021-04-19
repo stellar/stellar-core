@@ -81,7 +81,7 @@ struct MergeCounters
  * Every bucket corresponds to a file on disk and the BucketManager owns a
  * directory in which the buckets it's responsible for reside. It locks this
  * directory exclusively while the process is running; only one BucketManager
- * should be attached to a single diretory at a time.
+ * should be attached to a single directory at a time.
  *
  * Buckets can be created outside the BucketManager's directory -- for example
  * in temporary directories -- and then "adopted" by the BucketManager, moved

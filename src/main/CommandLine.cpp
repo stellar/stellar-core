@@ -732,7 +732,7 @@ runCatchup(CommandLineArgs const& args)
                         throw std::runtime_error(
                             "force can only be used when buckets get applied");
                     }
-                    // by dropping persistant state, we ensure that we don't
+                    // by dropping persistent state, we ensure that we don't
                     // leave the database in some half-reset state until
                     // startNewLedger completes later on
                     {
@@ -1186,7 +1186,7 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
         }
         else if (firstLedgerInclusive > lastLedgerInclusive)
         {
-            return "last ledger must not preceed first ledger";
+            return "last ledger must not precede first ledger";
         }
         return "";
     };
@@ -1347,7 +1347,7 @@ runSimulateBuckets(CommandLineArgs const& args)
                     *app, n, checkpoint, dir, has);
 
             // Once simulated bucketlist is good to go, download ledgers headers
-            // to convince LedgerManager that we have succesfully restored
+            // to convince LedgerManager that we have successfully restored
             // ledger state
             auto cr = CheckpointRange::inclusive(
                 checkpoint, checkpoint,

@@ -501,7 +501,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     // highly structured, so we give it some leeway.
     // To give us good odds of making it through integration tests
     // we set the threshold quite wide here, to 99.99%. The test is very
-    // slighly nondeterministic but this should give it plenty of leeway.
+    // slightly nondeterministic but this should give it plenty of leeway.
 
     double detectionRate =
         (((double)n_detected) / ((double)n_corrupted)) * 100.0;

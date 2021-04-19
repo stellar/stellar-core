@@ -75,7 +75,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
 {
     ZoneScoped;
     // price is an approximation of the actual n/d (truncated math, 15 digits)
-    // ordering by offerid gives precendence to older offers for fairness
+    // ordering by offerid gives precedence to older offers for fairness
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified, extension, "
                       "ledgerext FROM offers "
@@ -114,7 +114,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     }
 
     // price is an approximation of the actual n/d (truncated math, 15 digits)
-    // ordering by offerid gives precendence to older offers for fairness
+    // ordering by offerid gives precedence to older offers for fairness
     std::string sql =
         "WITH r1 AS "
         "(SELECT sellerid, offerid, sellingasset, buyingasset, amount, price, "

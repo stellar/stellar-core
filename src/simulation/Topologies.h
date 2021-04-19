@@ -73,10 +73,10 @@ class Topologies
             Simulation::ConfigGen confGen = nullptr, int connections = 1,
             Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
-    // Assymetric modifies `core` topology by adding extra nodes to one of the
+    // Asymmetric modifies `core` topology by adding extra nodes to one of the
     // validators in core
     static Simulation::pointer
-    assymetric(Simulation::Mode mode, Hash const& networkID,
+    asymmetric(Simulation::Mode mode, Hash const& networkID,
                Simulation::ConfigGen confGen = nullptr, int connections = 1,
                Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 };

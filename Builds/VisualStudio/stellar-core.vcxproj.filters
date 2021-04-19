@@ -1340,7 +1340,7 @@
     <ClInclude Include="..\..\src\test\TestUtils.h">
       <Filter>test</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\util\Algoritm.h">
+    <ClInclude Include="..\..\src\util\Algorithm.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\SecretValue.h">

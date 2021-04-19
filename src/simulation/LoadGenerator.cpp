@@ -120,7 +120,7 @@ LoadGenerator::reset()
     mFailed = false;
 }
 
-// Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
+// Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                       uint32_t offset, uint32_t nTxs,

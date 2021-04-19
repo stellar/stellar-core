@@ -388,7 +388,7 @@ TEST_CASE("work with children", "[work]")
         REQUIRE(l2->isAborting());
 
         // on shutdown, wakeUp is a no-op, addWork is prohibited
-        // All works are unaffected, and stil aborting
+        // All works are unaffected, and still aborting
         REQUIRE_NOTHROW(l1->forceWakeUp());
         REQUIRE_NOTHROW(l2->forceWakeUp());
         REQUIRE(l1->isAborting());

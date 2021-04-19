@@ -110,7 +110,7 @@ class SCPDriver
     // passes
     // the validity checks, kMaybeValidValue can be returned. This will cause
     // the current slot to be marked as a non validating slot: the local node
-    // will abstain from emiting its position.
+    // will abstain from emitting its position.
     // validation can be *more* restrictive during nomination as needed
     // NB: validation levels are ordered
     enum ValidationLevel

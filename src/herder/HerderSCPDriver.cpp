@@ -810,7 +810,6 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
     auto qset = v.get("qset", "");
     if (!qset.empty())
     {
-        std::string indexs = std::to_string(static_cast<uint32>(index));
         Json::FastWriter fw;
         CLOG_INFO(Herder, "Quorum information for {} : {}", index,
                   fw.write(qset));

@@ -750,7 +750,7 @@ resetTxInternalState(Application& app)
 }
 
 // FuzzTransactionFrame is a specialized TransactionFrame that includes
-// useful methods for fuzzing such as an attemptApplication method for reseting
+// useful methods for fuzzing such as an attemptApplication method for resetting
 // ledger state and deterministically attempting application of transactions.
 class FuzzTransactionFrame : public TransactionFrame
 {

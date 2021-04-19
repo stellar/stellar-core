@@ -39,7 +39,7 @@ struct LedgerHeaderHistoryEntry;
  * another check is made - if new local ledger matches corresponding ledger from
  * file.
  *
- * Contructor of this class takes some important parameters:
+ * Constructor of this class takes some important parameters:
  * * downloadDir - directory containing ledger and transaction files
  * * range - LedgerRange to apply, must be checkpoint-aligned,
  * and cover at most one checkpoint.

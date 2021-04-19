@@ -51,7 +51,7 @@ storeInDatabase(Database& db, LedgerHeader const& header)
     std::string headerEncoded;
     headerEncoded = decoder::encode_b64(headerBytes);
 
-    // note: columns other than "data" are there to faciliate lookup/processing
+    // note: columns other than "data" are there to facilitate lookup/processing
     auto prep = db.getPreparedStatement(
         "INSERT INTO ledgerheaders "
         "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data) "

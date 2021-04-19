@@ -569,7 +569,7 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 // Similarly, we investigate when (!wheatStays && price.n <= price.d). Then it
 // follows from sheepSend = 0 that
 //     wheatReceive = ceil(sheepSend * price.d / price.n)
-// so wheatReceive = 0. Similary, if wheatReceive = 0 then
+// so wheatReceive = 0. Similarly, if wheatReceive = 0 then
 //     wheatReceive = ceil(sheepSend * price.d / price.n)
 //                  >= ceil(sheepSend)
 //                  = sheepSend
@@ -822,7 +822,7 @@ adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
 //         = floor(maxSheepReceive * price.d / price.n) * price.n
 //         <= (maxSheepReceive * price.d / price.n) * price.n
 //         = maxSheepReceive * price.d
-// which combined with the defition of wheatValue yields
+// which combined with the definition of wheatValue yields
 //     wheatValue' = maxWheatSend' * price.n
 // From this we find that
 //     wheatReceive' = floor(wheatValue' / price.n)

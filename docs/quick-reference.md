@@ -127,7 +127,7 @@ To construct such a reference file, run the `verify-checkpoints` command, passin
 usual (to specify the trusted network and quorum slice) and an `--output-filename` argument
 specifying the reference file to save the trusted hashes in.
 
-The emitted content of the refernce file will be a single JSON array of pairs of checkpoint ledger
+The emitted content of the reference file will be a single JSON array of pairs of checkpoint ledger
 numbers and strings holding hashes of ledger headers. For example, it might read:
 
 ```
