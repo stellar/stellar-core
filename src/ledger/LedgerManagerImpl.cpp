@@ -613,7 +613,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // sorted such that sequence numbers are respected
     vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
 
-    // first, prefetch source accounts fot txset, then charge fees
+    // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx, txSet->getBaseFee(header.current()),
                        ledgerCloseMeta);

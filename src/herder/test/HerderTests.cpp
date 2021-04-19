@@ -166,7 +166,7 @@ TEST_CASE("standalone", "[herder][acceptance]")
                 waitForExternalize();
 
                 // all of a1's transactions went through
-                // b1's last transaction failed due to account non existant
+                // b1's last transaction failed due to account non existent
                 int64 expectedBalance =
                     startingBalance - 3 * paymentAmount - 3 * txfee;
                 REQUIRE(a1.getBalance() == expectedBalance);
@@ -1623,7 +1623,7 @@ TEST_CASE("SCP State", "[herder][acceptance]")
     // but for "Force SCP" test there are 3 nodes and only 2 have previous
     // ledger state. However it is possible that nomination protocol will
     // choose last node as leader for first few rounds. New ledger will only
-    // be externalized when first or second node are choosen as round leaders.
+    // be externalized when first or second node are chosen as round leaders.
     // It some cases it can take more time than expected. Probability of that
     // is pretty low, but high enough that it forced us to rerun tests from
     // time to time to pass that one case.

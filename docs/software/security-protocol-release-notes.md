@@ -261,7 +261,7 @@ of a signer to more than 255.
 
 * `Ledger` - protocol - updated protocol version to 5
 
-* `Ledger` - protocol - don't allow merging accounts from non-existant accounts (bad fix)
+* `Ledger` - protocol - don't allow merging accounts from non-existent accounts (bad fix)
 
 ## v0.6.1 (2017-03-07)
 

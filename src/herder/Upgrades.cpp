@@ -753,7 +753,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
     for (auto& accountOffers : offersByAccount)
     {
         // The purpose of std::unique_ptr here is to have a special value
-        // (nullptr) to indicate that an integer overflow would have occured.
+        // (nullptr) to indicate that an integer overflow would have occurred.
         // Overflow is possible here because existing offers were not
         // constrainted to have int64_t liabilities. This must be carefully
         // handled in what follows.

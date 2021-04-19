@@ -24,7 +24,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Algoritm.h"
+#include "util/Algorithm.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

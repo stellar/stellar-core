@@ -445,7 +445,7 @@ signtxn(std::string const& filename, std::string netId, bool base64)
         auto& signatures = txbridge::getSignatures(txenv);
         if (signatures.size() == signatures.max_size())
             throw std::runtime_error(
-                "Evelope already contains maximum number of signatures");
+                "Envelope already contains maximum number of signatures");
 
         SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
             fmt::format("Secret key seed [network id: '{}']: ", netId),

@@ -92,13 +92,13 @@ source accounts in operations.
 ## Thresholds
 
 Each operation falls under a specific threshold category: low, medium, high.
-Thresholds define the level of priviledge an operation needs in order to succeed.
+Thresholds define the level of privilege an operation needs in order to succeed.
 
 * Low Security:
   * AllowTrustTx
   * Used to allowing other signers to allow people to hold credit from this 
    account but not issue it.
-* Medium Secruity:
+* Medium Security:
   * All else
 * High Security:
   * SetOptions for Signer and threshold
@@ -149,7 +149,7 @@ For each operation type, there is a matching Frame class: for example, the Payme
 The OperationFrame class defines the base contract that an operation frame must follow.
 
 # Envelope and Signatures
-Transactions must be signed before being submited to the network.
+Transactions must be signed before being submitted to the network.
 
 ## Well formed signatures
 A signature is a digital signature of the body of a transaction, generated with a private key.

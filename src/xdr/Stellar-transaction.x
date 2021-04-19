@@ -679,7 +679,7 @@ default:
 enum PaymentResultCode
 {
     // codes considered as "success" for the operation
-    PAYMENT_SUCCESS = 0, // payment successfuly completed
+    PAYMENT_SUCCESS = 0, // payment successfully completed
 
     // codes considered as "failure" for the operation
     PAYMENT_MALFORMED = -1,          // bad input
@@ -987,7 +987,7 @@ enum AccountMergeResultCode
 union AccountMergeResult switch (AccountMergeResultCode code)
 {
 case ACCOUNT_MERGE_SUCCESS:
-    int64 sourceAccountBalance; // how much got transfered from source account
+    int64 sourceAccountBalance; // how much got transferred from source account
 default:
     void;
 };
@@ -1314,7 +1314,7 @@ enum TransactionResultCode
     txNO_ACCOUNT = -8,           // source account not found
     txINSUFFICIENT_FEE = -9,     // fee is too small
     txBAD_AUTH_EXTRA = -10,      // unused signatures attached to transaction
-    txINTERNAL_ERROR = -11,      // an unknown error occured
+    txINTERNAL_ERROR = -11,      // an unknown error occurred
 
     txNOT_SUPPORTED = -12,         // transaction type not supported
     txFEE_BUMP_INNER_FAILED = -13, // fee bump inner transaction failed

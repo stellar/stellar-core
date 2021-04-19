@@ -4,7 +4,7 @@
 
 // This file contains tests for individual Buckets, low-level invariants
 // concerning the composition of buckets, the semantics of the merge
-// operation(s), and the perfomance of merging and applying buckets to the
+// operation(s), and the performance of merging and applying buckets to the
 // database.
 
 // ASIO is somewhat particular about when it gets included -- it wants to be the

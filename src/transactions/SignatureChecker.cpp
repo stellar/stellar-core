@@ -9,7 +9,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "transactions/SignatureUtils.h"
-#include "util/Algoritm.h"
+#include "util/Algorithm.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 

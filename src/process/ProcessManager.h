@@ -71,7 +71,7 @@ class ProcessManager : public std::enable_shared_from_this<ProcessManager>,
     // Synchronously cancels the provided ProcessExitEvent (firing its event
     // handler with ABORT_ERROR_CODE) and attempts to terminate the associated
     // process if it is running. Returns true if the attempt was successful --
-    // in the sense of succesfully sending a SIGTERM for example -- though this
+    // in the sense of successfully sending a SIGTERM for example -- though this
     // does not guarantee that the process _has exited_ yet.
     //
     // Since the event is cancelled, there is no further way for clients to be

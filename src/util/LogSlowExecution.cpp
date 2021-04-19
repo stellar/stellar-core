@@ -44,7 +44,7 @@ LogSlowExecution::checkElapsedTime() const
     {
         std::lock_guard<std::mutex> guard(gLogSlowExecMutex);
 
-        // Only emit a new log message once-per-second (optionally preceeded
+        // Only emit a new log message once-per-second (optionally preceded
         // by a summary of how many messages have been dropped since last time).
         if ((finish - gLastLogMessage) > std::chrono::seconds(1))
         {

@@ -82,7 +82,7 @@ class Application;
  *                                            (false)
  *
  *
- *  BasicWork is a bulding block of task execution; Other notable works
+ *  BasicWork is a building block of task execution; Other notable works
  * available for implementers:
  *  - Work: BasicWork that allows adding and managing children.
  *  - WorkScheduler: Work that controls scheduling the hierarchy on the IO
@@ -211,7 +211,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         RUNNING,
         WAITING,
         // Work is shutting down. During this stage, Work is prevented from
-        // making any furhter progress. This means that any attempts to call
+        // making any further progress. This means that any attempts to call
         // wake, add child work or invoke a callback will result in a no-op.
         ABORTING,
         ABORTED,

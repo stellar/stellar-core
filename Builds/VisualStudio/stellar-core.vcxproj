@@ -876,7 +876,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
-    <ClInclude Include="..\..\src\util\Algoritm.h" />
+    <ClInclude Include="..\..\src\util\Algorithm.h" />
     <ClInclude Include="..\..\src\util\asio.h" />
     <ClInclude Include="..\..\lib\util\basen.h" />
     <ClInclude Include="..\..\lib\util\crc16.h" />

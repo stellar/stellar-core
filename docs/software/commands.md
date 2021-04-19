@@ -269,7 +269,7 @@ format.
 
 * **getsurveyresult**
   `getsurveyresult`<br>
-  Returns the current survey results. The results will be reset everytime a new survey
+  Returns the current survey results. The results will be reset every time a new survey
   is started
 
 ### The following HTTP commands are exposed on test instances
