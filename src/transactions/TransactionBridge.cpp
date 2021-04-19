@@ -111,7 +111,7 @@ setFee(TransactionFramePtr tx, uint32_t fee)
 }
 
 void
-setMinTime(TransactionFramePtr tx, int64_t minTime)
+setMinTime(TransactionFramePtr tx, TimePoint minTime)
 {
     auto& env = tx->getEnvelope();
     auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
@@ -120,7 +120,7 @@ setMinTime(TransactionFramePtr tx, int64_t minTime)
 }
 
 void
-setMaxTime(TransactionFramePtr tx, int64_t maxTime)
+setMaxTime(TransactionFramePtr tx, TimePoint maxTime)
 {
     auto& env = tx->getEnvelope();
     auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
