@@ -36,7 +36,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     std::string path = td.getName() + "/stream.xdr";
     std::string pathSafe = td.getName() + "/streamSafe.xdr";
 
-    auto const ledgerToWaitFor = 10;
+    uint32 const ledgerToWaitFor = 10;
 
     bool const induceOneLedgerFork = GENERATE(false, true);
     CAPTURE(induceOneLedgerFork);
