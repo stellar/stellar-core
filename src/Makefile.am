@@ -30,7 +30,7 @@ BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp $(TEST_FILES)
 $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h
 .x.h:
-	$(XDRC) -hh -o $@ $<
+	$(XDRC) -hh -pedantic -o $@ $<
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
