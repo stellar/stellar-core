@@ -119,7 +119,7 @@ enum AccountFlags
 
 // mask for all valid flags
 const MASK_ACCOUNT_FLAGS = 0x7;
-const MASK_ACCOUNT_FLAGS_V16 = 0xF;
+const MASK_ACCOUNT_FLAGS_V17 = 0xF;
 
 // maximum number of signers
 const MAX_SIGNERS = 20;
@@ -212,7 +212,7 @@ enum TrustLineFlags
 // mask for all trustline flags
 const MASK_TRUSTLINE_FLAGS = 1;
 const MASK_TRUSTLINE_FLAGS_V13 = 3;
-const MASK_TRUSTLINE_FLAGS_V16 = 7;
+const MASK_TRUSTLINE_FLAGS_V17 = 7;
 
 struct TrustLineEntry
 {
