@@ -269,12 +269,12 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
                 REQUIRE_THROWS_AS(
                     gateway.setTrustLineFlags(
                         idr, a1,
-                        setTrustLineFlags(MASK_TRUSTLINE_FLAGS_V16 + 1)),
+                        setTrustLineFlags(MASK_TRUSTLINE_FLAGS_V17 + 1)),
                     ex_SET_TRUST_LINE_FLAGS_MALFORMED);
                 REQUIRE_THROWS_AS(
                     gateway.setTrustLineFlags(
                         idr, a1,
-                        clearTrustLineFlags(MASK_TRUSTLINE_FLAGS_V16 + 1)),
+                        clearTrustLineFlags(MASK_TRUSTLINE_FLAGS_V17 + 1)),
                     ex_SET_TRUST_LINE_FLAGS_MALFORMED);
 
                 // can't operate on self

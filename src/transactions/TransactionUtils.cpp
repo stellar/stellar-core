@@ -917,7 +917,7 @@ trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
     else
     {
-        return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V17) == 0;
     }
 }
 
@@ -948,7 +948,7 @@ accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
         return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
     }
 
-    return (flag & ~MASK_ACCOUNT_FLAGS_V16) == 0;
+    return (flag & ~MASK_ACCOUNT_FLAGS_V17) == 0;
 }
 
 AccountID
