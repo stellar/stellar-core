@@ -321,8 +321,9 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     };
 
     // Iterate bottom-up, from oldest to newest buckets
-    for (uint32_t i = BucketList::kNumLevels - 1; i >= 0; i--)
+    for (uint32_t j = BucketList::kNumLevels; j != 0; --j)
     {
+        auto i = j - 1;
         auto const& level = currentBuckets[i];
 
         // Note: snap is always older than curr, and therefore must be processed

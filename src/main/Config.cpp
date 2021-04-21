@@ -148,6 +148,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";
 
+    LOG_COLOR = false;
+
     TESTING_UPGRADE_DESIRED_FEE = LedgerManager::GENESIS_LEDGER_BASE_FEE;
     TESTING_UPGRADE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
     TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
