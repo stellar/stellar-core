@@ -33,10 +33,10 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
     auto baseFee = app->getLedgerManager().getLastTxFee();
 
     std::string const PENDING_RESULT = "{\"status\": \"PENDING\"}";
-    auto notSupportedResult = [](int64_t fee) {
+    auto errorResult = [](TransactionResultCode resultCode, int64_t fee) {
         TransactionResult txRes;
         txRes.feeCharged = fee;
-        txRes.result.code(txNOT_SUPPORTED);
+        txRes.result.code(resultCode);
         auto inner = decoder::encode_b64(xdr::xdr_to_opaque(txRes));
         return "{\"status\": \"ERROR\" , \"error\": \"" + inner + "\"}";
     };
@@ -74,21 +74,56 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
 
     SECTION("new-style transaction v0")
     {
-        for_all_versions(*app, [&]() {
-            closeLedgerOn(*app, 2, 1, 1, 2017);
+        auto timeBoundsTest = [&](xdr::pointer<TimeBounds> timeBounds,
+                                  std::string const& res) {
+            for_all_versions(*app, [&]() {
+                closeLedgerOn(*app, 2, 1, 1, 2017);
 
-            auto root = TestAccount::createRoot(*app);
+                auto root = TestAccount::createRoot(*app);
 
-            TransactionEnvelope env(ENVELOPE_TYPE_TX_V0);
-            auto& tx = env.v0().tx;
-            tx.sourceAccountEd25519 = root.getPublicKey().ed25519();
-            tx.fee = baseFee;
-            tx.seqNum = root.nextSequenceNumber();
-            tx.operations.emplace_back(payment(root, 1));
+                TransactionEnvelope env(ENVELOPE_TYPE_TX_V0);
+                auto& tx = env.v0().tx;
+                tx.sourceAccountEd25519 = root.getPublicKey().ed25519();
+                tx.fee = baseFee;
+                tx.seqNum = root.nextSequenceNumber();
+                tx.operations.emplace_back(payment(root, 1));
+                tx.timeBounds = timeBounds;
 
-            sign(env.v0().signatures, root, ENVELOPE_TYPE_TX, 0, tx);
-            REQUIRE(submit(env) == PENDING_RESULT);
-        });
+                sign(env.v0().signatures, root, ENVELOPE_TYPE_TX, 0, tx);
+
+                REQUIRE(submit(env) == res);
+            });
+        };
+
+        SECTION("valid without timebounds")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBoundsTest(timeBounds, PENDING_RESULT);
+        }
+
+        SECTION("valid with timebounds and on time")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBounds.activate().minTime = getTestDate(31, 12, 2016);
+            timeBounds.activate().maxTime = getTestDate(2, 1, 2017);
+            timeBoundsTest(timeBounds, PENDING_RESULT);
+        }
+
+        SECTION("invalid with timebounds and too early")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBounds.activate().minTime = getTestDate(2, 1, 2017);
+            timeBounds.activate().maxTime = getTestDate(3, 1, 2017);
+            timeBoundsTest(timeBounds, errorResult(txTOO_EARLY, baseFee));
+        }
+
+        SECTION("invalid with timebounds and too late")
+        {
+            xdr::pointer<TimeBounds> timeBounds;
+            timeBounds.activate().minTime = getTestDate(30, 12, 2016);
+            timeBounds.activate().maxTime = getTestDate(31, 12, 2016);
+            timeBoundsTest(timeBounds, errorResult(txTOO_LATE, baseFee));
+        }
     }
 
     auto createV1 = [&]() {
@@ -109,7 +144,8 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
     {
         for_versions_to(12, *app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createV1()) == notSupportedResult(baseFee));
+            REQUIRE(submit(createV1()) ==
+                    errorResult(txNOT_SUPPORTED, baseFee));
         });
 
         for_versions_from(13, *app, [&]() {
@@ -136,7 +172,8 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
 
         for_versions_to(12, *app, [&]() {
             closeLedgerOn(*app, 2, 1, 1, 2017);
-            REQUIRE(submit(createFeeBump()) == notSupportedResult(2 * baseFee));
+            REQUIRE(submit(createFeeBump()) ==
+                    errorResult(txNOT_SUPPORTED, 2 * baseFee));
         });
 
         for_versions_from(13, *app, [&]() {
