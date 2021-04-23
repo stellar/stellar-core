@@ -101,7 +101,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_STORES_HISTORY = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
-    MODE_KEEPS_BUCKETS = true;
     OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
 
     FORCE_SCP = false;
@@ -1559,24 +1558,16 @@ Config::getExpectedLedgerCloseTime() const
 void
 Config::setInMemoryMode()
 {
-    // For the time being, --in-memory mode on the command line does not enable
-    // MODE_USES_IN_MEMORY_LEDGER; rather it uses in-memory sqlite. This change
-    // happened when mitigating the protocol 16 issue, funneling all database
-    // access through the sqlite layer; it may be reverted once a different
-    // workaround for that issue is in place.
-    MODE_USES_IN_MEMORY_LEDGER = false;
+    MODE_USES_IN_MEMORY_LEDGER = true;
     DATABASE = SecretValue{"sqlite3://:memory:"};
     MODE_STORES_HISTORY = false;
     MODE_ENABLES_BUCKETLIST = true;
-    MODE_KEEPS_BUCKETS = false;
 }
 
 bool
 Config::isInMemoryMode() const
 {
-    return ((MODE_USES_IN_MEMORY_LEDGER ||
-             DATABASE.value == "sqlite3://:memory:") &&
-            !MODE_STORES_HISTORY && !MODE_KEEPS_BUCKETS);
+    return MODE_USES_IN_MEMORY_LEDGER;
 }
 
 void

@@ -223,10 +223,6 @@ class Config : public std::enable_shared_from_this<Config>
     // other pre-overlay-start operations (eg. offline catchup).
     bool MODE_AUTO_STARTS_OVERLAY;
 
-    // A config parameter that controls whether the application cleans
-    // up the bucket directory on exit. Usually used with the in-memory mode.
-    bool MODE_KEEPS_BUCKETS;
-
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;
