@@ -30,9 +30,9 @@ void setSeqNum(TransactionFramePtr tx, int64_t seq);
 
 void setFee(TransactionFramePtr tx, uint32_t fee);
 
-void setMinTime(TransactionFramePtr tx, int64_t minTime);
+void setMinTime(TransactionFramePtr tx, TimePoint minTime);
 
-void setMaxTime(TransactionFramePtr tx, int64_t maxTime);
+void setMaxTime(TransactionFramePtr tx, TimePoint maxTime);
 #endif
 }
 }
