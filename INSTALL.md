@@ -34,7 +34,7 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 
 ## Build Dependencies
 
-- c++ toolchain and headers that supports c++14
+- c++ toolchain and headers that supports c++17
     - `clang` >= 8.0
     - `g++` >= 7.0
 - `pkg-config`
