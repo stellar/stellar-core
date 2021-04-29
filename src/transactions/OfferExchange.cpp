@@ -1245,6 +1245,21 @@ convertWithOffers(
         {
             break;
         }
+
+        // Special behavior for offer 289733046 can only happen in protocol 15
+        if (gIsProductionNetwork &&
+            ltx.loadHeader().current().ledgerSeq == 34793621 &&
+            wheatOffer.current().data.offer().offerID == 289733046)
+        {
+            auto const sponsorStrKey = "GAS3CQSW3HE27IF5KDWKCM7K6FG6AHR"
+                                       "HWOUVBUWIRV4ZGTJMPBXNGATF";
+            auto const sponsorID =
+                KeyUtils::fromStrKey<PublicKey>(sponsorStrKey);
+
+            wheatOffer.current().ext.v(1);
+            wheatOffer.current().ext.v1().sponsoringID.activate() = sponsorID;
+        }
+
         if (filter && filter(wheatOffer) == OfferFilterResult::eStop)
         {
             return ConvertResult::eFilterStop;

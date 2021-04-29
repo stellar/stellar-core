@@ -107,7 +107,7 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mDeleteEntireBucketDirInDtor(!app.getConfig().MODE_KEEPS_BUCKETS)
+    , mDeleteEntireBucketDirInDtor(app.getConfig().isInMemoryMode())
 {
 }
 
