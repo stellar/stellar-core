@@ -23,40 +23,53 @@ TEST_CASE("Exchange", "[exchange]")
         REQUIRE(x.numWheatReceived == y.numWheatReceived);
         REQUIRE(x.numSheepSend == y.numSheepSend);
     };
-    auto validateV2 =
-        [&compare](int64_t wheatToReceive, Price price, int64_t maxWheatReceive,
-                   int64_t maxSheepSend, ExchangeResult const& expected,
-                   ReducedCheckV2 reducedCheck = REDUCED_CHECK_V2_STRICT) {
-            auto actualV2 = exchangeV2(wheatToReceive, price, maxWheatReceive,
-                                       maxSheepSend);
-            compare(actualV2, expected);
-            REQUIRE(uint128_t{actualV2.numWheatReceived} * uint128_t{price.n} <=
-                    uint128_t{expected.numSheepSend} * uint128_t{price.d});
-            REQUIRE(actualV2.numSheepSend <= maxSheepSend);
-            if (reducedCheck == REDUCED_CHECK_V2_RELAXED)
+    auto validateV2 = [&compare](int64_t wheatToReceive, Price price,
+                                 int64_t maxWheatReceive, int64_t maxSheepSend,
+                                 ExchangeResult const& expected,
+                                 ReducedCheckV2 reducedCheck =
+                                     REDUCED_CHECK_V2_STRICT) {
+        auto actualV2 =
+            exchangeV2(wheatToReceive, price, maxWheatReceive, maxSheepSend);
+        compare(actualV2, expected);
+        REQUIRE(actualV2.numWheatReceived >= 0);
+        REQUIRE(price.n >= 0);
+        REQUIRE(expected.numSheepSend >= 0);
+        REQUIRE(price.d >= 0);
+        REQUIRE(uint128_t{static_cast<uint64_t>(actualV2.numWheatReceived)} *
+                    uint128_t{static_cast<uint32_t>(price.n)} <=
+                uint128_t{static_cast<uint64_t>(expected.numSheepSend)} *
+                    uint128_t{static_cast<uint32_t>(price.d)});
+        REQUIRE(actualV2.numSheepSend <= maxSheepSend);
+        if (reducedCheck == REDUCED_CHECK_V2_RELAXED)
+        {
+            REQUIRE(actualV2.numWheatReceived <= wheatToReceive);
+        }
+        else
+        {
+            if (actualV2.reduced)
             {
-                REQUIRE(actualV2.numWheatReceived <= wheatToReceive);
+                REQUIRE(actualV2.numWheatReceived < wheatToReceive);
             }
             else
             {
-                if (actualV2.reduced)
-                {
-                    REQUIRE(actualV2.numWheatReceived < wheatToReceive);
-                }
-                else
-                {
-                    REQUIRE(actualV2.numWheatReceived == wheatToReceive);
-                }
+                REQUIRE(actualV2.numWheatReceived == wheatToReceive);
             }
-        };
+        }
+    };
     auto validateV3 = [&compare](int64_t wheatToReceive, Price price,
                                  int64_t maxWheatReceive, int64_t maxSheepSend,
                                  ExchangeResult const& expected) {
         auto actualV3 =
             exchangeV3(wheatToReceive, price, maxWheatReceive, maxSheepSend);
         compare(actualV3, expected);
-        REQUIRE(uint128_t{actualV3.numWheatReceived} * uint128_t{price.n} <=
-                uint128_t{expected.numSheepSend} * uint128_t{price.d});
+        REQUIRE(actualV3.numWheatReceived >= 0);
+        REQUIRE(price.n >= 0);
+        REQUIRE(expected.numSheepSend >= 0);
+        REQUIRE(price.d >= 0);
+        REQUIRE(uint128_t{static_cast<uint64_t>(actualV3.numWheatReceived)} *
+                    uint128_t{static_cast<uint32_t>(price.n)} <=
+                uint128_t{static_cast<uint64_t>(expected.numSheepSend)} *
+                    uint128_t{static_cast<uint32_t>(price.d)});
         REQUIRE(actualV3.numSheepSend <= maxSheepSend);
         if (actualV3.reduced)
         {

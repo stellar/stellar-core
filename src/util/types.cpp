@@ -4,6 +4,7 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
+#include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 #include <fmt/format.h>
 
@@ -268,20 +269,28 @@ iequals(std::string const& a, std::string const& b)
 bool
 operator>=(Price const& a, Price const& b)
 {
-    uint128_t l(a.n);
-    uint128_t r(a.d);
-    l *= b.d;
-    r *= b.n;
+    releaseAssertOrThrow(a.n >= 0);
+    releaseAssertOrThrow(a.d >= 0);
+    releaseAssertOrThrow(b.n >= 0);
+    releaseAssertOrThrow(b.d >= 0);
+    uint128_t l(static_cast<uint32_t>(a.n));
+    uint128_t r(static_cast<uint32_t>(a.d));
+    l *= static_cast<uint32_t>(b.d);
+    r *= static_cast<uint32_t>(b.n);
     return l >= r;
 }
 
 bool
 operator>(Price const& a, Price const& b)
 {
-    uint128_t l(a.n);
-    uint128_t r(a.d);
-    l *= b.d;
-    r *= b.n;
+    releaseAssertOrThrow(a.n >= 0);
+    releaseAssertOrThrow(a.d >= 0);
+    releaseAssertOrThrow(b.n >= 0);
+    releaseAssertOrThrow(b.d >= 0);
+    uint128_t l(static_cast<uint32_t>(a.n));
+    uint128_t r(static_cast<uint32_t>(a.d));
+    l *= static_cast<uint32_t>(b.d);
+    r *= static_cast<uint32_t>(b.n);
     return l > r;
 }
 

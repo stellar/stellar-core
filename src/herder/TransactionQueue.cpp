@@ -27,7 +27,7 @@
 
 namespace stellar
 {
-const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
+const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
                                    uint32 banDepth, uint32 poolLedgerMultiplier)

@@ -1,8 +1,8 @@
 #include "uint128_t.h"
 #include <cstring>
 
-const uint128_t uint128_0(0);
-const uint128_t uint128_1(1);
+const uint128_t uint128_0(0u);
+const uint128_t uint128_1(1u);
 
 uint128_t::uint128_t(std::string const& s) {
     init(s.c_str());
@@ -42,11 +42,11 @@ void uint128_t::_init_hex(const char *s) {
         }
         else if ('A' <= *s && *s <= 'F'){
             LOWER *= 16;
-            LOWER += *s + (10 - 'A');
+            LOWER += (*s - 'A') + 10;
         }
         else if ('a' <= *s && *s <= 'f'){
             LOWER *= 16;
-            LOWER += *s + (10 - 'a');
+            LOWER += (*s - 'a') + 10;
         }
         else{
             return;
@@ -54,16 +54,16 @@ void uint128_t::_init_hex(const char *s) {
     }
     for (; *s && i < 32; ++s, ++i){
         if ('0' <= *s && *s <= '9'){
-            *this *= 16;
-            *this += *s - '0';
+            *this *= 16u;
+            *this += static_cast<unsigned char>(*s - '0');
         }
         else if ('A' <= *s && *s <= 'F'){
-            *this *= 16;
-            *this += *s + (10 - 'A');
+            *this *= 16u;
+            *this += static_cast<unsigned char>((*s - 'A') + 10);
         }
         else if ('a' <= *s && *s <= 'f'){
-            *this *= 16;
-            *this += *s + (10 - 'a');
+            *this *= 16u;
+            *this += static_cast<unsigned char>((*s - 'a') + 10);
         }
         else{
             return;
@@ -75,8 +75,8 @@ void uint128_t::_init_dec(const char *s){
     // 2**128 = 340282366920938463463374607431768211456.
     LOWER = UPPER = 0;
     for (int i = 0; '0' <= *s && *s <= '9' && i < 39; ++s, ++i){
-        *this *= 10;
-        *this += *s - '0';
+        *this *= 10u;
+        *this += static_cast<unsigned char>(*s - '0');
     }
 }
 
@@ -84,8 +84,8 @@ void uint128_t::_init_oct(const char *s){
     // 2**128 = 0o4000000000000000000000000000000000000000000.
     LOWER = UPPER = 0;
     for (int i = 0; '0' <= *s && *s <= '7' && i < 43; ++s, ++i){
-        *this *= 8;
-        *this += *s - '0';
+        *this *= 8u;
+        *this += static_cast<unsigned char>(*s - '0');
     }
 }
 
@@ -149,7 +149,7 @@ uint128_t uint128_t::operator<<(const uint128_t & rhs) const{
         return uint128_0;
     }
     else if (shift == 64){
-        return uint128_t(LOWER, 0);
+        return uint128_t(LOWER, 0u);
     }
     else if (shift == 0){
         return *this;
@@ -158,7 +158,7 @@ uint128_t uint128_t::operator<<(const uint128_t & rhs) const{
         return uint128_t((UPPER << shift) + (LOWER >> (64 - shift)), LOWER << shift);
     }
     else if ((128 > shift) && (shift > 64)){
-        return uint128_t(LOWER << (shift - 64), 0);
+        return uint128_t(LOWER << (shift - 64), 0u);
     }
     else{
         return uint128_0;
@@ -176,7 +176,7 @@ uint128_t uint128_t::operator>>(const uint128_t & rhs) const{
         return uint128_0;
     }
     else if (shift == 64){
-        return uint128_t(0, UPPER);
+        return uint128_t(0u, UPPER);
     }
     else if (shift == 0){
         return *this;
@@ -185,7 +185,7 @@ uint128_t uint128_t::operator>>(const uint128_t & rhs) const{
         return uint128_t(UPPER >> shift, (UPPER << (64 - shift)) + (LOWER >> shift));
     }
     else if ((128 > shift) && (shift > 64)){
-        return uint128_t(0, (UPPER >> (shift - 64)));
+        return uint128_t(0u, (UPPER >> (shift - 64)));
     }
     else{
         return uint128_0;
@@ -345,7 +345,7 @@ std::pair <uint128_t, uint128_t> uint128_t::divmod(const uint128_t & lhs, const 
         qr.first  <<= uint128_1;
         qr.second <<= uint128_1;
 
-        if ((lhs >> (x - 1U)) & 1){
+        if ((lhs >> (x - 1u)) & 1u){
             ++qr.second;
         }
 
@@ -472,6 +472,9 @@ uint128_t operator<<(const uint64_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) << rhs;
 }
 
+// Here We disable signed-lhs operators but leave the code
+// in place to assist future merges from upstream.
+#if 0
 uint128_t operator<<(const int8_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) << rhs;
 }
@@ -487,6 +490,7 @@ uint128_t operator<<(const int32_t & lhs, const uint128_t & rhs){
 uint128_t operator<<(const int64_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) << rhs;
 }
+#endif
 
 uint128_t operator>>(const bool & lhs, const uint128_t & rhs){
     return uint128_t(lhs) >> rhs;
@@ -508,6 +512,9 @@ uint128_t operator>>(const uint64_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) >> rhs;
 }
 
+// Here We disable signed-lhs operators but leave the code
+// in place to assist future merges from upstream.
+#if 0
 uint128_t operator>>(const int8_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) >> rhs;
 }
@@ -523,6 +530,7 @@ uint128_t operator>>(const int32_t & lhs, const uint128_t & rhs){
 uint128_t operator>>(const int64_t & lhs, const uint128_t & rhs){
     return uint128_t(lhs) >> rhs;
 }
+#endif
 
 std::ostream & operator<<(std::ostream & stream, const uint128_t & rhs){
     if (stream.flags() & stream.oct){

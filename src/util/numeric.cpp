@@ -32,7 +32,7 @@ bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);
-    uint128_t x = rounding == ROUND_DOWN ? (a * b) / c : (a * b + c - 1) / c;
+    uint128_t x = rounding == ROUND_DOWN ? (a * b) / c : (a * b + c - 1u) / c;
 
     result = (uint64_t)x;
 
@@ -86,12 +86,12 @@ bigDivide(uint64_t& result, uint128_t a, uint64_t B, Rounding rounding)
     //         = UINT64_MAX + 2
     // which would have overflowed uint64_t anyway.
     uint128_t const UINT128_MAX = ~uint128_0;
-    if ((rounding == ROUND_UP) && (a > UINT128_MAX - (b - 1)))
+    if ((rounding == ROUND_UP) && (a > UINT128_MAX - (b - 1u)))
     {
         return false;
     }
 
-    uint128_t x = rounding == ROUND_DOWN ? a / b : (a + b - 1) / b;
+    uint128_t x = rounding == ROUND_DOWN ? a / b : (a + b - 1u) / b;
 
     result = (uint64_t)x;
 

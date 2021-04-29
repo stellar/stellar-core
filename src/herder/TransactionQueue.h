@@ -59,7 +59,7 @@ class TxQueueLimiter;
 class TransactionQueue
 {
   public:
-    static int64_t const FEE_MULTIPLIER;
+    static uint64_t const FEE_MULTIPLIER;
 
     enum class AddResult
     {

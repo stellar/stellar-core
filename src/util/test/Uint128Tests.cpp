@@ -96,15 +96,15 @@ TEST_CASE("uint128_t carry tests with positive arg")
     {
         SECTION("carry lower")
         {
-            uint128_t x(0, 100);
-            x -= 1;
+            uint128_t x(0u, 100u);
+            x -= 1u;
             REQUIRE(x.lower() == 99);
             REQUIRE(x.upper() == 0);
         }
         SECTION("carry upper")
         {
-            uint128_t x(2, 0);
-            x -= 1;
+            uint128_t x(2u, 0u);
+            x -= 1u;
             REQUIRE(x.lower() == UINT64_MAX);
             REQUIRE(x.upper() == 1);
         }
@@ -113,54 +113,17 @@ TEST_CASE("uint128_t carry tests with positive arg")
     {
         SECTION("carry lower")
         {
-            uint128_t x(0, 100);
-            x += 1;
+            uint128_t x(0u, 100u);
+            x += 1u;
             REQUIRE(x.lower() == 101);
             REQUIRE(x.upper() == 0);
         }
         SECTION("carry upper")
         {
-            uint128_t x(1, UINT64_MAX);
-            x += 1;
+            uint128_t x(1u, UINT64_MAX);
+            x += 1u;
             REQUIRE(x.lower() == 0);
             REQUIRE(x.upper() == 2);
         }
     }
-}
-
-TEST_CASE("uint128_t carry tests with negative arg")
-{
-    SECTION("addition")
-    {
-        SECTION("bad carry lower")
-        {
-            uint128_t x(0, 100);
-            REQUIRE_THROWS_AS(x += -1, std::invalid_argument);
-        }
-        SECTION("bad carry upper")
-        {
-            uint128_t x(2, 0);
-            REQUIRE_THROWS_AS(x += -1, std::invalid_argument);
-        }
-    }
-    SECTION("subtraction")
-    {
-        SECTION("bad carry lower")
-        {
-            uint128_t x(0, 100);
-            REQUIRE_THROWS_AS(x -= -1, std::invalid_argument);
-        }
-        SECTION("bad carry upper")
-        {
-            uint128_t x(1, UINT64_MAX);
-            REQUIRE_THROWS_AS(x -= -1, std::invalid_argument);
-        }
-    }
-}
-
-TEST_CASE("uint128_t general negative tests")
-{
-    uint128_t x(0);
-    REQUIRE_THROWS_AS(x = uint128_t(-1, 0), std::invalid_argument);
-    REQUIRE_THROWS_AS(x = uint128_t(0, -1), std::invalid_argument);
 }
