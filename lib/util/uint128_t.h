@@ -110,7 +110,7 @@ class uint128_t{
         uint128_t() = default;
         uint128_t(const uint128_t & rhs) = default;
         uint128_t(uint128_t && rhs) = default;
-        uint128_t(std::string & s);
+        uint128_t(std::string const& s);
         uint128_t(const char *s);
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >

@@ -4,7 +4,7 @@
 const uint128_t uint128_0(0);
 const uint128_t uint128_1(1);
 
-uint128_t::uint128_t(std::string & s) {
+uint128_t::uint128_t(std::string const& s) {
     init(s.c_str());
 }
 
