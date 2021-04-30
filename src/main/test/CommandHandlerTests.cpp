@@ -12,6 +12,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Math.h"
@@ -23,6 +24,7 @@
 #include <stdexcept>
 
 using namespace stellar;
+using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
 TEST_CASE("transaction envelope bridge", "[commandhandler]")
@@ -499,12 +501,11 @@ TEST_CASE("manualclose", "[commandhandler]")
             auto dataOp = txtest::manageData(de.dataName, &de.dataValue);
             auto txFrame = root.tx({dataOp});
             REQUIRE(txFrame->getEnvelope().type() == stellar::ENVELOPE_TYPE_TX);
-            txFrame->getEnvelope().v1().tx.timeBounds.activate();
-            txFrame->getEnvelope().v1().tx.timeBounds->minTime = 0;
+            setMinTime(txFrame, 0);
             TimePoint const maxTime =
                 lastCloseTime() + defaultManualCloseTimeInterval +
                 getUpperBoundCloseTimeOffset(*app, lastCloseTime());
-            txFrame->getEnvelope().v1().tx.timeBounds->maxTime = maxTime;
+            setMaxTime(txFrame, maxTime);
             txFrame->getEnvelope().v1().signatures.clear();
             txFrame->addSignature(root);
 
