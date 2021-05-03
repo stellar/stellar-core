@@ -44,7 +44,7 @@ auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
 auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
 
 // must be strictly less than 255
-uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16U;
+uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 5U;
 
 void
 setShortKey(uint256& ed25519, int i)
@@ -989,18 +989,7 @@ std::array<
      {1, 256, 0},
      {2, 256, 0, 1}, // sponsored by account 1
      {3, 256, AUTH_REQUIRED_FLAG},
-     {4, 256, 0},
-     {5, 256, 0},
-     {6, 256, 0},
-     {7, 256, 0},
-     {8, 256, 0},
-     {9, 256, 0},
-     {10, 256, 0},
-     {11, 256, 0},
-     {12, 256, 0},
-     {13, 256, 0},
-     {14, 256, 0},
-     {15, 256, 0}}};
+     {4, 256, 0}}};
 
 struct TrustLineParameters : public SponsoredEntryParameters
 {
@@ -1084,85 +1073,21 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 60> constexpr trustLineParameters{
-    {{0, AssetID(1), 256, 256},
-     {0, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(0, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {0, AssetID(4), 256, 256},
-     {1, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(1, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {1, AssetID(4), 256, 256},
-     {2, AssetID(1), 256, 256},
-     TrustLineParameters::withAllowTrust(2, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
+std::array<TrustLineParameters, 9> constexpr trustLineParameters{
+    {// these trustlines are required for claimable balances
      {2, AssetID(4), 256, 256},
-     {3, AssetID(1), 256, 256},
-     {3, AssetID(2), 256, 256},
      {3, AssetID(4), 256, 256},
-     {4, AssetID(1), 256, 256},
-     TrustLineParameters::withSponsor(4, AssetID(2), 256, 256,
-                                      3), // sponsored by account 3
      TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
                                          AUTHORIZED_FLAG),
-     {5, AssetID(1), 256, 256},
-     {5, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(5, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {5, AssetID(4, 3), 256, 256},
-     {6, AssetID(1), 256, 256},
-     {6, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(6, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {6, AssetID(4), 256, 256},
-     {7, AssetID(1), 256, 256},
-     {7, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(7, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {7, AssetID(4), 256, 256},
-     {8, AssetID(1), 256, 256},
-     {8, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(8, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {8, AssetID(4), 256, 256},
-     {9, AssetID(1), 256, 256},
-     {9, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(9, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {9, AssetID(4), 256, 256},
-     {10, AssetID(1), 256, 256},
-     {10, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(10, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {10, AssetID(4), 256, 256},
-     {11, AssetID(1), 256, 256},
-     {11, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrustAndSponsor(
-         11, AssetID(3), 256, 256, AUTHORIZED_FLAG,
-         10), // sponsored by account 10
-     {11, AssetID(4), 256, 256},
-     {12, AssetID(1), 256, 256},
-     {12, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(12, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     TrustLineParameters::withSponsor(12, AssetID(4), 256, 256,
-                                      11), // sponsored by account 11
-     {13, AssetID(1), 256, 256},
-     {13, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(13, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {13, AssetID(4), 256, 256},
-     {14, AssetID(1), 256, 256},
-     {14, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(14, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {14, AssetID(4), 256, 256},
-     {15, AssetID(1), 256, 256},
-     {15, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(15, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {15, AssetID(4), 256, 256}}};
+
+     // these trustlines are required for offers
+     {2, AssetID(1), 256, 256},
+     {3, AssetID(1), 256, 256},
+     {4, AssetID(1), 256, 256},
+
+     {1, AssetID(2), 256, 256},
+     {3, AssetID(2), 256, 256},
+     {4, AssetID(2), 256, 256}}};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
@@ -1196,7 +1121,7 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
 std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
     {0, 1, AssetID(), 10},     // native asset
     {2, 3, AssetID(4), 5},     // non-native asset
-    {4, 5, AssetID(4), 20, 6}, // sponsored by account 6
+    {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
     {4, 3, AssetID(3), 30}     // issuer is claimant
 }};
 
@@ -1241,63 +1166,38 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-// The current order book setup generates identical configurations for the
-// following asset pairs:
-//      XLM - A
-//      A   - B
-//      B   - C
-//      C   - D
-//
-// For any asset A and asset B, the generic order book setup will be as
-// follows:
-//
-// +------------+-----+------+--------+------------------------------+
-// |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
-// +------------+-----+------+--------+------------------------------+
-// | 0          | A   | B    |     10 | 3/2                          |
-// | 1 (issuer) | A   | B    |     50 | 3/2                          |
-// | 2          | A   | B    |    100 | 1/1 (passive)                |
-// | 2          | B   | A    |    100 | 1/1 (passive)                |
-// | 3 (issuer) | B   | A    |     10 | 10/9                         |
-// | 4          | B   | A    |     50 | 10/9                         |
-// | 0          | B   | A    |    100 | 22/7                         |
-// +------------+-----+------+--------+------------------------------+
-//
-// (This is far more symmetric than it needs to be; we will introduce more
-// variety.  In the long run, we plan to fuzz the setup itself.)
-std::array<OfferParameters, 28> constexpr orderBookParameters{
-    {{13, AssetID(), AssetID(1), 10, 3, 2, false}, // asset pair 0
-     {14, AssetID(), AssetID(1), 50, 3, 2, false,
-      15}, // sponsored by account 15
-     {15, AssetID(), AssetID(1), 100, 1, 1, true},
-     {15, AssetID(1), AssetID(), 100, 1, 1, true},
-     {1, AssetID(1), AssetID(), 10, 10, 9, false},
-     {12, AssetID(1), AssetID(), 50, 10, 9, false},
-     {13, AssetID(1), AssetID(), 100, 22, 7, false},
+std::array<OfferParameters, 14> constexpr orderBookParameters{{
 
-     {11, AssetID(1), AssetID(2), 10, 3, 2, false}, // asset pair 1
-     {1, AssetID(1), AssetID(2), 50, 3, 2, false},
-     {12, AssetID(1), AssetID(2), 100, 1, 1, true},
-     {12, AssetID(2), AssetID(1), 100, 1, 1, true},
-     {2, AssetID(2), AssetID(1), 10, 10, 9, false},
-     {10, AssetID(2), AssetID(1), 50, 10, 9, false},
-     {11, AssetID(2), AssetID(1), 100, 22, 7, false},
+    // The first two order books follow this structure
+    // +------------+-----+------+--------+------------------------------+
+    // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
+    // +------------+-----+------+--------+------------------------------+
+    // | non-issuer | A   | B    |     10 | 3/2                          |
+    // | issuer     | A   | B    |     50 | 3/2                          |
+    // | non-issuer | A   | B    |    100 | 1/1 (passive)                |
+    // | non-issuer | B   | A    |    100 | 1/1 (passive)                |
+    // | issuer     | B   | A    |     10 | 10/9                         |
+    // | non-issuer | B   | A    |     50 | 10/9                         |
+    // | non-issuer | B   | A    |    100 | 22/7                         |
+    // +------------+-----+------+--------+------------------------------+
 
-     {13, AssetID(2), AssetID(3), 10, 3, 2, false}, // asset pair 2
-     {2, AssetID(2), AssetID(3), 50, 3, 2, false},
-     {14, AssetID(2), AssetID(3), 100, 1, 1, true},
-     {14, AssetID(3), AssetID(2), 100, 1, 1, true},
-     {3, AssetID(3), AssetID(2), 10, 10, 9, false},
-     {15, AssetID(3), AssetID(2), 50, 10, 9, false},
-     {13, AssetID(3), AssetID(2), 100, 22, 7, false},
+    // This is a simple order book between a native and non-native asset
+    {2, AssetID(), AssetID(1), 10, 3, 2, false},
+    {1, AssetID(), AssetID(1), 50, 3, 2, false, 3}, // sponsored by account 3
+    {3, AssetID(), AssetID(1), 100, 1, 1, true},
+    {3, AssetID(1), AssetID(), 100, 1, 1, true},
+    {1, AssetID(1), AssetID(), 10, 10, 9, false},
+    {2, AssetID(1), AssetID(), 50, 10, 9, false},
+    {2, AssetID(1), AssetID(), 100, 22, 7, false},
 
-     {6, AssetID(3), AssetID(4), 10, 3, 2, false}, // asset pair 3
-     {3, AssetID(3), AssetID(4), 50, 3, 2, false},
-     {7, AssetID(3), AssetID(4), 100, 1, 1, true},
-     {7, AssetID(4), AssetID(3), 100, 1, 1, true},
-     {4, AssetID(4), AssetID(3), 10, 10, 9, false},
-     {8, AssetID(4), AssetID(3), 50, 10, 9, false},
-     {6, AssetID(4), AssetID(3), 100, 22, 7, false}}};
+    // This is a simple order book between two non-native assets
+    {3, AssetID(1), AssetID(2), 10, 3, 2, false},
+    {1, AssetID(1), AssetID(2), 50, 3, 2, false, 3}, // sponsored by account 3
+    {3, AssetID(1), AssetID(2), 100, 1, 1, true},
+    {3, AssetID(2), AssetID(1), 100, 1, 1, true},
+    {1, AssetID(2), AssetID(1), 10, 10, 9, false},
+    {3, AssetID(2), AssetID(1), 50, 10, 9, false},
+    {3, AssetID(2), AssetID(1), 100, 22, 7, false}}};
 
 void
 TransactionFuzzer::initialize()
