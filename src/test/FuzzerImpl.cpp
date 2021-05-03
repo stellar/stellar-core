@@ -1073,21 +1073,22 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 9> constexpr trustLineParameters{
-    {// these trustlines are required for claimable balances
-     {2, AssetID(4), 256, 256},
-     {3, AssetID(4), 256, 256},
-     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
+std::array<TrustLineParameters, 9> constexpr trustLineParameters{{
+    // these trustlines are required for claimable balances
+    {2, AssetID(4), 256, 256},
+    {3, AssetID(4), 256, 256},
+    TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+                                        AUTHORIZED_FLAG),
 
-     // these trustlines are required for offers
-     {2, AssetID(1), 256, 256},
-     {3, AssetID(1), 256, 256},
-     {4, AssetID(1), 256, 256},
+    // these trustlines are required for offers
+    {2, AssetID(1), 256, 256},
+    {3, AssetID(1), 256, 0}, // No available limit left
+    {4, AssetID(1), 256, 256},
 
-     {1, AssetID(2), 256, 256},
-     {3, AssetID(2), 256, 256},
-     {4, AssetID(2), 256, 256}}};
+    {1, AssetID(2), 256, 256},
+    {3, AssetID(2), 256, 256},
+    {4, AssetID(2), 256, 0} // No available limit left
+}};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
@@ -1118,11 +1119,12 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
+std::array<ClaimableBalanceParameters, 5> constexpr claimableBalanceParameters{{
     {0, 1, AssetID(), 10},     // native asset
     {2, 3, AssetID(4), 5},     // non-native asset
     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
-    {4, 3, AssetID(3), 30}     // issuer is claimant
+    {4, 3, AssetID(3), 30},    // issuer is claimant
+    {1, 3, AssetID(1), 100}    // 3 has no available limit
 }};
 
 struct OfferParameters : public SponsoredEntryParameters
@@ -1166,7 +1168,7 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-std::array<OfferParameters, 14> constexpr orderBookParameters{{
+std::array<OfferParameters, 15> constexpr orderBookParameters{{
 
     // The first two order books follow this structure
     // +------------+-----+------+--------+------------------------------+
@@ -1197,7 +1199,10 @@ std::array<OfferParameters, 14> constexpr orderBookParameters{{
     {3, AssetID(2), AssetID(1), 100, 1, 1, true},
     {1, AssetID(2), AssetID(1), 10, 10, 9, false},
     {3, AssetID(2), AssetID(1), 50, 10, 9, false},
-    {3, AssetID(2), AssetID(1), 100, 22, 7, false}}};
+    {3, AssetID(2), AssetID(1), 100, 22, 7, false},
+
+    // offer to trade all of one asset to another up to the trustline limit
+    {4, AssetID(2), AssetID(), 256, 1, 1, true}}};
 
 void
 TransactionFuzzer::initialize()
