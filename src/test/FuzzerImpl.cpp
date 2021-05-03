@@ -987,7 +987,9 @@ std::array<
     FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
     {{0, 256, 0},
      {1, 256, 0},
-     {2, 256, 0, 1}, // sponsored by account 1
+     {2, 256, AUTH_REVOCABLE_FLAG,
+      1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
+          // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
      {3, 256, AUTH_REQUIRED_FLAG},
      {4, 256, 0}}};
 
@@ -1073,22 +1075,25 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 9> constexpr trustLineParameters{{
-    // these trustlines are required for claimable balances
-    {2, AssetID(4), 256, 256},
-    {3, AssetID(4), 256, 256},
-    TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
-                                        AUTHORIZED_FLAG),
+std::array<TrustLineParameters, 10> constexpr trustLineParameters{
+    {// these trustlines are required for claimable balances
+     {2, AssetID(4), 256, 256},
+     {3, AssetID(4), 256, 256},
+     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
 
-    // these trustlines are required for offers
-    {2, AssetID(1), 256, 256},
-    {3, AssetID(1), 256, 0}, // No available limit left
-    {4, AssetID(1), 256, 256},
+     // these trustlines are required for offers
+     {2, AssetID(1), 256, 256},
+     {3, AssetID(1), 256, 0}, // No available limit left
+     {4, AssetID(1), 256, 256},
 
-    {1, AssetID(2), 256, 256},
-    {3, AssetID(2), 256, 256},
-    {4, AssetID(2), 256, 0} // No available limit left
-}};
+     {1, AssetID(2), 256, 256},
+     {3, AssetID(2), 256, 256},
+     {4, AssetID(2), 256, 0}, // No available limit left
+
+     // this trustline will be a claimant on a claimable balance
+     TrustLineParameters::withAllowTrust(
+         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)}};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
@@ -1119,12 +1124,14 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 5> constexpr claimableBalanceParameters{{
+std::array<ClaimableBalanceParameters, 6> constexpr claimableBalanceParameters{{
     {0, 1, AssetID(), 10},     // native asset
     {2, 3, AssetID(4), 5},     // non-native asset
     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
     {4, 3, AssetID(3), 30},    // issuer is claimant
-    {1, 3, AssetID(1), 100}    // 3 has no available limit
+    {1, 3, AssetID(1), 100},   // 3 has no available limit
+    {1, 0, AssetID(2),
+     1} // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
 }};
 
 struct OfferParameters : public SponsoredEntryParameters
@@ -1350,12 +1357,16 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
             ops.emplace_back(allowTrustOp);
         }
 
-        // Distribute the starting amount of the asset (to be reduced after
-        // orders have been placed).
-        auto distributeOp = txtest::payment(
-            account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
-        distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
-        ops.emplace_back(distributeOp);
+        if (!trustLine.mCallAllowTrustOp ||
+            trustLine.mAllowTrustFlags & AUTHORIZED_FLAG)
+        {
+            // Distribute the starting amount of the asset (to be reduced after
+            // orders have been placed).
+            auto distributeOp = txtest::payment(
+                account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
+            distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
+            ops.emplace_back(distributeOp);
+        }
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
@@ -1488,12 +1499,14 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
         auto const paymentAmount =
             availableTLBalance - targetAvailableTLBalance;
 
-        assert(availableTLBalance > targetAvailableTLBalance);
-        auto reduceNonNativeBalanceOp =
-            txtest::payment(issuer, asset, paymentAmount);
-        reduceNonNativeBalanceOp.sourceAccount.activate() =
-            toMuxedAccount(account);
-        ops.emplace_back(reduceNonNativeBalanceOp);
+        if (availableTLBalance > targetAvailableTLBalance)
+        {
+            auto reduceNonNativeBalanceOp =
+                txtest::payment(issuer, asset, paymentAmount);
+            reduceNonNativeBalanceOp.sourceAccount.activate() =
+                toMuxedAccount(account);
+            ops.emplace_back(reduceNonNativeBalanceOp);
+        }
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
