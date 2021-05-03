@@ -42,6 +42,8 @@ auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
 auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
+auto constexpr MIN_ACCOUNT_BALANCE =
+    FUZZING_FEE * DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
 
 // must be strictly less than 255
 uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 5U;
@@ -985,7 +987,9 @@ struct AccountParameters : public SponsoredEntryParameters
 std::array<
     AccountParameters,
     FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
-    {{0, 256, 0},
+    {// This account will have all of it's entries sponsored, and buying
+     // liabilities close to INT64_MAX
+     {0, 0, 0},
      {1, 256, 0},
      {2, 256, AUTH_REVOCABLE_FLAG,
       1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
@@ -1075,7 +1079,7 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 10> constexpr trustLineParameters{
+std::array<TrustLineParameters, 11> constexpr trustLineParameters{
     {// these trustlines are required for claimable balances
      {2, AssetID(4), 256, 256},
      {3, AssetID(4), 256, 256},
@@ -1092,8 +1096,11 @@ std::array<TrustLineParameters, 10> constexpr trustLineParameters{
      {4, AssetID(2), 256, 0}, // No available limit left
 
      // this trustline will be a claimant on a claimable balance
-     TrustLineParameters::withAllowTrust(
-         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)}};
+     TrustLineParameters::withAllowTrustAndSponsor(
+         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG, 1),
+
+     // this trustline will be used to increase native buying liabilites
+     TrustLineParameters::withSponsor(0, AssetID(4), INT64_MAX, 0, 2)}};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
@@ -1124,15 +1131,23 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 6> constexpr claimableBalanceParameters{{
-    {0, 1, AssetID(), 10},     // native asset
-    {2, 3, AssetID(4), 5},     // non-native asset
-    {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
-    {4, 3, AssetID(3), 30},    // issuer is claimant
-    {1, 3, AssetID(1), 100},   // 3 has no available limit
-    {1, 0, AssetID(2),
-     1} // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
-}};
+std::array<ClaimableBalanceParameters, 8> constexpr claimableBalanceParameters{
+    {{1, 2, AssetID(), 10},     // native asset
+     {2, 3, AssetID(4), 5},     // non-native asset
+     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
+     {4, 3, AssetID(3), 30},    // issuer is claimant
+     {1, 3, AssetID(1), 100},   // 3 has no available limit
+     {1, 0, AssetID(2),
+      1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
+     {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
+
+     // leave 0 with a small native balance so it can create a native buy
+     // offer for INT64_MAX - balance
+     {0, 1, AssetID(),
+      FuzzUtils::INITIAL_ACCOUNT_BALANCE -
+          (FuzzUtils::MIN_ACCOUNT_BALANCE + (2 * FuzzUtils::FUZZING_RESERVE) +
+           1),
+      2}}};
 
 struct OfferParameters : public SponsoredEntryParameters
 {
@@ -1175,7 +1190,7 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-std::array<OfferParameters, 15> constexpr orderBookParameters{{
+std::array<OfferParameters, 16> constexpr orderBookParameters{{
 
     // The first two order books follow this structure
     // +------------+-----+------+--------+------------------------------+
@@ -1209,7 +1224,13 @@ std::array<OfferParameters, 15> constexpr orderBookParameters{{
     {3, AssetID(2), AssetID(1), 100, 22, 7, false},
 
     // offer to trade all of one asset to another up to the trustline limit
-    {4, AssetID(2), AssetID(), 256, 1, 1, true}}};
+    {4, AssetID(2), AssetID(), 256, 1, 1, true},
+
+    // Increase native buying liabilites for account 0
+    {0, AssetID(), AssetID(4),
+     INT64_MAX - (FuzzUtils::MIN_ACCOUNT_BALANCE +
+                  (2 * FuzzUtils::FUZZING_RESERVE) + 1),
+     1, 1, false, 2}}};
 
 void
 TransactionFuzzer::initialize()
@@ -1338,8 +1359,9 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
         auto const asset = trustLine.mAssetID.toAsset();
 
         // Trust the asset issuer.
-        auto trustOp =
-            txtest::changeTrust(asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
+        auto trustOp = txtest::changeTrust(
+            asset, std::max<int64_t>(FuzzUtils::INITIAL_TRUST_LINE_LIMIT,
+                                     trustLine.mAssetAvailableForTestActivity));
         trustOp.sourceAccount.activate() = toMuxedAccount(account);
         FuzzUtils::emplaceConditionallySponsored(
             ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
@@ -1363,7 +1385,9 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
             // Distribute the starting amount of the asset (to be reduced after
             // orders have been placed).
             auto distributeOp = txtest::payment(
-                account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
+                account, asset,
+                std::max<int64_t>(FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
+                                  trustLine.mAssetAvailableForTestActivity));
             distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
             ops.emplace_back(distributeOp);
         }
@@ -1452,8 +1476,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
         auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);
         auto const targetAvailableBalance =
             param.mNativeAssetAvailableForTestActivity +
-            FuzzUtils::FUZZING_FEE *
-                FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
+            FuzzUtils::MIN_ACCOUNT_BALANCE;
 
         assert(availableBalance > targetAvailableBalance);
         auto reduceNativeBalanceOp = txtest::payment(
