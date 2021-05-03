@@ -5,6 +5,10 @@
 #include "FileSystemException.h"
 #include <fmt/format.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 namespace stellar
 {
 
