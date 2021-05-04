@@ -376,6 +376,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\util\XDRCereal.cpp" />
     <ClCompile Include="..\..\src\work\BatchWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadVerifyTxResultsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
@@ -733,6 +734,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\XDRCereal.h" />
     <ClInclude Include="..\..\src\util\XDROperators.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />
+    <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadVerifyTxResultsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />

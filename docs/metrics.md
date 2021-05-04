@@ -44,6 +44,8 @@ history.apply-ledger-chain.failure       | meter     | apply ledger chain failed
 history.apply-ledger-chain.success       | meter     | apply ledger chain completed successfully
 history.download-<X>.failure             | meter     | download of <X> failed
 history.download-<X>.success             | meter     | download of <X> completed successfully
+history.check.failure                    | meter     | history archive status checks failed
+history.check.success                    | meter     | history archive status checks succeeded
 history.publish.failure                  | meter     | published failed
 history.publish.success                  | meter     | published completed successfully
 history.publish.time                     | timer     | time to successfully publish history

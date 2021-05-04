@@ -1173,6 +1173,9 @@
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2044,6 +2047,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h">
+      <Filter>historyWork</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
