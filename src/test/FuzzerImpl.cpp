@@ -990,7 +990,7 @@ std::array<
     {// This account will have all of it's entries sponsored, and buying
      // liabilities close to INT64_MAX
      {0, 0, 0},
-     {1, 256, AUTH_REVOCABLE_FLAG},
+     {1, 256, AUTH_REVOCABLE_FLAG | AUTH_CLAWBACK_ENABLED_FLAG},
      {2, 256, AUTH_REVOCABLE_FLAG,
       1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
           // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
@@ -1134,28 +1134,28 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 10> constexpr claimableBalanceParameters{
-    {
-        {1, 2, AssetID(), 10},     // native asset
-        {2, 3, AssetID(4), 5},     // non-native asset
-        {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
-        {4, 3, AssetID(3), 30},    // issuer is claimant
-        {1, 3, AssetID(1), 100},   // 3 has no available limit
-        {1, 0, AssetID(2),
-         1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
-        {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
+std::array<ClaimableBalanceParameters, 11> constexpr claimableBalanceParameters{
+    {{1, 2, AssetID(), 10},     // native asset
+     {2, 3, AssetID(4), 5},     // non-native asset
+     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
+     {4, 3, AssetID(3), 30},    // issuer is claimant
+     {1, 3, AssetID(1), 100},   // 3 has no available limit
+     {1, 0, AssetID(2),
+      1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
+     {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
 
-        // leave 0 with a small native balance so it can create a native buy
-        // offer for INT64_MAX - balance
-        {0, 1, AssetID(),
-         FuzzUtils::INITIAL_ACCOUNT_BALANCE -
-             (FuzzUtils::MIN_ACCOUNT_BALANCE +
-              (2 * FuzzUtils::FUZZING_RESERVE) + 1),
-         2},
+     // leave 0 with a small native balance so it can create a native buy
+     // offer for INT64_MAX - balance
+     {0, 1, AssetID(),
+      FuzzUtils::INITIAL_ACCOUNT_BALANCE -
+          (FuzzUtils::MIN_ACCOUNT_BALANCE + (2 * FuzzUtils::FUZZING_RESERVE) +
+           1),
+      2},
 
-        {3, 0, AssetID(3), 30}, // 0 has no trustline to this asset
-        {3, 0, AssetID(1), 30}  // claimant trustline is not authorized
-    }};
+     {3, 0, AssetID(3), 30}, // 0 has no trustline to this asset
+     {3, 0, AssetID(1), 30}, // claimant trustline is not authorized
+     // enough limit to claim. trustline is clawback enabled
+     {1, 2, AssetID(1), 100}}};
 
 struct OfferParameters : public SponsoredEntryParameters
 {
