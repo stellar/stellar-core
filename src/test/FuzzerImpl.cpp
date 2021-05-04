@@ -984,6 +984,20 @@ struct AccountParameters : public SponsoredEntryParameters
     uint32_t const mOptionFlags;
 };
 
+/*
+Scenarios we are testing with the account, trustline, claimable balance, and
+offer configurations below -
+1. All possible account flags, along with issued assets.
+2. Hitting limits due to buying liabilites for both native and non-native
+   balances.
+3. Claimable balances with claimants in all possible auth states and missing
+   trustline.
+4. Claimable balances with sponsor and issuer as the claimaint.
+5. Order books for native to non-native, and non-native to non-native.
+6. Offers created by the issuer.
+7. Entries with sponsorships.
+*/
+
 std::array<
     AccountParameters,
     FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
