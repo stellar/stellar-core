@@ -990,7 +990,7 @@ std::array<
     {// This account will have all of it's entries sponsored, and buying
      // liabilities close to INT64_MAX
      {0, 0, 0},
-     {1, 256, 0},
+     {1, 256, AUTH_REVOCABLE_FLAG},
      {2, 256, AUTH_REVOCABLE_FLAG,
       1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
           // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
@@ -1079,7 +1079,7 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 11> constexpr trustLineParameters{
+std::array<TrustLineParameters, 12> constexpr trustLineParameters{
     {// these trustlines are required for claimable balances
      {2, AssetID(4), 256, 256},
      {3, AssetID(4), 256, 256},
@@ -1095,9 +1095,12 @@ std::array<TrustLineParameters, 11> constexpr trustLineParameters{
      {3, AssetID(2), 256, 256},
      {4, AssetID(2), 256, 0}, // No available limit left
 
-     // this trustline will be a claimant on a claimable balance
+     // these trustlines will be a claimant on a claimable balance
      TrustLineParameters::withAllowTrustAndSponsor(
          0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG, 1),
+
+     TrustLineParameters::withAllowTrustAndSponsor(0, AssetID(1), 0, 256, 0,
+                                                   1), // deauthorize trustline
 
      // this trustline will be used to increase native buying liabilites
      TrustLineParameters::withSponsor(0, AssetID(4), INT64_MAX, 0, 2)}};
@@ -1131,23 +1134,28 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 8> constexpr claimableBalanceParameters{
-    {{1, 2, AssetID(), 10},     // native asset
-     {2, 3, AssetID(4), 5},     // non-native asset
-     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
-     {4, 3, AssetID(3), 30},    // issuer is claimant
-     {1, 3, AssetID(1), 100},   // 3 has no available limit
-     {1, 0, AssetID(2),
-      1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
-     {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
+std::array<ClaimableBalanceParameters, 10> constexpr claimableBalanceParameters{
+    {
+        {1, 2, AssetID(), 10},     // native asset
+        {2, 3, AssetID(4), 5},     // non-native asset
+        {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
+        {4, 3, AssetID(3), 30},    // issuer is claimant
+        {1, 3, AssetID(1), 100},   // 3 has no available limit
+        {1, 0, AssetID(2),
+         1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
+        {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
 
-     // leave 0 with a small native balance so it can create a native buy
-     // offer for INT64_MAX - balance
-     {0, 1, AssetID(),
-      FuzzUtils::INITIAL_ACCOUNT_BALANCE -
-          (FuzzUtils::MIN_ACCOUNT_BALANCE + (2 * FuzzUtils::FUZZING_RESERVE) +
-           1),
-      2}}};
+        // leave 0 with a small native balance so it can create a native buy
+        // offer for INT64_MAX - balance
+        {0, 1, AssetID(),
+         FuzzUtils::INITIAL_ACCOUNT_BALANCE -
+             (FuzzUtils::MIN_ACCOUNT_BALANCE +
+              (2 * FuzzUtils::FUZZING_RESERVE) + 1),
+         2},
+
+        {3, 0, AssetID(3), 30}, // 0 has no trustline to this asset
+        {3, 0, AssetID(1), 30}  // claimant trustline is not authorized
+    }};
 
 struct OfferParameters : public SponsoredEntryParameters
 {
@@ -1515,6 +1523,17 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
         // Reduce "account"'s balance of this asset by paying the
         // issuer.
         auto tle = stellar::loadTrustLine(ltx, account, asset);
+        if (!tle.isAuthorizedToMaintainLiabilities())
+        {
+            // Without authorization, this trustline could not have been funded
+            // with how the setup currently works
+            if (trustLine.mAssetAvailableForTestActivity != 0 ||
+                tle.getBalance() != 0)
+            {
+                throw std::runtime_error("Invalid trustline setup");
+            }
+            continue;
+        }
         auto const availableTLBalance =
             tle.getAvailableBalance(ltx.loadHeader());
         auto const targetAvailableTLBalance =
