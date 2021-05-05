@@ -445,10 +445,13 @@ ApplicationImpl::validateAndLogConfig()
 
     if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
     {
-        if (!mConfig.MODE_STORES_HISTORY)
+        if (!mConfig.modeStoresAllHistory())
         {
-            throw std::invalid_argument("MODE_STORES_HISTORY is not set, but "
-                                        "some history archives are writable");
+            throw std::invalid_argument(
+                "Core is not configured to store history, but "
+                "some history archives are writable (see "
+                "MODE_STORES_HISTORY_MISC "
+                "and MODE_STORES_HISTORY_LEDGERHEADERS)");
         }
     }
 

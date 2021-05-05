@@ -98,7 +98,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // non configurable
     MODE_ENABLES_BUCKETLIST = true;
     MODE_USES_IN_MEMORY_LEDGER = false;
-    MODE_STORES_HISTORY = true;
+    MODE_STORES_HISTORY_MISC = true;
+    MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
     MODE_AUTO_STARTS_OVERLAY = true;
     OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
@@ -1560,7 +1561,8 @@ Config::setInMemoryMode()
 {
     MODE_USES_IN_MEMORY_LEDGER = true;
     DATABASE = SecretValue{"sqlite3://:memory:"};
-    MODE_STORES_HISTORY = false;
+    MODE_STORES_HISTORY_MISC = false;
+    MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
 }
 
@@ -1568,6 +1570,24 @@ bool
 Config::isInMemoryMode() const
 {
     return MODE_USES_IN_MEMORY_LEDGER;
+}
+
+bool
+Config::isInMemoryModeWithoutMinimalDB() const
+{
+    return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;
+}
+
+bool
+Config::modeStoresAllHistory() const
+{
+    return MODE_STORES_HISTORY_LEDGERHEADERS && MODE_STORES_HISTORY_MISC;
+}
+
+bool
+Config::modeStoresAnyHistory() const
+{
+    return MODE_STORES_HISTORY_LEDGERHEADERS || MODE_STORES_HISTORY_MISC;
 }
 
 void

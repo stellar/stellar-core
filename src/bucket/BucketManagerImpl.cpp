@@ -107,7 +107,10 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mDeleteEntireBucketDirInDtor(app.getConfig().isInMemoryMode())
+    // Minimal DB is stored in the buckets dir, so delete it only when
+    // mode does not use minimal DB
+    , mDeleteEntireBucketDirInDtor(
+          app.getConfig().isInMemoryModeWithoutMinimalDB())
 {
 }
 

@@ -1077,7 +1077,7 @@ run(CommandLineArgs const& args)
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING = simulateSleepPerOp;
-                    cfg.MODE_STORES_HISTORY = false;
+                    cfg.MODE_STORES_HISTORY_MISC = false;
                     cfg.MODE_USES_IN_MEMORY_LEDGER = false;
                     cfg.MODE_ENABLES_BUCKETLIST = false;
                     cfg.PREFETCH_BATCH_SIZE = 0;
