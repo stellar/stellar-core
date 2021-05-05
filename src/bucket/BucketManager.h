@@ -8,6 +8,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include <future>
+#include <map>
 #include <memory>
 #include <set>
 
@@ -22,6 +23,7 @@ class TmpDirManager;
 struct LedgerHeader;
 struct MergeKey;
 struct HistoryArchiveState;
+class BasicWork;
 
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not
@@ -211,5 +213,27 @@ class BucketManager : NonMovableOrCopyable
     virtual void shutdown() = 0;
 
     virtual bool isShutdown() const = 0;
+
+    // Load the complete state of the ledger from the provided HAS. Throws if
+    // any of the buckets referenced in the HAS do not exist.
+    //
+    // Note: this returns an _ordered_ map because we want to enable writing it
+    // straight to a single "merged bucket" with a canonical order for debugging
+    // purposes.
+    //
+    // Also note: this returns a large map -- likely multiple GB of memory on
+    // public nodes. The whole ledger. Call carefully, and only offline.
+    virtual std::map<LedgerKey, LedgerEntry>
+    loadCompleteLedgerState(HistoryArchiveState const& has) = 0;
+
+    // Merge the bucket list of the provided HAS into a single "super bucket"
+    // consisting of only live entries, and return it.
+    virtual std::shared_ptr<Bucket>
+    mergeBuckets(HistoryArchiveState const& has) = 0;
+
+    // Schedule a Work class that verifies the hashes of all referenced buckets
+    // on background threads.
+    virtual std::shared_ptr<BasicWork>
+    scheduleVerifyReferencedBucketsWork() = 0;
 };
 }
