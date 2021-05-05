@@ -19,14 +19,16 @@ using namespace stellar::txtest;
 namespace
 {
 
-int64_t operator*(int64_t x, const Price& y)
+int64_t
+operator*(int64_t x, const Price& y)
 {
     bool xNegative = (x < 0);
     int64_t m = bigDivide(xNegative ? -x : x, y.n, y.d, Rounding::ROUND_DOWN);
     return xNegative ? -m : m;
 }
 
-Price operator*(const Price& x, const Price& y)
+Price
+operator*(const Price& x, const Price& y)
 {
     int64_t n = int64_t(x.n) * int64_t(y.n);
     int64_t d = int64_t(x.d) * int64_t(y.d);

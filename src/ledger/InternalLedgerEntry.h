@@ -31,7 +31,8 @@ class InternalLedgerKey
 {
   private:
     InternalLedgerEntryType mType;
-    union {
+    union
+    {
         LedgerKey mLedgerKey;
         SponsorshipKey mSponsorshipKey;
         SponsorshipCounterKey mSponsorshipCounterKey;
@@ -91,7 +92,8 @@ class InternalLedgerEntry
 {
   private:
     InternalLedgerEntryType mType;
-    union {
+    union
+    {
         LedgerEntry mLedgerEntry;
         SponsorshipEntry mSponsorshipEntry;
         SponsorshipCounterEntry mSponsorshipCounterEntry;

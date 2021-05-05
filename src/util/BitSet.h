@@ -245,7 +245,8 @@ class BitSet
         bitset_inplace_intersection(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet operator&(BitSet const& other) const
+    BitSet
+    operator&(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceIntersection(other);

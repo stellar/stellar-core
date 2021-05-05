@@ -184,7 +184,8 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer Topologies::hierarchicalQuorum(
+Simulation::pointer
+Topologies::hierarchicalQuorum(
     int nBranches, Simulation::Mode mode, Hash const& networkID,
     Simulation::ConfigGen confGen, int connectionsToCore,
     Simulation::QuorumSetAdjuster qSetAdjust) // Figure 3 from the paper

@@ -103,8 +103,8 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
 namespace std
 {
 size_t
-hash<stellar::Curve25519Public>::
-operator()(stellar::Curve25519Public const& k) const noexcept
+hash<stellar::Curve25519Public>::operator()(
+    stellar::Curve25519Public const& k) const noexcept
 {
     return std::hash<stellar::uint256>()(k.key);
 }
