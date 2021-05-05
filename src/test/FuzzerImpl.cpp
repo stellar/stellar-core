@@ -1005,9 +1005,9 @@ std::array<
      // liabilities close to INT64_MAX
      {0, 0, 0},
      {1, 256, AUTH_REVOCABLE_FLAG | AUTH_CLAWBACK_ENABLED_FLAG},
-     {2, 256, AUTH_REVOCABLE_FLAG,
-      1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
-          // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
+     // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
+     // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
+     {2, 256, AUTH_REVOCABLE_FLAG, 1},
      {3, 256, AUTH_REQUIRED_FLAG},
      {4, 256, AUTH_IMMUTABLE_FLAG}}};
 
@@ -1094,11 +1094,8 @@ struct TrustLineParameters : public SponsoredEntryParameters
 };
 
 std::array<TrustLineParameters, 12> constexpr trustLineParameters{
-    {// these trustlines are required for claimable balances
-     {2, AssetID(4), 256, 256},
-     {3, AssetID(4), 256, 256},
-     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
+    {// this trustline will be used to increase native buying liabilites
+     TrustLineParameters::withSponsor(0, AssetID(4), INT64_MAX, 0, 2),
 
      // these trustlines are required for offers
      {2, AssetID(1), 256, 256},
@@ -1109,15 +1106,19 @@ std::array<TrustLineParameters, 12> constexpr trustLineParameters{
      {3, AssetID(2), 256, 256},
      {4, AssetID(2), 256, 0}, // No available limit left
 
-     // these trustlines will be a claimant on a claimable balance
+     // these 5 trustlines are required for claimable balances
+     {2, AssetID(4), 256, 256},
+     {3, AssetID(4), 256, 256},
+     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+                                         AUTHORIZED_FLAG),
+
+     // deauthorize trustline
+     TrustLineParameters::withAllowTrustAndSponsor(0, AssetID(1), 0, 256, 0, 1),
+
      TrustLineParameters::withAllowTrustAndSponsor(
-         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG, 1),
+         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG, 1)
 
-     TrustLineParameters::withAllowTrustAndSponsor(0, AssetID(1), 0, 256, 0,
-                                                   1), // deauthorize trustline
-
-     // this trustline will be used to increase native buying liabilites
-     TrustLineParameters::withSponsor(0, AssetID(4), INT64_MAX, 0, 2)}};
+    }};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
