@@ -3,11 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/DownloadBucketsWork.h"
+#include "bucket/BucketManager.h"
 #include "catchup/CatchupManager.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
+#include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -72,7 +74,7 @@ DownloadBucketsWork::yieldMoreWork()
     auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto getFileWeak = std::weak_ptr<GetAndUnzipRemoteFileWork>(w1);
-    OnFailureCallback cb = [getFileWeak, hash]() {
+    OnFailureCallback failureCb = [getFileWeak, hash]() {
         auto getFile = getFileWeak.lock();
         if (getFile)
         {
@@ -84,14 +86,30 @@ DownloadBucketsWork::yieldMoreWork()
             }
         }
     };
-
-    auto w2 = std::make_shared<VerifyBucketWork>(
-        mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash), cb);
-    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
-    auto w3 = std::make_shared<WorkSequence>(
+    std::weak_ptr<DownloadBucketsWork> weak(
+        std::static_pointer_cast<DownloadBucketsWork>(shared_from_this()));
+    auto successCb = [weak, ft, hash](Application& app) -> bool {
+        auto self = weak.lock();
+        if (self)
+        {
+            auto bucketPath = ft.localPath_nogz();
+            auto b = app.getBucketManager().adoptFileAsBucket(bucketPath,
+                                                              hexToBin256(hash),
+                                                              /*objectsPut=*/0,
+                                                              /*bytesPut=*/0);
+            self->mBuckets[hash] = b;
+        }
+        return true;
+    };
+    auto w2 = std::make_shared<VerifyBucketWork>(mApp, ft.localPath_nogz(),
+                                                 hexToBin256(hash), failureCb);
+    auto w3 = std::make_shared<WorkWithCallback>(mApp, "adopt-verified-bucket",
+                                                 successCb);
+    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
+    auto w4 = std::make_shared<WorkSequence>(
         mApp, "download-verify-sequence-" + hash, seq);
 
     ++mNextBucketIter;
-    return w3;
+    return w4;
 }
 }
