@@ -14,6 +14,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchiveReportWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "main/ErrorMessages.h"
@@ -26,6 +27,7 @@
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
 
+#include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>
 #include <optional>
@@ -295,16 +297,98 @@ selfCheck(Config cfg)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    std::shared_ptr<HistoryArchiveReportWork> w =
-        app->getHistoryArchiveManager().scheduleHistoryArchiveReportWork();
-    while (clock.crank(true) && !w->isDone())
+
+    // We run self-checks from a "loaded but dormant" state where the
+    // application is not started, but the LM has loaded the LCL.
+    app->getLedgerManager().loadLastKnownLedger(nullptr);
+
+    // First we schedule the cheap, asynchronous "online" checks that get run by
+    // the HTTP "self-check" endpoint, and crank until they're done.
+    LOG_INFO(DEFAULT_LOG, "Self-check phase 1: fast online checks");
+    auto seq1 = app->scheduleSelfCheck(false);
+    while (clock.crank(true) && !seq1->isDone())
         ;
-    if (w->getState() == BasicWork::State::WORK_SUCCESS)
+
+    // Then we scan all the buckets to check they have expected hashes.
+    LOG_INFO(DEFAULT_LOG, "Self-check phase 2: bucket hash verification");
+    auto seq2 = app->getBucketManager().scheduleVerifyReferencedBucketsWork();
+    while (clock.crank(true) && !seq2->isDone())
+        ;
+
+    // Then we load the entire BL ledger state into memory and check it against
+    // the database. This part is synchronous and should _not_ be run "online",
+    // it's too expensive; it also can't easily be turned _into_ something you
+    // can run online, because it would need to snapshot the database for the
+    // duration of the run and, for example, sqlite doesn't support lockless
+    // snapshotting / MVCC.
+    //
+    // What we do instead is register a background thread listening for
+    // control-C so at least the user can interrupt this if they get impatient.
+    asio::signal_set stopSignals(app->getWorkerIOContext(), SIGINT);
+#ifdef SIGQUIT
+    stopSignals.add(SIGQUIT);
+#endif
+#ifdef SIGTERM
+    stopSignals.add(SIGTERM);
+#endif
+    stopSignals.async_wait([](asio::error_code const& ec, int sig) {
+        if (!ec)
+        {
+            LOG_INFO(DEFAULT_LOG, "got signal {}, exiting self-check", sig);
+            exit(1);
+        }
+    });
+
+    LOG_INFO(DEFAULT_LOG, "Self-check phase 3: ledger consistency checks");
+    BucketListIsConsistentWithDatabase blc(*app);
+    bool blcOk = true;
+    try
     {
+        blc.checkEntireBucketlist();
+    }
+    catch (std::runtime_error& e)
+    {
+        LOG_ERROR(DEFAULT_LOG, "Error during bucket-list consistency check: {}",
+                  e.what());
+        blcOk = false;
+    }
+
+    if (seq->getState() == BasicWork::State::WORK_SUCCESS && blcOk)
+    {
+        LOG_INFO(DEFAULT_LOG, "Self-check succeeded");
         return 0;
     }
     else
     {
+        LOG_ERROR(DEFAULT_LOG, "Self-check failed");
+        return 1;
+    }
+}
+
+int
+mergeBucketList(Config cfg, std::string const& outputDir)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    app->getLedgerManager().loadLastKnownLedger(nullptr);
+    auto& lm = app->getLedgerManager();
+    auto& bm = app->getBucketManager();
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+    auto bucket = bm.mergeBuckets(has);
+
+    using std::filesystem::path;
+    path bpath(bucket->getFilename());
+    path outpath(outputDir);
+    outpath /= bpath.filename();
+    if (fs::durableRename(bpath.string(), outpath.string(), outputDir))
+    {
+        LOG_INFO(DEFAULT_LOG, "Wrote merged bucket {}", outpath);
+        return 0;
+    }
+    else
+    {
+        LOG_ERROR(DEFAULT_LOG, "Writing bucket failed");
         return 1;
     }
 }

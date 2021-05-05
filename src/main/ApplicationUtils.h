@@ -22,6 +22,7 @@ void setForceSCPFlag();
 void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
 int selfCheck(Config cfg);
+int mergeBucketList(Config cfg, std::string const& outputDir);
 void showOfflineInfo(Config cfg);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 #ifdef BUILD_TESTS
