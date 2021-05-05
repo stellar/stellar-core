@@ -14,7 +14,8 @@ class Application;
 class Config;
 class HistoryArchive;
 
-class HistoryArchiveReportWork;
+class BasicWork;
+struct LedgerHeaderHistoryEntry;
 
 class HistoryArchiveManager
 {
@@ -28,8 +29,13 @@ class HistoryArchiveManager
     // select one at random.
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() const;
 
-    std::shared_ptr<HistoryArchiveReportWork>
-    scheduleHistoryArchiveReportWork() const;
+    // Returns a work that reports the last-published checkpoint on each
+    // archive.
+    std::shared_ptr<BasicWork> getHistoryArchiveReportWork() const;
+
+    // Returns a work that checks a given LHHE's content against each archive.
+    std::shared_ptr<BasicWork>
+    getCheckLedgerHeaderWork(LedgerHeaderHistoryEntry const&) const;
 
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.

@@ -5,6 +5,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveReportWork.h"
+#include "historywork/CheckSingleLedgerHeaderWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
@@ -12,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "work/WorkScheduler.h"
+#include "work/WorkSequence.h"
 
 #include <vector>
 
@@ -166,8 +168,8 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
     }
 }
 
-std::shared_ptr<HistoryArchiveReportWork>
-HistoryArchiveManager::scheduleHistoryArchiveReportWork() const
+std::shared_ptr<BasicWork>
+HistoryArchiveManager::getHistoryArchiveReportWork() const
 {
     std::vector<std::shared_ptr<GetHistoryArchiveStateWork>> hasWorks;
     for (auto const& archive : mArchives)
@@ -176,9 +178,23 @@ HistoryArchiveManager::scheduleHistoryArchiveReportWork() const
             mApp, 0, archive, "archive-report-" + archive->getName(),
             BasicWork::RETRY_NEVER));
     }
-    return mApp.getWorkScheduler().scheduleWork<HistoryArchiveReportWork>(
-        hasWorks);
+    return std::make_shared<HistoryArchiveReportWork>(mApp, hasWorks);
 };
+
+std::shared_ptr<BasicWork>
+HistoryArchiveManager::getCheckLedgerHeaderWork(
+    LedgerHeaderHistoryEntry const& lhhe) const
+{
+    std::vector<std::shared_ptr<BasicWork>> checkWorks;
+    for (auto const& archive : mArchives)
+    {
+        checkWorks.emplace_back(
+            std::make_shared<CheckSingleLedgerHeaderWork>(mApp, archive, lhhe));
+    }
+    return std::make_shared<WorkSequence>(mApp, "archive-ledger-check",
+                                          checkWorks, BasicWork::RETRY_NEVER,
+                                          /*stopOnFirstFailure=*/false);
+}
 
 bool
 HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
