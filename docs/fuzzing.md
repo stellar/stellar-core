@@ -143,6 +143,19 @@ mutations for all the slaves. Scripts for bootstrapping are generally easy to wr
 For a good place to start, check out some of the existing [AFL scripts and libraries][8]
 on Github.
 
+## Comparing changes against master
+
+Any changes to the fuzzer should be compared to master to make sure we aren't introducing
+undesirable behavior. A screenshot of the TUI mentioned above after running the fuzzer for
+similar times should be posted to the PR, but there is an important point to be aware
+of - you need to make sure to run the same testcases against master and the PR. Running
+`make fuzz` twice will use different runs of `gen-fuzz`, so comparisons will not be meaningful.
+
+What should be done instead is first create the `min-testcases` directory using `make fuzz` or 
+`make fuzz-testcases` (the former will create the tests and run afl, while the latter will just create
+the tests). Then you can run `afl-fuzz -m 500 -M main -t 250 -i min-testcases -o fuzz-findings ./stellar-core fuzz --ll ERROR --process-id 0 --mode=${FUZZER_MODE} @@` 
+with multiple versions of core, which will use the `min-testcases` directory previously created. If 
+you are using two directories to test master vs a PR, then you'll need to copy `min-testcases` to the other directory.
 
 ## Future directions
 
