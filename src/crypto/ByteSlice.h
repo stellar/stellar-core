@@ -37,7 +37,8 @@ class ByteSlice
     {
         return data() + size();
     }
-    unsigned char operator[](size_t i) const
+    unsigned char
+    operator[](size_t i) const
     {
         if (i >= mSize)
             throw std::range_error("ByteSlice index out of bounds");
