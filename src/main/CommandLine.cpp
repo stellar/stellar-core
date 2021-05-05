@@ -40,6 +40,8 @@
 namespace stellar
 {
 
+static const uint32_t MAINTENANCE_LEDGER_COUNT = 1000000;
+
 void
 writeWithTextFlow(std::ostream& os, std::string const& text)
 {
@@ -282,11 +284,17 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-std::optional<CatchupConfiguration>
-maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
-                              uint32_t startAtLedger,
-                              std::string const& startAtHash)
+std::string
+minimalDBForInMemoryMode(Config const& cfg)
 {
+    return fmt::format("sqlite3://{}/minimal.db", cfg.BUCKET_DIR_PATH);
+}
+
+void
+maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
+                        std::string const& startAtHash, bool persistMinimalData)
+{
+    // First, ensure user parameters are valid
     if (!inMemory)
     {
         if (startAtLedger != 0)
@@ -297,12 +305,8 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
         {
             throw std::runtime_error("--start-at-hash requires --in-memory");
         }
-        return std::nullopt;
+        return;
     }
-
-    // Adjust configs for in-memory-replay mode
-    config.setInMemoryMode();
-
     if (startAtLedger != 0 && startAtHash.empty())
     {
         throw std::runtime_error("--start-at-ledger requires --start-at-hash");
@@ -311,17 +315,27 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
     {
         throw std::runtime_error("--start-at-hash requires --start-at-ledger");
     }
-    else if (startAtLedger != 0 && !startAtHash.empty())
+
+    // Adjust configs for live in-memory-replay mode
+    config.setInMemoryMode();
+
+    if (startAtLedger != 0 && !startAtHash.empty())
     {
         config.MODE_AUTO_STARTS_OVERLAY = false;
-        LedgerNumHashPair pair;
-        pair.first = startAtLedger;
-        pair.second = std::optional<Hash>(hexToBin256(startAtHash));
-        uint32_t count = 0;
-        auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
-        return std::make_optional<CatchupConfiguration>(pair, count, mode);
     }
-    return std::nullopt;
+
+    // Set database to a small sqlite database used to store minimal data needed
+    // to restore the ledger state
+    if (persistMinimalData)
+    {
+        config.DATABASE = SecretValue{minimalDBForInMemoryMode(config)};
+        config.MODE_STORES_HISTORY_LEDGERHEADERS = true;
+        // Since this mode stores historical data (needed to restore
+        // ledger state in certain scenarios), set maintenance to run
+        // aggressively so that we only store a few ledgers worth of data
+        config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(30);
+        config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
+    }
 }
 
 clara::Opt
@@ -676,11 +690,12 @@ runCatchup(CommandLineArgs const& args)
                 // bulk catchup, otherwise the DB is likely to overflow with
                 // unwanted history.
                 config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{30};
-                config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
+                config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            maybeEnableInMemoryLedgerMode(config, (inMemory || replayInMemory),
-                                          startAtLedger, startAtHash);
+            maybeEnableInMemoryMode(config, (inMemory || replayInMemory),
+                                    startAtLedger, startAtHash,
+                                    /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -957,11 +972,28 @@ int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    bool minimalForInMemoryMode = false;
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        initializeDatabase(configOption.getConfig());
-        return 0;
-    });
+    auto minimalDBParser = [](bool& minimalForInMemoryMode) {
+        return clara::Opt{
+            minimalForInMemoryMode}["--minimal-for-in-memory-mode"](
+            "Reset the special database used only for in-memory mode (see "
+            "--in-memory flag");
+    };
+
+    return runWithHelp(args,
+                       {configurationParser(configOption),
+                        minimalDBParser(minimalForInMemoryMode)},
+                       [&] {
+                           auto cfg = configOption.getConfig();
+                           if (minimalForInMemoryMode)
+                           {
+                               cfg.DATABASE =
+                                   SecretValue{minimalDBForInMemoryMode(cfg)};
+                           }
+                           initializeDatabase(cfg);
+                           return 0;
+                       });
 }
 
 int
@@ -1068,9 +1100,13 @@ run(CommandLineArgs const& args)
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
-            std::optional<CatchupConfiguration> cc;
+            std::shared_ptr<VirtualClock> clock;
+            VirtualClock::Mode clockMode = VirtualClock::REAL_TIME;
+            Application::pointer app;
+
             try
             {
+                // First, craft and validate the configuration
                 cfg = configOption.getConfig();
                 cfg.DISABLE_BUCKET_GC = disableBucketGC;
                 if (simulateSleepPerOp > 0)
@@ -1083,11 +1119,60 @@ run(CommandLineArgs const& args)
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
-                cc = maybeEnableInMemoryLedgerMode(cfg, inMemory, startAtLedger,
-                                                   startAtHash);
+                maybeEnableInMemoryMode(cfg, inMemory, startAtLedger,
+                                        startAtHash,
+                                        /* persistMinimalData */ true);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
+                cfg.COMMANDS.push_back("self-check");
+
+                if (cfg.MANUAL_CLOSE)
+                {
+                    if (!cfg.NODE_IS_VALIDATOR)
+                    {
+                        LOG_ERROR(DEFAULT_LOG, "Starting stellar-core in "
+                                               "MANUAL_CLOSE mode requires "
+                                               "NODE_IS_VALIDATOR to be set");
+                        return 1;
+                    }
+                    if (cfg.RUN_STANDALONE)
+                    {
+                        clockMode = VirtualClock::VIRTUAL_TIME;
+                        if (cfg.AUTOMATIC_MAINTENANCE_COUNT != 0 ||
+                            cfg.AUTOMATIC_MAINTENANCE_PERIOD.count() != 0)
+                        {
+                            LOG_WARNING(DEFAULT_LOG,
+                                        "Using MANUAL_CLOSE and RUN_STANDALONE "
+                                        "together induces virtual time, which "
+                                        "requires automatic maintenance to be "
+                                        "disabled. AUTOMATIC_MAINTENANCE_COUNT "
+                                        "and AUTOMATIC_MAINTENANCE_PERIOD are "
+                                        "being overridden to 0.");
+                            cfg.AUTOMATIC_MAINTENANCE_COUNT = 0;
+                            cfg.AUTOMATIC_MAINTENANCE_PERIOD =
+                                std::chrono::seconds{0};
+                        }
+                    }
+                }
+
+                if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+                {
+                    LOG_WARNING(DEFAULT_LOG, "Artificial acceleration of time "
+                                             "enabled (for testing only)");
+                }
+
+                // Second, setup the app with the final configuration.
+                // Note that when in in-memory mode, additional setup may be
+                // required (such as database reset, catchup, etc)
+                clock = std::make_shared<VirtualClock>(clockMode);
+                app = setupApp(cfg, *clock, startAtLedger, startAtHash);
+                if (!app)
+                {
+                    LOG_ERROR(DEFAULT_LOG,
+                              "Unable to setup the application to run");
+                    return 1;
+                }
             }
             catch (std::exception& e)
             {
@@ -1096,9 +1181,9 @@ run(CommandLineArgs const& args)
                 return 1;
             }
 
-            // run outside of catch block so that we properly
-            // capture crashes
-            return runWithConfig(cfg, cc);
+            // Finally, run the application outside of catch block so that we
+            // properly capture crashes
+            return runApp(app);
         });
 }
 

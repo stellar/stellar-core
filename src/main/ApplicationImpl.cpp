@@ -40,6 +40,7 @@
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -398,6 +399,18 @@ ApplicationImpl::~ApplicationImpl()
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
+void
+ApplicationImpl::resetDBForInMemoryMode()
+{
+    // Load the peer information and reinitialize the DB
+    auto& pm = getOverlayManager().getPeerManager();
+    auto peerData = pm.loadAllPeers();
+    newDB();
+    pm.storePeers(peerData);
+
+    LOG_INFO(DEFAULT_LOG, "In-memory state is reset back to genesis");
+}
+
 uint64_t
 ApplicationImpl::timeNow()
 {
@@ -449,9 +462,7 @@ ApplicationImpl::validateAndLogConfig()
         {
             throw std::invalid_argument(
                 "Core is not configured to store history, but "
-                "some history archives are writable (see "
-                "MODE_STORES_HISTORY_MISC "
-                "and MODE_STORES_HISTORY_LEDGERHEADERS)");
+                "some history archives are writable");
         }
     }
 

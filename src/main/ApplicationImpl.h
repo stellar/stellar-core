@@ -122,6 +122,8 @@ class ApplicationImpl : public Application
 
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
 
+    virtual void resetDBForInMemoryMode() override;
+
   protected:
     std::unique_ptr<LedgerManager>
         mLedgerManager;              // allow to change that for tests
