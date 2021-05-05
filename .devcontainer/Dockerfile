@@ -60,16 +60,16 @@ RUN apt-get update \
 RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
 
 # Update compiler tools
-RUN apt-get -y install libstdc++-7-dev clang-format-8 ccache
+RUN apt-get -y install libstdc++-8-dev clang-format-10 ccache
 
 # gcc
-RUN apt-get -y install cpp-7 gcc-7 g++-7
+RUN apt-get -y install cpp-8 gcc-8 g++-8
 # clang
-RUN apt-get -y install clang-8 llvm-8
+RUN apt-get -y install clang-10 llvm-10
 
 # clang by default
-ENV CC=clang-8
-ENV CXX=clang++-8
+ENV CC=clang-10
+ENV CXX=clang++-10
 
 # Install postgresql to enable tests under make check
 RUN apt-get -y install postgresql

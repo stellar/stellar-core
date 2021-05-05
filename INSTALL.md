@@ -35,13 +35,13 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++17
-    - `clang` >= 8.0
-    - `g++` >= 7.0
+    - `clang` >= 10.0
+    - `g++` >= 8.0
 - `pkg-config`
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
-- `clang-format-8` (for `make format` to work)
+- `clang-format-10` (for `make format` to work)
 - `perl`
 - `libunwind-dev`
 
@@ -52,10 +52,10 @@ You can install the [test toolchain](#adding-the-test-toolchain) to build and ru
 
 Alternatively, if you want to just depend on stock Ubuntu, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
-Ubuntu 18.04 has clang-8 available, that you can install with
+Ubuntu 18.04 has clang-10 available, that you can install with
 
-    # install clang-8 toolchain
-    sudo apt-get install clang-8
+    # install clang-10 toolchain
+    sudo apt-get install clang-10
 
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
@@ -72,17 +72,17 @@ After installing packages, head to [building with clang and libc++](#building-wi
     # common packages
     sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
     # if using clang
-    sudo apt-get install clang-8
+    sudo apt-get install clang-10
     # clang with libstdc++
-    sudo apt-get install gcc-7
+    sudo apt-get install gcc-8
     # if using g++ or building with libstdc++
-    # sudo apt-get install gcc-7 g++-7 cpp-7
+    # sudo apt-get install gcc-8 g++-8 cpp-8
 
 In order to make changes, you'll need to install the proper version of clang-format.
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
 
-    sudo apt-get install clang-format-8
+    sudo apt-get install clang-format-10
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
@@ -105,7 +105,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-8 ./configure` or `CXX=g++-7 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-10 ./configure` or `CXX=g++-8 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.
@@ -116,15 +116,15 @@ On some systems, building with `libc++`, [LLVM's version of the standard library
 
 NB: there are newer versions available of both clang and libc++, you will have to use the versions suited for your system.
 
-You may need to install additional packages for this, for example, on Linux Ubuntu 18.04 LTS with clang-8:
+You may need to install additional packages for this, for example, on Linux Ubuntu 18.04 LTS with clang-10:
 
     # install libc++ headers
-    sudo apt-get install libc++-8-dev libc++abi-8-dev
+    sudo apt-get install libc++-10-dev libc++abi-10-dev
 
 Here are sample steps to achieve this:
 
-    export CC=clang-8
-    export CXX=clang++-8
+    export CC=clang-10
+    export CXX=clang++-10
     export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
     export CXXFLAGS="$CFLAGS -stdlib=libc++"
     git clone https://github.com/stellar/stellar-core.git
