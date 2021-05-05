@@ -135,6 +135,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // (30*24*3600/5) / (700 - (11*60)/5 ) // number of periods
     //   * (11*60) / (24*3600) = 6.97 days
     AUTOMATIC_MAINTENANCE_COUNT = 700;
+    // automatic self-check happens once every 3 hours
+    AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
@@ -899,6 +901,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "AUTOMATIC_MAINTENANCE_COUNT")
             {
                 AUTOMATIC_MAINTENANCE_COUNT = readInt<uint32_t>(item);
+            }
+            else if (item.first == "AUTOMATIC_SELF_CHECK_PERIOD")
+            {
+                AUTOMATIC_SELF_CHECK_PERIOD =
+                    std::chrono::seconds{readInt<uint32_t>(item)};
             }
             else if (item.first == "MANUAL_CLOSE")
             {

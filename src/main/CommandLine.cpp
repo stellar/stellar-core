@@ -1111,7 +1111,6 @@ run(CommandLineArgs const& args)
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
-                cfg.COMMANDS.push_back("self-check");
 
                 if (cfg.MANUAL_CLOSE)
                 {

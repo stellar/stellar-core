@@ -43,6 +43,7 @@ class WorkScheduler;
 class BanManager;
 class StatusManager;
 class AbstractLedgerTxnParent;
+class BasicWork;
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
@@ -282,6 +283,11 @@ class Application
 
     // Report information about the instance to standard logging
     virtual void reportInfo() = 0;
+
+    // Schedule background work to do some (basic, online) self-checks.
+    // Returns a WorkSequence that can be monitored for completion.
+    virtual std::shared_ptr<BasicWork>
+    scheduleSelfCheck(bool waitUntilNextCheckpoint) = 0;
 
     // Returns the hash of the passphrase, used to separate various network
     // instances

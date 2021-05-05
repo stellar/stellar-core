@@ -156,6 +156,9 @@ class Config : public std::enable_shared_from_this<Config>
     // maintenance run
     uint32_t AUTOMATIC_MAINTENANCE_COUNT;
 
+    // Interval between automatic invocations of self-check.
+    std::chrono::seconds AUTOMATIC_SELF_CHECK_PERIOD;
+
     // A config parameter that enables synthetic load generation on demand,
     // using the `generateload` runtime command (see CommandHandler.cpp). This
     // option only exists for stress-testing and should not be enabled in

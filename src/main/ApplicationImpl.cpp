@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "work/ConditionalWork.h"
+#include "work/WorkWithCallback.h"
 #include <limits>
 #define STELLAR_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "ApplicationImpl.h"
@@ -19,6 +21,7 @@
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryArchiveReportWork.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
@@ -52,6 +55,7 @@
 #include "util/StatusManager.h"
 #include "util/Thread.h"
 #include "util/TmpDir.h"
+#include "work/BasicWork.h"
 #include "work/WorkScheduler.h"
 
 #ifdef BUILD_TESTS
@@ -79,6 +83,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStarted(false)
     , mStopping(false)
     , mStoppingTimer(*this)
+    , mSelfCheckTimer(*this)
     , mMetrics(std::make_unique<medida::MetricsRegistry>())
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
     , mPostOnMainThreadDelay(
@@ -472,6 +477,66 @@ ApplicationImpl::reportInfo()
     LOG_INFO(DEFAULT_LOG, "info -> {}", getJsonInfo().toStyledString());
 }
 
+std::shared_ptr<BasicWork>
+ApplicationImpl::scheduleSelfCheck(bool waitUntilNextCheckpoint)
+{
+    // Ensure the timer is re-triggered no matter what.
+    if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
+    {
+        mSelfCheckTimer.expires_from_now(mConfig.AUTOMATIC_SELF_CHECK_PERIOD);
+        mSelfCheckTimer.async_wait(
+            [this, waitUntilNextCheckpoint]() {
+                scheduleSelfCheck(waitUntilNextCheckpoint);
+            },
+            VirtualTimer::onFailureNoop);
+    }
+
+    // We store any self-check that gets scheduled so that a second call to
+    // schedule a self-check while one is running returns the running one.
+    if (auto existing = mRunningSelfCheck.lock())
+    {
+        return existing;
+    }
+    auto& ws = getWorkScheduler();
+    auto& lm = getLedgerManager();
+    auto& ham = getHistoryArchiveManager();
+
+    LedgerHeaderHistoryEntry lhhe = lm.getLastClosedLedgerHeader();
+
+    std::vector<std::shared_ptr<BasicWork>> seq;
+    seq.emplace_back(ham.getHistoryArchiveReportWork());
+
+    auto checkLedger = ham.getCheckLedgerHeaderWork(lhhe);
+    if (waitUntilNextCheckpoint)
+    {
+        // Delay until a second full checkpoint-period after the next checkpoint
+        // publication. The captured lhhe should usually be published by then.
+        auto& hm = getHistoryManager();
+        auto targetLedger =
+            hm.firstLedgerAfterCheckpointContaining(lhhe.header.ledgerSeq);
+        targetLedger = hm.firstLedgerAfterCheckpointContaining(targetLedger);
+        auto cond = [targetLedger](Application& app) -> bool {
+            auto& lm = app.getLedgerManager();
+            return lm.getLastClosedLedgerNum() > targetLedger;
+        };
+        seq.emplace_back(std::make_shared<ConditionalWork>(
+            *this, "wait-for-lcl", cond, checkLedger,
+            std::chrono::seconds(10)));
+    }
+    else
+    {
+        seq.emplace_back(checkLedger);
+    }
+
+    // Stash a weak ptr to the shared ptr we're returning, for subsequent calls.
+    std::shared_ptr<BasicWork> ptr =
+        ws.scheduleWork<WorkSequence>("self-check", seq, BasicWork::RETRY_NEVER,
+                                      /*stopOnFirstFailure=*/false);
+    mRunningSelfCheck = ptr;
+
+    return ptr;
+}
+
 Hash const&
 ApplicationImpl::getNetworkID() const
 {
@@ -629,6 +694,10 @@ ApplicationImpl::start()
             LOG_INFO(DEFAULT_LOG, "* ");
 
             mHerder->bootstrap();
+        }
+        if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
+        {
+            scheduleSelfCheck(true);
         }
         done = true;
     });
