@@ -995,7 +995,7 @@ std::array<
       1}, // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
           // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
      {3, 256, AUTH_REQUIRED_FLAG},
-     {4, 256, 0}}};
+     {4, 256, AUTH_IMMUTABLE_FLAG}}};
 
 struct TrustLineParameters : public SponsoredEntryParameters
 {
