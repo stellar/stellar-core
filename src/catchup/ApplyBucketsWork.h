@@ -25,6 +25,7 @@ class ApplyBucketsWork : public BasicWork
 {
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
+    std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
     bool mApplying{false};
     size_t mTotalBuckets{0};
@@ -57,6 +58,11 @@ class ApplyBucketsWork : public BasicWork
         Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
+    ApplyBucketsWork(
+        Application& app,
+        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+        std::function<bool(LedgerEntryType)> onlyApply);
     ~ApplyBucketsWork() = default;
 
     std::string getStatus() const override;
