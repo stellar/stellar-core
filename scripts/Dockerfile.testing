@@ -1,0 +1,56 @@
+# This is a Dockerfile for one-off builds of stellar-core during development.
+#
+# It's intended to be run from the stellar-core source directory of a
+# developer's workstation to make a test buid that can be run in kubernetes
+# without passing through any of the normal CI process. As such it is as small
+# and quick as possible, using ubuntu linux and neither building nor installing
+# an intermediate debian package.
+#
+# This file does not even require the workspace to be pushed to github, much
+# less in an open PR, only committed to the local git repo so 'git clean' knows
+# which files to keep: it copies the contents of the directory it's invoked from
+# and then does 'git clean' and a rebuild in the container's build environment.
+# There's no audit trail in the resulting images and they should only ever go in
+# user repositories for testing purposes.
+#
+# To use this file, run something like the following:
+#
+#  $ export TAG=${USER}/stellar-core:$(git describe --always --tags --long)
+#  $ docker build -f scripts/Dockerfile.testing . -t $TAG
+#
+
+# Build stage, includes everything needed to build.
+FROM ubuntu:focal as buildstage
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get -y install iproute2 procps lsb-release \
+                       git build-essential pkg-config autoconf automake libtool \
+                       bison flex libpq-dev parallel libunwind-dev \
+                       clang-10 libc++abi-10-dev libc++-10-dev \
+                       postgresql
+
+COPY . stellar-core/
+WORKDIR stellar-core
+RUN git clean -dxf
+RUN git submodule foreach --recursive git clean -dxf
+
+ARG CC=clang-10
+ARG CXX=clang++-10
+ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
+ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
+
+RUN ./autogen.sh
+RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}"
+RUN sh -c 'make -j $(nproc)'
+RUN make install
+
+# Deploy stage, only includes stuff needed to run.
+FROM ubuntu:focal
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get -y install libunwind8 postgresql curl sqlite iproute2 libc++abi1-8 libc++1-8
+
+COPY --from=buildstage /usr/local/bin/stellar-core /usr/local/bin/stellar-core
+EXPOSE 11625
+EXPOSE 11626
+CMD stellar-core
