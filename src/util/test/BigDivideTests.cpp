@@ -25,9 +25,15 @@ template <typename T> class BigDivideTester
     void
     test(P const& p, R const& downResult, R const& upResult)
     {
-        for (auto a : mValues)
-            for (auto b : mValues)
-                for (auto c : mValues)
+        std::vector<uint64_t> values;
+        for (auto v : mValues)
+        {
+            REQUIRE(v >= 0);
+            values.emplace_back(static_cast<uint64_t>(v));
+        }
+        for (auto a : values)
+            for (auto b : values)
+                for (auto c : values)
                     if (c != 0 && p(uint128_t{a}, uint128_t{b}, uint128_t{c}))
                         mVerify(a, b, c,
                                 static_cast<uint64_t>(downResult(
@@ -146,14 +152,16 @@ TEST_CASE("big divide", "[bigDivide]")
         unsignedTester.test(WHEN(when) DOWN_IS(down) UP_IS(up)); \
     }
 
-    TEST(a == 0, 0, 0)
-    TEST(b == 0, 0, 0)
-    TEST(a <= INT32_MAX && b <= INT32_MAX && c == 1, a * b, a * b)
-    TEST(b == 1 && c == 2, a / 2, (a + 1) / 2)
-    TEST(b == 1 && c == 3, a / 3, (a + 2) / 3)
-    TEST(a == 1 && b > 0 && b < c, 0, 1)
-    TEST(a == 1 && b == c, 1, 1)
-    TEST(a == c && b > 0, b, b);
+    TEST(a == 0u, 0u, 0u)
+    TEST(b == 0u, 0u, 0u)
+    TEST(a <= static_cast<uint32_t>(INT32_MAX) &&
+             b <= static_cast<uint32_t>(INT32_MAX) && c == 1u,
+         a * b, a * b)
+    TEST(b == 1u && c == 2u, a / 2u, (a + 1u) / 2u)
+    TEST(b == 1u && c == 3u, a / 3u, (a + 2u) / 3u)
+    TEST(a == 1u && b > 0u && b < c, 0u, 1u)
+    TEST(a == 1u && b == c, 1u, 1u)
+    TEST(a == c && b > 0u, b, b);
 
     SECTION("upper limits")
     {
@@ -210,21 +218,22 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
             INT64_MAX};
         for (auto value : signedValues)
         {
-            uint128_t value128(value);
+            REQUIRE(value >= 0);
+            uint128_t value128(static_cast<uint64_t>(value));
 
             verifySignedValue(value128, 1, ROUND_UP, value);
             verifySignedValue(value128, 1, ROUND_DOWN, value);
 
             if (value != 0)
             {
-                verifySignedValue(value128 + 1, value, ROUND_UP, 2);
-                verifySignedValue(value128 + 1, value, ROUND_DOWN,
+                verifySignedValue(value128 + 1u, value, ROUND_UP, 2);
+                verifySignedValue(value128 + 1u, value, ROUND_DOWN,
                                   (value == 1) ? 2 : 1);
                 verifySignedValue(value128, value, ROUND_UP, 1);
                 verifySignedValue(value128, value, ROUND_DOWN, 1);
-                verifySignedValue(value128 - 1, value, ROUND_UP,
+                verifySignedValue(value128 - 1u, value, ROUND_UP,
                                   (value == 1) ? 0 : 1);
-                verifySignedValue(value128 - 1, value, ROUND_DOWN, 0);
+                verifySignedValue(value128 - 1u, value, ROUND_DOWN, 0);
 
                 if (value > 1)
                 {
@@ -269,14 +278,14 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
 
             if (value != 0)
             {
-                verifyUnsignedValue(value128 + 1, value, ROUND_UP, 2);
-                verifyUnsignedValue(value128 + 1, value, ROUND_DOWN,
-                                    (value == 1) ? 2 : 1);
+                verifyUnsignedValue(value128 + 1u, value, ROUND_UP, 2);
+                verifyUnsignedValue(value128 + 1u, value, ROUND_DOWN,
+                                    (value == 1u) ? 2 : 1);
                 verifyUnsignedValue(value128, value, ROUND_UP, 1);
                 verifyUnsignedValue(value128, value, ROUND_DOWN, 1);
-                verifyUnsignedValue(value128 - 1, value, ROUND_UP,
+                verifyUnsignedValue(value128 - 1u, value, ROUND_UP,
                                     (value == 1) ? 0 : 1);
-                verifyUnsignedValue(value128 - 1, value, ROUND_DOWN, 0);
+                verifyUnsignedValue(value128 - 1u, value, ROUND_DOWN, 0);
 
                 if (value > 1)
                 {
@@ -309,18 +318,18 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
     SECTION("overflow threshold")
     {
         uint128_t const twiceSignedMax = bigMultiply(INT64_MAX, 2);
-        verifySigned(twiceSignedMax + 2, 2, ROUND_UP);
-        verifySigned(twiceSignedMax + 2, 2, ROUND_DOWN);
-        verifySigned(twiceSignedMax + 1, 2, ROUND_UP);
-        verifySignedValue(twiceSignedMax + 1, 2, ROUND_DOWN, INT64_MAX);
+        verifySigned(twiceSignedMax + 2u, 2, ROUND_UP);
+        verifySigned(twiceSignedMax + 2u, 2, ROUND_DOWN);
+        verifySigned(twiceSignedMax + 1u, 2, ROUND_UP);
+        verifySignedValue(twiceSignedMax + 1u, 2, ROUND_DOWN, INT64_MAX);
         verifySignedValue(twiceSignedMax, 2, ROUND_UP, INT64_MAX);
         verifySignedValue(twiceSignedMax, 2, ROUND_DOWN, INT64_MAX);
 
         uint128_t const twiceUnsignedMax = bigMultiply(UINT64_MAX, 2);
-        verifyUnsigned(twiceUnsignedMax + 2, 2, ROUND_UP);
-        verifyUnsigned(twiceUnsignedMax + 2, 2, ROUND_DOWN);
-        verifyUnsigned(twiceUnsignedMax + 1, 2, ROUND_UP);
-        verifyUnsignedValue(twiceUnsignedMax + 1, 2, ROUND_DOWN, UINT64_MAX);
+        verifyUnsigned(twiceUnsignedMax + 2u, 2, ROUND_UP);
+        verifyUnsigned(twiceUnsignedMax + 2u, 2, ROUND_DOWN);
+        verifyUnsigned(twiceUnsignedMax + 1u, 2, ROUND_UP);
+        verifyUnsignedValue(twiceUnsignedMax + 1u, 2, ROUND_DOWN, UINT64_MAX);
         verifyUnsignedValue(twiceUnsignedMax, 2, ROUND_UP, UINT64_MAX);
         verifyUnsignedValue(twiceUnsignedMax, 2, ROUND_DOWN, UINT64_MAX);
     }
@@ -329,15 +338,15 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
     {
         uint128_t const unsignedLimit = bigMultiply(UINT64_MAX, UINT64_MAX);
         uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
-        REQUIRE(UINT128_MAX + 1 == 0);
+        REQUIRE(UINT128_MAX + 1u == 0u);
 
         verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_UP);
         verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_DOWN);
         verifyUnsigned(unsignedLimit + UINT64_MAX, UINT64_MAX, ROUND_DOWN);
-        verifyUnsignedValue(unsignedLimit + UINT64_MAX - 1, UINT64_MAX,
+        verifyUnsignedValue(unsignedLimit + UINT64_MAX - 1u, UINT64_MAX,
                             ROUND_DOWN, UINT64_MAX);
-        verifyUnsigned(unsignedLimit + 1, UINT64_MAX, ROUND_UP);
-        verifyUnsignedValue(unsignedLimit + 1, UINT64_MAX, ROUND_DOWN,
+        verifyUnsigned(unsignedLimit + 1u, UINT64_MAX, ROUND_UP);
+        verifyUnsignedValue(unsignedLimit + 1u, UINT64_MAX, ROUND_DOWN,
                             UINT64_MAX);
         verifyUnsignedValue(unsignedLimit, UINT64_MAX, ROUND_UP, UINT64_MAX);
         verifyUnsignedValue(unsignedLimit, UINT64_MAX, ROUND_DOWN, UINT64_MAX);
@@ -345,17 +354,20 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
         uint128_t const signedLimit = bigMultiply(INT64_MAX, INT64_MAX);
         verifySigned(UINT128_MAX, INT64_MAX, ROUND_UP);
         verifySigned(UINT128_MAX, INT64_MAX, ROUND_DOWN);
-        verifySigned(signedLimit + INT64_MAX, INT64_MAX, ROUND_DOWN);
-        verifySignedValue(signedLimit + INT64_MAX - 1, INT64_MAX, ROUND_DOWN,
-                          INT64_MAX);
-        verifySigned(signedLimit + 1, INT64_MAX, ROUND_UP);
-        verifySignedValue(signedLimit + 1, INT64_MAX, ROUND_DOWN, INT64_MAX);
+        verifySigned(signedLimit + static_cast<uint64_t>(INT64_MAX), INT64_MAX,
+                     ROUND_DOWN);
+        verifySignedValue(signedLimit + static_cast<uint64_t>(INT64_MAX) - 1u,
+                          INT64_MAX, ROUND_DOWN, INT64_MAX);
+        verifySigned(signedLimit + 1u, INT64_MAX, ROUND_UP);
+        verifySignedValue(signedLimit + 1u, INT64_MAX, ROUND_DOWN, INT64_MAX);
         verifySignedValue(signedLimit, INT64_MAX, ROUND_UP, INT64_MAX);
         verifySignedValue(signedLimit, INT64_MAX, ROUND_DOWN, INT64_MAX);
 
         verifyUnsigned(UINT128_MAX - UINT64_MAX, UINT64_MAX, ROUND_UP);
         verifyUnsigned(UINT128_MAX - UINT64_MAX, UINT64_MAX, ROUND_DOWN);
-        verifySigned(UINT128_MAX - INT64_MAX, INT64_MAX, ROUND_UP);
-        verifySigned(UINT128_MAX - INT64_MAX, INT64_MAX, ROUND_DOWN);
+        verifySigned(UINT128_MAX - static_cast<uint64_t>(INT64_MAX), INT64_MAX,
+                     ROUND_UP);
+        verifySigned(UINT128_MAX - static_cast<uint64_t>(INT64_MAX), INT64_MAX,
+                     ROUND_DOWN);
     }
 }

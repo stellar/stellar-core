@@ -27,7 +27,7 @@
 
 namespace stellar
 {
-const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
+const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
                                    uint32 banDepth, uint32 poolLedgerMultiplier)
@@ -717,13 +717,16 @@ TransactionQueue::maybeVersionUpgraded()
 size_t
 TransactionQueue::getMaxOpsToFloodThisPeriod() const
 {
-    size_t opsToFloodLedger;
     auto& cfg = mApp.getConfig();
-    auto const opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
-    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    opsToFloodLedger = static_cast<size_t>(opRatePerLedger * maxOps);
+    double opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
 
-    size_t opsToFlood;
+    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+    double opsToFloodLedgerDbl = opRatePerLedger * maxOps;
+    releaseAssertOrThrow(opsToFloodLedgerDbl >= 0.0);
+    releaseAssertOrThrow(isRepresentableAsInt64(opsToFloodLedgerDbl));
+    int64_t opsToFloodLedger = static_cast<int64_t>(opsToFloodLedgerDbl);
+
+    int64_t opsToFlood;
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
     {
         opsToFlood = mBroadcastOpCarryover +
@@ -736,7 +739,11 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
         // else, flood the target at once
         opsToFlood = opsToFloodLedger;
     }
-    return opsToFlood;
+    releaseAssertOrThrow(opsToFlood >= 0);
+    releaseAssertOrThrow(
+        opsToFlood <=
+        static_cast<int64_t>(std::numeric_limits<ssize_t>::max()));
+    return static_cast<size_t>(opsToFlood);
 }
 
 bool

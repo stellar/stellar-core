@@ -417,11 +417,13 @@ TEST_CASE("manage buy offer liabilities", "[tx][offers]")
 
             SECTION("with rounding")
             {
-                checkLiabilities("buy one for two", INT64_MAX, Price{2, 1},
-                                 bigDivide((uint128_t)INT64_MAX, 2, ROUND_DOWN),
-                                 INT64_MAX - 1);
+                checkLiabilities(
+                    "buy one for two", INT64_MAX, Price{2, 1},
+                    bigDivide(static_cast<uint64_t>(INT64_MAX), 2, ROUND_DOWN),
+                    INT64_MAX - 1);
                 checkLiabilities("buy two for five", INT64_MAX, Price{5, 2},
-                                 bigDivide(INT64_MAX, 2, 5, ROUND_DOWN),
+                                 bigDivide(static_cast<uint64_t>(INT64_MAX), 2,
+                                           5, ROUND_DOWN),
                                  INT64_MAX - 2);
             }
         }
