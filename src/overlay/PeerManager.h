@@ -139,6 +139,16 @@ class PeerManager
     std::vector<PeerBareAddress> getPeersToSend(int size,
                                                 PeerBareAddress const& address);
 
+    /**
+     * Load all peers from the database.
+     */
+    std::vector<std::pair<PeerBareAddress, PeerRecord>> loadAllPeers();
+
+    /**
+     * Store peers in the database.
+     */
+    void storePeers(std::vector<std::pair<PeerBareAddress, PeerRecord>>);
+
   private:
     static const char* kSQLCreateStatement;
 
