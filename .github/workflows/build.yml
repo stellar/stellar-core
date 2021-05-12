@@ -17,10 +17,13 @@ jobs:
         uses: styfle/cancel-workflow-action@0.8.0
         with:
           access_token: ${{ github.token }}
-      - name: Compute cache key
-        # this step works around a limitation in actions/cache
-        # that does not allow updating a cache
-        # so what we do here instead is
+      - name: Compute cache keys
+        # generate a cache prefix, rotated on a weekly basis
+        # this ensures that caches are reset
+        # generate a secondary id, used to rotate caches more rapidly
+        # the scheme works around a limitation in actions/cache
+        # that does not allow updating a cache entry
+        # so what we do here instead is rotate
         #  1. generate a new id that gets refreshed every hour
         #   the limit is to reduce the chance of hitting the
         #   global 5GB limit per repo
@@ -28,15 +31,16 @@ jobs:
         #  3. fallback (restore-keys) to the most recent cache
         id: cache_extra_id
         run: |
+          echo "::set-output name=prefix::${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-$(( $(date +'%s') / 60 / 60 / 24 / 7))"
           echo "::set-output name=id::$(( $(date +'%s') / 60 / 60 ))"
       - name: Cache
         uses: actions/cache@v2.1.4
         with:
           path: |
             /home/runner/.ccache
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          key: ${{ steps.cache_extra_id.outputs.prefix }}-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
+            ${{ steps.cache_extra_id.outputs.prefix }}-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
