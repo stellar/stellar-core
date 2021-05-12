@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -e
+
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+
+# We need apt-transport-https for adding apt.stellar.org in the Dockerfile
+apt-get install -y wget curl python-six python3-colorama python3-pip postgresql-client sqlite3 apt-transport-https gnupg2
+
+pip3 install awscli --upgrade  # for uploading history to s3
+
+# purge stuff we don't directly need
+apt-get purge -y sgml-base ucf gcc g++ xz-utils libpod-latex-perl dbus
+apt-get autoremove -y
+
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+rm -rf /var/log/*.log /var/log/*/*.log
+
+# delete a handful of items we don't need and take up some actual space
+rm -rf /usr/include
+rm -rf /usr/share/{file,man,doc}
+rm -rf /usr/lib/llvm-5.0/build /usr/share/llvm-5.0/cmake
+rm -rf /usr/lib/llvm-5.0/lib/*.a ./lib/x86_64-linux-gnu/*.a
+rm -rf /usr/lib/llvm-5.0/bin/{opt,lli,llc,llvm-tblgen,bugpoint}
+rm -rf /usr/local/lib/python2.7/dist-packages/awscli/examples
+rm -rf /usr/share/postgresql/*/man

@@ -18,6 +18,10 @@
 #  $ export TAG=${USER}/stellar-core:$(git describe --always --tags --long)
 #  $ docker build -f scripts/Dockerfile.testing . -t $TAG
 #
+# Or using Makefile
+#
+#  $ make -C scripts docker-build-testing
+#
 
 # Build stage, includes everything needed to build.
 FROM ubuntu:focal as buildstage
