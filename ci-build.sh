@@ -88,7 +88,9 @@ if test $CXX = 'clang++'; then
     which llvm-symbolizer-10
     ln -s `which llvm-symbolizer-10` bin/llvm-symbolizer
     clang -v
+    clang++ -v
     llvm-symbolizer --version || true
+
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
     which gcc-8
@@ -100,8 +102,8 @@ elif test $CXX = 'g++'; then
 fi
 
 config_flags="--enable-asan --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
-export CFLAGS="-O2 -g1"
-export CXXFLAGS="-w -O2 -g1"
+export CFLAGS="-O2 -g1 -v"
+export CXXFLAGS="-w -O2 -g1 -v"
 
 # disable leak detection: this requires the container to be run with
 # "--cap-add SYS_PTRACE" or "--privileged"
@@ -133,12 +135,12 @@ date
 
 export
 
-cd lib/xdrpp
-cat ../../xdrpp.patch
-sed -e '/standard.layout/d' xdrpp/message.h > /tmp/p
-mv -f /tmp/p xdrpp/message.h
-git diff
-cd -
+# cd lib/xdrpp
+# cat ../../xdrpp.patch
+# sed -e '/standard.layout/d' xdrpp/message.h > /tmp/p
+# mv -f /tmp/p xdrpp/message.h
+# git diff
+# cd -
 
 cd lib/xdrpp
 time ./autogen.sh
