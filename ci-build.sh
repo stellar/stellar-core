@@ -99,7 +99,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
+config_flags="--enable-asan --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
 export CFLAGS="-O2 -g1"
 export CXXFLAGS="-w -O2 -g1"
 
@@ -130,16 +130,27 @@ ccache -p
 
 ccache -s
 date
+
+export
+
+cd lib/xdrpp
+cat ../../xdrpp.patch
+git stash
+git log -1
+patch -p1 < ../../xdrpp.patch
+cd -
+
+cd lib/xdrpp
 time ./autogen.sh
 time ./configure $config_flags
-make format
-d=`git diff | wc -l`
-if [ $d -ne 0 ]
-then
-    echo "clang format must be run as part of the pull request, current diff:"
-    git diff
-    exit 1
-fi
+# make format
+# d=`git diff | wc -l`
+# if [ $d -ne 0 ]
+# then
+#     echo "clang format must be run as part of the pull request, current diff:"
+#    git diff
+#    exit 1
+# fi
 
 date
 time make -j$(($NPROCS + 1))
