@@ -14,6 +14,8 @@
 #include "work/BatchWork.h"
 #include "work/ConditionalWork.h"
 
+#include <thread>
+
 using namespace stellar;
 
 // ======= BasicWork tests ======== //

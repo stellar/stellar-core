@@ -4,6 +4,7 @@
 
 #include "FileTransferInfo.h"
 #include <Tracy.hpp>
+#include <thread>
 
 namespace stellar
 {
