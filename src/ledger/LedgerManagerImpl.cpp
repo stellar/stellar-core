@@ -261,7 +261,7 @@ LedgerManagerImpl::loadLastKnownLedger(
         CLOG_INFO(Ledger, "Last closed ledger (LCL) hash is {}", lastLedger);
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        if (mApp.getConfig().MODE_STORES_HISTORY)
+        if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
         {
             auto currentLedger =
                 LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
@@ -664,7 +664,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             }
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
-            if (mApp.getConfig().MODE_STORES_HISTORY)
+            if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
             {
                 Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq,
                                               lupgrade, changes,
@@ -897,7 +897,7 @@ LedgerManagerImpl::processFeesSeqNums(
             // txs counting from 1, not 0. We preserve this for the time being
             // in case anyone depends on it.
             ++index;
-            if (mApp.getConfig().MODE_STORES_HISTORY)
+            if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
             {
                 storeTransactionFee(mApp.getDatabase(), ledgerSeq, tx, changes,
                                     index);
@@ -1015,7 +1015,7 @@ LedgerManagerImpl::applyTransactions(
         // txs counting from 1, not 0. We preserve this for the time being
         // in case anyone depends on it.
         ++index;
-        if (mApp.getConfig().MODE_STORES_HISTORY)
+        if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm,
@@ -1045,7 +1045,7 @@ void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
     ZoneScoped;
-    if (mApp.getConfig().MODE_STORES_HISTORY)
+    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
     {
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
     }

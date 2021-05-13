@@ -210,7 +210,10 @@ class Config : public std::enable_shared_from_this<Config>
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
-    bool MODE_STORES_HISTORY;
+    bool MODE_STORES_HISTORY_MISC;
+
+    // A config parameter that stores ledger headers in the database
+    bool MODE_STORES_HISTORY_LEDGERHEADERS;
 
     // A config parameter that controls whether core automatically catches up
     // when it has buffered enough input; if false an out-of-sync node will
@@ -419,6 +422,9 @@ class Config : public std::enable_shared_from_this<Config>
 
     void setInMemoryMode();
     bool isInMemoryMode() const;
+    bool isInMemoryModeWithoutMinimalDB() const;
+    bool modeStoresAllHistory() const;
+    bool modeStoresAnyHistory() const;
 
     void logBasicInfo();
     void setNoListen();

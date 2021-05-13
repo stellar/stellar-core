@@ -570,6 +570,61 @@ PeerManager::dropAll(Database& db)
     db.getSession() << kSQLCreateStatement;
 }
 
+std::vector<std::pair<PeerBareAddress, PeerRecord>>
+PeerManager::loadAllPeers()
+{
+    ZoneScoped;
+    std::vector<std::pair<PeerBareAddress, PeerRecord>> result;
+    std::string sql =
+        "SELECT ip, port, nextattempt, numfailures, type FROM peers";
+
+    try
+    {
+        std::string ip;
+        int port;
+        PeerRecord record;
+
+        auto prep = mApp.getDatabase().getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        st.exchange(into(ip));
+        st.exchange(into(port));
+        st.exchange(into(record.mNextAttempt));
+        st.exchange(into(record.mNumFailures));
+        st.exchange(into(record.mType));
+
+        st.define_and_bind();
+        {
+            auto timer = mApp.getDatabase().getSelectTimer("peer");
+            st.execute(true);
+        }
+        while (st.got_data())
+        {
+            PeerBareAddress pba{ip, static_cast<unsigned short>(port)};
+            result.emplace_back(std::make_pair(pba, record));
+            st.fetch();
+        }
+    }
+    catch (soci_error& err)
+    {
+        CLOG_ERROR(Overlay, "loadPeers error: {}", err.what());
+    }
+
+    return result;
+}
+
+void
+PeerManager::storePeers(
+    std::vector<std::pair<PeerBareAddress, PeerRecord>> peers)
+{
+    soci::transaction tx(mApp.getDatabase().getSession());
+    for (auto const& peer : peers)
+    {
+        store(peer.first, peer.second, /* inDatabase */ false);
+    }
+    tx.commit();
+}
+
 const char* PeerManager::kSQLCreateStatement =
     "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"

@@ -13,7 +13,11 @@ namespace stellar
 
 class CatchupConfiguration;
 
-int runWithConfig(Config cfg, std::optional<CatchupConfiguration> cc);
+// Create application and validate its configuration
+Application::pointer setupApp(Config& cfg, VirtualClock& clock,
+                              uint32_t startAtLedger,
+                              std::string const& startAtHash);
+int runApp(Application::pointer app);
 void setForceSCPFlag();
 void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
@@ -31,5 +35,8 @@ void writeCatchupInfo(Json::Value const& catchupInfo,
                       std::string const& outputFile);
 int catchup(Application::pointer app, CatchupConfiguration cc,
             Json::Value& catchupInfo, std::shared_ptr<HistoryArchive> archive);
+// Reduild ledger state based on the buckets. Ensure ledger state is properly
+// reset before calling this function.
+bool applyBucketsForLCL(Application& app);
 int publish(Application::pointer app);
 }

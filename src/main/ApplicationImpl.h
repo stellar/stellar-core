@@ -94,6 +94,8 @@ class ApplicationImpl : public Application
     // returns.
     virtual void joinAllThreads() override;
 
+    virtual void validateAndLogConfig() override;
+
     virtual std::string
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) override;
@@ -120,6 +122,8 @@ class ApplicationImpl : public Application
 
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
 
+    virtual void resetDBForInMemoryMode() override;
+
   protected:
     std::unique_ptr<LedgerManager>
         mLedgerManager;              // allow to change that for tests
@@ -143,9 +147,9 @@ class ApplicationImpl : public Application
     asio::io_context mWorkerIOContext;
     std::unique_ptr<asio::io_context::work> mWork;
 
+    std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<OverlayManager> mOverlayManager;
-    std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<CatchupManager> mCatchupManager;
     std::unique_ptr<HerderPersistence> mHerderPersistence;
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
@@ -195,7 +199,6 @@ class ApplicationImpl : public Application
     Hash mNetworkID;
 
     void newDB();
-    void upgradeDB();
 
     void shutdownMainIOContext();
     void shutdownWorkScheduler();

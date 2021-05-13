@@ -285,6 +285,8 @@ class Application
 
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() = 0;
 
+    virtual void validateAndLogConfig() = 0;
+
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`
     static pointer create(VirtualClock& clock, Config const& cfg,
@@ -297,9 +299,15 @@ class Application
         auto ret = std::make_shared<T>(clock, cfg, std::forward<Args>(args)...);
         ret->initialize(newDB);
         validateNetworkPassphrase(ret);
+        ret->validateAndLogConfig();
 
         return ret;
     }
+
+    // This method is used in in-memory mode: when rebuilding state from buckets
+    // is not possible, this method resets the database state back to genesis
+    // (while preserving the overlay data).
+    virtual void resetDBForInMemoryMode() = 0;
 
   protected:
     Application()

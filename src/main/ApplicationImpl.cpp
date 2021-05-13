@@ -40,6 +40,7 @@
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -135,13 +136,24 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize(bool createNewDB)
 {
+    // Subtle: initialize the bucket manager first before initializing the
+    // database. This is needed as some modes in core (such as in-memory) use a
+    // small database inside the bucket directory.
+    mBucketManager = BucketManager::create(*this);
+
+    bool initNewDB =
+        createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:";
+    if (initNewDB)
+    {
+        mBucketManager->dropAll();
+    }
+
     mDatabase = createDatabase();
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
-    mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -192,13 +204,13 @@ ApplicationImpl::initialize(bool createNewDB)
     SponsorshipCountIsValid::registerInvariant(*this);
     enableInvariantsFromConfig();
 
-    if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")
+    if (initNewDB)
     {
         newDB();
     }
     else
     {
-        upgradeDB();
+        mDatabase->upgradeToCurrentSchema();
     }
 
     // Subtle: process manager should come to existence _after_ BucketManager
@@ -213,14 +225,7 @@ ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     mDatabase->upgradeToCurrentSchema();
-    mBucketManager->dropAll();
     mLedgerManager->startNewLedger();
-}
-
-void
-ApplicationImpl::upgradeDB()
-{
-    mDatabase->upgradeToCurrentSchema();
 }
 
 void
@@ -394,6 +399,18 @@ ApplicationImpl::~ApplicationImpl()
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
+void
+ApplicationImpl::resetDBForInMemoryMode()
+{
+    // Load the peer information and reinitialize the DB
+    auto& pm = getOverlayManager().getPeerManager();
+    auto peerData = pm.loadAllPeers();
+    newDB();
+    pm.storePeers(peerData);
+
+    LOG_INFO(DEFAULT_LOG, "In-memory state is reset back to genesis");
+}
+
 uint64_t
 ApplicationImpl::timeNow()
 {
@@ -401,21 +418,8 @@ ApplicationImpl::timeNow()
 }
 
 void
-ApplicationImpl::start()
+ApplicationImpl::validateAndLogConfig()
 {
-    if (mStarted)
-    {
-        CLOG_INFO(Ledger, "Skipping application start up");
-        return;
-    }
-    CLOG_INFO(Ledger, "Starting up application");
-    mStarted = true;
-
-    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
-    {
-        mHerder->setUpgrades(mConfig);
-    }
-
     if (mConfig.FORCE_SCP && !mConfig.NODE_IS_VALIDATOR)
     {
         throw std::invalid_argument(
@@ -454,10 +458,11 @@ ApplicationImpl::start()
 
     if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
     {
-        if (!mConfig.MODE_STORES_HISTORY)
+        if (!mConfig.modeStoresAllHistory())
         {
-            throw std::invalid_argument("MODE_STORES_HISTORY is not set, but "
-                                        "some history archives are writable");
+            throw std::invalid_argument(
+                "Core is not configured to store history, but "
+                "some history archives are writable");
         }
     }
 
@@ -467,6 +472,23 @@ ApplicationImpl::start()
     }
 
     mConfig.logBasicInfo();
+}
+
+void
+ApplicationImpl::start()
+{
+    if (mStarted)
+    {
+        CLOG_INFO(Ledger, "Skipping application start up");
+        return;
+    }
+    CLOG_INFO(Ledger, "Starting up application");
+    mStarted = true;
+
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
 
     bool done = false;
     mLedgerManager->loadLastKnownLedger([this,
