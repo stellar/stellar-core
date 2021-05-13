@@ -1,12 +1,8 @@
 ## Description
-This folder is for storing any scripts and files that may be helpful for building or using stellar-core.
+This folder is for storing any scripts that may be helpful for using stellar-core.
 
-## List of files
+## List of scripts
 - [Overlay survey](#overlay-survey)
-- Dockerfile: a Dockerfile used to build "production" docker images of stellar-core
-- setup: used the by production Dockerfile
-- Dockerfile.testing: a Dockerfile for one-off builds of stellar-core during development
-- Makefile: convenience Makefile with `docker-build` and `docker-build-testing` targets
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`

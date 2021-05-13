@@ -30,4 +30,4 @@ endif
 	-t ${TAG} .
 
 docker-build-testing:
-	cd ../ && $(SUDO) docker build --pull -f scripts/Dockerfile.testing -t ${TAG} .
+	cd ../ && $(SUDO) docker build --pull -f docker/Dockerfile.testing -t ${TAG} .
