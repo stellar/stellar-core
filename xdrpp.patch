@@ -1,0 +1,14 @@
+diff --git a/xdrpp/message.h b/xdrpp/message.h
+index 670cd87..f726f49 100644
+--- a/xdrpp/message.h
++++ b/xdrpp/message.h
+@@ -63,9 +63,6 @@ public:
+   static msg_ptr alloc(std::size_t size);
+ };
+ 
+-static_assert(std::is_standard_layout<message_t>::value,
+-             "message_t should be standard layout");
+-
+ }
+ 
+ #endif // !_XDRPP_MESSAGE_H_HEADER_INCLUDED
