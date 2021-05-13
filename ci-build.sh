@@ -142,7 +142,7 @@ export
 # git diff
 # cd -
 
-cd lib/xdrpp
+#cd lib/xdrpp
 time ./autogen.sh
 time ./configure $config_flags
 # make format
