@@ -135,9 +135,8 @@ export
 
 cd lib/xdrpp
 cat ../../xdrpp.patch
-git stash
-git log -1
-patch -R -p1 < ../../xdrpp.patch
+sed -e '/standard.layout/d' xdrpp/message.h > /tmp/p
+mv -f /tmp/p xdrpp/message.h
 git diff
 cd -
 
