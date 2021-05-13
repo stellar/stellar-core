@@ -137,7 +137,7 @@ cd lib/xdrpp
 cat ../../xdrpp.patch
 git stash
 git log -1
-patch -f -p1 < ../../xdrpp.patch
+patch -R -p1 < ../../xdrpp.patch
 git diff
 cd -
 
