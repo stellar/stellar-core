@@ -27,6 +27,7 @@
 #include <mutex>
 #include <regex>
 #include <string>
+#include <thread>
 
 #ifdef _WIN32
 #include <Windows.h>

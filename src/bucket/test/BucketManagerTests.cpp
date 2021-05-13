@@ -30,6 +30,7 @@
 
 #include <cstdio>
 #include <optional>
+#include <thread>
 
 using namespace stellar;
 using namespace BucketTests;

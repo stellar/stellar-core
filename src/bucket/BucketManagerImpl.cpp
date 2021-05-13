@@ -22,6 +22,7 @@
 #include <map>
 #include <regex>
 #include <set>
+#include <thread>
 
 #include "medida/counter.h"
 #include "medida/meter.h"
