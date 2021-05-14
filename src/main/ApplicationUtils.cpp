@@ -59,9 +59,12 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
     // existing database back to genesis. If the minimal database does not
     // exist, create a new one.
     bool found = false;
+
+    auto cfgToCheckDB = cfg;
+    cfgToCheckDB.METADATA_OUTPUT_STREAM = "";
     try
     {
-        app = Application::create(clock, cfg, /* newDB */ false);
+        app = Application::create(clock, cfgToCheckDB, /* newDB */ false);
         found = true;
     }
     catch (std::runtime_error const&)
