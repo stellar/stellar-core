@@ -383,7 +383,9 @@ ApplicationImpl::~ApplicationImpl()
         {
             mProcessManager->shutdown();
         }
-        if (mBucketManager)
+        // As garbage collection performed on shutdown depends on LedgerManager
+        // and HistoryManager, ensure those are alive before calling `shutdown`
+        if (mBucketManager && mLedgerManager && mHistoryManager)
         {
             mBucketManager->shutdown();
         }
