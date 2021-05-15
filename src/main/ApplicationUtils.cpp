@@ -70,7 +70,7 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
     catch (std::runtime_error const&)
     {
         LOG_INFO(DEFAULT_LOG, "Minimal database not found, creating one...");
-        app = Application::create(clock, cfg, /* newDB */ true);
+        app = Application::create(clock, cfgToCheckDB, /* newDB */ true);
     }
 
     // Rebuild the state from scratch if:
