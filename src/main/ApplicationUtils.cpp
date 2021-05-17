@@ -202,10 +202,6 @@ applyBucketsForLCL(Application& app)
     auto lclHash =
         app.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
-    // As the local HAS might have merges in progress, let
-    // `prepareForPublish` convert it into a "valid historical HAS".
-    has.prepareForPublish(app);
-
     auto maxProtocolVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     auto currentLedger =
         LedgerHeaderUtils::loadByHash(app.getDatabase(), hexToBin256(lclHash));

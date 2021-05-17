@@ -59,7 +59,6 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
         auto has = getHistoryArchiveState();
-        has.prepareForPublish(*mAppApply);
         auto& wm = mAppApply->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
                           mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,

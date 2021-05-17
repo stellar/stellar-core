@@ -22,6 +22,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -157,13 +158,25 @@ CatchupWork::downloadApplyBuckets()
     ZoneScoped;
     auto const& has = mGetBucketStateWork->getHistoryArchiveState();
     std::vector<std::string> hashes = has.differingBuckets(mLocalState);
+
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
         mApp, mBuckets, hashes, *mDownloadDir, mArchive);
 
+    auto verifyHASCallback = [has](Application& app) {
+        if (!has.containsValidBuckets(app))
+        {
+            CLOG_ERROR(History, "Malformed HAS: invalid buckets");
+            return false;
+        }
+        return true;
+    };
+    auto verifyHAS = std::make_shared<WorkWithCallback>(mApp, "verify-has",
+                                                        verifyHASCallback);
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
         mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion);
 
-    std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
+    std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, verifyHAS,
+                                                applyBuckets};
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
                                           seq, RETRY_NEVER);
 }
