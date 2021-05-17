@@ -50,6 +50,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Buckets& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
+    medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
 
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;

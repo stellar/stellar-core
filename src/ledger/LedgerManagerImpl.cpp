@@ -129,6 +129,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
+    , mMetaStreamWriteTime(
+          app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mState(LM_BOOTING_STATE)
 
 {
@@ -511,6 +513,7 @@ LedgerManagerImpl::emitNextMeta()
 {
     releaseAssert(mNextMetaToEmit);
     releaseAssert(mMetaStream);
+    auto streamWrite = mMetaStreamWriteTime.TimeScope();
     mMetaStream->writeOne(*mNextMetaToEmit);
     mMetaStream->flush();
     mNextMetaToEmit.reset();
