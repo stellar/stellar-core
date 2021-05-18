@@ -152,15 +152,6 @@ BasicWork::State
 ApplyBucketsWork::onRun()
 {
     ZoneScoped;
-    if (!mHaveCheckedApplyStateValidity && mLevel == BucketList::kNumLevels - 1)
-    {
-        if (!mApplyState.containsValidBuckets(mApp))
-        {
-            CLOG_ERROR(History, "Malformed HAS: unable to apply buckets");
-            return State::WORK_FAILURE;
-        }
-        mHaveCheckedApplyStateValidity = true;
-    }
 
     // Check if we're at the beginning of the new level
     if (isLevelComplete())

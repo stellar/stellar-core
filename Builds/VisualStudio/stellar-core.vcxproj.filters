@@ -300,6 +300,9 @@
     <ClCompile Include="..\..\src\work\WorkSequence.cpp">
       <Filter>work</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkWithCallback.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\StatusManager.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -1326,6 +1329,9 @@
       <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\work\WorkSequence.h">
+      <Filter>work</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\work\WorkWithCallback.h">
       <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\StatusManager.h">
