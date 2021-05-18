@@ -22,3 +22,6 @@ RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add -
 RUN echo "deb https://apt.stellar.org ${DISTRO} unstable" | tee -a /etc/apt/sources.list.d/SDF-unstable.list
 RUN apt-get update
 RUN apt-get install -y stellar-core=${STELLAR_CORE_VERSION}
+
+WORKDIR "/etc/stellar"
+ENTRYPOINT ["/usr/bin/stellar-core"]
