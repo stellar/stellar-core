@@ -743,17 +743,24 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
-    // Maybe sleep for parameterized amount of time in simulation mode
-    auto sleepFor = std::chrono::microseconds{
-        mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING * txSet->sizeOp()};
-    std::chrono::microseconds applicationTime =
-        closeLedgerTime.checkElapsedTime();
-    if (applicationTime < sleepFor)
+    if (!mApp.getConfig().getOpApplySleepTimeForTesting().empty())
     {
-        sleepFor -= applicationTime;
-        CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
-                   sleepFor.count());
-        std::this_thread::sleep_for(sleepFor);
+        // Sleep for a parameterized amount of time in simulation mode
+        std::chrono::microseconds sleepFor{0};
+        for (int i = 0; i < txSet->sizeOp(); i++)
+        {
+            sleepFor +=
+                rand_element(mApp.getConfig().getOpApplySleepTimeForTesting());
+        }
+        std::chrono::microseconds applicationTime =
+            closeLedgerTime.checkElapsedTime();
+        if (applicationTime < sleepFor)
+        {
+            sleepFor -= applicationTime;
+            CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
+                       sleepFor.count());
+            std::this_thread::sleep_for(sleepFor);
+        }
     }
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
