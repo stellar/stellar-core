@@ -13,7 +13,9 @@ It uses the official stellar-core deb package for two reasons:
 To build set `STELLAR_CORE_VERSION` to deb package version you want installed.
 For example:
 ```
-STELLAR_CORE_VERSION=17.0.0-557.096f6a7.focal make docker-build
+export STELLAR_CORE_VERSION=17.0.0-557.096f6a7.focal
+export TAG=${USER}/stellar-core:${STELLAR_CORE_VERSION}
+make docker-build
 ```
 
 ## Dockerfile.testing
