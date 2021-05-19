@@ -44,6 +44,8 @@ class ApplicationImpl : public Application
 
     virtual void initialize(bool newDB) override;
 
+    virtual void resetLedgerState() override;
+
     virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;

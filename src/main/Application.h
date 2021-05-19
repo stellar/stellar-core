@@ -164,6 +164,10 @@ class Application
 
     virtual void initialize(bool createNewDB) = 0;
 
+    // reset the ledger state entirely
+    // (to be used before applying buckets)
+    virtual void resetLedgerState() = 0;
+
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
     virtual uint64_t timeNow() = 0;

@@ -221,6 +221,13 @@ ApplicationImpl::initialize(bool createNewDB)
 }
 
 void
+ApplicationImpl::resetLedgerState()
+{
+    auto& lsRoot = getLedgerTxnRoot();
+    lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+}
+
+void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
