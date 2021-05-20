@@ -11,6 +11,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
+#include <filesystem>
 #include <string>
 
 /*
@@ -33,6 +34,7 @@ class AbstractLedgerTxn;
 class Application;
 class Database;
 class LedgerTxnHeader;
+class BasicWork;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -41,6 +43,9 @@ class LedgerManagerImpl : public LedgerManager
   protected:
     Application& mApp;
     std::unique_ptr<XDROutputFileStream> mMetaStream;
+    std::unique_ptr<XDROutputFileStream> mMetaDebugStream;
+    std::weak_ptr<BasicWork> mFlushAndRotateMetaDebugWork;
+    std::filesystem::path mMetaDebugPath;
 
   private:
     medida::Timer& mTransactionApply;
@@ -135,5 +140,6 @@ class LedgerManagerImpl : public LedgerManager
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 
     void setupLedgerCloseMetaStream();
+    void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 };
 }

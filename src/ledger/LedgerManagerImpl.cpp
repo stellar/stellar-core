@@ -16,6 +16,7 @@
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
+#include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
@@ -28,6 +29,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
@@ -40,6 +42,8 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "util/XDRStream.h"
+#include "work/WorkScheduler.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 #include <Tracy.hpp>
@@ -48,6 +52,7 @@
 #include <numeric>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <thread>
 
 /*
@@ -512,10 +517,17 @@ void
 LedgerManagerImpl::emitNextMeta()
 {
     releaseAssert(mNextMetaToEmit);
-    releaseAssert(mMetaStream);
+    releaseAssert(mMetaStream || mMetaDebugStream);
     auto streamWrite = mMetaStreamWriteTime.TimeScope();
-    mMetaStream->writeOne(*mNextMetaToEmit);
-    mMetaStream->flush();
+    if (mMetaStream)
+    {
+        mMetaStream->writeOne(*mNextMetaToEmit);
+        mMetaStream->flush();
+    }
+    if (mMetaDebugStream)
+    {
+        mMetaDebugStream->writeOne(*mNextMetaToEmit);
+    }
     mNextMetaToEmit.reset();
 }
 
@@ -590,12 +602,14 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     auto const& sv = ledgerData.getValue();
     header.current().scpValue = sv;
 
+    maybeResetLedgerCloseMetaDebugStream(header.current().ledgerSeq);
+
     // In addition to the _canonical_ LedgerResultSet hashed into the
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
     std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
-    if (mMetaStream)
+    if (mMetaStream || mMetaDebugStream)
     {
         if (mNextMetaToEmit)
         {
@@ -693,7 +707,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         throw std::runtime_error("Local node's ledger corrupted during close");
     }
 
-    if (mMetaStream)
+    if (mMetaStream || mMetaDebugStream)
     {
         releaseAssert(ledgerCloseMeta);
         ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
@@ -855,6 +869,85 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
             CLOG_INFO(Ledger, "Streaming metadata to '{}'",
                       cfg.METADATA_OUTPUT_STREAM);
             mMetaStream->open(cfg.METADATA_OUTPUT_STREAM);
+        }
+    }
+}
+void
+LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
+{
+    if (mApp.getConfig().METADATA_DEBUG_LEDGERS != 0)
+    {
+        if (mMetaDebugStream)
+        {
+            if (!FlushAndRotateMetaDebugWork::isDebugSegmentBoundary(ledgerSeq))
+            {
+                // If we've got a stream open and aren't at a reset boundary,
+                // just return -- keep streaming into it.
+                return;
+            }
+
+            // If we have an open stream and there is already a flush-and-rotate
+            // work _running_ (measured by the existence of a shared_ptr at the
+            // end of the weak_ptr), we're in a slightly awkward position since
+            // we can't synchronously close the stream (that would fsync) and we
+            // can't asynchronously close the stream either (that would race
+            // against the running work that is presumably flushing-and-rotating
+            // the _previous_ stream). So we just skip an iteration of launching
+            // flush-and-rotate work, and try again on the next boundary.
+            auto existing = mFlushAndRotateMetaDebugWork.lock();
+            if (existing && !existing->isDone())
+            {
+                CLOG_DEBUG(Ledger,
+                           "Skipping flush-and-rotate of {} since work already "
+                           "running",
+                           mMetaDebugPath.string());
+                return;
+            }
+
+            // If we are resetting and already have a stream, hand it off to the
+            // flush-and-rotate work to finish up with.
+            mFlushAndRotateMetaDebugWork =
+                mApp.getWorkScheduler()
+                    .scheduleWork<FlushAndRotateMetaDebugWork>(
+                        mMetaDebugPath, std::move(mMetaDebugStream),
+                        mApp.getConfig().METADATA_DEBUG_LEDGERS);
+            mMetaDebugPath.clear();
+        }
+
+        // From here on we're starting a new stream, whether it's the first
+        // such stream or a replacement for the one we just handed off to
+        // flush-and-rotate. Either way, we should not have an existing one!
+        releaseAssert(!mMetaDebugStream);
+        auto tmpStream = std::make_unique<XDROutputFileStream>(
+            mApp.getClock().getIOContext(),
+            /*fsyncOnClose=*/true);
+
+        mMetaDebugPath = FlushAndRotateMetaDebugWork::getMetaDebugFilePath(
+            mApp.getBucketManager().getBucketDir(), ledgerSeq);
+        releaseAssert(mMetaDebugPath.has_parent_path());
+        try
+        {
+            if (fs::mkpath(mMetaDebugPath.parent_path().string()))
+            {
+                CLOG_DEBUG(Ledger, "Streaming debug metadata to '{}'",
+                           mMetaDebugPath.string());
+                tmpStream->open(mMetaDebugPath.string());
+
+                // If we get to this line, the stream is open.
+                mMetaDebugStream = std::move(tmpStream);
+            }
+            else
+            {
+                CLOG_WARNING(Ledger,
+                             "Failed to make directory '{}' for debug metadata",
+                             mMetaDebugPath.parent_path().string());
+            }
+        }
+        catch (std::runtime_error& e)
+        {
+            CLOG_WARNING(Ledger,
+                         "Failed to open debug metadata stream '{}': {}",
+                         mMetaDebugPath.string(), e.what());
         }
     }
 }
