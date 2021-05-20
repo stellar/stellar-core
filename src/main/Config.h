@@ -291,6 +291,13 @@ class Config : public std::enable_shared_from_this<Config>
     // in consensus, only a passive "watcher" node.
     std::string METADATA_OUTPUT_STREAM;
 
+    // Number of ledgers worth of transaction metadata to preserve on disk for
+    // debugging purposes. These records are automatically maintained and
+    // rotated during processing, and are helpful for recovery in case of a
+    // serious error; they should only be reduced or disabled if disk space is
+    // at a premium.
+    uint32_t METADATA_DEBUG_LEDGERS;
+
     // Set of cursors added at each startup with value '1'.
     std::vector<std::string> KNOWN_CURSORS;
 

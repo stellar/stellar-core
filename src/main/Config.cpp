@@ -151,6 +151,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
     METADATA_OUTPUT_STREAM = "";
+    METADATA_DEBUG_LEDGERS = 0;
 
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";
@@ -841,6 +842,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "EXPERIMENTAL_PRECAUTION_DELAY_META")
             {
                 EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
+            }
+            else if (item.first == "METADATA_DEBUG_LEDGERS")
+            {
+                METADATA_DEBUG_LEDGERS = readInt<uint32_t>(item);
             }
             else if (item.first == "KNOWN_CURSORS")
             {
