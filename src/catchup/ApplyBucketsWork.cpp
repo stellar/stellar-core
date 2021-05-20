@@ -79,10 +79,7 @@ ApplyBucketsWork::onReset()
     {
         // clear ledgerTxn state of all ledger entries in preparation of bucket
         // apply
-        if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-        {
-            mApp.resetLedgerState();
-        }
+        mApp.resetLedgerState();
 
         auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
             if (bucket->getSize() > 0)

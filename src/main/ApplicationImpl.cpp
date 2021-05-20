@@ -164,19 +164,9 @@ ApplicationImpl::initialize(bool createNewDB)
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
 
-#ifdef BEST_OFFER_DEBUGGING
-    auto const bestOfferDebuggingEnabled = mConfig.BEST_OFFER_DEBUGGING_ENABLED;
-#endif
-
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
-        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>(
-#ifdef BEST_OFFER_DEBUGGING
-            bestOfferDebuggingEnabled
-#endif
-        );
-        mNeverCommittingLedgerTxn =
-            std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
+        resetLedgerState();
     }
     else
     {
@@ -191,7 +181,7 @@ ApplicationImpl::initialize(bool createNewDB)
             *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
 #ifdef BEST_OFFER_DEBUGGING
             ,
-            bestOfferDebuggingEnabled
+            mConfig.BEST_OFFER_DEBUGGING_ENABLED
 #endif
         );
     }
@@ -223,8 +213,22 @@ ApplicationImpl::initialize(bool createNewDB)
 void
 ApplicationImpl::resetLedgerState()
 {
-    auto& lsRoot = getLedgerTxnRoot();
-    lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+    if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        mNeverCommittingLedgerTxn.reset();
+        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>(
+#ifdef BEST_OFFER_DEBUGGING
+            mConfig.BEST_OFFER_DEBUGGING_ENABLED
+#endif
+        );
+        mNeverCommittingLedgerTxn =
+            std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
+    }
+    else
+    {
+        auto& lsRoot = getLedgerTxnRoot();
+        lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+    }
 }
 
 void
