@@ -552,6 +552,9 @@
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1629,6 +1632,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\FlushAndRotateMetaDebugWork.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h">
