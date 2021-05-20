@@ -24,11 +24,10 @@ namespace stellar
 
 /**
  * The purpose of this module is to provide "timing service" to stellar-core;
- *but in
- * such a way that strongly favours the use of virtual time over real
+ * but in such a way that strongly favours the use of virtual time over real
  * time. Ideally there will only ever be one use of the "real" wall clock in the
- * system, which is driving the virtual clock when running non-test mode
- * (i.e. "actually running against real networks").
+ * system, which is driving the virtual clock when running non-test mode (i.e.
+ * "actually running against real networks").
  *
  * Virtual time is nothing magical, it's just normal time durations (in
  * nanoseconds, via std::chrono, as usual) measured on a virtual clock, not the
@@ -45,6 +44,9 @@ namespace stellar
  *   for any time-based transitions to _literally_ occur due to the passage of
  *   wall-clock time, when there's no other work to do.
  *
+ * The VirtualClock type also contains an instance of Scheduler, which is a
+ * fair time-slicing and load-shedding system for balancing multiple streams
+ * of callbacks each competing for main thread execution.
  */
 
 class VirtualTimer;
@@ -129,10 +131,29 @@ class VirtualClock
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
 
-    std::recursive_mutex mDispatchingMutex;
-    bool mDispatching{true};
+    // There are three separate queue-like things in a given VirtualClock.
+    //
+    // The first is the action Scheduler, which multiplexes (with some level of
+    // fair real-time-slicing) multiple streams of callbacks competing for main
+    // thread (real) time. Only the main thread ever accesses the Scheduler.
+    //
+    // The second is a simple "pending actions" queue that is protected by a
+    // short-duration mutex. This is a threadsafe _submission_ point for adding
+    // actions to the Scheduler -- any thread can enqueue, and only the main
+    // thread will dequeue (immediately re-enqueueing into the Scheduler for
+    // further time-slicing / load-shedding).
+    //
+    // The third is a priority queue of VirtualClockEvents, which is the part of
+    // the VirtualClock that manages the progress of virtual time and the
+    // dispatch of timers as virtual time advances past them.
     std::chrono::steady_clock::time_point mLastDispatchStart;
     std::unique_ptr<Scheduler> mActionScheduler;
+
+    mutable std::mutex mPendingActionQueueMutex;
+    std::queue<
+        std::tuple<std::function<void()>, std::string, Scheduler::ActionType>>
+        mPendingActionQueue;
+
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
                             std::vector<std::shared_ptr<VirtualClockEvent>>,

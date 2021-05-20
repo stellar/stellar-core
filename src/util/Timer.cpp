@@ -328,8 +328,6 @@ VirtualClock::crank(bool block)
     }
     size_t progressCount = 0;
     {
-        std::lock_guard<std::recursive_mutex> lock(mDispatchingMutex);
-        mDispatching = true;
         mLastDispatchStart = now();
         nRealTimerCancelEvents = 0;
         if (mMode == REAL_TIME)
@@ -373,9 +371,23 @@ VirtualClock::crank(bool block)
             // skip time forward, dispatching all timers at the next time-step.
             progressCount += advanceToNext();
         }
-        mDispatching = false;
     }
-    // At this point main and background threads can add work to next crank.
+
+    // Transfer any pending actions to the scheduler, counting them as
+    // "progress" also.
+    {
+        std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+        while (!mPendingActionQueue.empty())
+        {
+            auto& f = mPendingActionQueue.front();
+            mActionScheduler->enqueue(std::move(std::get<1>(f)),
+                                      std::move(std::get<0>(f)),
+                                      std::get<2>(f));
+            mPendingActionQueue.pop();
+            progressCount++;
+        }
+    }
+
     if (block && progressCount == 0)
     {
         ZoneNamedN(blockingZone, "ASIO blocking", true);
@@ -389,25 +401,45 @@ void
 VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
                          Scheduler::ActionType type)
 {
-    std::lock_guard<std::recursive_mutex> lock(mDispatchingMutex);
-    if (!mDispatching)
+    bool queueWasEmpty = false;
     {
-        // Either we are waiting on io_context().run_one, or by some chance
-        // run_one was woken up by network activity and postAction was
-        // called from a background thread.
+        std::lock_guard<std::mutex> lock(mPendingActionQueueMutex);
+        queueWasEmpty = mPendingActionQueue.empty();
+        mPendingActionQueue.emplace(std::move(f), std::move(name), type);
+    }
 
-        // In any case, all we need to do is ensure that we wake up `crank`, we
-        // do this by posting an empty event to the main IO queue
-        mDispatching = true;
+    // The pending queue is emptied by the main thread just before the main
+    // thread potentially blocks waiting for real IO events, on a call to
+    // mIOContext.run_one. It is possible that the main thread saw an empty
+    // pending queue just before we (say, a background thread) enqueued some
+    // work in this call to postAction. In this case, the main thread would
+    // potentially never wake up and notice the enqueued work: we enqueued after
+    // it checked.
+    //
+    // However, if the main thread observed an empty pending queue, we would
+    // also have observed it here (we never dequeue work here) and so we treat
+    // as a special case enqueueing on the empty->nonempty case, and inject an
+    // artificial "IO event" in the mIOContext, so ensure the main thread wakes
+    // up after our enqueue.
+    //
+    // If we inject this at any point in the main thread's crank cycle other
+    // than the brief window between it emptying the pending queue and doing a
+    // blocking mIOContext.run_one call, it's pointless but also harmless.
+    if (queueWasEmpty)
+    {
         asio::post(mIOContext, []() {});
     }
-    mActionScheduler->enqueue(std::move(name), std::move(f), type);
 }
 
 size_t
 VirtualClock::getActionQueueSize() const
 {
-    return mActionScheduler->size();
+    size_t pending = 0;
+    {
+        std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+        pending = mPendingActionQueue.size();
+    }
+    return pending + mActionScheduler->size();
 }
 
 bool
