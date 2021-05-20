@@ -774,8 +774,7 @@ runCatchup(CommandLineArgs const& args)
                     LOG_INFO(
                         DEFAULT_LOG,
                         "Resetting ledger state to genesis before catching up");
-                    auto& lsRoot = app->getLedgerTxnRoot();
-                    lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+                    app->resetLedgerState();
                     lm.startNewLedger();
                 }
 

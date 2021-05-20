@@ -740,9 +740,6 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
         opsToFlood = opsToFloodLedger;
     }
     releaseAssertOrThrow(opsToFlood >= 0);
-    releaseAssertOrThrow(
-        opsToFlood <=
-        static_cast<int64_t>(std::numeric_limits<ssize_t>::max()));
     return static_cast<size_t>(opsToFlood);
 }
 

@@ -22,6 +22,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <functional>
+#include <numeric>
 #include <sstream>
 #include <unordered_set>
 
@@ -733,7 +734,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
     ret.reserve(100);
     for (size_t i = 0; i < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size(); i++)
     {
-        LOG_INFO(DEFAULT_LOG, "Sleeps for {} {}\% of the time",
+        LOG_INFO(DEFAULT_LOG, "Sleeps for {} {}% of the time",
                  OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i],
                  OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]);
         for (size_t j = 0; j < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]; j++)

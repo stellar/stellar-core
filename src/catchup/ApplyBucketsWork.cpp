@@ -77,6 +77,10 @@ ApplyBucketsWork::onReset()
 
     if (!isAborting())
     {
+        // clear ledgerTxn state of all ledger entries in preparation of bucket
+        // apply
+        mApp.resetLedgerState();
+
         auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
             if (bucket->getSize() > 0)
             {
@@ -113,18 +117,6 @@ ApplyBucketsWork::startLevel()
 
     bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
     bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
-
-    if (!mApplying && !mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER &&
-        (applySnap || applyCurr))
-    {
-        uint32_t oldestLedger = applySnap
-                                    ? BucketList::oldestLedgerInSnap(
-                                          mApplyState.currentLedger, mLevel)
-                                    : BucketList::oldestLedgerInCurr(
-                                          mApplyState.currentLedger, mLevel);
-        auto& lsRoot = mApp.getLedgerTxnRoot();
-        lsRoot.deleteObjectsModifiedOnOrAfterLedger(oldestLedger);
-    }
 
     if (mApplying || applySnap)
     {
