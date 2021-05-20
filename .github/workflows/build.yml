@@ -13,10 +13,6 @@ jobs:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
     steps:
-      - name: Cancel Stale Workflows
-        uses: styfle/cancel-workflow-action@0.8.0
-        with:
-          access_token: ${{ github.token }}
       - name: Compute cache key
         # this step works around a limitation in actions/cache
         # that does not allow updating a cache
