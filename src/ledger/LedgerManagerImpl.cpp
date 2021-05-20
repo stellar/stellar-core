@@ -126,11 +126,11 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mMetaStreamWriteTime(
+          app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
-    , mMetaStreamWriteTime(
-          app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mState(LM_BOOTING_STATE)
 
 {
