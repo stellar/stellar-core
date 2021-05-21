@@ -24,16 +24,16 @@ class TestBasicWork : public BasicWork
     bool mShouldFail;
 
   public:
-    int const mNumSteps;
-    int mCount;
-    int mRunningCount{0};
-    int mSuccessCount{0};
-    int mFailureCount{0};
-    int mRetryCount{0};
-    int mAbortCount{0};
+    size_t const mNumSteps;
+    size_t mCount;
+    size_t mRunningCount{0};
+    size_t mSuccessCount{0};
+    size_t mFailureCount{0};
+    size_t mRetryCount{0};
+    size_t mAbortCount{0};
 
     TestBasicWork(Application& app, std::string name, bool fail = false,
-                  int steps = 3, size_t retries = BasicWork::RETRY_ONCE)
+                  size_t steps = 3, size_t retries = BasicWork::RETRY_ONCE)
         : BasicWork(app, std::move(name), retries)
         , mShouldFail(fail)
         , mNumSteps(steps)
@@ -99,8 +99,8 @@ class TestWaitingWork : public TestBasicWork
     VirtualTimer mTimer;
 
   public:
-    int mWaitingCount{0};
-    int mWakeUpCount{0};
+    size_t mWaitingCount{0};
+    size_t mWakeUpCount{0};
 
     TestWaitingWork(Application& app, std::string name)
         : TestBasicWork(app, name), mTimer(app.getClock())
@@ -278,10 +278,10 @@ TEST_CASE("BasicWork test", "[work][basicwork]")
 class TestWork : public Work
 {
   public:
-    int mRunningCount{0};
-    int mSuccessCount{0};
-    int mFailureCount{0};
-    int mRetryCount{0};
+    size_t mRunningCount{0};
+    size_t mSuccessCount{0};
+    size_t mFailureCount{0};
+    size_t mRetryCount{0};
 
     TestWork(Application& app, std::string name)
         : Work(app, std::move(name), BasicWork::RETRY_NEVER)

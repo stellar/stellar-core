@@ -264,7 +264,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     TransactionResultCode code;
     TransactionQueue::AddResult status;
     bool createDuplicate = false;
-    int numTries = 0;
+    uint32_t numTries = 0;
 
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
@@ -307,7 +307,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
 
     TransactionResultCode code;
     TransactionQueue::AddResult status;
-    int numTries = 0;
+    uint32_t numTries = 0;
 
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)

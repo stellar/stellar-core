@@ -255,7 +255,7 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
     auto prevHash = firstLedger.header.previousLedgerHash;
     auto ledgerSeq = firstLedger.header.ledgerSeq;
 
-    for (auto i = 0; i < lhv.size(); i++)
+    for (size_t i = 0; i < lhv.size(); i++)
     {
         auto& lh = lhv[i];
 

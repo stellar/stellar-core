@@ -9,23 +9,23 @@
 
 using namespace stellar;
 
-TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
+TEST_CASE("RandomEvictionCache works as a cache", "[randomevictioncache]")
 {
     size_t sz = 1000;
-    RandomEvictionCache<int, int> cache(sz);
+    RandomEvictionCache<size_t, size_t> cache(sz);
     auto const& ctrs = cache.getCounters();
 
     // Fill the cache
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         cache.put(i, i * 100);
     }
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         auto p = cache.get(i);
         REQUIRE(p == i * 100);
     }
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         auto p = *cache.maybeGet(i);
         REQUIRE(p == i * 100);
@@ -37,18 +37,18 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     REQUIRE(ctrs.mEvicts == 0);
 
     // Clobber the entries
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         cache.put(i, i * 200);
     }
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
-        int p = cache.get(i);
+        size_t p = cache.get(i);
         REQUIRE(p == i * 200);
     }
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
-        int p = *cache.maybeGet(i);
+        size_t p = *cache.maybeGet(i);
         REQUIRE(p == i * 200);
     }
     REQUIRE(ctrs.mInserts == sz);
@@ -58,9 +58,9 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     REQUIRE(ctrs.mEvicts == 0);
 
     // Add some entries and evict some.
-    for (int i = 0; i < sz / 2; ++i)
+    for (size_t i = 0; i < sz / 2; ++i)
     {
-        cache.put((int)sz + i * (int)sz, i);
+        cache.put(sz + i * sz, i);
     }
     REQUIRE(ctrs.mInserts == sz + sz / 2);
     REQUIRE(ctrs.mUpdates == sz);
@@ -69,7 +69,7 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     REQUIRE(ctrs.mEvicts == sz / 2);
 
     // Check that enough un-evicted entries are still there.
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         if (cache.exists(i))
         {
@@ -83,7 +83,7 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     REQUIRE(ctrs.mEvicts == sz / 2);
 
     // Check that enough un-evicted entries are still there.
-    for (int i = 0; i < sz; ++i)
+    for (size_t i = 0; i < sz; ++i)
     {
         cache.maybeGet(i);
     }
@@ -95,13 +95,14 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
 
     // Ensure that maybeGet returns nullptr if and only if
     // cache.exists return false.
-    for (int i = 0; i < sz; i++)
+    for (size_t i = 0; i < sz; i++)
     {
         REQUIRE(cache.exists(i) == (cache.maybeGet(i) != nullptr));
     }
 }
 
-TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
+TEST_CASE("RandomEvictionCache does not thrash",
+          "[randomevictioncachethrash][!hide]")
 {
     gRandomEngine.seed(std::time(nullptr) & UINT32_MAX);
     size_t sz = 1000;
@@ -109,7 +110,7 @@ TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
     auto const& ctrs = cache.getCounters();
     // Fill the cache and then over-fill it by 1, so it expires an entry. In
     // LRU-land this can be the beginning of the end.
-    for (int i = 0; i <= sz; ++i)
+    for (size_t i = 0; i <= sz; ++i)
     {
         cache.put(i, i * 100);
     }
@@ -117,7 +118,7 @@ TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
     REQUIRE(ctrs.mEvicts == 1);
     // Access sequentially in the same order as the first time. If we were doing
     // LRU this would be the bad case.
-    for (int i = 0; i <= sz; ++i)
+    for (size_t i = 0; i <= sz; ++i)
     {
         if (i % 2 == 0)
         {

@@ -616,7 +616,7 @@ TransactionQueue::shift()
         }
     }
 
-    for (auto i = 0; i < sizes.size(); i++)
+    for (size_t i = 0; i < sizes.size(); i++)
     {
         mSizeByAge[i]->set_count(sizes[i]);
     }
@@ -626,10 +626,10 @@ TransactionQueue::shift()
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
 
-int
+size_t
 TransactionQueue::countBanned(int index) const
 {
-    return static_cast<int>(mBannedTransactions[index].size());
+    return mBannedTransactions[index].size();
 }
 
 bool

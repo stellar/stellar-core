@@ -581,7 +581,7 @@ publish(Application::pointer app)
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     auto isCheckpoint = app->getHistoryManager().isLastLedgerInCheckpoint(lcl);
-    auto expectedPublishQueueSize = isCheckpoint ? 1 : 0;
+    size_t expectedPublishQueueSize = isCheckpoint ? 1 : 0;
 
     app->getHistoryManager().publishQueuedHistory();
     while (app->getHistoryManager().publishQueueLength() !=

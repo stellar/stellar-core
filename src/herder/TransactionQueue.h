@@ -135,7 +135,7 @@ class TransactionQueue
     AccountTxQueueInfo
     getAccountTransactionQueueInfo(AccountID const& accountID) const;
 
-    int countBanned(int index) const;
+    size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
 
     std::shared_ptr<TxSetFrame>

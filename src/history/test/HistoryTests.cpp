@@ -403,7 +403,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
             catchupSimulation.getApp().getClock().getIOContext(), true);
         out.open(ft.localPath_nogz());
         // Duplicate entries
-        for (int i = 0; i < entries.size(); ++i)
+        for (size_t i = 0; i < entries.size(); ++i)
         {
             out.writeOne(entries[0]);
         }
@@ -1198,7 +1198,7 @@ TEST_CASE("Catchup manual", "[history][catchup][acceptance]")
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
 
     // Test every 10th scenario
-    for (auto i = 0; i < stellar::gCatchupRangeCases.size(); i += 10)
+    for (size_t i = 0; i < stellar::gCatchupRangeCases.size(); i += 10)
     {
         auto test = stellar::gCatchupRangeCases[i];
         auto configuration = test.second;

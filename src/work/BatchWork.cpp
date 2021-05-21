@@ -70,7 +70,7 @@ BatchWork::addMoreWorkIfNeeded()
         throw std::runtime_error(getName() + " is being aborted!");
     }
 
-    int nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
+    size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
     while (mBatch.size() < nChildren && hasNext())
     {
         auto w = yieldMoreWork();

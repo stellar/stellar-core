@@ -747,7 +747,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     {
         // Sleep for a parameterized amount of time in simulation mode
         std::chrono::microseconds sleepFor{0};
-        for (int i = 0; i < txSet->sizeOp(); i++)
+        for (size_t i = 0; i < txSet->sizeOp(); i++)
         {
             sleepFor +=
                 rand_element(mApp.getConfig().getOpApplySleepTimeForTesting());

@@ -101,7 +101,7 @@ class LoadGenerator
     medida::Meter& mLoadgenFail;
 
     bool mFailed{false};
-    int mWaitTillCompleteForLedgers{0};
+    uint32_t mWaitTillCompleteForLedgers{0};
 
     void reset();
     void createRootAccount();

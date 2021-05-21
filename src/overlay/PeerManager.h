@@ -41,7 +41,7 @@ enum class PeerTypeFilter
 struct PeerRecord
 {
     std::tm mNextAttempt;
-    int mNumFailures{0};
+    size_t mNumFailures{0};
     int mType{0};
 };
 
@@ -50,7 +50,7 @@ bool operator==(PeerRecord const& x, PeerRecord const& y);
 struct PeerQuery
 {
     bool mUseNextAttempt;
-    int mMaxNumFailures;
+    std::optional<size_t> mMaxNumFailures;
     PeerTypeFilter mTypeFilter;
 };
 
@@ -124,19 +124,19 @@ class PeerManager
      * Load size random peers matching query from database.
      */
     std::vector<PeerBareAddress> loadRandomPeers(PeerQuery const& query,
-                                                 int size);
+                                                 size_t size);
 
     /**
      * Remove peers that have at least minNumFailures. Can only remove peer with
      * given address.
      */
-    void removePeersWithManyFailures(int minNumFailures,
+    void removePeersWithManyFailures(size_t minNumFailures,
                                      PeerBareAddress const* address = nullptr);
 
     /**
      * Get list of peers to send to peer with given address.
      */
-    std::vector<PeerBareAddress> getPeersToSend(int size,
+    std::vector<PeerBareAddress> getPeersToSend(size_t size,
                                                 PeerBareAddress const& address);
 
     /**
@@ -156,10 +156,10 @@ class PeerManager
     std::unique_ptr<RandomPeerSource> mOutboundPeersToSend;
     std::unique_ptr<RandomPeerSource> mInboundPeersToSend;
 
-    int countPeers(std::string const& where,
-                   std::function<void(soci::statement&)> const& bind);
+    size_t countPeers(std::string const& where,
+                      std::function<void(soci::statement&)> const& bind);
     std::vector<PeerBareAddress>
-    loadPeers(int limit, int offset, std::string const& where,
+    loadPeers(size_t limit, size_t offset, std::string const& where,
               std::function<void(soci::statement&)> const& bind);
 
     void update(PeerRecord& peer, TypeUpdate type);

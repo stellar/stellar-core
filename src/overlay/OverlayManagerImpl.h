@@ -58,7 +58,7 @@ class OverlayManagerImpl : public OverlayManager
 
         OverlayManagerImpl& mOverlayManager;
         std::string mDirectionString;
-        int mMaxAuthenticatedCount;
+        size_t mMaxAuthenticatedCount;
 
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticated;

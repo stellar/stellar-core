@@ -16,7 +16,7 @@ TEST_CASE("Serialization round trip", "[history]")
         "stellar-history.testnet.6714239.json",
         "stellar-history.livenet.15686975.json",
         "stellar-history.testnet.6714239.networkPassphrase.json"};
-    for (int i = 0; i < testFiles.size(); i++)
+    for (size_t i = 0; i < testFiles.size(); i++)
     {
         std::string fnPath = "testdata/";
         std::string testFilePath = fnPath + testFiles[i];

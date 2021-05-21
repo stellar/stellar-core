@@ -1074,9 +1074,9 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
 
     using ExpectedResultType = std::vector<std::vector<TestPeerType>>;
     auto peerTypesMatch = [&](ExpectedResultType expected) {
-        for (auto i = 0; i < expected.size(); i++)
+        for (size_t i = 0; i < expected.size(); i++)
         {
-            for (auto j = 0; j < expected[i].size(); j++)
+            for (size_t j = 0; j < expected[i].size(); j++)
             {
                 if (expected[i][j] > getTestPeerType(i, j))
                 {
@@ -1153,7 +1153,7 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     auto app = createTestApplication(clock, cfg);
     auto& om = app->getOverlayManager();
     auto& peerManager = om.getPeerManager();
-    auto record = [](int numFailures) {
+    auto record = [](size_t numFailures) {
         return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
@@ -1180,7 +1180,7 @@ TEST_CASE("peer numfailures resets after good connection",
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
-    auto record = [](int numFailures) {
+    auto record = [](size_t numFailures) {
         return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 
@@ -1217,7 +1217,7 @@ TEST_CASE("peer is purged from database after few failures",
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
-    auto record = [](int numFailures) {
+    auto record = [](size_t numFailures) {
         return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 

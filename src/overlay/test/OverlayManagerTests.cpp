@@ -147,7 +147,7 @@ class OverlayManagerTests
                          << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
         auto& ppeers = pm.mConfigurationPreferredPeers;
-        int i = 0;
+        size_t i = 0;
         for (auto it = rs.begin(); it != rs.end(); ++it, ++i)
         {
 
