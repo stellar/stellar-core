@@ -1663,7 +1663,7 @@ HerderImpl::restoreUpgrades()
             // use common code to set status
             setUpgrades(p);
         }
-        catch (std::exception e)
+        catch (std::exception& e)
         {
             CLOG_INFO(Herder,
                       "Error restoring upgrades '{}' with upgrades '{}'",

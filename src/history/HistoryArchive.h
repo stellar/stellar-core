@@ -103,7 +103,7 @@ struct HistoryArchiveState
         {
             ar(CEREAL_NVP(networkPassphrase));
         }
-        catch (cereal::Exception)
+        catch (cereal::Exception&)
         {
             // networkPassphrase wasn't parsed.
             // This is expected when the input file does not contain it.

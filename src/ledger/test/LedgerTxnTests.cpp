@@ -1378,7 +1378,7 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
                         {
                             // this is fine
                         }
-                        catch (std::exception)
+                        catch (std::exception&)
                         {
                             REQUIRE(false);
                         }
