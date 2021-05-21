@@ -434,9 +434,9 @@ TEST_CASE("work scheduling and run count", "[work]")
 
         // There are three levels of work that look like this
         //     mainWork
-        //       /\
+        //       /\.
         //     w1  w2
-        //         /\
+        //         /\.
         //       c1 c2
         while (!wm.allChildrenSuccessful() ||
                wm.getState() == TestBasicWork::State::WORK_RUNNING)
@@ -456,9 +456,9 @@ TEST_CASE("work scheduling and run count", "[work]")
     {
         // There are three levels of work that look like this
         //     mainWork
-        //       / \
+        //       / \.
         //     w1   w2
-        //     /\   /\
+        //     /\   /\.
         //   c1 c2 c3 c4
         auto w1 = mainWork->addTestWork<TestWork>("test-work-1");
         auto w2 = mainWork->addTestWork<TestWork>("test-work-2");
@@ -524,7 +524,7 @@ TEST_CASE("work scheduling compare trees", "[work]")
         //       WS (Work Scheduler)
         //       |
         //      seq
-        //     / | \
+        //     / | \.
         //   w3  w2 w1 (use work sequence)
 
         auto w1 = std::make_shared<TestWork>(*appPtr, "work-1");

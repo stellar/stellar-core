@@ -179,8 +179,8 @@
 //     C is a quorum and (N \ C) has a quorum
 //
 // and if such a C exists, it will also be discovered by some other branch of
-// the search tree scanning the complement, that is enumerating subsets of (N \
-// C) which has size less than MAXSZ. So there's no point looking at the
+// the search tree scanning the complement, that is enumerating subsets of
+// (N \ C) which has size less than MAXSZ. So there's no point looking at the
 // bigger-than-half subsets in detail. So we add an exit:
 //
 //     def enumerate(C, R):
