@@ -222,7 +222,7 @@ class TransactionQueue
 #endif
 };
 
-static const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
-    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "FILTERED"};
+extern const char* TX_STATUS_STRING[static_cast<int>(
+    TransactionQueue::AddResult::ADD_STATUS_COUNT)];
+
 }
