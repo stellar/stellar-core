@@ -654,31 +654,13 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
     {
         for (auto const& tx : m.second.mTransactions)
         {
-            // The previous version of this enforced the following constraint:
-            // there may be any number of transactions for a given source
-            // account, but all transactions for that source account must
-            // satisfy one of the following mutually exclusive conditions
-            // (1) sequence number <= startingSeq - 1
-            // (2) sequence number >= startingSeq
-            //
-            // This version enforces the following constraint: it is forbidden
-            // to include a transaction with
-            //     sequence number == startingSeq
-            // The new condition is strictly stronger. First, note that the
-            // sequence numbers (assuming 0 < k < n, and the source account has
-            // initial number startingSeq - n - 1)
-            //     startingSeq - n, ..., startingSeq - n + k
-            // would be accepted by the new condition and by condition (1)
-            // above. Second, note that the sequence numbers (assuming 0 < k,
-            // 0 < n, and the source account has initial sequence number
-            // startingSeq + n - 1)
-            //     startingSeq + n, ..., startingSeq + n + k
-            // would be accepted by the new condition and by condition (2)
-            // above. These are the only sequence numbers that would be accepted
-            // by the new condition. But the old condition would also accept
-            // (assuming 0 < k, and the source account has initial sequence
-            // number startingSeq - 1)
-            //     startingSeq, ..., startingSeq + k .
+            // This guarantees that a node will never nominate a transaction set
+            // containing a transaction with seqNum == startingSeq. This is
+            // required to support the analogous transaction validity condition
+            // in TransactionFrame::isBadSeq. As a consequence, all transactions
+            // for a source account will either have
+            //     - sequence numbers above startingSeq, or
+            //     - sequence numbers below startingSeq.
             if (tx.mTx->getSeqNum() == startingSeq)
             {
                 break;

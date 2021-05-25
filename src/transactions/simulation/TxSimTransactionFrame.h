@@ -26,7 +26,7 @@ class TxSimTransactionFrame : public TransactionFrame
                                                   OperationResult& res,
                                                   size_t index) override;
 
-    bool isBadSeq(int64_t seqNum) const override;
+    bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const override;
 
     int64_t getFee(LedgerHeader const& header, int64_t baseFee,
                    bool applying) const override;
