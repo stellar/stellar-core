@@ -595,14 +595,6 @@ Database::initialize()
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
     Upgrades::dropAll(*this);
-    if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        mApp.getLedgerTxnRoot().dropAccounts();
-        mApp.getLedgerTxnRoot().dropOffers();
-        mApp.getLedgerTxnRoot().dropTrustLines();
-        mApp.getLedgerTxnRoot().dropData();
-        mApp.getLedgerTxnRoot().dropClaimableBalances();
-    }
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
@@ -613,6 +605,12 @@ Database::initialize()
     BanManager::dropAll(*this);
     putSchemaVersion(MIN_SCHEMA_VERSION);
     mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
+
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        mApp.getPersistentState().setRebuildForType(t);
+    }
 
     LOG_INFO(DEFAULT_LOG, "* ");
     LOG_INFO(DEFAULT_LOG, "* The database has been initialized");
