@@ -211,7 +211,8 @@ runApp(Application::pointer app)
 }
 
 bool
-applyBucketsForLCL(Application& app)
+applyBucketsForLCL(Application& app,
+                   std::function<bool(LedgerEntryType)> onlyApply)
 {
     auto has = app.getLedgerManager().getLastClosedLedgerHAS();
     auto lclHash =
@@ -227,12 +228,18 @@ applyBucketsForLCL(Application& app)
 
     std::map<std::string, std::shared_ptr<Bucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
-        buckets, has, maxProtocolVersion);
+        buckets, has, maxProtocolVersion, onlyApply);
 
     while (app.getClock().crank(true) && !work->isDone())
         ;
 
     return work->getState() == BasicWork::State::WORK_SUCCESS;
+}
+
+bool
+applyBucketsForLCL(Application& app)
+{
+    return applyBucketsForLCL(app, [](LedgerEntryType) { return true; });
 }
 
 void
