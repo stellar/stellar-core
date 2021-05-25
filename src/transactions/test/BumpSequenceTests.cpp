@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -13,6 +15,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -79,5 +82,22 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
         for_versions_to(9, *app, [&]() {
             REQUIRE_THROWS_AS(a.bumpSequence(1), ex_opNOT_SUPPORTED);
         });
+    }
+
+    SECTION("seqnum equals starting sequence")
+    {
+        closeLedgerOn(*app, 2, 1, 1, 2020);
+
+        int64_t newSeq = 0;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq + 1;
+            newSeq = getStartingSequenceNumber(ledgerSeq) - 1;
+        }
+
+        a.bumpSequence(newSeq);
+        REQUIRE(a.loadSequenceNumber() == newSeq);
+        REQUIRE_THROWS_AS(applyTx({a.tx({payment(root, 1)})}, *app),
+                          ex_txBAD_SEQ);
     }
 }
