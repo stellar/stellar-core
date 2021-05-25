@@ -481,7 +481,9 @@ LedgerTxnRoot::Impl::dropAccounts()
            "thresholds         TEXT         NOT NULL,"
            "flags              INT          NOT NULL,"
            "signers            TEXT,"
-           "lastmodified       INT          NOT NULL"
+           "lastmodified       INT          NOT NULL,"
+           "extension          TEXT,"
+           "ledgerext          TEXT         NOT NULL"
            ");";
     if (!mDatabase.isSqlite())
     {

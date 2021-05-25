@@ -330,6 +330,8 @@ LedgerTxnRoot::Impl::dropData()
                            << " NOT NULL,"
                            << "datavalue    VARCHAR(112) NOT NULL,"
                               "lastmodified INT          NOT NULL,"
+                              "extension    TEXT,"
+                              "ledgerext    TEXT         NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
                               ");";
     if (!mDatabase.isSqlite())

@@ -208,30 +208,12 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 13:
         if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
         {
-            // Add columns for the LedgerEntry extension to each of
-            // the tables that stores a type of ledger entry.
-            addTextColumn("accounts", "ledgerext");
-            addTextColumn("trustlines", "ledgerext");
-            addTextColumn("accountdata", "ledgerext");
-            addTextColumn("offers", "ledgerext");
-            // Absorb the explicit columns of the extension fields of
-            // AccountEntry and TrustLineEntry into single opaque
-            // blobs of XDR each of which represents an entire extension.
-            convertAccountExtensionsToOpaqueXDR();
-            convertTrustLineExtensionsToOpaqueXDR();
-            // Neither earlier schema versions nor the one that we're upgrading
-            // to now had any extension columns in the offers or accountdata
-            // tables, but we add columns in this version, even though we're not
-            // going to use them for anything other than writing out opaque
-            // base64-encoded empty v0 XDR extensions, so that, as with the
-            // other LedgerEntry extensions, we'll be able to add such
-            // extensions in the future without bumping the database schema
-            // version, writing any upgrade code, or changing the SQL that reads
-            // and writes those tables.
-            addTextColumn("offers", "extension");
-            addTextColumn("accountdata", "extension");
-
-            mApp.getLedgerTxnRoot().dropClaimableBalances();
+            std::vector<LedgerEntryType> let{ACCOUNT, TRUSTLINE, OFFER, DATA,
+                                             CLAIMABLE_BALANCE};
+            for (auto t : let)
+            {
+                mApp.getPersistentState().setRebuildForType(t);
+            }
         }
         break;
     default:

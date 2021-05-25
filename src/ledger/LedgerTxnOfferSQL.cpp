@@ -671,6 +671,8 @@ LedgerTxnRoot::Impl::dropOffers()
            "price            DOUBLE PRECISION NOT NULL,"
            "flags            INT              NOT NULL,"
            "lastmodified     INT              NOT NULL,"
+           "extension        TEXT,"
+           "ledgerext        TEXT             NOT NULL,"
            "PRIMARY KEY      (offerid)"
            ");";
     mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
