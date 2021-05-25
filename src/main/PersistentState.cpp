@@ -18,7 +18,8 @@ using namespace std;
 
 std::string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "lastscpdata",
-    "databaseschema",   "networkpassphrase",   "ledgerupgrades"};
+    "databaseschema",   "networkpassphrase",   "ledgerupgrades",
+    "rebuildledger"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
@@ -47,7 +48,7 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
         throw out_of_range("unknown entry");
     }
     auto res = mapping[n];
-    if (n == kLastSCPData && subscript > 0)
+    if ((n == kLastSCPData && subscript > 0) || n == kRebuildLedger)
     {
         res += std::to_string(subscript);
     }
@@ -94,6 +95,27 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
     auto slotIdx = static_cast<uint32>(
         slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
     updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
+}
+
+bool
+PersistentState::shouldRebuildForType(LedgerEntryType let)
+{
+    ZoneScoped;
+    return !getFromDb(getStoreStateName(kRebuildLedger, let)).empty();
+}
+
+void
+PersistentState::clearRebuildForType(LedgerEntryType let)
+{
+    ZoneScoped;
+    updateDb(getStoreStateName(kRebuildLedger, let), "");
+}
+
+void
+PersistentState::setRebuildForType(LedgerEntryType let)
+{
+    ZoneScoped;
+    updateDb(getStoreStateName(kRebuildLedger, let), "1");
 }
 
 void
