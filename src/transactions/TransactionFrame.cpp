@@ -472,9 +472,10 @@ TransactionFrame::processSignatures(ValidationType cv,
 }
 
 bool
-TransactionFrame::isBadSeq(int64_t seqNum) const
+TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 {
-    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
+    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum() ||
+           getSeqNum() == getStartingSequenceNumber(header);
 }
 
 TransactionFrame::ValidationType
@@ -513,7 +514,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         {
             current = sourceAccount.current().data.account().seqNum;
         }
-        if (isBadSeq(current))
+        if (isBadSeq(header, current))
         {
             getResult().result.code(txBAD_SEQ);
             return res;

@@ -79,7 +79,8 @@ TxSimTransactionFrame::isTooLate(LedgerTxnHeader const& header,
 }
 
 bool
-TxSimTransactionFrame::isBadSeq(int64_t seqNum) const
+TxSimTransactionFrame::isBadSeq(LedgerTxnHeader const& header,
+                                int64_t seqNum) const
 {
     return mSimulationResult.result.code() == txBAD_SEQ;
 }
