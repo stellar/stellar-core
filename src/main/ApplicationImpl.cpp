@@ -12,6 +12,7 @@
 #include "util/asio.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "catchup/ApplyBucketsWork.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
@@ -29,6 +30,7 @@
 #include "ledger/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
@@ -130,6 +132,84 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             mWorkerIOContext.run();
         }};
         mWorkerThreads.emplace_back(std::move(thread));
+    }
+}
+
+static void
+maybeRebuildLedger(Application& app, bool applyBuckets)
+{
+    std::set<LedgerEntryType> toRebuild;
+    auto& ps = app.getPersistentState();
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        if (ps.shouldRebuildForType(t))
+        {
+            toRebuild.emplace(t);
+        }
+    }
+    if (toRebuild.empty())
+    {
+        return;
+    }
+
+    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        app.getDatabase().clearPreparedStatementCache();
+        soci::transaction tx(app.getDatabase().getSession());
+
+        for (auto let : toRebuild)
+        {
+            switch (let)
+            {
+            case ACCOUNT:
+                LOG_INFO(DEFAULT_LOG, "Dropping accounts");
+                app.getLedgerTxnRoot().dropAccounts();
+                break;
+            case TRUSTLINE:
+                LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
+                app.getLedgerTxnRoot().dropTrustLines();
+                break;
+            case OFFER:
+                LOG_INFO(DEFAULT_LOG, "Dropping offers");
+                app.getLedgerTxnRoot().dropOffers();
+                break;
+            case DATA:
+                LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
+                app.getLedgerTxnRoot().dropData();
+                break;
+            case CLAIMABLE_BALANCE:
+                LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
+                app.getLedgerTxnRoot().dropClaimableBalances();
+                break;
+            default:
+                abort();
+            }
+        }
+
+        tx.commit();
+    }
+
+    // No transaction is needed. ApplyBucketsWork breaks the apply into many
+    // small chunks, each of which has its own transaction. If it fails at some
+    // point in the middle, then rebuildledger will not be cleared so this will
+    // run again on next start up.
+    if (applyBuckets)
+    {
+        LOG_INFO(DEFAULT_LOG, "Rebuilding ledger tables by applying buckets");
+        auto filter = [&toRebuild](LedgerEntryType t) {
+            return toRebuild.find(t) != toRebuild.end();
+        };
+        if (!applyBucketsForLCL(app, filter))
+        {
+            throw std::runtime_error("Could not rebuild ledger tables");
+        }
+        LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
+    }
+
+    for (auto let : toRebuild)
+    {
+        ps.clearRebuildForType(let);
     }
 }
 
@@ -236,6 +316,7 @@ ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     mDatabase->upgradeToCurrentSchema();
+    maybeRebuildLedger(*this, false);
     mLedgerManager->startNewLedger();
 }
 
