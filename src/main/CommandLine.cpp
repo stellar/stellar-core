@@ -603,7 +603,6 @@ runCatchup(CommandLineArgs const& args)
     std::string archive;
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
-    bool replayInMemory = false;
     bool inMemory = false;
     bool forceBack = false;
     uint32_t startAtLedger = 0;
@@ -653,11 +652,6 @@ runCatchup(CommandLineArgs const& args)
             "verify all files from the archive for the catchup range");
     };
 
-    auto replayInMemoryParser = [](bool& replayInMemory) {
-        return clara::Opt{replayInMemory}["--replay-in-memory"](
-            "deprecated: use --in-memory flag, common to 'catchup' and 'run'");
-    };
-
     auto forceBackParser = [](bool& forceBackClean) {
         return clara::Opt{forceBackClean}["--force-back"](
             "force ledger state to a previous state, preserving older "
@@ -670,8 +664,7 @@ runCatchup(CommandLineArgs const& args)
          catchupArchiveParser,
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
-         validationParser(completeValidation),
-         replayInMemoryParser(replayInMemory), inMemoryParser(inMemory),
+         validationParser(completeValidation), inMemoryParser(inMemory),
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
          metadataOutputStreamParser(stream), forceBackParser(forceBack)},
         [&] {
@@ -693,15 +686,15 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            maybeEnableInMemoryMode(config, (inMemory || replayInMemory),
-                                    startAtLedger, startAtHash,
+            maybeEnableInMemoryMode(config, inMemory, startAtLedger,
+                                    startAtHash,
                                     /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             int result;
             {
-                auto app = Application::create(clock, config, replayInMemory);
+                auto app = Application::create(clock, config, inMemory);
                 auto const& ham = app->getHistoryArchiveManager();
                 auto archivePtr = ham.getHistoryArchive(archive);
                 if (iequals(archive, "any"))
