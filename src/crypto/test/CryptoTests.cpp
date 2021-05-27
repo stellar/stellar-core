@@ -394,7 +394,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     uint8_t version = 2;
 
     // check round trip
-    for (int size = 0; size < 100; size++)
+    for (size_t size = 0; size < 100; size++)
     {
         std::vector<uint8_t> in(input(size));
 

@@ -77,8 +77,8 @@ toXdr(PeerBareAddress const& address)
     return result;
 }
 
-constexpr const auto BATCH_SIZE = 1000;
-constexpr const auto MAX_FAILURES = 10;
+constexpr const size_t BATCH_SIZE = 1000;
+constexpr const size_t MAX_FAILURES = 10;
 
 PeerManager::PeerManager(Application& app)
     : mApp(app)
@@ -90,7 +90,7 @@ PeerManager::PeerManager(Application& app)
 }
 
 std::vector<PeerBareAddress>
-PeerManager::loadRandomPeers(PeerQuery const& query, int size)
+PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
 {
     ZoneScoped;
     // BATCH_SIZE should always be bigger, so it should win anyway
@@ -105,7 +105,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
     {
         conditions.push_back("nextattempt <= :nextattempt");
     }
-    if (query.mMaxNumFailures >= 0)
+    if (query.mMaxNumFailures.has_value())
     {
         conditions.push_back("numfailures <= :maxFailures");
     }
@@ -119,14 +119,14 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
     }
     assert(!conditions.empty());
     std::string where = conditions[0];
-    for (auto i = 1; i < conditions.size(); i++)
+    for (size_t i = 1; i < conditions.size(); i++)
     {
         where += " AND " + conditions[i];
     }
 
     std::tm nextAttempt =
         VirtualClock::systemPointToTm(mApp.getClock().system_now());
-    int maxNumFailures = query.mMaxNumFailures;
+    size_t maxNumFailures{0};
     int exactType = static_cast<int>(query.mTypeFilter);
     int inboundType = static_cast<int>(PeerType::INBOUND);
 
@@ -135,8 +135,9 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
         {
             st.exchange(soci::use(nextAttempt));
         }
-        if (query.mMaxNumFailures >= 0)
+        if (query.mMaxNumFailures.has_value())
         {
+            maxNumFailures = *query.mMaxNumFailures;
             st.exchange(soci::use(maxNumFailures));
         }
         if (query.mTypeFilter == PeerTypeFilter::ANY_OUTBOUND)
@@ -150,14 +151,14 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
     };
 
     auto result = std::vector<PeerBareAddress>{};
-    auto count = countPeers(where, bindToStatement);
+    size_t count = countPeers(where, bindToStatement);
     if (count == 0)
     {
         return result;
     }
 
-    auto maxOffset = count > size ? count - size : 0;
-    auto offset = rand_uniform<int>(0, maxOffset);
+    size_t maxOffset = count > size ? count - size : 0;
+    size_t offset = rand_uniform<size_t>(0, maxOffset);
     result = loadPeers(size, offset, where, bindToStatement);
 
     std::shuffle(std::begin(result), std::end(result), gRandomEngine);
@@ -165,7 +166,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
 }
 
 void
-PeerManager::removePeersWithManyFailures(int minNumFailures,
+PeerManager::removePeersWithManyFailures(size_t minNumFailures,
                                          PeerBareAddress const* address)
 {
     ZoneScoped;
@@ -206,7 +207,7 @@ PeerManager::removePeersWithManyFailures(int minNumFailures,
 }
 
 std::vector<PeerBareAddress>
-PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
+PeerManager::getPeersToSend(size_t size, PeerBareAddress const& address)
 {
     ZoneScoped;
     auto keep = [&](PeerBareAddress const& pba) {
@@ -357,14 +358,14 @@ namespace
 {
 
 static std::chrono::seconds
-computeBackoff(int numFailures)
+computeBackoff(size_t numFailures)
 {
-    constexpr const auto SECONDS_PER_BACKOFF = 10;
-    constexpr const auto MAX_BACKOFF_EXPONENT = 10;
+    constexpr const size_t SECONDS_PER_BACKOFF = 10;
+    constexpr const size_t MAX_BACKOFF_EXPONENT = 10;
 
-    auto backoffCount = std::min<int32_t>(MAX_BACKOFF_EXPONENT, numFailures);
+    size_t backoffCount = std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures);
     auto nsecs = std::chrono::seconds(
-        std::rand() % int(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF) + 1);
+        std::rand() % ((1 << backoffCount) * SECONDS_PER_BACKOFF) + 1);
     return nsecs;
 }
 }
@@ -488,12 +489,12 @@ PeerManager::update(PeerBareAddress const& address, PeerType observedType,
     store(address, peer.first, peer.second);
 }
 
-int
+size_t
 PeerManager::countPeers(std::string const& where,
                         std::function<void(soci::statement&)> const& bind)
 {
     ZoneScoped;
-    int count = 0;
+    size_t count = 0;
 
     try
     {
@@ -517,7 +518,7 @@ PeerManager::countPeers(std::string const& where,
 }
 
 std::vector<PeerBareAddress>
-PeerManager::loadPeers(int limit, int offset, std::string const& where,
+PeerManager::loadPeers(size_t limit, size_t offset, std::string const& where,
                        std::function<void(soci::statement&)> const& bind)
 {
     ZoneScoped;

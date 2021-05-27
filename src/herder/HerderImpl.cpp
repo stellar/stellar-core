@@ -1663,7 +1663,7 @@ HerderImpl::restoreUpgrades()
             // use common code to set status
             setUpgrades(p);
         }
-        catch (std::exception e)
+        catch (std::exception& e)
         {
             CLOG_INFO(Herder,
                       "Error restoring upgrades '{}' with upgrades '{}'",
@@ -1751,7 +1751,7 @@ void
 HerderImpl::getMoreSCPState()
 {
     ZoneScoped;
-    int const NB_PEERS_TO_ASK = 2;
+    size_t const NB_PEERS_TO_ASK = 2;
 
     auto low = getMinLedgerSeqToAskPeers();
 
@@ -1759,7 +1759,7 @@ HerderImpl::getMoreSCPState()
 
     // ask a few random peers their SCP messages
     auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();
-    for (int i = 0; i < NB_PEERS_TO_ASK && i < r.size(); i++)
+    for (size_t i = 0; i < NB_PEERS_TO_ASK && i < r.size(); i++)
     {
         r[i]->sendGetScpState(low);
     }

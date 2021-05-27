@@ -265,7 +265,7 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
                     processed = true;
                     break;
                 }
-                catch (xdr::xdr_runtime_error)
+                catch (xdr::xdr_runtime_error&)
                 {
                 }
             }

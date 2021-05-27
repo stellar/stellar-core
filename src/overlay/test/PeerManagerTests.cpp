@@ -268,7 +268,7 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
     auto peerRecords = std::map<int, PeerRecord>{};
     for (auto time : {past, now, future})
     {
-        for (auto numFailures : {0, 1})
+        for (size_t numFailures : {0, 1})
         {
             for (auto type :
                  {PeerType::INBOUND, PeerType::OUTBOUND, PeerType::PREFERRED})
@@ -291,9 +291,9 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
                 return false;
             }
         }
-        if (peerQuery.mMaxNumFailures >= 0)
+        if (peerQuery.mMaxNumFailures.has_value())
         {
-            if (peerRecord.mNumFailures > peerQuery.mMaxNumFailures)
+            if (peerRecord.mNumFailures > *peerQuery.mMaxNumFailures)
             {
                 return false;
             }
@@ -326,13 +326,15 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
 
     for (auto useNextAttempt : {false, true})
     {
-        for (auto numFailures : {-1, 0})
+        for (std::optional<size_t> maxNumFailures :
+             {std::optional<size_t>(std::nullopt),
+              std::make_optional<size_t>(1)})
         {
             for (auto filter :
                  {PeerTypeFilter::INBOUND_ONLY, PeerTypeFilter::OUTBOUND_ONLY,
                   PeerTypeFilter::PREFERRED_ONLY, PeerTypeFilter::ANY_OUTBOUND})
             {
-                auto query = PeerQuery{useNextAttempt, numFailures, filter};
+                auto query = PeerQuery{useNextAttempt, maxNumFailures, filter};
                 auto ports = getPorts(query);
                 for (auto record : peerRecords)
                 {
@@ -511,7 +513,7 @@ TEST_CASE("purge peer table", "[overlay][PeerManager]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& peerManager = app->getOverlayManager().getPeerManager();
-    auto record = [](int numFailures) {
+    auto record = [](size_t numFailures) {
         return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
     };
 

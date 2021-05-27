@@ -469,7 +469,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         {
             tm = VirtualClock::isoStringToTm(upgradeTime);
         }
-        catch (std::exception)
+        catch (std::exception&)
         {
             retStr =
                 fmt::format("could not parse upgradetime: '{}'", upgradeTime);

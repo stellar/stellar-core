@@ -216,7 +216,7 @@ formatSize(size_t size)
     const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
     double dsize = static_cast<double>(size);
 
-    auto i = 0;
+    size_t i = 0;
     while (dsize >= 1024 && i < suffixes.size() - 1)
     {
         dsize /= 1024;

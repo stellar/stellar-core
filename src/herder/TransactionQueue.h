@@ -135,7 +135,7 @@ class TransactionQueue
     AccountTxQueueInfo
     getAccountTransactionQueueInfo(AccountID const& accountID) const;
 
-    int countBanned(int index) const;
+    size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
 
     std::shared_ptr<TxSetFrame>
@@ -222,7 +222,7 @@ class TransactionQueue
 #endif
 };
 
-static const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
-    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "FILTERED"};
+extern const char* TX_STATUS_STRING[static_cast<int>(
+    TransactionQueue::AddResult::ADD_STATUS_COUNT)];
+
 }

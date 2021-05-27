@@ -29,6 +29,10 @@ namespace stellar
 {
 const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
+const char* TX_STATUS_STRING[static_cast<int>(
+    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
+    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "FILTERED"};
+
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
                                    uint32 banDepth, uint32 poolLedgerMultiplier)
     : mApp(app)
@@ -616,7 +620,7 @@ TransactionQueue::shift()
         }
     }
 
-    for (auto i = 0; i < sizes.size(); i++)
+    for (size_t i = 0; i < sizes.size(); i++)
     {
         mSizeByAge[i]->set_count(sizes[i]);
     }
@@ -626,10 +630,10 @@ TransactionQueue::shift()
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
 
-int
+size_t
 TransactionQueue::countBanned(int index) const
 {
-    return static_cast<int>(mBannedTransactions[index].size());
+    return mBannedTransactions[index].size();
 }
 
 bool

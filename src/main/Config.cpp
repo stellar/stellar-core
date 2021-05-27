@@ -24,6 +24,7 @@
 #include <functional>
 #include <numeric>
 #include <sstream>
+#include <type_traits>
 #include <unordered_set>
 
 namespace stellar
@@ -275,9 +276,23 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
         throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
     int64_t v = item.second->as<int64_t>()->get();
-    if (v < min || v > max)
+    if (std::is_signed_v<T>)
+    {
+        if (v < min || v > max)
+        {
+            throw std::invalid_argument(fmt::format("bad '{}'", item.first));
+        }
+    }
+    else if (v < 0)
     {
         throw std::invalid_argument(fmt::format("bad '{}'", item.first));
+    }
+    else
+    {
+        if (static_cast<T>(v) < min || static_cast<T>(v) > max)
+        {
+            throw std::invalid_argument(fmt::format("bad '{}'", item.first));
+        }
     }
     return static_cast<T>(v);
 }
@@ -1011,7 +1026,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
-                MAX_CONCURRENT_SUBPROCESSES = readInt<int>(item, 1);
+                MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
             }
             else if (item.first == "MINIMUM_IDLE_PERCENT")
             {

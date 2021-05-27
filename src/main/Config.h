@@ -328,8 +328,8 @@ class Config : public std::enable_shared_from_this<Config>
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
     int FLOOD_TX_PERIOD_MS;
-    static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
-    static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
+    static constexpr size_t const POSSIBLY_PREFERRED_EXTRA = 2;
+    static constexpr size_t const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
     // survey config
     std::set<PublicKey> SURVEYOR_KEYS;
@@ -356,7 +356,7 @@ class Config : public std::enable_shared_from_this<Config>
     int WORKER_THREADS;
 
     // process-management config
-    int MAX_CONCURRENT_SUBPROCESSES;
+    size_t MAX_CONCURRENT_SUBPROCESSES;
 
     // SCP config
     SecretKey NODE_SEED;

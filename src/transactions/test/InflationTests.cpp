@@ -173,7 +173,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
 static void
 doInflation(Application& app, int ledgerVersion, int nbAccounts,
             std::function<int64(int)> getBalance,
-            std::function<int(int)> getVote, int expectedWinnerCount)
+            std::function<int(int)> getVote, size_t expectedWinnerCount)
 {
     auto getFeePool = [&] {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -240,7 +240,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     InflationResult const& infResult =
         getFirstResult(*txFrame).tr().inflationResult();
     auto const& payouts = infResult.payouts();
-    int actualChanges = 0;
+    size_t actualChanges = 0;
 
     for (int i = 0; i < nbAccounts; i++)
     {
@@ -473,7 +473,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             std::function<int(int)> voteFunc;
             std::function<int64(int)> balanceFunc;
             int nbAccounts = 0;
-            int expectedWinners = 0;
+            size_t expectedWinners = 0;
 
             auto verify = [&]() {
                 if (nbAccounts != 0)
@@ -596,7 +596,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
             closeLedgerOn(*app, 2, 21, 7, 2014);
 
-            int expectedWinners = (expectedPayout > 0);
+            size_t expectedWinners = (expectedPayout > 0);
             doInflation(*app, getLedgerVersion(), 2, balanceFunc, voteFunc,
                         expectedWinners);
         };

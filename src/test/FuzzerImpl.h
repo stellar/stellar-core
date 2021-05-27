@@ -22,11 +22,11 @@ struct Operation;
 namespace FuzzUtils
 {
 size_t static constexpr NUM_STORED_LEDGER_KEYS = 0x100U;
-size_t static constexpr NUM_UNVALIDATED_LEDGER_KEYS = 0x40U;
+using StoredLedgerKeys = std::array<LedgerKey, NUM_STORED_LEDGER_KEYS>;
+StoredLedgerKeys::difference_type static constexpr NUM_UNVALIDATED_LEDGER_KEYS =
+    0x40;
 size_t static constexpr NUM_VALIDATED_LEDGER_KEYS =
     NUM_STORED_LEDGER_KEYS - NUM_UNVALIDATED_LEDGER_KEYS;
-
-using StoredLedgerKeys = std::array<LedgerKey, NUM_STORED_LEDGER_KEYS>;
 }
 
 class TransactionFuzzer : public Fuzzer
