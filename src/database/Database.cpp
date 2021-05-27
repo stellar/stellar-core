@@ -61,7 +61,7 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 12;
+static unsigned long const MIN_SCHEMA_VERSION = 13;
 static unsigned long const SCHEMA_VERSION = 14;
 
 // These should always match our compiled version precisely, since we are
@@ -205,17 +205,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 13:
-        if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-        {
-            std::vector<LedgerEntryType> let{ACCOUNT, TRUSTLINE, OFFER, DATA,
-                                             CLAIMABLE_BALANCE};
-            for (auto t : let)
-            {
-                mApp.getPersistentState().setRebuildForType(t);
-            }
-        }
-        break;
     case 14:
         mApp.getPersistentState().setRebuildForType(OFFER);
         break;
