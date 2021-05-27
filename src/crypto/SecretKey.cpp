@@ -342,11 +342,11 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
 
     std::string missStr("miss");
     ZoneText(missStr.c_str(), missStr.size());
-    ++gVerifyCacheMiss;
     bool ok =
         (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
                                      key.ed25519().data()) == 0);
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    ++gVerifyCacheMiss;
     gVerifySigCache.put(cacheKey, ok);
     return ok;
 }

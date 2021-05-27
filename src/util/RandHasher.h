@@ -7,7 +7,7 @@
 #include <functional>
 #include <limits>
 
-namespace std
+namespace stellar
 {
 template <class T, class Hasher = std::hash<T>> class RandHasher
 {
