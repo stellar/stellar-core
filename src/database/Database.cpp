@@ -400,12 +400,6 @@ Database::initialize()
     putSchemaVersion(MIN_SCHEMA_VERSION);
     mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
 
-    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        mApp.getPersistentState().setRebuildForType(t);
-    }
-
     LOG_INFO(DEFAULT_LOG, "* ");
     LOG_INFO(DEFAULT_LOG, "* The database has been initialized");
     LOG_INFO(DEFAULT_LOG, "* ");

@@ -214,7 +214,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
 }
 
 void
-ApplicationImpl::initialize(bool createNewDB)
+ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 {
     // Subtle: initialize the bucket manager first before initializing the
     // database. This is needed as some modes in core (such as in-memory) use a
@@ -280,7 +280,7 @@ ApplicationImpl::initialize(bool createNewDB)
     }
     else
     {
-        upgradeToCurrentSchemaAndMaybeRebuildLedger(true);
+        upgradeToCurrentSchemaAndMaybeRebuildLedger(true, forceRebuild);
     }
 
     // Subtle: process manager should come to existence _after_ BucketManager
@@ -315,13 +315,23 @@ void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
-    upgradeToCurrentSchemaAndMaybeRebuildLedger(false);
+    upgradeToCurrentSchemaAndMaybeRebuildLedger(false, true);
     mLedgerManager->startNewLedger();
 }
 
 void
-ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets)
+ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
+                                                             bool forceRebuild)
 {
+    if (forceRebuild)
+    {
+        auto& ps = getPersistentState();
+        for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+        {
+            ps.setRebuildForType(static_cast<LedgerEntryType>(let));
+        }
+    }
+
     mDatabase->upgradeToCurrentSchema();
     maybeRebuildLedger(*this, applyBuckets);
 }
