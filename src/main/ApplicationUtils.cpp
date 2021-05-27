@@ -353,7 +353,14 @@ selfCheck(Config cfg)
         blcOk = false;
     }
 
-    if (seq->getState() == BasicWork::State::WORK_SUCCESS && blcOk)
+    LOG_INFO(DEFAULT_LOG, "Self-check phase 4: crypto benchmarking");
+    size_t signPerSec = 0, verifyPerSec = 0;
+    SecretKey::benchmarkOpsPerSecond(signPerSec, verifyPerSec, 10000);
+    LOG_INFO(DEFAULT_LOG, "Benchmarked {} signatures / sec", signPerSec);
+    LOG_INFO(DEFAULT_LOG, "Benchmarked {} verifications / sec", verifyPerSec);
+
+    if (seq1->getState() == BasicWork::State::WORK_SUCCESS &&
+        seq2->getState() == BasicWork::State::WORK_SUCCESS && blcOk)
     {
         LOG_INFO(DEFAULT_LOG, "Self-check succeeded");
         return 0;
