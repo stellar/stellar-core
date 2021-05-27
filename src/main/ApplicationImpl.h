@@ -221,5 +221,7 @@ class ApplicationImpl : public Application
 
     void
     advanceToLedgerBeforeManualCloseTarget(uint32_t const& targetLedgerSeq);
+
+    void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets);
 };
 }

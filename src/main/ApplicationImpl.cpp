@@ -280,7 +280,7 @@ ApplicationImpl::initialize(bool createNewDB)
     }
     else
     {
-        mDatabase->upgradeToCurrentSchema();
+        upgradeToCurrentSchemaAndMaybeRebuildLedger(true);
     }
 
     // Subtle: process manager should come to existence _after_ BucketManager
@@ -315,9 +315,15 @@ void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
-    mDatabase->upgradeToCurrentSchema();
-    maybeRebuildLedger(*this, false);
+    upgradeToCurrentSchemaAndMaybeRebuildLedger(false);
     mLedgerManager->startNewLedger();
+}
+
+void
+ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets)
+{
+    mDatabase->upgradeToCurrentSchema();
+    maybeRebuildLedger(*this, applyBuckets);
 }
 
 void
