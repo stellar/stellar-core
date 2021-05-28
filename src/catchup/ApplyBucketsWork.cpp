@@ -15,6 +15,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
@@ -88,9 +89,21 @@ ApplyBucketsWork::onReset()
 
     if (!isAborting())
     {
-        // clear ledgerTxn state of all ledger entries in preparation of bucket
-        // apply
-        mApp.resetLedgerState();
+        // When applying buckets with accounts, we have to make sure that the
+        // root account has been removed. This comes into play, for example,
+        // when applying buckets from genesis the root account already exists.
+        if (mEntryTypeFilter(ACCOUNT))
+        {
+            SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
+
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto rootAcc = loadAccount(ltx, skey.getPublicKey());
+            if (rootAcc)
+            {
+                rootAcc.erase();
+            }
+            ltx.commit();
+        }
 
         auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
             if (bucket->getSize() > 0)
