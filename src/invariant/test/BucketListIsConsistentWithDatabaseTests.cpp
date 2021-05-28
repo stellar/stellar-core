@@ -517,18 +517,6 @@ TEST_CASE("BucketListIsConsistentWithDatabase empty ledgers",
     REQUIRE_NOTHROW(blg.applyBuckets());
 }
 
-TEST_CASE("BucketListIsConsistentWithDatabase multiple applies",
-          "[invariant][bucketlistconsistent]")
-{
-    BucketListGenerator blg;
-    blg.generateLedgers(100);
-    REQUIRE_NOTHROW(blg.applyBuckets());
-    blg.generateLedgers(100);
-    REQUIRE_NOTHROW(blg.applyBuckets());
-    blg.generateLedgers(100);
-    REQUIRE_NOTHROW(blg.applyBuckets());
-}
-
 TEST_CASE("BucketListIsConsistentWithDatabase test root account",
           "[invariant][bucketlistconsistent]")
 {
