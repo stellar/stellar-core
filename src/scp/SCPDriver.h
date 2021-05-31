@@ -141,11 +141,10 @@ class SCPDriver
     virtual std::string getValueString(Value const& v) const;
 
     // `toStrKey` returns StrKey encoded string representation
-    virtual std::string toStrKey(PublicKey const& pk,
-                                 bool fullKey = true) const;
+    virtual std::string toStrKey(NodeID const& pk, bool fullKey = true) const;
 
     // `toShortString` converts to the common name of a key if found
-    virtual std::string toShortString(PublicKey const& pk) const;
+    virtual std::string toShortString(NodeID const& pk) const;
 
     // `getHashOf` computes the hash for the given vector of byte vector
     virtual Hash

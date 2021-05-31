@@ -460,7 +460,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
 // value marshaling
 
 std::string
-HerderSCPDriver::toShortString(PublicKey const& pk) const
+HerderSCPDriver::toShortString(NodeID const& pk) const
 {
     return mApp.getConfig().toShortString(pk);
 }

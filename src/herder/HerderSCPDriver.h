@@ -105,7 +105,7 @@ class HerderSCPDriver : public SCPDriver
                                       Value const& value) override;
 
     // value marshaling
-    std::string toShortString(PublicKey const& pk) const override;
+    std::string toShortString(NodeID const& pk) const override;
     std::string getValueString(Value const& v) const override;
 
     // timer handling

@@ -416,7 +416,7 @@ class Config : public std::enable_shared_from_this<Config>
     // fixes values of connection-relates settings
     void adjust();
 
-    std::string toShortString(PublicKey const& pk) const;
+    std::string toShortString(NodeID const& pk) const;
 
     // fullKey true => returns full StrKey corresponding to pk
     //  otherwise, returns alias or shortString equivalent
