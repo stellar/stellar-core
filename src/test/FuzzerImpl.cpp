@@ -42,9 +42,11 @@ auto constexpr FUZZING_FEE = 1;
 auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
 auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
+auto constexpr MIN_ACCOUNT_BALANCE =
+    FUZZING_FEE * DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
 
 // must be strictly less than 255
-uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16U;
+uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 5U;
 
 void
 setShortKey(uint256& ed25519, int i)
@@ -982,25 +984,32 @@ struct AccountParameters : public SponsoredEntryParameters
     uint32_t const mOptionFlags;
 };
 
+/*
+Scenarios we are testing with the account, trustline, claimable balance, and
+offer configurations below -
+1. All possible account flags, along with issued assets.
+2. Hitting limits due to buying liabilites for both native and non-native
+   balances.
+3. Claimable balances with claimants in all possible auth states and missing
+   trustline.
+4. Claimable balances with sponsor and issuer as the claimaint.
+5. Order books for native to non-native, and non-native to non-native.
+6. Offers created by the issuer.
+7. Entries with sponsorships.
+*/
+
 std::array<
     AccountParameters,
     FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS> constexpr accountParameters{
-    {{0, 256, 0},
-     {1, 256, 0},
-     {2, 256, 0, 1}, // sponsored by account 1
+    {// This account will have all of it's entries sponsored, and buying
+     // liabilities close to INT64_MAX
+     {0, 0, 0},
+     {1, 256, AUTH_REVOCABLE_FLAG | AUTH_CLAWBACK_ENABLED_FLAG},
+     // sponsored by account 1 and AUTH_REVOCABLE so we can put a trustline
+     // into the AUTHORIZED_TO_MAINTAIN_LIABILITIES state
+     {2, 256, AUTH_REVOCABLE_FLAG, 1},
      {3, 256, AUTH_REQUIRED_FLAG},
-     {4, 256, 0},
-     {5, 256, 0},
-     {6, 256, 0},
-     {7, 256, 0},
-     {8, 256, 0},
-     {9, 256, 0},
-     {10, 256, 0},
-     {11, 256, 0},
-     {12, 256, 0},
-     {13, 256, 0},
-     {14, 256, 0},
-     {15, 256, 0}}};
+     {4, 256, AUTH_IMMUTABLE_FLAG}}};
 
 struct TrustLineParameters : public SponsoredEntryParameters
 {
@@ -1084,85 +1093,32 @@ struct TrustLineParameters : public SponsoredEntryParameters
     }
 };
 
-std::array<TrustLineParameters, 60> constexpr trustLineParameters{
-    {{0, AssetID(1), 256, 256},
-     {0, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(0, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {0, AssetID(4), 256, 256},
-     {1, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(1, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {1, AssetID(4), 256, 256},
+std::array<TrustLineParameters, 12> constexpr trustLineParameters{
+    {// this trustline will be used to increase native buying liabilites
+     TrustLineParameters::withSponsor(0, AssetID(4), INT64_MAX, 0, 2),
+
+     // these trustlines are required for offers
      {2, AssetID(1), 256, 256},
-     TrustLineParameters::withAllowTrust(2, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {2, AssetID(4), 256, 256},
-     {3, AssetID(1), 256, 256},
-     {3, AssetID(2), 256, 256},
-     {3, AssetID(4), 256, 256},
+     {3, AssetID(1), 256, 0}, // No available limit left
      {4, AssetID(1), 256, 256},
-     TrustLineParameters::withSponsor(4, AssetID(2), 256, 256,
-                                      3), // sponsored by account 3
+
+     {1, AssetID(2), 256, 256},
+     {3, AssetID(2), 256, 256},
+     {4, AssetID(2), 256, 0}, // No available limit left
+
+     // these 5 trustlines are required for claimable balances
+     {2, AssetID(4), 256, 256},
+     {3, AssetID(4), 256, 256},
      TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
                                          AUTHORIZED_FLAG),
-     {5, AssetID(1), 256, 256},
-     {5, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(5, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {5, AssetID(4, 3), 256, 256},
-     {6, AssetID(1), 256, 256},
-     {6, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(6, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {6, AssetID(4), 256, 256},
-     {7, AssetID(1), 256, 256},
-     {7, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(7, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {7, AssetID(4), 256, 256},
-     {8, AssetID(1), 256, 256},
-     {8, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(8, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {8, AssetID(4), 256, 256},
-     {9, AssetID(1), 256, 256},
-     {9, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(9, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {9, AssetID(4), 256, 256},
-     {10, AssetID(1), 256, 256},
-     {10, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(10, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {10, AssetID(4), 256, 256},
-     {11, AssetID(1), 256, 256},
-     {11, AssetID(2), 256, 256},
+
+     // deauthorize trustline
+     TrustLineParameters::withAllowTrustAndSponsor(0, AssetID(1), 0, 256, 0, 1),
+
      TrustLineParameters::withAllowTrustAndSponsor(
-         11, AssetID(3), 256, 256, AUTHORIZED_FLAG,
-         10), // sponsored by account 10
-     {11, AssetID(4), 256, 256},
-     {12, AssetID(1), 256, 256},
-     {12, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(12, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     TrustLineParameters::withSponsor(12, AssetID(4), 256, 256,
-                                      11), // sponsored by account 11
-     {13, AssetID(1), 256, 256},
-     {13, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(13, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {13, AssetID(4), 256, 256},
-     {14, AssetID(1), 256, 256},
-     {14, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(14, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {14, AssetID(4), 256, 256},
-     {15, AssetID(1), 256, 256},
-     {15, AssetID(2), 256, 256},
-     TrustLineParameters::withAllowTrust(15, AssetID(3), 256, 256,
-                                         AUTHORIZED_FLAG),
-     {15, AssetID(4), 256, 256}}};
+         0, AssetID(2), 0, 256, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG, 1)
+
+    }};
 
 struct ClaimableBalanceParameters : public SponsoredEntryParameters
 {
@@ -1193,12 +1149,28 @@ struct ClaimableBalanceParameters : public SponsoredEntryParameters
     int64_t const mAmount;
 };
 
-std::array<ClaimableBalanceParameters, 4> constexpr claimableBalanceParameters{{
-    {0, 1, AssetID(), 10},     // native asset
-    {2, 3, AssetID(4), 5},     // non-native asset
-    {4, 5, AssetID(4), 20, 6}, // sponsored by account 6
-    {4, 3, AssetID(3), 30}     // issuer is claimant
-}};
+std::array<ClaimableBalanceParameters, 11> constexpr claimableBalanceParameters{
+    {{1, 2, AssetID(), 10},     // native asset
+     {2, 3, AssetID(4), 5},     // non-native asset
+     {4, 2, AssetID(4), 20, 2}, // sponsored by account 2
+     {4, 3, AssetID(3), 30},    // issuer is claimant
+     {1, 3, AssetID(1), 100},   // 3 has no available limit
+     {1, 0, AssetID(2),
+      1}, // claimant trustline is AUTHORIZED_TO_MAINTAIN_LIABILITIES
+     {2, 0, AssetID(), 100000}, // 0 does not have enough native limit
+
+     // leave 0 with a small native balance so it can create a native buy
+     // offer for INT64_MAX - balance
+     {0, 1, AssetID(),
+      FuzzUtils::INITIAL_ACCOUNT_BALANCE -
+          (FuzzUtils::MIN_ACCOUNT_BALANCE + (2 * FuzzUtils::FUZZING_RESERVE) +
+           1),
+      2},
+
+     {3, 0, AssetID(3), 30}, // 0 has no trustline to this asset
+     {3, 0, AssetID(1), 30}, // claimant trustline is not authorized
+     // enough limit to claim. trustline is clawback enabled
+     {1, 2, AssetID(1), 100}}};
 
 struct OfferParameters : public SponsoredEntryParameters
 {
@@ -1241,63 +1213,47 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-// The current order book setup generates identical configurations for the
-// following asset pairs:
-//      XLM - A
-//      A   - B
-//      B   - C
-//      C   - D
-//
-// For any asset A and asset B, the generic order book setup will be as
-// follows:
-//
-// +------------+-----+------+--------+------------------------------+
-// |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
-// +------------+-----+------+--------+------------------------------+
-// | 0          | A   | B    |     10 | 3/2                          |
-// | 1 (issuer) | A   | B    |     50 | 3/2                          |
-// | 2          | A   | B    |    100 | 1/1 (passive)                |
-// | 2          | B   | A    |    100 | 1/1 (passive)                |
-// | 3 (issuer) | B   | A    |     10 | 10/9                         |
-// | 4          | B   | A    |     50 | 10/9                         |
-// | 0          | B   | A    |    100 | 22/7                         |
-// +------------+-----+------+--------+------------------------------+
-//
-// (This is far more symmetric than it needs to be; we will introduce more
-// variety.  In the long run, we plan to fuzz the setup itself.)
-std::array<OfferParameters, 28> constexpr orderBookParameters{
-    {{13, AssetID(), AssetID(1), 10, 3, 2, false}, // asset pair 0
-     {14, AssetID(), AssetID(1), 50, 3, 2, false,
-      15}, // sponsored by account 15
-     {15, AssetID(), AssetID(1), 100, 1, 1, true},
-     {15, AssetID(1), AssetID(), 100, 1, 1, true},
-     {1, AssetID(1), AssetID(), 10, 10, 9, false},
-     {12, AssetID(1), AssetID(), 50, 10, 9, false},
-     {13, AssetID(1), AssetID(), 100, 22, 7, false},
+std::array<OfferParameters, 16> constexpr orderBookParameters{{
 
-     {11, AssetID(1), AssetID(2), 10, 3, 2, false}, // asset pair 1
-     {1, AssetID(1), AssetID(2), 50, 3, 2, false},
-     {12, AssetID(1), AssetID(2), 100, 1, 1, true},
-     {12, AssetID(2), AssetID(1), 100, 1, 1, true},
-     {2, AssetID(2), AssetID(1), 10, 10, 9, false},
-     {10, AssetID(2), AssetID(1), 50, 10, 9, false},
-     {11, AssetID(2), AssetID(1), 100, 22, 7, false},
+    // The first two order books follow this structure
+    // +------------+-----+------+--------+------------------------------+
+    // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
+    // +------------+-----+------+--------+------------------------------+
+    // | non-issuer | A   | B    |     10 | 3/2                          |
+    // | issuer     | A   | B    |     50 | 3/2                          |
+    // | non-issuer | A   | B    |    100 | 1/1 (passive)                |
+    // | non-issuer | B   | A    |    100 | 1/1 (passive)                |
+    // | issuer     | B   | A    |     10 | 10/9                         |
+    // | non-issuer | B   | A    |     50 | 10/9                         |
+    // | non-issuer | B   | A    |    100 | 22/7                         |
+    // +------------+-----+------+--------+------------------------------+
 
-     {13, AssetID(2), AssetID(3), 10, 3, 2, false}, // asset pair 2
-     {2, AssetID(2), AssetID(3), 50, 3, 2, false},
-     {14, AssetID(2), AssetID(3), 100, 1, 1, true},
-     {14, AssetID(3), AssetID(2), 100, 1, 1, true},
-     {3, AssetID(3), AssetID(2), 10, 10, 9, false},
-     {15, AssetID(3), AssetID(2), 50, 10, 9, false},
-     {13, AssetID(3), AssetID(2), 100, 22, 7, false},
+    // This is a simple order book between a native and non-native asset
+    {2, AssetID(), AssetID(1), 10, 3, 2, false},
+    {1, AssetID(), AssetID(1), 50, 3, 2, false, 3}, // sponsored by account 3
+    {3, AssetID(), AssetID(1), 100, 1, 1, true},
+    {3, AssetID(1), AssetID(), 100, 1, 1, true},
+    {1, AssetID(1), AssetID(), 10, 10, 9, false},
+    {2, AssetID(1), AssetID(), 50, 10, 9, false},
+    {2, AssetID(1), AssetID(), 100, 22, 7, false},
 
-     {6, AssetID(3), AssetID(4), 10, 3, 2, false}, // asset pair 3
-     {3, AssetID(3), AssetID(4), 50, 3, 2, false},
-     {7, AssetID(3), AssetID(4), 100, 1, 1, true},
-     {7, AssetID(4), AssetID(3), 100, 1, 1, true},
-     {4, AssetID(4), AssetID(3), 10, 10, 9, false},
-     {8, AssetID(4), AssetID(3), 50, 10, 9, false},
-     {6, AssetID(4), AssetID(3), 100, 22, 7, false}}};
+    // This is a simple order book between two non-native assets
+    {3, AssetID(1), AssetID(2), 10, 3, 2, false},
+    {1, AssetID(1), AssetID(2), 50, 3, 2, false, 3}, // sponsored by account 3
+    {3, AssetID(1), AssetID(2), 100, 1, 1, true},
+    {3, AssetID(2), AssetID(1), 100, 1, 1, true},
+    {1, AssetID(2), AssetID(1), 10, 10, 9, false},
+    {3, AssetID(2), AssetID(1), 50, 10, 9, false},
+    {3, AssetID(2), AssetID(1), 100, 22, 7, false},
+
+    // offer to trade all of one asset to another up to the trustline limit
+    {4, AssetID(2), AssetID(), 256, 1, 1, true},
+
+    // Increase native buying liabilites for account 0
+    {0, AssetID(), AssetID(4),
+     INT64_MAX - (FuzzUtils::MIN_ACCOUNT_BALANCE +
+                  (2 * FuzzUtils::FUZZING_RESERVE) + 1),
+     1, 1, false, 2}}};
 
 void
 TransactionFuzzer::initialize()
@@ -1426,8 +1382,9 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
         auto const asset = trustLine.mAssetID.toAsset();
 
         // Trust the asset issuer.
-        auto trustOp =
-            txtest::changeTrust(asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
+        auto trustOp = txtest::changeTrust(
+            asset, std::max<int64_t>(FuzzUtils::INITIAL_TRUST_LINE_LIMIT,
+                                     trustLine.mAssetAvailableForTestActivity));
         trustOp.sourceAccount.activate() = toMuxedAccount(account);
         FuzzUtils::emplaceConditionallySponsored(
             ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
@@ -1445,12 +1402,18 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
             ops.emplace_back(allowTrustOp);
         }
 
-        // Distribute the starting amount of the asset (to be reduced after
-        // orders have been placed).
-        auto distributeOp = txtest::payment(
-            account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
-        distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
-        ops.emplace_back(distributeOp);
+        if (!trustLine.mCallAllowTrustOp ||
+            trustLine.mAllowTrustFlags & AUTHORIZED_FLAG)
+        {
+            // Distribute the starting amount of the asset (to be reduced after
+            // orders have been placed).
+            auto distributeOp = txtest::payment(
+                account, asset,
+                std::max<int64_t>(FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
+                                  trustLine.mAssetAvailableForTestActivity));
+            distributeOp.sourceAccount.activate() = toMuxedAccount(issuer);
+            ops.emplace_back(distributeOp);
+        }
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
@@ -1536,8 +1499,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
         auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);
         auto const targetAvailableBalance =
             param.mNativeAssetAvailableForTestActivity +
-            FuzzUtils::FUZZING_FEE *
-                FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
+            FuzzUtils::MIN_ACCOUNT_BALANCE;
 
         assert(availableBalance > targetAvailableBalance);
         auto reduceNativeBalanceOp = txtest::payment(
@@ -1576,6 +1538,17 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
         // Reduce "account"'s balance of this asset by paying the
         // issuer.
         auto tle = stellar::loadTrustLine(ltx, account, asset);
+        if (!tle.isAuthorizedToMaintainLiabilities())
+        {
+            // Without authorization, this trustline could not have been funded
+            // with how the setup currently works
+            if (trustLine.mAssetAvailableForTestActivity != 0 ||
+                tle.getBalance() != 0)
+            {
+                throw std::runtime_error("Invalid trustline setup");
+            }
+            continue;
+        }
         auto const availableTLBalance =
             tle.getAvailableBalance(ltx.loadHeader());
         auto const targetAvailableTLBalance =
@@ -1583,12 +1556,14 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
         auto const paymentAmount =
             availableTLBalance - targetAvailableTLBalance;
 
-        assert(availableTLBalance > targetAvailableTLBalance);
-        auto reduceNonNativeBalanceOp =
-            txtest::payment(issuer, asset, paymentAmount);
-        reduceNonNativeBalanceOp.sourceAccount.activate() =
-            toMuxedAccount(account);
-        ops.emplace_back(reduceNonNativeBalanceOp);
+        if (availableTLBalance > targetAvailableTLBalance)
+        {
+            auto reduceNonNativeBalanceOp =
+                txtest::payment(issuer, asset, paymentAmount);
+            reduceNonNativeBalanceOp.sourceAccount.activate() =
+                toMuxedAccount(account);
+            ops.emplace_back(reduceNonNativeBalanceOp);
+        }
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
