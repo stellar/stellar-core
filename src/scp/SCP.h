@@ -10,7 +10,6 @@
 #include <memory>
 #include <set>
 
-#include "crypto/SecretKey.h"
 #include "lib/json/json-forwards.h"
 #include "scp/SCPDriver.h"
 

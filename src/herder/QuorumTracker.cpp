@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/QuorumTracker.h"
+#include "crypto/SecretKey.h"
 #include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include <Tracy.hpp>
