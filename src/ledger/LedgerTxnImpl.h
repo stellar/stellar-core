@@ -520,10 +520,13 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, InternalLedgerKey const& key);
 
-    // createOrUpdateWithoutLoading has the strong exception safety guarantee.
+    // createWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void createOrUpdateWithoutLoading(LedgerTxn& self,
-                                      InternalLedgerEntry const& entry);
+    void createWithoutLoading(InternalLedgerEntry const& entry);
+
+    // updateWithoutLoading has the strong exception safety guarantee.
+    // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
+    void updateWithoutLoading(InternalLedgerEntry const& entry);
 
     // eraseWithoutLoading has the strong exception safety guarantee. If it
     // throws an exception, then the current LedgerTxn::Impl is unchanged.

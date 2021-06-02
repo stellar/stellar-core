@@ -103,7 +103,32 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                ltx->createOrUpdateWithoutLoading(e.liveEntry());
+                if (mBucketIter.getMetadata().ledgerVersion <
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+                {
+                    // Prior to protocol 11, INITENTRY didn't exist, so we need
+                    // to check ltx to see if this is an update or a create
+                    auto key = InternalLedgerEntry(e.liveEntry()).toKey();
+                    if (ltx->getNewestVersion(key))
+                    {
+                        ltx->updateWithoutLoading(e.liveEntry());
+                    }
+                    else
+                    {
+                        ltx->createWithoutLoading(e.liveEntry());
+                    }
+                }
+                else
+                {
+                    if (e.type() == LIVEENTRY)
+                    {
+                        ltx->updateWithoutLoading(e.liveEntry());
+                    }
+                    else
+                    {
+                        ltx->createWithoutLoading(e.liveEntry());
+                    }
+                }
             }
             else
             {

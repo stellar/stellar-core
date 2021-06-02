@@ -620,14 +620,13 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 }
 
 void
-LedgerTxn::createOrUpdateWithoutLoading(InternalLedgerEntry const& entry)
+LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
-    return getImpl()->createOrUpdateWithoutLoading(*this, entry);
+    getImpl()->createWithoutLoading(entry);
 }
 
 void
-LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
-                                              InternalLedgerEntry const& entry)
+LedgerTxn::Impl::createWithoutLoading(InternalLedgerEntry const& entry)
 {
     throwIfSealed();
     throwIfChild();
@@ -646,6 +645,31 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
     updateEntry(
         key, /* keyHint */ nullptr,
         LedgerEntryPtr::Init(std::make_shared<InternalLedgerEntry>(entry)),
+        /* effectiveActive */ false);
+}
+
+void
+LedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
+{
+    getImpl()->updateWithoutLoading(entry);
+}
+
+void
+LedgerTxn::Impl::updateWithoutLoading(InternalLedgerEntry const& entry)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    auto key = entry.toKey();
+    auto iter = mActive.find(key);
+    if (iter != mActive.end())
+    {
+        throw std::runtime_error("Key is already active");
+    }
+
+    updateEntry(
+        key, /* keyHint */ nullptr,
+        LedgerEntryPtr::Live(std::make_shared<InternalLedgerEntry>(entry)),
         /* effectiveActive */ false);
 }
 

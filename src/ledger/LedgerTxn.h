@@ -573,8 +573,9 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // transaction processing code, or any code that is sensitive to the
     // state of the database. These are only here for clobbering it with
     // new data.
-    virtual void
-    createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) = 0;
+
+    virtual void createWithoutLoading(InternalLedgerEntry const& entry) = 0;
+    virtual void updateWithoutLoading(InternalLedgerEntry const& entry) = 0;
     virtual void eraseWithoutLoading(InternalLedgerKey const& key) = 0;
 
     // getChanges, getDelta, and getAllEntries are used to
@@ -733,8 +734,8 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
-    void
-    createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry const& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry const& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;
