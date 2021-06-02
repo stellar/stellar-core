@@ -298,7 +298,7 @@ EntryIterator::entry() const
     return getImpl()->entry();
 }
 
-std::shared_ptr<InternalLedgerEntry>
+LedgerEntryPtr const&
 EntryIterator::entryPtr() const
 {
     return getImpl()->entryPtr();
@@ -609,7 +609,12 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
     LedgerTxnEntry ltxe(impl);
 
     auto it = mEntry.end(); // hint that key is not in mEntry
-    updateEntry(key, &it, current,
+
+    // If the key currently exists in mEntry as a DELETED entry, the new state
+    // after this INIT entry is merged with the DELETED will be a LIVE. This is
+    // because the entry would have been a LIVE before the delete. If it were an
+    // INIT instead, the key would've been annihilated.
+    updateEntry(key, &it, LedgerEntryPtr::Init(current),
                 /* effectiveActive */ true);
     return ltxe;
 }
@@ -634,9 +639,14 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(key, /* keyHint */ nullptr,
-                std::make_shared<InternalLedgerEntry>(entry),
-                /* effectiveActive */ false);
+    // If the key currently exists in mEntry as a DELETED entry, the new state
+    // after this INIT entry is merged with the DELETED will be a LIVE. This is
+    // because the entry would have been a LIVE before the delete. If it were an
+    // INIT instead, the key would've been annihilated.
+    updateEntry(
+        key, /* keyHint */ nullptr,
+        LedgerEntryPtr::Init(std::make_shared<InternalLedgerEntry>(entry)),
+        /* effectiveActive */ false);
 }
 
 void
@@ -698,7 +708,7 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
 
-    updateEntry(key, &newest.second, nullptr, false);
+    updateEntry(key, &newest.second, LedgerEntryPtr::Delete(), false);
     // Note: Cannot throw after this point because the entry will not be
     // deactivated in that case
 
@@ -725,7 +735,7 @@ LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
 
-    updateEntry(key, /* keyHint */ nullptr, nullptr, false, false);
+    updateEntry(key, /* keyHint */ nullptr, LedgerEntryPtr::Delete(), false);
     // Note: Cannot throw after this point because the entry will not be
     // deactivated in that case
 
@@ -1138,7 +1148,7 @@ LedgerTxn::Impl::getDelta()
             // Deep copy is not required here because getDelta causes
             // LedgerTxn to enter the sealed state, meaning subsequent
             // modifications are impossible.
-            delta.entry[key] = {kv.second, previous};
+            delta.entry[key] = {kv.second.get(), previous};
         }
         delta.header = {*mHeader, mParent.getHeader()};
     });
@@ -1385,7 +1395,7 @@ LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key) const
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
-        return iter->second;
+        return iter->second.get();
     }
     return mParent.getNewestVersion(key);
 }
@@ -1397,7 +1407,7 @@ LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
-        return std::make_pair(iter->second, iter);
+        return std::make_pair(iter->second.get(), iter);
     }
     return std::make_pair(mParent.getNewestVersion(key), iter);
 }
@@ -1529,16 +1539,19 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
         return {};
     }
 
-    std::shared_ptr<InternalLedgerEntry> current;
+    std::optional<LedgerEntryPtr> currentEntryPtr;
     if (newest.second != mEntry.end())
     {
-        current = newest.second->second;
+        currentEntryPtr = std::optional<LedgerEntryPtr>(newest.second->second);
     }
     else
     {
-        current = std::make_shared<InternalLedgerEntry>(*newest.first);
+        currentEntryPtr = LedgerEntryPtr::Live(
+            std::make_shared<InternalLedgerEntry>(*newest.first));
     }
-    auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
+
+    releaseAssert(currentEntryPtr.has_value());
+    auto impl = LedgerTxnEntry::makeSharedImpl(self, *currentEntryPtr->get());
 
     // Set the key to active before constructing the LedgerTxnEntry, as this
     // can throw and the LedgerTxnEntry destructor requires that mActive
@@ -1550,7 +1563,8 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     // If this throws, the order book will not be modified because of the strong
     // exception safety guarantee. Furthermore, ltxe will be destructed leading
     // to key being deactivated. This will leave LedgerTxn unmodified.
-    updateEntry(key, &newest.second, current, /* effectiveActive */ true);
+    updateEntry(key, &newest.second, *currentEntryPtr,
+                /* effectiveActive */ true);
     return ltxe;
 }
 
@@ -2070,7 +2084,7 @@ LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              EntryMap::iterator const* keyHint,
-                             std::shared_ptr<InternalLedgerEntry> lePtr)
+                             LedgerEntryPtr lePtr)
 {
     bool effectiveActive = mActive.find(key) != mActive.end();
     updateEntry(key, keyHint, lePtr, effectiveActive);
@@ -2079,43 +2093,39 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              EntryMap::iterator const* keyHint,
-                             std::shared_ptr<InternalLedgerEntry> lePtr,
-                             bool effectiveActive)
-{
-    bool eraseIfNull = !lePtr && !mParent.getNewestVersion(key);
-    updateEntry(key, keyHint, lePtr, effectiveActive, eraseIfNull);
-}
-
-void
-LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator const* keyHint,
-                             std::shared_ptr<InternalLedgerEntry> lePtr,
-                             bool effectiveActive, bool eraseIfNull) noexcept
+                             LedgerEntryPtr lePtr,
+                             bool effectiveActive) noexcept
 {
     auto recordEntry = [&]() {
-        if (eraseIfNull)
+        // First, try to insert the entry. If the entry doesn't already exist,
+        // then mEntry just accepts the state of this new entry and there's
+        // nothing else to do. However, if the key exists, then we either update
+        // the old entry using the new entry, or erase the key if the existing
+        // entry is a init and the update is a delete.
+        bool inserted = false;
+        EntryMap::iterator localIterDoNotUse;
+        if (!keyHint || *keyHint == mEntry.end())
         {
-            if (keyHint)
-            {
-                if (*keyHint != mEntry.end())
-                {
-                    mEntry.erase(*keyHint);
-                }
-            }
-            else
-            {
-                mEntry.erase(key);
-            }
+            std::tie(localIterDoNotUse, inserted) = mEntry.emplace(key, lePtr);
+            keyHint = &localIterDoNotUse;
         }
-        else
+
+        if (!inserted)
         {
-            if (keyHint && *keyHint != mEntry.end())
+            if (!keyHint || *keyHint == mEntry.end())
             {
-                (*keyHint)->second = lePtr;
+                throw std::runtime_error("invalid keyHint state");
+            }
+
+            // An init entry is being deleted, so annihilate the init instead of
+            // updating it.
+            if (!lePtr && (*keyHint)->second.isInit())
+            {
+                mEntry.erase(*keyHint);
             }
             else
             {
-                mEntry[key] = lePtr;
+                (*keyHint)->second.mergeFrom(lePtr);
             }
         }
     };
@@ -2302,7 +2312,7 @@ LedgerTxn::Impl::EntryIteratorImpl::entry() const
     return *(mIter->second);
 }
 
-std::shared_ptr<InternalLedgerEntry>
+LedgerEntryPtr const&
 LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
 {
     return mIter->second;

@@ -358,7 +358,7 @@ class EntryIterator
     explicit operator bool() const;
 
     InternalLedgerEntry const& entry() const;
-    std::shared_ptr<InternalLedgerEntry> entryPtr() const;
+    LedgerEntryPtr const& entryPtr() const;
 
     bool entryExists() const;
 

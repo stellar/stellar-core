@@ -1315,6 +1315,28 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
             validate(ltx3, {});
         }
 
+        SECTION("check for init after child commits")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(key));
+            ltx2.commit();
+
+            REQUIRE(ltx1.load(key));
+        }
+
+        SECTION("create, deactivate, and load")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto ltxe = ltx1.create(le);
+            ltxe.deactivate();
+
+            REQUIRE(ltx1.load(key));
+            ltx1.commit();
+        }
+
         for_all_versions(*app, [&]() {
             SECTION("invalid keys")
             {
