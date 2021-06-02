@@ -24,6 +24,152 @@
 namespace stellar
 {
 
+LedgerEntryPtr
+LedgerEntryPtr::Init(std::shared_ptr<InternalLedgerEntry> const& lePtr)
+{
+    return {lePtr, EntryPtrState::INIT};
+}
+
+LedgerEntryPtr
+LedgerEntryPtr::Live(std::shared_ptr<InternalLedgerEntry> const& lePtr)
+{
+    return {lePtr, EntryPtrState::LIVE};
+}
+
+LedgerEntryPtr
+LedgerEntryPtr::Delete()
+{
+    return {nullptr, EntryPtrState::DELETED};
+}
+
+LedgerEntryPtr::LedgerEntryPtr(
+    std::shared_ptr<InternalLedgerEntry> const& lePtr, EntryPtrState state)
+    : mEntryPtr(lePtr), mState(state)
+{
+    if (lePtr)
+    {
+        if (isDeleted())
+        {
+            throw std::runtime_error("DELETED LedgerEntryPtr is not null");
+        }
+    }
+    else
+    {
+        if (isInit() || isLive())
+        {
+            throw std::runtime_error("INIT/LIVE LedgerEntryPtr is null");
+        }
+    }
+}
+
+InternalLedgerEntry&
+LedgerEntryPtr::operator*() const
+{
+    if (!mEntryPtr)
+    {
+        throw std::runtime_error("cannot dereference null mEntryPtr");
+    }
+
+    return *mEntryPtr;
+}
+
+InternalLedgerEntry*
+LedgerEntryPtr::operator->() const
+{
+    if (!mEntryPtr)
+    {
+        throw std::runtime_error("cannot dereference null mEntryPtr");
+    }
+
+    return mEntryPtr.get();
+}
+
+std::shared_ptr<InternalLedgerEntry>
+LedgerEntryPtr::get() const
+{
+    return mEntryPtr;
+}
+
+LedgerEntryPtr::operator bool() const
+{
+    return (bool)mEntryPtr;
+}
+
+void
+LedgerEntryPtr::mergeFrom(LedgerEntryPtr const& entryPtr)
+{
+    switch (mState)
+    {
+    case EntryPtrState::INIT:
+    {
+        if (entryPtr.isDeleted())
+        {
+            // This isn't possible because we don't call mergeFrom in this case.
+            // Instead, the init entry is annihilated by the delete
+            throw std::runtime_error("cannot delete non-live entry");
+        }
+    }
+    break;
+    case EntryPtrState::LIVE:
+    {
+        // cannot commit an init entry into a live entry (If the parent entry is
+        // live, the child could not have created the same entry)
+        if (entryPtr.isInit())
+        {
+            throw std::runtime_error(
+                "cannot commit a child init entry into a parent live entry");
+        }
+
+        // propagate state
+        mState = entryPtr.getState();
+    }
+    break;
+    case EntryPtrState::DELETED:
+    {
+        switch (entryPtr.getState())
+        {
+        case EntryPtrState::INIT:
+            mState = EntryPtrState::LIVE;
+            break;
+        case EntryPtrState::LIVE:
+            throw std::runtime_error("cannot set deleted entry to live");
+        case EntryPtrState::DELETED:
+            throw std::runtime_error("cannot delete deleted entry");
+        }
+        break;
+    }
+    default:
+        throw std::runtime_error("unknown EntryPtrState");
+    }
+
+    // std::shared_ptr<...>::operator= does not throw
+    mEntryPtr = entryPtr.get();
+}
+
+EntryPtrState
+LedgerEntryPtr::getState() const
+{
+    return mState;
+}
+
+bool
+LedgerEntryPtr::isInit() const
+{
+    return mState == EntryPtrState::INIT;
+}
+
+bool
+LedgerEntryPtr::isLive() const
+{
+    return mState == EntryPtrState::LIVE;
+}
+
+bool
+LedgerEntryPtr::isDeleted() const
+{
+    return mState == EntryPtrState::DELETED;
+}
+
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries)

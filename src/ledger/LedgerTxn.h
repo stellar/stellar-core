@@ -175,6 +175,52 @@
 namespace stellar
 {
 
+/* LedgerEntryPtr holds a shared_ptr to a InternalLedgerEntry along with
+  information about the state of the entry (or lack thereof)
+
+  EntryPtrState definitions
+  1. INIT - InternalLedgerEntry was created at this level
+  2. LIVE - InternalLedgerEntry was modified at this level
+  3. DELETED - InternalLedgerEntry was deleted at this level
+*/
+enum class EntryPtrState
+{
+    INIT,
+    LIVE,
+    DELETED
+};
+
+class LedgerEntryPtr
+{
+  public:
+    static LedgerEntryPtr
+    Init(std::shared_ptr<InternalLedgerEntry> const& lePtr);
+    static LedgerEntryPtr
+    Live(std::shared_ptr<InternalLedgerEntry> const& lePtr);
+    static LedgerEntryPtr Delete();
+
+    // These methods have the strong exception safety guarantee
+    InternalLedgerEntry& operator*() const;
+    InternalLedgerEntry* operator->() const;
+    void mergeFrom(LedgerEntryPtr const& entryPtr);
+
+    // These methods do not throw
+    std::shared_ptr<InternalLedgerEntry> get() const;
+    explicit operator bool() const;
+    EntryPtrState getState() const;
+    bool isInit() const;
+
+  private:
+    LedgerEntryPtr(std::shared_ptr<InternalLedgerEntry> const& lePtr,
+                   EntryPtrState state);
+
+    std::shared_ptr<InternalLedgerEntry> mEntryPtr;
+    EntryPtrState mState;
+
+    bool isLive() const;
+    bool isDeleted() const;
+};
+
 // A heuristic number that is used to batch together groups of
 // LedgerEntries for bulk commit at the database interface layer. For sake
 // of mechanical sympathy with said batching, one should attempt to group
