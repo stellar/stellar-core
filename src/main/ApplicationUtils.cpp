@@ -211,7 +211,8 @@ runApp(Application::pointer app)
 }
 
 bool
-applyBucketsForLCL(Application& app)
+applyBucketsForLCL(Application& app,
+                   std::function<bool(LedgerEntryType)> onlyApply)
 {
     auto has = app.getLedgerManager().getLastClosedLedgerHAS();
     auto lclHash =
@@ -227,12 +228,18 @@ applyBucketsForLCL(Application& app)
 
     std::map<std::string, std::shared_ptr<Bucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
-        buckets, has, maxProtocolVersion);
+        buckets, has, maxProtocolVersion, onlyApply);
 
     while (app.getClock().crank(true) && !work->isDone())
         ;
 
     return work->getState() == BasicWork::State::WORK_SUCCESS;
+}
+
+bool
+applyBucketsForLCL(Application& app)
+{
+    return applyBucketsForLCL(app, [](LedgerEntryType) { return true; });
 }
 
 void
@@ -354,50 +361,12 @@ rebuildLedgerFromBuckets(Config cfg)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    auto& ps = app->getPersistentState();
-    auto lcl = ps.getState(PersistentState::kLastClosedLedger);
-    auto hasStr = ps.getState(PersistentState::kHistoryArchiveState);
-    auto pass = ps.getState(PersistentState::kNetworkPassphrase);
-
-    LOG_INFO(DEFAULT_LOG, "Re-initializing database ledger tables.");
-    auto& db = app->getDatabase();
-    auto& session = app->getDatabase().getSession();
-    soci::transaction tx(session);
-
-    db.initialize();
-    db.upgradeToCurrentSchema();
-    db.clearPreparedStatementCache();
-    LOG_INFO(DEFAULT_LOG, "Re-initialized database ledger tables.");
-
-    LOG_INFO(DEFAULT_LOG, "Re-storing persistent state.");
-    ps.setState(PersistentState::kLastClosedLedger, lcl);
-    ps.setState(PersistentState::kHistoryArchiveState, hasStr);
-    ps.setState(PersistentState::kNetworkPassphrase, pass);
-
-    LOG_INFO(DEFAULT_LOG, "Applying buckets from LCL bucket list.");
-    auto ok = applyBucketsForLCL(*app);
-
-    if (ok)
-    {
-        tx.commit();
-        LOG_INFO(DEFAULT_LOG, "*");
-        LOG_INFO(DEFAULT_LOG, "* Rebuilt ledger from buckets successfully.");
-        LOG_INFO(DEFAULT_LOG, "*");
-    }
-    else
-    {
-        tx.rollback();
-        LOG_INFO(DEFAULT_LOG, "*");
-        LOG_INFO(DEFAULT_LOG, "* Rebuild of ledger failed.");
-        LOG_INFO(DEFAULT_LOG, "*");
-    }
+    Application::pointer app = Application::create(clock, cfg, false, true);
 
     app->gracefulStop();
     while (clock.crank(true))
         ;
-    return ok ? 0 : 1;
+    return 1;
 }
 #endif
 

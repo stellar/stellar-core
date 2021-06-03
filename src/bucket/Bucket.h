@@ -71,11 +71,13 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
+#ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
+#endif // BUILD_TESTS
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

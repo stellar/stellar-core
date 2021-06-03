@@ -82,12 +82,15 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
     return false;
 }
 
+#ifdef BUILD_TESTS
 void
 Bucket::apply(Application& app) const
 {
     ZoneScoped;
+
     BucketApplicator applicator(app, app.getConfig().LEDGER_PROTOCOL_VERSION,
-                                shared_from_this());
+                                shared_from_this(),
+                                [](LedgerEntryType) { return true; });
     BucketApplicator::Counters counters(app.getClock().now());
     while (applicator)
     {
@@ -95,6 +98,7 @@ Bucket::apply(Application& app) const
     }
     counters.logInfo("direct", 0, app.getClock().now());
 }
+#endif // BUILD_TESTS
 
 std::vector<BucketEntry>
 Bucket::convertToBucketEntry(bool useInit,

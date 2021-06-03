@@ -17,8 +17,12 @@ namespace stellar
 
 BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t maxProtocolVersion,
-                                   std::shared_ptr<const Bucket> bucket)
-    : mApp(app), mMaxProtocolVersion(maxProtocolVersion), mBucketIter(bucket)
+                                   std::shared_ptr<const Bucket> bucket,
+                                   std::function<bool(LedgerEntryType)> filter)
+    : mApp(app)
+    , mMaxProtocolVersion(maxProtocolVersion)
+    , mBucketIter(bucket)
+    , mEntryTypeFilter(filter)
 {
     auto protocolVersion = mBucketIter.getMetadata().ledgerVersion;
     if (protocolVersion > mMaxProtocolVersion)
@@ -46,6 +50,23 @@ BucketApplicator::size() const
     return mBucketIter.size();
 }
 
+static bool
+shouldApplyEntry(std::function<bool(LedgerEntryType)> const& filter,
+                 BucketEntry const& e)
+{
+    if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+    {
+        return filter(e.liveEntry().data.type());
+    }
+
+    if (e.type() != DEADENTRY)
+    {
+        throw std::runtime_error(
+            "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
+    }
+    return filter(e.deadEntry().type());
+}
+
 size_t
 BucketApplicator::advance(BucketApplicator::Counters& counters)
 {
@@ -57,24 +78,24 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
     {
         BucketEntry const& e = *mBucketIter;
         Bucket::checkProtocolLegality(e, mMaxProtocolVersion);
-        counters.mark(e);
-        if (e.type() == LIVEENTRY || e.type() == INITENTRY)
-        {
-            ltx.createOrUpdateWithoutLoading(e.liveEntry());
-        }
-        else
-        {
-            if (e.type() != DEADENTRY)
-            {
-                throw std::runtime_error(
-                    "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
-            }
-            ltx.eraseWithoutLoading(e.deadEntry());
-        }
 
-        if ((++count > LEDGER_ENTRY_BATCH_COMMIT_SIZE))
+        if (shouldApplyEntry(mEntryTypeFilter, e))
         {
-            break;
+            counters.mark(e);
+
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            {
+                ltx.createOrUpdateWithoutLoading(e.liveEntry());
+            }
+            else
+            {
+                ltx.eraseWithoutLoading(e.deadEntry());
+            }
+
+            if ((++count > LEDGER_ENTRY_BATCH_COMMIT_SIZE))
+            {
+                break;
+            }
         }
     }
     ltx.commit();

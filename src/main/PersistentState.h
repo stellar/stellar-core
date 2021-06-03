@@ -23,6 +23,7 @@ class PersistentState
         kDatabaseSchema,
         kNetworkPassphrase,
         kLedgerUpgrades,
+        kRebuildLedger,
         kLastEntry,
     };
 
@@ -34,6 +35,10 @@ class PersistentState
     // Special methods for SCP state (multiple slots)
     std::vector<std::string> getSCPStateAllSlots();
     void setSCPStateForSlot(uint64 slot, std::string const& value);
+
+    bool shouldRebuildForType(LedgerEntryType let);
+    void clearRebuildForType(LedgerEntryType let);
+    void setRebuildForType(LedgerEntryType let);
 
   private:
     static std::string kSQLCreateStatement;

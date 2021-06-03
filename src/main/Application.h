@@ -162,7 +162,7 @@ class Application
 
     virtual ~Application(){};
 
-    virtual void initialize(bool createNewDB) = 0;
+    virtual void initialize(bool createNewDB, bool forceRebuild) = 0;
 
     // reset the ledger state entirely
     // (to be used before applying buckets)
@@ -294,14 +294,14 @@ class Application
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`
     static pointer create(VirtualClock& clock, Config const& cfg,
-                          bool newDB = true);
+                          bool newDB = true, bool forceRebuild = false);
     template <typename T, typename... Args>
     static std::shared_ptr<T>
     create(VirtualClock& clock, Config const& cfg, Args&&... args,
-           bool newDB = true)
+           bool newDB = true, bool forceRebuild = false)
     {
         auto ret = std::make_shared<T>(clock, cfg, std::forward<Args>(args)...);
-        ret->initialize(newDB);
+        ret->initialize(newDB, forceRebuild);
         validateNetworkPassphrase(ret);
         ret->validateAndLogConfig();
 

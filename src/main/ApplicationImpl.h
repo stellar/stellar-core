@@ -42,7 +42,7 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual void initialize(bool newDB) override;
+    virtual void initialize(bool newDB, bool forceRebuild) override;
 
     virtual void resetLedgerState() override;
 
@@ -221,5 +221,8 @@ class ApplicationImpl : public Application
 
     void
     advanceToLedgerBeforeManualCloseTarget(uint32_t const& targetLedgerSeq);
+
+    void upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
+                                                     bool forceRebuild);
 };
 }

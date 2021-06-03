@@ -261,9 +261,7 @@ loadOffersHelper(StatementContext& prep, T& offers)
     Price price;
     uint32_t flags, lastModified;
     std::string extensionStr;
-    soci::indicator extensionInd;
     std::string ledgerExtStr;
-    soci::indicator ledgerExtInd;
 
     auto& st = prep.statement();
     st.exchange(soci::into(actIDStrKey));
@@ -275,8 +273,8 @@ loadOffersHelper(StatementContext& prep, T& offers)
     st.exchange(soci::into(price.d));
     st.exchange(soci::into(flags));
     st.exchange(soci::into(lastModified));
-    st.exchange(soci::into(extensionStr, extensionInd));
-    st.exchange(soci::into(ledgerExtStr, ledgerExtInd));
+    st.exchange(soci::into(extensionStr));
+    st.exchange(soci::into(ledgerExtStr));
     st.define_and_bind();
     st.execute(true);
 
@@ -298,9 +296,9 @@ loadOffersHelper(StatementContext& prep, T& offers)
         oe.flags = flags;
         le.lastModifiedLedgerSeq = lastModified;
 
-        decodeOpaqueXDR(extensionStr, extensionInd, oe.ext);
+        decodeOpaqueXDR(extensionStr, oe.ext);
 
-        decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
+        decodeOpaqueXDR(ledgerExtStr, le.ext);
 
         st.fetch();
     }
@@ -671,6 +669,8 @@ LedgerTxnRoot::Impl::dropOffers()
            "price            DOUBLE PRECISION NOT NULL,"
            "flags            INT              NOT NULL,"
            "lastmodified     INT              NOT NULL,"
+           "extension        TEXT             NOT NULL,"
+           "ledgerext        TEXT             NOT NULL,"
            "PRIMARY KEY      (offerid)"
            ");";
     mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
@@ -702,9 +702,7 @@ class BulkLoadOffersOperation
         int64_t offerID;
         uint32_t flags, lastModified;
         std::string extension;
-        soci::indicator extensionInd;
         std::string ledgerExtension;
-        soci::indicator ledgerExtInd;
         Price price;
 
         st.exchange(soci::into(sellerID));
@@ -716,8 +714,8 @@ class BulkLoadOffersOperation
         st.exchange(soci::into(price.d));
         st.exchange(soci::into(flags));
         st.exchange(soci::into(lastModified));
-        st.exchange(soci::into(extension, extensionInd));
-        st.exchange(soci::into(ledgerExtension, ledgerExtInd));
+        st.exchange(soci::into(extension));
+        st.exchange(soci::into(ledgerExtension));
         st.define_and_bind();
         {
             auto timer = mDb.getSelectTimer("offer");
@@ -745,9 +743,9 @@ class BulkLoadOffersOperation
             oe.flags = flags;
             le.lastModifiedLedgerSeq = lastModified;
 
-            decodeOpaqueXDR(extension, extensionInd, oe.ext);
+            decodeOpaqueXDR(extension, oe.ext);
 
-            decodeOpaqueXDR(ledgerExtension, ledgerExtInd, le.ext);
+            decodeOpaqueXDR(ledgerExtension, le.ext);
 
             st.fetch();
         }

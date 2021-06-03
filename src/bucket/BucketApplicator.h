@@ -25,6 +25,7 @@ class BucketApplicator
     uint32_t mMaxProtocolVersion;
     BucketInputIterator mBucketIter;
     size_t mCount{0};
+    std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
   public:
     class Counters
@@ -61,7 +62,8 @@ class BucketApplicator
     };
 
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
-                     std::shared_ptr<const Bucket> bucket);
+                     std::shared_ptr<const Bucket> bucket,
+                     std::function<bool(LedgerEntryType)> filter);
     operator bool() const;
     size_t advance(Counters& counters);
 

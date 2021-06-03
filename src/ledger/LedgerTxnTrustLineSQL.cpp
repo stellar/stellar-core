@@ -436,6 +436,8 @@ LedgerTxnRoot::Impl::dropTrustLines()
            "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
            "flags        INT             NOT NULL,"
            "lastmodified INT             NOT NULL,"
+           "extension    TEXT,"
+           "ledgerext    TEXT            NOT NULL,"
            "PRIMARY KEY  (accountid, issuer, assetcode)"
            ");";
     if (!mDatabase.isSqlite())

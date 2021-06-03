@@ -100,22 +100,6 @@ class Database : NonMovableOrCopyable
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
 
-    // Convert the accounts table from using explicit entries for
-    // extension fields into storing the entire extension as opaque XDR.
-    void convertAccountExtensionsToOpaqueXDR();
-    void copyIndividualAccountExtensionFieldsToOpaqueXDR();
-
-    std::string getOldLiabilitySelect(std::string const& table,
-                                      std::string const& fields);
-    void addTextColumn(std::string const& table, std::string const& column);
-    void dropNullableColumn(std::string const& table,
-                            std::string const& column);
-
-    // Convert the trustlines table from using explicit entries for
-    // extension fields into storing the entire extension as opaque XDR.
-    void convertTrustLineExtensionsToOpaqueXDR();
-    void copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
-
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
     // if there is a connection error, this will throw.
@@ -194,16 +178,6 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
-
-  protected:
-    // Give clients the opportunity to perform operations on databases while
-    // they're still using old schemas (prior to the upgrade that occurs either
-    // immediately after database creation or after loading a version of
-    // stellar-core that introduces a new schema).
-    virtual void
-    actBeforeDBSchemaUpgrade()
-    {
-    }
 };
 
 template <typename T>

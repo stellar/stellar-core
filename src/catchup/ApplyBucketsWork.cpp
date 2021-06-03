@@ -15,6 +15,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
@@ -26,10 +27,12 @@ namespace stellar
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+    std::function<bool(LedgerEntryType)> onlyApply)
     : BasicWork(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
+    , mEntryTypeFilter(onlyApply)
     , mApplying(false)
     , mTotalSize(0)
     , mLevel(BucketList::kNumLevels - 1)
@@ -41,6 +44,15 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mBucketApplyFailure(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "failure"}, "event"))
     , mCounters(app.getClock().now())
+{
+}
+
+ApplyBucketsWork::ApplyBucketsWork(
+    Application& app,
+    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
+    : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
+                       [](LedgerEntryType) { return true; })
 {
 }
 
@@ -77,9 +89,21 @@ ApplyBucketsWork::onReset()
 
     if (!isAborting())
     {
-        // clear ledgerTxn state of all ledger entries in preparation of bucket
-        // apply
-        mApp.resetLedgerState();
+        // When applying buckets with accounts, we have to make sure that the
+        // root account has been removed. This comes into play, for example,
+        // when applying buckets from genesis the root account already exists.
+        if (mEntryTypeFilter(ACCOUNT))
+        {
+            SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
+
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto rootAcc = loadAccount(ltx, skey.getPublicKey());
+            if (rootAcc)
+            {
+                rootAcc.erase();
+            }
+            ltx.commit();
+        }
 
         auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
             if (bucket->getSize() > 0)
@@ -122,7 +146,7 @@ ApplyBucketsWork::startLevel()
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mSnapBucket);
+            mApp, mMaxProtocolVersion, mSnapBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
                    mLevel, i.snap);
         mApplying = true;
@@ -132,7 +156,7 @@ ApplyBucketsWork::startLevel()
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mCurrBucket);
+            mApp, mMaxProtocolVersion, mCurrBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
                    mLevel, i.curr);
         mApplying = true;
