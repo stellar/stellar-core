@@ -360,12 +360,15 @@ namespace
 static std::chrono::seconds
 computeBackoff(size_t numFailures)
 {
-    constexpr const size_t SECONDS_PER_BACKOFF = 10;
+    constexpr const uint32 SECONDS_PER_BACKOFF = 10;
     constexpr const size_t MAX_BACKOFF_EXPONENT = 10;
 
-    size_t backoffCount = std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures);
-    auto nsecs = std::chrono::seconds(
-        std::rand() % ((1 << backoffCount) * SECONDS_PER_BACKOFF) + 1);
+    uint32 backoffCount = static_cast<uint32>(
+        std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
+    auto nsecs =
+        std::chrono::seconds(static_cast<uint32>(std::rand()) %
+                                 ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
+                             1);
     return nsecs;
 }
 }
