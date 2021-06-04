@@ -5,7 +5,6 @@
 #include "Slot.h"
 
 #include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include "lib/json/json.h"
 #include "main/ErrorMessages.h"
 #include "scp/LocalNode.h"

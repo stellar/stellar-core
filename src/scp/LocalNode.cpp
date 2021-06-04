@@ -6,7 +6,6 @@
 
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
-#include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
