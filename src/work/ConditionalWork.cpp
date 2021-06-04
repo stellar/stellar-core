@@ -43,7 +43,7 @@ ConditionalWork::onRun()
     }
 
     // Work is not started, so check the condition
-    if (!mCondition())
+    if (!mCondition(mApp))
     {
         CLOG_TRACE(Work, "Condition for {} is not satisfied: sleeping {} ms",
                    getName(), mSleepDelay.count());

@@ -306,8 +306,9 @@ ApplyCheckpointWork::onRun()
 
         auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
 
-        auto predicate = [&]() {
-            auto& bl = mApp.getBucketManager().getBucketList();
+        auto predicate = [](Application& app) {
+            auto& bl = app.getBucketManager().getBucketList();
+            auto& lm = app.getLedgerManager();
             bl.resolveAnyReadyFutures();
             return bl.futuresAllResolved(
                 bl.getMaxMergeLevel(lm.getLastClosedLedgerNum() + 1));

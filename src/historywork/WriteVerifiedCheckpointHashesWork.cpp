@@ -140,7 +140,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     auto currWork = std::make_shared<VerifyLedgerChainWork>(
         mApp, *tmpDir, ledgerRange, lcl, prevTrusted, mOutputFile);
     auto prevWork = mPrevVerifyWork;
-    auto predicate = [prevWork]() {
+    auto predicate = [prevWork](Application&) {
         if (!prevWork)
         {
             return true;
