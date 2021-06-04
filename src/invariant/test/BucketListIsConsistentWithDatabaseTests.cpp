@@ -32,16 +32,13 @@ namespace BucketListIsConsistentWithDatabaseTests
 struct BucketListGenerator
 {
     VirtualClock mClock;
-    VirtualClock mApplyClock;
     Application::pointer mAppGenerate;
-    Application::pointer mAppApply;
     uint32_t mLedgerSeq;
     UnorderedSet<LedgerKey> mLiveKeys;
 
   public:
     BucketListGenerator()
         : mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
-        , mAppApply(createTestApplication(mApplyClock, getTestConfig(1)))
         , mLedgerSeq(1)
     {
         auto skey = SecretKey::fromSeed(mAppGenerate->getNetworkID());
@@ -55,14 +52,24 @@ struct BucketListGenerator
 
     template <typename T = ApplyBucketsWork, typename... Args>
     void
-    applyBuckets(Args&&... args)
+    applyBuckets(Application::pointer app, Args&&... args)
     {
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
-        auto has = getHistoryArchiveState();
-        auto& wm = mAppApply->getWorkScheduler();
+        auto has = getHistoryArchiveState(app);
+        auto& wm = app->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
-                          mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,
+                          app->getConfig().LEDGER_PROTOCOL_VERSION,
                           std::forward<Args>(args)...);
+    }
+
+    template <typename T = ApplyBucketsWork, typename... Args>
+    void
+    applyBuckets(Args&&... args)
+    {
+        VirtualClock clock;
+        Application::pointer app =
+            createTestApplication(clock, getTestConfig(1));
+        applyBuckets<T, Args...>(app, std::forward<Args>(args)...);
     }
 
     void
@@ -148,10 +155,10 @@ struct BucketListGenerator
     }
 
     HistoryArchiveState
-    getHistoryArchiveState()
+    getHistoryArchiveState(Application::pointer app)
     {
         auto& blGenerate = mAppGenerate->getBucketManager().getBucketList();
-        auto& bmApply = mAppApply->getBucketManager();
+        auto& bmApply = app->getBucketManager();
         MergeCounters mergeCounters;
         LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
         auto vers = ltx.loadHeader().current().ledgerVersion;
@@ -758,7 +765,6 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             MergeBucketListGenerator blg(static_cast<LedgerEntryType>(t));
             auto& blGenerate =
                 blg.mAppGenerate->getBucketManager().getBucketList();
-            auto& blApply = blg.mAppApply->getBucketManager().getBucketList();
 
             blg.generateLedgers(100);
             if (!blg.mSelected)
@@ -773,9 +779,14 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             BucketEntry init(INITENTRY);
             init.liveEntry() = *blg.mSelected;
 
-            REQUIRE_NOTHROW(blg.applyBuckets());
-            REQUIRE(exists(*blg.mAppGenerate, *blg.mSelected));
-            REQUIRE(exists(*blg.mAppApply, *blg.mSelected));
+            {
+                VirtualClock clock;
+                Application::pointer appApply =
+                    createTestApplication(clock, getTestConfig(1));
+                REQUIRE_NOTHROW(blg.applyBuckets(appApply));
+                REQUIRE(exists(*blg.mAppGenerate, *blg.mSelected));
+                REQUIRE(exists(*appApply, *blg.mSelected));
+            }
 
             blg.generateLedgers(10);
             REQUIRE(doesBucketListContain(blGenerate, dead));
@@ -787,11 +798,18 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             REQUIRE(!(doesBucketListContain(blGenerate, live) ||
                       doesBucketListContain(blGenerate, init)));
             REQUIRE(!exists(*blg.mAppGenerate, *blg.mSelected));
-            REQUIRE_NOTHROW(blg.applyBuckets());
-            REQUIRE(!doesBucketListContain(blApply, dead));
-            REQUIRE(!(doesBucketListContain(blApply, live) ||
-                      doesBucketListContain(blApply, init)));
-            REQUIRE(!exists(*blg.mAppApply, *blg.mSelected));
+
+            {
+                VirtualClock clock;
+                Application::pointer appApply =
+                    createTestApplication(clock, getTestConfig(1));
+                REQUIRE_NOTHROW(blg.applyBuckets(appApply));
+                auto& blApply = appApply->getBucketManager().getBucketList();
+                REQUIRE(!doesBucketListContain(blApply, dead));
+                REQUIRE(!(doesBucketListContain(blApply, live) ||
+                          doesBucketListContain(blApply, init)));
+                REQUIRE(!exists(*appApply, *blg.mSelected));
+            }
 
             ++nTests;
         }
