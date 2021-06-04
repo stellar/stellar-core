@@ -367,13 +367,14 @@ TEST_CASE("manualclose", "[commandhandler]")
         }
     }
 
+    auto const maxLedgerNum =
+        static_cast<uint32_t>(std::numeric_limits<int32_t>::max() - 1);
+
     SECTION("manual close sequence number parameter that just barely does not "
             "overflow int32_t is accepted")
     {
         std::string retStr;
         REQUIRE(lastLedgerNum() == LedgerManager::GENESIS_LEDGER_SEQ);
-        auto maxLedgerNum =
-            static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
         submitClose(std::make_optional<uint32_t>(maxLedgerNum), noCloseTime,
                     retStr);
         CAPTURE(retStr);
@@ -385,11 +386,8 @@ TEST_CASE("manualclose", "[commandhandler]")
     {
         std::string retStr;
         REQUIRE_THROWS_AS(
-            submitClose(
-                std::make_optional<uint32_t>(
-                    static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) +
-                    1),
-                noCloseTime, retStr),
+            submitClose(std::make_optional<uint32_t>(maxLedgerNum + 1),
+                        noCloseTime, retStr),
             std::invalid_argument);
     }
 
