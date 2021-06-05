@@ -51,7 +51,6 @@ void
 GetRemoteFileWork::onSuccess()
 {
     assert(mCurrentArchive);
-    mCurrentArchive->markSuccess();
     RunCommandWork::onSuccess();
 }
 
@@ -62,7 +61,6 @@ GetRemoteFileWork::onFailureRaise()
     CLOG_ERROR(History,
                "Could not download file: archive {} maybe missing file {}",
                mCurrentArchive->getName(), mRemote);
-    mCurrentArchive->markFailure();
     RunCommandWork::onFailureRaise();
 }
 

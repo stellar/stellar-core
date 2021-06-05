@@ -48,8 +48,6 @@ class HistoryArchiveManager
     std::vector<std::shared_ptr<HistoryArchive>>
     getWritableHistoryArchives() const;
 
-    double getFailureRate() const;
-
   private:
     Application& mApp;
     std::vector<std::shared_ptr<HistoryArchive>> mArchives;

@@ -40,8 +40,6 @@ herder.pending-txs.age2                  | counter   | number of gen2 pending tr
 herder.pending-txs.age3                  | counter   | number of gen3 pending transactions
 herder.pending-txs.banned                | counter   | number of transactions that got banned
 herder.pending-txs.delay                 | timer     | time for transactions to be included in a ledger
-history-archive.<X>.failure              | meter     | accessing history archive <X> failed
-history-archive.<X>.success              | meter     | accessing history archive <X> succeeded
 history.apply-ledger-chain.failure       | meter     | apply ledger chain failed
 history.apply-ledger-chain.success       | meter     | apply ledger chain completed successfully
 history.download-<X>.failure             | meter     | download of <X> failed
@@ -49,9 +47,9 @@ history.download-<X>.success             | meter     | download of <X> completed
 history.publish.failure                  | meter     | published failed
 history.publish.success                  | meter     | published completed successfully
 history.publish.time                     | timer     | time to successfully publish history
-history.verify-<X>.failure               | meter     | verification of <X> failed
-history.verify-<X>.success               | meter     | verification of <X> succeeded
-ledger.age.closed                        | bucket     | time between ledgers
+history.verify-<X>.failure               | meter     | verification of file from archive <X> failed
+history.verify-<X>.success               | meter     | verification of file from archive <X> succeeded
+ledger.age.closed                        | bucket    | time between ledgers
 ledger.age.current-seconds               | counter   | gap between last close ledger time and current time
 ledger.catchup.duration                  | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                 | counter   | number of times invariants failed

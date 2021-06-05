@@ -27,18 +27,4 @@ PutRemoteFileWork::getCommand()
     auto cmdLine = mArchive->putFileCmd(mLocal, mRemote);
     return CommandInfo{cmdLine, std::string()};
 }
-
-void
-PutRemoteFileWork::onSuccess()
-{
-    mArchive->markSuccess();
-    RunCommandWork::onSuccess();
-}
-
-void
-PutRemoteFileWork::onFailureRaise()
-{
-    mArchive->markFailure();
-    RunCommandWork::onFailureRaise();
-}
 }

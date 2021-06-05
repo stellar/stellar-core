@@ -252,27 +252,4 @@ HistoryArchiveManager::getWritableHistoryArchives() const
                  });
     return result;
 }
-
-double
-HistoryArchiveManager::getFailureRate() const
-{
-    uint64_t successCount{0};
-    uint64_t failureCount{0};
-
-    for (auto archive : mArchives)
-    {
-        successCount += archive->getSuccessCount();
-        failureCount += archive->getFailureCount();
-    }
-
-    auto total = successCount + failureCount;
-    if (total == 0)
-    {
-        return 0.0;
-    }
-    else
-    {
-        return static_cast<double>(failureCount) / total;
-    }
-}
 }

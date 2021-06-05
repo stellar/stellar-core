@@ -23,9 +23,5 @@ class PutRemoteFileWork : public RunCommandWork
                       std::string const& remote,
                       std::shared_ptr<HistoryArchive> archive);
     ~PutRemoteFileWork() = default;
-
-  protected:
-    void onSuccess() override;
-    void onFailureRaise() override;
 };
 }
