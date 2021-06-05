@@ -19,11 +19,13 @@ class WorkSequence : public BasicWork
     std::vector<std::shared_ptr<BasicWork>> mSequenceOfWork;
     std::vector<std::shared_ptr<BasicWork>>::const_iterator mNextInSequence;
     std::shared_ptr<BasicWork> mCurrentExecuting;
+    bool const mStopAtFirstFailure;
 
   public:
     WorkSequence(Application& app, std::string name,
                  std::vector<std::shared_ptr<BasicWork>> sequence,
-                 size_t maxRetries = RETRY_A_FEW);
+                 size_t maxRetries = RETRY_A_FEW,
+                 bool stopAtFirstFailure = true);
     ~WorkSequence() = default;
 
     std::string getStatus() const override;
