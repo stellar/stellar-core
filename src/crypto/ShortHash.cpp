@@ -14,7 +14,9 @@ namespace shortHash
 static unsigned char gKey[crypto_shorthash_KEYBYTES];
 static std::mutex gKeyMutex;
 static bool gHaveHashed{false};
+#ifdef BUILD_TESTS
 static unsigned int gExplicitSeed{0};
+#endif
 
 void
 initialize()
