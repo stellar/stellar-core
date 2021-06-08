@@ -354,7 +354,7 @@ QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     buildSCCs();
 }
 
-std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
+std::pair<std::vector<NodeID>, std::vector<NodeID>>
 QuorumIntersectionCheckerImpl::getPotentialSplit() const
 {
     return mPotentialSplit;
@@ -782,7 +782,7 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
 }
 
 bool
-pointsToCandidate(SCPQuorumSet const& p, PublicKey const& candidate)
+pointsToCandidate(SCPQuorumSet const& p, NodeID const& candidate)
 {
     for (auto const& k : p.validators)
     {
@@ -803,12 +803,12 @@ pointsToCandidate(SCPQuorumSet const& p, PublicKey const& candidate)
 
 void
 findCriticalityCandidates(SCPQuorumSet const& p,
-                          std::set<std::set<PublicKey>>& candidates, bool root)
+                          std::set<std::set<NodeID>>& candidates, bool root)
 {
     // Make a singleton-set for every validator, always.
     for (auto const& k : p.validators)
     {
-        std::set<PublicKey> singleton{k};
+        std::set<NodeID> singleton{k};
         candidates.insert(singleton);
     }
 
@@ -816,7 +816,7 @@ findCriticalityCandidates(SCPQuorumSet const& p,
     // record it!
     if (!root && p.innerSets.empty())
     {
-        std::set<PublicKey> inner;
+        std::set<NodeID> inner;
         for (auto const& k : p.validators)
         {
             inner.insert(k);
@@ -832,7 +832,7 @@ findCriticalityCandidates(SCPQuorumSet const& p,
 }
 
 std::string
-groupString(Config const& cfg, std::set<PublicKey> const& group)
+groupString(Config const& cfg, std::set<NodeID> const& group)
 {
     std::ostringstream out;
     bool first = true;
@@ -862,7 +862,7 @@ QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
         qmap, cfg, interruptFlag, quiet);
 }
 
-std::set<std::set<PublicKey>>
+std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
     stellar::QuorumTracker::QuorumMap const& qmap, stellar::Config const& cfg,
     std::atomic<bool>& interruptFlag)
@@ -892,8 +892,8 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
     // that asks, but still counts as an intersecting member of any two quorums
     // it's a member of.
 
-    std::set<std::set<PublicKey>> candidates;
-    std::set<std::set<PublicKey>> critical;
+    std::set<std::set<NodeID>> candidates;
+    std::set<std::set<NodeID>> critical;
     QuorumTracker::QuorumMap test_qmap(qmap);
 
     for (auto const& k : qmap)
@@ -922,8 +922,8 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
         groupQSet.threshold = static_cast<uint32>(group.size());
 
-        std::set<PublicKey> pointsToGroup;
-        for (PublicKey const& candidate : group)
+        std::set<NodeID> pointsToGroup;
+        for (NodeID const& candidate : group)
         {
             for (auto const& d : qmap)
             {

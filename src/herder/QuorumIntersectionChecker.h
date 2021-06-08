@@ -21,7 +21,7 @@ class QuorumIntersectionChecker
            stellar::Config const& cfg, std::atomic<bool>& interruptFlag,
            bool quiet = false);
 
-    static std::set<std::set<PublicKey>>
+    static std::set<std::set<NodeID>>
     getIntersectionCriticalGroups(stellar::QuorumTracker::QuorumMap const& qmap,
                                   stellar::Config const& cfg,
                                   std::atomic<bool>& interruptFlag);
@@ -29,7 +29,7 @@ class QuorumIntersectionChecker
     virtual ~QuorumIntersectionChecker(){};
     virtual bool networkEnjoysQuorumIntersection() const = 0;
     virtual size_t getMaxQuorumsFound() const = 0;
-    virtual std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
+    virtual std::pair<std::vector<NodeID>, std::vector<NodeID>>
     getPotentialSplit() const = 0;
 
     // If any thread sets the atomic interruptFlag passed into any of the above

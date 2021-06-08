@@ -207,19 +207,19 @@ qSetCompareInt(SCPQuorumSet const& l, SCPQuorumSet const& r)
     auto& rvals = r.validators;
 
     // compare by validators first
-    auto res = intLexicographicalCompare(
-        lvals.begin(), lvals.end(), rvals.begin(), rvals.end(),
-        [](PublicKey const& l, PublicKey const& r) {
-            if (l < r)
-            {
-                return -1;
-            }
-            if (r < l)
-            {
-                return 1;
-            }
-            return 0;
-        });
+    auto res = intLexicographicalCompare(lvals.begin(), lvals.end(),
+                                         rvals.begin(), rvals.end(),
+                                         [](NodeID const& l, NodeID const& r) {
+                                             if (l < r)
+                                             {
+                                                 return -1;
+                                             }
+                                             if (r < l)
+                                             {
+                                                 return 1;
+                                             }
+                                             return 0;
+                                         });
     if (res != 0)
     {
         return res;
