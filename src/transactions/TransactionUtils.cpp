@@ -772,13 +772,17 @@ getSellingLiabilities(LedgerTxnHeader const& header,
     return getSellingLiabilities(header.current(), entry.current());
 }
 
-uint64_t
+SequenceNumber
 getStartingSequenceNumber(uint32_t ledgerSeq)
 {
-    return static_cast<uint64_t>(ledgerSeq) << 32;
+    if (ledgerSeq > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
+    {
+        throw std::runtime_error("overflowed getStartingSequenceNumber");
+    }
+    return static_cast<SequenceNumber>(ledgerSeq) << 32;
 }
 
-uint64_t
+SequenceNumber
 getStartingSequenceNumber(LedgerTxnHeader const& header)
 {
     return getStartingSequenceNumber(header.current().ledgerSeq);

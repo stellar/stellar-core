@@ -106,7 +106,7 @@ TEST_CASE("RandomEvictionCache does not thrash",
 {
     gRandomEngine.seed(std::time(nullptr) & UINT32_MAX);
     size_t sz = 1000;
-    RandomEvictionCache<int, int> cache(sz);
+    RandomEvictionCache<size_t, size_t> cache(sz);
     auto const& ctrs = cache.getCounters();
     // Fill the cache and then over-fill it by 1, so it expires an entry. In
     // LRU-land this can be the beginning of the end.

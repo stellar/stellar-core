@@ -770,10 +770,10 @@ TEST_CASE("WorkSequence test", "[work]")
 class TestBatchWork : public BatchWork
 {
     bool mShouldFail;
-    int mTotalWorks;
+    size_t mTotalWorks;
 
   public:
-    int mCount{0};
+    size_t mCount{0};
     std::vector<std::weak_ptr<BasicWork>> mBatchedWorks;
     TestBatchWork(Application& app, std::string const& name, bool fail = false)
         : BatchWork(app, name)

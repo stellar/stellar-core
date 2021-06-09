@@ -1058,7 +1058,7 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
         OUTBOUND
     };
 
-    auto getTestPeerType = [&](int i, int j) {
+    auto getTestPeerType = [&](size_t i, size_t j) {
         auto& node = nodes[i];
         auto peer =
             node->getOverlayManager().getPeerManager().load(addresses[j]);

@@ -796,29 +796,31 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
     std::optional<uint32_t> const& explicitlyProvidedSeqNum)
 {
     auto const startLedgerSeq = getLedgerManager().getLastClosedLedgerNum();
+    // -1: after externalizing we want to make sure that we don't reason about
+    // ledgers that overflow int32
+    auto const maxLedgerSeq =
+        static_cast<uint32>(std::numeric_limits<int32_t>::max() - 1);
 
     // The "scphistory" stores ledger sequence numbers as INTs.
-    if (startLedgerSeq >=
-        static_cast<uint32>(std::numeric_limits<int32_t>::max()))
+    if (startLedgerSeq >= maxLedgerSeq)
     {
-        throw std::invalid_argument(fmt::format(
-            FMT_STRING(
-                "Manually closed ledger sequence number ({}) already at max"),
-            startLedgerSeq));
+        throw std::invalid_argument(
+            fmt::format(FMT_STRING("Manually closed ledger sequence number "
+                                   "({}) already at max ({})"),
+                        startLedgerSeq, maxLedgerSeq));
     }
 
     auto const nextLedgerSeq = startLedgerSeq + 1;
 
     if (explicitlyProvidedSeqNum)
     {
-        if (*explicitlyProvidedSeqNum >
-            static_cast<uint32>(std::numeric_limits<int32_t>::max()))
+        if (*explicitlyProvidedSeqNum > maxLedgerSeq)
         {
             // The "scphistory" stores ledger sequence numbers as INTs.
             throw std::invalid_argument(fmt::format(
-                FMT_STRING("Manual close ledger sequence number {} beyond max"),
-                *explicitlyProvidedSeqNum,
-                std::numeric_limits<int32_t>::max()));
+                FMT_STRING(
+                    "Manual close ledger sequence number {} beyond max ({})"),
+                *explicitlyProvidedSeqNum, maxLedgerSeq));
         }
 
         if (*explicitlyProvidedSeqNum <= startLedgerSeq)
