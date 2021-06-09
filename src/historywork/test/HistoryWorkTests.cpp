@@ -4,6 +4,7 @@
 
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
+#include "historywork/CheckSingleLedgerHeaderWork.h"
 #include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -52,4 +53,21 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
             p.first, file);
         REQUIRE(h == *p.second);
     }
+}
+
+TEST_CASE("check single ledger header work", "[historywork]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto l1 = catchupSimulation.getLastCheckpointLedger(2);
+    auto l2 = catchupSimulation.getLastCheckpointLedger(4);
+    catchupSimulation.ensureOfflineCatchupPossible(l1);
+    auto& app = catchupSimulation.getApp();
+    auto& lm = app.getLedgerManager();
+    auto lhhe = lm.getLastClosedLedgerHeader();
+    catchupSimulation.ensureOfflineCatchupPossible(l2);
+    auto arch =
+        app.getHistoryArchiveManager().selectRandomReadableHistoryArchive();
+    auto& wm = app.getWorkScheduler();
+    auto w = wm.executeWork<CheckSingleLedgerHeaderWork>(arch, lhhe);
+    REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
 }
