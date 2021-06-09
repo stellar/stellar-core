@@ -362,7 +362,7 @@ TestAccount::getBalanceID(uint32_t opIndex, SequenceNumber sn)
 
     OperationID operationID;
     operationID.type(ENVELOPE_TYPE_OP_ID);
-    operationID.id().sourceAccount = toMuxedAccount(getPublicKey());
+    operationID.id().sourceAccount = getPublicKey();
     operationID.id().seqNum = sn;
     operationID.id().opNum = opIndex;
 
