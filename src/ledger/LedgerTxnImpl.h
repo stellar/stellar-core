@@ -898,6 +898,22 @@ class LedgerTxnRoot::Impl
 #endif
 };
 
+template <typename T>
+std::string
+toOpaqueBase64(T const& input)
+{
+    return decoder::encode_b64(xdr::xdr_to_opaque(input));
+}
+
+template <typename T>
+void
+fromOpaqueBase64(T& res, std::string const& opaqueBase64)
+{
+    std::vector<uint8_t> opaque;
+    decoder::decode_b64(opaqueBase64, opaque);
+    xdr::xdr_from_opaque(opaque, res);
+}
+
 #ifdef USE_POSTGRES
 template <typename T>
 inline void

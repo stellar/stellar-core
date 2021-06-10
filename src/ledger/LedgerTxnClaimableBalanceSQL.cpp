@@ -3,27 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxnImpl.h"
-#include "util/Decoder.h"
 #include "util/types.h"
 
 namespace stellar
 {
-
-template <typename T>
-std::string
-toOpaqueBase64(T const& input)
-{
-    return decoder::encode_b64(xdr::xdr_to_opaque(input));
-}
-
-template <typename T>
-void
-fromOpaqueBase64(T& res, std::string const& opaqueBase64)
-{
-    std::vector<uint8_t> opaque;
-    decoder::decode_b64(opaqueBase64, opaque);
-    xdr::xdr_from_opaque(opaque, res);
-}
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadClaimableBalance(LedgerKey const& key) const
