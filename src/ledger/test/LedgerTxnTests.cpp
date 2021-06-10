@@ -1355,9 +1355,7 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
                         auto key = trustlineKey(acc2.getPublicKey(), asset);
 
                         // verify that this doesn't throw before V15
-                        getTrustLineStrings(key.trustLine().accountID,
-                                            key.trustLine().asset, accountIDStr,
-                                            issuerStr, assetCodeStr, 14);
+                        validateTrustLineKey(14, key);
 
                         REQUIRE_THROWS_AS(ltx1.load(key),
                                           NonSociRelatedException);
