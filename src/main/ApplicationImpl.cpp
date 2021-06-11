@@ -239,7 +239,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
     mMaintainer = std::make_unique<Maintainer>(*this);
-    mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
@@ -287,6 +286,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     // initialization and newDB run, as it relies on tmp dir created in the
     // constructor
     mProcessManager = ProcessManager::create(*this);
+
+    // After everything is initialized, start accepting HTTP commands
+    mCommandHandler = std::make_unique<CommandHandler>(*this);
+
     LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }
 
