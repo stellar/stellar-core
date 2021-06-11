@@ -222,7 +222,9 @@ class TransactionQueue
 #endif
 };
 
-extern const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::ADD_STATUS_COUNT)];
+extern std::array<const char*,
+                  static_cast<int>(
+                      TransactionQueue::AddResult::ADD_STATUS_COUNT)>
+    TX_STATUS_STRING;
 
 }
