@@ -789,7 +789,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 
         recordSCPExecutionMetrics(slotIndex);
 
-        mHerder.valueExternalized(slotIndex, b);
+        mHerder.valueExternalized(slotIndex, b, isLatestSlot);
 
         // update externalize time so that we don't include the time spent in
         // `mHerder.valueExternalized`
@@ -797,7 +797,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     }
     else
     {
-        mHerder.valueExternalized(slotIndex, b);
+        mHerder.valueExternalized(slotIndex, b, isLatestSlot);
     }
 }
 
