@@ -944,3 +944,99 @@ TEST_CASE("getPoolWithdrawalAmount", "[exchange]")
     REQUIRE(getPoolWithdrawalAmount(INT64_MAX, INT64_MAX, INT64_MAX) ==
             INT64_MAX);
 }
+
+TEST_CASE("Exchange with liquidity pools", "[exchange]")
+{
+    auto validate = [](int64_t reservesToPool, int64_t maxSendToPool,
+                       int64_t reservesFromPool, int64_t maxReceiveFromPool,
+                       int32_t feeInBps, RoundingType round, bool success,
+                       int64_t expToPool, int64_t expFromPool) {
+        int64_t toPool = 0;
+        int64_t fromPool = 0;
+        bool res = exchangeWithPool(reservesToPool, maxSendToPool, toPool,
+                                    reservesFromPool, maxReceiveFromPool,
+                                    fromPool, feeInBps, round);
+        REQUIRE(res == success);
+        if (res)
+        {
+            REQUIRE(toPool == expToPool);
+            REQUIRE(fromPool == expFromPool);
+        }
+    };
+
+    SECTION("Error conditions")
+    {
+        RoundingType const send = RoundingType::PATH_PAYMENT_STRICT_SEND;
+        RoundingType const recv = RoundingType::PATH_PAYMENT_STRICT_RECEIVE;
+        REQUIRE_THROWS(validate(100, 50, 100, 50, -1, send, false, 0, 0));
+        REQUIRE_THROWS(validate(100, 50, 100, 50, -1, recv, false, 0, 0));
+
+        REQUIRE_THROWS(validate(100, 50, 100, 50, 10000, send, false, 0, 0));
+        REQUIRE_THROWS(validate(100, 50, 100, 50, 10000, recv, false, 0, 0));
+
+        REQUIRE_THROWS(
+            validate(100, 50, 100, 50, 0, RoundingType::NORMAL, false, 0, 0));
+    }
+
+    SECTION("No fees")
+    {
+        SECTION("Strict send")
+        {
+            RoundingType const round = RoundingType::PATH_PAYMENT_STRICT_SEND;
+
+            // Works exactly
+            validate(100, 100, 100, 49, 0, round, true, 100, 49);
+            validate(100, 100, 100, 50, 0, round, true, 100, 50);
+            validate(100, 100, 100, 51, 0, round, true, 100, 50);
+
+            // Requires rounding
+            validate(100, 50, 100, 32, 0, round, true, 50, 32);
+            validate(100, 50, 100, 33, 0, round, true, 50, 33);
+            validate(100, 50, 100, 34, 0, round, true, 50, 33);
+
+            // Sending 0 or receiving 0
+            validate(100, 0, 100, 50, 0, round, true, 0, 0);
+            validate(100, 50, 100, 0, 0, round, true, 50, 0);
+
+            // Sending the maximum
+            validate(100, INT64_MAX - 100, 100, 98, 0, round, true,
+                     INT64_MAX - 100, 98);
+            validate(100, INT64_MAX - 100, 100, 99, 0, round, true,
+                     INT64_MAX - 100, 99);
+            validate(100, INT64_MAX - 100, 100, 100, 0, round, true,
+                     INT64_MAX - 100, 99);
+
+            // Sending too much
+            validate(100, INT64_MAX - 99, 100, INT64_MAX, 0, round, false, 0,
+                     0);
+        }
+
+        SECTION("Strict receive")
+        {
+            RoundingType const round =
+                RoundingType::PATH_PAYMENT_STRICT_RECEIVE;
+
+            // Works exactly
+            validate(100, 99, 100, 50, 0, round, true, 99, 50);
+            validate(100, 100, 100, 50, 0, round, true, 100, 50);
+            validate(100, 101, 100, 50, 0, round, true, 100, 50);
+
+            // Requires rounding
+            validate(100, 49, 100, 33, 0, round, true, 49, 33);
+            validate(100, 50, 100, 33, 0, round, true, 50, 33);
+            validate(100, 51, 100, 33, 0, round, true, 50, 33);
+
+            // Sending 0 or receiving 0
+            validate(100, 0, 100, 50, 0, round, true, 0, 50);
+            validate(100, 50, 100, 0, 0, round, true, 0, 0);
+
+            // Receiving the maximum
+            validate(100, 9899, 100, 99, 0, round, true, 9899, 99);
+            validate(100, 9900, 100, 99, 0, round, true, 9900, 99);
+            validate(100, 9901, 100, 99, 0, round, true, 9900, 99);
+
+            // Receiving too much
+            validate(100, INT64_MAX, 100, 100, 0, round, false, 0, 0);
+        }
+    }
+}
