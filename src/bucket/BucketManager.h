@@ -207,7 +207,6 @@ class BucketManager : NonMovableOrCopyable
     virtual void assumeState(HistoryArchiveState const& has,
                              uint32_t maxProtocolVersion) = 0;
 
-    // Ensure all needed buckets are retained
     virtual void shutdown() = 0;
 
     virtual bool isShutdown() const = 0;

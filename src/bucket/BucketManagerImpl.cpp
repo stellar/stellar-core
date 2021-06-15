@@ -853,17 +853,13 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 void
 BucketManagerImpl::shutdown()
 {
-    ZoneScoped;
-
-    if (!mIsShutdown)
+    if (mIsShutdown)
     {
-        mIsShutdown = true;
-
-        // This call happens in shutdown -- before destruction -- so that we
-        // can be sure other subsystems (ledger etc.) are still alive and we
-        // can call into them to figure out which buckets _are_ referenced.
-        forgetUnreferencedBuckets();
+        CLOG_WARNING(Bucket,
+                     "BucketManager: shutdown is called more than once");
     }
+
+    mIsShutdown = true;
 }
 
 bool
