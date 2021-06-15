@@ -159,7 +159,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<InvariantManager> mInvariantManager;
     std::unique_ptr<Maintainer> mMaintainer;
     std::shared_ptr<ProcessManager> mProcessManager;
-    std::unique_ptr<CommandHandler> mCommandHandler;
     std::shared_ptr<WorkScheduler> mWorkScheduler;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<BanManager> mBanManager;
@@ -178,6 +177,8 @@ class ApplicationImpl : public Application
     // ever grows beyond RAM-size you need to use a mode with some sort of
     // database on secondary storage.
     std::unique_ptr<LedgerTxn> mNeverCommittingLedgerTxn;
+
+    std::unique_ptr<CommandHandler> mCommandHandler;
 
 #ifdef BUILD_TESTS
     std::unique_ptr<LoadGenerator> mLoadGenerator;
