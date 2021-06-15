@@ -994,9 +994,9 @@ ApplicationImpl::getState() const
 std::string
 ApplicationImpl::getStateHuman() const
 {
-    static const char* stateStrings[APP_NUM_STATE] = {
-        "Booting",     "Joining SCP", "Connected",
-        "Catching up", "Synced!",     "Stopping"};
+    static std::array<const char*, APP_NUM_STATE> stateStrings =
+        std::array{"Booting",     "Joining SCP", "Connected",
+                   "Catching up", "Synced!",     "Stopping"};
     return std::string(stateStrings[getState()]);
 }
 

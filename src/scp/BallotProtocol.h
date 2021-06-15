@@ -39,7 +39,7 @@ class BallotProtocol
         SCP_PHASE_NUM
     };
     // human readable names matching SCPPhase
-    static const char* phaseNames[];
+    static std::array<const char*, SCP_PHASE_NUM> phaseNames;
 
     class SCPBallotWrapper
     {

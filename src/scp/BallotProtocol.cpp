@@ -1994,8 +1994,8 @@ BallotProtocol::sendLatestEnvelope()
     }
 }
 
-const char* BallotProtocol::phaseNames[SCP_PHASE_NUM] = {"PREPARE", "FINISH",
-                                                         "EXTERNALIZE"};
+std::array<const char*, BallotProtocol::SCP_PHASE_NUM>
+    BallotProtocol::phaseNames = std::array{"PREPARE", "FINISH", "EXTERNALIZE"};
 
 Json::Value
 BallotProtocol::getJsonInfo()

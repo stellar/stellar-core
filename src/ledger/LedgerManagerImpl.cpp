@@ -182,7 +182,7 @@ LedgerManagerImpl::getState() const
 std::string
 LedgerManagerImpl::getStateHuman() const
 {
-    static const char* stateStrings[LM_NUM_STATE] = {
+    static std::array<const char*, LM_NUM_STATE> stateStrings = std::array{
         "LM_BOOTING_STATE", "LM_SYNCED_STATE", "LM_CATCHING_UP_STATE"};
     return std::string(stateStrings[getState()]);
 }

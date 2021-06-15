@@ -29,9 +29,10 @@ namespace stellar
 {
 const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
-const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
-    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "FILTERED"};
+std::array<const char*,
+           static_cast<int>(TransactionQueue::AddResult::ADD_STATUS_COUNT)>
+    TX_STATUS_STRING = std::array{"PENDING", "DUPLICATE", "ERROR",
+                                  "TRY_AGAIN_LATER", "FILTERED"};
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
                                    uint32 banDepth, uint32 poolLedgerMultiplier)

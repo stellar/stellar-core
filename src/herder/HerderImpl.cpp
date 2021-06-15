@@ -118,8 +118,8 @@ HerderImpl::syncMetrics()
 std::string
 HerderImpl::getStateHuman() const
 {
-    static const char* stateStrings[HERDER_NUM_STATE] = {
-        "HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
+    static std::array<const char*, HERDER_NUM_STATE> stateStrings =
+        std::array{"HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
     return std::string(stateStrings[getState()]);
 }
 
