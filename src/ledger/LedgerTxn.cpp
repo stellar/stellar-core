@@ -1331,6 +1331,70 @@ LedgerTxn::Impl::getOffersByAccountAndAsset(AccountID const& account,
     return offers;
 }
 
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxn::getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                                   Asset const& asset)
+{
+    return getImpl()->getPoolShareTrustLinesByAccountAndAsset(account, asset);
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxn::Impl::getPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& account, Asset const& asset)
+{
+    auto trustLines =
+        mParent.getPoolShareTrustLinesByAccountAndAsset(account, asset);
+    for (auto const& kv : mEntry)
+    {
+        if (kv.first.type() != InternalLedgerEntryType::LEDGER_ENTRY)
+        {
+            continue;
+        }
+
+        auto const& key = kv.first.ledgerKey();
+        if (key.type() == TRUSTLINE && key.trustLine().accountID == account &&
+            key.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
+        {
+            if (!kv.second)
+            {
+                // The trust line was in our result set from a parent, but was
+                // deleted in self
+                trustLines.erase(key);
+            }
+            else
+            {
+                auto iter = trustLines.find(key);
+                if (iter != trustLines.end())
+                {
+                    // The trust line was in our result set from a parent, and
+                    // was updated in self
+                    iter->second = kv.second->ledgerEntry();
+                }
+                else
+                {
+                    // The trust line wasn't in our result set, and was updated
+                    // in self. We need to check the corresponding LiquidityPool
+                    // to find its constituent assets.
+                    auto newest = getNewestVersion(liquidityPoolKey(
+                        key.trustLine().asset.liquidityPoolID()));
+                    if (!newest)
+                    {
+                        throw std::runtime_error("Invalid ledger state");
+                    }
+
+                    auto const& lp = newest->ledgerEntry().data.liquidityPool();
+                    auto const& cp = lp.body.constantProduct();
+                    if (cp.params.assetA == asset || cp.params.assetB == asset)
+                    {
+                        trustLines.emplace(key, kv.second->ledgerEntry());
+                    }
+                }
+            }
+        }
+    }
+    return trustLines;
+}
+
 LedgerTxnEntry
 LedgerTxn::load(InternalLedgerKey const& key)
 {
