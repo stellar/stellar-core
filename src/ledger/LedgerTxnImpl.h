@@ -585,6 +585,14 @@ class LedgerTxn::Impl
     loadOffersByAccountAndAsset(LedgerTxn& self, AccountID const& accountID,
                                 Asset const& asset);
 
+    // loadPoolShareTrustLinesByAccountAndAsset has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    // - the entry cache may be, but is not guaranteed to be, modified.
+    std::vector<LedgerTxnEntry> loadPoolShareTrustLinesByAccountAndAsset(
+        LedgerTxn& self, AccountID const& account, Asset const& asset);
+
     // loadWithoutRecord has the basic exception safety guarantee. If it throws
     // an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,

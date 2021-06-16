@@ -1617,6 +1617,44 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
     }
 }
 
+std::vector<LedgerTxnEntry>
+LedgerTxn::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                                    Asset const& asset)
+{
+    return getImpl()->loadPoolShareTrustLinesByAccountAndAsset(*this, account,
+                                                               asset);
+}
+
+std::vector<LedgerTxnEntry>
+LedgerTxn::Impl::loadPoolShareTrustLinesByAccountAndAsset(
+    LedgerTxn& self, AccountID const& account, Asset const& asset)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    auto previousEntries = mEntry;
+    auto trustLines = getPoolShareTrustLinesByAccountAndAsset(account, asset);
+    try
+    {
+        std::vector<LedgerTxnEntry> res;
+        res.reserve(trustLines.size());
+        for (auto const& kv : trustLines)
+        {
+            auto const& key = kv.first;
+            res.emplace_back(load(self, key));
+        }
+        return res;
+    }
+    catch (...)
+    {
+        // For associative containers, swap does not throw unless the exception
+        // is thrown by the swap of the Compare object (which is of type
+        // std::less<LedgerKey>, so this should not throw when swapped)
+        mEntry.swap(previousEntries);
+        throw;
+    }
+}
+
 ConstLedgerTxnEntry
 LedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
 {
