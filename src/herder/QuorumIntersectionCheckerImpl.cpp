@@ -706,9 +706,9 @@ QuorumIntersectionCheckerImpl::nodeName(size_t node) const
 bool
 QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
 {
-    size_t nNodes = mPubKeyBitNums.size();
     if (!mQuiet)
     {
+        size_t nNodes = mPubKeyBitNums.size();
         CLOG_INFO(SCP, "Calculating {}-node network quorum intersection",
                   nNodes);
     }
