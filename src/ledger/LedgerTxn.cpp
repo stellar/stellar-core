@@ -2983,6 +2983,47 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
     return res;
 }
 
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                                       Asset const& asset)
+{
+    return mImpl->getPoolShareTrustLinesByAccountAndAsset(account, asset);
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& account, Asset const& asset)
+{
+    ZoneScoped;
+    std::vector<LedgerEntry> trustLines;
+    try
+    {
+        trustLines = loadPoolShareTrustLinesByAccountAndAsset(account, asset);
+    }
+    catch (NonSociRelatedException& e)
+    {
+        throw;
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("fatal error when getting pool share trust lines by "
+                           "account and asset from LedgerTxnRoot: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("unknown fatal error when getting offers by account "
+                           "and asset from LedgerTxnRoot");
+    }
+
+    UnorderedMap<LedgerKey, LedgerEntry> res(trustLines.size());
+    for (auto const& tl : trustLines)
+    {
+        res.emplace(LedgerEntryKey(tl), tl);
+    }
+    return res;
+}
+
 LedgerHeader const&
 LedgerTxnRoot::getHeader() const
 {
