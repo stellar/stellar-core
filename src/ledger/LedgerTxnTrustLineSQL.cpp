@@ -75,6 +75,49 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
+std::vector<LedgerEntry>
+LedgerTxnRoot::Impl::loadPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& accountID, Asset const& asset) const
+{
+    ZoneScoped;
+
+    std::string accountIDStr = KeyUtils::toStrKey(accountID);
+    auto assetStr = toOpaqueBase64(asset);
+
+    std::string trustLineEntryStr;
+
+    auto prep = mDatabase.getPreparedStatement(
+        "SELECT trustlines.ledgerentry "
+        "FROM trustlines "
+        "INNER JOIN liquiditypool "
+        "ON trustlines.asset = liquiditypool.poolasset "
+        "AND trustlines.accountid = :v1 "
+        "AND (liquiditypool.asseta = :v2 OR liquiditypool.assetb = :v3)");
+    auto& st = prep.statement();
+    st.exchange(soci::into(trustLineEntryStr));
+    st.exchange(soci::use(accountIDStr));
+    st.exchange(soci::use(assetStr));
+    st.exchange(soci::use(assetStr));
+    st.define_and_bind();
+    {
+        auto timer = mDatabase.getSelectTimer("trust");
+        st.execute(true);
+    }
+
+    std::vector<LedgerEntry> trustLines;
+    while (st.got_data())
+    {
+        trustLines.emplace_back();
+        fromOpaqueBase64(trustLines.back(), trustLineEntryStr);
+        if (trustLines.back().data.type() != TRUSTLINE)
+        {
+            throw NonSociRelatedException("Loaded non-trustline entry");
+        }
+        st.fetch();
+    }
+    return trustLines;
+}
+
 class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
