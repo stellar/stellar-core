@@ -290,12 +290,6 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-std::string
-minimalDBForInMemoryMode(Config const& cfg)
-{
-    return fmt::format("sqlite3://{}/minimal.db", cfg.BUCKET_DIR_PATH);
-}
-
 void
 maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
                         std::string const& startAtHash, bool persistMinimalData)
