@@ -217,7 +217,7 @@ AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 # a good idea in gcc 8 and clang 8)
 AC_MSG_CHECKING([to see if <filesystem> works without any extra libs])
 AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
-                               [[std::filesystem::path test("hello");]])],
+	      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
               [AC_MSG_RESULT([yes]); FS_WORKS=yes],
               [AC_MSG_RESULT([no]); FS_WORKS=no])
 for testlib in -lstdc++fs -lc++fs; do
@@ -226,7 +226,7 @@ for testlib in -lstdc++fs -lc++fs; do
         LIBS="$testlib $LIBS"
         AC_MSG_CHECKING([to see if <filesystem> works with $testlib])
         AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
-                                   [[std::filesystem::path test("hello");]])],
+		      [[return std::filesystem::exists(std::filesystem::path("hello"));]])],
                   [AC_MSG_RESULT([yes]); FS_WORKS=yes],
                   [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
     fi
