@@ -53,6 +53,10 @@ It then follows that:
 
 # List of releases
 
+## v17.0.0 (2021-04-26)
+
+* `Ledger` - protocol - CAP0035 - Asset Clawback
+
 ## v16.0.0 (2021-04-09)
 
 * `Ledger` - protocol - fixed potential local state corruption when loading offers that could potentially corrupt sponsorships. Upgrade fixed offer 289733046 corrupted when constructing ledger 34793621 on the public network.
