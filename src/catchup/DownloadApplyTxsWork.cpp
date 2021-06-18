@@ -80,8 +80,8 @@ DownloadApplyTxsWork::yieldMoreWork()
     {
         auto prev = mLastYieldedWork;
         bool pqFellBehind = false;
-        auto predicate = [prev, pqFellBehind, waitForPublish = mWaitForPublish,
-                          &hm]() mutable {
+        auto predicate = [prev, pqFellBehind, waitForPublish = mWaitForPublish](
+                             Application& app) mutable {
             if (!prev)
             {
                 throw std::runtime_error("Download and apply txs: related Work "
@@ -98,6 +98,7 @@ DownloadApplyTxsWork::yieldMoreWork()
             bool res = true;
             if (waitForPublish)
             {
+                auto& hm = app.getHistoryManager();
                 auto length = hm.publishQueueLength();
                 if (length <= CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION)
                 {

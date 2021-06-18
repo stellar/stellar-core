@@ -595,10 +595,11 @@ TxSimApplyTransactionsWork::onRun()
     LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, closeData);
 
-    auto const& ham = mApp.getHistoryArchiveManager();
-    auto const& hm = mApp.getHistoryManager();
     bool waitForPublish = false;
-    auto condition = [&lm, &ham, &hm, waitForPublish]() mutable {
+    auto condition = [waitForPublish](Application& app) mutable {
+        auto const& lm = app.getLedgerManager();
+        auto const& ham = app.getHistoryArchiveManager();
+        auto const& hm = app.getHistoryManager();
         auto proceed = true;
         if (ham.hasAnyWritableHistoryArchive())
         {

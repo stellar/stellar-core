@@ -634,7 +634,6 @@ The output will look something like
 ```json
 {
       "build" : "v11.1.0",
-      "history_failure_rate" : "0",
       "ledger" : {
          "age" : 3,
          "baseFee" : 100,

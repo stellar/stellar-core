@@ -874,7 +874,7 @@ class TestBatchWorkCondition : public TestBatchWork
         {
             auto lw = mBatchedWorks[mBatchedWorks.size() - 1].lock();
             REQUIRE(lw);
-            auto cond = [lw]() {
+            auto cond = [lw](Application&) {
                 return lw->getState() == BasicWork::State::WORK_SUCCESS;
             };
             workToYield = std::make_shared<ConditionalWork>(
@@ -895,7 +895,7 @@ TEST_CASE("ConditionalWork test", "[work]")
 
     SECTION("condition satisfied")
     {
-        auto success = []() { return true; };
+        auto success = [](Application&) { return true; };
         auto w = std::make_shared<TestBasicWork>(*appPtr, "conditioned-work");
         wm.executeWork<ConditionalWork>("condition-success", success, w);
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
@@ -906,7 +906,7 @@ TEST_CASE("ConditionalWork test", "[work]")
         auto failedWork =
             parent->addTestWork<TestBasicWork>("other-work",
                                                /* will fail */ true, 100);
-        auto condition = [&]() {
+        auto condition = [&](Application&) {
             return failedWork->getState() == TestBasicWork::State::WORK_SUCCESS;
         };
 
@@ -932,7 +932,7 @@ TEST_CASE("ConditionalWork test", "[work]")
     {
         // Let blocking work run for a few cranks
         auto w = wm.scheduleWork<TestBasicWork>("other-work", false, 100);
-        auto condition = [&]() {
+        auto condition = [&](Application&) {
             return w->getState() == TestBasicWork::State::WORK_SUCCESS;
         };
         auto dependentWork =
@@ -963,7 +963,7 @@ TEST_CASE("ConditionalWork test", "[work]")
     {
         // Let blocking work run for a few cranks
         auto w = wm.scheduleWork<TestBasicWork>("other-work");
-        auto condition = [&]() {
+        auto condition = [&](Application&) {
             return w->getState() == TestBasicWork::State::WORK_SUCCESS;
         };
 
@@ -973,8 +973,8 @@ TEST_CASE("ConditionalWork test", "[work]")
         auto conditionedWork = wm.scheduleWork<ConditionalWork>(
             "condition-shutdown", condition, dependentWork);
 
-        while (!condition() ||
-               (condition() &&
+        while (!condition(*appPtr) ||
+               (condition(*appPtr) &&
                 conditionedWork->getState() == BasicWork::State::WORK_WAITING))
         {
             clock.crank();

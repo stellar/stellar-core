@@ -212,6 +212,29 @@ AS_IF([test "x$enable_afl" = "xyes"], [
 ])
 AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 
+# check to see if we need to append -lstdc++fs or -lc++fs to access
+# functionality from <filesystem> (for some reason this was thought
+# a good idea in gcc 8 and clang 8)
+AC_MSG_CHECKING([to see if <filesystem> works without any extra libs])
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
+                               [[std::filesystem::path test("hello");]])],
+              [AC_MSG_RESULT([yes]); FS_WORKS=yes],
+              [AC_MSG_RESULT([no]); FS_WORKS=no])
+for testlib in -lstdc++fs -lc++fs; do
+    if test "$FS_WORKS" = "no"; then
+        fs_save_LIBS="$LIBS"
+        LIBS="$testlib $LIBS"
+        AC_MSG_CHECKING([to see if <filesystem> works with $testlib])
+        AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <filesystem>]],
+                                   [[std::filesystem::path test("hello");]])],
+                  [AC_MSG_RESULT([yes]); FS_WORKS=yes],
+                  [AC_MSG_RESULT([no]); FS_WORKS=no; LIBS="$fs_save_LIBS"])
+    fi
+done
+if test "$FS_WORKS" = "no"; then
+   AC_MSG_ERROR([C++17 <filesystem> does not work with any known linker flags])
+fi
+
 # prefer 10 as it's the one we use
 AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-10 clang-format])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])

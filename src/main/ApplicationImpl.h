@@ -120,6 +120,9 @@ class ApplicationImpl : public Application
 
     virtual void reportInfo() override;
 
+    virtual std::shared_ptr<BasicWork>
+    scheduleSelfCheck(bool waitUntilNextCheckpoint) override;
+
     virtual Hash const& getNetworkID() const override;
 
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
@@ -192,6 +195,7 @@ class ApplicationImpl : public Application
     bool mStopping;
 
     VirtualTimer mStoppingTimer;
+    VirtualTimer mSelfCheckTimer;
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     medida::Counter& mAppStateCurrent;
@@ -200,6 +204,10 @@ class ApplicationImpl : public Application
     VirtualClock::system_time_point mStartedOn;
 
     Hash mNetworkID;
+
+    // A handle to any running self-check, to avoid scheduling
+    // more than one concurrently.
+    std::weak_ptr<BasicWork> mRunningSelfCheck;
 
     void newDB();
 

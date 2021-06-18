@@ -189,6 +189,12 @@ outputFileParser(std::string& string)
 }
 
 clara::Opt
+outputDirParser(std::string& string)
+{
+    return clara::Opt{string, "DIR-NAME"}["--output-dir"]("output dir");
+}
+
+clara::Opt
 logLevelParser(LogLevel& value)
 {
     return clara::Opt{
@@ -961,6 +967,19 @@ runSelfCheck(CommandLineArgs const& args)
 }
 
 int
+runMergeBucketList(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string outputDir{"."};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         outputDirParser(outputDir).required()},
+        [&] { return mergeBucketList(configOption.getConfig(), outputDir); });
+}
+
+int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1111,7 +1130,6 @@ run(CommandLineArgs const& args)
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
-                cfg.COMMANDS.push_back("self-check");
 
                 if (cfg.MANUAL_CLOSE)
                 {
@@ -1552,7 +1570,9 @@ handleCommandLine(int argc, char* const* argv)
          {"gen-seed", "generate and print a random node seed", runGenSeed},
          {"http-command", "send a command to local stellar-core",
           runHttpCommand},
-         {"self-check", "performs sanity checks", runSelfCheck},
+         {"self-check", "performs diagnostic checks", runSelfCheck},
+         {"merge-bucketlist", "writes diagnostic merged bucket list",
+          runMergeBucketList},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},

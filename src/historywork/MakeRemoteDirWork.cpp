@@ -29,17 +29,4 @@ MakeRemoteDirWork::getCommand()
     }
     return CommandInfo{cmdLine, std::string()};
 }
-
-void
-MakeRemoteDirWork::onSuccess()
-{
-    mArchive->markSuccess();
-}
-
-void
-MakeRemoteDirWork::onFailureRaise()
-{
-    mArchive->markFailure();
-    RunCommandWork::onFailureRaise();
-}
 }

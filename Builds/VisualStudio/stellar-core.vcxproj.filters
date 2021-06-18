@@ -693,6 +693,9 @@
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\test\ApplicationUtilsTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
@@ -700,6 +703,9 @@
       <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\test\SelfCheckTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\CacheTests.cpp">
@@ -1172,6 +1178,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp">
       <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp">
+      <Filter>historyWork</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2044,6 +2053,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h">
+      <Filter>historyWork</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

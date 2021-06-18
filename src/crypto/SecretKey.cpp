@@ -8,6 +8,7 @@
 #include "crypto/Curve25519.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "crypto/Random.h"
 #include "crypto/StrKey.h"
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
@@ -15,6 +16,7 @@
 #include "util/Math.h"
 #include "util/RandomEvictionCache.h"
 #include <Tracy.hpp>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <sodium.h>
@@ -151,6 +153,78 @@ SecretKey::random()
     __msan_unpoison(out.key.data(), out.key.size());
 #endif
     return sk;
+}
+
+struct SignVerifyTestcase
+{
+    SecretKey key;
+    std::vector<uint8_t> msg;
+    Signature sig;
+    void
+    sign()
+    {
+        sig = key.sign(msg);
+    }
+    void
+    verify()
+    {
+        if (!PubKeyUtils::verifySig(key.getPublicKey(), sig, msg))
+        {
+            throw std::runtime_error("verify failed");
+        }
+    }
+    static SignVerifyTestcase
+    create()
+    {
+        SignVerifyTestcase st;
+        st.key = SecretKey::random();
+        st.msg = randomBytes(256);
+        return st;
+    }
+};
+
+void
+SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
+                                 size_t iterations, size_t cachedVerifyPasses)
+{
+    namespace ch = std::chrono;
+    using clock = ch::high_resolution_clock;
+    using usec = ch::microseconds;
+
+    std::vector<SignVerifyTestcase> cases;
+
+    for (size_t i = 0; i < iterations; ++i)
+    {
+        cases.push_back(SignVerifyTestcase::create());
+    }
+
+    auto signStart = clock::now();
+    for (auto& c : cases)
+    {
+        c.sign();
+    }
+    auto signEnd = clock::now();
+    auto verifyStart = clock::now();
+    for (auto pass = 0; pass < cachedVerifyPasses; ++pass)
+    {
+        if (pass == 1)
+        {
+            // If we have more than 1 pass, reset clock after
+            // first so we are only measuring cache-hits.
+            verifyStart = clock::now();
+        }
+        for (auto& c : cases)
+        {
+            c.verify();
+        }
+    }
+    auto verifyEnd = clock::now();
+
+    auto signUsec = ch::duration_cast<usec>(signEnd - signStart);
+    auto verifyUsec = ch::duration_cast<usec>(verifyEnd - verifyStart);
+    sign = 1000000 / std::max(size_t(1), size_t(signUsec.count() / iterations));
+    verify =
+        1000000 / std::max(size_t(1), size_t(verifyUsec.count() / iterations));
 }
 
 #ifdef BUILD_TESTS

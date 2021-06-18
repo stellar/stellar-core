@@ -21,8 +21,5 @@ class MakeRemoteDirWork : public RunCommandWork
     MakeRemoteDirWork(Application& app, std::string const& dir,
                       std::shared_ptr<HistoryArchive> archive);
     ~MakeRemoteDirWork() = default;
-
-    void onSuccess() override;
-    void onFailureRaise() override;
 };
 }

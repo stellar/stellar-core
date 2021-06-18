@@ -58,6 +58,11 @@ class SecretKey
     // Create a new, random secret key.
     static SecretKey random();
 
+    // Measure the speed of sign-and-verify ops.
+    static void benchmarkOpsPerSecond(size_t& sign, size_t& verify,
+                                      size_t iterations,
+                                      size_t cachedVerifyPasses = 1);
+
 #ifdef BUILD_TESTS
     // Create a new, pseudo-random secret key drawn from the global weak
     // non-cryptographic PRNG (which itself is seeded from command-line or

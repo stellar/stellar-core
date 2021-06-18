@@ -15,9 +15,9 @@ namespace stellar
 
 GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
     Application& app, FileTransferInfo ft,
-    std::shared_ptr<HistoryArchive> archive)
+    std::shared_ptr<HistoryArchive> archive, size_t retry)
     : Work(app, std::string("get-and-unzip-remote-file ") + ft.remoteName(),
-           BasicWork::RETRY_A_LOT)
+           retry)
     , mFt(std::move(ft))
     , mArchive(archive)
     , mDownloadStart(app.getMetrics().NewMeter(

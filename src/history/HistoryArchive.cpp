@@ -447,10 +447,6 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
 HistoryArchive::HistoryArchive(Application& app,
                                HistoryArchiveConfiguration const& config)
     : mConfig(config)
-    , mSuccessMeter(app.getMetrics().NewMeter(
-          {"history-archive", config.mName, "success"}, "event"))
-    , mFailureMeter(app.getMetrics().NewMeter(
-          {"history-archive", config.mName, "failure"}, "event"))
 {
 }
 
@@ -506,29 +502,5 @@ HistoryArchive::mkdirCmd(std::string const& remoteDir) const
     if (mConfig.mMkdirCmd.empty())
         return "";
     return formatString(mConfig.mMkdirCmd, remoteDir);
-}
-
-void
-HistoryArchive::markSuccess()
-{
-    mSuccessMeter.Mark();
-}
-
-void
-HistoryArchive::markFailure()
-{
-    mFailureMeter.Mark();
-}
-
-uint64_t
-HistoryArchive::getSuccessCount() const
-{
-    return mSuccessMeter.count();
-}
-
-uint64_t
-HistoryArchive::getFailureCount() const
-{
-    return mFailureMeter.count();
 }
 }

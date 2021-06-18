@@ -500,7 +500,12 @@ void
 CommandHandler::selfCheck(std::string const&, std::string& retStr)
 {
     ZoneScoped;
-    mApp.getHistoryArchiveManager().scheduleHistoryArchiveReportWork();
+    // NB: this only runs the online "self-check" routine; running the
+    // offline "self-check" from command-line will also do an expensive,
+    // synchronous database-vs-bucketlist consistency check. We can't do
+    // that online since it would block for so long that the node would
+    // lose sync. So we just omit it here.
+    mApp.scheduleSelfCheck(true);
 }
 
 void

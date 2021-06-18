@@ -136,6 +136,14 @@ class BucketManagerImpl : public BucketManager
     void shutdown() override;
 
     bool isShutdown() const override;
+
+    std::map<LedgerKey, LedgerEntry>
+    loadCompleteLedgerState(HistoryArchiveState const& has) override;
+
+    std::shared_ptr<Bucket>
+    mergeBuckets(HistoryArchiveState const& has) override;
+
+    std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork() override;
 };
 
 #define SKIP_1 50

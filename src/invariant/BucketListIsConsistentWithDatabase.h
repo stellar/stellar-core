@@ -37,6 +37,10 @@ class BucketListIsConsistentWithDatabase : public Invariant
                                            uint32_t oldestLedger,
                                            uint32_t newestLedger) override;
 
+    // Secondary entrypoint to database-vs-bucket consistency checking, designed
+    // to be run offline via self-check. Throws an exception on any error.
+    void checkEntireBucketlist();
+
   private:
     Application& mApp;
 };
