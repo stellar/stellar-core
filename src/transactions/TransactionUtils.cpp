@@ -1137,4 +1137,25 @@ hasMuxedAccount(TransactionEnvelope const& e)
     c(e);
     return c.mHasMuxedAccount;
 }
+
+ClaimAtom
+makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
+              int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
+              Asset const& sheep, int64_t numSheepSend)
+{
+    ClaimAtom atom;
+    if (ledgerVersion <= 17)
+    {
+        atom.type(CLAIM_ATOM_TYPE_V0);
+        atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,
+                                     numWheatReceived, sheep, numSheepSend);
+    }
+    else
+    {
+        atom.type(CLAIM_ATOM_TYPE_ORDER_BOOK);
+        atom.orderBook() = ClaimOfferAtom(
+            accountID, offerID, wheat, numWheatReceived, sheep, numSheepSend);
+    }
+    return atom;
+}
 } // namespace stellar

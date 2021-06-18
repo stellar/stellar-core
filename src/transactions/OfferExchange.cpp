@@ -969,7 +969,7 @@ static CrossOfferResult
 crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
            int64_t maxWheatReceived, int64_t& numWheatReceived,
            int64_t maxSheepSend, int64_t& numSheepSend,
-           std::vector<ClaimOfferAtom>& offerTrail)
+           std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
     assert(maxWheatReceived > 0);
@@ -1077,8 +1077,10 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         ltxInner.commit();
     }
 
-    offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
-                                        numWheatReceived, sheep, numSheepSend));
+    // Always returns a CLAIM_ATOM_TYPE_V0 in this case
+    offerTrail.emplace_back(
+        makeClaimAtom(ltx.loadHeader().current().ledgerVersion, accountBID,
+                      offerID, wheat, numWheatReceived, sheep, numSheepSend));
     return (newAmount == 0) ? CrossOfferResult::eOfferTaken
                             : CrossOfferResult::eOfferPartial;
 }
@@ -1087,7 +1089,7 @@ static CrossOfferResult
 crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
               int64_t maxWheatReceived, int64_t& numWheatReceived,
               int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
-              RoundingType round, std::vector<ClaimOfferAtom>& offerTrail)
+              RoundingType round, std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
     assert(maxWheatReceived > 0);
@@ -1210,8 +1212,9 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     // deactivated at this point. Specifically, you cannot use sellingWheatOffer
     // or offer (which is a reference) since it is not active (and may have been
     // erased) at this point.
-    offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
-                                        numWheatReceived, sheep, numSheepSend));
+    offerTrail.emplace_back(
+        makeClaimAtom(ltx.loadHeader().current().ledgerVersion, accountBID,
+                      offerID, wheat, numWheatReceived, sheep, numSheepSend));
     return res;
 }
 
@@ -1221,7 +1224,7 @@ convertWithOffers(
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross)
+    std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross)
 {
     ZoneScoped;
     std::string pairStr = assetToString(sheep);
