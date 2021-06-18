@@ -57,7 +57,8 @@ class HerderImpl : public Herder
     }
 
     void processExternalized(uint64 slotIndex, StellarValue const& value);
-    void valueExternalized(uint64 slotIndex, StellarValue const& value);
+    void valueExternalized(uint64 slotIndex, StellarValue const& value,
+                           bool isLatestSlot);
     void emitEnvelope(SCPEnvelope const& envelope);
 
     TransactionQueue::AddResult

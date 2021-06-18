@@ -202,12 +202,11 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
 }
 
 void
-HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
+HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
+                              bool isLatestSlot)
 {
     ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
-    // SCPDriver always updates tracking for latest slots
-    bool isLatestSlot = slotIndex == getCurrentLedgerSeq();
 
     if (isLatestSlot)
     {
