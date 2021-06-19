@@ -67,8 +67,14 @@ class Herder
 
     enum State
     {
+        // Starting up, no state is known
+        HERDER_BOOTING_STATE,
+        // Never been in sync with the network, track LCL
+        HERDER_TRACKING_LCL_STATE,
+        // Fell out of sync, resyncing
         HERDER_SYNCING_STATE,
-        HERDER_TRACKING_STATE,
+        // Fully in sync with the network
+        HERDER_TRACKING_NETWORK_STATE,
         HERDER_NUM_STATE
     };
 

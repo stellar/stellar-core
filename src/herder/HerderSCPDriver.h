@@ -33,53 +33,13 @@ struct SCPEnvelope;
 class HerderSCPDriver : public SCPDriver
 {
   public:
-    struct ConsensusData
-    {
-        uint64_t mConsensusIndex;
-        StellarValue mConsensusValue;
-        ConsensusData(uint64_t index, StellarValue const& b)
-            : mConsensusIndex(index), mConsensusValue(b)
-        {
-        }
-    };
-
     HerderSCPDriver(Application& app, HerderImpl& herder,
                     Upgrades const& upgrades,
                     PendingEnvelopes& pendingEnvelopes);
     ~HerderSCPDriver();
 
     void bootstrap();
-    void lostSync();
-
-    Herder::State getState() const;
-
-    ConsensusData*
-    trackingSCP() const
-    {
-        return mTrackingSCP.get();
-    }
-    ConsensusData*
-    lastTrackingSCP() const
-    {
-        return mLastTrackingSCP.get();
-    }
-
-    void restoreSCPState(uint64_t index, StellarValue const& value);
-
-    // the ledger index that was last externalized
-    uint32
-    lastConsensusLedgerIndex() const
-    {
-        assert(mTrackingSCP->mConsensusIndex <= UINT32_MAX);
-        return static_cast<uint32>(mTrackingSCP->mConsensusIndex);
-    }
-
-    // the ledger index that we expect to externalize next
-    uint32
-    nextConsensusLedgerIndex() const
-    {
-        return lastConsensusLedgerIndex() + 1;
-    }
+    void stateChanged();
 
     SCP&
     getSCP()
@@ -229,20 +189,6 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
-
-    // if the local instance is tracking the current state of SCP
-    // herder keeps track of the consensus index and ballot
-    // when not set, it just means that herder will try to snap to any slot that
-    // reached consensus
-    // on startup, this can be set to a value persisted from the database
-    std::unique_ptr<ConsensusData> mTrackingSCP;
-
-    // when losing track of consensus, we remember the consensus value so that
-    // we can ignore older ledgers (as we potentially receive old messages)
-    // it only tracks actual consensus values (learned when externalizing)
-    std::unique_ptr<ConsensusData> mLastTrackingSCP;
-
-    void stateChanged();
 
     SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
                                                    StellarValue const& sv,

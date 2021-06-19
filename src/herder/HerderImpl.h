@@ -35,6 +35,29 @@ class HerderSCPDriver;
 class HerderImpl : public Herder
 {
   public:
+    struct ConsensusData
+    {
+        uint64_t mConsensusIndex{0};
+        TimePoint mConsensusCloseTime{0};
+    };
+
+    void setTrackingSCPState(uint64_t index, StellarValue const& value,
+                             bool isTrackingNetwork);
+
+    // the ledger index that was last externalized
+    uint32 trackingConsensusLedgerIndex() const;
+
+    TimePoint trackingConsensusCloseTime() const;
+
+    // the ledger index that we expect to externalize next
+    uint32
+    nextConsensusLedgerIndex() const
+    {
+        return trackingConsensusLedgerIndex() + 1;
+    }
+
+    void lostSync();
+
     HerderImpl(Application& app);
     ~HerderImpl();
 
@@ -54,6 +77,13 @@ class HerderImpl : public Herder
     getHerderSCPDriver()
     {
         return mHerderSCPDriver;
+    }
+
+    bool
+    isTracking() const
+    {
+        return mState == State::HERDER_TRACKING_LCL_STATE ||
+               mState == State::HERDER_TRACKING_NETWORK_STATE;
     }
 
     void processExternalized(uint64 slotIndex, StellarValue const& value);
@@ -248,5 +278,14 @@ class HerderImpl : public Herder
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
 
     uint32_t getMinLedgerSeqToRemember() const;
+
+    State mState;
+    void setState(State st);
+
+    // Information about the most recent tracked SCP slot
+    // Set regardless of whether the local instance if fully in sync with the
+    // network or not (Herder::State is used to properly track the state of
+    // Herder) On startup, this variable is set to LCL
+    ConsensusData mTrackingSCP;
 };
 }

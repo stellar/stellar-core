@@ -98,30 +98,6 @@ HerderSCPDriver::bootstrap()
     clearSCPExecutionEvents();
 }
 
-void
-HerderSCPDriver::lostSync()
-{
-    stateChanged();
-
-    // transfer ownership to mHerderSCPDriver.lastTrackingSCP()
-    mLastTrackingSCP.reset(mTrackingSCP.release());
-}
-
-Herder::State
-HerderSCPDriver::getState() const
-{
-    // we're only returning "TRACKING" when we're tracking the actual network
-    // (mLastTrackingSCP is also set when this happens)
-    return mTrackingSCP && mLastTrackingSCP ? Herder::HERDER_TRACKING_STATE
-                                            : Herder::HERDER_SYNCING_STATE;
-}
-
-void
-HerderSCPDriver::restoreSCPState(uint64_t index, StellarValue const& value)
-{
-    mTrackingSCP = std::make_unique<ConsensusData>(index, value);
-}
-
 // envelope handling
 
 class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
@@ -271,7 +247,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
             return SCPDriver::kInvalidValue;
         }
 
-        if (!mTrackingSCP)
+        if (!mHerder.isTracking())
         {
             // if we're not tracking, there is not much more we can do to
             // validate
@@ -281,30 +257,29 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
 
         // Check slotIndex.
-        if (nextConsensusLedgerIndex() > slotIndex)
+        if (mHerder.nextConsensusLedgerIndex() > slotIndex)
         {
             // we already moved on from this slot
             // still send it through for emitting the final messages
             CLOG_TRACE(Herder,
                        "MaybeValidValue (already moved on) for slot {}, at {}",
-                       slotIndex, nextConsensusLedgerIndex());
+                       slotIndex, mHerder.nextConsensusLedgerIndex());
             return SCPDriver::kMaybeValidValue;
         }
-        if (nextConsensusLedgerIndex() < slotIndex)
+        if (mHerder.nextConsensusLedgerIndex() < slotIndex)
         {
             // this is probably a bug as "tracking" means we're processing
             // messages only for smaller slots
             CLOG_ERROR(
                 Herder,
                 "HerderSCPDriver::validateValue i: {} processing a future "
-                "message while tracking (tracking: {}, last: {} ) ",
-                slotIndex, mTrackingSCP->mConsensusIndex,
-                (mLastTrackingSCP ? mLastTrackingSCP->mConsensusIndex : 0));
+                "message while tracking {} ",
+                slotIndex, mHerder.trackingConsensusLedgerIndex());
             return SCPDriver::kInvalidValue;
         }
 
         // when tracking, we use the tracked time for last close time
-        lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
+        lastCloseTime = mHerder.trackingConsensusCloseTime();
         if (!checkCloseTime(slotIndex, lastCloseTime, b))
         {
             return SCPDriver::kInvalidValue;
@@ -492,11 +467,11 @@ HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
                                       std::function<void()> cb)
 {
     // reschedule timers for future slots when tracking
-    if (trackingSCP() && nextConsensusLedgerIndex() != slotIndex)
+    if (mHerder.isTracking() && mHerder.nextConsensusLedgerIndex() != slotIndex)
     {
         CLOG_WARNING(
             Herder, "Herder rescheduled timer {} for slot {} with next slot {}",
-            timerID, slotIndex, nextConsensusLedgerIndex());
+            timerID, slotIndex, mHerder.nextConsensusLedgerIndex());
         setupTimer(slotIndex, timerID, std::chrono::seconds(1),
                    std::bind(&HerderSCPDriver::timerCallbackWrapper, this,
                              slotIndex, timerID, cb));
@@ -772,17 +747,12 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             mCurrentValue.reset();
         }
 
-        if (!mTrackingSCP)
+        if (!mHerder.isTracking())
         {
             stateChanged();
         }
 
-        mTrackingSCP = std::make_unique<ConsensusData>(slotIndex, b);
-
-        if (!mLastTrackingSCP)
-        {
-            mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
-        }
+        mHerder.setTrackingSCPState(slotIndex, b, true);
 
         // record lag
         recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);
