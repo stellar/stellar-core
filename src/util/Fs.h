@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -64,20 +65,22 @@ native_handle_t openFileToWrite(std::string const& path);
 bool durableRename(std::string const& src, std::string const& dst,
                    std::string const& dir);
 
-// Whether a path exists
+// Return whether a path exists.
 bool exists(std::string const& path);
 
-// Delete a path and everything inside it (if a dir)
+// Delete a path and everything inside it (if a dir).
 void deltree(std::string const& path);
 
-// Make a single dir; not mkdir -p, i.e. non-recursive
+// Make a single dir; not mkdir -p, i.e. non-recursive. Returns true
+// if a directory was created (but false if it already existed).
 bool mkdir(std::string const& path);
 
-// Make a dir path like mkdir -p, i.e. recursive, uses '/' as dir separator
+// Make a dir path like mkdir -p, i.e. recursive, uses '/' as dir separator.
+// Returns true iff at the end of the call, the path exists and is a directory.
 bool mkpath(std::string const& path);
 
-// Get list of all files with names matching predicate
-// Returned names are relative to path
+// Get list of all files with names matching predicate in the provided directory
+// (but not its subdirectories). Returned names are relative to path.
 std::vector<std::string>
 findfiles(std::string const& path,
           std::function<bool(std::string const& name)> predicate);
@@ -85,19 +88,6 @@ findfiles(std::string const& path,
 size_t size(std::ifstream& ifs);
 
 size_t size(std::string const& path);
-
-class PathSplitter
-{
-  public:
-    explicit PathSplitter(std::string path);
-
-    std::string next();
-    bool hasNext() const;
-
-  private:
-    std::string mPath;
-    std::string::size_type mPos;
-};
 
 ////
 // Utility functions for constructing path names

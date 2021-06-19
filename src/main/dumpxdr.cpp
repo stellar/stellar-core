@@ -62,8 +62,7 @@ dumpstream(XDRInputFileStream& in, bool compact)
 void
 dumpXdrStream(std::string const& filename, bool compact)
 {
-    std::regex rx(
-        ".*(ledger|bucket|transactions|results|scp)-[[:xdigit:]]+\\.xdr");
+    std::regex rx(".*(ledger|bucket|transactions|results|meta|scp)-.+\\.xdr");
     std::smatch sm;
     if (std::regex_match(filename, sm, rx))
     {
@@ -85,6 +84,10 @@ dumpXdrStream(std::string const& filename, bool compact)
         else if (sm[1] == "results")
         {
             dumpstream<TransactionHistoryResultEntry>(in, compact);
+        }
+        else if (sm[1] == "meta")
+        {
+            dumpstream<LedgerCloseMeta>(in, compact);
         }
         else
         {

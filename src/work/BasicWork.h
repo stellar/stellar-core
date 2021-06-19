@@ -105,9 +105,11 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     // Publicly exposed state of work
     enum class State
     {
-        // Work has been created and is currently in progress.
-        // Implementers return RUNNING when work needs to be scheduled to run
-        // more.
+        // Work has been created and is currently in progress. Implementers
+        // return RUNNING when work needs to be scheduled to run more.
+        //
+        // See Work::addWork for a subtle distinction about when to return
+        // RUNNING vs. WAITING when adding children to (hierarchical) Work.
         WORK_RUNNING,
         // Work should not be scheduled to run, as it's waiting
         // for some event (process exit, retry timeout, etc)

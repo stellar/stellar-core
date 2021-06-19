@@ -7,6 +7,7 @@
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
+#include <filesystem>
 #include <fmt/format.h>
 
 #include <map>
@@ -15,10 +16,6 @@
 
 #ifdef _WIN32
 #include <direct.h>
-
-// Latest version of VC++ complains without this define (confused by C++ 17)
-#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING 1
-#include <experimental/filesystem>
 
 #include <io.h>
 #else
@@ -138,77 +135,11 @@ durableRename(std::string const& src, std::string const& dst,
     return true;
 }
 
-bool
-exists(std::string const& name)
-{
-    ZoneScoped;
-    if (name.empty())
-        return false;
-
-    if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
-    {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND ||
-            GetLastError() == ERROR_PATH_NOT_FOUND)
-        {
-            return false;
-        }
-        else
-        {
-            std::string msg("error accessing path: ");
-            throw FileSystemException(msg + name);
-        }
-    }
-    return true;
-}
-
-bool
-mkdir(std::string const& name)
-{
-    ZoneScoped;
-    bool b = _mkdir(name.c_str()) == 0;
-    CLOG_DEBUG(Fs, "{}{}", (b ? "created dir " : "failed to create dir "),
-               name);
-    return b;
-}
-
-void
-deltree(std::string const& d)
-{
-    ZoneScoped;
-    namespace fs = std::experimental::filesystem;
-    fs::remove_all(fs::path(d));
-}
-
-std::vector<std::string>
-findfiles(std::string const& p,
-          std::function<bool(std::string const& name)> predicate)
-{
-    ZoneScoped;
-    using namespace std;
-    namespace fs = std::experimental::filesystem;
-
-    std::vector<std::string> res;
-    for (auto& entry : fs::directory_iterator(fs::path(p)))
-    {
-        if (fs::is_regular_file(entry.status()))
-        {
-            auto n = entry.path().filename().string();
-            if (predicate(n))
-            {
-                res.emplace_back(n);
-            }
-        }
-    }
-    return res;
-}
-
 #else
 #include <cerrno>
 #include <fcntl.h>
-#include <ftw.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static std::map<std::string, int> lockMap;
@@ -340,152 +271,61 @@ durableRename(std::string const& src, std::string const& dst,
     }
     return true;
 }
+#endif
+
+namespace stdfs = std::filesystem;
 
 bool
 exists(std::string const& name)
 {
     ZoneScoped;
-    struct stat buf;
-    if (stat(name.c_str(), &buf) == -1)
-    {
-        if (errno == ENOENT)
-        {
-            return false;
-        }
-        else
-        {
-            std::string msg("error accessing path: ");
-            throw FileSystemException(msg + name);
-        }
-    }
-    return true;
+    return stdfs::exists(stdfs::path(name));
 }
 
 bool
 mkdir(std::string const& name)
 {
     ZoneScoped;
-    bool b = ::mkdir(name.c_str(), 0700) == 0;
-    CLOG_DEBUG(Fs, "{}{}", (b ? "created dir " : "failed to create dir "),
+    bool ok = stdfs::create_directory(stdfs::path(name));
+    CLOG_DEBUG(Fs, "{}{}", (ok ? "created dir " : "failed to create dir "),
                name);
-    return b;
-}
-
-namespace
-{
-
-int
-nftw_deltree_callback(char const* name, struct stat const* st, int flag,
-                      struct FTW* ftw)
-{
-    ZoneScoped;
-    CLOG_DEBUG(Fs, "deleting: {}", name);
-    if (flag == FTW_DP)
-    {
-        if (rmdir(name) != 0)
-        {
-            throw FileSystemException(std::string{"rmdir of "} + name +
-                                      " failed");
-        }
-    }
-    else
-    {
-        if (std::remove(name) != 0)
-        {
-            throw FileSystemException(std::string{"std::remove of "} + name +
-                                      " failed");
-        }
-    }
-    return 0;
-}
+    return ok;
 }
 
 void
 deltree(std::string const& d)
 {
     ZoneScoped;
-    if (nftw(d.c_str(), nftw_deltree_callback, FOPEN_MAX, FTW_DEPTH) != 0)
-    {
-        throw FileSystemException("nftw failed in deltree for " + d);
-    }
+    stdfs::remove_all(stdfs::path(d));
 }
 
 std::vector<std::string>
-findfiles(std::string const& path,
+findfiles(std::string const& p,
           std::function<bool(std::string const& name)> predicate)
 {
     ZoneScoped;
-    auto dir = opendir(path.c_str());
-    auto result = std::vector<std::string>{};
-    if (!dir)
+    std::vector<std::string> res;
+    for (auto& entry : stdfs::directory_iterator(stdfs::path(p)))
     {
-        return result;
-    }
-
-    try
-    {
-        while (auto entry = readdir(dir))
+        if (stdfs::is_regular_file(entry.status()))
         {
-            auto name = std::string{entry->d_name};
-            if (predicate(name))
+            auto n = entry.path().filename().string();
+            if (predicate(n))
             {
-                result.push_back(name);
+                res.emplace_back(n);
             }
         }
-
-        closedir(dir);
-        return result;
     }
-    catch (...)
-    {
-        // small RAII class could do here
-        closedir(dir);
-        throw;
-    }
-}
-
-#endif
-
-PathSplitter::PathSplitter(std::string path) : mPath{std::move(path)}, mPos{0}
-{
-}
-
-std::string
-PathSplitter::next()
-{
-    auto slash = mPath.find('/', mPos);
-    mPos = slash == std::string::npos ? mPath.length() : slash;
-    auto r = mPos == 0 ? "/" : mPath.substr(0, mPos);
-    mPos++;
-    auto mLastSlash = mPos;
-    while (mLastSlash < mPath.length() && mPath[mLastSlash] == '/')
-        mLastSlash++;
-    if (mLastSlash > mPos)
-        mPath.erase(mPos, mLastSlash - mPos);
-    return r;
-}
-
-bool
-PathSplitter::hasNext() const
-{
-    return mPos < mPath.length();
+    return res;
 }
 
 bool
 mkpath(const std::string& path)
 {
     ZoneScoped;
-    auto splitter = PathSplitter{path};
-    while (splitter.hasNext())
-    {
-        auto subpath = splitter.next();
-        if (!exists(subpath) && !mkdir(subpath))
-        {
-            return false;
-        }
-    }
-
-    return true;
+    auto p = stdfs::path(path);
+    stdfs::create_directories(p);
+    return stdfs::exists(p) && stdfs::is_directory(p);
 }
 
 std::string
@@ -530,8 +370,7 @@ void
 checkGzipSuffix(std::string const& filename)
 {
     static const std::string suf(".gz");
-    if (!(filename.size() >= suf.size() &&
-          equal(suf.rbegin(), suf.rend(), filename.rbegin())))
+    if (std::filesystem::path(filename).extension().string() != suf)
     {
         throw std::runtime_error("filename does not end in .gz");
     }
@@ -541,8 +380,7 @@ void
 checkNoGzipSuffix(std::string const& filename)
 {
     static const std::string suf(".gz");
-    if (filename.size() >= suf.size() &&
-        equal(suf.rbegin(), suf.rend(), filename.rbegin()))
+    if (std::filesystem::path(filename).extension().string() == suf)
     {
         throw std::runtime_error("filename ends in .gz");
     }
@@ -565,17 +403,7 @@ size_t
 size(std::string const& filename)
 {
     ZoneScoped;
-    std::ifstream ifs;
-    ifs.open(filename, std::ifstream::binary);
-    if (ifs)
-    {
-        ifs.exceptions(std::ios::badbit);
-        return size(ifs);
-    }
-    else
-    {
-        return 0;
-    }
+    return stdfs::file_size(stdfs::path(filename));
 }
 
 #ifdef _WIN32

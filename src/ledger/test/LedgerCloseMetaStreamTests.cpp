@@ -6,6 +6,7 @@
 #include "crypto/Random.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
+#include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -15,6 +16,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger.h"
 #include <fmt/format.h>
 #include <fstream>
@@ -350,4 +352,38 @@ TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
             REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
         }
     }
+}
+
+TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MANUAL_CLOSE = false;
+    cfg.METADATA_DEBUG_LEDGERS = 768;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    auto bucketDir = app->getBucketManager().getBucketDir();
+    auto n = FlushAndRotateMetaDebugWork::getNumberOfDebugFilesToKeep(
+        cfg.METADATA_DEBUG_LEDGERS);
+    bool gotToExpectedSize = false;
+    auto& lm = app->getLedgerManager();
+    while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
+    {
+        clock.crank(false);
+        if (app->getWorkScheduler().allChildrenDone())
+        {
+            auto files =
+                FlushAndRotateMetaDebugWork::listMetaDebugFiles(bucketDir);
+            REQUIRE(files.size() <= n);
+            if (files.size() == n)
+            {
+                gotToExpectedSize = true;
+            }
+        }
+    }
+    while (!app->getWorkScheduler().allChildrenDone())
+    {
+        clock.crank(false);
+    }
+    REQUIRE(gotToExpectedSize);
 }

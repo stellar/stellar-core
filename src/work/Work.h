@@ -83,6 +83,17 @@ class Work : public BasicWork
         return child;
     }
 
+    // addWork adds a child work and wires it up to call the current (parent)
+    // work's wakeUp method when the child completes.
+    //
+    // One subtle note: addWork transitions the child to WORK_RUNNING state, but
+    // does _not run the child's onRun method_, so in a parent's onRun method
+    // that calls addWork to add a child, the parent should return WORK_RUNNING
+    // (or the child's status), not WORK_WAITING. The parent will then be
+    // rescheduled and in its _next_ run will call through to the child's onRun,
+    // which will wire up callbacks / start running the child. The parent's
+    // onRun method should only return WORK_WAITING if it observes an _existing_
+    // child running or waiting.
     void
     addWork(std::function<void()> cb, std::shared_ptr<BasicWork> child)
     {
