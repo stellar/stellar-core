@@ -49,7 +49,7 @@ testQuorumTracker()
     auto* penEnvs = &herder->getPendingEnvelopes();
 
     // allow SCP messages from other slots to be processed
-    herder->getHerderSCPDriver().lostSync();
+    herder->lostSync();
 
     auto valSigner = SecretKey::pseudoRandomForTesting();
 

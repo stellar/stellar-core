@@ -1526,12 +1526,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame = root.tx({createAccount(a1, paymentAmount)});
             txSet->add(txFrame);
 
-            // close this ledger
-            StellarValue sv = app->getHerder().makeStellarValue(
-                txSet->getContentsHash(), 1, emptyUpgradeSteps,
-                app->getConfig().NODE_SEED);
-            LedgerCloseData ledgerData(1, txSet, sv);
-            app->getLedgerManager().closeLedger(ledgerData);
+            // Close this ledger
+            app->getHerder().externalizeValue(txSet, 2, 1, emptyUpgradeSteps);
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 2);
         };

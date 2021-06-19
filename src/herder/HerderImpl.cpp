@@ -654,6 +654,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     return status;
 }
 
+#ifdef BUILD_TESTS
+
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset, TxSetFrame txset)
@@ -665,6 +667,19 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
     return recvSCPEnvelope(envelope);
 }
+
+void
+HerderImpl::externalizeValue(std::shared_ptr<TxSetFrame> txSet,
+                             uint32_t ledgerSeq, uint64_t closeTime,
+                             xdr::xvector<UpgradeType, 6> const& upgrades)
+{
+    getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
+    StellarValue sv = makeStellarValue(txSet->getContentsHash(), closeTime,
+                                       upgrades, mApp.getConfig().NODE_SEED);
+    getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
+}
+
+#endif
 
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)

@@ -229,11 +229,8 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    StellarValue sv = app.getHerder().makeStellarValue(
-        txSet->getContentsHash(), 2, upgrades, app.getConfig().NODE_SEED);
-    LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-
-    app.getLedgerManager().closeLedger(ledgerData);
+    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
+                                     upgrades);
     return lm.getLastClosedLedgerHeader().header;
 };
 
