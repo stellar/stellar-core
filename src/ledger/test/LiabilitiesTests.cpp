@@ -24,7 +24,6 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
-    app->start();
 
     SECTION("add account selling liabilities")
     {
@@ -826,7 +825,6 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
-    app->start();
 
     SECTION("account add balance")
     {
@@ -1227,7 +1225,6 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
-    app->start();
 
     SECTION("account available balance")
     {

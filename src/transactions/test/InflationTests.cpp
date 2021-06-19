@@ -319,8 +319,6 @@ TEST_CASE("inflation", "[tx][inflation]")
         return ltx.loadHeader().current().totalCoins;
     };
 
-    app->start();
-
     SECTION("not time")
     {
         for_versions_to(11, *app, [&] {

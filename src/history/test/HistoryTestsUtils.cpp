@@ -421,8 +421,9 @@ CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
     : mClock(mode)
     , mHistoryConfigurator(cg)
     , mCfg(getTestConfig())
-    , mAppPtr(createTestApplication(
-          mClock, mHistoryConfigurator->configure(mCfg, true)))
+    , mAppPtr(createTestApplication(mClock,
+                                    mHistoryConfigurator->configure(mCfg, true),
+                                    /*newDB*/ true, /*startApp*/ false))
     , mApp(*mAppPtr)
 {
     auto dirName = cg->getArchiveDirName();

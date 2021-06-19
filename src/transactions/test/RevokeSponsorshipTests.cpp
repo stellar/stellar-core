@@ -40,7 +40,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     auto minBal = [&](uint32_t n) {
         return app->getLedgerManager().getLastMinBalance(n);

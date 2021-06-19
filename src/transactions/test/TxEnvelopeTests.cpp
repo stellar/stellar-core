@@ -49,7 +49,6 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -86,7 +85,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);

@@ -364,7 +364,6 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
         VirtualClock clock;
         auto app =
             createTestApplication<BucketManagerTestApplication>(clock, cfg);
-        app->start();
         BucketManager& bm = app->getBucketManager();
         BucketList& bl = bm.getBucketList();
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
@@ -388,8 +387,8 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
     // Check that restarting the app crashes.
     {
         VirtualClock clock;
-        Application::pointer app =
-            createTestApplication(clock, cfg, /*newDB=*/false);
+        Application::pointer app = createTestApplication(
+            clock, cfg, /*newDB=*/false, /*startApp*/ false);
         CHECK_THROWS_AS(app->start(), std::runtime_error);
     }
 }
@@ -543,7 +542,6 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
         Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1;
 
     auto app = createTestApplication<BucketManagerTestApplication>(clock, cfg);
-    app->start();
 
     BucketManager& bm = app->getBucketManager();
     BucketList& bl = bm.getBucketList();
@@ -615,7 +613,6 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         auto& bl = bm.getBucketList();
         auto& lm = app->getLedgerManager();
         hm.setPublicationEnabled(false);
-        app->start();
         app->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName());
         while (hm.getPublishQueueCount() < 5)
@@ -1112,7 +1109,6 @@ class StopAndRestartBucketMergesTest
                   finalLedger, finalLedger);
         auto app =
             createTestApplication<BucketManagerTestApplication>(clock, cfg);
-        app->start();
 
         std::vector<LedgerKey> allKeys;
         std::map<LedgerKey, LedgerEntry> currLive;
@@ -1231,7 +1227,6 @@ class StopAndRestartBucketMergesTest
 
         auto app =
             createTestApplication<BucketManagerTestApplication>(*clock, cfg);
-        app->start();
         uint32_t finalLedger2 = finalLedger;
         CLOG_INFO(Bucket,
                   "Running stop/restart test in ledger range 2..{} = {:#x}",
@@ -1292,7 +1287,6 @@ class StopAndRestartBucketMergesTest
                 clock = std::make_unique<VirtualClock>();
                 app = createTestApplication<BucketManagerTestApplication>(
                     *clock, cfg, false);
-                app->start();
                 if (BucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {
                     // Confirm that the merge-in-progress was restarted.
@@ -1421,7 +1415,6 @@ TEST_CASE("bucket persistence over app restart",
         {
             VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg0);
-            app->start();
             sk = std::make_optional<SecretKey>(cfg0.NODE_SEED);
             BucketList& bl = app->getBucketManager().getBucketList();
 
@@ -1458,7 +1451,6 @@ TEST_CASE("bucket persistence over app restart",
         {
             VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg1);
-            app->start();
             BucketList& bl = app->getBucketManager().getBucketList();
 
             uint32_t i = 2;

@@ -60,7 +60,6 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& lm = app->getLedgerManager();
     const int64_t baseReserve = lm.getLastReserve();

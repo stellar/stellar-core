@@ -58,8 +58,6 @@ TEST_CASE("standalone", "[herder][acceptance]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg1);
 
-        app->start();
-
         // set up world
         auto root = TestAccount::createRoot(*app);
         auto a1 = TestAccount{*app, getAccount("A")};
@@ -259,8 +257,6 @@ testTxSet(uint32 protocolVersion)
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->start();
-
     // set up world
     auto root = TestAccount::createRoot(*app);
 
@@ -437,7 +433,6 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
 
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
@@ -670,8 +665,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->start();
-
         LedgerHeader lhCopy;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -857,8 +850,6 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->start();
-
     LedgerHeader lhCopy;
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1041,8 +1032,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->start();
-
         auto root = TestAccount::createRoot(*app);
 
         auto destAccount = root.create("destAccount", 500000000);
@@ -1088,8 +1077,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
     cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
 
     Application::pointer app = createTestApplication(clock, cfg);
-
-    app->start();
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -2413,7 +2400,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 0;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& lm = app->getLedgerManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -2677,7 +2663,6 @@ TEST_CASE("slot herder policy", "[herder]")
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
@@ -2808,7 +2793,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         VirtualClock clock;
         auto cfg = getTestConfig();
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");
@@ -2824,7 +2808,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto cfg = getTestConfig();
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {CREATE_ACCOUNT};
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");
@@ -2841,7 +2824,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto cfg = getTestConfig();
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {MANAGE_DATA};
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");

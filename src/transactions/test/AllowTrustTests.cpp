@@ -87,8 +87,6 @@ template <int V> struct TestStub
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
 
-        app->start();
-
         const int64_t trustLineLimit = INT64_MAX;
         const int64_t trustLineStartingBalance = 20000;
 
@@ -383,8 +381,6 @@ template <int V> struct TestStub
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
-
-        app->start();
 
         const int64_t trustLineLimit = INT64_MAX;
         const int64_t trustLineStartingBalance = 20000;

@@ -115,7 +115,6 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
     cfg.INVARIANT_CHECKS = {};
     auto app = createTestApplication(clock, cfg);
     OrderBookIsNotCrossed::registerAndEnableInvariant(*app);
-    app->start();
 
     auto root = TestAccount::createRoot(*app);
 
@@ -192,7 +191,6 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     cfg.INVARIANT_CHECKS = {};
     auto app = createTestApplication(clock, cfg);
     OrderBookIsNotCrossed::registerAndEnableInvariant(*app);
-    app->start();
 
     auto root = TestAccount::createRoot(*app);
 

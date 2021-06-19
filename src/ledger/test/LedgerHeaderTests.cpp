@@ -102,8 +102,6 @@ TEST_CASE("base reserve", "[ledger]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     REQUIRE(lcl.header.baseReserve == 100000000);
     const uint32 n = 20000;

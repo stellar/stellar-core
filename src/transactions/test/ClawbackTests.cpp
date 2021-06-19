@@ -22,8 +22,6 @@ TEST_CASE("clawback", "[tx][clawback]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     auto root = TestAccount::createRoot(*app);
 
     auto const minBalance3 = app->getLedgerManager().getLastMinBalance(3);

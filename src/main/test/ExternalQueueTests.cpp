@@ -19,8 +19,6 @@ TEST_CASE("cursors", "[externalqueue]")
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->start();
-
     ExternalQueue ps(*app);
     std::map<std::string, uint32> curMap;
     app->getCommandHandler().manualCmd("setcursor?id=FOO&cursor=123");

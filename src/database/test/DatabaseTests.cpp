@@ -74,7 +74,7 @@ TEST_CASE("database smoketest", "[db]")
     Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
 
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg, true, false);
     transactionTest(app);
 }
 
@@ -83,7 +83,7 @@ TEST_CASE("database on-disk smoketest", "[db]")
     Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
 
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg, true, false);
     transactionTest(app);
 }
 
@@ -202,7 +202,7 @@ TEST_CASE("sqlite MVCC test", "[db]")
 {
     Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg, true, false);
     checkMVCCIsolation(app);
 }
 
@@ -352,7 +352,6 @@ TEST_CASE("schema test", "[db]")
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& db = app->getDatabase();
     auto dbv = db.getDBSchemaVersion();

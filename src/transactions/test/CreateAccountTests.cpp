@@ -31,7 +31,6 @@ TEST_CASE("create account", "[tx][createaccount]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);

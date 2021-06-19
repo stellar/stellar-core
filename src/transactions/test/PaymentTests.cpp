@@ -45,7 +45,6 @@ TEST_CASE("payment", "[tx][payment]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -1938,7 +1937,6 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
-        app->start();
 
         // set up world
         auto root = TestAccount::createRoot(*app);
@@ -2049,7 +2047,6 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
-        app->start();
 
         // set up world
         auto root = TestAccount::createRoot(*app);

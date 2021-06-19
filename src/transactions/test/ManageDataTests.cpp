@@ -31,8 +31,6 @@ TEST_CASE("manage data", "[tx][managedata]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     // set up world
     auto root = TestAccount::createRoot(*app);
 
