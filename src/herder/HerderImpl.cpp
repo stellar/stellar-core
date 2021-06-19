@@ -531,10 +531,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         maxLedgerSeq = mHerderSCPDriver.nextConsensusLedgerIndex() +
                        LEDGER_VALIDITY_BRACKET;
     }
-    else if (!checkCloseTime(
-                 envelope,
-                 (mHerderSCPDriver.lastTrackingSCP() == nullptr) &&
-                     (minLedgerSeq <= LedgerManager::GENESIS_LEDGER_SEQ)))
+    else if (!checkCloseTime(envelope, getCurrentLedgerSeq() <=
+                                           LedgerManager::GENESIS_LEDGER_SEQ))
     {
         // if we've never been in sync, we can be more aggressive in how we
         // filter messages: we can ignore messages that are unlikely to be
