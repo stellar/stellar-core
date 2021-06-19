@@ -41,8 +41,7 @@ class HerderImpl : public Herder
         TimePoint mConsensusCloseTime{0};
     };
 
-    void setTrackingSCPState(uint64_t index, StellarValue const& value,
-                             bool isTrackingNetwork);
+    void setTrackingSCPState(uint64_t index, StellarValue const& value);
 
     // the ledger index that was last externalized
     uint32 trackingConsensusLedgerIndex() const;
@@ -82,8 +81,7 @@ class HerderImpl : public Herder
     bool
     isTracking() const
     {
-        return mState == State::HERDER_TRACKING_LCL_STATE ||
-               mState == State::HERDER_TRACKING_NETWORK_STATE;
+        return mState == State::HERDER_TRACKING_NETWORK_STATE;
     }
 
     void processExternalized(uint64 slotIndex, StellarValue const& value);

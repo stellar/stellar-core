@@ -1676,6 +1676,9 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         }
         sim->addNode(nodeKeys[2], qSetAll, &nodeCfgs[2]);
         sim->getNode(nodeIDs[2])->start();
+        // 2 always has FORCE_SCP=true, so it starts in sync
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_SYNCED_STATE);
 
         // crank a bit (nothing should happen, node 2 is waiting for SCP
         // messages)
@@ -1695,6 +1698,20 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
+        if (forceSCP)
+        {
+            REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
+            REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
+        }
+        else
+        {
+            REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                    Application::State::APP_CONNECTED_STANDBY_STATE);
+            REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                    Application::State::APP_CONNECTED_STANDBY_STATE);
+        }
 
         sim->addConnection(nodeIDs[0], nodeIDs[2]);
         sim->addConnection(nodeIDs[1], nodeIDs[2]);
@@ -1708,11 +1725,14 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         // next ledger
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(expectedLedger + 1, 5); },
-            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         // nodes are at least on ledger 7 (some may be on 8)
         for (int i = 0; i <= 2; i++)
         {
+            // All nodes are in sync
+            REQUIRE(sim->getNode(nodeIDs[i])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
             auto const& actual = sim->getNode(nodeIDs[i])
                                      ->getLedgerManager()
                                      .getLastClosedLedgerHeader()
@@ -1738,6 +1758,13 @@ TEST_CASE("SCP State", "[herder][acceptance]")
             },
             std::chrono::seconds(1), false);
 
+        REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                Application::State::APP_CONNECTED_STANDBY_STATE);
+        REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                Application::State::APP_CONNECTED_STANDBY_STATE);
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_SYNCED_STATE);
+
         for (int i = 0; i <= 2; i++)
         {
             auto const& actual = sim->getNode(nodeIDs[i])
@@ -1746,6 +1773,17 @@ TEST_CASE("SCP State", "[herder][acceptance]")
                                      .header;
             REQUIRE(actual == lcl.header);
         }
+
+        // Crank some more and let 2 go out of sync
+        sim->crankUntil(
+            [&]() {
+                return sim->getNode(nodeIDs[2])->getHerder().getState() ==
+                       Herder::State::HERDER_SYNCING_STATE;
+            },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        // Verify that the app is not synced anymore
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_ACQUIRING_CONSENSUS_STATE);
     }
 }
 
@@ -1820,7 +1858,7 @@ TEST_CASE("herder externalizes values", "[herder]")
 
     // After SCP is restored, Herder is tracking
     REQUIRE(getC()->getHerder().getState() ==
-            Herder::State::HERDER_TRACKING_LCL_STATE);
+            Herder::State::HERDER_TRACKING_NETWORK_STATE);
 
     auto A = simulation->getNode(validatorAKey.getPublicKey());
     auto B = simulation->getNode(validatorBKey.getPublicKey());
@@ -2075,7 +2113,8 @@ TEST_CASE("herder externalizes values", "[herder]")
         newC->start();
         HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
 
-        checkHerder(*newC, newHerderC, Herder::State::HERDER_TRACKING_LCL_STATE,
+        checkHerder(*newC, newHerderC,
+                    Herder::State::HERDER_TRACKING_NETWORK_STATE,
                     currentlyTracking);
 
         SECTION("tracking")
@@ -2083,7 +2122,7 @@ TEST_CASE("herder externalizes values", "[herder]")
             receiveLedger(destinationLedger, newHerderC);
 
             checkHerder(*newC, newHerderC,
-                        Herder::State::HERDER_TRACKING_LCL_STATE,
+                        Herder::State::HERDER_TRACKING_NETWORK_STATE,
                         currentlyTracking);
             checkSynced(*newC);
         }

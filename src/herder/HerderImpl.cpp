@@ -104,12 +104,10 @@ HerderImpl::getState() const
 }
 
 void
-HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
-                                bool isTrackingNetwork)
+HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value)
 {
     mTrackingSCP = ConsensusData{index, value.closeTime};
-    setState(isTrackingNetwork ? Herder::HERDER_TRACKING_NETWORK_STATE
-                               : Herder::HERDER_TRACKING_LCL_STATE);
+    setState(Herder::HERDER_TRACKING_NETWORK_STATE);
 }
 
 uint32
@@ -130,8 +128,7 @@ HerderImpl::trackingConsensusCloseTime() const
 void
 HerderImpl::setState(State st)
 {
-    bool initState =
-        st == HERDER_BOOTING_STATE || st == HERDER_TRACKING_LCL_STATE;
+    bool initState = st == HERDER_BOOTING_STATE;
     if (initState && (mState == HERDER_TRACKING_NETWORK_STATE ||
                       mState == HERDER_SYNCING_STATE))
     {
@@ -167,8 +164,8 @@ std::string
 HerderImpl::getStateHuman(State st) const
 {
     static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
-        "HERDER_BOOTING_STATE", "HERDER_TRACKING_LCL_STATE",
-        "HERDER_SYNCING_STATE", "HERDER_TRACKING_NETWORK_STATE"};
+        "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
+        "HERDER_TRACKING_NETWORK_STATE"};
     return std::string(stateStrings[st]);
 }
 
@@ -1188,7 +1185,7 @@ void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
-    setTrackingSCPState(header.ledgerSeq, header.scpValue, true);
+    setTrackingSCPState(header.ledgerSeq, header.scpValue);
 }
 
 bool
@@ -1632,7 +1629,7 @@ HerderImpl::restoreSCPState()
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
-    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue, false);
+    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
 
     if (!mApp.getConfig().FORCE_SCP &&
         lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)

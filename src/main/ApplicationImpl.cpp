@@ -1034,7 +1034,7 @@ ApplicationImpl::getState() const
 {
     State s;
 
-    if (!mStarted)
+    if (!mStarted || mHerder->getState() == Herder::HERDER_BOOTING_STATE)
     {
         s = APP_CREATED_STATE;
     }
