@@ -130,6 +130,15 @@ HerderImpl::trackingConsensusCloseTime() const
 void
 HerderImpl::setState(State st)
 {
+    bool initState =
+        st == HERDER_BOOTING_STATE || st == HERDER_TRACKING_LCL_STATE;
+    if (initState && (mState == HERDER_TRACKING_NETWORK_STATE ||
+                      mState == HERDER_SYNCING_STATE))
+    {
+        throw std::runtime_error(
+            fmt::format("Invalid state transition in Herder: {} -> {}",
+                        getStateHuman(mState), getStateHuman(st)));
+    }
     mState = st;
 }
 
@@ -155,12 +164,12 @@ HerderImpl::syncMetrics()
 }
 
 std::string
-HerderImpl::getStateHuman() const
+HerderImpl::getStateHuman(State st) const
 {
     static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
         "HERDER_BOOTING_STATE", "HERDER_TRACKING_LCL_STATE",
         "HERDER_SYNCING_STATE", "HERDER_TRACKING_NETWORK_STATE"};
-    return std::string(stateStrings[getState()]);
+    return std::string(stateStrings[st]);
 }
 
 void

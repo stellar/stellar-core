@@ -62,7 +62,7 @@ class HerderImpl : public Herder
     ~HerderImpl();
 
     State getState() const override;
-    std::string getStateHuman() const override;
+    std::string getStateHuman(State st) const override;
 
     void syncMetrics() override;
 

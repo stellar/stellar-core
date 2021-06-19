@@ -96,7 +96,7 @@ class Herder
     };
 
     virtual State getState() const = 0;
-    virtual std::string getStateHuman() const = 0;
+    virtual std::string getStateHuman(State st) const = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.
