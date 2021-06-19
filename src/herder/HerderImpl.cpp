@@ -1607,15 +1607,17 @@ HerderImpl::restoreSCPState()
     ZoneScoped;
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue, false);
+
     if (!mApp.getConfig().FORCE_SCP &&
         lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
     {
         // if we're on genesis ledger, there is no point in claiming
         // that we're "in sync"
+        lostSync();
         return;
     }
-
-    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue, false);
 
     trackingHeartBeat();
 
