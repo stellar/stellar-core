@@ -23,7 +23,7 @@ SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
     : mDriver(driver)
 {
     mLocalNode =
-        std::make_shared<LocalNode>(nodeID, isValidator, qSetLocal, this);
+        std::make_shared<LocalNode>(nodeID, isValidator, qSetLocal, driver);
 }
 
 SCP::EnvelopeState

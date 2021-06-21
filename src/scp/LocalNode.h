@@ -8,7 +8,8 @@
 #include <set>
 #include <vector>
 
-#include "scp/SCP.h"
+#include "lib/json/json-forwards.h"
+#include "scp/SCPDriver.h"
 #include "util/HashOfHash.h"
 
 namespace stellar
@@ -28,11 +29,11 @@ class LocalNode
     Hash gSingleQSetHash;                      // hash of the singleton qset
     std::shared_ptr<SCPQuorumSet> mSingleQSet; // {{mNodeID}}
 
-    SCP* mSCP;
+    SCPDriver& mDriver;
 
   public:
     LocalNode(NodeID const& nodeID, bool isValidator, SCPQuorumSet const& qSet,
-              SCP* scp);
+              SCPDriver& driver);
 
     NodeID const& getNodeID();
 
