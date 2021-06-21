@@ -5,7 +5,6 @@
 #include "LocalNode.h"
 
 #include "crypto/Hex.h"
-#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
@@ -27,7 +26,7 @@ LocalNode::LocalNode(NodeID const& nodeID, bool isValidator,
     mQSetHash = driver.getHashOf({xdr::xdr_to_opaque(mQSet)});
 
     CLOG_INFO(SCP, "LocalNode::LocalNode@{} qSet: {}",
-              KeyUtils::toShortString(mNodeID), hexAbbrev(mQSetHash));
+              driver.toShortString(mNodeID), hexAbbrev(mQSetHash));
 
     mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));
     gSingleQSetHash = driver.getHashOf({xdr::xdr_to_opaque(*mSingleQSet)});
@@ -381,8 +380,8 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
 Json::Value
 LocalNode::toJson(SCPQuorumSet const& qSet, bool fullKeys) const
 {
-    return toJson(qSet, [&](NodeID const& k)
-                  { return mDriver.toStrKey(k, fullKeys); });
+    return toJson(
+        qSet, [&](NodeID const& k) { return mDriver.toStrKey(k, fullKeys); });
 }
 
 Json::Value
