@@ -30,6 +30,7 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/SponsorshipCountIsValid.h"
+#include "ledger/InMemoryLedgerTxn.h"
 #include "ledger/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -304,13 +305,13 @@ ApplicationImpl::resetLedgerState()
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         mNeverCommittingLedgerTxn.reset();
-        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>(
+        mInMemoryLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>(
 #ifdef BEST_OFFER_DEBUGGING
             mConfig.BEST_OFFER_DEBUGGING_ENABLED
 #endif
         );
-        mNeverCommittingLedgerTxn =
-            std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
+        mNeverCommittingLedgerTxn = std::make_unique<InMemoryLedgerTxn>(
+            *mInMemoryLedgerTxnRoot, getDatabase());
     }
     else
     {

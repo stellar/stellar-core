@@ -1014,6 +1014,9 @@
     <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxnRoot.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxn.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
@@ -1902,6 +1905,9 @@
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxn.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\Curve25519.h">
