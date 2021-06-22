@@ -288,8 +288,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-        LedgerEntry const& entry)
-        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
+        std::function<bool(LedgerEntryType)> filter, LedgerEntry const& entry)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion, filter)
         , mEntry(entry)
         , mAdded{false}
     {
@@ -578,19 +578,41 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
 TEST_CASE("BucketListIsConsistentWithDatabase added entries",
           "[invariant][bucketlistconsistent][acceptance]")
 {
-    for (size_t nTests = 0; nTests < 40; ++nTests)
-    {
-        BucketListGenerator blg;
-        blg.generateLedgers(100);
+    auto runTest = [](bool withFilter) {
+        for (size_t nTests = 0; nTests < 40; ++nTests)
+        {
+            BucketListGenerator blg;
+            blg.generateLedgers(100);
 
-        std::uniform_int_distribution<uint32_t> addAtLedgerDist(2,
-                                                                blg.mLedgerSeq);
-        auto le = LedgerTestUtils::generateValidLedgerEntry(5);
-        le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
+            std::uniform_int_distribution<uint32_t> addAtLedgerDist(
+                2, blg.mLedgerSeq);
+            auto le = LedgerTestUtils::generateValidLedgerEntry(5);
+            le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
 
-        REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkAddEntry>(le),
-                          InvariantDoesNotHold);
-    }
+            if (!withFilter)
+            {
+                auto filter = [](auto) { return true; };
+                REQUIRE_THROWS_AS(
+                    blg.applyBuckets<ApplyBucketsWorkAddEntry>(filter, le),
+                    InvariantDoesNotHold);
+            }
+            else
+            {
+                auto filter = [&](auto let) { return let != le.data.type(); };
+                REQUIRE_NOTHROW(
+                    blg.applyBuckets<ApplyBucketsWorkAddEntry>(filter, le));
+            }
+        }
+    };
+
+    runTest(true);
+
+    // This tests the filtering behavior of BucketListIsConsistentWithDatabase
+    // because the bucket apply will not add anything of the specified
+    // LedgerEntryType, but we will inject an additional LedgerEntry of that
+    // type anyway. But it shouldn't throw because the invariant isn't looking
+    // for those changes.
+    runTest(false);
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase deleted entries",
