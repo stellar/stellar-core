@@ -33,9 +33,10 @@ class BucketListIsConsistentWithDatabase : public Invariant
 
     virtual std::string getName() const override;
 
-    virtual std::string checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                           uint32_t oldestLedger,
-                                           uint32_t newestLedger) override;
+    virtual std::string checkOnBucketApply(
+        std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
+        uint32_t newestLedger,
+        std::function<bool(LedgerEntryType)> entryTypeFilter) override;
 
     // Secondary entrypoint to database-vs-bucket consistency checking, designed
     // to be run offline via self-check. Throws an exception on any error.

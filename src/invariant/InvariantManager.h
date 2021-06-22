@@ -36,9 +36,9 @@ class InvariantManager
     virtual Json::Value getJsonInfo() = 0;
     virtual std::vector<std::string> getEnabledInvariants() const = 0;
 
-    virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                    uint32_t ledger, uint32_t level,
-                                    bool isCurr) = 0;
+    virtual void checkOnBucketApply(
+        std::shared_ptr<Bucket const> bucket, uint32_t ledger, uint32_t level,
+        bool isCurr, std::function<bool(LedgerEntryType)> entryTypeFilter) = 0;
 
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,

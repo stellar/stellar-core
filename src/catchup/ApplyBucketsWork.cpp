@@ -189,7 +189,8 @@ ApplyBucketsWork::onRun()
             return State::WORK_RUNNING;
         }
         mApp.getInvariantManager().checkOnBucketApply(
-            mSnapBucket, mApplyState.currentLedger, mLevel, false);
+            mSnapBucket, mApplyState.currentLedger, mLevel, false,
+            mEntryTypeFilter);
         mSnapApplicator.reset();
         mSnapBucket.reset();
         mBucketApplySuccess.Mark();
@@ -202,7 +203,8 @@ ApplyBucketsWork::onRun()
             return State::WORK_RUNNING;
         }
         mApp.getInvariantManager().checkOnBucketApply(
-            mCurrBucket, mApplyState.currentLedger, mLevel, true);
+            mCurrBucket, mApplyState.currentLedger, mLevel, true,
+            mEntryTypeFilter);
         mCurrApplicator.reset();
         mCurrBucket.reset();
         mBucketApplySuccess.Mark();
