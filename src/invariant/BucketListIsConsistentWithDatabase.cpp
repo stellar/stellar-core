@@ -124,41 +124,32 @@ struct EntryCounts
     }
 
     std::string
-    checkDbEntryCounts(Application& app, LedgerRange const& range)
+    checkDbEntryCounts(Application& app, LedgerRange const& range,
+                       std::function<bool(LedgerEntryType)> entryTypeFilter)
     {
-        std::string countFormat =
-            "Incorrect {} count: Bucket = {} Database = {}";
-        auto& ltxRoot = app.getLedgerTxnRoot();
-        uint64_t nAccountsInDb = ltxRoot.countObjects(ACCOUNT, range);
-        if (nAccountsInDb != mAccounts)
-        {
-            return fmt::format(countFormat, "Account", mAccounts,
-                               nAccountsInDb);
-        }
-        uint64_t nTrustLinesInDb = ltxRoot.countObjects(TRUSTLINE, range);
-        if (nTrustLinesInDb != mTrustLines)
-        {
-            return fmt::format(countFormat, "TrustLine", mTrustLines,
-                               nTrustLinesInDb);
-        }
-        uint64_t nOffersInDb = ltxRoot.countObjects(OFFER, range);
-        if (nOffersInDb != mOffers)
-        {
-            return fmt::format(countFormat, "Offer", mOffers, nOffersInDb);
-        }
-        uint64_t nDataInDb = ltxRoot.countObjects(DATA, range);
-        if (nDataInDb != mData)
-        {
-            return fmt::format(countFormat, "Data", mData, nDataInDb);
-        }
-        uint64_t nClaimableBalanceInDb =
-            ltxRoot.countObjects(CLAIMABLE_BALANCE, range);
-        if (nClaimableBalanceInDb != mClaimableBalance)
-        {
-            return fmt::format(countFormat, "ClaimableBalance",
-                               mClaimableBalance, nClaimableBalanceInDb);
-        }
-        return {};
+        std::string msg;
+        auto check = [&](LedgerEntryType let, uint64_t numInBucket) {
+            if (entryTypeFilter(let))
+            {
+                auto& ltxRoot = app.getLedgerTxnRoot();
+                uint64_t numInDb = ltxRoot.countObjects(let, range);
+                if (numInDb != numInBucket)
+                {
+                    msg = fmt::format(
+                        "Incorrect {} count: Bucket = {} Database = {}",
+                        xdr::xdr_traits<LedgerEntryType>::enum_name(let),
+                        numInBucket, numInDb);
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // Uses short-circuiting to make this compact
+        check(ACCOUNT, mAccounts) && check(TRUSTLINE, mTrustLines) &&
+            check(OFFER, mOffers) && check(DATA, mData) &&
+            check(CLAIMABLE_BALANCE, mClaimableBalance);
+        return msg;
     }
 };
 
@@ -200,7 +191,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     }
     auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
                                         has.currentLedger);
-    auto s = counts.checkDbEntryCounts(mApp, range);
+    auto s = counts.checkDbEntryCounts(mApp, range, [](auto) { return true; });
     if (!s.empty())
     {
         throw std::runtime_error(s);
@@ -210,7 +201,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
-    uint32_t newestLedger)
+    uint32_t newestLedger, std::function<bool(LedgerEntryType)> entryTypeFilter)
 {
     EntryCounts counts;
     {
@@ -252,25 +243,31 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                     return s;
                 }
 
-                counts.countLiveEntry(e.liveEntry());
-                auto s = checkAgainstDatabase(ltx, e.liveEntry());
-                if (!s.empty())
+                if (entryTypeFilter(e.liveEntry().data.type()))
                 {
-                    return s;
+                    counts.countLiveEntry(e.liveEntry());
+                    auto s = checkAgainstDatabase(ltx, e.liveEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
                 }
             }
             else if (e.type() == DEADENTRY)
             {
-                auto s = checkAgainstDatabase(ltx, e.deadEntry());
-                if (!s.empty())
+                if (entryTypeFilter(e.deadEntry().type()))
                 {
-                    return s;
+                    auto s = checkAgainstDatabase(ltx, e.deadEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
                 }
             }
         }
     }
 
     auto range = LedgerRange::inclusive(oldestLedger, newestLedger);
-    return counts.checkDbEntryCounts(mApp, range);
+    return counts.checkDbEntryCounts(mApp, range, entryTypeFilter);
 }
 }

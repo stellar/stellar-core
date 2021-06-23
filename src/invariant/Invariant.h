@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -11,6 +12,7 @@ namespace stellar
 {
 
 class Bucket;
+enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
 struct Operation;
 struct OperationResult;
@@ -41,7 +43,8 @@ class Invariant
 
     virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                       uint32_t oldestLedger, uint32_t newestLedger)
+                       uint32_t oldestLedger, uint32_t newestLedger,
+                       std::function<bool(LedgerEntryType)> entryTypeFilter)
     {
         return std::string{};
     }

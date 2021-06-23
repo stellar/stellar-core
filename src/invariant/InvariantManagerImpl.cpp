@@ -69,9 +69,9 @@ InvariantManagerImpl::getEnabledInvariants() const
 }
 
 void
-InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                         uint32_t ledger, uint32_t level,
-                                         bool isCurr)
+InvariantManagerImpl::checkOnBucketApply(
+    std::shared_ptr<Bucket const> bucket, uint32_t ledger, uint32_t level,
+    bool isCurr, std::function<bool(LedgerEntryType)> entryTypeFilter)
 {
     uint32_t oldestLedger = isCurr
                                 ? BucketList::oldestLedgerInCurr(ledger, level)
@@ -81,8 +81,8 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     : BucketList::sizeOfSnap(ledger, level));
     for (auto invariant : mEnabled)
     {
-        auto result =
-            invariant->checkOnBucketApply(bucket, oldestLedger, newestLedger);
+        auto result = invariant->checkOnBucketApply(
+            bucket, oldestLedger, newestLedger, entryTypeFilter);
         if (result.empty())
         {
             continue;
