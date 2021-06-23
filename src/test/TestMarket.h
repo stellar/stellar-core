@@ -71,7 +71,8 @@ struct TestMarketOffer
     OfferKey key;
     OfferState state;
 
-    ClaimOfferAtom exchanged(int64_t sold, int64_t bought) const;
+    ClaimAtom exchanged(uint32_t ledgerVersion, int64_t sold,
+                        int64_t bought) const;
 };
 
 struct TestMarketBalance
