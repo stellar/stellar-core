@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/TransactionUtils.h"
+#include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
@@ -1091,6 +1092,71 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
         offer.erase();
     }
     ltxInner.commit();
+}
+
+template <typename T>
+T
+assetConversionHelper(Asset const& asset)
+{
+    T otherAsset;
+    otherAsset.type(asset.type());
+
+    switch (asset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        otherAsset.alphaNum4() = asset.alphaNum4();
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        otherAsset.alphaNum12() = asset.alphaNum12();
+        break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        throw std::runtime_error("Asset can't have type ASSET_TYPE_POOL_SHARE");
+    default:
+        throw std::runtime_error("Unknown asset type");
+    }
+
+    return otherAsset;
+}
+
+TrustLineAsset
+assetToTrustLineAsset(Asset const& asset)
+{
+    return assetConversionHelper<TrustLineAsset>(asset);
+}
+
+ChangeTrustAsset
+assetToChangeTrustAsset(Asset const& asset)
+{
+    return assetConversionHelper<ChangeTrustAsset>(asset);
+}
+
+TrustLineAsset
+changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
+{
+    TrustLineAsset tlAsset;
+    tlAsset.type(ctAsset.type());
+
+    switch (ctAsset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        tlAsset.alphaNum4() = ctAsset.alphaNum4();
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        tlAsset.alphaNum12() = ctAsset.alphaNum12();
+        break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        tlAsset.liquidityPoolID() =
+            xdrSha256(ctAsset.liquidityPool().constantProduct());
+        break;
+    default:
+        throw std::runtime_error("Unknown asset type");
+    }
+
+    return tlAsset;
 }
 
 namespace detail
