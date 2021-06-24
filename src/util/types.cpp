@@ -45,6 +45,10 @@ LedgerEntryKey(LedgerEntry const& e)
         k.claimableBalance().balanceID = d.claimableBalance().balanceID;
         break;
 
+    case LIQUIDITY_POOL:
+        k.liquidityPool().liquidityPoolID = d.liquidityPool().liquidityPoolID;
+        break;
+
     default:
         abort();
     }
