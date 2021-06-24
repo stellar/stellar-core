@@ -14,6 +14,7 @@ typedef string string64<64>;
 typedef int64 SequenceNumber;
 typedef uint64 TimePoint;
 typedef opaque DataValue<64>;
+typedef Hash PoolID; // SHA256(LiquidityPoolParameters)
 
 // 1-4 alphanumeric characters right-padded with 0 bytes
 typedef opaque AssetCode4[4];
@@ -90,7 +91,8 @@ enum LedgerEntryType
     TRUSTLINE = 1,
     OFFER = 2,
     DATA = 3,
-    CLAIMABLE_BALANCE = 4
+    CLAIMABLE_BALANCE = 4,
+    LIQUIDITY_POOL = 5
 };
 
 struct Signer
@@ -213,6 +215,11 @@ enum TrustLineFlags
 const MASK_TRUSTLINE_FLAGS = 1;
 const MASK_TRUSTLINE_FLAGS_V13 = 3;
 const MASK_TRUSTLINE_FLAGS_V17 = 7;
+
+enum LiquidityPoolType
+{
+    LIQUIDITY_POOL_CONSTANT_PRODUCT = 0
+};
 
 struct TrustLineEntry
 {
@@ -403,6 +410,33 @@ struct ClaimableBalanceEntry
     ext;
 };
 
+struct LiquidityPoolConstantProductParameters
+{
+    Asset assetA; // assetA < assetB
+    Asset assetB;
+    int32 fee;    // Fee is in basis points, so the actual rate is (fee/100)%
+};
+
+struct LiquidityPoolEntry
+{
+    PoolID liquidityPoolID;
+
+    union switch (LiquidityPoolType type)
+    {
+    case LIQUIDITY_POOL_CONSTANT_PRODUCT:
+        struct
+        {
+            LiquidityPoolConstantProductParameters params;
+
+            int64 reserveA;        // amount of A in the pool
+            int64 reserveB;        // amount of B in the pool
+            int64 totalPoolShares; // total number of pool shares issued
+            int64 poolSharesTrustLineCount; // number of trust lines for the associated pool shares
+        } constantProduct;
+    }
+    body;
+};
+
 struct LedgerEntryExtensionV1
 {
     SponsorshipDescriptor sponsoringID;
@@ -431,6 +465,8 @@ struct LedgerEntry
         DataEntry data;
     case CLAIMABLE_BALANCE:
         ClaimableBalanceEntry claimableBalance;
+    case LIQUIDITY_POOL:
+        LiquidityPoolEntry liquidityPool;
     }
     data;
 
@@ -479,6 +515,12 @@ case CLAIMABLE_BALANCE:
     {
         ClaimableBalanceID balanceID;
     } claimableBalance;
+
+case LIQUIDITY_POOL:
+    struct
+    {
+        PoolID liquidityPoolID;
+    } liquidityPool;
 };
 
 // list of all envelope types used in the application
