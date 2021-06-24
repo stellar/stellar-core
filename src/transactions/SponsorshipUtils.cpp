@@ -148,18 +148,23 @@ isSignerSponsored(std::vector<Signer>::const_iterator const& signerIt,
 static uint32_t
 computeMultiplier(LedgerEntry const& le)
 {
-    auto type = le.data.type();
-    if (type == ACCOUNT)
+    switch (le.data.type())
     {
+    case ACCOUNT:
         return 2;
-    }
-    else if (type == CLAIMABLE_BALANCE)
-    {
+    case TRUSTLINE:
+    case OFFER:
+    case DATA:
+        return 1;
+    case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
+    case LIQUIDITY_POOL:
+        throw std::runtime_error(
+            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
+    default:
+        throw std::runtime_error("Unknown LedgerEntry type");
     }
-
-    return 1;
 }
 
 static bool
@@ -174,6 +179,9 @@ isSubentry(LedgerEntry const& le)
     case OFFER:
     case DATA:
         return true;
+    case LIQUIDITY_POOL:
+        throw std::runtime_error(
+            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }
