@@ -119,6 +119,9 @@ assetToString(const Asset& asset)
     case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
         assetCodeToStr(asset.alphaNum12().assetCode, r);
         break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        throw std::runtime_error(
+            "ASSET_TYPE_POOL_SHARE is not a valid Asset type");
     }
     return r;
 };
