@@ -26,7 +26,8 @@ enum AssetType
 {
     ASSET_TYPE_NATIVE = 0,
     ASSET_TYPE_CREDIT_ALPHANUM4 = 1,
-    ASSET_TYPE_CREDIT_ALPHANUM12 = 2
+    ASSET_TYPE_CREDIT_ALPHANUM12 = 2,
+    ASSET_TYPE_POOL_SHARE = 3
 };
 
 union AssetCode switch (AssetType type)
@@ -40,24 +41,28 @@ case ASSET_TYPE_CREDIT_ALPHANUM12:
     // add other asset types here in the future
 };
 
+struct AlphaNum4
+{
+    AssetCode4 assetCode;
+    AccountID issuer;
+};
+
+struct AlphaNum12
+{
+    AssetCode12 assetCode;
+    AccountID issuer;
+};
+
 union Asset switch (AssetType type)
 {
 case ASSET_TYPE_NATIVE: // Not credit
     void;
 
 case ASSET_TYPE_CREDIT_ALPHANUM4:
-    struct
-    {
-        AssetCode4 assetCode;
-        AccountID issuer;
-    } alphaNum4;
+    AlphaNum4 alphaNum4;
 
 case ASSET_TYPE_CREDIT_ALPHANUM12:
-    struct
-    {
-        AssetCode12 assetCode;
-        AccountID issuer;
-    } alphaNum12;
+    AlphaNum12 alphaNum12;
 
     // add other asset types here in the future
 };
@@ -221,10 +226,27 @@ enum LiquidityPoolType
     LIQUIDITY_POOL_CONSTANT_PRODUCT = 0
 };
 
+union TrustLineAsset switch (AssetType type)
+{
+case ASSET_TYPE_NATIVE: // Not credit
+    void;
+
+case ASSET_TYPE_CREDIT_ALPHANUM4:
+    AlphaNum4 alphaNum4;
+
+case ASSET_TYPE_CREDIT_ALPHANUM12:
+    AlphaNum12 alphaNum12;
+
+case ASSET_TYPE_POOL_SHARE:
+    PoolID liquidityPoolID;
+
+    // add other asset types here in the future
+};
+
 struct TrustLineEntry
 {
     AccountID accountID; // account this trustline belongs to
-    Asset asset;         // type of asset (with issuer)
+    TrustLineAsset asset;         // type of asset (with issuer)
     int64 balance;       // how much of this asset the user has.
                          // Asset defines the unit for this;
 
@@ -493,7 +515,7 @@ case TRUSTLINE:
     struct
     {
         AccountID accountID;
-        Asset asset;
+        TrustLineAsset asset;
     } trustLine;
 
 case OFFER:
