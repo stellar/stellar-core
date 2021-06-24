@@ -96,7 +96,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = mAllowTrust.trustor;
-    key.trustLine().asset = mAsset;
+    key.trustLine().asset = assetToTrustLineAsset(mAsset);
 
     bool shouldRemoveOffers = false;
     {

@@ -62,7 +62,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getSourceID();
-    key.trustLine().asset = mChangeTrust.line;
+    key.trustLine().asset = changeTrustAssetToTrustLineAsset(mChangeTrust.line);
 
     auto trustLine = ltx.load(key);
     if (trustLine)
@@ -107,7 +107,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         trustLineEntry.data.type(TRUSTLINE);
         auto& tl = trustLineEntry.data.trustLine();
         tl.accountID = getSourceID();
-        tl.asset = mChangeTrust.line;
+        tl.asset = changeTrustAssetToTrustLineAsset(mChangeTrust.line);
         tl.limit = mChangeTrust.limit;
         tl.balance = 0;
 

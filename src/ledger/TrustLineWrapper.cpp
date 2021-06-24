@@ -90,7 +90,7 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
-        key.trustLine().asset = asset;
+        key.trustLine().asset = assetToTrustLineAsset(asset);
         auto entry = ltx.load(key);
         if (entry)
         {
@@ -419,7 +419,7 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
-        key.trustLine().asset = asset;
+        key.trustLine().asset = assetToTrustLineAsset(asset);
         auto entry = ltx.loadWithoutRecord(key);
         if (entry)
         {

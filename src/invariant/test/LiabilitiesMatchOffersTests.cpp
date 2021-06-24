@@ -174,7 +174,7 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
         trust.accountID = oe.sellerID;
         trust.flags = authorized;
 
-        trust.asset = oe.selling;
+        trust.asset = assetToTrustLineAsset(oe.selling);
         trust.balance = excess ? std::min(trust.balance, oe.amount - 1)
                                : std::max(trust.balance, oe.amount);
         trust.limit = std::max({trust.balance, trust.limit});
@@ -230,7 +230,7 @@ generateBuyingLiabilities(Application& app, LedgerEntry offer, bool excess,
         trust.accountID = oe.sellerID;
         trust.flags = authorized;
 
-        trust.asset = oe.buying;
+        trust.asset = assetToTrustLineAsset(oe.buying);
         trust.limit = std::max({trust.limit, oe.amount});
         auto maxBalance = trust.limit - oe.amount;
         trust.balance = excess ? std::max(trust.balance, maxBalance + 1)

@@ -17,6 +17,9 @@
 namespace stellar
 {
 
+typedef std::map<AccountID, std::map<TrustLineAsset, Liabilities>>
+    LiabilitiesMap;
+
 static int64_t
 getOfferBuyingLiabilities(LedgerEntry const& le)
 {
@@ -134,9 +137,8 @@ checkAuthorized(std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
 }
 
 static void
-addOrSubtractLiabilities(
-    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-    LedgerEntry const* entry, bool isAdd)
+addOrSubtractLiabilities(LiabilitiesMap& deltaLiabilities,
+                         LedgerEntry const* entry, bool isAdd)
 {
     if (!entry)
     {
@@ -148,7 +150,7 @@ addOrSubtractLiabilities(
     if (entry->data.type() == ACCOUNT)
     {
         auto const& account = entry->data.account();
-        Asset native(ASSET_TYPE_NATIVE);
+        TrustLineAsset native(ASSET_TYPE_NATIVE);
         deltaLiabilities[account.accountID][native].selling -=
             sign * getSellingLiabilities(*entry);
         deltaLiabilities[account.accountID][native].buying -=
@@ -165,16 +167,18 @@ addOrSubtractLiabilities(
     else if (entry->data.type() == OFFER)
     {
         auto const& offer = entry->data.offer();
-        if (offer.selling.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.selling) == offer.sellerID))
+        if (!isIssuer(offer.sellerID, offer.selling))
         {
-            deltaLiabilities[offer.sellerID][offer.selling].selling +=
+            deltaLiabilities[offer.sellerID]
+                            [assetToTrustLineAsset(offer.selling)]
+                                .selling +=
                 sign * getOfferSellingLiabilities(*entry);
         }
-        if (offer.buying.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.buying) == offer.sellerID))
+        if (!isIssuer(offer.sellerID, offer.buying))
         {
-            deltaLiabilities[offer.sellerID][offer.buying].buying +=
+            deltaLiabilities[offer.sellerID]
+                            [assetToTrustLineAsset(offer.buying)]
+                                .buying +=
                 sign * getOfferBuyingLiabilities(*entry);
         }
     }
@@ -182,7 +186,7 @@ addOrSubtractLiabilities(
 
 static void
 addOrSubtractLiabilities(
-    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
+    LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& genEntry, bool isAdd)
 {
     if (genEntry && genEntry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
@@ -194,7 +198,7 @@ addOrSubtractLiabilities(
 
 static void
 accumulateLiabilities(
-    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
+    LiabilitiesMap& deltaLiabilities,
     std::shared_ptr<InternalLedgerEntry const> const& current,
     std::shared_ptr<InternalLedgerEntry const> const& previous)
 {
@@ -323,7 +327,7 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
     if (ledgerVersion >= 10)
     {
-        std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
+        LiabilitiesMap deltaLiabilities;
         for (auto const& entryDelta : ltxDelta.entry)
         {
             auto checkAuthStr = checkAuthorized(entryDelta.second.current,

@@ -118,7 +118,7 @@ trustlineKey(AccountID const& accountID, Asset const& asset)
 {
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = accountID;
-    key.trustLine().asset = asset;
+    key.trustLine().asset = assetToTrustLineAsset(asset);
     return key;
 }
 
