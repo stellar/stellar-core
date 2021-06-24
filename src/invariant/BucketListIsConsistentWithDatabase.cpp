@@ -89,11 +89,13 @@ struct EntryCounts
     uint64_t mOffers{0};
     uint64_t mData{0};
     uint64_t mClaimableBalance{0};
+    uint64_t mLiquidityPool{0};
 
     uint64_t
     totalEntries() const
     {
-        return mAccounts + mTrustLines + mOffers + mData + mClaimableBalance;
+        return mAccounts + mTrustLines + mOffers + mData + mClaimableBalance +
+               mLiquidityPool;
     }
 
     void
@@ -115,6 +117,9 @@ struct EntryCounts
             break;
         case CLAIMABLE_BALANCE:
             ++mClaimableBalance;
+            break;
+        case LIQUIDITY_POOL:
+            ++mLiquidityPool;
             break;
         default:
             throw std::runtime_error(
@@ -148,7 +153,8 @@ struct EntryCounts
         // Uses short-circuiting to make this compact
         check(ACCOUNT, mAccounts) && check(TRUSTLINE, mTrustLines) &&
             check(OFFER, mOffers) && check(DATA, mData) &&
-            check(CLAIMABLE_BALANCE, mClaimableBalance);
+            check(CLAIMABLE_BALANCE, mClaimableBalance) &&
+            check(LIQUIDITY_POOL, mLiquidityPool);
         return msg;
     }
 };

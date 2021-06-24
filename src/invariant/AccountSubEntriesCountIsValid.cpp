@@ -73,8 +73,9 @@ updateChangedSubEntriesCount(
         break;
     }
     case CLAIMABLE_BALANCE:
+    case LIQUIDITY_POOL:
     {
-        // claimable balance is not a subentry
+        // claimable balance and liquidity pools are not subentries
         break;
     }
     default:

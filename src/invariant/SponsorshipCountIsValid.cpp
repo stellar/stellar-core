@@ -43,6 +43,8 @@ getMult(LedgerEntry const& le)
         return 1;
     case CLAIMABLE_BALANCE:
         return le.data.claimableBalance().claimants.size();
+    case LIQUIDITY_POOL:
+        throw std::runtime_error("invalid LedgerEntry type");
     default:
         abort();
     }
@@ -62,6 +64,8 @@ getAccountID(LedgerEntry const& le)
     case DATA:
         return le.data.data().accountID;
     case CLAIMABLE_BALANCE:
+    case LIQUIDITY_POOL:
+        throw std::runtime_error("invalid LedgerEntry type");
     default:
         abort();
     }
