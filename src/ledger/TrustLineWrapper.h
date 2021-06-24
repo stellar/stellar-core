@@ -38,9 +38,6 @@ class TrustLineWrapper
 
     explicit operator bool() const;
 
-    AccountID const& getAccountID() const;
-    Asset const& getAsset() const;
-
     int64_t getBalance() const;
     bool addBalance(LedgerTxnHeader const& header, int64_t delta);
 
@@ -75,9 +72,6 @@ class TrustLineWrapper::AbstractImpl
     virtual ~AbstractImpl(){};
 
     virtual operator bool() const = 0;
-
-    virtual AccountID const& getAccountID() const = 0;
-    virtual Asset const& getAsset() const = 0;
 
     virtual int64_t getBalance() const = 0;
     virtual bool addBalance(LedgerTxnHeader const& header, int64_t delta) = 0;
