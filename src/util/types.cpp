@@ -200,14 +200,6 @@ template bool isAssetValid<Asset>(Asset const&, uint32_t);
 template bool isAssetValid<TrustLineAsset>(TrustLineAsset const&, uint32_t);
 template bool isAssetValid<ChangeTrustAsset>(ChangeTrustAsset const&, uint32_t);
 
-AccountID
-getIssuer(Asset const& asset)
-{
-    return (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4
-                ? asset.alphaNum4().issuer
-                : asset.alphaNum12().issuer);
-}
-
 bool
 compareAsset(Asset const& first, Asset const& second)
 {
