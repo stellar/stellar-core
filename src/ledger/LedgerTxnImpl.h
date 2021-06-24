@@ -82,6 +82,8 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mOffersToDelete;
     std::vector<EntryIterator> mTrustLinesToUpsert;
     std::vector<EntryIterator> mTrustLinesToDelete;
+    std::vector<EntryIterator> mLiquidityPoolToUpsert;
+    std::vector<EntryIterator> mLiquidityPoolToDelete;
 
   public:
     std::vector<EntryIterator>&
@@ -142,6 +144,18 @@ class BulkLedgerEntryChangeAccumulator
     getClaimableBalanceToDelete()
     {
         return mClaimableBalanceToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getLiquidityPoolToUpsert()
+    {
+        return mLiquidityPoolToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getLiquidityPoolToDelete()
+    {
+        return mLiquidityPoolToDelete;
     }
 
     void accumulate(EntryIterator const& iter);
@@ -730,6 +744,8 @@ class LedgerTxnRoot::Impl
     loadTrustLine(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadClaimableBalance(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const>
+    loadLiquidityPool(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -748,6 +764,9 @@ class LedgerTxnRoot::Impl
     void bulkUpsertClaimableBalance(std::vector<EntryIterator> const& entries);
     void bulkDeleteClaimableBalance(std::vector<EntryIterator> const& entries,
                                     LedgerTxnConsistency cons);
+    void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
+    void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
+                                 LedgerTxnConsistency cons);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -783,6 +802,8 @@ class LedgerTxnRoot::Impl
     bulkLoadData(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadLiquidityPool(UnorderedSet<LedgerKey> const& keys) const;
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
@@ -825,6 +846,7 @@ class LedgerTxnRoot::Impl
     void dropOffers();
     void dropTrustLines();
     void dropClaimableBalances();
+    void dropLiquidityPools();
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

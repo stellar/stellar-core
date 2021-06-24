@@ -187,6 +187,10 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                 LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
                 app.getLedgerTxnRoot().dropClaimableBalances();
                 break;
+            case LIQUIDITY_POOL:
+                LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
+                app.getLedgerTxnRoot().dropLiquidityPools();
+                break;
             default:
                 abort();
             }

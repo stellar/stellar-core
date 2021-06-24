@@ -128,6 +128,11 @@ InMemoryLedgerTxnRoot::dropClaimableBalances()
 {
 }
 
+void
+InMemoryLedgerTxnRoot::dropLiquidityPools()
+{
+}
+
 double
 InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 {

@@ -1705,6 +1705,12 @@ LedgerTxn::dropClaimableBalances()
         "called dropClaimableBalances on non-root LedgerTxn");
 }
 
+void
+LedgerTxn::dropLiquidityPools()
+{
+    throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
+}
+
 double
 LedgerTxn::getPrefetchHitRate() const
 {
@@ -2248,6 +2254,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case CLAIMABLE_BALANCE:
         accum(iter, mClaimableBalanceToUpsert, mClaimableBalanceToDelete);
         break;
+    case LIQUIDITY_POOL:
+        accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
+        break;
     default:
         abort();
     }
@@ -2317,6 +2326,18 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteClaimableBalance(deleteClaimableBalance, cons);
         deleteClaimableBalance.clear();
+    }
+    auto& upsertLiquidityPool = bleca.getLiquidityPoolToUpsert();
+    if (upsertLiquidityPool.size() > bufferThreshold)
+    {
+        bulkUpsertLiquidityPool(upsertLiquidityPool);
+        upsertLiquidityPool.clear();
+    }
+    auto& deleteLiquidityPool = bleca.getLiquidityPoolToDelete();
+    if (deleteLiquidityPool.size() > bufferThreshold)
+    {
+        bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
+        deleteLiquidityPool.clear();
     }
 }
 
@@ -2394,6 +2415,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "trustlines";
     case CLAIMABLE_BALANCE:
         return "claimablebalance";
+    case LIQUIDITY_POOL:
+        return "liquiditypool";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2492,6 +2515,12 @@ void
 LedgerTxnRoot::dropClaimableBalances()
 {
     mImpl->dropClaimableBalances();
+}
+
+void
+LedgerTxnRoot::dropLiquidityPools()
+{
+    mImpl->dropLiquidityPools();
 }
 
 uint32_t
@@ -3030,6 +3059,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             break;
         case CLAIMABLE_BALANCE:
             entry = loadClaimableBalance(key);
+            break;
+        case LIQUIDITY_POOL:
+            entry = loadLiquidityPool(key);
             break;
         default:
             throw std::runtime_error("Unknown key type");
