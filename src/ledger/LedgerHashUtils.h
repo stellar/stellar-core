@@ -79,6 +79,10 @@ template <> class hash<stellar::LedgerKey>
             res = stellar::shortHash::computeHash(stellar::ByteSlice(
                 lk.claimableBalance().balanceID.v0().data(), 8));
             break;
+        case stellar::LIQUIDITY_POOL:
+            res = stellar::shortHash::computeHash(stellar::ByteSlice(
+                lk.liquidityPool().liquidityPoolID.data(), 8));
+            break;
         default:
             abort();
         }
