@@ -2540,6 +2540,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     UnorderedSet<LedgerKey> trustlines;
     UnorderedSet<LedgerKey> data;
     UnorderedSet<LedgerKey> claimablebalance;
+    UnorderedSet<LedgerKey> liquiditypool;
 
     auto cacheResult =
         [&](UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> const&
@@ -2603,6 +2604,14 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                 claimablebalance.clear();
             }
             break;
+        case LIQUIDITY_POOL:
+            insertIfNotLoaded(liquiditypool, key);
+            if (liquiditypool.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadLiquidityPool(liquiditypool));
+                liquiditypool.clear();
+            }
+            break;
         }
     }
 
@@ -2612,6 +2621,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
     cacheResult(bulkLoadClaimableBalance(claimablebalance));
+    cacheResult(bulkLoadLiquidityPool(liquiditypool));
 
     return total;
 }
