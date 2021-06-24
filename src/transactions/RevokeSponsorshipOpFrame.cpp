@@ -433,8 +433,11 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         }
         case CLAIMABLE_BALANCE:
             break;
+        case LIQUIDITY_POOL:
+            innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
+            return false;
         default:
-            abort();
+            throw std::runtime_error("unknown ledger key type");
         }
     }
     return true;
