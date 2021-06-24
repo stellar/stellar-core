@@ -435,6 +435,17 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         entry.data.claimableBalance().balanceID = cb.balanceID;
     }
 
+    void
+    modifyLiquidityPoolEntry(LedgerEntry& entry)
+    {
+        LiquidityPoolEntry const& lp = mEntry.data.liquidityPool();
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
+        entry.data.liquidityPool() =
+            LedgerTestUtils::generateValidLiquidityPoolEntry(5);
+
+        entry.data.liquidityPool().liquidityPoolID = lp.liquidityPoolID;
+    }
+
   public:
     ApplyBucketsWorkModifyEntry(
         Application& app,
@@ -473,6 +484,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                     break;
                 case CLAIMABLE_BALANCE:
                     modifyClaimableBalanceEntry(entry.current());
+                    break;
+                case LIQUIDITY_POOL:
+                    modifyLiquidityPoolEntry(entry.current());
                     break;
                 default:
                     REQUIRE(false);

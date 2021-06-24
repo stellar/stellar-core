@@ -201,6 +201,10 @@ TEST_CASE("merging bucket entries", "[bucket]")
                     liveEntry.data.claimableBalance() =
                         LedgerTestUtils::generateValidClaimableBalanceEntry(10);
                     break;
+                case LIQUIDITY_POOL:
+                    liveEntry.data.liquidityPool() =
+                        LedgerTestUtils::generateValidLiquidityPoolEntry(10);
+                    break;
                 default:
                     abort();
                 }
@@ -227,6 +231,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         checkDeadAnnihilatesLive(OFFER);
         checkDeadAnnihilatesLive(DATA);
         checkDeadAnnihilatesLive(CLAIMABLE_BALANCE);
+        checkDeadAnnihilatesLive(LIQUIDITY_POOL);
 
         SECTION("random dead entries annihilates live entries")
         {
