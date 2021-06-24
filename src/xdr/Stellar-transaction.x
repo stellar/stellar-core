@@ -55,7 +55,8 @@ enum OperationType
     REVOKE_SPONSORSHIP = 18,
     CLAWBACK = 19,
     CLAWBACK_CLAIMABLE_BALANCE = 20,
-    SET_TRUST_LINE_FLAGS = 21
+    SET_TRUST_LINE_FLAGS = 21,
+    LIQUIDITY_POOL_DEPOSIT = 22
 };
 
 /* CreateAccount
@@ -434,6 +435,21 @@ struct SetTrustLineFlagsOp
 
 const LIQUIDITY_POOL_FEE_V18 = 30;
 
+/* Deposit assets into a liquidity pool
+
+    Threshold: med
+
+    Result: LiquidityPoolDepositResult
+*/
+struct LiquidityPoolDepositOp
+{
+    PoolID liquidityPoolID;
+    int64 maxAmountA;     // maximum amount of first asset to deposit
+    int64 maxAmountB;     // maximum amount of second asset to deposit
+    Price minPrice;       // minimum depositA/depositB
+    Price maxPrice;       // maximum depositA/depositB
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -488,6 +504,8 @@ struct Operation
         ClawbackClaimableBalanceOp clawbackClaimableBalanceOp;
     case SET_TRUST_LINE_FLAGS:
         SetTrustLineFlagsOp setTrustLineFlagsOp;
+    case LIQUIDITY_POOL_DEPOSIT:
+        LiquidityPoolDepositOp liquidityPoolDepositOp;
     }
     body;
 };
@@ -1294,6 +1312,36 @@ default:
     void;
 };
 
+/******* LiquidityPoolDeposit Result ********/
+
+enum LiquidityPoolDepositResultCode
+{
+    // codes considered as "success" for the operation
+    LIQUIDITY_POOL_DEPOSIT_SUCCESS = 0,
+
+    // codes considered as "failure" for the operation
+    LIQUIDITY_POOL_DEPOSIT_MALFORMED = -1,      // bad input
+    LIQUIDITY_POOL_DEPOSIT_NO_TRUST = -2,       // no trust line for one of the
+                                                // assets
+    LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED = -3, // not authorized for one of the
+                                                // assets
+    LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED = -4,    // not enough balance for one of
+                                                // the assets
+    LIQUIDITY_POOL_DEPOSIT_LINE_FULL = -5,      // pool share trust line doesn't
+                                                // have sufficient limit
+    LIQUIDITY_POOL_DEPOSIT_BAD_PRICE = -6,      // deposit price outside bounds
+    LIQUIDITY_POOL_DEPOSIT_POOL_FULL = -7       // pool reserves are full
+};
+
+union LiquidityPoolDepositResult switch (
+    LiquidityPoolDepositResultCode code)
+{
+case LIQUIDITY_POOL_DEPOSIT_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 enum OperationResultCode
 {
@@ -1356,6 +1404,8 @@ case opINNER:
         ClawbackClaimableBalanceResult clawbackClaimableBalanceResult;
     case SET_TRUST_LINE_FLAGS:
         SetTrustLineFlagsResult setTrustLineFlagsResult;
+    case LIQUIDITY_POOL_DEPOSIT:
+        LiquidityPoolDepositResult liquidityPoolDepositResult;
     }
     tr;
 default:
