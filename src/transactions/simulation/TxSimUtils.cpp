@@ -15,7 +15,25 @@ namespace txsimulation
 {
 
 static void
-replaceIssuer(Asset& asset, uint32_t partition)
+replaceIssuerInPoolAsset(Asset& asset, uint32_t partition)
+{
+    throw std::runtime_error("ASSET_TYPE_POOL_SHARE is not a valid Asset type");
+}
+
+static void
+replaceIssuerInPoolAsset(TrustLineAsset& asset, uint32_t partition)
+{
+    return;
+}
+
+// this is required because there's a circular dependency between this method
+// and replaceIssuer
+static void replaceIssuerInPoolAsset(ChangeTrustAsset& asset,
+                                     uint32_t partition);
+
+template <typename T>
+static void
+replaceIssuer(T& asset, uint32_t partition)
 {
     switch (asset.type())
     {
@@ -25,12 +43,23 @@ replaceIssuer(Asset& asset, uint32_t partition)
     case ASSET_TYPE_CREDIT_ALPHANUM12:
         mutateScaledAccountID(asset.alphaNum12().issuer, partition);
         break;
+    case ASSET_TYPE_POOL_SHARE:
+        replaceIssuerInPoolAsset(asset, partition);
+        break;
     case ASSET_TYPE_NATIVE:
         // nothing to do for native assets
         break;
     default:
         abort();
     }
+}
+
+static void
+replaceIssuerInPoolAsset(ChangeTrustAsset& asset, uint32_t partition)
+{
+    auto& cp = asset.liquidityPool().constantProduct();
+    replaceIssuer(cp.assetA, partition);
+    replaceIssuer(cp.assetB, partition);
 }
 
 SecretKey
