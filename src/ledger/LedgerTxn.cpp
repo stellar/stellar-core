@@ -2479,9 +2479,10 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     mEntryCache.clear();
     mBestOffers.clear();
 
-    for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER, CLAIMABLE_BALANCE})
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
-        std::string query = "DELETE FROM " + tableFromLedgerEntryType(let) +
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
                             " WHERE lastmodified >= :v1";
         mDatabase.getSession() << query, use(ledger);
     }
