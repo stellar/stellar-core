@@ -556,7 +556,8 @@ ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags,
 bool
 ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
 {
-    if (!isAssetValid(mSheep) || !isAssetValid(mWheat))
+    if (!isAssetValid(mSheep, ledgerVersion) ||
+        !isAssetValid(mWheat, ledgerVersion))
     {
         setResultMalformed();
         return false;

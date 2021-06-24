@@ -101,7 +101,34 @@ isString32Valid(std::string const& str)
 }
 
 bool
-isAssetValid(Asset const& cur)
+isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
+{
+    throw std::runtime_error("ASSET_TYPE_POOL_SHARE is not a valid Asset type");
+}
+
+bool
+isPoolShareAssetValid(TrustLineAsset const& asset, uint32_t ledgerVersion)
+{
+    return ledgerVersion >= 18;
+}
+
+bool
+isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
+{
+    if (ledgerVersion < 18)
+    {
+        return false;
+    }
+
+    auto const& cp = asset.liquidityPool().constantProduct();
+    return isAssetValid<Asset>(cp.assetA, ledgerVersion) &&
+           isAssetValid<Asset>(cp.assetB, ledgerVersion) &&
+           cp.assetA < cp.assetB && cp.fee == LIQUIDITY_POOL_FEE_V18;
+}
+
+template <typename T>
+bool
+isAssetValid(T const& cur, uint32_t ledgerVersion)
 {
     if (cur.type() == ASSET_TYPE_NATIVE)
         return true;
@@ -162,8 +189,16 @@ isAssetValid(Asset const& cur)
         }
         return charcount > 4;
     }
+    if (cur.type() == ASSET_TYPE_POOL_SHARE)
+    {
+        return isPoolShareAssetValid(cur, ledgerVersion);
+    }
     return false;
 }
+
+template bool isAssetValid<Asset>(Asset const&, uint32_t);
+template bool isAssetValid<TrustLineAsset>(TrustLineAsset const&, uint32_t);
+template bool isAssetValid<ChangeTrustAsset>(ChangeTrustAsset const&, uint32_t);
 
 AccountID
 getIssuer(Asset const& asset)

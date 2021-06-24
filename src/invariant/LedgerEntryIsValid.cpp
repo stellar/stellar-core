@@ -191,7 +191,7 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     {
         return "TrustLine asset is native";
     }
-    if (!isAssetValid(tl.asset))
+    if (!isAssetValid(tl.asset, version))
     {
         return "TrustLine asset is invalid";
     }
@@ -227,11 +227,11 @@ LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
     {
         return fmt::format("Offer offerID ({}) must be positive", oe.offerID);
     }
-    if (!isAssetValid(oe.selling))
+    if (!isAssetValid(oe.selling, version))
     {
         return "Offer selling asset is invalid";
     }
-    if (!isAssetValid(oe.buying))
+    if (!isAssetValid(oe.buying, version))
     {
         return "Offer buying asset is invalid";
     }
@@ -353,7 +353,7 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
     {
         return "ClaimableBalance claimants is empty";
     }
-    if (!isAssetValid(cbe.asset))
+    if (!isAssetValid(cbe.asset, version))
     {
         return "ClaimableBalance asset is invalid";
     }
@@ -382,11 +382,11 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
         return "LiquidityPools are only valid from V18";
     }
     auto const cp = lp.body.constantProduct();
-    if (!isAssetValid(cp.params.assetA))
+    if (!isAssetValid(cp.params.assetA, version))
     {
         return "LiquidityPool assetA is invalid";
     }
-    if (!isAssetValid(cp.params.assetB))
+    if (!isAssetValid(cp.params.assetB, version))
     {
         return "LiquidityPool assetB is invalid";
     }

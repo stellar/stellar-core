@@ -161,7 +161,7 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if (!isAssetValid(mAsset))
+    if (!isAssetValid(mAsset, ledgerVersion))
     {
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;

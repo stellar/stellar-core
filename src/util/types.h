@@ -27,9 +27,6 @@ bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 // returns true if the passed string32 is valid
 bool isString32Valid(std::string const& str);
 
-// returns true if the Asset value is well formed
-bool isAssetValid(Asset const& cur);
-
 // returns the issuer for the given asset
 AccountID getIssuer(Asset const& asset);
 
@@ -45,6 +42,9 @@ int32_t unsignedToSigned(uint32_t v);
 int64_t unsignedToSigned(uint64_t v);
 
 std::string formatSize(size_t size);
+
+// returns true if the asset is well formed for the specified protocol version
+template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion);
 
 template <uint32_t N>
 void
