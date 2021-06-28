@@ -35,7 +35,6 @@ bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
     uint128_t x = rounding == ROUND_DOWN ? (a * b) / c : (a * b + c - 1u) / c;
 
     result = (uint64_t)x;
-
     return (x <= UINT64_MAX);
 }
 
@@ -122,5 +121,131 @@ bigMultiply(int64_t a, int64_t b)
 {
     assert((a >= 0) && (b >= 0));
     return bigMultiply((uint64_t)a, (uint64_t)b);
+}
+
+// Fix R >= 0. Consider the modified Babylonian method that operates only on
+// integers
+//     x[n+1] = ceil((x[n] + ceil(R / x[n])) / 2) .
+// We claim that the limit of this sequence is ceil(sqrt(R+1)) if
+//     x[0] >= ceil(sqrt(R+1)) .
+//
+// As a first step, we show that the sequence is monotonically decreasing for
+// x[n] > ceil(sqrt(R+1)). Suppose, to reach a contradiction, that the
+// sequence would not decrease for some x[n] = x > ceil(sqrt(R+1)). Then we
+// must have
+//     ceil((x + ceil(R / x)) / 2) >= x
+// which occurs if
+//     x + ceil(R / x) > 2x - 2 .
+// Rearranging, the condition becomes
+//     ceil(R / x) - x > -2 .
+// The left-hand side is decreasing with x, so if the condition cannot be
+// satisfied with x = ceil(sqrt(R+1)) + 1 then it cannot be satisfied with any
+// permissible x. Then
+//     ceil(R / (ceil(sqrt(R+1)) + 1)) - ceil(sqrt(R+1)) - 1
+//         <= ceil(R / (sqrt(R+1) + 1)) - ceil(sqrt(R+1)) - 1
+//          = ceil((sqrt(R+1)^2 - 1) / (sqrt(R+1) + 1)) - ceil(sqrt(R+1)) - 1
+//          = ceil(sqrt(R+1) - 1) - ceil(sqrt(R+1)) - 1
+//          = -2
+// so the condition is not satisfied. Therefore we have reached a contradiction
+// so the sequence is monotonically decreasing for x[n] > ceil(sqrt(R+1)).
+//
+// As a second step, we show that the sequence is bounded below. Suppose that
+// x[n] = x >= ceil(sqrt(R+1)). Then we have
+//     x + ceil(R / x) >= x + R / x .
+// But x >= ceil(sqrt(R+1)) > sqrt(R) so x + R / x is increasing with x. It
+// follows that x + R / x is minimized by choosing the smallest permissible x.
+// Applying this logic
+//     x + ceil(R / x) >= x + R / x
+//                      = ceil(sqrt(R+1)) + R / ceil(sqrt(R+1)) + 1
+//                     >= sqrt(R+1) + R / (sqrt(R+1) + 1) + 1
+//                      = sqrt(R+1) + (sqrt(R+1)^2 - 1) / (sqrt(R+1) + 1) + 1
+//                      = sqrt(R+1) + (sqrt(R+1) - 1) = 1
+//                      = 2 * sqrt(R+1) .
+// It follows that
+//     x[n+1]  = ceil((x + ceil(R / X)) / 2)
+//            >= ceil((2 * sqrt(R+1)) / 2)
+//             = ceil(sqrt(R+1)) .
+// Therefore x[n+1] >= ceil(sqrt(R+1)) if x[n] >= ceil(sqrt(R+1)) so the
+// sequence is bounded below.
+//
+// Using the monotone convergence theorem, the limit exists and is the infimum.
+// All that remains to be shown is that the infimum is in fact ceil(sqrt(R+1)).
+// But this is easy given the results we have already proven. Suppose, to reach
+// a contradiction, that the infimum is L > ceil(sqrt(R+1)). A set of integers
+// always achieves its infimum, so there exists some n such that x[n] = L. But
+// the sequence is monotonically decreasing, so we have
+//     x[n+1] <  x[n]
+//            <= L - 1
+// contradicting the claim that L is the infimum. We conclude that x[n]
+// converges to ceil(sqrt(R+1)).
+//
+// Next we show that convergence is fast. Define the absolute error
+//     E[n] = x[n] - ceil(sqrt(R+1)) .
+// If x[n] = x >= ceil(sqrt(R+1)) and E[n] = E then
+//     x[n+1]  = ceil((x + ceil(R / x)) / 2)
+//            <= ceil((x + ceil(sqrt(R+1))) / 2)
+//             = ceil((x + (x - x) + ceil(sqrt(R+1))) / 2)
+//             = ceil((2x + ceil(sqrt(R+1)) - x) / 2)
+//             = ceil((2x - E) / 2)
+//             = x - floor(E / 2) .
+// It is clear that
+//     E[n+1] - E[n]  = x[n+1] - x[n]
+//                   <= -floor(E[n] / 2)
+//                   <= -E[n] / 2 + 1
+// so
+//     E[n+1] <= E[n] / 2 + 1 .
+// Iterating this sequence, we find
+//     E[n+k] <= E[n+k-1] / 2 + 1
+//            <= ...
+//            <= E[n] / 2^k + (1 + ... + 1/2^k)
+//            <  E[n] / 2^k + 2 .
+// We conclude that the order of convergence is at least linear, although
+// numerical evidence suggests it is of higher order. The normal Babylonian
+// method has quadratic convergence, so this is perhaps a reasonable
+// conjecture.
+//
+// Now that we have an algorithm to compute ceil(sqrt(R+1)) then we can simply
+// use R-1 instead of R in the definition of the sequence to compute
+// ceil(sqrt(R)). This requires handling R=0 as a special case.
+uint64_t
+bigSquareRoot(uint64_t a, uint64_t b)
+{
+    // a * b = 0 is a special-case because we can't compute a * b - 1
+    if (a == 0 || b == 0)
+    {
+        return 0;
+    }
+    uint128_t R = bigMultiply(a, b) - 1u;
+
+    // Seed the result with a reasonable estimate x >= ceil(sqrt(R+1))
+    uint8_t numBits = R.bits() / 2 + 1;
+    uint64_t x = numBits >= 64 ? UINT64_MAX : (1ull << numBits);
+
+    uint64_t prev = 0;
+    while (x != prev)
+    {
+        prev = x;
+
+        uint64_t y = 0;
+        bool res = bigDivide(y, R, x, ROUND_UP);
+        if (!res)
+        {
+            throw std::runtime_error("Overflow during bigSquareRoot");
+        }
+
+        if (UINT64_MAX - x <= y)
+        {
+            uint128_t temp(1u);
+            temp += x;
+            temp += y;
+            x = (uint64_t)(temp / 2u);
+        }
+        else // UINT64_MAX >= x + y + 1
+        {
+            x = (x + y + 1) / 2;
+        }
+    }
+
+    return x;
 }
 }
