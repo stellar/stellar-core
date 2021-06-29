@@ -195,6 +195,12 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     {
         return "TrustLine asset is invalid";
     }
+    if (tl.asset.type() == ASSET_TYPE_POOL_SHARE && tl.ext.v() == 1 &&
+        (tl.ext.v1().liabilities.buying != 0 ||
+         tl.ext.v1().liabilities.selling != 0))
+    {
+        return "Pool share TrustLine has liabilities";
+    }
     if (tl.balance < 0)
     {
         return fmt::format("TrustLine balance ({}) is negative", tl.balance);
