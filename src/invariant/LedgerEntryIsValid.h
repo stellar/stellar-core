@@ -44,8 +44,8 @@ class LedgerEntryIsValid : public Invariant
                              LedgerEntry const* previous, uint32 version) const;
     std::string checkIsValid(OfferEntry const& oe, uint32 version) const;
     std::string checkIsValid(DataEntry const& de, uint32 version) const;
-    std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
-                             uint32 version) const;
+    std::string checkIsValid(ClaimableBalanceEntry const& cbe,
+                             LedgerEntry const* previous, uint32 version) const;
     std::string checkIsValid(LiquidityPoolEntry const& lp,
                              uint32 version) const;
 

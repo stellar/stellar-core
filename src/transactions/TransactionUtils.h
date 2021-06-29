@@ -170,6 +170,7 @@ bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
+bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);

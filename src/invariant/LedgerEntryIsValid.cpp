@@ -107,7 +107,11 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     case DATA:
         return checkIsValid(le.data.data(), version);
     case CLAIMABLE_BALANCE:
-        return checkIsValid(le, previous, version);
+        if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
+        {
+            return "ClaimableBalance is not sponsored";
+        }
+        return checkIsValid(le.data.claimableBalance(), previous, version);
     case LIQUIDITY_POOL:
         if (le.ext.v() != 0)
         {
@@ -314,22 +318,16 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
+LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-    if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
-    {
-        return "ClaimableBalance is not sponsored";
-    }
-
-    auto const& cbe = le.data.claimableBalance();
     if (version < 17 && cbe.ext.v() == 1)
     {
         return "ClaimableBalance has v1 extension before protocol version 17";
     }
 
-    if (isClawbackEnabledOnClaimableBalance(le) &&
+    if (isClawbackEnabledOnClaimableBalance(cbe) &&
         cbe.asset.type() == ASSET_TYPE_NATIVE)
     {
         return "ClaimableBalance clawback set on native balance";

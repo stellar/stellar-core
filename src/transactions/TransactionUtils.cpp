@@ -849,11 +849,16 @@ isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry)
+{
+    return entry.ext.v() == 1 && (entry.ext.v1().flags &
+                                  CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
 {
-    return entry.data.claimableBalance().ext.v() == 1 &&
-           (entry.data.claimableBalance().ext.v1().flags &
-            CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
+    return isClawbackEnabledOnClaimableBalance(entry.data.claimableBalance());
 }
 
 bool
