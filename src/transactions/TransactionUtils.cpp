@@ -147,6 +147,14 @@ claimableBalanceKey(ClaimableBalanceID const& balanceID)
     return key;
 }
 
+LedgerKey
+liquidityPoolKey(PoolID const& poolID)
+{
+    LedgerKey key(LIQUIDITY_POOL);
+    key.liquidityPool().liquidityPoolID = poolID;
+    return key;
+}
+
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
