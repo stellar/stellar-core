@@ -189,12 +189,18 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
             }
         }
     }
-    auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
-                                        has.currentLedger);
-    auto s = counts.checkDbEntryCounts(mApp, range, [](auto) { return true; });
-    if (!s.empty())
+
+    // Count functionality does not support in-memory LedgerTxn
+    if (!mApp.getConfig().isInMemoryMode())
     {
-        throw std::runtime_error(s);
+        auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
+                                            has.currentLedger);
+        auto s =
+            counts.checkDbEntryCounts(mApp, range, [](auto) { return true; });
+        if (!s.empty())
+        {
+            throw std::runtime_error(s);
+        }
     }
 }
 
