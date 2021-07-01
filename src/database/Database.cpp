@@ -210,6 +210,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
     case 15:
         mApp.getPersistentState().setRebuildForType(TRUSTLINE);
+        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
