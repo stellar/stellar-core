@@ -80,7 +80,7 @@ struct SCPEnvelope
 struct SCPQuorumSet
 {
     uint32 threshold;
-    PublicKey validators<>;
+    NodeID validators<>;
     SCPQuorumSet innerSets<>;
 };
 }

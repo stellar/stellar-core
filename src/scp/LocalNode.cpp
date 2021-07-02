@@ -5,7 +5,6 @@
 #include "LocalNode.h"
 
 #include "crypto/Hex.h"
-#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
@@ -20,18 +19,17 @@
 namespace stellar
 {
 LocalNode::LocalNode(NodeID const& nodeID, bool isValidator,
-                     SCPQuorumSet const& qSet, SCP* scp)
-    : mNodeID(nodeID), mIsValidator(isValidator), mQSet(qSet), mSCP(scp)
+                     SCPQuorumSet const& qSet, SCPDriver& driver)
+    : mNodeID(nodeID), mIsValidator(isValidator), mQSet(qSet), mDriver(driver)
 {
     normalizeQSet(mQSet);
-    auto const& scpDriver = mSCP->getDriver();
-    mQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(mQSet)});
+    mQSetHash = driver.getHashOf({xdr::xdr_to_opaque(mQSet)});
 
     CLOG_INFO(SCP, "LocalNode::LocalNode@{} qSet: {}",
-              KeyUtils::toShortString(mNodeID), hexAbbrev(mQSetHash));
+              driver.toShortString(mNodeID), hexAbbrev(mQSetHash));
 
     mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));
-    gSingleQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(*mSingleQSet)});
+    gSingleQSetHash = driver.getHashOf({xdr::xdr_to_opaque(*mSingleQSet)});
 }
 
 SCPQuorumSet
@@ -47,7 +45,7 @@ void
 LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
     ZoneScoped;
-    mQSetHash = mSCP->getDriver().getHashOf({xdr::xdr_to_opaque(qSet)});
+    mQSetHash = mDriver.getHashOf({xdr::xdr_to_opaque(qSet)});
     mQSet = qSet;
 }
 
@@ -382,14 +380,13 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
 Json::Value
 LocalNode::toJson(SCPQuorumSet const& qSet, bool fullKeys) const
 {
-    return toJson(qSet, [&](PublicKey const& k) {
-        return mSCP->getDriver().toStrKey(k, fullKeys);
-    });
+    return toJson(
+        qSet, [&](NodeID const& k) { return mDriver.toStrKey(k, fullKeys); });
 }
 
 Json::Value
 LocalNode::toJson(SCPQuorumSet const& qSet,
-                  std::function<std::string(PublicKey const&)> r)
+                  std::function<std::string(NodeID const&)> r)
 {
     Json::Value ret;
     ret["t"] = qSet.threshold;
