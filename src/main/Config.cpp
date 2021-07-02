@@ -109,7 +109,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_AUTO_STARTS_OVERLAY = true;
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
         std::vector<std::chrono::microseconds>();
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<unsigned short>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_OP_COUNT_FOR_TESTING = {};
     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
 
@@ -764,7 +764,7 @@ Config::verifyLoadGenOpCountForTestingConfigs()
     }
 }
 
-std::vector<std::chrono::microseconds>
+void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
     if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
@@ -775,26 +775,16 @@ Config::processOpApplySleepTimeForTestingConfigs()
             "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be defined together "
             "and have the same size");
     }
-    if (std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
-                        OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(), 0) != 100)
-    {
-        throw std::invalid_argument(
-            "The sum of the weights in "
-            "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must equal 100");
-    }
-    std::vector<std::chrono::microseconds> ret;
-    ret.reserve(100);
+
+    auto sum = std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
+                               OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(), 0);
+
     for (size_t i = 0; i < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size(); i++)
     {
-        LOG_INFO(DEFAULT_LOG, "Sleeps for {} {}% of the time",
+        LOG_INFO(DEFAULT_LOG, "Sleeps for {} roughly {}% of the time",
                  OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i],
-                 OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]);
-        for (size_t j = 0; j < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]; j++)
-        {
-            ret.push_back(OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i]);
-        }
+                 100 * OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] / sum);
     }
-    return ret;
 }
 
 void
@@ -1188,11 +1178,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 auto input = readArray<int64_t>(item);
                 OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to unsigned short
+                // Convert int64_t to uint32
                 std::transform(
                     input.begin(), input.end(),
                     std::back_inserter(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING),
-                    [](int64_t x) { return static_cast<unsigned short>(x); });
+                    [](int64_t x) { return static_cast<uint32>(x); });
             }
             else if (item.first == "LOADGEN_OP_COUNT_FOR_TESTING")
             {
@@ -1227,8 +1217,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
             !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
         {
-            mOpApplySleepTimeForTesting =
-                processOpApplySleepTimeForTestingConfigs();
+            processOpApplySleepTimeForTestingConfigs();
         }
 
         verifyLoadGenOpCountForTestingConfigs();
@@ -1847,12 +1836,6 @@ Config::toString(SCPQuorumSet const& qset)
         qset, [&](PublicKey const& k) { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
-}
-
-std::vector<std::chrono::microseconds> const&
-Config::getOpApplySleepTimeForTesting() const
-{
-    return mOpApplySleepTimeForTesting;
 }
 
 std::string const Config::STDIN_SPECIAL_NAME = "/dev/stdin";

@@ -197,13 +197,17 @@ class Config : public std::enable_shared_from_this<Config>
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
     // Config parameters that force transaction application during ledger
-    // close to sleep for OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i]
-    // microseconds OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]% of the time for
-    // each i. These options are only for consensus and overlay simulation
-    // testing. These two must be used together.
+    // close to sleep for a certain amount of time.
+    // The probability that it sleeps for
+    // OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i] microseconds is
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] divided by
+    // (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[0] +
+    // OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[1] + ...) for each i. These
+    // options are only for consensus and overlay simulation testing. These two
+    // must be used together.
     std::vector<std::chrono::microseconds>
         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
-    std::vector<unsigned short> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
+    std::vector<uint32> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
 
     // Config parameters that LoadGen uses to decide the number of operations
     // to include in each transaction and its distribution.
@@ -463,10 +467,6 @@ class Config : public std::enable_shared_from_this<Config>
     // line arguments.
     static std::string const STDIN_SPECIAL_NAME;
 
-    std::vector<std::chrono::microseconds> const&
-    getOpApplySleepTimeForTesting() const;
-
-    std::vector<std::chrono::microseconds>
-    processOpApplySleepTimeForTestingConfigs();
+    void processOpApplySleepTimeForTestingConfigs();
 };
 }
