@@ -276,6 +276,14 @@ LedgerManagerImpl::loadLastKnownLedger(
             {
                 throw std::runtime_error("Could not load ledger from database");
             }
+
+            HistoryArchiveState has = getLastClosedLedgerHAS();
+            if (currentLedger->ledgerSeq != has.currentLedger)
+            {
+                throw std::runtime_error("Invalid database state: last known "
+                                         "ledger does not agree with HAS");
+            }
+
             CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
                       ledgerAbbrev(*currentLedger));
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -1148,10 +1156,6 @@ void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
     ZoneScoped;
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
-    {
-        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
-    }
 
     Hash hash = xdrSha256(header);
     assert(!isZero(hash));
@@ -1170,6 +1174,11 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
+
+    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    {
+        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
+    }
 }
 
 // NB: This is a separate method so a testing subclass can override it.
