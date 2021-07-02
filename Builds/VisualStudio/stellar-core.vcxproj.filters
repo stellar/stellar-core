@@ -1185,6 +1185,9 @@
     <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">

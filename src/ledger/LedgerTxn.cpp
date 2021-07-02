@@ -1705,6 +1705,12 @@ LedgerTxn::dropClaimableBalances()
         "called dropClaimableBalances on non-root LedgerTxn");
 }
 
+void
+LedgerTxn::dropLiquidityPools()
+{
+    throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
+}
+
 double
 LedgerTxn::getPrefetchHitRate() const
 {
@@ -2248,6 +2254,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case CLAIMABLE_BALANCE:
         accum(iter, mClaimableBalanceToUpsert, mClaimableBalanceToDelete);
         break;
+    case LIQUIDITY_POOL:
+        accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
+        break;
     default:
         abort();
     }
@@ -2317,6 +2326,18 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteClaimableBalance(deleteClaimableBalance, cons);
         deleteClaimableBalance.clear();
+    }
+    auto& upsertLiquidityPool = bleca.getLiquidityPoolToUpsert();
+    if (upsertLiquidityPool.size() > bufferThreshold)
+    {
+        bulkUpsertLiquidityPool(upsertLiquidityPool);
+        upsertLiquidityPool.clear();
+    }
+    auto& deleteLiquidityPool = bleca.getLiquidityPoolToDelete();
+    if (deleteLiquidityPool.size() > bufferThreshold)
+    {
+        bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
+        deleteLiquidityPool.clear();
     }
 }
 
@@ -2394,6 +2415,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "trustlines";
     case CLAIMABLE_BALANCE:
         return "claimablebalance";
+    case LIQUIDITY_POOL:
+        return "liquiditypool";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2456,9 +2479,10 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     mEntryCache.clear();
     mBestOffers.clear();
 
-    for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER, CLAIMABLE_BALANCE})
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
-        std::string query = "DELETE FROM " + tableFromLedgerEntryType(let) +
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
                             " WHERE lastmodified >= :v1";
         mDatabase.getSession() << query, use(ledger);
     }
@@ -2494,6 +2518,12 @@ LedgerTxnRoot::dropClaimableBalances()
     mImpl->dropClaimableBalances();
 }
 
+void
+LedgerTxnRoot::dropLiquidityPools()
+{
+    mImpl->dropLiquidityPools();
+}
+
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
@@ -2511,6 +2541,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     UnorderedSet<LedgerKey> trustlines;
     UnorderedSet<LedgerKey> data;
     UnorderedSet<LedgerKey> claimablebalance;
+    UnorderedSet<LedgerKey> liquiditypool;
 
     auto cacheResult =
         [&](UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> const&
@@ -2574,6 +2605,14 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                 claimablebalance.clear();
             }
             break;
+        case LIQUIDITY_POOL:
+            insertIfNotLoaded(liquiditypool, key);
+            if (liquiditypool.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadLiquidityPool(liquiditypool));
+                liquiditypool.clear();
+            }
+            break;
         }
     }
 
@@ -2583,6 +2622,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
     cacheResult(bulkLoadClaimableBalance(claimablebalance));
+    cacheResult(bulkLoadLiquidityPool(liquiditypool));
 
     return total;
 }
@@ -3030,6 +3070,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             break;
         case CLAIMABLE_BALANCE:
             entry = loadClaimableBalance(key);
+            break;
+        case LIQUIDITY_POOL:
+            entry = loadLiquidityPool(key);
             break;
         default:
             throw std::runtime_error("Unknown key type");

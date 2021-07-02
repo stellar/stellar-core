@@ -47,6 +47,7 @@ LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
+LedgerKey liquidityPoolKey(PoolID const& poolID);
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
@@ -170,6 +171,7 @@ bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerEntry const& entry);
 bool isClawbackEnabledOnAccount(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
+bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);

@@ -126,20 +126,19 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
 }
 
 void
-BucketApplicator::Counters::getRates(VirtualClock::time_point now,
-                                     uint64_t& au_sec, uint64_t& ad_sec,
-                                     uint64_t& tu_sec, uint64_t& td_sec,
-                                     uint64_t& ou_sec, uint64_t& od_sec,
-                                     uint64_t& du_sec, uint64_t& dd_sec,
-                                     uint64_t& cu_sec, uint64_t& cd_sec,
-                                     uint64_t& T_sec, uint64_t& total)
+BucketApplicator::Counters::getRates(
+    VirtualClock::time_point now, uint64_t& au_sec, uint64_t& ad_sec,
+    uint64_t& tu_sec, uint64_t& td_sec, uint64_t& ou_sec, uint64_t& od_sec,
+    uint64_t& du_sec, uint64_t& dd_sec, uint64_t& cu_sec, uint64_t& cd_sec,
+    uint64_t& lu_sec, uint64_t& ld_sec, uint64_t& T_sec, uint64_t& total)
 {
     VirtualClock::duration dur = now - mStarted;
     auto usec = std::chrono::duration_cast<std::chrono::microseconds>(dur);
     uint64_t usecs = usec.count() + 1;
     total = mAccountUpsert + mAccountDelete + mTrustLineUpsert +
             mTrustLineDelete + mOfferUpsert + mOfferDelete + mDataUpsert +
-            mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete;
+            mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete +
+            mLiquidityPoolUpsert + mLiquidityPoolDelete;
     au_sec = (mAccountUpsert * 1000000) / usecs;
     ad_sec = (mAccountDelete * 1000000) / usecs;
     tu_sec = (mTrustLineUpsert * 1000000) / usecs;
@@ -150,6 +149,8 @@ BucketApplicator::Counters::getRates(VirtualClock::time_point now,
     dd_sec = (mDataDelete * 1000000) / usecs;
     cu_sec = (mClaimableBalanceUpsert * 1000000) / usecs;
     cd_sec = (mClaimableBalanceDelete * 1000000) / usecs;
+    lu_sec = (mLiquidityPoolUpsert * 1000000) / usecs;
+    ld_sec = (mLiquidityPoolDelete * 1000000) / usecs;
     T_sec = (total * 1000000) / usecs;
 }
 
@@ -159,21 +160,22 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
                                     VirtualClock::time_point now)
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
-        cu_sec, cd_sec, T_sec, total;
+        cu_sec, cd_sec, lu_sec, ld_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
-             dd_sec, cu_sec, cd_sec, T_sec, total);
+             dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, T_sec, total);
     CLOG_INFO(Bucket,
               "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
-              "ou:{} od:{} du:{} dd:{} cu:{} cd:{} T:{}",
+              "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} T:{}",
               total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
-              od_sec, du_sec, dd_sec, cu_sec, cd_sec, T_sec);
+              od_sec, du_sec, dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, T_sec);
     CLOG_INFO(Bucket,
               "Entry-counts for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
-              "ou:{} od:{} du:{} dd:{} cu:{} cd:{}",
+              "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{}",
               total, level, bucketName, mAccountUpsert, mAccountDelete,
               mTrustLineUpsert, mTrustLineDelete, mOfferUpsert, mOfferDelete,
               mDataUpsert, mDataDelete, mClaimableBalanceUpsert,
-              mClaimableBalanceDelete);
+              mClaimableBalanceDelete, mLiquidityPoolUpsert,
+              mLiquidityPoolDelete);
 }
 
 void
@@ -182,14 +184,14 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
                                      VirtualClock::time_point now)
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
-        cu_sec, cd_sec, T_sec, total;
+        cu_sec, cd_sec, lu_sec, ld_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
-             dd_sec, cu_sec, cd_sec, T_sec, total);
+             dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, T_sec, total);
     CLOG_DEBUG(Bucket,
                "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
-               "ou:{} od:{} du:{} dd:{} cu:{} cd:{} T:{}",
+               "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} T:{}",
                total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
-               od_sec, du_sec, dd_sec, cu_sec, cd_sec, T_sec);
+               od_sec, du_sec, dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, T_sec);
 }
 
 void
@@ -214,6 +216,9 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case CLAIMABLE_BALANCE:
             ++mClaimableBalanceUpsert;
             break;
+        case LIQUIDITY_POOL:
+            ++mLiquidityPoolUpsert;
+            break;
         }
     }
     else
@@ -234,6 +239,9 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             break;
         case CLAIMABLE_BALANCE:
             ++mClaimableBalanceDelete;
+            break;
+        case LIQUIDITY_POOL:
+            ++mLiquidityPoolDelete;
             break;
         }
     }

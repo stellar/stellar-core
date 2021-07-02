@@ -79,6 +79,9 @@ struct LedgerEntryIdCmp
         case CLAIMABLE_BALANCE:
             return a.claimableBalance().balanceID <
                    b.claimableBalance().balanceID;
+        case LIQUIDITY_POOL:
+            return a.liquidityPool().liquidityPoolID <
+                   b.liquidityPool().liquidityPoolID;
         }
         return false;
     }

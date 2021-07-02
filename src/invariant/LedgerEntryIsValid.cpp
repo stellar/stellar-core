@@ -107,7 +107,17 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
     case DATA:
         return checkIsValid(le.data.data(), version);
     case CLAIMABLE_BALANCE:
-        return checkIsValid(le, previous, version);
+        if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
+        {
+            return "ClaimableBalance is not sponsored";
+        }
+        return checkIsValid(le.data.claimableBalance(), previous, version);
+    case LIQUIDITY_POOL:
+        if (le.ext.v() != 0)
+        {
+            return "LiquidityPool is sponsored";
+        }
+        return checkIsValid(le.data.liquidityPool(), version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -308,22 +318,16 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
+LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-    if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
-    {
-        return "ClaimableBalance is not sponsored";
-    }
-
-    auto const& cbe = le.data.claimableBalance();
     if (version < 17 && cbe.ext.v() == 1)
     {
         return "ClaimableBalance has v1 extension before protocol version 17";
     }
 
-    if (isClawbackEnabledOnClaimableBalance(le) &&
+    if (isClawbackEnabledOnClaimableBalance(cbe) &&
         cbe.asset.type() == ASSET_TYPE_NATIVE)
     {
         return "ClaimableBalance clawback set on native balance";
@@ -366,6 +370,51 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         }
     }
 
+    return {};
+}
+
+std::string
+LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
+                                 uint32 version) const
+{
+    if (version < 18)
+    {
+        return "LiquidityPools are only valid from V18";
+    }
+    auto const cp = lp.body.constantProduct();
+    if (!isAssetValid(cp.params.assetA))
+    {
+        return "LiquidityPool assetA is invalid";
+    }
+    if (!isAssetValid(cp.params.assetB))
+    {
+        return "LiquidityPool assetB is invalid";
+    }
+    if (!(cp.params.assetA < cp.params.assetB))
+    {
+        return "LiquidityPool assets are in an invalid order";
+    }
+    if (cp.params.fee != 30)
+    {
+        return "LiquidityPool fee is not 30 basis points";
+    }
+
+    if (cp.reserveA < 0)
+    {
+        return "LiquidityPool reserveA is negative";
+    }
+    if (cp.reserveB < 0)
+    {
+        return "LiquidityPool reserveB is negative";
+    }
+    if (cp.totalPoolShares < 0)
+    {
+        return "LiquidityPool totalPoolShares is negative";
+    }
+    if (cp.poolSharesTrustLineCount < 0)
+    {
+        return "LiquidityPool poolSharesTrustLineCount is negative";
+    }
     return {};
 }
 }

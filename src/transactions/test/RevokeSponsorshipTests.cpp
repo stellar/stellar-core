@@ -1237,6 +1237,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
         });
     }
 
@@ -1260,6 +1262,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
         });
     }
 
@@ -1286,7 +1290,14 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             else
             {
                 REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                auto error = ledgerKey.type() == LIQUIDITY_POOL
+                                 ? REVOKE_SPONSORSHIP_MALFORMED
+                                 : REVOKE_SPONSORSHIP_DOES_NOT_EXIST;
+                REQUIRE(getRevokeSponsorshipResultCode(tx, 0) == error);
             }
+
+            // This lambda can be used in a loop, so reset the seqnum
+            a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
         };
 
         SECTION("invalid offer and data keys")
@@ -1320,6 +1331,12 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     revoke(trustlineKey(a2, asset));
                 }
             });
+        }
+
+        SECTION("liquidity pool key")
+        {
+            for_versions_from(15, *app,
+                              [&]() { revoke(liquidityPoolKey(PoolID{})); });
         }
     }
 }

@@ -92,6 +92,12 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
             le.data.claimableBalance().balanceID =
                 leBase.data.claimableBalance().balanceID;
             break;
+        case LIQUIDITY_POOL:
+            le.data.liquidityPool() =
+                LedgerTestUtils::generateValidLiquidityPoolEntry();
+            le.data.liquidityPool().liquidityPoolID =
+                leBase.data.liquidityPool().liquidityPoolID;
+            break;
         default:
             REQUIRE(false);
         }

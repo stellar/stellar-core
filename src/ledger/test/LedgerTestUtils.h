@@ -27,6 +27,7 @@ void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);
 void makeValid(DataEntry& d);
 void makeValid(ClaimableBalanceEntry& c);
+void makeValid(LiquidityPoolEntry& lp);
 void makeValid(LedgerHeaderHistoryEntry& lh,
                LedgerHeaderHistoryEntry firstLedger,
                HistoryManager::LedgerVerificationStatus state);
@@ -49,6 +50,9 @@ std::vector<DataEntry> generateValidDataEntries(size_t n);
 ClaimableBalanceEntry generateValidClaimableBalanceEntry(size_t b = 3);
 std::vector<ClaimableBalanceEntry>
 generateValidClaimableBalanceEntries(size_t n);
+
+LiquidityPoolEntry generateValidLiquidityPoolEntry(size_t b = 3);
+std::vector<LiquidityPoolEntry> generateValidLiquidityPoolEntries(size_t n);
 
 std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
     LedgerHeaderHistoryEntry firstLedger, uint32_t size,
