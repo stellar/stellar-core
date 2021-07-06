@@ -753,7 +753,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
             stateChanged();
         }
 
-        mHerder.setTrackingSCPState(slotIndex, b);
+        mHerder.setTrackingSCPState(slotIndex, b, /* isTrackingNetwork */ true);
 
         // record lag
         recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);

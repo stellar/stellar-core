@@ -41,8 +41,8 @@ class HerderImpl : public Herder
         TimePoint mConsensusCloseTime{0};
     };
 
-    void setTrackingSCPState(uint64_t index,
-                             StellarValue const& value) override;
+    void setTrackingSCPState(uint64_t index, StellarValue const& value,
+                             bool isTrackingNetwork) override;
 
     // returns the latest known ledger from the network, requires Herder to be
     // in fully booted state

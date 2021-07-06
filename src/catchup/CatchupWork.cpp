@@ -11,6 +11,7 @@
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
+#include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -32,6 +33,45 @@ namespace stellar
 
 uint32_t const CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION = 8;
 uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 16;
+
+static std::shared_ptr<LedgerHeaderHistoryEntry>
+getHistoryEntryForLedger(uint32_t ledgerSeq, FileTransferInfo const& ft)
+{
+    XDRInputFileStream in;
+    in.open(ft.localPath_nogz());
+
+    auto lhhe = std::make_shared<LedgerHeaderHistoryEntry>();
+
+    while (in && in.readOne<LedgerHeaderHistoryEntry>(*lhhe))
+    {
+        if (lhhe->header.ledgerSeq == ledgerSeq)
+        {
+            return lhhe;
+        }
+    }
+
+    return nullptr;
+}
+
+static bool
+setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
+{
+    auto entry = getHistoryEntryForLedger(ledger, ft);
+    if (!entry)
+    {
+        CLOG_ERROR(History,
+                   "Malformed catchup file does not contain "
+                   "LedgerHeaderHistoryEntry for ledger {}",
+                   ledger);
+        return false;
+    }
+
+    app.getHerder().setTrackingSCPState(ledger, entry->header.scpValue,
+                                        /* isTrackingNetwork */ false);
+    CLOG_INFO(History, "Herder state is set! tracking={}, closeTime={}", ledger,
+              entry->header.scpValue.closeTime);
+    return true;
+}
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
@@ -407,6 +447,28 @@ CatchupWork::runCatchupStep()
             }
 
             std::vector<std::shared_ptr<BasicWork>> seq;
+            // Before replaying ledgers, ensure Herder state is consistent with
+            // LCL
+            auto cb = [ledgerSeq = catchupRange.last(),
+                       &dir = *mDownloadDir](Application& app) {
+                if (app.getHerder().trackingConsensusLedgerIndex() >= ledgerSeq)
+                {
+                    return true;
+                }
+
+                auto checkpoint =
+                    app.getHistoryManager().checkpointContainingLedger(
+                        ledgerSeq);
+                auto ft =
+                    FileTransferInfo(dir, HISTORY_FILE_TYPE_LEDGER, checkpoint);
+
+                return setHerderStateTo(ft, ledgerSeq, app);
+            };
+
+            auto consistencyWork = std::make_shared<WorkWithCallback>(
+                mApp, "herder-state-consistency-work", cb);
+            seq.push_back(consistencyWork);
+
             if (mCatchupConfiguration.mode() ==
                 CatchupConfiguration::Mode::OFFLINE_COMPLETE)
             {

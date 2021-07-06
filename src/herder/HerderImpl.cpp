@@ -104,10 +104,18 @@ HerderImpl::getState() const
 }
 
 void
-HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value)
+HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
+                                bool isTrackingNetwork)
 {
     mTrackingSCP = ConsensusData{index, value.closeTime};
-    setState(Herder::HERDER_TRACKING_NETWORK_STATE);
+    if (isTrackingNetwork)
+    {
+        setState(Herder::HERDER_TRACKING_NETWORK_STATE);
+    }
+    else
+    {
+        setState(Herder::HERDER_SYNCING_STATE);
+    }
 }
 
 uint32
@@ -1183,7 +1191,8 @@ void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
-    setTrackingSCPState(header.ledgerSeq, header.scpValue);
+    setTrackingSCPState(header.ledgerSeq, header.scpValue,
+                        /* isTrackingNetwork */ true);
 }
 
 bool
@@ -1712,17 +1721,18 @@ HerderImpl::start()
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
-    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
-
     if (!mApp.getConfig().FORCE_SCP &&
         lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
     {
         // if we're on genesis ledger, there is no point in claiming
         // that we're "in sync"
-        lostSync();
+        setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue,
+                            /* isTrackingNetwork */ false);
     }
     else
     {
+        setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue,
+                            /* isTrackingNetwork */ true);
         trackingHeartBeat();
         // Load SCP state from the database
         restoreSCPState();
