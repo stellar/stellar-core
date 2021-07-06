@@ -111,6 +111,15 @@ setFee(TransactionFramePtr tx, uint32_t fee)
 }
 
 void
+setMemo(TransactionFramePtr tx, Memo memo)
+{
+    auto& env = tx->getEnvelope();
+    Memo& m =
+        env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.memo : env.v1().tx.memo;
+    m = memo;
+}
+
+void
 setMinTime(TransactionFramePtr tx, TimePoint minTime)
 {
     auto& env = tx->getEnvelope();

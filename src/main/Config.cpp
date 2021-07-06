@@ -23,7 +23,6 @@
 #include <fmt/format.h>
 #include <functional>
 #include <numeric>
-#include <random>
 #include <sstream>
 #include <type_traits>
 #include <unordered_set>
@@ -757,11 +756,11 @@ Config::verifyLoadGenOpCountForTestingConfigs()
 
     if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
                      LOADGEN_OP_COUNT_FOR_TESTING.end(),
-                     [](unsigned short i) { return 0 <= i && i <= 100; }))
+                     [](unsigned short i) { return 1 <= i && i <= 100; }))
     {
         throw std::invalid_argument(
             "All elements in NUM_OPS_PER_TX_COUNT_FOR_TESTING must be "
-            "integers in [0, 100]");
+            "integers in [1, 100]");
     }
 }
 
