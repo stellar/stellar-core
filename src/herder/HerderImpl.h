@@ -41,10 +41,12 @@ class HerderImpl : public Herder
         TimePoint mConsensusCloseTime{0};
     };
 
-    void setTrackingSCPState(uint64_t index, StellarValue const& value);
+    void setTrackingSCPState(uint64_t index,
+                             StellarValue const& value) override;
 
-    // the ledger index that was last externalized
-    uint32 trackingConsensusLedgerIndex() const;
+    // returns the latest known ledger from the network, requires Herder to be
+    // in fully booted state
+    uint32 trackingConsensusLedgerIndex() const override;
 
     TimePoint trackingConsensusCloseTime() const;
 
@@ -114,7 +116,6 @@ class HerderImpl : public Herder
 
     void processSCPQueue();
 
-    uint32_t getCurrentLedgerSeq() const override;
     uint32 getMinLedgerSeqToAskPeers() const override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;

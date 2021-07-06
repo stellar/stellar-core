@@ -142,7 +142,7 @@ SurveyMessageLimiter::recordAndValidateResponse(
 bool
 SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
 {
-    uint32_t curLedgerNum = mApp.getHerder().getCurrentLedgerSeq();
+    uint32_t curLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
     return ledgerNum + mNumLedgersBeforeIgnore >= curLedgerNum &&
            ledgerNum <= curLedgerNum + 1;
 }
