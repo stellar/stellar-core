@@ -72,7 +72,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -4853,7 +4852,6 @@ TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);

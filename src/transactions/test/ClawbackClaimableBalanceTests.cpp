@@ -23,8 +23,6 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     auto root = TestAccount::createRoot(*app);
 
     auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);

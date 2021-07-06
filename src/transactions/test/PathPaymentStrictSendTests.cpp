@@ -114,7 +114,6 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     auto& lm = app->getLedgerManager();
     auto const txfee = lm.getLastTxFee();
@@ -2346,7 +2345,6 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
     cfg.USE_CONFIG_FOR_GENESIS = false;
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
     auto& lm = app->getLedgerManager();
     auto const txfee = lm.getLastTxFee();
     auto const minBalance1 = lm.getLastMinBalance(1) + 10 * txfee;

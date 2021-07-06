@@ -998,7 +998,6 @@ TEST_CASE("HAS in publishqueue remains in pristine state until publish",
     BucketTests::for_versions_with_differing_bucket_logic(
         cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
-            app->start();
             auto& hm = app->getHistoryManager();
             auto& lm = app->getLedgerManager();
             auto& bl = app->getBucketManager().getBucketList();
@@ -1053,7 +1052,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
     {
         VirtualClock clock;
         Application::pointer app0 = createTestApplication(clock, cfg);
-        app0->start();
         auto& hm0 = app0->getHistoryManager();
         while (hm0.getPublishQueueCount() < 5)
         {

@@ -58,8 +58,6 @@ TEST_CASE("standalone", "[herder][acceptance]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg1);
 
-        app->start();
-
         // set up world
         auto root = TestAccount::createRoot(*app);
         auto a1 = TestAccount{*app, getAccount("A")};
@@ -259,8 +257,6 @@ testTxSet(uint32 protocolVersion)
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->start();
-
     // set up world
     auto root = TestAccount::createRoot(*app);
 
@@ -437,7 +433,6 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
 
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
@@ -670,8 +665,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->start();
-
         LedgerHeader lhCopy;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -857,8 +850,6 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->start();
-
     LedgerHeader lhCopy;
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1041,8 +1032,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->start();
-
         auto root = TestAccount::createRoot(*app);
 
         auto destAccount = root.create("destAccount", 500000000);
@@ -1088,8 +1077,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
     cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
 
     Application::pointer app = createTestApplication(clock, cfg);
-
-    app->start();
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -1689,6 +1676,9 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         }
         sim->addNode(nodeKeys[2], qSetAll, &nodeCfgs[2]);
         sim->getNode(nodeIDs[2])->start();
+        // 2 always has FORCE_SCP=true, so it starts in sync
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_SYNCED_STATE);
 
         // crank a bit (nothing should happen, node 2 is waiting for SCP
         // messages)
@@ -1708,6 +1698,20 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
+        if (forceSCP)
+        {
+            REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
+            REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
+        }
+        else
+        {
+            REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                    Application::State::APP_CONNECTED_STANDBY_STATE);
+            REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                    Application::State::APP_CONNECTED_STANDBY_STATE);
+        }
 
         sim->addConnection(nodeIDs[0], nodeIDs[2]);
         sim->addConnection(nodeIDs[1], nodeIDs[2]);
@@ -1721,11 +1725,14 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         // next ledger
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(expectedLedger + 1, 5); },
-            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         // nodes are at least on ledger 7 (some may be on 8)
         for (int i = 0; i <= 2; i++)
         {
+            // All nodes are in sync
+            REQUIRE(sim->getNode(nodeIDs[i])->getState() ==
+                    Application::State::APP_SYNCED_STATE);
             auto const& actual = sim->getNode(nodeIDs[i])
                                      ->getLedgerManager()
                                      .getLastClosedLedgerHeader()
@@ -1751,6 +1758,13 @@ TEST_CASE("SCP State", "[herder][acceptance]")
             },
             std::chrono::seconds(1), false);
 
+        REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
+                Application::State::APP_CONNECTED_STANDBY_STATE);
+        REQUIRE(sim->getNode(nodeIDs[1])->getState() ==
+                Application::State::APP_CONNECTED_STANDBY_STATE);
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_SYNCED_STATE);
+
         for (int i = 0; i <= 2; i++)
         {
             auto const& actual = sim->getNode(nodeIDs[i])
@@ -1759,10 +1773,54 @@ TEST_CASE("SCP State", "[herder][acceptance]")
                                      .header;
             REQUIRE(actual == lcl.header);
         }
+
+        // Crank some more and let 2 go out of sync
+        sim->crankUntil(
+            [&]() {
+                return sim->getNode(nodeIDs[2])->getHerder().getState() ==
+                       Herder::State::HERDER_SYNCING_STATE;
+            },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        // Verify that the app is not synced anymore
+        REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
+                Application::State::APP_ACQUIRING_CONSENSUS_STATE);
     }
 }
 
-TEST_CASE("values externalized out of order", "[herder]")
+static void
+checkSynced(Application& app)
+{
+    REQUIRE(app.getLedgerManager().isSynced());
+    REQUIRE(!app.getCatchupManager().hasBufferedLedger());
+}
+
+void
+checkInvariants(Application& app, HerderImpl& herder)
+{
+    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    // Either tracking or last tracking must be set
+    // Tracking is ahead of or equal to LCL
+    REQUIRE(herder.trackingConsensusLedgerIndex() >= lcl);
+}
+
+static void
+checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
+            uint32_t ledger)
+{
+    checkInvariants(app, herder);
+    REQUIRE(herder.getState() == expectedState);
+    REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
+}
+
+// The main purpose of this test is to ensure the externalize path works
+// correctly. This entails properly updating tracking in Herder, forwarding
+// externalize information to LM, and Herder appropriately reacting to ledger
+// close.
+
+// The nice thing about this test is that because we fully control the messages
+// received by a node, we fully control the state of Herder and LM (and whether
+// each component is in sync or out of sync)
+TEST_CASE("herder externalizes values", "[herder]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
@@ -1788,13 +1846,22 @@ TEST_CASE("values externalized out of order", "[herder]")
     simulation->addPendingConnection(validatorAKey.getPublicKey(),
                                      validatorBKey.getPublicKey());
 
-    simulation->startAllNodes();
-    auto A = simulation->getNode(validatorAKey.getPublicKey());
-    auto B = simulation->getNode(validatorBKey.getPublicKey());
-
     auto getC = [&]() {
         return simulation->getNode(validatorCKey.getPublicKey());
     };
+
+    // Before application is started, Herder is booting
+    REQUIRE(getC()->getHerder().getState() ==
+            Herder::State::HERDER_BOOTING_STATE);
+
+    simulation->startAllNodes();
+
+    // After SCP is restored, Herder is tracking
+    REQUIRE(getC()->getHerder().getState() ==
+            Herder::State::HERDER_TRACKING_NETWORK_STATE);
+
+    auto A = simulation->getNode(validatorAKey.getPublicKey());
+    auto B = simulation->getNode(validatorBKey.getPublicKey());
 
     auto currentALedger = [&]() {
         return A->getLedgerManager().getLastClosedLedgerNum();
@@ -1840,18 +1907,14 @@ TEST_CASE("values externalized out of order", "[herder]")
     HerderImpl& herderA = *static_cast<HerderImpl*>(&A->getHerder());
     HerderImpl& herderB = *static_cast<HerderImpl*>(&B->getHerder());
     HerderImpl& herderC = *static_cast<HerderImpl*>(&getC()->getHerder());
-
     auto const& lmC = getC()->getLedgerManager();
-    auto const& cmC = getC()->getCatchupManager();
 
-    // Now construct a few future externalize messages
-    // Make sure out of order messages are still within the validity range
+    // Advance A and B a bit further, and collect externalize messages
     std::map<uint32_t, std::pair<SCPEnvelope, TxSetFramePtr>>
         validatorSCPMessagesA;
     std::map<uint32_t, std::pair<SCPEnvelope, TxSetFramePtr>>
         validatorSCPMessagesB;
 
-    // Advance A and B a bit further, and collect externalize messages
     auto destinationLedger = waitForA(4);
     for (auto start = currentLedger + 1; start <= destinationLedger; start++)
     {
@@ -1885,39 +1948,47 @@ TEST_CASE("values externalized out of order", "[herder]")
     }
 
     REQUIRE(validatorSCPMessagesA.size() == validatorSCPMessagesB.size());
-    REQUIRE(herderC.getCurrentLedgerSeq() == currentCLedger());
+    checkHerder(*(getC()), herderC,
+                Herder::State::HERDER_TRACKING_NETWORK_STATE, currentCLedger());
     REQUIRE(currentCLedger() == currentLedger);
+
+    auto receiveLedger = [&](uint32_t ledger, Herder& herder) {
+        auto newMsgB = validatorSCPMessagesB.at(ledger);
+        auto newMsgA = validatorSCPMessagesA.at(ledger);
+
+        REQUIRE(
+            herder.recvSCPEnvelope(newMsgA.first, qset, *(newMsgA.second)) ==
+            Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(
+            herder.recvSCPEnvelope(newMsgB.first, qset, *(newMsgB.second)) ==
+            Herder::ENVELOPE_STATUS_READY);
+    };
 
     auto testOutOfOrder = [&](bool partial) {
         auto first = currentLedger + 1;
         auto second = first + 1;
         auto third = second + 1;
-
-        // Externalize future ledger
-        // This should trigger CatchupManager to start buffering ledgers
-        auto futureSlotA = validatorSCPMessagesA[third + 1];
-        auto futureSlotB = validatorSCPMessagesB[third + 1];
-
-        REQUIRE(herderC.recvSCPEnvelope(futureSlotA.first, qset,
-                                        *(futureSlotA.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
-        REQUIRE(herderC.recvSCPEnvelope(futureSlotB.first, qset,
-                                        *(futureSlotB.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
+        auto fourth = third + 1;
 
         // Drop A-B connection, so that the network can't make progress
+        REQUIRE(currentALedger() == fourth);
         simulation->dropConnection(validatorAKey.getPublicKey(),
                                    validatorBKey.getPublicKey());
 
-        // Wait until C goes out of sync
+        // Externalize future ledger
+        // This should trigger CatchupManager to start buffering ledgers
+        receiveLedger(fourth, herderC);
+
+        // Wait until C goes out of sync, and processes future slots
         simulation->crankUntil([&]() { return !lmC.isSynced(); },
                                2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
                                false);
 
         // Ensure LM is out of sync, and Herder tracks ledger seq from latest
         // envelope
-        REQUIRE(herderC.getCurrentLedgerSeq() ==
-                futureSlotA.first.statement.slotIndex);
+        REQUIRE(!lmC.isSynced());
+        checkHerder(*(getC()), herderC,
+                    Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
 
         // Next, externalize a contiguous ledger
         // This will cause LM to apply it, and catchup manager will try to apply
@@ -1934,26 +2005,17 @@ TEST_CASE("values externalized out of order", "[herder]")
 
         for (size_t i = 0; i < ledgers.size(); i++)
         {
-            auto slotA = validatorSCPMessagesA[ledgers[i]];
-            auto slotB = validatorSCPMessagesB[ledgers[i]];
+            receiveLedger(ledgers[i], herderC);
 
-            REQUIRE(
-                herderC.recvSCPEnvelope(slotA.first, qset, *(slotA.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
-            REQUIRE(
-                herderC.recvSCPEnvelope(slotB.first, qset, *(slotB.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
-
-            REQUIRE(herderC.getCurrentLedgerSeq() ==
-                    futureSlotA.first.statement.slotIndex);
-
-            REQUIRE(!cmC.isCatchupInitialized());
+            // Tracking did not change
+            checkHerder(*(getC()), herderC,
+                        Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
+            REQUIRE(!getC()->getCatchupManager().isCatchupInitialized());
 
             // At the last ledger, LM is back in sync
             if (i == ledgers.size() - 1)
             {
-                REQUIRE(lmC.isSynced());
-                REQUIRE(!cmC.hasBufferedLedger());
+                checkSynced(*(getC()));
             }
             else
             {
@@ -1983,56 +2045,55 @@ TEST_CASE("values externalized out of order", "[herder]")
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     };
 
-    SECTION("in order")
+    SECTION("newer ledgers externalize in order")
     {
-        for (auto const& msgPair : validatorSCPMessagesA)
+        auto checkReceivedLedgers = [&]() {
+            for (auto const& msgPair : validatorSCPMessagesA)
+            {
+                receiveLedger(msgPair.first, herderC);
+
+                // Tracking is updated correctly
+                checkHerder(*(getC()), herderC,
+                            Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                            msgPair.first);
+                // LM is synced
+                checkSynced(*(getC()));
+            }
+        };
+
+        SECTION("tracking")
         {
-            auto msgA = msgPair.second;
-            auto msgB = validatorSCPMessagesB[msgPair.first];
-
-            REQUIRE(herderC.recvSCPEnvelope(msgA.first, qset, *(msgA.second)) ==
-                    Herder::ENVELOPE_STATUS_READY);
-            REQUIRE(herderC.recvSCPEnvelope(msgB.first, qset, *(msgB.second)) ==
-                    Herder::ENVELOPE_STATUS_READY);
-
-            // Tracking is updated correctly
-            REQUIRE(herderC.getCurrentLedgerSeq() ==
-                    msgA.first.statement.slotIndex);
-            // nothing out of ordinary in LM
-            REQUIRE(lmC.isSynced());
-            // Catchup is not running, no ledgers are buffered
-            REQUIRE(!cmC.hasBufferedLedger());
+            checkHerder(*(getC()), herderC,
+                        Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                        currentLedger);
+            checkReceivedLedgers();
+        }
+        SECTION("not tracking")
+        {
+            simulation->crankUntil(
+                [&]() {
+                    return herderC.getState() ==
+                           Herder::State::HERDER_SYNCING_STATE;
+                },
+                2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+            checkHerder(*(getC()), herderC, Herder::State::HERDER_SYNCING_STATE,
+                        currentLedger);
+            checkReceivedLedgers();
         }
     }
-    SECTION("completely out of order")
+    SECTION("newer ledgers externalize out of order")
     {
-        testOutOfOrder(/* partial */ false);
+        SECTION("completely")
+        {
+            testOutOfOrder(/* partial */ false);
+        }
+        SECTION("partial")
+        {
+            testOutOfOrder(/* partial */ true);
+        }
     }
-    SECTION("partially out of order")
-    {
-        testOutOfOrder(/* partial */ true);
-    }
-    SECTION("C goes back in sync and unsticks the network")
-    {
-        testOutOfOrder(/* partial */ false);
 
-        // Now that C is back in sync and triggered next ledger
-        // (and B is disconnected), C and A should be able to make progress
-        simulation->addConnection(validatorAKey.getPublicKey(),
-                                  validatorCKey.getPublicKey());
-
-        auto lcl = currentALedger();
-        auto nextLedger = lcl + fewLedgers;
-
-        // Make sure A and C are starting from the same ledger
-        REQUIRE(lcl == currentCLedger());
-
-        waitForA(fewLedgers);
-        REQUIRE(currentALedger() == nextLedger);
-        // C is at most a ledger behind
-        REQUIRE(currentCLedger() >= nextLedger - 1);
-    }
-    SECTION("older externalized slots do not trigger next ledger")
+    SECTION("older ledgers externalize and no-op")
     {
         // Reconnect nodes to crank the simulation just enough to purge older
         // slots
@@ -2041,7 +2102,8 @@ TEST_CASE("values externalized out of order", "[herder]")
                                   validatorBKey.getPublicKey());
         simulation->addConnection(validatorAKey.getPublicKey(),
                                   validatorCKey.getPublicKey());
-        waitForLedgers(configC.MAX_SLOTS_TO_REMEMBER + 1);
+        auto currentlyTracking =
+            waitForLedgers(configC.MAX_SLOTS_TO_REMEMBER + 1);
 
         // Restart C with higher MAX_SLOTS_TO_REMEMBER config, to allow
         // processing of older slots
@@ -2049,23 +2111,65 @@ TEST_CASE("values externalized out of order", "[herder]")
         configC.MAX_SLOTS_TO_REMEMBER += 5;
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
         newC->start();
-
-        // Wait until C goes out of sync
-        simulation->crankForAtLeast(3 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
-                                    false);
         HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
-        REQUIRE(!newHerderC.getHerderSCPDriver().trackingSCP());
 
-        auto newMsgB = validatorSCPMessagesB[destinationLedger];
-        auto newMsgA = validatorSCPMessagesA[destinationLedger];
+        checkHerder(*newC, newHerderC,
+                    Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                    currentlyTracking);
 
-        // Let Herder process older messages
-        REQUIRE(newHerderC.recvSCPEnvelope(newMsgA.first, qset,
-                                           *(newMsgA.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
-        REQUIRE(newHerderC.recvSCPEnvelope(newMsgB.first, qset,
-                                           *(newMsgB.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
+        SECTION("tracking")
+        {
+            receiveLedger(destinationLedger, newHerderC);
+
+            checkHerder(*newC, newHerderC,
+                        Herder::State::HERDER_TRACKING_NETWORK_STATE,
+                        currentlyTracking);
+            checkSynced(*newC);
+        }
+        SECTION("not tracking")
+        {
+            // Wait until C goes out of sync
+            simulation->crankUntil(
+                [&]() {
+                    return newHerderC.getState() ==
+                           Herder::State::HERDER_SYNCING_STATE;
+                },
+                2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS, false);
+            checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
+                        currentlyTracking);
+
+            receiveLedger(destinationLedger, newHerderC);
+
+            // Tracking has not changed, still the most recent ledger
+            checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
+                        currentlyTracking);
+            checkSynced(*newC);
+        }
+    }
+    SECTION("trigger next ledger")
+    {
+        // Sync C with the rest of the network
+        testOutOfOrder(/* partial */ false);
+
+        // Reconnect C to the rest of the network
+        simulation->addConnection(validatorAKey.getPublicKey(),
+                                  validatorCKey.getPublicKey());
+        SECTION("C goes back in sync and unsticks the network")
+        {
+            // Now that C is back in sync and triggered next ledger
+            // (and B is disconnected), C and A should be able to make progress
+
+            auto lcl = currentALedger();
+            auto nextLedger = lcl + fewLedgers;
+
+            // Make sure A and C are starting from the same ledger
+            REQUIRE(lcl == currentCLedger());
+
+            waitForA(fewLedgers);
+            REQUIRE(currentALedger() == nextLedger);
+            // C is at most a ledger behind
+            REQUIRE(currentCLedger() >= nextLedger - 1);
+        }
     }
 }
 
@@ -2335,7 +2439,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 0;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& lm = app->getLedgerManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -2599,7 +2702,6 @@ TEST_CASE("slot herder policy", "[herder]")
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
@@ -2652,13 +2754,13 @@ TEST_CASE("slot herder policy", "[herder]")
             REQUIRE(clock.now() < timeout);
         }
     }
-    REQUIRE(herder.getState() == Herder::HERDER_TRACKING_STATE);
+    REQUIRE(herder.getState() == Herder::HERDER_TRACKING_NETWORK_STATE);
     REQUIRE(herder.getSCP().getKnownSlotsCount() == LIMIT);
 
     auto oneSec = std::chrono::seconds(1);
     // let the node go out of sync, it should reach the desired state
     timeout = clock.now() + Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS + oneSec;
-    while (herder.getState() == Herder::HERDER_TRACKING_STATE)
+    while (herder.getState() == Herder::HERDER_TRACKING_NETWORK_STATE)
     {
         clock.crank(false);
         REQUIRE(clock.now() < timeout);
@@ -2730,7 +2832,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         VirtualClock clock;
         auto cfg = getTestConfig();
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");
@@ -2746,7 +2847,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto cfg = getTestConfig();
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {CREATE_ACCOUNT};
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");
@@ -2763,7 +2863,6 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto cfg = getTestConfig();
         cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {MANAGE_DATA};
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         auto root = TestAccount::createRoot(*app);
         auto acc = getAccount("acc");

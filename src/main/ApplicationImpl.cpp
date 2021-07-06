@@ -1034,7 +1034,7 @@ ApplicationImpl::getState() const
 {
     State s;
 
-    if (!mStarted)
+    if (!mStarted || mHerder->getState() == Herder::HERDER_BOOTING_STATE)
     {
         s = APP_CREATED_STATE;
     }
@@ -1042,7 +1042,7 @@ ApplicationImpl::getState() const
     {
         s = APP_STOPPING_STATE;
     }
-    else if (mHerder->getState() == Herder::HERDER_SYNCING_STATE)
+    else if (mHerder->getState() != Herder::HERDER_TRACKING_NETWORK_STATE)
     {
         s = APP_ACQUIRING_CONSENSUS_STATE;
     }

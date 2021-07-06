@@ -35,11 +35,33 @@ class HerderSCPDriver;
 class HerderImpl : public Herder
 {
   public:
+    struct ConsensusData
+    {
+        uint64_t mConsensusIndex{0};
+        TimePoint mConsensusCloseTime{0};
+    };
+
+    void setTrackingSCPState(uint64_t index, StellarValue const& value);
+
+    // the ledger index that was last externalized
+    uint32 trackingConsensusLedgerIndex() const;
+
+    TimePoint trackingConsensusCloseTime() const;
+
+    // the ledger index that we expect to externalize next
+    uint32
+    nextConsensusLedgerIndex() const
+    {
+        return trackingConsensusLedgerIndex() + 1;
+    }
+
+    void lostSync();
+
     HerderImpl(Application& app);
     ~HerderImpl();
 
     State getState() const override;
-    std::string getStateHuman() const override;
+    std::string getStateHuman(State st) const override;
 
     void syncMetrics() override;
 
@@ -56,6 +78,12 @@ class HerderImpl : public Herder
         return mHerderSCPDriver;
     }
 
+    bool
+    isTracking() const
+    {
+        return mState == State::HERDER_TRACKING_NETWORK_STATE;
+    }
+
     void processExternalized(uint64 slotIndex, StellarValue const& value);
     void valueExternalized(uint64 slotIndex, StellarValue const& value,
                            bool isLatestSlot);
@@ -65,10 +93,16 @@ class HerderImpl : public Herder
     recvTransaction(TransactionFrameBasePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
+#ifdef BUILD_TESTS
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
+    void
+    externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+                     uint64_t closeTime,
+                     xdr::xvector<UpgradeType, 6> const& upgrades) override;
+#endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
@@ -248,5 +282,14 @@ class HerderImpl : public Herder
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
 
     uint32_t getMinLedgerSeqToRemember() const;
+
+    State mState;
+    void setState(State st);
+
+    // Information about the most recent tracked SCP slot
+    // Set regardless of whether the local instance if fully in sync with the
+    // network or not (Herder::State is used to properly track the state of
+    // Herder) On startup, this variable is set to LCL
+    ConsensusData mTrackingSCP;
 };
 }

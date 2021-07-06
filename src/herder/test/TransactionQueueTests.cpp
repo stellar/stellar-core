@@ -1401,7 +1401,6 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& lm = app->getLedgerManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());

@@ -39,7 +39,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -3848,7 +3847,6 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto& lm = app->getLedgerManager();
-    app->start();
 
     int64_t txfee = lm.getLastTxFee();
 

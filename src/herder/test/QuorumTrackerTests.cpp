@@ -45,13 +45,11 @@ testQuorumTracker()
     auto clock = std::make_shared<VirtualClock>();
     Application::pointer app = createTestApplication(*clock, cfg);
 
-    app->start();
-
     auto* herder = static_cast<HerderImpl*>(&app->getHerder());
     auto* penEnvs = &herder->getPendingEnvelopes();
 
     // allow SCP messages from other slots to be processed
-    herder->getHerderSCPDriver().lostSync();
+    herder->lostSync();
 
     auto valSigner = SecretKey::pseudoRandomForTesting();
 
@@ -215,7 +213,6 @@ TEST_CASE("quorum tracker closest validators", "[quorum][herder]")
 
     auto clock = std::make_shared<VirtualClock>();
     Application::pointer app = createTestApplication(*clock, cfg);
-    app->start();
 
     auto* herder = static_cast<HerderImpl*>(&app->getHerder());
     auto const localNodeID = herder->getSCP().getLocalNodeID();

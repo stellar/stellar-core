@@ -221,7 +221,6 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         {
             genClock.crank(false);
         }
-        genApp->start();
         auto& genHm = genApp->getHistoryManager();
         while (genHm.getPublishSuccessCount() < 5)
         {
@@ -315,7 +314,7 @@ TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
         {
             cfg.setInMemoryMode();
         }
-        REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
+        REQUIRE_NOTHROW(createTestApplication(clock, cfg));
     }
 
     SECTION("EXPERIMENTAL_PRECAUTION_DELAY_META together with "
@@ -344,12 +343,12 @@ TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
         }
         if (delayMeta && !inMemory)
         {
-            REQUIRE_THROWS_AS(createTestApplication(clock, cfg)->start(),
+            REQUIRE_THROWS_AS(createTestApplication(clock, cfg),
                               std::invalid_argument);
         }
         else
         {
-            REQUIRE_NOTHROW(createTestApplication(clock, cfg)->start());
+            REQUIRE_NOTHROW(createTestApplication(clock, cfg));
         }
     }
 }

@@ -192,7 +192,6 @@ TEST_CASE("manualclose", "[commandhandler]")
         Config cfg = getTestConfig();
         configure(cfg);
         auto app = createTestApplication(clock, cfg);
-        app->start();
         auto& commandHandler = app->getCommandHandler();
         std::string retStr;
         issue(commandHandler, retStr);
@@ -265,7 +264,6 @@ TEST_CASE("manualclose", "[commandhandler]")
     VirtualClock clock(VirtualClock::VIRTUAL_TIME);
     auto app = createTestApplication(clock, getTestConfig());
     auto& commandHandler = app->getCommandHandler();
-    app->start();
 
     REQUIRE(app->getConfig().MANUAL_CLOSE);
     REQUIRE(app->getConfig().NODE_IS_VALIDATOR);

@@ -28,8 +28,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     // set up world
     auto root = TestAccount::createRoot(*app);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);

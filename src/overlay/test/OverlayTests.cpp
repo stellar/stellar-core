@@ -1150,7 +1150,7 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.RUN_STANDALONE = false;
-    auto app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, cfg, true, false);
     auto& om = app->getOverlayManager();
     auto& peerManager = om.getPeerManager();
     auto record = [](size_t numFailures) {

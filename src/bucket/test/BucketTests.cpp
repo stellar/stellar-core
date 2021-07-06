@@ -961,7 +961,6 @@ TEST_CASE("bucket apply", "[bucket]")
     Config cfg(getTestConfig());
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         std::vector<LedgerEntry> live(10), noLive;
         std::vector<LedgerKey> dead, noDead;
@@ -1007,7 +1006,6 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         Application::pointer app = createTestApplication(clock, cfg);
-        app->start();
 
         std::vector<LedgerEntry> live(100000);
         std::vector<LedgerKey> noDead;

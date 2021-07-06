@@ -45,7 +45,6 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -355,7 +354,6 @@ TEST_CASE("manage buy offer liabilities", "[tx][offers]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     auto checkLiabilities = [&](std::string const& section, int64_t buyAmount,
                                 Price const& price, int64_t expectedBuying,
@@ -436,7 +434,6 @@ TEST_CASE("manage buy offer exactly crosses existing offers", "[tx][offers]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -486,7 +483,6 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -600,7 +596,6 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -741,7 +736,6 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -881,7 +875,6 @@ TEST_CASE("manage buy offer with zero liabilities", "[tx][offers]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -936,7 +929,6 @@ TEST_CASE("manage buy offer releases liabilities before modify", "[tx][offers]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =

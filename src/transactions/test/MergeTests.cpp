@@ -41,7 +41,6 @@ TEST_CASE("merge", "[tx][merge]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     // set up world
     // set up world

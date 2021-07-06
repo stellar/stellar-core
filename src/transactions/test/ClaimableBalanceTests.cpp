@@ -302,8 +302,6 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
-    app->start();
-
     // set up world
     auto root = TestAccount::createRoot(*app);
     auto const& lm = app->getLedgerManager();

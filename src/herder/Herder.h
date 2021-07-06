@@ -67,8 +67,12 @@ class Herder
 
     enum State
     {
+        // Starting up, no state is known
+        HERDER_BOOTING_STATE,
+        // Fell out of sync, resyncing
         HERDER_SYNCING_STATE,
-        HERDER_TRACKING_STATE,
+        // Fully in sync with the network
+        HERDER_TRACKING_NETWORK_STATE,
         HERDER_NUM_STATE
     };
 
@@ -90,7 +94,7 @@ class Herder
     };
 
     virtual State getState() const = 0;
-    virtual std::string getStateHuman() const = 0;
+    virtual std::string getStateHuman(State st) const = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.
@@ -116,11 +120,17 @@ class Herder
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
+#ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
                                            TxSetFrame txset) = 0;
 
+    virtual void
+    externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+                     uint64_t closeTime,
+                     xdr::xvector<UpgradeType, 6> const& upgrades) = 0;
+#endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 

@@ -37,6 +37,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include "util/GlobalChecks.h"
 #include <algorithm>
 #include <ctime>
 #include <fmt/format.h>
@@ -85,6 +86,7 @@ HerderImpl::HerderImpl(Application& app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
+    , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
     mPendingEnvelopes.addSCPQuorumSet(ln->getQuorumSetHash(),
@@ -98,7 +100,50 @@ HerderImpl::~HerderImpl()
 Herder::State
 HerderImpl::getState() const
 {
-    return mHerderSCPDriver.getState();
+    return mState;
+}
+
+void
+HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value)
+{
+    mTrackingSCP = ConsensusData{index, value.closeTime};
+    setState(Herder::HERDER_TRACKING_NETWORK_STATE);
+}
+
+uint32
+HerderImpl::trackingConsensusLedgerIndex() const
+{
+    releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
+    releaseAssert(mTrackingSCP.mConsensusIndex <= UINT32_MAX);
+    return static_cast<uint32>(mTrackingSCP.mConsensusIndex);
+}
+
+TimePoint
+HerderImpl::trackingConsensusCloseTime() const
+{
+    releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
+    return mTrackingSCP.mConsensusCloseTime;
+}
+
+void
+HerderImpl::setState(State st)
+{
+    bool initState = st == HERDER_BOOTING_STATE;
+    if (initState && (mState == HERDER_TRACKING_NETWORK_STATE ||
+                      mState == HERDER_SYNCING_STATE))
+    {
+        throw std::runtime_error(
+            fmt::format("Invalid state transition in Herder: {} -> {}",
+                        getStateHuman(mState), getStateHuman(st)));
+    }
+    mState = st;
+}
+
+void
+HerderImpl::lostSync()
+{
+    mHerderSCPDriver.stateChanged();
+    setState(Herder::State::HERDER_SYNCING_STATE);
 }
 
 SCP&
@@ -116,11 +161,12 @@ HerderImpl::syncMetrics()
 }
 
 std::string
-HerderImpl::getStateHuman() const
+HerderImpl::getStateHuman(State st) const
 {
-    static std::array<const char*, HERDER_NUM_STATE> stateStrings =
-        std::array{"HERDER_SYNCING_STATE", "HERDER_TRACKING_STATE"};
-    return std::string(stateStrings[getState()]);
+    static std::array<const char*, HERDER_NUM_STATE> stateStrings = {
+        "HERDER_BOOTING_STATE", "HERDER_SYNCING_STATE",
+        "HERDER_TRACKING_NETWORK_STATE"};
+    return std::string(stateStrings[st]);
 }
 
 void
@@ -271,8 +317,10 @@ HerderImpl::outOfSyncRecovery()
 {
     ZoneScoped;
 
-    if (mHerderSCPDriver.trackingSCP())
+    if (isTracking())
     {
+        CLOG_WARNING(Herder,
+                     "HerderImpl::outOfSyncRecovery called when tracking");
         return;
     }
 
@@ -398,16 +446,15 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     // statement using consensus data:
     // update lastCloseIndex/lastCloseTime to be the highest possible but still
     // be less than envLedgerIndex
-    auto adjustLastCloseTime = [&](HerderSCPDriver::ConsensusData const* cd) {
-        if (cd && envLedgerIndex >= cd->mConsensusIndex &&
-            cd->mConsensusIndex > lastCloseIndex)
+    if (getState() != HERDER_BOOTING_STATE)
+    {
+        auto trackingIndex = trackingConsensusLedgerIndex();
+        if (envLedgerIndex >= trackingIndex && trackingIndex > lastCloseIndex)
         {
-            lastCloseIndex = static_cast<uint32>(cd->mConsensusIndex);
-            lastCloseTime = cd->mConsensusValue.closeTime;
+            lastCloseIndex = static_cast<uint32>(trackingIndex);
+            lastCloseTime = trackingConsensusCloseTime();
         }
-    };
-    adjustLastCloseTime(mHerderSCPDriver.trackingSCP());
-    adjustLastCloseTime(mHerderSCPDriver.lastTrackingSCP());
+    }
 
     StellarValue sv;
     // performs the most conservative check:
@@ -519,7 +566,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    if (mHerderSCPDriver.trackingSCP())
+    if (isTracking())
     {
         // when tracking, we can filter messages based on the information we got
         // from consensus for the max ledger
@@ -528,13 +575,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // to potentially drop messages outside of the bracket
         // causing it to discard CONSENSUS_STUCK_TIMEOUT_SECONDS worth of
         // ledger closing
-        maxLedgerSeq = mHerderSCPDriver.nextConsensusLedgerIndex() +
-                       LEDGER_VALIDITY_BRACKET;
+        maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
-    else if (!checkCloseTime(
-                 envelope,
-                 (mHerderSCPDriver.lastTrackingSCP() == nullptr) &&
-                     (minLedgerSeq <= LedgerManager::GENESIS_LEDGER_SEQ)))
+    else if (!checkCloseTime(envelope, getCurrentLedgerSeq() <=
+                                           LedgerManager::GENESIS_LEDGER_SEQ))
     {
         // if we've never been in sync, we can be more aggressive in how we
         // filter messages: we can ignore messages that are unlikely to be
@@ -607,6 +651,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     return status;
 }
 
+#ifdef BUILD_TESTS
+
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset, TxSetFrame txset)
@@ -618,6 +664,19 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
     return recvSCPEnvelope(envelope);
 }
+
+void
+HerderImpl::externalizeValue(std::shared_ptr<TxSetFrame> txSet,
+                             uint32_t ledgerSeq, uint64_t closeTime,
+                             xdr::xvector<UpgradeType, 6> const& upgrades)
+{
+    getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
+    StellarValue sv = makeStellarValue(txSet->getContentsHash(), closeTime,
+                                       upgrades, mApp.getConfig().NODE_SEED);
+    getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
+}
+
+#endif
 
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
@@ -651,11 +710,11 @@ void
 HerderImpl::processSCPQueue()
 {
     ZoneScoped;
-    if (mHerderSCPDriver.trackingSCP())
+    if (isTracking())
     {
         std::string txt("tracking");
         ZoneText(txt.c_str(), txt.size());
-        processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
+        processSCPQueueUpToIndex(nextConsensusLedgerIndex());
     }
     else
     {
@@ -667,7 +726,7 @@ HerderImpl::processSCPQueue()
         for (auto& slot : mPendingEnvelopes.readySlots())
         {
             processSCPQueueUpToIndex(slot);
-            if (mHerderSCPDriver.trackingSCP())
+            if (isTracking())
             {
                 // one of the slots externalized
                 // we go back to regular flow
@@ -740,17 +799,17 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
 void
 HerderImpl::maybeTriggerNextLedger(bool synchronous)
 {
-    if (!mHerderSCPDriver.trackingSCP())
+    if (!isTracking())
     {
         return;
     }
 
     mTriggerTimer.cancel();
 
-    uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
+    uint64_t nextIndex = nextConsensusLedgerIndex();
     if (mLedgerManager.isSynced())
     {
-        auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+        auto lastIndex = trackingConsensusLedgerIndex();
 
         // if we're in sync, we setup mTriggerTimer
         // it may get cancelled if a more recent ledger externalizes
@@ -899,18 +958,11 @@ HerderImpl::getCurrentLedgerSeq() const
 {
     uint32_t res = mLedgerManager.getLastClosedLedgerNum();
 
-    if (mHerderSCPDriver.trackingSCP() &&
-        res < mHerderSCPDriver.trackingSCP()->mConsensusIndex)
+    if (getState() != HERDER_BOOTING_STATE)
     {
-        res = static_cast<uint32_t>(
-            mHerderSCPDriver.trackingSCP()->mConsensusIndex);
+        res = std::max(res, trackingConsensusLedgerIndex());
     }
-    if (mHerderSCPDriver.lastTrackingSCP() &&
-        res < mHerderSCPDriver.lastTrackingSCP()->mConsensusIndex)
-    {
-        res = static_cast<uint32_t>(
-            mHerderSCPDriver.lastTrackingSCP()->mConsensusIndex);
-    }
+
     return res;
 }
 
@@ -981,7 +1033,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
 
-    auto isTrackingValid = mHerderSCPDriver.trackingSCP() || !checkTrackingSCP;
+    auto isTrackingValid = isTracking() || !checkTrackingSCP;
 
     if (!isTrackingValid || !mLedgerManager.isSynced())
     {
@@ -1133,7 +1185,7 @@ void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
-    mHerderSCPDriver.restoreSCPState(header.ledgerSeq, header.scpValue);
+    setTrackingSCPState(header.ledgerSeq, header.scpValue);
 }
 
 bool
@@ -1576,15 +1628,17 @@ HerderImpl::restoreSCPState()
     ZoneScoped;
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
+
     if (!mApp.getConfig().FORCE_SCP &&
         lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
     {
         // if we're on genesis ledger, there is no point in claiming
         // that we're "in sync"
+        lostSync();
         return;
     }
-
-    mHerderSCPDriver.restoreSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
 
     trackingHeartBeat();
 
@@ -1691,7 +1745,8 @@ HerderImpl::trackingHeartBeat()
 
     mOutOfSyncTimer.cancel();
 
-    assert(mHerderSCPDriver.trackingSCP());
+    releaseAssert(isTracking());
+
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
     mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
@@ -1732,14 +1787,11 @@ HerderImpl::herderOutOfSync()
     CLOG_WARNING(Herder, "Out of sync context: {}", s);
 
     mSCPMetrics.mLostSync.Mark();
-    mHerderSCPDriver.lostSync();
+    lostSync();
 
-    auto trackingData = mHerderSCPDriver.lastTrackingSCP();
-    if (trackingData)
-    {
-        mPendingEnvelopes.reportCostOutliersForSlot(
-            trackingData->mConsensusIndex, false);
-    }
+    releaseAssert(getState() == Herder::HERDER_SYNCING_STATE);
+    mPendingEnvelopes.reportCostOutliersForSlot(trackingConsensusLedgerIndex(),
+                                                false);
 
     startOutOfSyncTimer();
 

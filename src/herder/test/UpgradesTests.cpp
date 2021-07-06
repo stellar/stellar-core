@@ -229,11 +229,8 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    StellarValue sv = app.getHerder().makeStellarValue(
-        txSet->getContentsHash(), 2, upgrades, app.getConfig().NODE_SEED);
-    LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-
-    app.getLedgerManager().closeLedger(ledgerData);
+    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
+                                     upgrades);
     return lm.getLastClosedLedgerHeader().header;
 };
 
@@ -529,7 +526,6 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
     auto cfg = getTestConfig(0);
     cfg.USE_CONFIG_FOR_GENESIS = false;
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
     auto const& lastHash = lcl.hash;
@@ -589,7 +585,7 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
-    app->start();
+
     executeUpgrade(*app, makeProtocolVersionUpgrade(9));
 
     auto& lm = app->getLedgerManager();
@@ -1429,7 +1425,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
-    app->start();
+
     executeUpgrade(*app, makeProtocolVersionUpgrade(10));
 
     auto& lm = app->getLedgerManager();
@@ -1545,7 +1541,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
-    app->start();
+
     executeUpgrade(*app, makeProtocolVersionUpgrade(11));
 
     auto& lm = app->getLedgerManager();
@@ -1650,7 +1646,7 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
-    app->start();
+
     executeUpgrade(*app, makeProtocolVersionUpgrade(12));
 
     auto& lm = app->getLedgerManager();
@@ -1704,7 +1700,6 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
-    app->start();
 
     auto& lm = app->getLedgerManager();
     auto txFee = lm.getLastTxFee();
@@ -2250,7 +2245,6 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
-    app->start();
 
     // Version upgrade to unsupported
     REQUIRE_THROWS(

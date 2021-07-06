@@ -691,8 +691,6 @@ TransactionQueue::clearAll()
 void
 TransactionQueue::maybeVersionUpgraded()
 {
-    std::vector<ReplacedTransaction> res;
-
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     if (mLedgerVersion < 13 && lcl.header.ledgerVersion >= 13)
     {
