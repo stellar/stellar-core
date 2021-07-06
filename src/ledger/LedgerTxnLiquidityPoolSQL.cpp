@@ -250,6 +250,8 @@ class BulkUpsertLiquidityPoolOperation
 {
     Database& mDb;
     std::vector<std::string> mPoolIDs;
+    std::vector<std::string> mAssetAs;
+    std::vector<std::string> mAssetBs;
     std::vector<std::string> mLiquidityPoolEntries;
     std::vector<int32_t> mLastModifieds;
 
@@ -257,8 +259,12 @@ class BulkUpsertLiquidityPoolOperation
     accumulateEntry(LedgerEntry const& entry)
     {
         throwIfNotLiquidityPool(entry.data.type());
-        mPoolIDs.emplace_back(
-            toOpaqueBase64(entry.data.liquidityPool().liquidityPoolID));
+
+        auto const& lp = entry.data.liquidityPool();
+        auto const& cp = lp.body.constantProduct();
+        mPoolIDs.emplace_back(toOpaqueBase64(lp.liquidityPoolID));
+        mAssetAs.emplace_back(toOpaqueBase64(cp.params.assetA));
+        mAssetBs.emplace_back(toOpaqueBase64(cp.params.assetB));
         mLiquidityPoolEntries.emplace_back(toOpaqueBase64(entry));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));
@@ -280,16 +286,20 @@ class BulkUpsertLiquidityPoolOperation
     doSociGenericOperation()
     {
         std::string sql = "INSERT INTO liquiditypool "
-                          "(poolid, ledgerentry, lastmodified) "
+                          "(poolid, asseta, assetb, ledgerentry, lastmodified) "
                           "VALUES "
-                          "( :id, :v1, :v2 ) "
+                          "( :id, :v1, :v2, :v3, :v4 ) "
                           "ON CONFLICT (poolid) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, lastmodified = "
-                          "excluded.lastmodified";
+                          "asseta = excluded.asseta, "
+                          "assetb = excluded.assetb, "
+                          "ledgerentry = excluded.ledgerentry, "
+                          "lastmodified = excluded.lastmodified";
 
         auto prep = mDb.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mPoolIDs));
+        st.exchange(soci::use(mAssetAs));
+        st.exchange(soci::use(mAssetBs));
         st.exchange(soci::use(mLiquidityPoolEntries));
         st.exchange(soci::use(mLastModifieds));
         st.define_and_bind();
@@ -313,26 +323,34 @@ class BulkUpsertLiquidityPoolOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strPoolIDs, strLiquidityPoolEntry, strLastModifieds;
+        std::string strPoolIDs, strAssetAs, strAssetBs, strLiquidityPoolEntry,
+            strLastModifieds;
 
         PGconn* conn = pg->conn_;
         marshalToPGArray(conn, strPoolIDs, mPoolIDs);
+        marshalToPGArray(conn, strAssetAs, mAssetAs);
+        marshalToPGArray(conn, strAssetBs, mAssetBs);
         marshalToPGArray(conn, strLiquidityPoolEntry, mLiquidityPoolEntries);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
 
         std::string sql = "WITH r AS "
                           "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v2::INT[]))"
+                          "unnest(:v2::TEXT[]), unnest(:v3::TEXT[]), "
+                          "unnest(:v4::INT[])) "
                           "INSERT INTO liquiditypool "
-                          "(poolid, ledgerentry, lastmodified) "
+                          "(poolid, asseta, assetb, ledgerentry, lastmodified) "
                           "SELECT * FROM r "
                           "ON CONFLICT (poolid) DO UPDATE SET "
+                          "asseta = excluded.asseta, "
+                          "assetb = excluded.assetb, "
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
         auto prep = mDb.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strPoolIDs));
+        st.exchange(soci::use(strAssetAs));
+        st.exchange(soci::use(strAssetBs));
         st.exchange(soci::use(strLiquidityPoolEntry));
         st.exchange(soci::use(strLastModifieds));
         st.define_and_bind();
@@ -367,9 +385,15 @@ LedgerTxnRoot::Impl::dropLiquidityPools()
 
     mDatabase.getSession() << "DROP TABLE IF EXISTS liquiditypool;";
     mDatabase.getSession() << "CREATE TABLE liquiditypool ("
-                           << "poolid             VARCHAR(48) " << coll
+                           << "poolid       VARCHAR(48) " << coll
                            << " PRIMARY KEY, "
-                           << "ledgerentry TEXT NOT NULL, "
-                           << "lastmodified          INT NOT NULL);";
+                           << "asseta       TEXT " << coll << " NOT NULL, "
+                           << "assetb       TEXT " << coll << " NOT NULL, "
+                           << "ledgerentry  TEXT NOT NULL, "
+                           << "lastmodified INT NOT NULL);";
+    mDatabase.getSession() << "CREATE INDEX liquiditypoolasseta "
+                           << "ON liquiditypool(asseta);";
+    mDatabase.getSession() << "CREATE INDEX liquiditypoolassetb "
+                           << "ON liquiditypool(assetb);";
 }
 }
