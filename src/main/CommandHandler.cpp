@@ -817,7 +817,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         {
             isCreate = true;
         }
-        else if (mode == std::string("pay"))
+        else if (mode == std::string("pay") || mode == std::string("pretend"))
         {
             isCreate = false;
         }

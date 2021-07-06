@@ -101,6 +101,8 @@ class Config : public std::enable_shared_from_this<Config>
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);
 
+    void verifyLoadGenOpCountForTestingConfigs();
+
     std::vector<std::chrono::microseconds> mOpApplySleepTimeForTesting;
 
   public:
@@ -202,6 +204,14 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::chrono::microseconds>
         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING;
     std::vector<unsigned short> OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING;
+
+    // Config parameters that LoadGen uses to decide the number of operations
+    // to include in each transaction and its distribution.
+    // The probability that transactions will contain COUNT[i] operations
+    // is DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...) for each
+    // i.
+    std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
+    std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
 
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.

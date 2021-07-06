@@ -23,6 +23,7 @@
 #include <fmt/format.h>
 #include <functional>
 #include <numeric>
+#include <random>
 #include <sstream>
 #include <type_traits>
 #include <unordered_set>
@@ -46,7 +47,9 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
-    "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING"};
+    "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+    "LOADGEN_OP_COUNT_FOR_TESTING",
+    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -108,6 +111,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
         std::vector<std::chrono::microseconds>();
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<unsigned short>();
+    LOADGEN_OP_COUNT_FOR_TESTING = {};
+    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -730,6 +735,36 @@ Config::verifyHistoryValidatorsBlocking(
     }
 }
 
+void
+Config::verifyLoadGenOpCountForTestingConfigs()
+{
+    if (LOADGEN_OP_COUNT_FOR_TESTING.size() !=
+        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.size())
+    {
+        throw std::invalid_argument("LOADGEN_OP_COUNT_FOR_TESTING and "
+                                    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING "
+                                    "must be defined together and "
+                                    "must have the exact same size.");
+    }
+    else if (!LOADGEN_OP_COUNT_FOR_TESTING.empty() &&
+             !ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        throw std::invalid_argument(
+            "When LOADGEN_OP_COUNT_FOR_TESTING and "
+            "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING are defined "
+            "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true");
+    }
+
+    if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
+                     LOADGEN_OP_COUNT_FOR_TESTING.end(),
+                     [](unsigned short i) { return 0 <= i && i <= 100; }))
+    {
+        throw std::invalid_argument(
+            "All elements in NUM_OPS_PER_TX_COUNT_FOR_TESTING must be "
+            "integers in [0, 100]");
+    }
+}
+
 std::vector<std::chrono::microseconds>
 Config::processOpApplySleepTimeForTestingConfigs()
 {
@@ -1160,6 +1195,27 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     std::back_inserter(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING),
                     [](int64_t x) { return static_cast<unsigned short>(x); });
             }
+            else if (item.first == "LOADGEN_OP_COUNT_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                LOADGEN_OP_COUNT_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to unsigned short
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(LOADGEN_OP_COUNT_FOR_TESTING),
+                    [](int64_t x) { return static_cast<unsigned short>(x); });
+            }
+            else if (item.first == "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to uint32
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(
+                        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING),
+                    [](int64_t x) { return static_cast<uint32>(x); });
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -1175,6 +1231,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             mOpApplySleepTimeForTesting =
                 processOpApplySleepTimeForTestingConfigs();
         }
+
+        verifyLoadGenOpCountForTestingConfigs();
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
