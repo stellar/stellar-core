@@ -106,6 +106,9 @@ class Herder
     // restores Herder's state from disk
     virtual void start() = 0;
 
+    virtual void setTrackingSCPState(uint64_t index,
+                                     StellarValue const& value) = 0;
+
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
     virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
@@ -134,9 +137,7 @@ class Herder
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
-    // returns the latest known ledger seq using consensus information
-    // and local state
-    virtual uint32_t getCurrentLedgerSeq() const = 0;
+    virtual uint32_t trackingConsensusLedgerIndex() const = 0;
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;

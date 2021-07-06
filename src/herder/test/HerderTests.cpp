@@ -1145,7 +1145,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         auto addToCandidates = [&](TxPair const& p) {
             auto envelope = makeEnvelope(
-                herder, p, {}, herder.getCurrentLedgerSeq() + 1, true);
+                herder, p, {}, herder.trackingConsensusLedgerIndex() + 1, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
@@ -1271,7 +1271,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& scp = herder.getHerderSCPDriver();
-        auto seq = herder.getCurrentLedgerSeq() + 1;
+        auto seq = herder.trackingConsensusLedgerIndex() + 1;
         auto ct = app->timeNow() + 1;
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
@@ -1375,7 +1375,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
                 // Build a StellarValue containing the transaction set we just
                 // built and the given next closeTime.
                 auto val = makeTxPair(herder, txSet, nextCloseTime);
-                auto const seq = herder.getCurrentLedgerSeq() + 1;
+                auto const seq = herder.trackingConsensusLedgerIndex() + 1;
                 auto envelope = makeEnvelope(herder, val, {}, seq, true);
                 REQUIRE(herder.recvSCPEnvelope(envelope) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
@@ -1457,7 +1457,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         auto p1 = makeTxPair(herder, transactions1, 10);
         auto p2 = makeTxPair(herder, transactions1, 10);
         // use current + 1 to allow for any value (old values get filtered more)
-        auto lseq = herder.getCurrentLedgerSeq() + 1;
+        auto lseq = herder.trackingConsensusLedgerIndex() + 1;
         auto saneEnvelopeQ1T1 =
             makeEnvelope(herder, p1, saneQSet1Hash, lseq, true);
         auto saneEnvelopeQ1T2 =
@@ -2026,7 +2026,7 @@ TEST_CASE("herder externalizes values", "[herder]")
         // As we're back in sync now, ensure Herder and LM are consistent with
         // each other
         auto lcl = lmC.getLastClosedLedgerNum();
-        REQUIRE(lcl == herderC.getCurrentLedgerSeq());
+        REQUIRE(lcl == herderC.trackingConsensusLedgerIndex());
 
         // Ensure that C sent out a nomination message for the next consensus
         // round

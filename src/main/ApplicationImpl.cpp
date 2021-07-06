@@ -452,11 +452,16 @@ ApplicationImpl::getJsonInfo()
 
     // Try to get quorum set info for the previous ledger closed by the
     // network.
-    if (herder.getCurrentLedgerSeq() > 1)
+    auto ledgerSeq = lcl.header.ledgerSeq;
+    if (herder.getState() != Herder::HERDER_BOOTING_STATE)
     {
-        quorumInfo =
-            herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
-                                     false, herder.getCurrentLedgerSeq() - 1);
+        ledgerSeq = herder.trackingConsensusLedgerIndex();
+    }
+
+    if (ledgerSeq > 1)
+    {
+        quorumInfo = herder.getJsonQuorumInfo(
+            getConfig().NODE_SEED.getPublicKey(), true, false, ledgerSeq - 1);
     }
 
     // If the quorum set info for the previous ledger is missing, use the
@@ -464,9 +469,8 @@ ApplicationImpl::getJsonInfo()
     auto qset = quorumInfo.get("qset", "");
     if (quorumInfo.empty() || qset.empty())
     {
-        quorumInfo =
-            herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
-                                     false, herder.getCurrentLedgerSeq());
+        quorumInfo = herder.getJsonQuorumInfo(
+            getConfig().NODE_SEED.getPublicKey(), true, false, ledgerSeq);
     }
 
     auto invariantFailures = getInvariantManager().getJsonInfo();

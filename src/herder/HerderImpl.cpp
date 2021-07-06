@@ -115,6 +115,17 @@ HerderImpl::trackingConsensusLedgerIndex() const
 {
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
     releaseAssert(mTrackingSCP.mConsensusIndex <= UINT32_MAX);
+
+    auto lcl = mLedgerManager.getLastClosedLedgerNum();
+    if (lcl > mTrackingSCP.mConsensusIndex)
+    {
+        std::string msg =
+            "Inconsistent state in Herder: LCL is ahead of tracking";
+        CLOG_ERROR(Herder, "{}", msg);
+        CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+        throw std::runtime_error(msg);
+    }
+
     return static_cast<uint32>(mTrackingSCP.mConsensusIndex);
 }
 
@@ -525,7 +536,7 @@ uint32_t
 HerderImpl::getMinLedgerSeqToRemember() const
 {
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    auto currSlot = getCurrentLedgerSeq();
+    auto currSlot = trackingConsensusLedgerIndex();
     if (currSlot > maxSlotsToRemember)
     {
         return (currSlot - maxSlotsToRemember + 1);
@@ -577,7 +588,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // ledger closing
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
-    else if (!checkCloseTime(envelope, getCurrentLedgerSeq() <=
+    else if (!checkCloseTime(envelope, trackingConsensusLedgerIndex() <=
                                            LedgerManager::GENESIS_LEDGER_SEQ))
     {
         // if we've never been in sync, we can be more aggressive in how we
@@ -892,7 +903,7 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
     getHerderSCPDriver().purgeSlots(ledgerSeq);
     mPendingEnvelopes.eraseBelow(ledgerSeq);
-    auto lastIndex = getCurrentLedgerSeq();
+    auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }
 
@@ -951,19 +962,6 @@ SCPQuorumSetPtr
 HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mHerderSCPDriver.getQSet(qSetHash);
-}
-
-uint32_t
-HerderImpl::getCurrentLedgerSeq() const
-{
-    uint32_t res = mLedgerManager.getLastClosedLedgerNum();
-
-    if (getState() != HERDER_BOOTING_STATE)
-    {
-        res = std::max(res, trackingConsensusLedgerIndex());
-    }
-
-    return res;
 }
 
 uint32
@@ -1199,7 +1197,7 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             std::string arg = s.substr(1);
             // go through SCP messages of the previous ledger
             // (to increase the chances of finding the node)
-            uint32 seq = getCurrentLedgerSeq();
+            uint32 seq = trackingConsensusLedgerIndex();
             if (seq > 2)
             {
                 seq--;
@@ -1510,7 +1508,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         auto& cfg = mApp.getConfig();
         auto qic = QuorumIntersectionChecker::create(
             qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag);
-        auto ledger = getCurrentLedgerSeq();
+        auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
