@@ -678,7 +678,7 @@ ApplicationImpl::start()
         }
 
         // restores Herder's state before starting overlay
-        mHerder->restoreState();
+        mHerder->start();
         // set known cursors before starting maintenance job
         ExternalQueue ps(*this);
         ps.setInitialCursors(mConfig.KNOWN_CURSORS);

@@ -1626,21 +1626,6 @@ void
 HerderImpl::restoreSCPState()
 {
     ZoneScoped;
-    // setup a sufficient state that we can participate in consensus
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-
-    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
-
-    if (!mApp.getConfig().FORCE_SCP &&
-        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
-    {
-        // if we're on genesis ledger, there is no point in claiming
-        // that we're "in sync"
-        lostSync();
-        return;
-    }
-
-    trackingHeartBeat();
 
     // load saved state from database
     auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
@@ -1724,9 +1709,27 @@ HerderImpl::restoreUpgrades()
 }
 
 void
-HerderImpl::restoreState()
+HerderImpl::start()
 {
-    restoreSCPState();
+    // setup a sufficient state that we can participate in consensus
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
+
+    if (!mApp.getConfig().FORCE_SCP &&
+        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        // if we're on genesis ledger, there is no point in claiming
+        // that we're "in sync"
+        lostSync();
+    }
+    else
+    {
+        trackingHeartBeat();
+        // Load SCP state from the database
+        restoreSCPState();
+    }
+
     restoreUpgrades();
     // make sure that the transaction queue is setup against
     // the lcl that we have right now

@@ -182,7 +182,7 @@ runApp(Application::pointer app)
     {
         if (!app->getConfig().MODE_AUTO_STARTS_OVERLAY)
         {
-            app->getHerder().restoreState();
+            app->getHerder().start();
             app->getOverlayManager().start();
         }
 
