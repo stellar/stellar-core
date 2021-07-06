@@ -71,7 +71,7 @@ class HerderImpl : public Herder
     void bootstrap() override;
     void shutdown() override;
 
-    void restoreState() override;
+    void start() override;
 
     SCP& getSCP();
     HerderSCPDriver&

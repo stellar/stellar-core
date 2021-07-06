@@ -104,7 +104,7 @@ class Herder
     virtual void shutdown() = 0;
 
     // restores Herder's state from disk
-    virtual void restoreState() = 0;
+    virtual void start() = 0;
 
     virtual void setTrackingSCPState(uint64_t index,
                                      StellarValue const& value) = 0;
