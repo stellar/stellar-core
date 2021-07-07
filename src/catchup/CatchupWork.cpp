@@ -351,6 +351,8 @@ CatchupWork::runCatchupStep()
 
         mApp.getHerder().setTrackingSCPState(catchupRange.last(),
                                              entry->header.scpValue);
+        // As we're catching up, do not claim to be in sync
+        mApp.getHerder().lostSync();
         CLOG_INFO(History, "Herder state is set! tracking={}, closeTime={}",
                   catchupRange.last(), entry->header.scpValue.closeTime);
     }

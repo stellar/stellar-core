@@ -57,7 +57,7 @@ class HerderImpl : public Herder
         return trackingConsensusLedgerIndex() + 1;
     }
 
-    void lostSync();
+    void lostSync() override;
 
     HerderImpl(Application& app);
     ~HerderImpl();
