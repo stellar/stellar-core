@@ -123,6 +123,8 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     mDataDelete = 0;
     mClaimableBalanceUpsert = 0;
     mClaimableBalanceDelete = 0;
+    mLiquidityPoolUpsert = 0;
+    mLiquidityPoolDelete = 0;
 }
 
 void
