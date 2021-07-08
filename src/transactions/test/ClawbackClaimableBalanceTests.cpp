@@ -111,7 +111,7 @@ TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 

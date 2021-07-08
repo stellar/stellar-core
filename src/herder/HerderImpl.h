@@ -131,6 +131,8 @@ class HerderImpl : public Herder
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
+    bool checkPartiallyValid(TransactionFrameBasePtr tx) override;
+
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                                   uint64 index) override;

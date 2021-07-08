@@ -36,15 +36,13 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     : mEnvelope(envelope)
     , mInnerTx(std::make_shared<TransactionFrame>(networkID,
                                                   convertInnerTxToV1(envelope)))
-    , mNetworkID(networkID)
 {
 }
 
 #ifdef BUILD_TESTS
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope,
-    TransactionFramePtr innerTx)
-    : mEnvelope(envelope), mInnerTx(innerTx), mNetworkID(networkID)
+    TransactionEnvelope const& envelope, TransactionFramePtr innerTx)
+    : mEnvelope(envelope), mInnerTx(innerTx)
 {
 }
 #endif
@@ -145,7 +143,8 @@ bool
 FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
-                                    uint64_t upperBoundCloseTimeOffset)
+                                    uint64_t upperBoundCloseTimeOffset,
+                                    bool fullCheck)
 {
     LedgerTxn ltx(ltxOuter);
     auto minBaseFee = ltx.loadHeader().current().baseFee;
@@ -154,31 +153,33 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false) !=
+    if (commonValid(signatureChecker, ltx,
+                    fullCheck ? CheckType::FOR_VALIDITY_FULL
+                              : CheckType::FOR_VALIDITY_PARTIAL) !=
         ValidationType::kFullyValid)
     {
         return false;
     }
-    if (!signatureChecker.checkAllSignaturesUsed())
+    if (fullCheck && !signatureChecker.checkAllSignaturesUsed())
     {
         getResult().result.code(txBAD_AUTH_EXTRA);
         return false;
     }
 
-    bool res =
+    bool const res =
         mInnerTx->checkValid(ltx, current, false, lowerBoundCloseTimeOffset,
-                             upperBoundCloseTimeOffset);
+                             upperBoundCloseTimeOffset, fullCheck);
     updateResult(getResult(), mInnerTx);
     return res;
 }
 
 bool
-FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
+FeeBumpTransactionFrame::commonValidPreFeeSourceLoad(
+    LedgerTxnHeader const& header)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    auto header = ltx.loadHeader();
     if (header.current().ledgerVersion < 13)
     {
         getResult().result.code(txNOT_SUPPORTED);
@@ -205,28 +206,36 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (!stellar::loadAccount(ltx, getFeeSourceID()))
-    {
-        getResult().result.code(txNO_ACCOUNT);
-        return false;
-    }
-
     return true;
 }
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltxOuter, bool applying)
+                                     AbstractLedgerTxn& ltxOuter,
+                                     CheckType checkType)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
+    auto header = ltx.loadHeader();
 
-    if (!commonValidPreSeqNum(ltx))
+    if (!commonValidPreFeeSourceLoad(header))
     {
         return res;
     }
 
+    if (checkType == CheckType::FOR_VALIDITY_PARTIAL)
+    {
+        return ValidationType::kFullyValid;
+    }
+
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
+
+    if (!feeSource)
+    {
+        getResult().result.code(txNO_ACCOUNT);
+        return res;
+    }
+
     if (!checkSignature(
             signatureChecker, feeSource,
             feeSource.current().data.account().thresholds[THRESHOLD_LOW]))
@@ -237,11 +246,10 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
     res = ValidationType::kInvalidPostAuth;
 
-    auto header = ltx.loadHeader();
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
-    int64_t feeToPay = applying ? 0 : getFeeBid();
+    int64_t feeToPay = (checkType == CheckType::FOR_APPLY) ? 0 : getFeeBid();
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (getAvailableBalance(header, feeSource) < feeToPay)
@@ -292,7 +300,7 @@ FeeBumpTransactionFrame::getContentsHash() const
     if (isZero(mContentsHash))
     {
         mContentsHash = sha256(xdr::xdr_to_opaque(
-            mNetworkID, ENVELOPE_TYPE_TX_FEE_BUMP, mEnvelope.feeBump().tx));
+            getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, mEnvelope.feeBump().tx));
     }
     return mContentsHash;
 }
@@ -311,6 +319,12 @@ Hash const&
 FeeBumpTransactionFrame::getInnerFullHash() const
 {
     return mInnerTx->getFullHash();
+}
+
+Hash const&
+FeeBumpTransactionFrame::getNetworkID() const
+{
+    return mInnerTx->getNetworkID();
 }
 
 uint32_t

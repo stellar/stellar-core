@@ -347,7 +347,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
@@ -386,7 +386,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
@@ -484,7 +484,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                                                   ops, keys);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx, ltx));
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
 

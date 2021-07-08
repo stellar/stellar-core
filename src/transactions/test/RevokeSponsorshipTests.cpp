@@ -62,7 +62,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, accountKey(a1), 0, nullptr);
@@ -81,7 +81,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 0, nullptr);
@@ -101,7 +101,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, a1, signer.key, 0, nullptr);
@@ -125,7 +125,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(!tx->apply(*app, ltx, txm));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -154,7 +154,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, accountKey(a1), 1,
@@ -177,7 +177,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
@@ -208,7 +208,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                             LedgerTxn ltx(app->getLedgerTxnRoot());
                             TransactionMeta txm(2);
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(txtest::checkValid(tx, ltx));
                             REQUIRE(tx->apply(*app, ltx, txm));
                             ltx.commit();
                         }
@@ -222,7 +222,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMeta txm(2);
-                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx, ltx));
                         REQUIRE(tx->apply(*app, ltx, txm));
 
                         checkSponsorship(ltx, a1, signer.key, 2,
@@ -268,7 +268,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
@@ -297,7 +297,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -307,7 +307,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, accountKey(a1.getPublicKey()), 1,
@@ -331,7 +331,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -340,7 +340,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1, nullptr);
@@ -363,7 +363,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -371,7 +371,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {root.op(revokeSponsorship(a1, signer.key))}, {});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, a1, signer.key, 2, nullptr);
@@ -395,7 +395,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto balanceID = tx1->getResult()
@@ -411,7 +411,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(!tx2->apply(*app, ltx, txm2));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
@@ -442,7 +442,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -454,7 +454,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, a1, 1, &a2.getPublicKey(), 0, 2, 0,
@@ -478,7 +478,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -489,7 +489,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
@@ -515,7 +515,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), root,
@@ -525,7 +525,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, a1, signer.key, 2,
@@ -552,7 +552,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto balanceID = tx1->getResult()
@@ -570,7 +570,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
@@ -596,7 +596,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -607,7 +607,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, dataKey(a1, dataName), 1,
@@ -636,7 +636,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto offerID = ltx.loadHeader().current().idPool;
@@ -648,7 +648,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, offerKey(a1, offerID), 1,
@@ -675,7 +675,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -687,7 +687,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, accountKey(a1.getPublicKey()), 1,
@@ -711,7 +711,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -722,7 +722,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, trustlineKey(a1, cur1), 1, nullptr);
@@ -745,7 +745,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -756,7 +756,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, a1, signer.key, 2, nullptr);
@@ -780,7 +780,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto tx2 = transactionFrameFromOps(
@@ -791,7 +791,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, dataKey(a1, dataName), 1, nullptr);
@@ -817,7 +817,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx1, ltx));
                     REQUIRE(tx1->apply(*app, ltx, txm1));
 
                     auto offerID = ltx.loadHeader().current().idPool;
@@ -829,7 +829,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
 
                     checkSponsorship(ltx, offerKey(a1, offerID), 1, nullptr);
@@ -855,7 +855,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(!tx->apply(*app, ltx, txm));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -883,7 +883,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a2.op(revokeSponsorship(offerKey(a1, offerID)))}, {});
 
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(!tx->apply(*app, ltx, txm));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -908,7 +908,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(!tx->apply(*app, ltx, txm));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -920,7 +920,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         {a1.op(revokeSponsorship(a1, signer.key))}, {});
 
                     TransactionMeta txm2(2);
-                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx2, ltx));
                     REQUIRE(!tx2->apply(*app, ltx, txm));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
@@ -954,7 +954,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMeta txm1(2);
-                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx, ltx));
                         REQUIRE(tx->apply(*app, ltx, txm1));
                         checkSponsorship(ltx, a1, 0, &root.getPublicKey(), 1, 2,
                                          0, 1);
@@ -982,7 +982,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm1(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(txtest::checkValid(tx, ltx));
                     REQUIRE(!tx->apply(*app, ltx, txm1));
 
                     REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -1003,7 +1003,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                                     {opRemoveSponsorship}, {});
 
                         TransactionMeta txm2(2);
-                        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx2, ltx));
                         REQUIRE(tx2->apply(*app, ltx, txm2));
                         checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
 
@@ -1011,7 +1011,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                                            a2, {op}, {});
 
                         TransactionMeta txm3(2);
-                        REQUIRE(tx3->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx3, ltx));
                         REQUIRE(!tx3->apply(*app, ltx, txm3));
 
                         REQUIRE(getRevokeSponsorshipResultCode(tx3, 0) ==
@@ -1063,7 +1063,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMeta txm1(2);
-                        REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx1, ltx));
                         REQUIRE(tx1->apply(*app, ltx, txm1));
 
                         Operation middleOpTx2 =
@@ -1080,7 +1080,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                             {a2});
 
                         TransactionMeta txm2(2);
-                        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx2, ltx));
                         REQUIRE(!tx2->apply(*app, ltx, txm2));
 
                         REQUIRE(getRevokeSponsorshipResultCode(tx2, 1) ==
@@ -1103,7 +1103,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMeta txm1(2);
-                        REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx1, ltx));
                         REQUIRE(tx1->apply(*app, ltx, txm1));
 
                         Operation opTx2 =
@@ -1116,7 +1116,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                                            root, {opTx2}, {});
 
                         TransactionMeta txm2(2);
-                        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx2, ltx));
                         REQUIRE(!tx2->apply(*app, ltx, txm2));
 
                         REQUIRE(getRevokeSponsorshipResultCode(tx2, 0) ==
@@ -1151,7 +1151,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMeta txm(2);
-                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(txtest::checkValid(tx, ltx));
                         REQUIRE(!tx->apply(*app, ltx, txm));
 
                         REQUIRE(getRevokeSponsorshipResultCode(tx, 1) ==
@@ -1226,7 +1226,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
         });
 
         for_versions({15}, *app, [&]() {
@@ -1235,7 +1235,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx, ltx));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
         });
@@ -1250,7 +1250,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 {root.op(revokeSponsorship(trustlineKey(root, cur1)))}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(txtest::checkValid(tx, ltx));
         });
 
         for_versions({15}, *app, [&]() {
@@ -1260,7 +1260,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 {root.op(revokeSponsorship(trustlineKey(root, cur1)))}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!txtest::checkValid(tx, ltx));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
                     REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
         });
@@ -1280,7 +1280,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             if (ledgerVersion == 14)
             {
                 TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(txtest::checkValid(tx, ltx));
                 REQUIRE(!tx->apply(*app, ltx, txm));
 
                 REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
@@ -1288,7 +1288,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             }
             else
             {
-                REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!txtest::checkValid(tx, ltx));
                 auto error = ledgerKey.type() == LIQUIDITY_POOL
                                  ? REVOKE_SPONSORSHIP_MALFORMED
                                  : REVOKE_SPONSORSHIP_DOES_NOT_EXIST;

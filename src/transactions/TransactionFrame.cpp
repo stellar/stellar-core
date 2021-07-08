@@ -91,6 +91,12 @@ TransactionFrame::getContentsHash() const
     return (mContentsHash);
 }
 
+Hash const&
+TransactionFrame::getNetworkID() const
+{
+    return mNetworkID;
+}
+
 void
 TransactionFrame::clearCached()
 {
@@ -346,14 +352,13 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
-                                       uint64_t lowerBoundCloseTimeOffset,
-                                       uint64_t upperBoundCloseTimeOffset)
+TransactionFrame::commonValidPreSourceAccountLoad(
+    LedgerTxnHeader const& header, bool chargeFee,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
-    auto header = ltx.loadHeader();
     uint32_t ledgerVersion = header.current().ledgerVersion;
     if ((ledgerVersion < 13 && (mEnvelope.type() == ENVELOPE_TYPE_TX ||
                                 hasMuxedAccount(mEnvelope))) ||
@@ -388,12 +393,6 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
     if (!chargeFee && getFeeBid() < 0)
     {
         getResult().result.code(txINSUFFICIENT_FEE);
-        return false;
-    }
-
-    if (!loadSourceAccount(ltx, header))
-    {
-        getResult().result.code(txNO_ACCOUNT);
         return false;
     }
 
@@ -481,14 +480,16 @@ TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
-                              SequenceNumber current, bool applying,
-                              bool chargeFee,
+                              SequenceNumber current, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset)
+                              uint64_t upperBoundCloseTimeOffset,
+                              CheckType checkType)
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
+
+    auto const applying = checkType == CheckType::FOR_APPLY;
 
     if (applying &&
         (lowerBoundCloseTimeOffset != 0 || upperBoundCloseTimeOffset != 0))
@@ -497,14 +498,27 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             "Applying transaction with non-current closeTime");
     }
 
-    if (!commonValidPreSeqNum(ltx, chargeFee, lowerBoundCloseTimeOffset,
-                              upperBoundCloseTimeOffset))
+    auto header = ltx.loadHeader();
+
+    if (!commonValidPreSourceAccountLoad(header, chargeFee,
+                                         lowerBoundCloseTimeOffset,
+                                         upperBoundCloseTimeOffset))
     {
         return res;
     }
 
-    auto header = ltx.loadHeader();
+    if (checkType == CheckType::FOR_VALIDITY_PARTIAL)
+    {
+        return kMaybeValid;
+    }
+
     auto sourceAccount = loadSourceAccount(ltx, header);
+
+    if (!sourceAccount)
+    {
+        getResult().result.code(txNO_ACCOUNT);
+        return res;
+    }
 
     // in older versions, the account's sequence number is updated when taking
     // fees
@@ -641,7 +655,7 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current, bool chargeFee,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+                             uint64_t upperBoundCloseTimeOffset, bool fullCheck)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -650,18 +664,21 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     int64_t minBaseFee = chargeFee ? ltx.loadHeader().current().baseFee : 0;
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
+    auto const checkType = fullCheck ? CheckType::FOR_VALIDITY_FULL
+                                     : CheckType::FOR_VALIDITY_PARTIAL;
+
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
-    bool res =
-        commonValid(signatureChecker, ltx, current, false, chargeFee,
-                    lowerBoundCloseTimeOffset,
-                    upperBoundCloseTimeOffset) == ValidationType::kMaybeValid;
+    bool res = commonValid(signatureChecker, ltx, current, chargeFee,
+                           lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+                           checkType) == ValidationType::kMaybeValid;
     if (res)
     {
+
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, ltx, false))
+            if (!op->checkValid(signatureChecker, ltx, checkType))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -671,7 +688,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
             }
         }
 
-        if (!signatureChecker.checkAllSignaturesUsed())
+        if (fullCheck && !signatureChecker.checkAllSignaturesUsed())
         {
             res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
@@ -684,10 +701,10 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+                             uint64_t upperBoundCloseTimeOffset, bool fullCheck)
 {
     return checkValid(ltxOuter, current, true, lowerBoundCloseTimeOffset,
-                      upperBoundCloseTimeOffset);
+                      upperBoundCloseTimeOffset, fullCheck);
 }
 
 void
@@ -857,8 +874,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv =
-            commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
+        auto cv = commonValid(signatureChecker, ltxTx, 0, chargeFee, 0, 0,
+                              CheckType::FOR_APPLY);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

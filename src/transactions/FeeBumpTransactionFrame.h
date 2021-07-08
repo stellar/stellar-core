@@ -19,14 +19,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     TransactionFramePtr mInnerTx;
 
-    Hash const& mNetworkID;
     mutable Hash mContentsHash;
     mutable Hash mFullHash;
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
 
-    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx);
+    bool commonValidPreFeeSourceLoad(LedgerTxnHeader const& header);
 
     enum ValidationType
     {
@@ -36,8 +35,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
         kFullyValid
     };
 
+    // A partial check ("checkType" == FOR_VALIDITY_PARTIAL) can only
+    // definitively establish that a transaction is invalid, not that it is
+    // valid.  A partial check does not do signature verification or database
+    // access.
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter, bool applying);
+                               AbstractLedgerTxn& ltxOuter,
+                               CheckType checkType);
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
@@ -49,8 +53,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope);
 #ifdef BUILD_TESTS
-    FeeBumpTransactionFrame(Hash const& networkID,
-                            TransactionEnvelope const& envelope,
+    FeeBumpTransactionFrame(TransactionEnvelope const& envelope,
                             TransactionFramePtr innerTx);
 #endif
 
@@ -61,7 +64,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) override;
+                    uint64_t upperBoundCloseTimeOffset,
+                    bool fullCheck) override;
 
     TransactionEnvelope const& getEnvelope() const override;
 
@@ -73,6 +77,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& getContentsHash() const override;
     Hash const& getFullHash() const override;
     Hash const& getInnerFullHash() const;
+
+    Hash const& getNetworkID() const override;
 
     uint32_t getNumOperations() const override;
 

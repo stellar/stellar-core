@@ -576,6 +576,16 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
+    if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
+        (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
+    {
+        drop(fmt::format("received {} before completed handshake",
+                         stellarMsg.type()),
+             Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
+    }
+
     char const* cat = nullptr;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
     switch (stellarMsg.type())
@@ -597,6 +607,12 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case TRANSACTION:
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
+        if (!mApp.getHerder().checkPartiallyValid(
+                TransactionFrameBase::makeTransactionFromWire(
+                    mApp.getNetworkID(), stellarMsg.transaction())))
+        {
+            return;
+        }
         break;
 
     // consensus, inbound
@@ -660,16 +676,6 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
 
     if (shouldAbort())
     {
-        return;
-    }
-
-    if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
-        (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
-    {
-        drop(fmt::format("received {} before completed handshake",
-                         stellarMsg.type()),
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
