@@ -135,7 +135,8 @@ class Herder
     virtual void
     externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
                      uint64_t closeTime,
-                     xdr::xvector<UpgradeType, 6> const& upgrades) = 0;
+                     xdr::xvector<UpgradeType, 6> const& upgrades,
+                     std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;

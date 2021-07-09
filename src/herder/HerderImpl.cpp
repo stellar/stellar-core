@@ -704,11 +704,13 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 void
 HerderImpl::externalizeValue(std::shared_ptr<TxSetFrame> txSet,
                              uint32_t ledgerSeq, uint64_t closeTime,
-                             xdr::xvector<UpgradeType, 6> const& upgrades)
+                             xdr::xvector<UpgradeType, 6> const& upgrades,
+                             std::optional<SecretKey> skToSignValue)
 {
     getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq, txSet);
-    StellarValue sv = makeStellarValue(txSet->getContentsHash(), closeTime,
-                                       upgrades, mApp.getConfig().NODE_SEED);
+    auto sk = skToSignValue ? *skToSignValue : mApp.getConfig().NODE_SEED;
+    StellarValue sv =
+        makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
 }
 

@@ -102,10 +102,10 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
-    void
-    externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
-                     uint64_t closeTime,
-                     xdr::xvector<UpgradeType, 6> const& upgrades) override;
+    void externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+                          uint64_t closeTime,
+                          xdr::xvector<UpgradeType, 6> const& upgrades,
+                          std::optional<SecretKey> skToSignValue) override;
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
