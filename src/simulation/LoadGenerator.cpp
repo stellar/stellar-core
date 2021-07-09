@@ -344,8 +344,8 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 
     auto remainingTxCount = isCreate ? nAccounts / batchSize : nTxs;
-    auto etaSecs =
-        (uint32_t)(((double)remainingTxCount) / applyTx.one_minute_rate());
+    auto etaSecs = (uint32_t)(((double)remainingTxCount) /
+                              max<double>(1, applyTx.one_minute_rate()));
 
     auto etaHours = etaSecs / 3600;
     auto etaMins = etaSecs % 60;
