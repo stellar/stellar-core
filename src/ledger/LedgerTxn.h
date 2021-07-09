@@ -610,7 +610,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual bool hasSponsorshipEntry() const = 0;
 };
 
-class LedgerTxn final : public AbstractLedgerTxn
+class LedgerTxn : public AbstractLedgerTxn
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
