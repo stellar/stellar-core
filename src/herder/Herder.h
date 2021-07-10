@@ -107,6 +107,8 @@ class Herder
     virtual void start() = 0;
     virtual void lostSync() = 0;
 
+    virtual void lastClosedLedgerIncreased() = 0;
+
     virtual void setTrackingSCPState(uint64_t index,
                                      StellarValue const& value) = 0;
 
@@ -135,6 +137,8 @@ class Herder
                      uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
+
+    virtual VirtualTimer const& getTriggerTimer() const = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;

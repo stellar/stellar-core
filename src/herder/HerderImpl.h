@@ -58,6 +58,7 @@ class HerderImpl : public Herder
     }
 
     void lostSync() override;
+    void lastClosedLedgerIncreased() override;
 
     HerderImpl(Application& app);
     ~HerderImpl();
@@ -104,6 +105,14 @@ class HerderImpl : public Herder
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
+
+    VirtualTimer const&
+    getTriggerTimer() const override
+    {
+        return mTriggerTimer;
+    }
+
+    uint32_t mTriggerNextLedgerSeq{0};
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
@@ -175,9 +184,11 @@ class HerderImpl : public Herder
     ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
                                       std::chrono::milliseconds::zero());
 
-    void ledgerClosed(bool synchronous);
+    void cleanup();
 
-    void maybeTriggerNextLedger(bool synchronous);
+    bool mShouldTrigger{false};
+
+    void setupTriggerNextLedger(bool synchronous);
 
     void startOutOfSyncTimer();
     void outOfSyncRecovery();

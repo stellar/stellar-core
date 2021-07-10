@@ -190,7 +190,9 @@ HerderImpl::bootstrap()
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
-    ledgerClosed(true);
+    cleanup();
+    mShouldTrigger = true;
+    setupTriggerNextLedger(true);
 }
 
 void
@@ -259,6 +261,17 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
 }
 
 void
+HerderImpl::lastClosedLedgerIncreased()
+{
+    releaseAssert(isTracking());
+    releaseAssert(trackingConsensusLedgerIndex() ==
+                  mLedgerManager.getLastClosedLedgerNum());
+    releaseAssert(mLedgerManager.isSynced());
+
+    mShouldTrigger = true;
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
@@ -298,7 +311,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
             mPendingEnvelopes.getTxSet(value.txSetHash);
         updateTransactionQueue(externalizedSet->mTransactions);
 
-        ledgerClosed(false);
+        cleanup();
 
         // Check to see if quorums have changed and we need to reanalyze.
         checkAndMaybeReanalyzeQuorumMap();
@@ -312,14 +325,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // This may trigger getting back in sync (buffered ledgers
         // application)
         processExternalized(slotIndex, value);
+    }
 
-        // Any ledgers processed by Herder must have been buffered in LM.
-        // If LM applied them all, Herder and LM must now be consistent with
-        // each other (i.e., track the same ledger)
-        if (mLedgerManager.isSynced())
-        {
-            maybeTriggerNextLedger(false);
-        }
+    // mShouldTrigger is only set when LM is in sync and closed new ledgers
+    if (mShouldTrigger)
+    {
+        setupTriggerNextLedger(false);
     }
 }
 
@@ -810,74 +821,76 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
 }
 
 void
-HerderImpl::maybeTriggerNextLedger(bool synchronous)
+HerderImpl::setupTriggerNextLedger(bool synchronous)
 {
-    if (!isTracking())
-    {
-        return;
-    }
+    releaseAssert(mShouldTrigger);
+
+    // Invariant: tracking is equal to LCL when we trigger. This helps ensure
+    // core emits SCP messages only for slots it can fully validate
+    // (any closed ledger is fully validated)
+    releaseAssert(isTracking());
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    releaseAssert(trackingConsensusLedgerIndex() == lcl.header.ledgerSeq);
+    releaseAssert(mLedgerManager.isSynced());
 
     mTriggerTimer.cancel();
 
     uint64_t nextIndex = nextConsensusLedgerIndex();
-    if (mLedgerManager.isSynced())
+    auto lastIndex = trackingConsensusLedgerIndex();
+
+    // if we're in sync, we setup mTriggerTimer
+    // it may get cancelled if a more recent ledger externalizes
+
+    auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
+
+    // bootstrap with a pessimistic estimate of when
+    // the ballot protocol started last
+    auto now = mApp.getClock().now();
+    auto lastBallotStart = now - seconds;
+    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+    if (lastStart)
     {
-        auto lastIndex = trackingConsensusLedgerIndex();
-
-        // if we're in sync, we setup mTriggerTimer
-        // it may get cancelled if a more recent ledger externalizes
-
-        auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
-
-        // bootstrap with a pessimistic estimate of when
-        // the ballot protocol started last
-        auto now = mApp.getClock().now();
-        auto lastBallotStart = now - seconds;
-        auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-        if (lastStart)
-        {
-            lastBallotStart = *lastStart;
-        }
-
-        // Adjust trigger time in case node's clock has drifted.
-        // This ensures that next value to nominate is valid
-        auto triggerTime = lastBallotStart + seconds;
-
-        if (triggerTime < now)
-        {
-            triggerTime = now;
-        }
-
-        auto triggerOffset =
-            std::chrono::duration_cast<std::chrono::milliseconds>(triggerTime -
-                                                                  now);
-
-        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-        auto minCandidateCt = lcl.header.scpValue.closeTime + 1;
-        auto ctOffset = ctValidityOffset(minCandidateCt, triggerOffset);
-
-        if (ctOffset > std::chrono::milliseconds::zero())
-        {
-            CLOG_INFO(Herder, "Adjust trigger time by {} ms", ctOffset.count());
-            triggerTime += ctOffset;
-        }
-
-        // even if ballot protocol started before triggering, we just use that
-        // time as reference point for triggering again (this may trigger right
-        // away if externalizing took a long time)
-        mTriggerTimer.expires_at(triggerTime);
-
-        if (!mApp.getConfig().MANUAL_CLOSE)
-            mTriggerTimer.async_wait(
-                std::bind(&HerderImpl::triggerNextLedger, this,
-                          static_cast<uint32_t>(nextIndex), true),
-                &VirtualTimer::onFailureNoop);
+        lastBallotStart = *lastStart;
     }
-    else
+
+    // Adjust trigger time in case node's clock has drifted.
+    // This ensures that next value to nominate is valid
+    auto triggerTime = lastBallotStart + seconds;
+
+    if (triggerTime < now)
     {
-        CLOG_DEBUG(Herder,
-                   "Not presently synced, not triggering ledger-close.");
+        triggerTime = now;
     }
+
+    auto triggerOffset = std::chrono::duration_cast<std::chrono::milliseconds>(
+        triggerTime - now);
+    auto minCandidateCt = lcl.header.scpValue.closeTime + 1;
+    auto ctOffset = ctValidityOffset(minCandidateCt, triggerOffset);
+
+    if (ctOffset > std::chrono::milliseconds::zero())
+    {
+        CLOG_INFO(Herder, "Adjust trigger time by {} ms", ctOffset.count());
+        triggerTime += ctOffset;
+    }
+
+    // even if ballot protocol started before triggering, we just use that
+    // time as reference point for triggering again (this may trigger right
+    // away if externalizing took a long time)
+    mTriggerTimer.expires_at(triggerTime);
+
+    if (!mApp.getConfig().MANUAL_CLOSE)
+    {
+        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
+                                           static_cast<uint32_t>(nextIndex),
+                                           true),
+                                 &VirtualTimer::onFailureNoop);
+    }
+
+    mShouldTrigger = false;
+
+#ifdef BUILD_TESTS
+    mTriggerNextLedgerSeq = nextIndex;
+#endif
 
     // process any statements up to the next slot
     // this may cause it to externalize
@@ -910,16 +923,13 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 }
 
 void
-HerderImpl::ledgerClosed(bool synchronous)
+HerderImpl::cleanup()
 {
     // this method is triggered every time the most recent ledger is
-    // externalized it performs some cleanup and also decides if it needs to
-    // schedule triggering the next ledger
+    // externalized it performs some cleanup
 
     ZoneScoped;
-    mTriggerTimer.cancel();
-
-    CLOG_TRACE(Herder, "HerderImpl::ledgerClosed");
+    CLOG_TRACE(Herder, "Herder externalized new ledger, perform cleanup");
 
     // Evict slots that are outside of our ledger validity bracket
     auto minSlotToRemember = getMinLedgerSeqToRemember();
@@ -928,7 +938,6 @@ HerderImpl::ledgerClosed(bool synchronous)
         eraseBelow(minSlotToRemember);
     }
     mPendingEnvelopes.forceRebuildQuorum();
-    maybeTriggerNextLedger(synchronous);
 }
 
 bool
