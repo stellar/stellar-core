@@ -10,6 +10,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <fmt/format.h>
 
 using namespace stellar;
 
@@ -750,41 +751,44 @@ createEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
 void
 removeEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
                                    LedgerTxnHeader const& header,
-                                   LedgerEntry& le, LedgerTxnEntry& acc)
+                                   LedgerEntry& le, LedgerTxnEntry* ownerAcc)
 {
+    // ownerAcc should be null IFF le is a CLAIMABLE_BALANCE because they are
+    // not subentries
+    if (!ownerAcc != (le.data.type() == CLAIMABLE_BALANCE))
+    {
+        throw std::runtime_error(fmt::format(
+            "Invalid ownerAcc for ledger entry type {}", le.data.type()));
+    }
+
+    if (ownerAcc && !(*ownerAcc))
+    {
+        throw std::runtime_error("Uninitialized LedgerTxnEntry");
+    }
+
     if (le.ext.v() == 1 && le.ext.v1().sponsoringID)
     {
-        // claimable balances are not subentries, so there's no sponsored
-        // account
+        // Warning: An exception will be thrown if sponsoringID has already been
+        // loaded.
+        auto sponsoringAcc = loadAccount(ltx, *le.ext.v1().sponsoringID);
         LedgerEntry* sponsoredAccount =
-            le.data.type() == CLAIMABLE_BALANCE ? nullptr : &acc.current();
+            ownerAcc ? &ownerAcc->current() : nullptr;
 
-        if (acc.current().data.account().accountID == *le.ext.v1().sponsoringID)
-        {
-            if (le.data.type() != CLAIMABLE_BALANCE)
-            {
-                throw std::runtime_error("sponsoringID == sourceAccount for "
-                                         "non-CLAIMABLE_BALANCE entry");
-            }
-            canRemoveEntryWithSponsorship(header.current(), le, acc.current(),
-                                          sponsoredAccount);
-            removeEntryWithSponsorship(le, acc.current(), sponsoredAccount);
-        }
-        else
-        {
-            auto sponsoringAcc = loadAccount(ltx, *le.ext.v1().sponsoringID);
-
-            canRemoveEntryWithSponsorship(header.current(), le,
-                                          sponsoringAcc.current(),
-                                          sponsoredAccount);
-            removeEntryWithSponsorship(le, sponsoringAcc.current(),
-                                       sponsoredAccount);
-        }
+        canRemoveEntryWithSponsorship(
+            header.current(), le, sponsoringAcc.current(), sponsoredAccount);
+        removeEntryWithSponsorship(le, sponsoringAcc.current(),
+                                   sponsoredAccount);
     }
     else
     {
-        canRemoveEntryWithoutSponsorship(header.current(), le, acc.current());
-        removeEntryWithoutSponsorship(le, acc.current());
+        if (!ownerAcc)
+        {
+            throw std::runtime_error(
+                "ownerAcc is null for entry without sponosrhip");
+        }
+        canRemoveEntryWithoutSponsorship(header.current(), le,
+                                         ownerAcc->current());
+        removeEntryWithoutSponsorship(le, ownerAcc->current());
     }
 }
 

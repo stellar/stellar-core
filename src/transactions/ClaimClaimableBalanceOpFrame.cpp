@@ -126,9 +126,8 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
-    auto sourceAccount = loadSourceAccount(ltx, header);
     removeEntryWithPossibleSponsorship(
-        ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
+        ltx, header, claimableBalanceLtxEntry.current(), nullptr);
 
     claimableBalanceLtxEntry.erase();
 

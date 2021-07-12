@@ -90,7 +90,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         auto sourceAccount = loadSourceAccount(ltx, header);
         removeEntryWithPossibleSponsorship(ltx, header, data.current(),
-                                           sourceAccount);
+                                           &sourceAccount);
         data.erase();
     }
 
