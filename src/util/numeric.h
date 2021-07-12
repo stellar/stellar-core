@@ -56,4 +56,8 @@ int64_t bigDivide(uint128_t a, int64_t B, Rounding rounding);
 
 uint128_t bigMultiply(uint64_t a, uint64_t b);
 uint128_t bigMultiply(int64_t a, int64_t b);
+
+// Compute a * B / C when C < INT32_MAX * INT64_MAX.
+bool hugeDivide(int64_t& result, int32_t a, uint128_t B, uint128_t C,
+                Rounding rounding);
 }

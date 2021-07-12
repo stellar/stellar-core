@@ -283,6 +283,11 @@ int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
 bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
                           bool canFavorWheat);
 
+bool exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool,
+                      int64_t& toPool, int64_t reservesFromPool,
+                      int64_t maxReceiveFromPool, int64_t& fromPool,
+                      int32_t feeInBps, RoundingType round);
+
 enum class OfferFilterResult
 {
     eKeep,
