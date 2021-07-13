@@ -37,19 +37,31 @@ cereal_override(cereal::JSONOutputArchive& ar,
 }
 
 void
-cereal_override(cereal::JSONOutputArchive& ar, stellar::Asset const& asset,
-                char const* field)
+cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
+                const char* field)
 {
-    if (asset.type() == stellar::ASSET_TYPE_NATIVE)
-    {
-        xdr::archive(ar, std::string("NATIVE"), field);
-    }
-    else
-    {
-        ar.setNextName(field);
-        ar.startNode();
-        xdr::archive(ar, stellar::assetToString(asset), "assetCode");
-        xdr::archive(ar, stellar::getIssuer(asset), "issuer");
-        ar.finishNode();
-    }
+    xdr::archive(ar, std::string("INVALID"), field);
+}
+
+void
+cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                const stellar::TrustLineAsset& asset, const char* field)
+{
+    cereal_override(ar, asset.liquidityPoolID(), field);
+}
+
+void
+cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                const stellar::ChangeTrustAsset& asset, const char* field)
+{
+    auto const& cp = asset.liquidityPool().constantProduct();
+
+    ar.setNextName(field);
+    ar.startNode();
+
+    xdr::archive(ar, cp.assetA, "assetA");
+    xdr::archive(ar, cp.assetB, "assetB");
+
+    xdr::archive(ar, cp.fee, "fee");
+    ar.finishNode();
 }
