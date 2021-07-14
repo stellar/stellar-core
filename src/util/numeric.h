@@ -56,4 +56,7 @@ int64_t bigDivide(uint128_t a, int64_t B, Rounding rounding);
 
 uint128_t bigMultiply(uint64_t a, uint64_t b);
 uint128_t bigMultiply(int64_t a, int64_t b);
+
+// This only implements ROUND_UP
+uint64_t bigSquareRoot(uint64_t a, uint64_t b);
 }
