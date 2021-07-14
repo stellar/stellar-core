@@ -18,6 +18,7 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class InternalLedgerKey;
+struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
@@ -203,4 +204,9 @@ bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb);
 void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
                                    AccountID const& account,
                                    Asset const& asset);
+
+ClaimAtom makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
+                        int64_t offerID, Asset const& wheat,
+                        int64_t numWheatReceived, Asset const& sheep,
+                        int64_t numSheepSend);
 }

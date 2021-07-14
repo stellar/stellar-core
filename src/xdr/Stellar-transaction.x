@@ -635,7 +635,32 @@ struct TransactionSignaturePayload
 
 /* Operation Results section */
 
-/* This result is used when offers are taken during an operation */
+enum ClaimAtomType
+{
+    CLAIM_ATOM_TYPE_V0 = 0,
+    CLAIM_ATOM_TYPE_ORDER_BOOK = 1
+};
+
+// ClaimOfferAtomV0 is a ClaimOfferAtom with the AccountID discriminant stripped
+// off, leaving a raw ed25519 public key to identify the source account. This is
+// used for backwards compatibility starting from the protocol 17/18 boundary.
+// If an "old-style" ClaimOfferAtom is parsed with this XDR definition, it will
+// be parsed as a "new-style" ClaimAtom containing a ClaimOfferAtomV0.
+struct ClaimOfferAtomV0
+{
+    // emitted to identify the offer
+    uint256 sellerEd25519; // Account that owns the offer
+    int64 offerID;
+
+    // amount and asset taken from the owner
+    Asset assetSold;
+    int64 amountSold;
+
+    // amount and asset sent to the owner
+    Asset assetBought;
+    int64 amountBought;
+};
+
 struct ClaimOfferAtom
 {
     // emitted to identify the offer
@@ -649,6 +674,17 @@ struct ClaimOfferAtom
     // amount and asset sent to the owner
     Asset assetBought;
     int64 amountBought;
+};
+
+/* This result is used when offers are taken or liquidity is exchanged with a
+   liquidity pool during an operation
+*/
+union ClaimAtom switch (ClaimAtomType type)
+{
+case CLAIM_ATOM_TYPE_V0:
+    ClaimOfferAtomV0 v0;
+case CLAIM_ATOM_TYPE_ORDER_BOOK:
+    ClaimOfferAtom orderBook;
 };
 
 /******* CreateAccount Result ********/
@@ -745,7 +781,7 @@ union PathPaymentStrictReceiveResult switch (
 case PATH_PAYMENT_STRICT_RECEIVE_SUCCESS:
     struct
     {
-        ClaimOfferAtom offers<>;
+        ClaimAtom offers<>;
         SimplePaymentResult last;
     } success;
 case PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER:
@@ -789,7 +825,7 @@ union PathPaymentStrictSendResult switch (PathPaymentStrictSendResultCode code)
 case PATH_PAYMENT_STRICT_SEND_SUCCESS:
     struct
     {
-        ClaimOfferAtom offers<>;
+        ClaimAtom offers<>;
         SimplePaymentResult last;
     } success;
 case PATH_PAYMENT_STRICT_SEND_NO_ISSUER:
@@ -837,7 +873,7 @@ enum ManageOfferEffect
 struct ManageOfferSuccessResult
 {
     // offers that got claimed while creating this offer
-    ClaimOfferAtom offersClaimed<>;
+    ClaimAtom offersClaimed<>;
 
     union switch (ManageOfferEffect effect)
     {

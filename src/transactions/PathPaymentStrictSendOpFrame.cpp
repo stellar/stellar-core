@@ -89,7 +89,7 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         int64_t amountSend = 0;
         int64_t amountRecv = 0;
-        std::vector<ClaimOfferAtom> offerTrail;
+        std::vector<ClaimAtom> offerTrail;
         if (!convert(ltx, maxOffersToCross, sendAsset, maxAmountSend,
                      amountSend, recvAsset, INT64_MAX, amountRecv,
                      RoundingType::PATH_PAYMENT_STRICT_SEND, offerTrail))

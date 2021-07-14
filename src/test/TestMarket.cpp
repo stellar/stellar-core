@@ -72,11 +72,12 @@ operator==(OfferState const& x, OfferState const& y)
     return true;
 }
 
-ClaimOfferAtom
-TestMarketOffer::exchanged(int64_t sold, int64_t bought) const
+ClaimAtom
+TestMarketOffer::exchanged(uint32_t ledgerVersion, int64_t sold,
+                           int64_t bought) const
 {
-    return ClaimOfferAtom{key.sellerID, key.offerID,  state.selling,
-                          sold,         state.buying, bought};
+    return makeClaimAtom(ledgerVersion, key.sellerID, key.offerID,
+                         state.selling, sold, state.buying, bought);
 }
 
 TestMarket::TestMarket(Application& app) : mApp{app}

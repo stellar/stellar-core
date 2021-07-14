@@ -333,7 +333,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         }
 
         int64_t sheepSent, wheatReceived;
-        std::vector<ClaimOfferAtom> offerTrail;
+        std::vector<ClaimAtom> offerTrail;
         Price maxWheatPrice(mPrice.d, mPrice.n);
         ConvertResult r = convertWithOffers(
             ltx, mSheep, maxSheepSend, sheepSent, mWheat, maxWheatReceive,

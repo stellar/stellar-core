@@ -59,23 +59,84 @@ assetPathToString(const std::deque<Asset>& assets)
     return r;
 };
 
+static Asset const&
+getAssetBought(ClaimAtom const& atom)
+{
+    switch (atom.type())
+    {
+    case CLAIM_ATOM_TYPE_V0:
+        return atom.v0().assetBought;
+    case CLAIM_ATOM_TYPE_ORDER_BOOK:
+        return atom.orderBook().assetBought;
+    default:
+        abort();
+    }
+}
+
+static Asset const&
+getAssetSold(ClaimAtom const& atom)
+{
+    switch (atom.type())
+    {
+    case CLAIM_ATOM_TYPE_V0:
+        return atom.v0().assetSold;
+    case CLAIM_ATOM_TYPE_ORDER_BOOK:
+        return atom.orderBook().assetSold;
+    default:
+        abort();
+    }
+}
+
+static int64_t
+getAmountBought(ClaimAtom const& atom)
+{
+    switch (atom.type())
+    {
+    case CLAIM_ATOM_TYPE_V0:
+        return atom.v0().amountBought;
+    case CLAIM_ATOM_TYPE_ORDER_BOOK:
+        return atom.orderBook().amountBought;
+    default:
+        abort();
+    }
+}
+
+static int64_t
+getAmountSold(ClaimAtom const& atom)
+{
+    switch (atom.type())
+    {
+    case CLAIM_ATOM_TYPE_V0:
+        return atom.v0().amountSold;
+    case CLAIM_ATOM_TYPE_ORDER_BOOK:
+        return atom.orderBook().amountSold;
+    default:
+        abort();
+    }
+}
+
 void
-checkClaimedOffers(std::vector<ClaimOfferAtom> const& actual,
-                   std::vector<ClaimOfferAtom> const& expected,
-                   int64_t sendAmount, int64_t destMinAmount)
+checkClaimedOffers(std::vector<ClaimAtom> const& actual,
+                   std::vector<ClaimAtom> const& expected, int64_t sendAmount,
+                   int64_t destMinAmount)
 {
     REQUIRE(actual == expected);
 
     REQUIRE(std::adjacent_find(
                 actual.begin(), actual.end(),
-                [](ClaimOfferAtom const& lhs, ClaimOfferAtom const& rhs) {
-                    if (!(lhs.assetBought == rhs.assetBought &&
-                          lhs.assetSold == rhs.assetSold))
+                [](ClaimAtom const& lhs, ClaimAtom const& rhs) {
+                    if (lhs.type() != rhs.type())
+                    {
+                        return true;
+                    }
+
+                    if (!(getAssetBought(lhs) == getAssetBought(rhs) &&
+                          getAssetSold(lhs) == getAssetSold(rhs)))
                     {
                         return false;
                     }
 
-                    if (lhs.amountSold == 0)
+                    if (getAmountSold(lhs) == 0)
                     {
                         return true;
                     }
@@ -83,27 +144,28 @@ checkClaimedOffers(std::vector<ClaimOfferAtom> const& actual,
                     // This is a heuristic. Due to price error its possible this
                     // is not satisfied, but it should work under reasonable
                     // assumptions.
-                    return (lhs.amountBought * rhs.amountSold >
-                            lhs.amountSold * rhs.amountBought);
+                    return (getAmountBought(lhs) * getAmountSold(rhs) >
+                            getAmountSold(lhs) * getAmountBought(rhs));
                 }) == actual.end());
 
     if (!actual.empty())
     {
-        Asset const& sourceAsset = actual.front().assetBought;
+        Asset const& sourceAsset = getAssetBought(actual.front());
         int64_t actualSendAmount = 0;
         for (auto iter = actual.begin();
-             iter != actual.end() && iter->assetBought == sourceAsset; ++iter)
+             iter != actual.end() && getAssetBought(*iter) == sourceAsset;
+             ++iter)
         {
-            actualSendAmount += iter->amountBought;
+            actualSendAmount += getAmountBought(*iter);
         }
         REQUIRE(actualSendAmount == sendAmount);
 
-        Asset const& destAsset = actual.back().assetSold;
+        Asset const& destAsset = getAssetSold(actual.back());
         int64_t actualDestAmount = 0;
         for (auto iter = actual.rbegin();
-             iter != actual.rend() && iter->assetSold == destAsset; ++iter)
+             iter != actual.rend() && getAssetSold(*iter) == destAsset; ++iter)
         {
-            actualDestAmount += iter->amountSold;
+            actualDestAmount += getAmountSold(*iter);
         }
         REQUIRE(actualDestAmount >= destMinAmount);
     }
@@ -114,6 +176,13 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
+
+    auto exchanged = [&](TestMarketOffer const& o, int64_t sold,
+                         int64_t bought) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return o.exchanged(ltx.loadHeader().current().ledgerVersion, sold,
+                           bought);
+    };
 
     auto& lm = app->getLedgerManager();
     auto const txfee = lm.getLastTxFee();
@@ -343,7 +412,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
             gateway.merge(root);
             auto offers =
                 source.pathPaymentStrictSend(gateway, idr, 10, idr, 10, {});
-            auto expected = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> expected;
             REQUIRE(offers.success().offers == expected);
             // clang-format off
             market.requireBalances(
@@ -905,7 +974,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -917,9 +986,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -973,7 +1042,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -985,9 +1054,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -1040,7 +1109,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -1052,9 +1121,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -1177,7 +1246,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         for_versions_from(12, *app, [&] {
             auto offers =
                 account.pathPaymentStrictSend(account, idr, 10, idr, 10, {});
-            auto expected = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> expected;
             REQUIRE(offers.success().offers == expected);
             market.requireBalances({{account, {{idr, 10}}}});
         });
@@ -1230,7 +1299,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -1242,9 +1311,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -1289,7 +1358,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -1301,9 +1370,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -1347,7 +1416,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -1359,9 +1428,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(10, 10),
-                                                        o2.exchanged(10, 10),
-                                                        o3.exchanged(10, 10)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 10, 10),
+                                             exchanged(o2, 10, 10),
+                                             exchanged(o3, 10, 10)});
             checkClaimedOffers(actual, expected, 10, 10);
             // clang-format off
             market.requireBalances(
@@ -1414,7 +1483,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 10}},
                                    {o2.key, OfferState::DELETED},
@@ -1427,9 +1496,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1a.exchanged(10, 20), o1b.exchanged(30, 60),
-                o2.exchanged(20, 40), o3.exchanged(10, 20)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1a, 10, 20), exchanged(o1b, 30, 60),
+                 exchanged(o2, 20, 40), exchanged(o3, 10, 20)});
             checkClaimedOffers(actual, expected, 80, 10);
             // clang-format off
             market.requireBalances(
@@ -1484,7 +1553,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
                                    {o2b.key, {cur3, cur2, Price{2, 1}, 5}},
@@ -1497,9 +1566,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1.exchanged(40, 80), o2a.exchanged(15, 30),
-                o2b.exchanged(5, 10), o3.exchanged(10, 20)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1, 40, 80), exchanged(o2a, 15, 30),
+                 exchanged(o2b, 5, 10), exchanged(o3, 10, 20)});
             checkClaimedOffers(actual, expected, 80, 10);
             // clang-format off
             market.requireBalances(
@@ -1554,7 +1623,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3a.key, OfferState::DELETED},
@@ -1567,9 +1636,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1.exchanged(40, 80), o2.exchanged(20, 40), o3a.exchanged(2, 4),
-                o3b.exchanged(8, 16)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1, 40, 80), exchanged(o2, 20, 40),
+                 exchanged(o3a, 2, 4), exchanged(o3b, 8, 16)});
             checkClaimedOffers(actual, expected, 80, 10);
             // clang-format off
             market.requireBalances(
@@ -1617,7 +1686,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         });
 
         for_versions_from(12, *app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
                                    {o3.key, OfferState::DELETED}},
@@ -1629,9 +1698,9 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                                    .success()
                                                    .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{o1.exchanged(40, 80),
-                                                        o2.exchanged(20, 40),
-                                                        o3.exchanged(10, 20)};
+            std::vector<ClaimAtom> expected({exchanged(o1, 40, 80),
+                                             exchanged(o2, 20, 40),
+                                             exchanged(o3, 10, 20)});
             checkClaimedOffers(actual, expected, 80, 10);
             // clang-format off
             market.requireBalances(
@@ -1696,7 +1765,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                 return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1});
             });
 
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
                                    {o1c.key, OfferState::DELETED},
@@ -1715,12 +1784,12 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                               .success()
                                               .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1c.exchanged(9, 12),  o1a.exchanged(10, 15),
-                o1b.exchanged(16, 32), o2c.exchanged(12, 16),
-                o2b.exchanged(6, 9),   o2a.exchanged(5, 10),
-                o3a.exchanged(9, 12),  o3b.exchanged(6, 9),
-                o3c.exchanged(1, 2)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1c, 9, 12), exchanged(o1a, 10, 15),
+                 exchanged(o1b, 16, 32), exchanged(o2c, 12, 16),
+                 exchanged(o2b, 6, 9), exchanged(o2a, 5, 10),
+                 exchanged(o3a, 9, 12), exchanged(o3b, 6, 9),
+                 exchanged(o3c, 1, 2)});
             checkClaimedOffers(actual, expected, 59, 16);
             // clang-format off
             market.requireBalances(
@@ -1785,7 +1854,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                 return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1});
             });
 
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 2}},
                                    {o1c.key, OfferState::DELETED},
@@ -1804,12 +1873,12 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                               .success()
                                               .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1c.exchanged(9, 12),  o1a.exchanged(10, 15),
-                o1b.exchanged(14, 28), o2c.exchanged(12, 16),
-                o2b.exchanged(6, 9),   o2a.exchanged(4, 8),
-                o3a.exchanged(9, 12),  o3b.exchanged(6, 9),
-                o3c.exchanged(0, 1)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1c, 9, 12), exchanged(o1a, 10, 15),
+                 exchanged(o1b, 14, 28), exchanged(o2c, 12, 16),
+                 exchanged(o2b, 6, 9), exchanged(o2a, 4, 8),
+                 exchanged(o3a, 9, 12), exchanged(o3b, 6, 9),
+                 exchanged(o3c, 0, 1)});
             checkClaimedOffers(actual, expected, 55, 15);
             // clang-format off
             market.requireBalances(
@@ -1879,7 +1948,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                 return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 1});
             });
 
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 2}},
                                    {o1c.key, OfferState::DELETED},
@@ -1898,12 +1967,12 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                                               .success()
                                               .offers;
                                   });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1c.exchanged(9, 12),  o1a.exchanged(10, 15),
-                o1b.exchanged(14, 28), o2c.exchanged(12, 16),
-                o2b.exchanged(6, 9),   o2a.exchanged(4, 8),
-                o3a.exchanged(9, 12),  o3b.exchanged(6, 9),
-                o3c.exchanged(0, 1)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1c, 9, 12), exchanged(o1a, 10, 15),
+                 exchanged(o1b, 14, 28), exchanged(o2c, 12, 16),
+                 exchanged(o2b, 6, 9), exchanged(o2a, 4, 8),
+                 exchanged(o3a, 9, 12), exchanged(o3b, 6, 9),
+                 exchanged(o3c, 0, 1)});
             checkClaimedOffers(actual, expected, 55, 15);
             // clang-format off
             market.requireBalances(
@@ -1939,7 +2008,7 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
         for_versions_from(12, *app, [&] {
             auto sellerOfferRemaining =
                 OfferState{cny, xlm, price, 145000000 - 20039999};
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges(
                 {{sellerOffer.key, sellerOfferRemaining}}, [&] {
                     actual =
@@ -1950,8 +2019,8 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                             .offers;
                 });
             // 20039999 = floor(1382068965 * 29 / 2000)
-            auto expected = std::vector<ClaimOfferAtom>{
-                sellerOffer.exchanged(20039999, 1382068965)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(sellerOffer, 20039999, 1382068965)});
             checkClaimedOffers(actual, expected, 1382068965, 20039999);
             market.requireBalances(
                 {{source, {{xlm, 1989999000 - 100 - 1382068965}}},
@@ -2253,8 +2322,10 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
                     [&] {
                         auto res = source.pathPaymentStrictSend(
                             destination, cur1, 6, cur2, 1, {});
-                        REQUIRE(res.success().offers.back().amountSold == 0);
-                        REQUIRE(res.success().offers.back().amountBought == 1);
+                        REQUIRE(getAmountSold(res.success().offers.back()) ==
+                                0);
+                        REQUIRE(getAmountBought(res.success().offers.back()) ==
+                                1);
                     });
                 market.requireBalances({{source, {{cur1, 94}}},
                                         {mm, {{cur1, 6}, {cur2, 1997}}},
@@ -2345,6 +2416,14 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
     cfg.USE_CONFIG_FOR_GENESIS = false;
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
+
+    auto exchanged = [&](TestMarketOffer const& o, int64_t sold,
+                         int64_t bought) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return o.exchanged(ltx.loadHeader().current().ledgerVersion, sold,
+                           bought);
+    };
+
     auto& lm = app->getLedgerManager();
     auto const txfee = lm.getLastTxFee();
     auto const minBalance1 = lm.getLastMinBalance(1) + 10 * txfee;
@@ -2412,7 +2491,7 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
                 issuerToDelete->merge(root);
             }
 
-            auto actual = std::vector<ClaimOfferAtom>{};
+            std::vector<ClaimAtom> actual;
             market.requireChanges(
                 {{o1.key, {cur2, cur1, Price{2, 1}, 320}},
                  {o2.key, {cur3, cur2, Price{2, 1}, 660}},
@@ -2426,11 +2505,11 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
                                  .success()
                                  .offers;
                 });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1.exchanged(640, 1280), o2.exchanged(320, 640),
-                o3.exchanged(160, 320),  o4.exchanged(80, 160),
-                o1.exchanged(40, 80),    o2.exchanged(20, 40),
-                o3.exchanged(10, 20)};
+            std::vector<ClaimAtom> expected(
+                {exchanged(o1, 640, 1280), exchanged(o2, 320, 640),
+                 exchanged(o3, 160, 320), exchanged(o4, 80, 160),
+                 exchanged(o1, 40, 80), exchanged(o2, 20, 40),
+                 exchanged(o3, 10, 20)});
             checkClaimedOffers(actual, expected, 1280, 10);
             // clang-format off
             market.requireBalances(

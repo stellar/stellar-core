@@ -66,7 +66,7 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
                                 int64_t& amountSend, Asset const& recvAsset,
                                 int64_t maxRecv, int64_t& amountRecv,
                                 RoundingType round,
-                                std::vector<ClaimOfferAtom>& offerTrail)
+                                std::vector<ClaimAtom>& offerTrail)
 {
     assert(offerTrail.empty());
     assert(!(sendAsset == recvAsset));
