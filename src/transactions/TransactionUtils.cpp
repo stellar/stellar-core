@@ -55,6 +55,19 @@ prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
     return tl.ext.v1();
 }
 
+TrustLineEntryExtensionV2&
+prepareTrustLineEntryExtensionV2(TrustLineEntry& tl)
+{
+    auto& extV1 = prepareTrustLineEntryExtensionV1(tl);
+
+    if (extV1.ext.v() == 0)
+    {
+        extV1.ext.v(2);
+        extV1.ext.v2().liquidityPoolUseCount = 0;
+    }
+    return extV1.ext.v2();
+}
+
 LedgerEntryExtensionV1&
 prepareLedgerEntryExtensionV1(LedgerEntry& le)
 {
@@ -74,6 +87,17 @@ getAccountEntryExtensionV2(AccountEntry& ae)
         throw std::runtime_error("expected AccountEntry extension V2");
     }
     return ae.ext.v1().ext.v2();
+}
+
+TrustLineEntryExtensionV2&
+getTrustLineEntryExtensionV2(TrustLineEntry& tl)
+{
+    if (!hasTrustLineEntryExtV2(tl))
+    {
+        throw std::runtime_error("expected TrustLineEntry extension V2");
+    }
+
+    return tl.ext.v1().ext.v2();
 }
 
 LedgerEntryExtensionV1&
@@ -1028,6 +1052,12 @@ bool
 hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
+}
+
+bool
+hasTrustLineEntryExtV2(TrustLineEntry const& tl)
+{
+    return tl.ext.v() == 1 && tl.ext.v1().ext.v() == 2;
 }
 
 Asset
