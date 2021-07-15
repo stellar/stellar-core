@@ -158,13 +158,16 @@ class OverlayManagerImpl : public OverlayManager
     {
         std::vector<PeerBareAddress> known;
         std::vector<PeerBareAddress> preferred;
+        bool errors;
     };
 
     std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
     std::future<ResolvedPeers> mResolvedPeers;
+    bool mResolvingPeersWithBackoff;
+    int mResolvingPeersRetryCount;
 
     void triggerPeerResolution();
-    std::vector<PeerBareAddress>
+    std::pair<std::vector<PeerBareAddress>, bool>
     resolvePeers(std::vector<std::string> const& peers);
     void storePeerList(std::vector<PeerBareAddress> const& addresses,
                        bool setPreferred, bool startup);

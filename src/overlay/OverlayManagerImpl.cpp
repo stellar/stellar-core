@@ -37,6 +37,7 @@ using namespace soci;
 using namespace std;
 
 constexpr std::chrono::seconds PEER_IP_RESOLVE_DELAY(600);
+constexpr std::chrono::seconds PEER_IP_RESOLVE_RETRY_DELAY(10);
 
 OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
@@ -265,6 +266,9 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
     , mSurveyManager(make_shared<SurveyManager>(app))
+    , mResolvingPeersWithBackoff(true)
+    , mResolvingPeersRetryCount(0)
+
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -389,8 +393,10 @@ OverlayManagerImpl::storeConfigPeers()
 {
     ZoneScoped;
     // Synchronously resolve and store peers from the config
-    storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS), false, true);
-    storePeerList(resolvePeers(mApp.getConfig().PREFERRED_PEERS), true, true);
+    storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS).first, false,
+                  true);
+    storePeerList(resolvePeers(mApp.getConfig().PREFERRED_PEERS).first, true,
+                  true);
 }
 
 void
@@ -415,9 +421,10 @@ OverlayManagerImpl::triggerPeerResolution()
             auto known = resolvePeers(this->mApp.getConfig().KNOWN_PEERS);
             auto preferred =
                 resolvePeers(this->mApp.getConfig().PREFERRED_PEERS);
-            return ResolvedPeers{known, preferred};
+            return ResolvedPeers{known.first, preferred.first,
+                                 known.second || preferred.second};
         }
-        return ResolvedPeers{};
+        return ResolvedPeers{{}, {}, false};
     });
 
     mResolvedPeers = task->get_future();
@@ -425,12 +432,13 @@ OverlayManagerImpl::triggerPeerResolution()
                                 "OverlayManager: resolve peer IPs");
 }
 
-std::vector<PeerBareAddress>
+std::pair<std::vector<PeerBareAddress>, bool>
 OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
 {
     ZoneScoped;
     std::vector<PeerBareAddress> addresses;
     addresses.reserve(peers.size());
+    bool errors = false;
     for (auto const& peer : peers)
     {
         try
@@ -439,6 +447,7 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
         }
         catch (std::runtime_error& e)
         {
+            errors = true;
             CLOG_ERROR(Overlay, "Unable to resolve peer '{}': {}", peer,
                        e.what());
             CLOG_ERROR(Overlay, "Peer may be no longer available under "
@@ -447,7 +456,7 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
                                 "settings in configuration file");
         }
     }
-    return addresses;
+    return std::make_pair(addresses, errors);
 }
 
 std::vector<PeerBareAddress>
@@ -508,7 +517,33 @@ OverlayManagerImpl::tick()
         auto res = mResolvedPeers.get();
         storePeerList(res.known, false, false);
         storePeerList(res.preferred, true, false);
-        mPeerIPTimer.expires_from_now(PEER_IP_RESOLVE_DELAY);
+        std::chrono::seconds retryDelay = PEER_IP_RESOLVE_DELAY;
+
+        if (mResolvingPeersWithBackoff)
+        {
+            // no errors -> disable retries completely from now on
+            if (!res.errors)
+            {
+                mResolvingPeersWithBackoff = false;
+            }
+            else
+            {
+                ++mResolvingPeersRetryCount;
+                auto newDelay =
+                    mResolvingPeersRetryCount * PEER_IP_RESOLVE_RETRY_DELAY;
+                // if we retried too many times, give up on retries
+                if (newDelay > PEER_IP_RESOLVE_DELAY)
+                {
+                    mResolvingPeersWithBackoff = false;
+                }
+                else
+                {
+                    retryDelay = newDelay;
+                }
+            }
+        }
+
+        mPeerIPTimer.expires_from_now(retryDelay);
         mPeerIPTimer.async_wait([this]() { this->triggerPeerResolution(); },
                                 VirtualTimer::onFailureNoop);
     }
