@@ -665,11 +665,17 @@ transactionFromOperations(Application& app, SecretKey const& from,
 Operation
 changeTrust(Asset const& asset, int64_t limit)
 {
+    return changeTrust(assetToChangeTrustAsset(asset), limit);
+}
+
+Operation
+changeTrust(ChangeTrustAsset const& asset, int64_t limit)
+{
     Operation op;
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
-    op.body.changeTrustOp().line = assetToChangeTrustAsset(asset);
+    op.body.changeTrustOp().line = asset;
 
     return op;
 }
@@ -770,6 +776,18 @@ makeAssetAlphanum12(SecretKey const& issuer, std::string const& code)
     asset.alphaNum12().issuer = issuer.getPublicKey();
     strToAssetCode(asset.alphaNum12().assetCode, code);
     return asset;
+}
+
+ChangeTrustAsset
+makeChangeTrustAssetPoolShare(Asset const& assetA, Asset const& assetB,
+                              int32_t fee)
+{
+    ChangeTrustAsset poolAsset;
+    poolAsset.type(ASSET_TYPE_POOL_SHARE);
+    poolAsset.liquidityPool().constantProduct().assetA = assetA;
+    poolAsset.liquidityPool().constantProduct().assetB = assetB;
+    poolAsset.liquidityPool().constantProduct().fee = fee;
+    return poolAsset;
 }
 
 Operation

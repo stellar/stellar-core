@@ -183,6 +183,12 @@ TestAccount::changeTrust(Asset const& asset, int64_t limit)
 }
 
 void
+TestAccount::changeTrust(ChangeTrustAsset const& asset, int64_t limit)
+{
+    applyTx(tx({txtest::changeTrust(asset, limit)}), mApp);
+}
+
+void
 TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
                         uint32_t flag)
 {

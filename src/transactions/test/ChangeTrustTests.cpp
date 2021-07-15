@@ -265,4 +265,17 @@ TEST_CASE("change trust", "[tx][changetrust]")
             changeTrust(idr, 1001), changeTrust(idr, 0),
             trustlineKey(acc2, idr));
     }
+
+    SECTION("pool trustline")
+    {
+        auto usd = makeAsset(gateway, "USD");
+        auto idrUsd =
+            makeChangeTrustAssetPoolShare(idr, usd, LIQUIDITY_POOL_FEE_V18);
+
+        // Liquidity pools not supported pre V18
+        for_versions_to(17, *app, [&] {
+            REQUIRE_THROWS_AS(root.changeTrust(idrUsd, 10),
+                              ex_CHANGE_TRUST_MALFORMED);
+        });
+    }
 }
