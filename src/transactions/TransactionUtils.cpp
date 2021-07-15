@@ -147,6 +147,15 @@ trustlineKey(AccountID const& accountID, Asset const& asset)
 }
 
 LedgerKey
+trustlineKey(AccountID const& accountID, TrustLineAsset const& asset)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = asset;
+    return key;
+}
+
+LedgerKey
 offerKey(AccountID const& sellerID, uint64_t offerID)
 {
     LedgerKey key(OFFER);

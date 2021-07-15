@@ -48,6 +48,7 @@ LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le);
 
 LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
+LedgerKey trustlineKey(AccountID const& accountID, TrustLineAsset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
