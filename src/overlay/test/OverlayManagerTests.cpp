@@ -241,8 +241,8 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        auto fourPeersAddresses = pm.resolvePeers(fourPeers);
-        auto threePeersAddresses = pm.resolvePeers(threePeers);
+        auto fourPeersAddresses = pm.resolvePeers(fourPeers).first;
+        auto threePeersAddresses = pm.resolvePeers(threePeers).first;
         pm.storePeerList(fourPeersAddresses, false, true);
         pm.storePeerList(threePeersAddresses, false, true);
 
