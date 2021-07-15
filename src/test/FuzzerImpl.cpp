@@ -115,8 +115,9 @@ getShortKey(Asset const& asset)
         return getShortKey(asset.alphaNum4().issuer);
     case ASSET_TYPE_CREDIT_ALPHANUM12:
         return getShortKey(asset.alphaNum12().issuer);
+    default:
+        throw std::runtime_error("Invalid Asset type");
     }
-    throw std::runtime_error("Invalid Asset type");
 }
 
 uint8_t
@@ -130,8 +131,9 @@ getShortKey(AssetCode const& code)
         return getShortKey(code.assetCode4());
     case ASSET_TYPE_CREDIT_ALPHANUM12:
         return getShortKey(code.assetCode12());
+    default:
+        throw std::runtime_error("Invalid AssetCode type");
     }
-    throw std::runtime_error("Invalid AssetCode type");
 }
 
 uint8_t
@@ -155,6 +157,8 @@ getShortKey(LedgerKey const& key)
         return getShortKey(key.data().accountID);
     case CLAIMABLE_BALANCE:
         return getShortKey(key.claimableBalance().balanceID);
+    case LIQUIDITY_POOL:
+        return getShortKey(key.liquidityPool().liquidityPoolID);
     }
     throw std::runtime_error("Unknown key type");
 }
