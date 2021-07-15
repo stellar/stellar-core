@@ -36,6 +36,8 @@ Command options can only by placed after command.
 `$ stellar-core convert-id SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
 
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
+* **encode-asset --code <CODE> --issuer <ISSUER>**: Prints a base-64 encoded asset.
+  Prints the native asset if neither `code` nor `issuer` is given.
 * **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
 * **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
 * **gen-seed**: Generate and print a random public/private key and then exit.

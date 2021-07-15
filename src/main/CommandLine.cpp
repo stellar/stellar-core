@@ -222,6 +222,18 @@ base64Parser(bool& base64)
 }
 
 clara::Opt
+codeParser(std::string& code)
+{
+    return clara::Opt{code, "CODE"}["--code"]("asset code");
+}
+
+clara::Opt
+issuerParser(std::string& issuer)
+{
+    return clara::Opt{issuer, "ISSUER"}["--issuer"]("asset issuer");
+}
+
+clara::Opt
 disableBucketGCParser(bool& disableBucketGC)
 {
     return clara::Opt{disableBucketGC}["--disable-bucket-gc"](
@@ -909,6 +921,44 @@ runDumpXDR(CommandLineArgs const& args)
 }
 
 int
+runEncodeAsset(CommandLineArgs const& args)
+{
+    std::string code, issuer;
+
+    return runWithHelp(args, {codeParser(code), issuerParser(issuer)}, [&] {
+        Asset asset;
+        if (code.empty() && issuer.empty())
+        {
+            asset.type(ASSET_TYPE_NATIVE);
+        }
+        else if (code.empty() || issuer.empty())
+        {
+            throw std::runtime_error("If one of code or issuer is defined, the "
+                                     "other must be defined");
+        }
+        else if (code.size() <= 4)
+        {
+            asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+            strToAssetCode(asset.alphaNum4().assetCode, code);
+            asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+        }
+        else if (code.size() <= 12)
+        {
+            asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+            strToAssetCode(asset.alphaNum12().assetCode, code);
+            asset.alphaNum12().issuer = KeyUtils::fromStrKey<PublicKey>(issuer);
+        }
+        else
+        {
+            throw std::runtime_error("Asset code must be <= 12 characters");
+        }
+        std::cout << decoder::encode_b64(xdr::xdr_to_opaque(asset))
+                  << std::endl;
+        return 0;
+    });
+}
+
+int
 runForceSCP(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1559,6 +1609,8 @@ handleCommandLine(int argc, char* const* argv)
           runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
+         {"encode-asset", "Print an encoded asset in base 64 for debugging",
+          runEncodeAsset},
          {"force-scp", "deprecated, use --wait-for-consensus option instead",
           runForceSCP},
          {"gen-seed", "generate and print a random node seed", runGenSeed},
