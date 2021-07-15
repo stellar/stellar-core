@@ -1012,7 +1012,7 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     { // entire offer is taken
         auto accountB = stellar::loadAccount(ltx, accountBID);
         removeEntryWithPossibleSponsorship(
-            ltx, ltx.loadHeader(), sellingWheatOffer.current(), &accountB);
+            ltx, ltx.loadHeader(), sellingWheatOffer.current(), accountB);
         sellingWheatOffer.erase();
     }
     else
@@ -1198,7 +1198,7 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         {
             auto account = loadAccount(ltxInner, accountBID);
             removeEntryWithPossibleSponsorship(
-                ltxInner, header, sellingWheatOffer.current(), &account);
+                ltxInner, header, sellingWheatOffer.current(), account);
             sellingWheatOffer.erase();
         }
         else

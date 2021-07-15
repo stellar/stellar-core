@@ -79,7 +79,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             // line gets deleted
             auto sourceAccount = loadSourceAccount(ltx, header);
             removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
-                                               &sourceAccount);
+                                               sourceAccount);
             trustLine.erase();
         }
         else

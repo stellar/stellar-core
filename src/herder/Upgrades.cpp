@@ -718,7 +718,7 @@ eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
     // If offer is not sponsored -
     // 1. the offers account will have at least 1 subEntry
     removeEntryWithPossibleSponsorship(ltx, header, offerEntry.current(),
-                                       &accountEntry);
+                                       accountEntry);
 
     offerEntry.erase();
 }
