@@ -97,6 +97,8 @@ LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
 LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
 
+LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
+
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
