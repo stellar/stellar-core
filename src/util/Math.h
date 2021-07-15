@@ -12,13 +12,13 @@
 
 namespace stellar
 {
-double rand_fraction();
 
 std::set<double> k_means(std::vector<double> const& points, uint32_t k);
 
 double closest_cluster(double p, std::set<double> const& centers);
 
 bool rand_flip();
+bool rand_flip(double prob);
 
 typedef std::minstd_rand stellar_default_random_engine;
 

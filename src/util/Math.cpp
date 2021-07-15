@@ -19,18 +19,18 @@ namespace stellar
 {
 
 stellar_default_random_engine gRandomEngine;
-std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
-
-double
-rand_fraction()
-{
-    return uniformFractionDistribution(gRandomEngine);
-}
 
 bool
 rand_flip()
 {
     return (gRandomEngine() & 1);
+}
+
+bool
+rand_flip(double prob)
+{
+    std::bernoulli_distribution dist(prob);
+    return dist(gRandomEngine);
 }
 
 double
