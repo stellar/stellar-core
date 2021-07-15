@@ -91,8 +91,7 @@ createEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
                                    LedgerEntry& le, LedgerTxnEntry& acc);
 void removeEntryWithPossibleSponsorship(AbstractLedgerTxn& ltx,
                                         LedgerTxnHeader const& header,
-                                        LedgerEntry& le,
-                                        LedgerTxnEntry* ownerAcc);
+                                        LedgerEntry& le, LedgerTxnEntry& acc);
 
 SponsorshipResult createSignerWithPossibleSponsorship(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,

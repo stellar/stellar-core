@@ -154,7 +154,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
     }
 
     removeEntryWithPossibleSponsorship(
-        ltx, header, sourceAccountEntry.current(), &sourceAccountEntry);
+        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
     sourceAccountEntry.erase();
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
@@ -229,7 +229,7 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
     }
 
     removeEntryWithPossibleSponsorship(
-        ltx, header, sourceAccountEntry.current(), &sourceAccountEntry);
+        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
     sourceAccountEntry.erase();
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
