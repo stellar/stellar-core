@@ -27,12 +27,6 @@ bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 // returns true if the passed string32 is valid
 bool isString32Valid(std::string const& str);
 
-// returns true if the Asset value is well formed
-bool isAssetValid(Asset const& cur);
-
-// returns the issuer for the given asset
-AccountID getIssuer(Asset const& asset);
-
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
@@ -45,6 +39,46 @@ int32_t unsignedToSigned(uint32_t v);
 int64_t unsignedToSigned(uint64_t v);
 
 std::string formatSize(size_t size);
+
+// returns true if the asset is well formed for the specified protocol version
+template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion);
+
+// returns the issuer for the given asset
+template <typename T>
+AccountID
+getIssuer(T const& asset)
+{
+    switch (asset.type())
+    {
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return asset.alphaNum4().issuer;
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return asset.alphaNum12().issuer;
+    case ASSET_TYPE_NATIVE:
+    case ASSET_TYPE_POOL_SHARE:
+        throw std::runtime_error("asset does not have an issuer");
+    default:
+        throw std::runtime_error("unknown asset type");
+    }
+}
+
+template <typename T>
+bool
+isIssuer(AccountID const& acc, T const& asset)
+{
+    switch (asset.type())
+    {
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+        return acc == asset.alphaNum4().issuer;
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+        return acc == asset.alphaNum12().issuer;
+    case ASSET_TYPE_NATIVE:
+    case ASSET_TYPE_POOL_SHARE:
+        return false;
+    default:
+        throw std::runtime_error("unknown asset type");
+    }
+}
 
 template <uint32_t N>
 void
@@ -85,6 +119,9 @@ assetToString(const Asset& asset)
     case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
         assetCodeToStr(asset.alphaNum12().assetCode, r);
         break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        throw std::runtime_error(
+            "ASSET_TYPE_POOL_SHARE is not a valid Asset type");
     }
     return r;
 };

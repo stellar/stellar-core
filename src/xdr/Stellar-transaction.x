@@ -7,6 +7,12 @@
 namespace stellar
 {
 
+union LiquidityPoolParameters switch (LiquidityPoolType type)
+{
+case LIQUIDITY_POOL_CONSTANT_PRODUCT:
+    LiquidityPoolConstantProductParameters constantProduct;
+};
+
 // Source or destination of a payment operation
 union MuxedAccount switch (CryptoKeyType type)
 {
@@ -212,6 +218,23 @@ struct SetOptionsOp
     Signer* signer;
 };
 
+union ChangeTrustAsset switch (AssetType type)
+{
+case ASSET_TYPE_NATIVE: // Not credit
+    void;
+
+case ASSET_TYPE_CREDIT_ALPHANUM4:
+    AlphaNum4 alphaNum4;
+
+case ASSET_TYPE_CREDIT_ALPHANUM12:
+    AlphaNum12 alphaNum12;
+
+case ASSET_TYPE_POOL_SHARE:
+    LiquidityPoolParameters liquidityPool;
+
+    // add other asset types here in the future
+};
+
 /* Creates, updates or deletes a trust line
 
     Threshold: med
@@ -221,7 +244,7 @@ struct SetOptionsOp
 */
 struct ChangeTrustOp
 {
-    Asset line;
+    ChangeTrustAsset line;
 
     // if limit is set to 0, deletes the trust line
     int64 limit;
@@ -408,6 +431,8 @@ struct SetTrustLineFlagsOp
     uint32 clearFlags; // which flags to clear
     uint32 setFlags;   // which flags to set
 };
+
+const LIQUIDITY_POOL_FEE_V18 = 30;
 
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
@@ -969,7 +994,10 @@ enum ChangeTrustResultCode
                                      // cannot create with a limit of 0
     CHANGE_TRUST_LOW_RESERVE =
         -4, // not enough funds to create a new trust line,
-    CHANGE_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
+    CHANGE_TRUST_SELF_NOT_ALLOWED = -5, // trusting self is not allowed
+    CHANGE_TRUST_TRUST_LINE_MISSING = -6, // Asset trustline is missing for pool
+    CHANGE_TRUST_CANNOT_DELETE = 7, // Asset trustline is still referenced in a pool
+    CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES = 8 // Asset trustline is deauthorized
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)

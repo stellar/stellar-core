@@ -553,7 +553,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
     {
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
-        key.trustLine().asset = asset;
+        key.trustLine().asset = assetToTrustLineAsset(asset);
         auto trust = ltx.loadWithoutRecord(key);
         if (trust && isAuthorizedToMaintainLiabilities(trust))
         {

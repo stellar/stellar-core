@@ -135,17 +135,19 @@ PathPaymentStrictReceiveOpFrame::doCheckValid(uint32_t ledgerVersion)
         setResultMalformed();
         return false;
     }
-    if (!isAssetValid(mPathPayment.sendAsset) ||
-        !isAssetValid(mPathPayment.destAsset))
+    if (!isAssetValid(mPathPayment.sendAsset, ledgerVersion) ||
+        !isAssetValid(mPathPayment.destAsset, ledgerVersion))
     {
         setResultMalformed();
         return false;
     }
-    auto const& p = mPathPayment.path;
-    if (!std::all_of(p.begin(), p.end(), isAssetValid))
+    for (auto const& p : mPathPayment.path)
     {
-        setResultMalformed();
-        return false;
+        if (!isAssetValid(p, ledgerVersion))
+        {
+            setResultMalformed();
+            return false;
+        }
     }
     return true;
 }

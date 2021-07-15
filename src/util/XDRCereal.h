@@ -82,8 +82,57 @@ void cereal_override(cereal::JSONOutputArchive& ar,
                      const stellar::MuxedAccount& muxedAccount,
                      const char* field);
 
-void cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
+void cerealPoolAsset(cereal::JSONOutputArchive& ar, const stellar::Asset& asset,
                      const char* field);
+
+void cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                     const stellar::TrustLineAsset& asset, const char* field);
+
+void cerealPoolAsset(cereal::JSONOutputArchive& ar,
+                     const stellar::ChangeTrustAsset& asset, const char* field);
+
+template <typename T>
+typename std::enable_if<std::is_same<stellar::Asset, T>::value ||
+                        std::is_same<stellar::TrustLineAsset, T>::value ||
+                        std::is_same<stellar::ChangeTrustAsset, T>::value>::type
+cereal_override(cereal::JSONOutputArchive& ar, const T& asset,
+                const char* field)
+{
+    switch (asset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        xdr::archive(ar, std::string("NATIVE"), field);
+        break;
+    case stellar::ASSET_TYPE_POOL_SHARE:
+        cerealPoolAsset(ar, asset, field);
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+    {
+        ar.setNextName(field);
+        ar.startNode();
+
+        // asset is templated, so we just pull the assetCode string directly so
+        // we don't have to templatize assetToString
+        std::string code;
+        if (asset.type() == stellar::ASSET_TYPE_CREDIT_ALPHANUM4)
+        {
+            stellar::assetCodeToStr(asset.alphaNum4().assetCode, code);
+        }
+        else
+        {
+            stellar::assetCodeToStr(asset.alphaNum12().assetCode, code);
+        }
+
+        xdr::archive(ar, code, "assetCode");
+        xdr::archive(ar, stellar::getIssuer(asset), "issuer");
+        ar.finishNode();
+        break;
+    }
+    default:
+        xdr::archive(ar, std::string("UNKNOWN"), field);
+    }
+}
 
 template <typename T>
 typename std::enable_if<xdr::xdr_traits<T>::is_enum>::type

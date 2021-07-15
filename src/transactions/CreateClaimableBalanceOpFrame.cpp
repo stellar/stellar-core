@@ -264,7 +264,7 @@ CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     auto const& claimants = mCreateClaimableBalance.claimants;
 
-    if (!isAssetValid(mCreateClaimableBalance.asset) ||
+    if (!isAssetValid(mCreateClaimableBalance.asset, ledgerVersion) ||
         mCreateClaimableBalance.amount <= 0 || claimants.empty())
     {
         innerResult().code(CREATE_CLAIMABLE_BALANCE_MALFORMED);

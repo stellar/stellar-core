@@ -267,7 +267,7 @@ TestAccount::loadTrustLine(Asset const& asset) const
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = asset;
+    key.trustLine().asset = assetToTrustLineAsset(asset);
     return ltx.load(key).current().data.trustLine();
 }
 
@@ -277,7 +277,7 @@ TestAccount::hasTrustLine(Asset const& asset) const
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = asset;
+    key.trustLine().asset = assetToTrustLineAsset(asset);
     return (bool)ltx.load(key);
 }
 

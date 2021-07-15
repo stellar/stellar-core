@@ -405,9 +405,9 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case TRUSTLINE:
         {
             auto const& tl = lk.trustLine();
-            if (!isAssetValid(tl.asset) ||
+            if (!isAssetValid(tl.asset, ledgerVersion) ||
                 (tl.asset.type() == ASSET_TYPE_NATIVE) ||
-                (getIssuer(tl.asset) == tl.accountID))
+                isIssuer(tl.accountID, tl.asset))
             {
                 innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
                 return false;

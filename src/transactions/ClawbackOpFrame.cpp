@@ -73,7 +73,7 @@ ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if (!isAssetValid(mClawback.asset))
+    if (!isAssetValid(mClawback.asset, ledgerVersion))
     {
         innerResult().code(CLAWBACK_MALFORMED);
         return false;

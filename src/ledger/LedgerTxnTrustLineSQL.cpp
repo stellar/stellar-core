@@ -21,7 +21,7 @@ validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key)
 {
     auto const& asset = key.trustLine().asset;
 
-    if (ledgerVersion >= 15 && !isAssetValid(asset))
+    if (ledgerVersion >= 15 && !isAssetValid(asset, ledgerVersion))
     {
         throw NonSociRelatedException("TrustLine asset is invalid");
     }
@@ -29,14 +29,9 @@ validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key)
     {
         throw NonSociRelatedException("XLM TrustLine?");
     }
-    else if (key.trustLine().accountID == getIssuer(asset))
+    else if (isIssuer(key.trustLine().accountID, asset))
     {
         throw NonSociRelatedException("TrustLine accountID is issuer");
-    }
-    else if (asset.type() != ASSET_TYPE_CREDIT_ALPHANUM4 &&
-             asset.type() != ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        throw NonSociRelatedException("Unknown asset type");
     }
 }
 

@@ -669,7 +669,7 @@ changeTrust(Asset const& asset, int64_t limit)
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
-    op.body.changeTrustOp().line = asset;
+    op.body.changeTrustOp().line = assetToChangeTrustAsset(asset);
 
     return op;
 }

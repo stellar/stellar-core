@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 #include <algorithm>
 
 namespace stellar
@@ -209,4 +210,9 @@ ClaimAtom makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
                         int64_t offerID, Asset const& wheat,
                         int64_t numWheatReceived, Asset const& sheep,
                         int64_t numSheepSend);
+
+TrustLineAsset assetToTrustLineAsset(Asset const& asset);
+TrustLineAsset
+changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset);
+ChangeTrustAsset assetToChangeTrustAsset(Asset const& asset);
 }

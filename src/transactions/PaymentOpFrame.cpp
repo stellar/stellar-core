@@ -122,7 +122,7 @@ PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
-    if (!isAssetValid(mPayment.asset))
+    if (!isAssetValid(mPayment.asset, ledgerVersion))
     {
         innerResult().code(PAYMENT_MALFORMED);
         return false;

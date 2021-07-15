@@ -62,7 +62,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getSourceID();
-    key.trustLine().asset = mChangeTrust.line;
+    key.trustLine().asset = changeTrustAssetToTrustLineAsset(mChangeTrust.line);
 
     auto trustLine = ltx.load(key);
     if (trustLine)
@@ -107,7 +107,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         trustLineEntry.data.type(TRUSTLINE);
         auto& tl = trustLineEntry.data.trustLine();
         tl.accountID = getSourceID();
-        tl.asset = mChangeTrust.line;
+        tl.asset = changeTrustAssetToTrustLineAsset(mChangeTrust.line);
         tl.limit = mChangeTrust.limit;
         tl.balance = 0;
 
@@ -165,7 +165,8 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
-    if (!isAssetValid(mChangeTrust.line))
+
+    if (!isAssetValid(mChangeTrust.line, ledgerVersion))
     {
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
@@ -179,7 +180,7 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         }
     }
 
-    if (ledgerVersion > 15 && getSourceID() == getIssuer(mChangeTrust.line))
+    if (ledgerVersion > 15 && isIssuer(getSourceID(), mChangeTrust.line))
     {
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;

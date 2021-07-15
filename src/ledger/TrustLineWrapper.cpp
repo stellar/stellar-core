@@ -22,9 +22,6 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
 
     operator bool() const override;
 
-    AccountID const& getAccountID() const override;
-    Asset const& getAsset() const override;
-
     int64_t getBalance() const override;
     bool addBalance(LedgerTxnHeader const& header, int64_t delta) override;
 
@@ -54,9 +51,6 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
     IssuerImpl(AccountID const& accountID, Asset const& asset);
 
     operator bool() const override;
-
-    AccountID const& getAccountID() const override;
-    Asset const& getAsset() const override;
 
     int64_t getBalance() const override;
     bool addBalance(LedgerTxnHeader const& header, int64_t delta) override;
@@ -96,7 +90,7 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
-        key.trustLine().asset = asset;
+        key.trustLine().asset = assetToTrustLineAsset(asset);
         auto entry = ltx.load(key);
         if (entry)
         {
@@ -120,18 +114,6 @@ TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry)
 TrustLineWrapper::operator bool() const
 {
     return (bool)mImpl && (bool)(*mImpl);
-}
-
-AccountID const&
-TrustLineWrapper::getAccountID() const
-{
-    return getImpl()->getAccountID();
-}
-
-Asset const&
-TrustLineWrapper::getAsset() const
-{
-    return getImpl()->getAsset();
 }
 
 int64_t
@@ -229,18 +211,6 @@ TrustLineWrapper::NonIssuerImpl::operator bool() const
     return (bool)mEntry;
 }
 
-AccountID const&
-TrustLineWrapper::NonIssuerImpl::getAccountID() const
-{
-    return mEntry.current().data.trustLine().accountID;
-}
-
-Asset const&
-TrustLineWrapper::NonIssuerImpl::getAsset() const
-{
-    return mEntry.current().data.trustLine().asset;
-}
-
 int64_t
 TrustLineWrapper::NonIssuerImpl::getBalance() const
 {
@@ -324,18 +294,6 @@ TrustLineWrapper::IssuerImpl::IssuerImpl(AccountID const& accountID,
 TrustLineWrapper::IssuerImpl::operator bool() const
 {
     return true;
-}
-
-AccountID const&
-TrustLineWrapper::IssuerImpl::getAccountID() const
-{
-    return mAccountID;
-}
-
-Asset const&
-TrustLineWrapper::IssuerImpl::getAsset() const
-{
-    return mAsset;
 }
 
 int64_t
@@ -461,7 +419,7 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
-        key.trustLine().asset = asset;
+        key.trustLine().asset = assetToTrustLineAsset(asset);
         auto entry = ltx.loadWithoutRecord(key);
         if (entry)
         {

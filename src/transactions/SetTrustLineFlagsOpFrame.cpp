@@ -95,7 +95,7 @@ SetTrustLineFlagsOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if (!isAssetValid(mSetTrustLineFlags.asset))
+    if (!isAssetValid(mSetTrustLineFlags.asset, ledgerVersion))
     {
         innerResult().code(SET_TRUST_LINE_FLAGS_MALFORMED);
         return false;
