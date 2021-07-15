@@ -291,6 +291,12 @@ loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
     return ltx.load(sponsorshipCounterKey(sponsoringID));
 }
 
+LedgerTxnEntry
+loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
+{
+    return ltx.load(liquidityPoolKey(poolID));
+}
+
 static void
 acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
                             LedgerTxnHeader const& header,
