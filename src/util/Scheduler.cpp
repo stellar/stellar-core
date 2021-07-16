@@ -171,6 +171,23 @@ Scheduler::Scheduler(VirtualClock& clock,
     setOverloaded(false);
 }
 
+std::unordered_map<std::string, size_t>
+Scheduler::queueSizes() const
+{
+    std::unordered_map<std::string, size_t> res;
+
+    for (auto const& q : mAllActionQueues)
+    {
+        auto emp = res.emplace(std::make_pair(q.first.first, q.second->size()));
+        // Already exists
+        if (!emp.second)
+        {
+            emp.first->second += q.second->size();
+        }
+    }
+    return res;
+}
+
 void
 Scheduler::trimSingleActionQueue(Qptr q, VirtualClock::time_point now)
 {
