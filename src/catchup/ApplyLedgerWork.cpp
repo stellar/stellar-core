@@ -5,6 +5,7 @@
 #include "catchup/ApplyLedgerWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -23,7 +24,15 @@ BasicWork::State
 ApplyLedgerWork::onRun()
 {
     ZoneScoped;
-    mApp.getLedgerManager().closeLedger(mLedgerCloseData);
+    try
+    {
+        mApp.getLedgerManager().closeLedger(mLedgerCloseData);
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(History, "Replay failed: {}", e.what());
+        return State::WORK_FAILURE;
+    }
     return BasicWork::State::WORK_SUCCESS;
 }
 
