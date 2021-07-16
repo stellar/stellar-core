@@ -27,7 +27,7 @@ RUN make install
 FROM ubuntu:focal
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get -y install libunwind8 postgresql curl sqlite iproute2 libc++abi1-8 libc++1-8
+    apt-get -y install libunwind8 postgresql curl sqlite iproute2 libc++abi1-10 libc++1-10
 
 COPY --from=buildstage /usr/local/bin/stellar-core /usr/local/bin/stellar-core
 EXPOSE 11625

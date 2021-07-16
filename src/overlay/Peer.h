@@ -112,6 +112,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
+    static uint32_t const MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT;
+    static size_t const ADVERT_FLUSH_THRESHOLD;
+    static std::chrono::milliseconds const ADVERT_TIMER;
+
   protected:
     Application& mApp;
 
@@ -146,6 +150,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerMetrics mPeerMetrics;
 
+    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
+    // of flood messages, then periodically flush the advert and await a
+    // _demand_ message with a list of flood messages to send. Adverts are
+    // typically smaller than full messages and batching them means we also
+    // amortize the authentication framing.
+    StellarMessage mPendingAdvertMsg;
+    bool mAdvertTimerActive{false};
+    VirtualTimer mAdvertTimer;
+
     OverlayMetrics& getOverlayMetrics();
 
     bool shouldAbort() const;
@@ -172,6 +185,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvSCPQuorumSet(StellarMessage const& msg);
     void recvSCPMessage(StellarMessage const& msg);
     void recvGetSCPState(StellarMessage const& msg);
+
+    void recvFloodAdvert(StellarMessage const& msg);
+    void recvFloodDemand(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();
@@ -225,6 +241,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
                           DropMode dropMode);
 
     void sendMessage(StellarMessage const& msg, bool log = true);
+
+    bool supportsAdverts() const;
+    void flushPendingAdvert();
+    void advertizeMessage(uint64_t shortHash);
 
     PeerRole
     getRole() const
