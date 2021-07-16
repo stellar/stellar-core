@@ -270,20 +270,32 @@ TestAccount::setTrustLineFlags(
 TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const
 {
+    return loadTrustLine(assetToTrustLineAsset(asset));
+}
+
+TrustLineEntry
+TestAccount::loadTrustLine(TrustLineAsset const& asset) const
+{
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = assetToTrustLineAsset(asset);
+    key.trustLine().asset = asset;
     return ltx.load(key).current().data.trustLine();
 }
 
 bool
 TestAccount::hasTrustLine(Asset const& asset) const
 {
+    return hasTrustLine(assetToTrustLineAsset(asset));
+}
+
+bool
+TestAccount::hasTrustLine(TrustLineAsset const& asset) const
+{
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = assetToTrustLineAsset(asset);
+    key.trustLine().asset = asset;
     return (bool)ltx.load(key);
 }
 
