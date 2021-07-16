@@ -18,6 +18,7 @@ class HistoryManager;
 class Bucket;
 class TmpDir;
 class CatchupRange;
+class GetAndUnzipRemoteFileWork;
 
 using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
@@ -85,6 +86,7 @@ class CatchupWork : public Work
 
     std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
     std::shared_ptr<GetHistoryArchiveStateWork> mGetBucketStateWork;
+    std::shared_ptr<GetAndUnzipRemoteFileWork> mDownloadStateForHerder;
 
     WorkSeqPtr mDownloadVerifyLedgersSeq;
     std::promise<LedgerNumHashPair> mRangeEndPromise;

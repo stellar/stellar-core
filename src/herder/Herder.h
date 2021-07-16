@@ -104,7 +104,13 @@ class Herder
     virtual void shutdown() = 0;
 
     // restores Herder's state from disk
-    virtual void restoreState() = 0;
+    virtual void start() = 0;
+    virtual void lostSync() = 0;
+
+    virtual void lastClosedLedgerIncreased() = 0;
+
+    virtual void setTrackingSCPState(uint64_t index,
+                                     StellarValue const& value) = 0;
 
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
@@ -129,14 +135,15 @@ class Herder
     virtual void
     externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
                      uint64_t closeTime,
-                     xdr::xvector<UpgradeType, 6> const& upgrades) = 0;
+                     xdr::xvector<UpgradeType, 6> const& upgrades,
+                     std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
+
+    virtual VirtualTimer const& getTriggerTimer() const = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
-    // returns the latest known ledger seq using consensus information
-    // and local state
-    virtual uint32_t getCurrentLedgerSeq() const = 0;
+    virtual uint32_t trackingConsensusLedgerIndex() const = 0;
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;

@@ -507,7 +507,7 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
                             std::function<void()> cb)
 {
     // don't setup timers for old slots
-    if (slotIndex <= mApp.getHerder().getCurrentLedgerSeq())
+    if (slotIndex <= mApp.getHerder().trackingConsensusLedgerIndex())
     {
         mSCPTimers.erase(slotIndex);
         return;
@@ -724,7 +724,8 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
     //  * when getting back in sync (a gap potentially opened)
     // in both cases do limited processing on older slots; more importantly,
     // deliver externalize events to LedgerManager
-    bool isLatestSlot = slotIndex > mApp.getHerder().getCurrentLedgerSeq();
+    bool isLatestSlot =
+        slotIndex > mApp.getHerder().trackingConsensusLedgerIndex();
 
     // Only update tracking state when newer slot comes in
     if (isLatestSlot)

@@ -27,13 +27,13 @@ TEST_CASE("messagelimiter", "[overlay][survey][messagelimiter]")
 
     // we need to pass a lower ledgerNum into the rate limiter to test the
     // window,  so make sure this is not 0
-    REQUIRE(app->getHerder().getCurrentLedgerSeq() == 1);
+    REQUIRE(app->getHerder().trackingConsensusLedgerIndex() == 1);
 
     const uint32_t ledgerNumWindow = 0;
     const uint32_t surveyorRequestLimit = 2;
     SurveyMessageLimiter rm(*app, ledgerNumWindow, surveyorRequestLimit);
 
-    auto ledgerNum = app->getHerder().getCurrentLedgerSeq();
+    auto ledgerNum = app->getHerder().trackingConsensusLedgerIndex();
     SurveyRequestMessage firstRequest(v0SecretKey.getPublicKey(),
                                       v1SecretKey.getPublicKey(), ledgerNum,
                                       temp, SURVEY_TOPOLOGY);

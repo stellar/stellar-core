@@ -41,10 +41,12 @@ class HerderImpl : public Herder
         TimePoint mConsensusCloseTime{0};
     };
 
-    void setTrackingSCPState(uint64_t index, StellarValue const& value);
+    void setTrackingSCPState(uint64_t index,
+                             StellarValue const& value) override;
 
-    // the ledger index that was last externalized
-    uint32 trackingConsensusLedgerIndex() const;
+    // returns the latest known ledger from the network, requires Herder to be
+    // in fully booted state
+    uint32 trackingConsensusLedgerIndex() const override;
 
     TimePoint trackingConsensusCloseTime() const;
 
@@ -55,7 +57,8 @@ class HerderImpl : public Herder
         return trackingConsensusLedgerIndex() + 1;
     }
 
-    void lostSync();
+    void lostSync() override;
+    void lastClosedLedgerIncreased() override;
 
     HerderImpl(Application& app);
     ~HerderImpl();
@@ -69,7 +72,7 @@ class HerderImpl : public Herder
     void bootstrap() override;
     void shutdown() override;
 
-    void restoreState() override;
+    void start() override;
 
     SCP& getSCP();
     HerderSCPDriver&
@@ -98,10 +101,18 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
-    void
-    externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
-                     uint64_t closeTime,
-                     xdr::xvector<UpgradeType, 6> const& upgrades) override;
+    void externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+                          uint64_t closeTime,
+                          xdr::xvector<UpgradeType, 6> const& upgrades,
+                          std::optional<SecretKey> skToSignValue) override;
+
+    VirtualTimer const&
+    getTriggerTimer() const override
+    {
+        return mTriggerTimer;
+    }
+
+    uint32_t mTriggerNextLedgerSeq{0};
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
@@ -114,7 +125,6 @@ class HerderImpl : public Herder
 
     void processSCPQueue();
 
-    uint32_t getCurrentLedgerSeq() const override;
     uint32 getMinLedgerSeqToAskPeers() const override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
@@ -174,9 +184,11 @@ class HerderImpl : public Herder
     ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
                                       std::chrono::milliseconds::zero());
 
-    void ledgerClosed(bool synchronous);
+    void cleanup();
 
-    void maybeTriggerNextLedger(bool synchronous);
+    bool mShouldTrigger{false};
+
+    void setupTriggerNextLedger(bool synchronous);
 
     void startOutOfSyncTimer();
     void outOfSyncRecovery();

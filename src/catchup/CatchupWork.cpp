@@ -11,6 +11,7 @@
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
+#include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -31,6 +32,25 @@ namespace stellar
 
 uint32_t const CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION = 8;
 uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 16;
+
+static std::shared_ptr<LedgerHeaderHistoryEntry>
+getHistoryEntryForLedger(uint32_t ledgerSeq, FileTransferInfo const& ft)
+{
+    XDRInputFileStream in;
+    in.open(ft.localPath_nogz());
+
+    auto lhhe = std::make_shared<LedgerHeaderHistoryEntry>();
+
+    while (in && in.readOne<LedgerHeaderHistoryEntry>(*lhhe))
+    {
+        if (lhhe->header.ledgerSeq == ledgerSeq)
+        {
+            return lhhe;
+        }
+    }
+
+    return nullptr;
+}
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
@@ -98,6 +118,7 @@ CatchupWork::doReset()
     mVerifyLedgers.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
     mCurrentWork.reset();
+    mDownloadStateForHerder.reset();
 }
 
 bool
@@ -299,6 +320,42 @@ CatchupWork::runCatchupStep()
     auto catchupRange =
         CatchupRange{mLastClosedLedgerHashPair.first, resolvedConfiguration,
                      mApp.getHistoryManager()};
+
+    auto checkpoint = mApp.getHistoryManager().checkpointContainingLedger(
+        catchupRange.last());
+    auto ft =
+        FileTransferInfo(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER, checkpoint);
+
+    if (!mDownloadStateForHerder)
+    {
+        mDownloadStateForHerder = addWork<GetAndUnzipRemoteFileWork>(ft);
+        return State::WORK_RUNNING;
+    }
+    else if (mDownloadStateForHerder->getState() !=
+             BasicWork::State::WORK_SUCCESS)
+    {
+        return mDownloadStateForHerder->getState();
+    }
+
+    if (mApp.getHerder().trackingConsensusLedgerIndex() < catchupRange.last())
+    {
+        auto entry = getHistoryEntryForLedger(catchupRange.last(), ft);
+        if (!entry)
+        {
+            CLOG_ERROR(History,
+                       "Malformed catchup file does not contain "
+                       "LedgerHeaderHistoryEntry for ledger {}",
+                       catchupRange.last());
+            return BasicWork::State::WORK_FAILURE;
+        }
+
+        mApp.getHerder().setTrackingSCPState(catchupRange.last(),
+                                             entry->header.scpValue);
+        // As we're catching up, do not claim to be in sync
+        mApp.getHerder().lostSync();
+        CLOG_INFO(History, "Herder state is set! tracking={}, closeTime={}",
+                  catchupRange.last(), entry->header.scpValue.closeTime);
+    }
 
     // Step 3: If needed, download archive state for buckets
     if (catchupRange.applyBuckets())

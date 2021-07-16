@@ -424,6 +424,9 @@ void
 LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 {
     ZoneScoped;
+    // Capture LCL before we do any processing (which may trigger ledger close)
+    auto lcl = getLastClosedLedgerNum();
+
     CLOG_INFO(Ledger,
               "Got consensus: [seq={}, prev={}, txs={}, ops={}, sv: {}]",
               ledgerData.getLedgerSeq(),
@@ -450,6 +453,14 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
     if (!cm.hasBufferedLedger())
     {
         setState(LM_SYNCED_STATE);
+        // New ledger(s) got closed, notify Herder
+        if (getLastClosedLedgerNum() > lcl)
+        {
+            CLOG_DEBUG(Ledger,
+                       "LedgerManager::valueExternalized LCL advanced {} -> {}",
+                       lcl, getLastClosedLedgerNum());
+            mApp.getHerder().lastClosedLedgerIncreased();
+        }
     }
 
     FrameMark;

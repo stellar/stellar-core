@@ -1145,7 +1145,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         auto addToCandidates = [&](TxPair const& p) {
             auto envelope = makeEnvelope(
-                herder, p, {}, herder.getCurrentLedgerSeq() + 1, true);
+                herder, p, {}, herder.trackingConsensusLedgerIndex() + 1, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
@@ -1271,7 +1271,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& scp = herder.getHerderSCPDriver();
-        auto seq = herder.getCurrentLedgerSeq() + 1;
+        auto seq = herder.trackingConsensusLedgerIndex() + 1;
         auto ct = app->timeNow() + 1;
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
@@ -1375,7 +1375,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
                 // Build a StellarValue containing the transaction set we just
                 // built and the given next closeTime.
                 auto val = makeTxPair(herder, txSet, nextCloseTime);
-                auto const seq = herder.getCurrentLedgerSeq() + 1;
+                auto const seq = herder.trackingConsensusLedgerIndex() + 1;
                 auto envelope = makeEnvelope(herder, val, {}, seq, true);
                 REQUIRE(herder.recvSCPEnvelope(envelope) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
@@ -1457,7 +1457,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         auto p1 = makeTxPair(herder, transactions1, 10);
         auto p2 = makeTxPair(herder, transactions1, 10);
         // use current + 1 to allow for any value (old values get filtered more)
-        auto lseq = herder.getCurrentLedgerSeq() + 1;
+        auto lseq = herder.trackingConsensusLedgerIndex() + 1;
         auto saneEnvelopeQ1T1 =
             makeEnvelope(herder, p1, saneQSet1Hash, lseq, true);
         auto saneEnvelopeQ1T2 =
@@ -2016,17 +2016,22 @@ TEST_CASE("herder externalizes values", "[herder]")
             if (i == ledgers.size() - 1)
             {
                 checkSynced(*(getC()));
+                // All the buffered ledgers are applied by now, so it's safe to
+                // trigger the next ledger
+                REQUIRE(herderC.mTriggerNextLedgerSeq == fourth + 1);
             }
             else
             {
                 REQUIRE(!lmC.isSynced());
+                // As we're not in sync yet, ensure next ledger is not triggered
+                REQUIRE(herderC.mTriggerNextLedgerSeq == currentLedger + 1);
             }
         }
 
         // As we're back in sync now, ensure Herder and LM are consistent with
         // each other
         auto lcl = lmC.getLastClosedLedgerNum();
-        REQUIRE(lcl == herderC.getCurrentLedgerSeq());
+        REQUIRE(lcl == herderC.trackingConsensusLedgerIndex());
 
         // Ensure that C sent out a nomination message for the next consensus
         // round
@@ -2058,6 +2063,10 @@ TEST_CASE("herder externalizes values", "[herder]")
                             msgPair.first);
                 // LM is synced
                 checkSynced(*(getC()));
+
+                // Since we're externalizing ledgers in order, make sure ledger
+                // trigger is scheduled
+                REQUIRE(herderC.mTriggerNextLedgerSeq == msgPair.first + 1);
             }
         };
 
@@ -2125,6 +2134,8 @@ TEST_CASE("herder externalizes values", "[herder]")
                         Herder::State::HERDER_TRACKING_NETWORK_STATE,
                         currentlyTracking);
             checkSynced(*newC);
+            // Externalizeding an old ledger should not trigger next ledger
+            REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
         }
         SECTION("not tracking")
         {
@@ -2144,6 +2155,9 @@ TEST_CASE("herder externalizes values", "[herder]")
             checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
                         currentlyTracking);
             checkSynced(*newC);
+
+            // Externalizing an old ledger should not trigger next ledger
+            REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
         }
     }
     SECTION("trigger next ledger")
@@ -2169,6 +2183,33 @@ TEST_CASE("herder externalizes values", "[herder]")
             REQUIRE(currentALedger() == nextLedger);
             // C is at most a ledger behind
             REQUIRE(currentCLedger() >= nextLedger - 1);
+        }
+        SECTION("restarting C should not trigger twice")
+        {
+            auto configC = getC()->getConfig();
+
+            simulation->removeNode(validatorCKey.getPublicKey());
+
+            auto newC =
+                simulation->addNode(validatorCKey, qset, &configC, false);
+
+            // Restarting C should trigger due to FORCE_SCP
+            newC->start();
+            HerderImpl& newHerderC =
+                *static_cast<HerderImpl*>(&newC->getHerder());
+
+            auto expiryTime = newHerderC.getTriggerTimer().expiry_time();
+            REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
+
+            simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+            // C receives enough messages to externalize LCL again
+            receiveLedger(newC->getLedgerManager().getLastClosedLedgerNum(),
+                          newHerderC);
+
+            // Trigger timer did not change
+            REQUIRE(expiryTime == newHerderC.getTriggerTimer().expiry_time());
+            REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
         }
     }
 }
