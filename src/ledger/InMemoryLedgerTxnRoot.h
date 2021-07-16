@@ -51,6 +51,10 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                            Asset const& asset) override;
+
     LedgerHeader const& getHeader() const override;
 
     std::vector<InflationWinner>

@@ -62,7 +62,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 13;
-static unsigned long const SCHEMA_VERSION = 15;
+static unsigned long const SCHEMA_VERSION = 16;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -210,6 +210,9 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
     case 15:
         mApp.getPersistentState().setRebuildForType(TRUSTLINE);
+        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
+        break;
+    case 16:
         mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
         break;
     default:
