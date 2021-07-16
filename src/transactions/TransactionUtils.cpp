@@ -1149,8 +1149,7 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
         tlAsset.alphaNum12() = ctAsset.alphaNum12();
         break;
     case stellar::ASSET_TYPE_POOL_SHARE:
-        tlAsset.liquidityPoolID() =
-            xdrSha256(ctAsset.liquidityPool().constantProduct());
+        tlAsset.liquidityPoolID() = xdrSha256(ctAsset.liquidityPool());
         break;
     default:
         throw std::runtime_error("Unknown asset type");
