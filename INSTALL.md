@@ -4,6 +4,7 @@ These are instructions for building stellar-core from source.
 
 For a potentially quicker set up, the following projects could be good alternatives:
 
+* stellar-core on [Gitpod](https://gitpod.io/#https://github.com/stellar/stellar-core)
 * stellar-core in a [docker container](https://github.com/stellar/docker-stellar-core)
 * stellar-core and [horizon](https://github.com/stellar/go/tree/master/services/horizon) in a [docker container](https://github.com/stellar/docker-stellar-core-horizon)
 * pre-compiled [packages](https://github.com/stellar/packages)
@@ -25,6 +26,12 @@ For convenience, we also keep a record in the form of release tags of the
  versions that make it to production:
  * pre-releases are versions that get deployed to testnet
  * releases are versions that made it all the way in prod
+
+## Zero-install browser-based cloud IDE with Gitpod
+
+To browse, build, test, and develop Stellar Core code in your browser using
+[Gitpod](https://www.gitpod.io/), click
+[here](https://gitpod.io/#https://github.com/stellar/stellar-core).
 
 ## Containerized dev environment
 
