@@ -323,12 +323,6 @@ ApplyCheckpointWork::onRun()
         mConditionalWork->startWork(wakeSelfUpCallback());
         return State::WORK_RUNNING;
     }
-    catch (InvariantDoesNotHold&)
-    {
-        // already displayed e.what()
-        CLOG_ERROR(History, "Replay failed");
-        throw;
-    }
     catch (FileSystemException&)
     {
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
