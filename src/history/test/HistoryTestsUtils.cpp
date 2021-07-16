@@ -1083,7 +1083,7 @@ CatchupSimulation::computeCatchupPerformedWork(
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
     auto txSetsApplied = catchupRange.getReplayCount();
     return {historyArchiveStatesDownloaded,
-            checkpointsDownloaded,
+            checkpointsDownloaded + 1,
             ledgersVerified,
             0,
             catchupRange.applyBuckets(),
