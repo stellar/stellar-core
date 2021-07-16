@@ -62,7 +62,9 @@ class TestAccount
                            txtest::SetTrustLineFlagsArguments const& arguments);
 
     TrustLineEntry loadTrustLine(Asset const& asset) const;
+    TrustLineEntry loadTrustLine(TrustLineAsset const& asset) const;
     bool hasTrustLine(Asset const& asset) const;
+    bool hasTrustLine(TrustLineAsset const& asset) const;
 
     void setOptions(txtest::SetOptionsArguments const& arguments);
 
