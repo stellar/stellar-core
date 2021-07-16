@@ -17,6 +17,133 @@
 namespace stellar
 {
 
+static void
+decrementPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
+                      AccountID const& accountID)
+{
+    if (!isIssuer(accountID, asset) && asset.type() != ASSET_TYPE_NATIVE)
+    {
+        auto assetTrustLine = ltx.load(trustlineKey(accountID, asset));
+        if (!assetTrustLine)
+        {
+            throw std::runtime_error("asset trustline is missing");
+        }
+
+        if (--getTrustLineEntryExtensionV2(
+                  assetTrustLine.current().data.trustLine())
+                  .liquidityPoolUseCount < 0)
+        {
+            throw std::runtime_error("liquidityPoolUseCount is negative");
+        }
+    }
+}
+
+static void
+managePoolOnDeletedTrustLine(
+    AbstractLedgerTxn& ltx,
+    LiquidityPoolConstantProductParameters const& cpParams,
+    PoolID const& poolID, AccountID const& sourceAccount)
+{
+    decrementPoolUseCount(ltx, cpParams.assetA, sourceAccount);
+    decrementPoolUseCount(ltx, cpParams.assetB, sourceAccount);
+
+    auto poolLtxEntry = loadLiquidityPool(ltx, poolID);
+    if (!poolLtxEntry)
+    {
+        throw std::runtime_error("liquidity pool is missing");
+    }
+
+    auto poolTLCount = --poolLtxEntry.current()
+                             .data.liquidityPool()
+                             .body.constantProduct()
+                             .poolSharesTrustLineCount;
+    if (poolTLCount == 0)
+    {
+        poolLtxEntry.erase();
+    }
+    else if (poolTLCount < 0)
+    {
+        throw std::runtime_error("poolSharesTrustLineCount is negative");
+    }
+}
+
+bool
+ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
+                                             Asset const& asset)
+{
+    if (!isIssuer(getSourceID(), asset) && asset.type() != ASSET_TYPE_NATIVE)
+    {
+        auto assetTrustLine = ltx.load(trustlineKey(getSourceID(), asset));
+        if (!assetTrustLine)
+        {
+            innerResult().code(CHANGE_TRUST_TRUST_LINE_MISSING);
+            return false;
+        }
+
+        if (!isAuthorizedToMaintainLiabilities(assetTrustLine))
+        {
+            innerResult().code(CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
+            return false;
+        }
+
+        if (prepareTrustLineEntryExtensionV2(
+                assetTrustLine.current().data.trustLine())
+                .liquidityPoolUseCount == INT32_MAX)
+        {
+            throw std::runtime_error("liquidityPoolUseCount is INT32_MAX");
+        }
+
+        ++prepareTrustLineEntryExtensionV2(
+              assetTrustLine.current().data.trustLine())
+              .liquidityPoolUseCount;
+    }
+
+    return true;
+}
+
+bool
+ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
+                                                PoolID const& poolID)
+{
+    auto const& cpParams = mChangeTrust.line.liquidityPool().constantProduct();
+    if (!tryIncrementPoolUseCount(ltx, cpParams.assetA) ||
+        !tryIncrementPoolUseCount(ltx, cpParams.assetB))
+    {
+        return false;
+    }
+
+    auto poolLtxEntry = loadLiquidityPool(ltx, poolID);
+    if (poolLtxEntry)
+    {
+        auto& cp =
+            poolLtxEntry.current().data.liquidityPool().body.constantProduct();
+        if (cp.poolSharesTrustLineCount == INT64_MAX)
+        {
+            throw std::runtime_error("poolSharesTrustLineCount is INT64_MAX");
+        }
+
+        ++cp.poolSharesTrustLineCount;
+    }
+    else
+    {
+        LedgerEntry liquidityPoolEntry;
+        liquidityPoolEntry.data.type(LIQUIDITY_POOL);
+        auto& lp = liquidityPoolEntry.data.liquidityPool();
+        lp.liquidityPoolID = poolID;
+
+        auto& cp = lp.body.constantProduct();
+        cp.reserveA = 0;
+        cp.reserveB = 0;
+        cp.totalPoolShares = 0;
+        cp.poolSharesTrustLineCount = 1;
+        cp.params = cpParams;
+
+        ltx.create(liquidityPoolEntry);
+    }
+
+    return true;
+}
+
 ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
                                        OperationResult& res,
                                        TransactionFrame& parentTx)
@@ -30,7 +157,12 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
     auto header = ltx.loadHeader();
-    auto issuerID = getIssuer(mChangeTrust.line);
+
+    // This can be true at this point pre V10
+    if (mChangeTrust.line.type() == ASSET_TYPE_NATIVE)
+    {
+        throw std::runtime_error("native asset is not valid in ChangeTrustOp");
+    }
 
     if (header.current().ledgerVersion > 2)
     {
@@ -38,21 +170,21 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         //     issuerID == getSourceID()
         // and issuer does not exist then this operation would have already
         // failed with opNO_ACCOUNT.
-        if (issuerID == getSourceID())
+        if (isIssuer(getSourceID(), mChangeTrust.line))
         {
             // since version 3 it is not allowed to use CHANGE_TRUST on self
             innerResult().code(CHANGE_TRUST_SELF_NOT_ALLOWED);
             return false;
         }
     }
-    else if (issuerID == getSourceID())
+    else if (isIssuer(getSourceID(), mChangeTrust.line))
     {
         if (mChangeTrust.limit < INT64_MAX)
         {
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
-        else if (!stellar::loadAccountWithoutRecord(ltx, issuerID))
+        else if (!loadAccountWithoutRecord(ltx, getSourceID()))
         {
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
@@ -74,7 +206,28 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         if (mChangeTrust.limit == 0)
-        {
+        { // we are deleting a trustline
+
+            // use a lambda so we don't hold a reference to the TrustLineEntry
+            auto tlEntry = [&]() -> TrustLineEntry const& {
+                return trustLine.current().data.trustLine();
+            };
+
+            if (tlEntry().asset.type() == ASSET_TYPE_POOL_SHARE)
+            {
+                auto const& cp =
+                    mChangeTrust.line.liquidityPool().constantProduct();
+
+                managePoolOnDeletedTrustLine(
+                    ltx, cp, tlEntry().asset.liquidityPoolID(), getSourceID());
+            }
+            else if (hasTrustLineEntryExtV2(tlEntry()) &&
+                     tlEntry().ext.v1().ext.v2().liquidityPoolUseCount != 0)
+            {
+                innerResult().code(CHANGE_TRUST_CANNOT_DELETE);
+                return false;
+            }
+
             // line gets deleted
             auto sourceAccount = loadSourceAccount(ltx, header);
             removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
@@ -83,8 +236,8 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
         else
         {
-            auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
-            if (!issuer)
+            if (mChangeTrust.line.type() != ASSET_TYPE_POOL_SHARE &&
+                !loadAccountWithoutRecord(ltx, getIssuer(mChangeTrust.line)))
             {
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
                 return false;
@@ -110,8 +263,10 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         tl.limit = mChangeTrust.limit;
         tl.balance = 0;
 
+        if (mChangeTrust.line.type() != ASSET_TYPE_POOL_SHARE)
         {
-            auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
+            auto issuer =
+                loadAccountWithoutRecord(ltx, getIssuer(mChangeTrust.line));
             if (!issuer)
             {
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
@@ -125,6 +280,11 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             {
                 tl.flags |= TRUSTLINE_CLAWBACK_ENABLED_FLAG;
             }
+        }
+        else if (!tryManagePoolOnNewTrustLine(
+                     ltx, key.trustLine().asset.liquidityPoolID()))
+        {
+            return false;
         }
 
         auto sourceAccount = loadSourceAccount(ltx, header);
