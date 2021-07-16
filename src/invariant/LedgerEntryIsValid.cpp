@@ -202,6 +202,17 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     {
         return "Pool share TrustLine has liabilities";
     }
+    if (hasTrustLineEntryExtV2(tl))
+    {
+        if (version < 18)
+        {
+            return "TrustLine has v2 extension before protocol version 18";
+        }
+        if (tl.ext.v1().ext.v2().liquidityPoolUseCount < 0)
+        {
+            return "TrustLine liquidityPoolUseCount is negative";
+        }
+    }
     if (tl.balance < 0)
     {
         return fmt::format("TrustLine balance ({}) is negative", tl.balance);
