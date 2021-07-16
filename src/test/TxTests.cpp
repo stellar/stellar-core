@@ -595,8 +595,18 @@ allowTrust(PublicKey const& trustor, Asset const& asset, uint32_t authorize)
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor;
-    op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    op.body.allowTrustOp().asset.assetCode4() = asset.alphaNum4().assetCode;
+    op.body.allowTrustOp().asset.type(asset.type());
+
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        op.body.allowTrustOp().asset.assetCode4() = asset.alphaNum4().assetCode;
+    }
+    else
+    {
+        op.body.allowTrustOp().asset.assetCode12() =
+            asset.alphaNum12().assetCode;
+    }
+
     op.body.allowTrustOp().authorize = authorize;
 
     return op;
