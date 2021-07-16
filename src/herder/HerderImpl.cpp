@@ -1701,8 +1701,6 @@ HerderImpl::restoreSCPState()
         }
         mPendingEnvelopes.rebuildQuorumTrackerState();
     }
-
-    startOutOfSyncTimer();
 }
 
 void

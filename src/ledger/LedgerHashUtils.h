@@ -52,10 +52,9 @@ getAssetHash(T const& asset)
     }
     case stellar::ASSET_TYPE_POOL_SHARE:
     {
-        size_t res = asset.type();
         res ^= stellar::shortHash::computeHash(
             stellar::ByteSlice(getLiquidityPoolID(asset).data(), 8));
-        return res;
+        break;
     }
     default:
         throw std::runtime_error("unknown Asset type");
