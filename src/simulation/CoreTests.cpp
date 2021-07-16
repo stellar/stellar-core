@@ -394,7 +394,8 @@ TEST_CASE(
     auto& app = *nodes[0]; // pick a node to generate load
 
     auto& loadGen = app.getLoadGenerator();
-    loadGen.generateLoad(true, 3, 0, 0, 10, 100, std::chrono::seconds(0), 0);
+    loadGen.generateLoad(LoadGenMode::CREATE, 3, 0, 0, 10, 100,
+                         std::chrono::seconds(0), 0);
     try
     {
         simulation->crankUntil(
@@ -407,8 +408,8 @@ TEST_CASE(
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        loadGen.generateLoad(false, 3, 0, 10, 10, 100, std::chrono::seconds(0),
-                             0);
+        loadGen.generateLoad(LoadGenMode::PAY, 3, 0, 10, 10, 100,
+                             std::chrono::seconds(0), 0);
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
@@ -521,8 +522,8 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     uint32_t numItems = 500000;
 
     // Create accounts
-    loadGen.generateLoad(true, numItems, 0, 0, 10, 100, std::chrono::seconds(0),
-                         0);
+    loadGen.generateLoad(LoadGenMode::CREATE, numItems, 0, 0, 10, 100,
+                         std::chrono::seconds(0), 0);
 
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -537,7 +538,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     txtime.Clear();
 
     // Generate payment txs
-    loadGen.generateLoad(false, numItems, 0, numItems / 10, 10, 100,
+    loadGen.generateLoad(LoadGenMode::PAY, numItems, 0, numItems / 10, 10, 100,
                          std::chrono::seconds(0), 0);
     while (!io.stopped() && complete.count() == 1)
     {
@@ -572,8 +573,8 @@ netTopologyTest(std::string const& name,
         auto& app = *nodes[0];
 
         auto& loadGen = app.getLoadGenerator();
-        loadGen.generateLoad(true, 50, 0, 0, 10, 100, std::chrono::seconds(0),
-                             0);
+        loadGen.generateLoad(LoadGenMode::CREATE, 50, 0, 0, 10, 100,
+                             std::chrono::seconds(0), 0);
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 

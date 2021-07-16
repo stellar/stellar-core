@@ -65,6 +65,7 @@ ledger.transaction.count                 | histogram | number of transactions pe
 ledger.transaction.internal-error        | counter   | number of internal errors since start
 loadgen.account.created                  | meter     | loadgenerator: account created
 loadgen.payment.native                   | meter     | loadgenerator: native payment submitted
+loadgen.pretend.submitted                | meter     | loadgenerator: pretend ops submitted
 loadgen.run.complete                     | meter     | loadgenerator: run complete
 loadgen.step.count                       | meter     | loadgenerator: generated some transactions
 loadgen.step.submit                      | timer     | loadgenerator: time spent submiting transactions per step
