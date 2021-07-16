@@ -23,3 +23,6 @@
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog
 	ignore = dirty
+[submodule "lib/photesthesis"]
+	path = lib/photesthesis
+	url = https://github.com/graydon/photesthesis

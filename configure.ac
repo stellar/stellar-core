@@ -153,6 +153,23 @@ AS_IF([test x != "x$sanitizeopts"], [
 
 ])
 
+AC_ARG_ENABLE([sancov],
+  AS_HELP_STRING([--enable-sancov],
+        [build with sanitizer-coverage instrumentation (supporting coverage-guided testing)]))
+AS_IF([test "x$enable_sancov" = "xyes"], [
+  AC_MSG_NOTICE([ enabling sanitizer-coverage, see  https://clang.llvm.org/docs/SanitizerCoverage.html])
+  sancovflags="-fsanitize-coverage=inline-8bit-counters"
+  # Further check for the allowlist/blocklist support present in clang 11 -- this is basically
+  # necessary to use the photesthesis test system effectively, as it cannot stabilize the
+  # sancov counters without selective instrumentation.
+  AX_CHECK_COMPILE_FLAG([-fsanitize-coverage-allowlist=${ac_abs_confdir}/sancov-allowlist.txt], [
+    sancovflags+=" -fsanitize-coverage-allowlist=${ac_abs_confdir}/sancov-allowlist.txt"
+    sancovflags+=" -fsanitize-coverage-blocklist=${ac_abs_confdir}/sancov-blocklist.txt"
+  ], [])
+  CFLAGS="$CFLAGS $sancovflags"
+  CXXFLAGS="$CXXFLAGS $sancovflags"
+])
+
 AC_ARG_ENABLE([extrachecks],
   AS_HELP_STRING([--enable-extrachecks],
         [build with additional debugging checks enabled]))

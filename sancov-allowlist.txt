@@ -1,0 +1,29 @@
+# This file controls instrumentation of functions using sancov, which is used to support
+# trajectory-evaluation by the photesthesis tool.
+#
+# For a function to be instrumented is must both reside in file listed in a 'src:' pattern
+# _and_ have a name listed in a 'fun:' pattern.
+
+# Instrument everything in the main stellar src directories
+src:*/bucket/*
+src:*/catchup/*
+src:*/crypto/*
+src:*/database/*
+src:*/herder/*
+src:*/history/*
+src:*/historywork/*
+src:*/invariant/*
+src:*/ledger/*
+src:*/main/*
+src:*/overlay/*
+src:*/process/*
+src:*/scp/*
+src:*/simulation/*
+src:*/test/*
+src:*/transactions/*
+src:*/util/*
+src:*/work/*
+src:*/xdr/*
+
+# Instrument everything in those files that's in the stellar:: namespace (this is matched against mangled names)
+fun:*
