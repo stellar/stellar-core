@@ -24,10 +24,14 @@ canEstablishSponsorshipHelper(LedgerHeader const& lh,
         return SponsorshipResult::LOW_RESERVE;
     }
 
-    if (getNumSponsoring(sponsoringAcc) > UINT32_MAX - mult)
+    uint32_t numSubEntries =
+        lh.ledgerVersion > 17 ? sponsoringAcc.data.account().numSubEntries : 0;
+
+    if (getNumSponsoring(sponsoringAcc) > UINT32_MAX - mult - numSubEntries)
     {
         return SponsorshipResult::TOO_MANY_SPONSORING;
     }
+
     if (sponsoredAcc && getNumSponsored(*sponsoredAcc) > UINT32_MAX - mult)
     {
         return SponsorshipResult::TOO_MANY_SPONSORED;
@@ -153,6 +157,8 @@ computeMultiplier(LedgerEntry const& le)
     case ACCOUNT:
         return 2;
     case TRUSTLINE:
+        return le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE ? 2
+                                                                         : 1;
     case OFFER:
     case DATA:
         return 1;
@@ -185,6 +191,15 @@ isSubentry(LedgerEntry const& le)
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }
+}
+
+static bool
+isSponsoringNumSubentryComboValid(LedgerHeader const& lh,
+                                  LedgerEntry const& acc, uint32_t mult)
+{
+    return lh.ledgerVersion < 18 ||
+           getNumSponsoring(acc) <=
+               UINT32_MAX - mult - acc.data.account().numSubEntries;
 }
 
 SponsorshipResult
@@ -424,13 +439,19 @@ canCreateEntryWithoutSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
 {
     if (le.data.type() != ACCOUNT)
     {
+        uint32_t mult = computeMultiplier(le);
+
         if (lh.ledgerVersion >= FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS &&
-            acc.data.account().numSubEntries >= ACCOUNT_SUBENTRY_LIMIT)
+            acc.data.account().numSubEntries > ACCOUNT_SUBENTRY_LIMIT - mult)
         {
             return SponsorshipResult::TOO_MANY_SUBENTRIES;
         }
 
-        uint32_t mult = computeMultiplier(le);
+        if (!isSponsoringNumSubentryComboValid(lh, acc, mult))
+        {
+            return SponsorshipResult::TOO_MANY_SUBENTRIES;
+        }
+
         if (lh.ledgerVersion < 9)
         {
             // This is needed to handle the overflow in getMinBalance which was
@@ -475,7 +496,13 @@ canCreateEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
     if (sponsoredAcc && isSubentry(le))
     {
         auto const& acc = sponsoredAcc->data.account();
-        if (acc.numSubEntries >= ACCOUNT_SUBENTRY_LIMIT)
+        uint32_t mult = computeMultiplier(le);
+        if (acc.numSubEntries > ACCOUNT_SUBENTRY_LIMIT - mult)
+        {
+            return SponsorshipResult::TOO_MANY_SUBENTRIES;
+        }
+
+        if (!isSponsoringNumSubentryComboValid(lh, *sponsoredAcc, mult))
         {
             return SponsorshipResult::TOO_MANY_SUBENTRIES;
         }
@@ -607,7 +634,7 @@ createEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
 {
     if (isSubentry(le))
     {
-        ++acc.data.account().numSubEntries;
+        acc.data.account().numSubEntries += computeMultiplier(le);
     }
 }
 
@@ -627,7 +654,7 @@ removeEntryWithoutSponsorship(LedgerEntry& le, LedgerEntry& acc)
 {
     if (le.data.type() != ACCOUNT)
     {
-        --acc.data.account().numSubEntries;
+        acc.data.account().numSubEntries -= computeMultiplier(le);
     }
 }
 
