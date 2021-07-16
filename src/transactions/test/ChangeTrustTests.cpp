@@ -268,6 +268,136 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     SECTION("pool trustline")
     {
+        auto getNumSubEntries = [&](AccountID const& accountID) {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto acc = stellar::loadAccount(ltx, accountID);
+            return acc.current().data.account().numSubEntries;
+        };
+
+        auto poolShareTest = [&](Asset const& assetA, Asset const& assetB) {
+            // trustlines will be deauthorized initially
+            gateway.setOptions(setFlags(AUTH_REQUIRED_FLAG));
+
+            auto poolShareAsset = makeChangeTrustAssetPoolShare(
+                assetA, assetB, LIQUIDITY_POOL_FEE_V18);
+
+            // root is missing trustline(s)
+            REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 10),
+                              ex_CHANGE_TRUST_TRUST_LINE_MISSING);
+
+            if (assetA.type() != ASSET_TYPE_NATIVE)
+            {
+                root.changeTrust(assetA, 10);
+
+                REQUIRE_THROWS_AS(
+                    root.changeTrust(poolShareAsset, 10),
+                    ex_CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
+                gateway.allowMaintainLiabilities(assetA, root);
+            }
+
+            if (assetB.type() != ASSET_TYPE_NATIVE)
+            {
+                // root is still missing assetB trustline
+                REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 10),
+                                  ex_CHANGE_TRUST_TRUST_LINE_MISSING);
+                root.changeTrust(assetB, 10);
+
+                // assetB trustline is not authorized to maintain liabilities
+                REQUIRE_THROWS_AS(
+                    root.changeTrust(poolShareAsset, 10),
+                    ex_CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
+                gateway.allowMaintainLiabilities(assetB, root);
+            }
+
+            // this should create a LiquidityPoolEntry, and modify
+            // liquidityPoolUseCount on the asset trustlines
+            auto prePoolNumSubEntries = getNumSubEntries(root);
+            root.changeTrust(poolShareAsset, 10);
+
+            // TODO: This line requires the update to SponsorshipUtils
+            // REQUIRE(getNumSubEntries(root) - prePoolNumSubEntries == 2);
+
+            auto poolShareTlAsset =
+                changeTrustAssetToTrustLineAsset(poolShareAsset);
+
+            // pool share trustline shouldn't have any flags set
+            REQUIRE(root.loadTrustLine(poolShareTlAsset).flags == 0);
+
+            if (assetA.type() != ASSET_TYPE_NATIVE)
+            {
+                auto assetATl = root.loadTrustLine(assetA);
+                REQUIRE(getTrustLineEntryExtensionV2(assetATl)
+                            .liquidityPoolUseCount == 1);
+            }
+
+            if (assetB.type() != ASSET_TYPE_NATIVE)
+            {
+                auto assetBTl = root.loadTrustLine(assetB);
+                REQUIRE(getTrustLineEntryExtensionV2(assetBTl)
+                            .liquidityPoolUseCount == 1);
+            }
+
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto pool =
+                    loadLiquidityPool(ltx, poolShareTlAsset.liquidityPoolID());
+                REQUIRE(pool);
+                REQUIRE(pool.current()
+                            .data.liquidityPool()
+                            .body.constantProduct()
+                            .poolSharesTrustLineCount == 1);
+            }
+
+            // can't delete asset trustlines while they are used in a pool
+            if (assetA.type() != ASSET_TYPE_NATIVE)
+            {
+                REQUIRE_THROWS_AS(root.changeTrust(assetA, 0),
+                                  ex_CHANGE_TRUST_CANNOT_DELETE);
+            }
+            if (assetB.type() != ASSET_TYPE_NATIVE)
+            {
+                REQUIRE_THROWS_AS(root.changeTrust(assetB, 0),
+                                  ex_CHANGE_TRUST_CANNOT_DELETE);
+            }
+
+            // delete the pool sharetrust line
+            root.changeTrust(poolShareAsset, 0);
+            REQUIRE(!root.hasTrustLine(poolShareTlAsset));
+
+            // TODO: This line requires the update to SponsorshipUtils
+            // REQUIRE(getNumSubEntries(root) == prePoolNumSubEntries);
+
+            if (assetA.type() != ASSET_TYPE_NATIVE)
+            {
+                auto assetATl = root.loadTrustLine(assetA);
+                REQUIRE(getTrustLineEntryExtensionV2(assetATl)
+                            .liquidityPoolUseCount == 0);
+            }
+            if (assetB.type() != ASSET_TYPE_NATIVE)
+            {
+                auto assetBTl = root.loadTrustLine(assetB);
+                REQUIRE(getTrustLineEntryExtensionV2(assetBTl)
+                            .liquidityPoolUseCount == 0);
+            }
+
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto pool =
+                    loadLiquidityPool(ltx, poolShareTlAsset.liquidityPoolID());
+                REQUIRE(!pool);
+            }
+
+            // now the asset trustlines can be deleted
+            if (assetA.type() != ASSET_TYPE_NATIVE)
+            {
+                root.changeTrust(assetA, 0);
+            }
+            if (assetB.type() != ASSET_TYPE_NATIVE)
+            {
+                root.changeTrust(assetB, 0);
+            }
+        };
+
         auto usd = makeAsset(gateway, "USD");
         auto idrUsd =
             makeChangeTrustAssetPoolShare(idr, usd, LIQUIDITY_POOL_FEE_V18);
@@ -276,6 +406,46 @@ TEST_CASE("change trust", "[tx][changetrust]")
         for_versions_to(17, *app, [&] {
             REQUIRE_THROWS_AS(root.changeTrust(idrUsd, 10),
                               ex_CHANGE_TRUST_MALFORMED);
+        });
+
+        for_versions_from(18, *app, [&] {
+            // CHANGE_TRUST_MALFORMED tests
+            auto invalidFee = makeChangeTrustAssetPoolShare(
+                idr, usd, LIQUIDITY_POOL_FEE_V18 - 1);
+            REQUIRE_THROWS_AS(root.changeTrust(invalidFee, 10),
+                              ex_CHANGE_TRUST_MALFORMED);
+            auto invalidOrder =
+                makeChangeTrustAssetPoolShare(usd, idr, LIQUIDITY_POOL_FEE_V18);
+            REQUIRE_THROWS_AS(root.changeTrust(invalidOrder, 10),
+                              ex_CHANGE_TRUST_MALFORMED);
+
+            auto invalidOrderNative = makeChangeTrustAssetPoolShare(
+                idr, makeNativeAsset(), LIQUIDITY_POOL_FEE_V18);
+            REQUIRE_THROWS_AS(root.changeTrust(invalidOrderNative, 10),
+                              ex_CHANGE_TRUST_MALFORMED);
+
+            auto sameAssets =
+                makeChangeTrustAssetPoolShare(idr, idr, LIQUIDITY_POOL_FEE_V18);
+            REQUIRE_THROWS_AS(root.changeTrust(sameAssets, 10),
+                              ex_CHANGE_TRUST_MALFORMED);
+
+            // create a pool trustline with a limit of 0
+            REQUIRE_THROWS_AS(root.changeTrust(idrUsd, 0),
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
+
+            SECTION("pool with two non-native assets")
+            {
+                poolShareTest(idr, usd);
+            }
+            SECTION("pool with two alphanum12 assets")
+            {
+                poolShareTest(makeAssetAlphanum12(gateway, "IDR12"),
+                              makeAssetAlphanum12(gateway, "USD12"));
+            }
+            SECTION("pool with a native asset")
+            {
+                poolShareTest(makeNativeAsset(), idr);
+            }
         });
     }
 }
