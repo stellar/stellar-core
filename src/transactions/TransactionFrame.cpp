@@ -667,8 +667,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     {
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, ltx,
-                                CheckType::FOR_VALIDITY_FULL))
+            if (!op->checkValid(signatureChecker, ltx, false))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object

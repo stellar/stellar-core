@@ -127,7 +127,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     ZoneScoped;
     bool res;
     CLOG_TRACE(Tx, "{}", xdr_to_string(mOperation, "Operation"));
-    res = checkValid(signatureChecker, ltx, CheckType::FOR_APPLY);
+    res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
         res = doApply(ltx);
@@ -204,7 +204,7 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter, CheckType checkType)
+                           AbstractLedgerTxn& ltxOuter, bool forApply)
 {
     ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
@@ -216,16 +216,11 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    bool const forApply = checkType == CheckType::FOR_APPLY;
-
     if (!forApply || ledgerVersion < 10)
     {
-        if (checkType != CheckType::FOR_VALIDITY_PARTIAL)
+        if (!checkSignature(signatureChecker, ltx, forApply))
         {
-            if (!checkSignature(signatureChecker, ltx, forApply))
-            {
-                return false;
-            }
+            return false;
         }
     }
     else
