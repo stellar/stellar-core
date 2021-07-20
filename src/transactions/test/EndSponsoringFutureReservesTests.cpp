@@ -47,7 +47,7 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
                 {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!txtest::checkValid(tx, ltx));
+            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
 
             REQUIRE(getOperationResultCode(tx, 0) == opNOT_SUPPORTED);
         });
@@ -63,7 +63,7 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(txtest::checkValid(tx, ltx));
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(!tx->apply(*app, ltx, txm));
 
             REQUIRE(tx->getResult().result.code() == txFAILED);

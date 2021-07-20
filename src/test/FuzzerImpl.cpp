@@ -778,8 +778,7 @@ class FuzzTransactionFrame : public TransactionFrame
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op) {
-            return !op->checkValid(signatureChecker, ltx,
-                                   CheckType::FOR_VALIDITY_FULL);
+            return !op->checkValid(signatureChecker, ltx, false);
         };
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         isInvalidOperation))

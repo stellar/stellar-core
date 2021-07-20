@@ -175,7 +175,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMeta txm(2);
-        REQUIRE(txtest::checkValid(tx, ltx));
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
 
@@ -234,7 +234,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMeta txm(2);
-        REQUIRE(txtest::checkValid(tx, ltx));
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         ltx.commit();
 
@@ -255,7 +255,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMeta txm(2);
-        REQUIRE(txtest::checkValid(tx, ltx));
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         ltx.commit();
 
@@ -484,12 +484,6 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                                     acc1.createClaimableBalance(asset, amount,
                                                                 validClaimants),
                                     ex_CREATE_CLAIMABLE_BALANCE_MALFORMED);
-
-                                auto tx =
-                                    acc1.tx({txtest::createClaimableBalance(
-                                        asset, amount, validClaimants)});
-                                LedgerTxn ltx(app->getLedgerTxnRoot());
-                                txtest::requireCheckValidFormsBothFail(tx, ltx);
                             };
 
                         SECTION("invalid andPredicate size")
@@ -1172,7 +1166,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
-            REQUIRE(txtest::checkValid(tx, ltx));
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             REQUIRE(tx->getResultCode() == txSUCCESS);
 
@@ -1185,7 +1179,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 {});
 
             TransactionMeta txm2(2);
-            REQUIRE(txtest::checkValid(tx2, ltx));
+            REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
             REQUIRE(!tx2->apply(*app, ltx, txm2));
             REQUIRE(tx2->getResultCode() == txFAILED);
 

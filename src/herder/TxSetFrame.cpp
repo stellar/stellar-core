@@ -296,7 +296,7 @@ TxSetFrame::checkOrTrim(Application& app,
         {
             auto tx = *iter;
             if (!tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, true))
+                                upperBoundCloseTimeOffset))
             {
                 if (justCheck)
                 {

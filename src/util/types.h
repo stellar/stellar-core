@@ -134,13 +134,4 @@ bool iequals(std::string const& a, std::string const& b);
 bool operator>=(Price const& a, Price const& b);
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
-
-// The types of validity checks that can be performed on a transaction or
-// operation.
-enum class CheckType
-{
-    FOR_VALIDITY_PARTIAL, // subset of checks -- no signatures or account load
-    FOR_VALIDITY_FULL,    // all checks, before accepting transaction into txset
-    FOR_APPLY             // all checks, before applying transaction
-};
 }
