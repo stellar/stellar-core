@@ -80,7 +80,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), root, root, root,
                                   2 * fee, fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireCheckValidFormsBothFail(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txNOT_SUPPORTED);
             });
         }
@@ -91,7 +91,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), root, root, root,
                                   2 * fee - 1, 1, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireCheckValidFormsBothFail(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(fb->getResult().feeCharged == 2 * fee);
             });
@@ -103,7 +103,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), root, root, root,
                                   2 * fee + 1, 101, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireCheckValidFormsBothFail(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(fb->getResult().feeCharged == 2 * 101);
             });
@@ -116,7 +116,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
                                   fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txNO_ACCOUNT);
             });
         }
@@ -131,7 +131,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txBAD_AUTH);
             });
         }
@@ -149,7 +149,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txBAD_AUTH);
             });
         }
@@ -161,7 +161,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
                                   fee, 1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txINSUFFICIENT_BALANCE);
             });
         }
@@ -178,7 +178,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txBAD_AUTH_EXTRA);
             });
         }
@@ -192,7 +192,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireOnlyFullCheckFails(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = fb->getResult();
                 REQUIRE(fbRes.feeCharged == 2 * fee);
@@ -209,7 +209,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
                                   fee, -1);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                txtest::requireCheckValidFormsBothFail(fb, ltx);
+                REQUIRE(!txtest::checkValid(fb, ltx));
                 REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_FAILED);
                 auto const& fbRes = fb->getResult();
                 REQUIRE(fbRes.feeCharged == 2 * fee);
