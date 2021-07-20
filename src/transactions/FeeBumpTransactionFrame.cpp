@@ -153,9 +153,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx,
-                    fullCheck ? CheckType::FOR_VALIDITY_FULL
-                              : CheckType::FOR_VALIDITY_PARTIAL) !=
+    if (commonValid(signatureChecker, ltx, false, fullCheck) !=
         ValidationType::kFullyValid)
     {
         return false;
@@ -211,8 +209,8 @@ FeeBumpTransactionFrame::commonValidPreFeeSourceLoad(
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltxOuter,
-                                     CheckType checkType)
+                                     AbstractLedgerTxn& ltxOuter, bool applying,
+                                     bool fullCheck)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
@@ -223,7 +221,7 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return res;
     }
 
-    if (checkType == CheckType::FOR_VALIDITY_PARTIAL)
+    if (!fullCheck)
     {
         return ValidationType::kFullyValid;
     }
@@ -249,7 +247,7 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
-    int64_t feeToPay = (checkType == CheckType::FOR_APPLY) ? 0 : getFeeBid();
+    int64_t feeToPay = applying ? 0 : getFeeBid();
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (getAvailableBalance(header, feeSource) < feeToPay)

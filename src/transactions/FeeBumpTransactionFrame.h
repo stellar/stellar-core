@@ -35,13 +35,15 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
         kFullyValid
     };
 
-    // A partial check ("checkType" == FOR_VALIDITY_PARTIAL) can only
-    // definitively establish that a transaction is invalid, not that it is
-    // valid.  A partial check does not do signature verification or database
-    // access.
+    // If "fullCheck" is false, then a "kInvalid" return definitively
+    // establishes the invalidity of the transaction, but a "kFullyValid" return
+    // does not definitively establish that a call with a true "fullCheck"
+    // parameter would have returned "kFullyValid".  In particular, if
+    // "fullCheck" is false, then commonValid() will not perform any checks that
+    // could require checking signatures or accessing the database.
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter,
-                               CheckType checkType);
+                               AbstractLedgerTxn& ltxOuter, bool applying,
+                               bool fullCheck);
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
