@@ -648,7 +648,7 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current, bool chargeFee,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset, bool fullCheck)
+                             uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -662,15 +662,13 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                       getSignatures(mEnvelope)};
     bool res = commonValid(signatureChecker, ltx, current, false, chargeFee,
                            lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-                           fullCheck) == ValidationType::kMaybeValid;
+                           true) == ValidationType::kMaybeValid;
     if (res)
     {
-        auto const opCheckType = fullCheck ? CheckType::FOR_VALIDITY_FULL
-                                           : CheckType::FOR_VALIDITY_PARTIAL;
-
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, ltx, opCheckType))
+            if (!op->checkValid(signatureChecker, ltx,
+                                CheckType::FOR_VALIDITY_FULL))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -680,7 +678,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
             }
         }
 
-        if (fullCheck && !signatureChecker.checkAllSignaturesUsed())
+        if (!signatureChecker.checkAllSignaturesUsed())
         {
             res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
@@ -693,10 +691,10 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset, bool fullCheck)
+                             uint64_t upperBoundCloseTimeOffset)
 {
     return checkValid(ltxOuter, current, true, lowerBoundCloseTimeOffset,
-                      upperBoundCloseTimeOffset, fullCheck);
+                      upperBoundCloseTimeOffset);
 }
 
 void

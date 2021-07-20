@@ -181,11 +181,10 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset, bool fullCheck);
+                    uint64_t upperBoundCloseTimeOffset);
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset,
-                    bool fullCheck) override;
+                    uint64_t upperBoundCloseTimeOffset) override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
