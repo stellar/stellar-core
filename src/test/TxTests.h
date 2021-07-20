@@ -84,24 +84,6 @@ bool checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
                 uint64_t lowerBoundCloseTimeOffset = 0,
                 uint64_t upperBoundCloseTimeOffset = 0, bool fullCheck = true);
 
-void requireOnlyFullCheckFails(TransactionFrameBasePtr tx,
-                               AbstractLedgerTxn& ltx,
-                               SequenceNumber current = 0,
-                               uint64_t lowerBoundCloseTimeOffset = 0,
-                               uint64_t upperBoundCloseTimeOffset = 0);
-
-void requireCheckValidFormsBothFail(TransactionFrameBasePtr tx,
-                                    AbstractLedgerTxn& ltx,
-                                    SequenceNumber current = 0,
-                                    uint64_t lowerBoundCloseTimeOffset = 0,
-                                    uint64_t upperBoundCloseTimeOffset = 0);
-
-void requireCheckValidFormsBothPass(TransactionFrameBasePtr tx,
-                                    AbstractLedgerTxn& ltx,
-                                    SequenceNumber current = 0,
-                                    uint64_t lowerBoundCloseTimeOffset = 0,
-                                    uint64_t upperBoundCloseTimeOffset = 0);
-
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},

@@ -398,75 +398,8 @@ checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
            SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
            uint64_t upperBoundCloseTimeOffset, bool fullCheck)
 {
-    auto otherCheckTx = TransactionFrameBase::makeTransactionFromWire(
-        tx->getNetworkID(), tx->getEnvelope());
-
-    TransactionFrameBasePtr fullCheckTx, partialCheckTx;
-    if (fullCheck)
-    {
-        fullCheckTx = tx;
-        partialCheckTx = otherCheckTx;
-    }
-    else
-    {
-        fullCheckTx = otherCheckTx;
-        partialCheckTx = tx;
-    }
-
-    auto const fullCheckResult =
-        fullCheckTx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, true);
-    auto const partialCheckResult =
-        partialCheckTx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
-                                   upperBoundCloseTimeOffset, false);
-
-    // Validate consistency between full and partial checks.
-    if (fullCheckResult)
-    {
-        REQUIRE(partialCheckResult);
-    }
-
-    return fullCheck ? fullCheckResult : partialCheckResult;
-}
-
-void
-requireOnlyFullCheckFails(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
-                          SequenceNumber current,
-                          uint64_t lowerBoundCloseTimeOffset,
-                          uint64_t upperBoundCloseTimeOffset)
-{
-    REQUIRE(tx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
-                           upperBoundCloseTimeOffset, false));
-    REQUIRE(!tx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset, true));
-}
-
-// Because of the consistency condition between the two forms of
-// checkValid(), which is checked by txtest::checkValid() above, we can
-// assert that both checks fail just by asserting that a partial
-// txtest::checkValid() fails.
-void
-requireCheckValidFormsBothFail(TransactionFrameBasePtr tx,
-                               AbstractLedgerTxn& ltx, SequenceNumber current,
-                               uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset)
-{
-    REQUIRE(!checkValid(tx, ltx, current, lowerBoundCloseTimeOffset,
-                        upperBoundCloseTimeOffset, false));
-}
-
-// Because of the consistency condition between the two forms of
-// checkValid(), which is checked by txtest::checkValid() above, we can
-// assert that both checks pass just by asserting that a full
-// txtest::checkValid() passes.
-void
-requireCheckValidFormsBothPass(TransactionFrameBasePtr tx,
-                               AbstractLedgerTxn& ltx, SequenceNumber current,
-                               uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset)
-{
-    REQUIRE(checkValid(tx, ltx, current, lowerBoundCloseTimeOffset,
-                       upperBoundCloseTimeOffset, true));
+    return tx->checkValid(ltx, current, lowerBoundCloseTimeOffset,
+                          upperBoundCloseTimeOffset, fullCheck);
 }
 
 TxSetResultMeta
