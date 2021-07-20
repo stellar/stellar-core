@@ -346,9 +346,9 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::commonValidPreSourceAccountLoad(
-    AbstractLedgerTxn& ltx, bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-    uint64_t upperBoundCloseTimeOffset)
+TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
+                                       uint64_t lowerBoundCloseTimeOffset,
+                                       uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
@@ -388,6 +388,12 @@ TransactionFrame::commonValidPreSourceAccountLoad(
     if (!chargeFee && getFeeBid() < 0)
     {
         getResult().result.code(txINSUFFICIENT_FEE);
+        return false;
+    }
+
+    if (!loadSourceAccount(ltx, header))
+    {
+        getResult().result.code(txNO_ACCOUNT);
         return false;
     }
 
@@ -491,21 +497,14 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             "Applying transaction with non-current closeTime");
     }
 
-    if (!commonValidPreSourceAccountLoad(ltx, chargeFee,
-                                         lowerBoundCloseTimeOffset,
-                                         upperBoundCloseTimeOffset))
+    if (!commonValidPreSeqNum(ltx, chargeFee, lowerBoundCloseTimeOffset,
+                              upperBoundCloseTimeOffset))
     {
         return res;
     }
 
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
-
-    if (!sourceAccount)
-    {
-        getResult().result.code(txNO_ACCOUNT);
-        return res;
-    }
 
     // in older versions, the account's sequence number is updated when taking
     // fees

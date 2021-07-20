@@ -26,7 +26,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
 
-    bool commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx);
+    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx);
 
     enum ValidationType
     {
