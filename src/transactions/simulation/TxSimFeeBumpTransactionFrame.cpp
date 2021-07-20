@@ -16,7 +16,7 @@ TxSimFeeBumpTransactionFrame::TxSimFeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
     TransactionResult simulationResult, uint32_t partition)
     : FeeBumpTransactionFrame(
-          envelope,
+          networkID, envelope,
           std::make_shared<TxSimTransactionFrame>(
               networkID, FeeBumpTransactionFrame::convertInnerTxToV1(envelope),
               simulationResult, partition))

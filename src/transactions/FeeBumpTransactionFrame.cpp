@@ -36,13 +36,15 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     : mEnvelope(envelope)
     , mInnerTx(std::make_shared<TransactionFrame>(networkID,
                                                   convertInnerTxToV1(envelope)))
+    , mNetworkID(networkID)
 {
 }
 
 #ifdef BUILD_TESTS
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
-    TransactionEnvelope const& envelope, TransactionFramePtr innerTx)
-    : mEnvelope(envelope), mInnerTx(innerTx)
+    Hash const& networkID, TransactionEnvelope const& envelope,
+    TransactionFramePtr innerTx)
+    : mEnvelope(envelope), mInnerTx(innerTx), mNetworkID(networkID)
 {
 }
 #endif
@@ -298,7 +300,7 @@ FeeBumpTransactionFrame::getContentsHash() const
     if (isZero(mContentsHash))
     {
         mContentsHash = sha256(xdr::xdr_to_opaque(
-            getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, mEnvelope.feeBump().tx));
+            mNetworkID, ENVELOPE_TYPE_TX_FEE_BUMP, mEnvelope.feeBump().tx));
     }
     return mContentsHash;
 }
@@ -322,7 +324,7 @@ FeeBumpTransactionFrame::getInnerFullHash() const
 Hash const&
 FeeBumpTransactionFrame::getNetworkID() const
 {
-    return mInnerTx->getNetworkID();
+    return mNetworkID;
 }
 
 uint32_t
