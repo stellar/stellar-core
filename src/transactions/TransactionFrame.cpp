@@ -91,12 +91,6 @@ TransactionFrame::getContentsHash() const
     return (mContentsHash);
 }
 
-Hash const&
-TransactionFrame::getNetworkID() const
-{
-    return mNetworkID;
-}
-
 void
 TransactionFrame::clearCached()
 {
