@@ -478,8 +478,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               SequenceNumber current, bool applying,
                               bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset,
-                              bool fullCheck)
+                              uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
@@ -497,11 +496,6 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                                          upperBoundCloseTimeOffset))
     {
         return res;
-    }
-
-    if (!fullCheck)
-    {
-        return kMaybeValid;
     }
 
     auto header = ltx.loadHeader();
@@ -660,9 +654,10 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
-    bool res = commonValid(signatureChecker, ltx, current, false, chargeFee,
-                           lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-                           true) == ValidationType::kMaybeValid;
+    bool res =
+        commonValid(signatureChecker, ltx, current, false, chargeFee,
+                    lowerBoundCloseTimeOffset,
+                    upperBoundCloseTimeOffset) == ValidationType::kMaybeValid;
     if (res)
     {
         for (auto& op : mOperations)
@@ -863,8 +858,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv = commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0, 0,
-                              true);
+        auto cv =
+            commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

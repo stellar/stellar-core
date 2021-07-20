@@ -154,7 +154,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false, true) !=
+    if (commonValid(signatureChecker, ltx, false) !=
         ValidationType::kFullyValid)
     {
         return false;
@@ -210,8 +210,7 @@ FeeBumpTransactionFrame::commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx)
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltxOuter, bool applying,
-                                     bool fullCheck)
+                                     AbstractLedgerTxn& ltxOuter, bool applying)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
@@ -219,11 +218,6 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     if (!commonValidPreSourceAccountLoad(ltx))
     {
         return res;
-    }
-
-    if (!fullCheck)
-    {
-        return ValidationType::kFullyValid;
     }
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());

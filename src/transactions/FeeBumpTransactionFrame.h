@@ -36,15 +36,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
         kFullyValid
     };
 
-    // If "fullCheck" is false, then a "kInvalid" return definitively
-    // establishes the invalidity of the transaction, but a "kFullyValid" return
-    // does not definitively establish that a call with a true "fullCheck"
-    // parameter would have returned "kFullyValid".  In particular, if
-    // "fullCheck" is false, then commonValid() will not perform any checks that
-    // could require checking signatures or accessing the database.
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter, bool applying,
-                               bool fullCheck);
+                               AbstractLedgerTxn& ltxOuter, bool applying);
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
