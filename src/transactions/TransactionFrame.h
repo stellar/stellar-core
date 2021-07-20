@@ -70,8 +70,7 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
 
-    bool commonValidPreSourceAccountLoad(LedgerTxnHeader const& header,
-                                         bool chargeFee,
+    bool commonValidPreSourceAccountLoad(AbstractLedgerTxn& ltx, bool chargeFee,
                                          uint64_t lowerBoundCloseTimeOffset,
                                          uint64_t upperBoundCloseTimeOffset);
 
