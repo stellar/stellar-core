@@ -79,10 +79,6 @@ void applyTx(TransactionFramePtr const& tx, Application& app,
 void validateTxResults(TransactionFramePtr const& tx, Application& app,
                        ValidationResult validationResult,
                        TransactionResult const& applyResult = {});
-bool checkValid(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx,
-                SequenceNumber current = 0,
-                uint64_t lowerBoundCloseTimeOffset = 0,
-                uint64_t upperBoundCloseTimeOffset = 0);
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,

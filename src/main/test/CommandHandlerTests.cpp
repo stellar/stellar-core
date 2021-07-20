@@ -507,7 +507,7 @@ TEST_CASE("manualclose", "[commandhandler]")
 
             {
                 LedgerTxn checkLtx(app->getLedgerTxnRoot());
-                auto valid = txtest::checkValid(txFrame, checkLtx);
+                auto valid = txFrame->checkValid(checkLtx, 0, 0, 0);
                 REQUIRE(valid);
             }
 
