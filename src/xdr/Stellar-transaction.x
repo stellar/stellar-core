@@ -996,8 +996,8 @@ enum ChangeTrustResultCode
         -4, // not enough funds to create a new trust line,
     CHANGE_TRUST_SELF_NOT_ALLOWED = -5, // trusting self is not allowed
     CHANGE_TRUST_TRUST_LINE_MISSING = -6, // Asset trustline is missing for pool
-    CHANGE_TRUST_CANNOT_DELETE = 7, // Asset trustline is still referenced in a pool
-    CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES = 8 // Asset trustline is deauthorized
+    CHANGE_TRUST_CANNOT_DELETE = -7, // Asset trustline is still referenced in a pool
+    CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES = -8 // Asset trustline is deauthorized
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
