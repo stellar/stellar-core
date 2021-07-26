@@ -24,9 +24,12 @@ class Maintainer
     // removes maximum count entries from tables like txhistory or scphistory
     void performMaintenance(uint32_t count);
 
+    void shutdown();
+
   private:
     Application& mApp;
     VirtualTimer mTimer;
+    bool mShuttingDown;
 
     void scheduleMaintenance();
     void tick();

@@ -16,7 +16,8 @@
 namespace stellar
 {
 
-Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
+Maintainer::Maintainer(Application& app)
+    : mApp{app}, mTimer{mApp}, mShuttingDown{false}
 {
 }
 
@@ -64,6 +65,10 @@ void
 Maintainer::performMaintenance(uint32_t count)
 {
     ZoneScoped;
+    if (mShuttingDown)
+    {
+        return;
+    }
     LOG_INFO(DEFAULT_LOG, "Performing maintenance");
     auto logSlow = LogSlowExecution(
         "Performing maintenance", LogSlowExecution::Mode::AUTOMATIC_RAII,
@@ -72,5 +77,16 @@ Maintainer::performMaintenance(uint32_t count)
         std::chrono::seconds{2});
     ExternalQueue ps{mApp};
     ps.deleteOldEntries(count);
+}
+
+void
+Maintainer::shutdown()
+{
+    if (mShuttingDown)
+    {
+        return;
+    }
+    mShuttingDown = true;
+    mTimer.cancel();
 }
 }

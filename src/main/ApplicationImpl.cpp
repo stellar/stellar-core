@@ -741,6 +741,10 @@ ApplicationImpl::gracefulStop()
     {
         mHerder->shutdown();
     }
+    if (mMaintainer)
+    {
+        mMaintainer->shutdown();
+    }
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
