@@ -53,6 +53,8 @@ LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
 LedgerKey liquidityPoolKey(PoolID const& poolID);
+LedgerKey poolShareTrustLineKey(AccountID const& accountID,
+                                PoolID const& poolID);
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
@@ -96,6 +98,10 @@ LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
 
 LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
+
+LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
+                                      AccountID const& accountID,
+                                      PoolID const& poolID);
 
 LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 
