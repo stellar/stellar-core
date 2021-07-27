@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/must_use.h"
@@ -74,7 +75,7 @@ std::vector<PeerBareAddress>
 RandomPeerSource::getRandomPeers(
     size_t size, std::function<bool(PeerBareAddress const&)> pred)
 {
-    assert(size >= 0);
+    releaseAssert(size >= 0);
     if (size == 0)
     {
         return {};

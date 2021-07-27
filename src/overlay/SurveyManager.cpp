@@ -95,7 +95,7 @@ void
 SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
                                       Peer::pointer peer)
 {
-    assert(msg.type() == SURVEY_RESPONSE);
+    releaseAssert(msg.type() == SURVEY_RESPONSE);
     auto const& signedResponse = msg.signedSurveyResponseMessage();
     auto const& response = signedResponse.response;
 
@@ -154,7 +154,7 @@ void
 SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
                                      Peer::pointer peer)
 {
-    assert(msg.type() == SURVEY_REQUEST);
+    releaseAssert(msg.type() == SURVEY_REQUEST);
     SignedSurveyRequestMessage const& signedRequest =
         msg.signedSurveyRequestMessage();
 
@@ -253,7 +253,7 @@ void
 SurveyManager::processTopologyResponse(NodeID const& surveyedPeerID,
                                        SurveyResponseBody const& body)
 {
-    assert(body.type() == SURVEY_TOPOLOGY);
+    releaseAssert(body.type() == SURVEY_TOPOLOGY);
 
     auto const& topologyBody = body.topologyResponseBody();
     auto& peerResults =

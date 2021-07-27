@@ -8,6 +8,7 @@
 #include "crypto/SecretKey.h"
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/numeric.h"
@@ -92,7 +93,7 @@ uint64
 LocalNode::computeWeight(uint64 m, uint64 total, uint64 threshold)
 {
     uint64 res;
-    assert(threshold <= total);
+    releaseAssert(threshold <= total);
     bigDivide(res, m, threshold, total, ROUND_UP);
     return res;
 }

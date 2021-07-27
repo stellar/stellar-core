@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/GlobalChecks.h"
 #include "xdr/Stellar-types.h"
 #include <cstdint>
 #include <optional>
@@ -29,7 +30,7 @@ struct LedgerRange final
     {
         // LedgerRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
-        assert(last < std::numeric_limits<uint32_t>::max());
+        releaseAssert(last < std::numeric_limits<uint32_t>::max());
         return LedgerRange(first, last - first + 1);
     }
     std::string toString() const;

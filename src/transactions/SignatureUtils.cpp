@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
+#include "util/GlobalChecks.h"
 #include "xdr/Stellar-transaction.h"
 #include <Tracy.hpp>
 
@@ -57,7 +58,7 @@ signHashX(const ByteSlice& x)
     }
     else
     {
-        assert(x.empty());
+        releaseAssertOrThrow(x.empty());
     }
     result.signature = out;
     result.hint = getHint(sha256(x));

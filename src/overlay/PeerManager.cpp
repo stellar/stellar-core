@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/must_use.h"
@@ -117,7 +118,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     {
         conditions.push_back("type = :type");
     }
-    assert(!conditions.empty());
+    releaseAssert(!conditions.empty());
     std::string where = conditions[0];
     for (size_t i = 1; i < conditions.size(); i++)
     {

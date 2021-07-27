@@ -260,8 +260,8 @@ formatSize(size_t size)
 bool
 addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
 {
-    assert(balance >= 0);
-    assert(maxBalance >= 0);
+    releaseAssertOrThrow(balance >= 0);
+    releaseAssertOrThrow(maxBalance >= 0);
 
     if (delta == 0)
     {

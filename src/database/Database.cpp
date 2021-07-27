@@ -245,7 +245,7 @@ Database::upgradeToCurrentSchema()
         putSchemaVersion(vers);
     }
     CLOG_INFO(Database, "DB schema is in current version");
-    assert(vers == SCHEMA_VERSION);
+    releaseAssert(vers == SCHEMA_VERSION);
 }
 
 void
@@ -442,7 +442,7 @@ Database::getPool()
             stellar::doDatabaseTypeSpecificOperation(sess, op);
         }
     }
-    assert(mPool);
+    releaseAssert(mPool);
     return *mPool;
 }
 

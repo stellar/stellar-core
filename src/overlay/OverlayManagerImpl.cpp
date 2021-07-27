@@ -15,6 +15,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Thread.h"
@@ -89,7 +90,7 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "Removing peer {}", peer->toString());
-    assert(peer->getState() == Peer::CLOSING);
+    releaseAssert(peer->getState() == Peer::CLOSING);
 
     auto pendingIt =
         std::find_if(std::begin(mPending), std::end(mPending),
@@ -411,7 +412,7 @@ void
 OverlayManagerImpl::triggerPeerResolution()
 {
     ZoneScoped;
-    assert(!mResolvedPeers.valid());
+    releaseAssert(!mResolvedPeers.valid());
 
     // Trigger DNS resolution on the background thread
     using task_t = std::packaged_task<ResolvedPeers()>;
@@ -463,7 +464,7 @@ std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 {
     ZoneScoped;
-    assert(maxNum >= 0);
+    releaseAssert(maxNum >= 0);
     if (maxNum == 0)
     {
         return {};
@@ -569,7 +570,7 @@ OverlayManagerImpl::tick()
         auto pendingUsedByPreferred =
             connectTo(preferredToConnect, PeerType::PREFERRED);
 
-        assert(pendingUsedByPreferred <= availablePendingSlots);
+        releaseAssert(pendingUsedByPreferred <= availablePendingSlots);
         availablePendingSlots -= pendingUsedByPreferred;
     }
 
@@ -589,7 +590,7 @@ OverlayManagerImpl::tick()
                 : availablePendingSlots;
         auto pendingUsedByOutbound =
             connectTo(outboundToConnect, PeerType::OUTBOUND);
-        assert(pendingUsedByOutbound <= availablePendingSlots);
+        releaseAssert(pendingUsedByOutbound <= availablePendingSlots);
         availablePendingSlots -= pendingUsedByOutbound;
     }
 
@@ -647,7 +648,8 @@ OverlayManagerImpl::nonPreferredAuthenticatedCount() const
         }
     }
 
-    assert(nonPreferredCount <= mApp.getConfig().TARGET_PEER_CONNECTIONS);
+    releaseAssert(nonPreferredCount <=
+                  mApp.getConfig().TARGET_PEER_CONNECTIONS);
     return nonPreferredCount;
 }
 
@@ -677,7 +679,7 @@ void
 OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
 {
     ZoneScoped;
-    assert(peer->getRole() == Peer::REMOTE_CALLED_US);
+    releaseAssert(peer->getRole() == Peer::REMOTE_CALLED_US);
     mInboundPeers.mConnectionsAttempted.Mark();
 
     auto haveSpace = mInboundPeers.mPending.size() <
@@ -732,7 +734,7 @@ bool
 OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 {
     ZoneScoped;
-    assert(peer->getRole() == Peer::WE_CALLED_REMOTE);
+    releaseAssert(peer->getRole() == Peer::WE_CALLED_REMOTE);
     mOutboundPeers.mConnectionsAttempted.Mark();
 
     if (mShuttingDown || availableOutboundPendingSlots() <= 0)

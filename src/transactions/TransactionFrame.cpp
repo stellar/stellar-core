@@ -86,7 +86,7 @@ TransactionFrame::getContentsHash() const
         }
     }
 #ifdef _DEBUG
-    assert(isZero(oldHash) || (oldHash == mContentsHash));
+    releaseAssert(isZero(oldHash) || (oldHash == mContentsHash));
 #endif
     return (mContentsHash);
 }

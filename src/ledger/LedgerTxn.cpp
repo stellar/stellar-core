@@ -35,7 +35,7 @@ populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
         auto key = LedgerEntryKey(le);
 
         // Abort if two entries for the same key appear.
-        assert(res.find(key) == res.end());
+        releaseAssert(res.find(key) == res.end());
 
         // Only return entries for keys that were actually requested.
         if (keys.find(key) != keys.end())
@@ -1008,7 +1008,7 @@ LedgerTxn::Impl::getChanges()
                 // If !entry and !previous.entry then the entry was created and
                 // erased in this LedgerTxn, in which case it should not still
                 // be in this LedgerTxn
-                assert(entry);
+                releaseAssert(entry);
                 changes.emplace_back(LEDGER_ENTRY_CREATED);
                 changes.back().created() = entry->ledgerEntry();
             }
@@ -2921,7 +2921,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
     if (iter != offers.cend())
     {
-        assert(!worseThan || isBetterOffer(*worseThan, *iter));
+        releaseAssert(!worseThan || isBetterOffer(*worseThan, *iter));
 
         // Check if we didn't prefetch and that we're missing
         // accounts/trustlines for this offer in the cache. If we are, batch

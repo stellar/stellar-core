@@ -22,6 +22,7 @@
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -293,7 +294,7 @@ Peer::sendPeers()
     // send top peers we know about
     auto peers = mApp.getOverlayManager().getPeerManager().getPeersToSend(
         maxPeerCount, mAddress);
-    assert(peers.size() <= maxPeerCount);
+    releaseAssert(peers.size() <= maxPeerCount);
 
     if (!peers.empty())
     {
@@ -673,8 +674,8 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    assert(isAuthenticated() || stellarMsg.type() == HELLO ||
-           stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
+    releaseAssert(isAuthenticated() || stellarMsg.type() == HELLO ||
+                  stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
     mApp.getOverlayManager().recordMessageMetric(stellarMsg,
                                                  shared_from_this());
 
@@ -856,7 +857,7 @@ Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
     auto sh = shortHash::xdrComputeHash(
         xdr::xdr_to_opaque(uint64_t(tp.time_since_epoch().count())));
     Hash res;
-    assert(res.size() >= sizeof(sh));
+    releaseAssert(res.size() >= sizeof(sh));
     std::memcpy(res.data(), &sh, sizeof(sh));
     return res;
 }
@@ -1018,7 +1019,7 @@ Peer::recvError(StellarMessage const& msg)
 void
 Peer::updatePeerRecordAfterEcho()
 {
-    assert(!getAddress().isEmpty());
+    releaseAssert(!getAddress().isEmpty());
 
     auto type = mApp.getOverlayManager().isPreferred(this)
                     ? PeerType::PREFERRED
@@ -1034,7 +1035,7 @@ Peer::updatePeerRecordAfterEcho()
 void
 Peer::updatePeerRecordAfterAuthentication()
 {
-    assert(!getAddress().isEmpty());
+    releaseAssert(!getAddress().isEmpty());
 
     if (mRole == WE_CALLED_REMOTE)
     {
@@ -1256,7 +1257,7 @@ Peer::recvPeers(StellarMessage const& msg)
             continue;
         }
 
-        assert(peer.ip.type() == IPv4);
+        releaseAssert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
 
         if (address.isPrivate())

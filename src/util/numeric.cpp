@@ -3,7 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/numeric.h"
-#include <cassert>
+#include "util/GlobalChecks.h"
+
 #include <stdexcept>
 
 namespace stellar
@@ -13,7 +14,7 @@ bool
 bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
 {
     bool res;
-    assert((A >= 0) && (B >= 0) && (C > 0));
+    releaseAssertOrThrow((A >= 0) && (B >= 0) && (C > 0));
     uint64_t r2;
     res = bigDivide(r2, (uint64_t)A, (uint64_t)B, (uint64_t)C, rounding);
     if (res)
@@ -52,7 +53,7 @@ bigDivide(int64_t A, int64_t B, int64_t C, Rounding rounding)
 bool
 bigDivide(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
 {
-    assert(B > 0);
+    releaseAssertOrThrow(B > 0);
 
     uint64_t r2;
     bool res = bigDivide(r2, a, (uint64_t)B, rounding);
@@ -67,7 +68,7 @@ bigDivide(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
 bool
 bigDivide(uint64_t& result, uint128_t a, uint64_t B, Rounding rounding)
 {
-    assert(B != 0);
+    releaseAssertOrThrow(B != 0);
 
     // update when moving to (signed) int128
     uint128_t b(B);
@@ -119,7 +120,7 @@ bigMultiply(uint64_t a, uint64_t b)
 uint128_t
 bigMultiply(int64_t a, int64_t b)
 {
-    assert((a >= 0) && (b >= 0));
+    releaseAssertOrThrow((a >= 0) && (b >= 0));
     return bigMultiply((uint64_t)a, (uint64_t)b);
 }
 

@@ -173,8 +173,8 @@ void
 HerderImpl::bootstrap()
 {
     CLOG_INFO(Herder, "Force joining SCP with local state");
-    assert(getSCP().isValidator());
-    assert(mApp.getConfig().FORCE_SCP);
+    releaseAssert(getSCP().isValidator());
+    releaseAssert(mApp.getConfig().FORCE_SCP);
 
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();

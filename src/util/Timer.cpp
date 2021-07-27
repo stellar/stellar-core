@@ -179,7 +179,7 @@ VirtualClock::tmToISOString(std::tm const& tm)
 {
     char buf[sizeof("0000-00-00T00:00:00Z")];
     size_t conv = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    assert(conv == (sizeof(buf) - 1));
+    releaseAssert(conv == (sizeof(buf) - 1));
     return std::string(buf);
 }
 
@@ -258,7 +258,7 @@ VirtualClock::cancelAllEvents()
 void
 VirtualClock::setCurrentVirtualTime(time_point t)
 {
-    assert(mMode == VIRTUAL_TIME);
+    releaseAssert(mMode == VIRTUAL_TIME);
     // Maintain monotonicity in VIRTUAL_TIME mode.
     releaseAssert(t >= mVirtualNow);
     mVirtualNow = t;
@@ -503,7 +503,7 @@ VirtualClock::advanceToNext()
     {
         return 0;
     }
-    assert(mMode == VIRTUAL_TIME);
+    releaseAssert(mMode == VIRTUAL_TIME);
     assertThreadIsMain();
     if (mEvents.empty())
     {
@@ -635,7 +635,7 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 {
     if (!mCancelled)
     {
-        assert(!mDeleting);
+        releaseAssert(!mDeleting);
         auto ve = make_shared<VirtualClockEvent>(mExpiryTime, seq(), fn);
         mClock.enqueue(ve);
         mEvents.push_back(ve);
@@ -648,7 +648,7 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
 {
     if (!mCancelled)
     {
-        assert(!mDeleting);
+        releaseAssert(!mDeleting);
         auto ve = make_shared<VirtualClockEvent>(
             mExpiryTime, seq(), [onSuccess, onFailure](asio::error_code error) {
                 if (error)
