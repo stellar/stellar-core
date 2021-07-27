@@ -117,7 +117,7 @@ export CCACHE_DIR=$HOME/.ccache
 export CCACHE_COMPRESS=true
 export CCACHE_COMPRESSLEVEL=9
 # cache size should be large enough for a full build
-export CCACHE_MAXSIZE=300M
+export CCACHE_MAXSIZE=500M
 export CCACHE_CPP2=true
 
 # purge cache if it's too old
