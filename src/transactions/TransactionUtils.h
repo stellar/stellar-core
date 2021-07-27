@@ -172,7 +172,7 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
 bool isAuthorized(ConstLedgerTxnEntry const& entry);
 
-bool isAuthorizedToMaintainLiabilities(uint32_t flags);
+bool isAuthorizedToMaintainLiabilitiesUnsafe(uint32_t flags);
 bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le);
 bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry);
 bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
