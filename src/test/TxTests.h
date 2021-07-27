@@ -218,6 +218,10 @@ Operation revokeSponsorship(AccountID const& accID, SignerKey const& key);
 Operation clawback(AccountID const& from, Asset const& asset, int64_t amount);
 Operation clawbackClaimableBalance(ClaimableBalanceID const& balanceID);
 
+Operation liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                               int64_t maxAmountB, Price const& minPrice,
+                               Price const& maxPrice);
+
 Asset makeNativeAsset();
 Asset makeInvalidAsset();
 Asset makeAsset(SecretKey const& issuer, std::string const& code);

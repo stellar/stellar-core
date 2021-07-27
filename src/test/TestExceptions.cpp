@@ -463,6 +463,32 @@ throwIf(SetTrustLineFlagsResult const& result)
 }
 
 void
+throwIf(LiquidityPoolDepositResult const& result)
+{
+    switch (result.code())
+    {
+    case LIQUIDITY_POOL_DEPOSIT_MALFORMED:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_MALFORMED{};
+    case LIQUIDITY_POOL_DEPOSIT_NO_TRUST:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST{};
+    case LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED{};
+    case LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED{};
+    case LIQUIDITY_POOL_DEPOSIT_LINE_FULL:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_LINE_FULL{};
+    case LIQUIDITY_POOL_DEPOSIT_BAD_PRICE:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_BAD_PRICE{};
+    case LIQUIDITY_POOL_DEPOSIT_POOL_FULL:
+        throw ex_LIQUIDITY_POOL_DEPOSIT_POOL_FULL{};
+    case LIQUIDITY_POOL_DEPOSIT_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -566,6 +592,9 @@ throwIf(TransactionResult const& result)
         break;
     case SET_TRUST_LINE_FLAGS:
         throwIf(opResult.tr().setTrustLineFlagsResult());
+        break;
+    case LIQUIDITY_POOL_DEPOSIT:
+        throwIf(opResult.tr().liquidityPoolDepositResult());
         break;
     }
 }
