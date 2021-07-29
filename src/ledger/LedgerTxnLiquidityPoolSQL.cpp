@@ -18,20 +18,28 @@ throwIfNotLiquidityPool(LedgerEntryType type)
     }
 }
 
+static std::string
+getPrimaryKey(PoolID const& poolID)
+{
+    TrustLineAsset tla(ASSET_TYPE_POOL_SHARE);
+    tla.liquidityPoolID() = poolID;
+    return toOpaqueBase64(tla);
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadLiquidityPool(LedgerKey const& key) const
 {
-    auto poolID = toOpaqueBase64(key.liquidityPool().liquidityPoolID);
+    auto poolAsset = getPrimaryKey(key.liquidityPool().liquidityPoolID);
 
     std::string liquidityPoolEntryStr;
 
     std::string sql = "SELECT ledgerentry "
                       "FROM liquiditypool "
-                      "WHERE poolid= :poolid";
+                      "WHERE poolasset= :poolasset";
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(liquidityPoolEntryStr));
-    st.exchange(soci::use(poolID));
+    st.exchange(soci::use(poolAsset));
     st.define_and_bind();
     {
         auto timer = mDatabase.getSelectTimer("liquiditypool");
@@ -53,7 +61,7 @@ class BulkLoadLiquidityPoolOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
-    std::vector<std::string> mPoolIDs;
+    std::vector<std::string> mPoolAssets;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -86,29 +94,29 @@ class BulkLoadLiquidityPoolOperation
                                    UnorderedSet<LedgerKey> const& keys)
         : mDb(db)
     {
-        mPoolIDs.reserve(keys.size());
+        mPoolAssets.reserve(keys.size());
         for (auto const& k : keys)
         {
             throwIfNotLiquidityPool(k.type());
-            mPoolIDs.emplace_back(
-                toOpaqueBase64(k.liquidityPool().liquidityPoolID));
+            mPoolAssets.emplace_back(
+                getPrimaryKey(k.liquidityPool().liquidityPoolID));
         }
     }
 
     std::vector<LedgerEntry>
     doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
-        std::vector<char const*> cstrPoolIDs;
-        cstrPoolIDs.reserve(mPoolIDs.size());
-        for (size_t i = 0; i < mPoolIDs.size(); ++i)
+        std::vector<char const*> cstrPoolAssets;
+        cstrPoolAssets.reserve(mPoolAssets.size());
+        for (size_t i = 0; i < mPoolAssets.size(); ++i)
         {
-            cstrPoolIDs.emplace_back(mPoolIDs[i].c_str());
+            cstrPoolAssets.emplace_back(mPoolAssets[i].c_str());
         }
 
         std::string sql = "WITH r AS (SELECT value FROM carray(?, ?, 'char*')) "
                           "SELECT ledgerentry "
                           "FROM liquiditypool "
-                          "WHERE poolid IN r";
+                          "WHERE poolasset IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
@@ -121,8 +129,8 @@ class BulkLoadLiquidityPoolOperation
         auto st = sqliteStatement->stmt_;
 
         sqlite3_reset(st);
-        sqlite3_bind_pointer(st, 1, cstrPoolIDs.data(), "carray", 0);
-        sqlite3_bind_int(st, 2, static_cast<int>(cstrPoolIDs.size()));
+        sqlite3_bind_pointer(st, 1, cstrPoolAssets.data(), "carray", 0);
+        sqlite3_bind_int(st, 2, static_cast<int>(cstrPoolAssets.size()));
         return executeAndFetch(prep.statement());
     }
 
@@ -130,17 +138,17 @@ class BulkLoadLiquidityPoolOperation
     std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strPoolIDs;
-        marshalToPGArray(pg->conn_, strPoolIDs, mPoolIDs);
+        std::string strPoolAssets;
+        marshalToPGArray(pg->conn_, strPoolAssets, mPoolAssets);
 
         std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
                           "SELECT ledgerentry "
                           "FROM liquiditypool "
-                          "WHERE poolid IN (SELECT * from r)";
+                          "WHERE poolasset IN (SELECT * from r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
-        st.exchange(soci::use(strPoolIDs));
+        st.exchange(soci::use(strPoolAssets));
         return executeAndFetch(st);
     }
 #endif
@@ -167,19 +175,19 @@ class BulkDeleteLiquidityPoolOperation
 {
     Database& mDb;
     LedgerTxnConsistency mCons;
-    std::vector<std::string> mPoolIDs;
+    std::vector<std::string> mPoolAssets;
 
   public:
     BulkDeleteLiquidityPoolOperation(Database& db, LedgerTxnConsistency cons,
                                      std::vector<EntryIterator> const& entries)
         : mDb(db), mCons(cons)
     {
-        mPoolIDs.reserve(entries.size());
+        mPoolAssets.reserve(entries.size());
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
             throwIfNotLiquidityPool(e.key().ledgerKey().type());
-            mPoolIDs.emplace_back(toOpaqueBase64(
+            mPoolAssets.emplace_back(getPrimaryKey(
                 e.key().ledgerKey().liquidityPool().liquidityPoolID));
         }
     }
@@ -187,16 +195,16 @@ class BulkDeleteLiquidityPoolOperation
     void
     doSociGenericOperation()
     {
-        std::string sql = "DELETE FROM liquiditypool WHERE poolid = :id";
+        std::string sql = "DELETE FROM liquiditypool WHERE poolasset = :id";
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
-        st.exchange(soci::use(mPoolIDs));
+        st.exchange(soci::use(mPoolAssets));
         st.define_and_bind();
         {
             auto timer = mDb.getDeleteTimer("liquiditypool");
             st.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -213,22 +221,22 @@ class BulkDeleteLiquidityPoolOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strPoolIDs;
-        marshalToPGArray(pg->conn_, strPoolIDs, mPoolIDs);
+        std::string strPoolAssets;
+        marshalToPGArray(pg->conn_, strPoolAssets, mPoolAssets);
 
         std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
                           "DELETE FROM liquiditypool "
-                          "WHERE poolid IN (SELECT * FROM r)";
+                          "WHERE poolasset IN (SELECT * FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
-        st.exchange(soci::use(strPoolIDs));
+        st.exchange(soci::use(strPoolAssets));
         st.define_and_bind();
         {
             auto timer = mDb.getDeleteTimer("liquiditypool");
             st.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -249,7 +257,9 @@ class BulkUpsertLiquidityPoolOperation
     : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDb;
-    std::vector<std::string> mPoolIDs;
+    std::vector<std::string> mPoolAssets;
+    std::vector<std::string> mAssetAs;
+    std::vector<std::string> mAssetBs;
     std::vector<std::string> mLiquidityPoolEntries;
     std::vector<int32_t> mLastModifieds;
 
@@ -257,8 +267,12 @@ class BulkUpsertLiquidityPoolOperation
     accumulateEntry(LedgerEntry const& entry)
     {
         throwIfNotLiquidityPool(entry.data.type());
-        mPoolIDs.emplace_back(
-            toOpaqueBase64(entry.data.liquidityPool().liquidityPoolID));
+
+        auto const& lp = entry.data.liquidityPool();
+        auto const& cp = lp.body.constantProduct();
+        mPoolAssets.emplace_back(getPrimaryKey(lp.liquidityPoolID));
+        mAssetAs.emplace_back(toOpaqueBase64(cp.params.assetA));
+        mAssetBs.emplace_back(toOpaqueBase64(cp.params.assetB));
         mLiquidityPoolEntries.emplace_back(toOpaqueBase64(entry));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));
@@ -279,17 +293,22 @@ class BulkUpsertLiquidityPoolOperation
     void
     doSociGenericOperation()
     {
-        std::string sql = "INSERT INTO liquiditypool "
-                          "(poolid, ledgerentry, lastmodified) "
-                          "VALUES "
-                          "( :id, :v1, :v2 ) "
-                          "ON CONFLICT (poolid) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, lastmodified = "
-                          "excluded.lastmodified";
+        std::string sql =
+            "INSERT INTO liquiditypool "
+            "(poolasset, asseta, assetb, ledgerentry, lastmodified) "
+            "VALUES "
+            "( :id, :v1, :v2, :v3, :v4 ) "
+            "ON CONFLICT (poolasset) DO UPDATE SET "
+            "asseta = excluded.asseta, "
+            "assetb = excluded.assetb, "
+            "ledgerentry = excluded.ledgerentry, "
+            "lastmodified = excluded.lastmodified";
 
         auto prep = mDb.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
-        st.exchange(soci::use(mPoolIDs));
+        st.exchange(soci::use(mPoolAssets));
+        st.exchange(soci::use(mAssetAs));
+        st.exchange(soci::use(mAssetBs));
         st.exchange(soci::use(mLiquidityPoolEntries));
         st.exchange(soci::use(mLastModifieds));
         st.define_and_bind();
@@ -297,7 +316,7 @@ class BulkUpsertLiquidityPoolOperation
             auto timer = mDb.getUpsertTimer("liquiditypool");
             st.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -313,26 +332,35 @@ class BulkUpsertLiquidityPoolOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strPoolIDs, strLiquidityPoolEntry, strLastModifieds;
+        std::string strPoolAssets, strAssetAs, strAssetBs,
+            strLiquidityPoolEntry, strLastModifieds;
 
         PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strPoolIDs, mPoolIDs);
+        marshalToPGArray(conn, strPoolAssets, mPoolAssets);
+        marshalToPGArray(conn, strAssetAs, mAssetAs);
+        marshalToPGArray(conn, strAssetBs, mAssetBs);
         marshalToPGArray(conn, strLiquidityPoolEntry, mLiquidityPoolEntries);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
 
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v2::INT[]))"
-                          "INSERT INTO liquiditypool "
-                          "(poolid, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (poolid) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
+        std::string sql =
+            "WITH r AS "
+            "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
+            "unnest(:v2::TEXT[]), unnest(:v3::TEXT[]), "
+            "unnest(:v4::INT[])) "
+            "INSERT INTO liquiditypool "
+            "(poolasset, asseta, assetb, ledgerentry, lastmodified) "
+            "SELECT * FROM r "
+            "ON CONFLICT (poolasset) DO UPDATE SET "
+            "asseta = excluded.asseta, "
+            "assetb = excluded.assetb, "
+            "ledgerentry = excluded.ledgerentry, "
+            "lastmodified = excluded.lastmodified";
 
         auto prep = mDb.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
-        st.exchange(soci::use(strPoolIDs));
+        st.exchange(soci::use(strPoolAssets));
+        st.exchange(soci::use(strAssetAs));
+        st.exchange(soci::use(strAssetBs));
         st.exchange(soci::use(strLiquidityPoolEntry));
         st.exchange(soci::use(strLastModifieds));
         st.define_and_bind();
@@ -340,7 +368,7 @@ class BulkUpsertLiquidityPoolOperation
             auto timer = mDb.getUpsertTimer("liquiditypool");
             st.execute(true);
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -366,10 +394,19 @@ LedgerTxnRoot::Impl::dropLiquidityPools()
     std::string coll = mDatabase.getSimpleCollationClause();
 
     mDatabase.getSession() << "DROP TABLE IF EXISTS liquiditypool;";
+    // The primary key is poolasset (the base-64 opaque TrustLineAsset
+    // containing the PoolID) instead of poolid (the base-64 opaque PoolID)
+    // so that we can perform the join in load pool share trust lines by account
+    // and asset.
     mDatabase.getSession() << "CREATE TABLE liquiditypool ("
-                           << "poolid             VARCHAR(48) " << coll
-                           << " PRIMARY KEY, "
-                           << "ledgerentry TEXT NOT NULL, "
-                           << "lastmodified          INT NOT NULL);";
+                           << "poolasset    TEXT " << coll << " PRIMARY KEY, "
+                           << "asseta       TEXT " << coll << " NOT NULL, "
+                           << "assetb       TEXT " << coll << " NOT NULL, "
+                           << "ledgerentry  TEXT NOT NULL, "
+                           << "lastmodified INT NOT NULL);";
+    mDatabase.getSession() << "CREATE INDEX liquiditypoolasseta "
+                           << "ON liquiditypool(asseta);";
+    mDatabase.getSession() << "CREATE INDEX liquiditypoolassetb "
+                           << "ON liquiditypool(assetb);";
 }
 }
