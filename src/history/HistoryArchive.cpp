@@ -226,7 +226,7 @@ std::vector<std::string>
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
     ZoneScoped;
-    assert(futuresAllResolved());
+    releaseAssert(futuresAllResolved());
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
@@ -380,7 +380,7 @@ HistoryArchiveState::prepareForPublish(Application& app)
 {
     ZoneScoped;
     // Level 0 future buckets are always clear
-    assert(currentBuckets[0].next.isClear());
+    releaseAssert(currentBuckets[0].next.isClear());
 
     for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
     {

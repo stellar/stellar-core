@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerRange.h"
+#include "util/GlobalChecks.h"
 
-#include <cassert>
 #include <fmt/format.h>
 
 namespace stellar
@@ -13,7 +13,7 @@ namespace stellar
 LedgerRange::LedgerRange(uint32_t first, uint32_t count)
     : mFirst{first}, mCount{count}
 {
-    assert(count == 0 || mFirst > 0);
+    releaseAssert(count == 0 || mFirst > 0);
 }
 
 std::string

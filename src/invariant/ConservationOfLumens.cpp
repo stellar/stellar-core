@@ -6,6 +6,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include <fmt/format.h>
 #include <numeric>
 
@@ -15,7 +16,7 @@ namespace stellar
 static int64_t
 calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
 {
-    assert(current || previous);
+    releaseAssert(current || previous);
     auto let = current ? current->data.type() : previous->data.type();
     if (let == ACCOUNT)
     {

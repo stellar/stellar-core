@@ -16,6 +16,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include <Tracy.hpp>
@@ -147,7 +148,7 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
     for (auto const& hash : mLocalState.differingBuckets(other))
     {
         auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
-        assert(b);
+        releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }
 

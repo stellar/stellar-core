@@ -8,6 +8,7 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -168,7 +169,7 @@ OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
 std::string
 OrderBookIsNotCrossed::check(AssetPairSet const& assetPairs)
 {
-    assert(!mRestoreBeforeNextUpdate);
+    releaseAssert(!mRestoreBeforeNextUpdate);
     for (auto const& assetPair : assetPairs)
     {
         auto checkCrossedResult =

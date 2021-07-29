@@ -5,6 +5,7 @@
 #include "historywork/PutRemoteFileWork.h"
 #include "history/HistoryArchive.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -17,8 +18,8 @@ PutRemoteFileWork::PutRemoteFileWork(Application& app, std::string const& local,
     , mRemote(remote)
     , mArchive(archive)
 {
-    assert(mArchive);
-    assert(mArchive->hasPutCmd());
+    releaseAssert(mArchive);
+    releaseAssert(mArchive->hasPutCmd());
 }
 
 CommandInfo

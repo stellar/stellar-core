@@ -10,6 +10,7 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -116,7 +117,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         std::make_shared<StellarMessage>(msg);
     for (auto peer : peers)
     {
-        assert(peer.second->isAuthenticated());
+        releaseAssert(peer.second->isAuthenticated());
         if (peersTold.insert(peer.second->toString()).second)
         {
             mSendFromBroadcast.Mark();

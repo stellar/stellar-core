@@ -8,6 +8,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
@@ -91,7 +92,7 @@ dumpXdrStream(std::string const& filename, bool compact)
         }
         else
         {
-            assert(sm[1] == "scp");
+            releaseAssert(sm[1] == "scp");
             dumpstream<SCPHistoryEntry>(in, compact);
         }
     }

@@ -4,9 +4,9 @@
 
 #include "util/Scheduler.h"
 #include "lib/util/finally.h"
+#include "util/GlobalChecks.h"
 #include "util/Timer.h"
 #include <Tracy.hpp>
-#include <cassert>
 
 namespace stellar
 {
@@ -58,8 +58,8 @@ class Scheduler::ActionQueue
     void
     addToIdleList()
     {
-        assert(!isInIdleList());
-        assert(isEmpty());
+        releaseAssert(!isInIdleList());
+        releaseAssert(isEmpty());
         mIdleList.push_front(shared_from_this());
         mIdlePosition = mIdleList.begin();
     }
@@ -67,8 +67,8 @@ class Scheduler::ActionQueue
     void
     removeFromIdleList()
     {
-        assert(isInIdleList());
-        assert(isEmpty());
+        releaseAssert(isInIdleList());
+        releaseAssert(isEmpty());
         mIdleList.erase(mIdlePosition);
         mIdlePosition = mIdleList.end();
     }
@@ -189,7 +189,7 @@ Scheduler::trimIdleActionQueues(VirtualClock::time_point now)
     Qptr old = mIdleActionQueues.back();
     if (old->lastService() + mLatencyWindow < now)
     {
-        assert(old->isEmpty());
+        releaseAssert(old->isEmpty());
         mAllActionQueues.erase(std::make_pair(old->name(), old->type()));
         old->removeFromIdleList();
     }
@@ -224,7 +224,7 @@ Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
     {
         if (qi->second->isInIdleList())
         {
-            assert(qi->second->isEmpty());
+            releaseAssert(qi->second->isEmpty());
             mStats.mQueuesActivatedFromIdle++;
             qi->second->removeFromIdleList();
             mRunnableActionQueues.push(qi->second);
@@ -242,7 +242,7 @@ Scheduler::runOne()
     trimIdleActionQueues(start);
     if (mRunnableActionQueues.empty())
     {
-        assert(mSize == 0);
+        releaseAssert(mSize == 0);
         return 0;
     }
     else
@@ -357,7 +357,7 @@ std::chrono::nanoseconds
 Scheduler::totalService(std::string const& q, ActionType type) const
 {
     auto eq = getExistingQueue(q, type);
-    assert(eq);
+    releaseAssert(eq);
     return eq->totalService();
 }
 
@@ -365,7 +365,7 @@ size_t
 Scheduler::queueLength(std::string const& q, ActionType type) const
 {
     auto eq = getExistingQueue(q, type);
-    assert(eq);
+    releaseAssert(eq);
     return eq->size();
 }
 #endif

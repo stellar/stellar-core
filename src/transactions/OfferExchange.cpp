@@ -12,6 +12,7 @@
 #include "lib/util/uint128_t.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -933,7 +934,7 @@ performExchange(LedgerTxnHeader const& header,
         {canSellAtMostBasedOnSheep(header, sheep, sheepLineAccountB, price),
          canSellAtMost(header, accountB, wheat, wheatLineAccountB),
          offer.amount});
-    assert(numWheatReceived >= 0);
+    releaseAssertOrThrow(numWheatReceived >= 0);
 
     newAmount = numWheatReceived;
     auto exchangeResult = header.current().ledgerVersion < 3
@@ -972,8 +973,8 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
            std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
-    assert(maxWheatReceived > 0);
-    assert(maxSheepSend > 0);
+    releaseAssertOrThrow(maxWheatReceived > 0);
+    releaseAssertOrThrow(maxSheepSend > 0);
 
     auto& offer = sellingWheatOffer.current().data.offer();
     // Note: These must be copies not references, since they are used even
@@ -1092,8 +1093,8 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
               RoundingType round, std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
-    assert(maxWheatReceived > 0);
-    assert(maxSheepSend > 0);
+    releaseAssertOrThrow(maxWheatReceived > 0);
+    releaseAssertOrThrow(maxSheepSend > 0);
     auto header = ltx.loadHeader();
 
     auto& offer = sellingWheatOffer.current().data.offer();
@@ -1234,7 +1235,7 @@ convertWithOffers(
 
     // If offerTrail is not empty at the start, then the limit maxOffersToCross
     // will not be imposed correctly.
-    assert(offerTrail.empty());
+    releaseAssertOrThrow(offerTrail.empty());
 
     sheepSend = 0;
     wheatReceived = 0;
@@ -1292,10 +1293,10 @@ convertWithOffers(
             needMore = true;
         }
 
-        assert(numSheepSend >= 0);
-        assert(numSheepSend <= maxSheepSend);
-        assert(numWheatReceived >= 0);
-        assert(numWheatReceived <= maxWheatReceive);
+        releaseAssertOrThrow(numSheepSend >= 0);
+        releaseAssertOrThrow(numSheepSend <= maxSheepSend);
+        releaseAssertOrThrow(numWheatReceived >= 0);
+        releaseAssertOrThrow(numWheatReceived <= maxWheatReceive);
 
         if (cor == CrossOfferResult::eOfferCantConvert)
         {

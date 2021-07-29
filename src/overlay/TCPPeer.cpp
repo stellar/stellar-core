@@ -41,7 +41,7 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
 TCPPeer::pointer
 TCPPeer::initiate(Application& app, PeerBareAddress const& address)
 {
-    assert(address.getType() == PeerBareAddress::Type::IPv4);
+    releaseAssert(address.getType() == PeerBareAddress::Type::IPv4);
 
     CLOG_DEBUG(Overlay, "TCPPeer:initiate to {}", address.toString());
     assertThreadIsMain();
@@ -248,11 +248,11 @@ TCPPeer::messageSender()
     // completed, at which point we'll clear mWriteBuffers and remove the entire
     // snapshot worth of corresponding messages from mWriteQueue (though it may
     // have grown a bit in the meantime -- we remove only a prefix).
-    assert(mWriteBuffers.empty());
+    releaseAssert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
     size_t maxQueueSize = mApp.getConfig().MAX_BATCH_WRITE_COUNT;
-    assert(maxQueueSize > 0);
+    releaseAssert(maxQueueSize > 0);
     size_t const maxTotalBytes = mApp.getConfig().MAX_BATCH_WRITE_BYTES;
     for (auto& tsm : mWriteQueue)
     {

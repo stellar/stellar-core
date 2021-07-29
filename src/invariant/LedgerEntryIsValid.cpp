@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "xdrpp/printer.h"
 #include <fmt/format.h>
 
@@ -346,7 +347,7 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
 
     if (previous)
     {
-        assert(previous->data.type() == CLAIMABLE_BALANCE);
+        releaseAssert(previous->data.type() == CLAIMABLE_BALANCE);
         auto const& previousCbe = previous->data.claimableBalance();
 
         if (!(cbe == previousCbe))

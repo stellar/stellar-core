@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/UnorderedMap.h"
 #include <fmt/format.h>
 
@@ -136,8 +137,8 @@ getDeltaSponsoringAndSponsored(std::shared_ptr<InternalLedgerEntry const> le,
 {
     if (le)
     {
-        assert(le->type() == InternalLedgerEntryType::LEDGER_ENTRY &&
-               le->ledgerEntry().data.type() == ACCOUNT);
+        releaseAssert(le->type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+                      le->ledgerEntry().data.type() == ACCOUNT);
         auto const& ae = le->ledgerEntry().data.account();
         if (hasAccountEntryExtV2(ae))
         {

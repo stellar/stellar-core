@@ -6,6 +6,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerRange.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include <fmt/format.h>
 
 namespace stellar
@@ -17,7 +18,7 @@ fmtProgress(Application& app, std::string const& task, LedgerRange const& range,
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();
     // Step is only ever 8 or 64.
-    assert(step != 0);
+    releaseAssert(step != 0);
     if (range.mCount == 0)
     {
         return fmt::format("{:s} 0/0 (100%)", task);

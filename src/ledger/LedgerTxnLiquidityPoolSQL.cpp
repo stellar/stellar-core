@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "util/GlobalChecks.h"
 #include "util/types.h"
 
 namespace stellar
@@ -185,7 +186,7 @@ class BulkDeleteLiquidityPoolOperation
         mPoolAssets.reserve(entries.size());
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
+            releaseAssert(!e.entryExists());
             throwIfNotLiquidityPool(e.key().ledgerKey().type());
             mPoolAssets.emplace_back(getPrimaryKey(
                 e.key().ledgerKey().liquidityPool().liquidityPoolID));
@@ -285,7 +286,7 @@ class BulkUpsertLiquidityPoolOperation
     {
         for (auto const& e : entryIter)
         {
-            assert(e.entryExists());
+            releaseAssert(e.entryExists());
             accumulateEntry(e.entry().ledgerEntry());
         }
     }

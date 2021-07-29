@@ -6,6 +6,7 @@
 #include "history/StateSnapshot.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -32,7 +33,7 @@ ResolveSnapshotWork::onRun()
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
-        assert(mSnapshot->mLocalState.containsValidBuckets(mApp));
+        releaseAssert(mSnapshot->mLocalState.containsValidBuckets(mApp));
         return State::WORK_SUCCESS;
     }
     else

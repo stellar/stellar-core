@@ -14,6 +14,7 @@
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -309,7 +310,7 @@ readXdrEnumArray(ConfigItem const& item)
     {
         auto enumNameCharPtr =
             xdr::xdr_traits<T>::enum_name(static_cast<T>(enumVal));
-        assert(enumNameCharPtr);
+        releaseAssert(enumNameCharPtr);
         enumNames.emplace(enumNameCharPtr, static_cast<T>(enumVal));
     }
 

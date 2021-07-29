@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "overlay/PeerBareAddress.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 
 #include <fmt/format.h>
@@ -113,8 +114,8 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
         port = static_cast<unsigned short>(parsedPort);
     }
 
-    assert(!ip.empty());
-    assert(port != 0);
+    releaseAssert(!ip.empty());
+    releaseAssert(port != 0);
 
     return PeerBareAddress{ip, port};
 }

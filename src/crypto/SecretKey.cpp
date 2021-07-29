@@ -12,6 +12,7 @@
 #include "crypto/StrKey.h"
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/Math.h"
 #include "util/RandomEvictionCache.h"
@@ -45,7 +46,7 @@ static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
                   ByteSlice const& bin)
 {
-    assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
 
     BLAKE2 hasher;
     hasher.add(key.ed25519());
@@ -85,7 +86,7 @@ SecretKey::getPublicKey() const
 SecretKey::Seed
 SecretKey::getSeed() const
 {
-    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     Seed seed;
     seed.mKeyType = mKeyType;
@@ -100,7 +101,7 @@ SecretKey::getSeed() const
 SecretValue
 SecretKey::getStrKeySeed() const
 {
-    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     return strKey::toStrKey(strKey::STRKEY_SEED_ED25519, getSeed().mSeed);
 }
@@ -128,7 +129,7 @@ Signature
 SecretKey::sign(ByteSlice const& bin) const
 {
     ZoneScoped;
-    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     Signature out(crypto_sign_BYTES, 0);
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
@@ -143,7 +144,7 @@ SecretKey
 SecretKey::random()
 {
     SecretKey sk;
-    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
     if (crypto_sign_keypair(sk.mPublicKey.ed25519().data(),
                             sk.mSecretKey.data()) != 0)
     {
@@ -269,7 +270,7 @@ SecretKey
 SecretKey::fromSeed(ByteSlice const& seed)
 {
     SecretKey sk;
-    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     if (seed.size() != crypto_sign_SEEDBYTES)
     {
@@ -297,7 +298,7 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
     }
 
     SecretKey sk;
-    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
     if (crypto_sign_seed_keypair(sk.mPublicKey.ed25519().data(),
                                  sk.mSecretKey.data(), seed.data()) != 0)
     {
@@ -395,7 +396,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
     ZoneScoped;
-    assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
+    releaseAssert(key.type() == PUBLIC_KEY_TYPE_ED25519);
     if (signature.size() != 64)
     {
         return false;
@@ -531,7 +532,8 @@ namespace std
 size_t
 hash<stellar::PublicKey>::operator()(stellar::PublicKey const& k) const noexcept
 {
-    assert(k.type() == stellar::PUBLIC_KEY_TYPE_ED25519);
+    using namespace stellar;
+    releaseAssert(k.type() == stellar::PUBLIC_KEY_TYPE_ED25519);
 
     return std::hash<stellar::uint256>()(k.ed25519());
 }
