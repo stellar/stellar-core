@@ -20,7 +20,10 @@ class ChangeTrustOpFrame : public OperationFrame
     bool tryIncrementPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset);
 
     bool tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
-                                     PoolID const& poolID);
+                                     TrustLineAsset const& tlAsset);
+
+    void managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
+                                      TrustLineAsset const& tlAsset);
 
   public:
     ChangeTrustOpFrame(Operation const& op, OperationResult& res,
