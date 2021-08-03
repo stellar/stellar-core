@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "OfferExchange.h"
+#include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -15,6 +16,12 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
+
+struct ExchangedQuantities
+{
+    int64_t sheepSend{0};
+    int64_t wheatReceived{0};
+};
 
 namespace stellar
 {
@@ -1281,7 +1288,95 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
     }
 }
 
-ConvertResult
+static PoolID
+getPoolID(Asset const& x, Asset const& y, int32_t feeBps)
+{
+    LiquidityPoolParameters lpp(LIQUIDITY_POOL_CONSTANT_PRODUCT);
+    auto& cp = lpp.constantProduct();
+    cp.assetA = std::min(x, y);
+    cp.assetB = std::max(x, y);
+    cp.fee = feeBps;
+    return xdrSha256(lpp);
+}
+
+static bool
+exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
+                 int64_t maxSendToPool, int64_t& toPool,
+                 Asset const& fromPoolAsset, int64_t maxReceiveFromPool,
+                 int64_t& fromPool, RoundingType round,
+                 int64_t maxOffersToCross)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    if (ltx.loadHeader().current().ledgerVersion < 18)
+    {
+        // Only exchange with pools starting at protocol version 18
+        return false;
+    }
+    if (round == RoundingType::NORMAL)
+    {
+        // Only exchange with pools for path payments
+        return false;
+    }
+    if (maxOffersToCross == 0)
+    {
+        // offerTrail is going to be too long after exchanging with the
+        // liquidity pool
+        return false;
+    }
+
+    int32_t const feeBps = LIQUIDITY_POOL_FEE_V18;
+    auto poolID = getPoolID(toPoolAsset, fromPoolAsset, feeBps);
+    auto lp = loadLiquidityPool(ltx, poolID);
+    if (!lp)
+    {
+        return false;
+    }
+
+    auto cp = [&lp]() -> auto&
+    {
+        return lp.current().data.liquidityPool().body.constantProduct();
+    };
+
+    bool res = false;
+    if (toPoolAsset == cp().params.assetA &&
+        fromPoolAsset == cp().params.assetB)
+    {
+        res = exchangeWithPool(cp().reserveA, maxSendToPool, toPool,
+                               cp().reserveB, maxReceiveFromPool, fromPool,
+                               feeBps, round);
+        if (res)
+        {
+            cp().reserveA += toPool;
+            cp().reserveB -= fromPool;
+        }
+    }
+    else if (fromPoolAsset == cp().params.assetA &&
+             toPoolAsset == cp().params.assetB)
+    {
+        res = exchangeWithPool(cp().reserveB, maxSendToPool, toPool,
+                               cp().reserveA, maxReceiveFromPool, fromPool,
+                               feeBps, round);
+        if (res)
+        {
+            cp().reserveA -= fromPool;
+            cp().reserveB += toPool;
+        }
+    }
+    else
+    {
+        // We should never get here
+        throw std::runtime_error("Invalid liquidity pool assets");
+    }
+
+    if (res)
+    {
+        ltx.commit();
+    }
+    return res;
+}
+
+static ConvertResult
 convertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
@@ -1390,5 +1485,132 @@ convertWithOffers(
     {
         return ConvertResult::ePartial;
     }
+}
+
+static bool
+shouldConvertWithOffers(std::optional<ExchangedQuantities> const& poolExchange,
+                        ExchangedQuantities const& bookExchange,
+                        ConvertResult convertRes)
+{
+    if (poolExchange)
+    {
+        // If we can do the exchange with the pool but not with the order book
+        // then use the pool
+        if (convertRes != ConvertResult::eOK)
+        {
+            return false;
+        }
+
+        // pE.sS * bE.wR > pE.wR * bE.sS is equivalent in arbitrary precision to
+        // bE.wR / bE.sS > pe.wR / pE.sS, but the first form avoids rounding in
+        // finite precision
+        //
+        // We want to use the liquidity pool unless the order book provides a
+        // strictly better price
+        return bigMultiply(poolExchange->sheepSend,
+                           bookExchange.wheatReceived) >
+               bigMultiply(poolExchange->wheatReceived, bookExchange.sheepSend);
+    }
+
+    // If we can't exchange with the pool then either
+    // - the exchange with the book succeeded so we should use that
+    // - the exchange with the book failed so we should return that error code
+    //   for compatibility with old behavior
+    return true;
+}
+
+// returns true if converting with offers, false otherwise
+static bool
+maybeConvertWithOffers(
+    AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
+    int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
+    int64_t& wheatReceived, RoundingType round,
+    std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
+    std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross,
+    ConvertResult& convertRes)
+{
+    // Compute the exchange from the liquidity pool but don't actually do the
+    // exchange
+    std::optional<ExchangedQuantities> poolExchange;
+    {
+        LedgerTxn ltxExchangeWithPool(ltxOuter); // Always rolls back
+        ExchangedQuantities res;
+        if (exchangeWithPool(ltxExchangeWithPool, sheep, maxSheepSend,
+                             res.sheepSend, wheat, maxWheatReceive,
+                             res.wheatReceived, round, maxOffersToCross))
+        {
+            poolExchange = std::make_optional<ExchangedQuantities>(res);
+        }
+    }
+
+    // Maybe use the order book
+    {
+        LedgerTxn ltxConvertWithOffers(ltxOuter);
+
+        std::vector<ClaimAtom> tempOfferTrail;
+        ExchangedQuantities bookExchange;
+        auto res = convertWithOffers(
+            ltxConvertWithOffers, sheep, maxSheepSend, bookExchange.sheepSend,
+            wheat, maxWheatReceive, bookExchange.wheatReceived, round, filter,
+            tempOfferTrail, maxOffersToCross);
+
+        if (shouldConvertWithOffers(poolExchange, bookExchange, res))
+        {
+            convertRes = res;
+            sheepSend = bookExchange.sheepSend;
+            wheatReceived = bookExchange.wheatReceived;
+            offerTrail = std::move(tempOfferTrail);
+            ltxConvertWithOffers.commit();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+ConvertResult
+convertWithOffersAndPools(
+    AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
+    int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
+    int64_t& wheatReceived, RoundingType round,
+    std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
+    std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross)
+{
+    ZoneScoped;
+
+    // If offerTrail is not empty at the start, then the limit maxOffersToCross
+    // will not be imposed correctly.
+    releaseAssertOrThrow(offerTrail.empty());
+
+    sheepSend = 0;
+    wheatReceived = 0;
+
+    {
+        ConvertResult convertRes;
+        if (maybeConvertWithOffers(ltxOuter, sheep, maxSheepSend, sheepSend,
+                                   wheat, maxWheatReceive, wheatReceived, round,
+                                   filter, offerTrail, maxOffersToCross,
+                                   convertRes))
+        {
+            return convertRes;
+        }
+    }
+
+    // Ensure that there were no side effects from maybeConvertWithOffers (this
+    // should be a no-op)
+    offerTrail.clear();
+    sheepSend = 0;
+    wheatReceived = 0;
+
+    // Compute the exchange from the liquidity pool and actually do the exchange
+    exchangeWithPool(ltxOuter, sheep, maxSheepSend, sheepSend, wheat,
+                     maxWheatReceive, wheatReceived, round, maxOffersToCross);
+
+    ClaimAtom atom(CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+    atom.liquidityPool() =
+        ClaimLiquidityAtom(getPoolID(sheep, wheat, LIQUIDITY_POOL_FEE_V18),
+                           wheat, wheatReceived, sheep, sheepSend);
+    offerTrail.emplace_back(atom);
+    return ConvertResult::eOK;
 }
 }
