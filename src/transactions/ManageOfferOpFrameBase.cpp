@@ -336,7 +336,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         int64_t sheepSent, wheatReceived;
         std::vector<ClaimAtom> offerTrail;
         Price maxWheatPrice(mPrice.d, mPrice.n);
-        ConvertResult r = convertWithOffers(
+        ConvertResult r = convertWithOffersAndPools(
             ltx, mSheep, maxSheepSend, sheepSent, mWheat, maxWheatReceive,
             wheatReceived, RoundingType::NORMAL,
             [this, passive, &maxWheatPrice](LedgerTxnEntry const& entry) {

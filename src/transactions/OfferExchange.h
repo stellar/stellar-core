@@ -309,8 +309,9 @@ enum class CrossOfferResult
     eOfferCantConvert
 };
 
-// buys wheat with sheep, crossing as many offers as necessary
-ConvertResult convertWithOffers(
+// buys wheat with sheep, crossing as many offers as necessary or using a
+// liquidity pool
+ConvertResult convertWithOffersAndPools(
     AbstractLedgerTxn& ltx, Asset const& sheep, int64_t maxSheepSent,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, RoundingType round,
