@@ -251,6 +251,12 @@ throwIf(ChangeTrustResult const& result)
         throw ex_CHANGE_TRUST_LOW_RESERVE{};
     case CHANGE_TRUST_SELF_NOT_ALLOWED:
         throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
+    case CHANGE_TRUST_TRUST_LINE_MISSING:
+        throw ex_CHANGE_TRUST_TRUST_LINE_MISSING{};
+    case CHANGE_TRUST_CANNOT_DELETE:
+        throw ex_CHANGE_TRUST_CANNOT_DELETE{};
+    case CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES:
+        throw ex_CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES{};
     case CHANGE_TRUST_SUCCESS:
         break;
     default:
