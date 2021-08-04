@@ -816,6 +816,9 @@
     <ClCompile Include="..\..\src\transactions\test\LiquidityPoolWithdrawTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\LiquidityPoolTradeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\SignatureUtilsTest.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
