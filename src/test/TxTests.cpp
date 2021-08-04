@@ -328,6 +328,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
+        recordOrCheckGlobalTestTxMetadata(tm);
     }
 
     // Undo the increment from the beginning of this function. Note that if this
