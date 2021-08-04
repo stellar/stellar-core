@@ -118,7 +118,7 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         {
             return "LiquidityPool is sponsored";
         }
-        return checkIsValid(le.data.liquidityPool(), version);
+        return checkIsValid(le.data.liquidityPool(), previous, version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -393,13 +393,20 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
 
 std::string
 LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
+                                 LedgerEntry const* previous,
                                  uint32 version) const
 {
     if (version < 18)
     {
         return "LiquidityPools are only valid from V18";
     }
-    auto const cp = lp.body.constantProduct();
+
+    if (lp.body.type() != LIQUIDITY_POOL_CONSTANT_PRODUCT)
+    {
+        return "LiquidityPool type must be constant product";
+    }
+
+    auto const& cp = lp.body.constantProduct();
     if (!isAssetValid(cp.params.assetA, version))
     {
         return "LiquidityPool assetA is invalid";
@@ -433,6 +440,27 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
     {
         return "LiquidityPool poolSharesTrustLineCount is negative";
     }
+
+    if (previous)
+    {
+        if (previous->data.type() != LIQUIDITY_POOL)
+        {
+            return "LiquidityPool used to be of different type";
+        }
+
+        auto const& lpPrev = previous->data.liquidityPool();
+        if (lpPrev.body.type() != lp.body.type())
+        {
+            return "LiquidityPool body changed type";
+        }
+
+        if (!(lpPrev.body.constantProduct().params ==
+              lp.body.constantProduct().params))
+        {
+            return "LiquidityPool parameters changed";
+        }
+    }
+
     return {};
 }
 }
