@@ -1204,26 +1204,25 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
         if (s.size() > 1 && s[0] == '@')
         {
             std::string arg = s.substr(1);
-            // go through SCP messages of the previous ledger
-            // (to increase the chances of finding the node)
-            uint32 seq = trackingConsensusLedgerIndex();
-            if (seq > 2)
-            {
-                seq--;
-            }
-            getSCP().processCurrentState(
-                seq,
-                [&](SCPEnvelope const& e) {
-                    std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
-                    if (curK.compare(0, arg.size(), arg) == 0)
-                    {
-                        retKey = e.statement.nodeID;
-                        r = true;
-                        return false;
-                    }
-                    return true;
-                },
-                true);
+            getSCP().processSlotsDescendingFrom(
+                std::numeric_limits<uint64>::max(), [&](uint64_t seq) {
+                    getSCP().processCurrentState(
+                        seq,
+                        [&](SCPEnvelope const& e) {
+                            std::string curK =
+                                KeyUtils::toStrKey(e.statement.nodeID);
+                            if (curK.compare(0, arg.size(), arg) == 0)
+                            {
+                                retKey = e.statement.nodeID;
+                                r = true;
+                                return false;
+                            }
+                            return true;
+                        },
+                        true);
+
+                    return !r;
+                });
         }
     }
     return r;
