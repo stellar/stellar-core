@@ -698,7 +698,8 @@ struct TransactionSignaturePayload
 enum ClaimAtomType
 {
     CLAIM_ATOM_TYPE_V0 = 0,
-    CLAIM_ATOM_TYPE_ORDER_BOOK = 1
+    CLAIM_ATOM_TYPE_ORDER_BOOK = 1,
+    CLAIM_ATOM_TYPE_LIQUIDITY_POOL = 2
 };
 
 // ClaimOfferAtomV0 is a ClaimOfferAtom with the AccountID discriminant stripped
@@ -736,6 +737,19 @@ struct ClaimOfferAtom
     int64 amountBought;
 };
 
+struct ClaimLiquidityAtom
+{
+    PoolID liquidityPoolID;
+
+    // amount and asset taken from the pool
+    Asset assetSold;
+    int64 amountSold;
+
+    // amount and asset sent to the pool
+    Asset assetBought;
+    int64 amountBought;
+};
+
 /* This result is used when offers are taken or liquidity is exchanged with a
    liquidity pool during an operation
 */
@@ -745,6 +759,8 @@ case CLAIM_ATOM_TYPE_V0:
     ClaimOfferAtomV0 v0;
 case CLAIM_ATOM_TYPE_ORDER_BOOK:
     ClaimOfferAtom orderBook;
+case CLAIM_ATOM_TYPE_LIQUIDITY_POOL:
+    ClaimLiquidityAtom liquidityPool;
 };
 
 /******* CreateAccount Result ********/
