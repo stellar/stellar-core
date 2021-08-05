@@ -15,6 +15,7 @@
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/LiquidityPoolDepositOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
@@ -106,6 +107,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ClawbackClaimableBalanceOpFrame>(op, res, tx);
     case SET_TRUST_LINE_FLAGS:
         return std::make_shared<SetTrustLineFlagsOpFrame>(op, res, tx);
+    case LIQUIDITY_POOL_DEPOSIT:
+        return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

@@ -1313,6 +1313,21 @@ clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
     return op;
 }
 
+Operation
+liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                     int64_t maxAmountB, Price const& minPrice,
+                     Price const& maxPrice)
+{
+    Operation op;
+    op.body.type(LIQUIDITY_POOL_DEPOSIT);
+    op.body.liquidityPoolDepositOp().liquidityPoolID = poolID;
+    op.body.liquidityPoolDepositOp().maxAmountA = maxAmountA;
+    op.body.liquidityPoolDepositOp().maxAmountB = maxAmountB;
+    op.body.liquidityPoolDepositOp().minPrice = minPrice;
+    op.body.liquidityPoolDepositOp().maxPrice = maxPrice;
+    return op;
+}
+
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)
 {

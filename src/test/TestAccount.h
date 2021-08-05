@@ -112,6 +112,10 @@ class TestAccount
     void clawback(PublicKey const& from, Asset const& asset, int64_t amount);
     void clawbackClaimableBalance(ClaimableBalanceID const& balanceID);
 
+    void liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                              int64_t maxAmountB, Price const& minPrice,
+                              Price const& maxPrice);
+
     operator SecretKey() const
     {
         return getSecretKey();
@@ -166,6 +170,7 @@ class TestAccount
 
     uint32_t getTrustlineFlags(Asset const& asset) const;
     int64_t getTrustlineBalance(Asset const& asset) const;
+    int64_t getTrustlineBalance(PoolID const& poolID) const;
     int64_t getBalance() const;
     int64_t getAvailableBalance() const;
 

@@ -186,6 +186,16 @@ liquidityPoolKey(PoolID const& poolID)
     return key;
 }
 
+LedgerKey
+poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset.type(ASSET_TYPE_POOL_SHARE);
+    key.trustLine().asset.liquidityPoolID() = poolID;
+    return key;
+}
+
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
@@ -292,8 +302,17 @@ loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 }
 
 LedgerTxnEntry
+loadPoolShareTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
+                       PoolID const& poolID)
+{
+    ZoneScoped;
+    return ltx.load(poolShareTrustLineKey(accountID, poolID));
+}
+
+LedgerTxnEntry
 loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 {
+    ZoneScoped;
     return ltx.load(liquidityPoolKey(poolID));
 }
 
@@ -852,7 +871,7 @@ isAuthorized(ConstLedgerTxnEntry const& entry)
 }
 
 bool
-isAuthorizedToMaintainLiabilities(uint32_t flags)
+isAuthorizedToMaintainLiabilitiesUnsafe(uint32_t flags)
 {
     return (flags & TRUSTLINE_AUTH_FLAGS) != 0;
 }
@@ -860,7 +879,11 @@ isAuthorizedToMaintainLiabilities(uint32_t flags)
 bool
 isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
-    return isAuthorizedToMaintainLiabilities(le.data.trustLine().flags);
+    if (le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
+    {
+        return true;
+    }
+    return isAuthorizedToMaintainLiabilitiesUnsafe(le.data.trustLine().flags);
 }
 
 bool
