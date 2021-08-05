@@ -489,6 +489,28 @@ throwIf(LiquidityPoolDepositResult const& result)
 }
 
 void
+throwIf(LiquidityPoolWithdrawResult const& result)
+{
+    switch (result.code())
+    {
+    case LIQUIDITY_POOL_WITHDRAW_MALFORMED:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_MALFORMED{};
+    case LIQUIDITY_POOL_WITHDRAW_NO_TRUST:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_NO_TRUST{};
+    case LIQUIDITY_POOL_WITHDRAW_UNDERFUNDED:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_UNDERFUNDED{};
+    case LIQUIDITY_POOL_WITHDRAW_LINE_FULL:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL{};
+    case LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM:
+        throw ex_LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM{};
+    case LIQUIDITY_POOL_WITHDRAW_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -595,6 +617,9 @@ throwIf(TransactionResult const& result)
         break;
     case LIQUIDITY_POOL_DEPOSIT:
         throwIf(opResult.tr().liquidityPoolDepositResult());
+        break;
+    case LIQUIDITY_POOL_WITHDRAW:
+        throwIf(opResult.tr().liquidityPoolWithdrawResult());
         break;
     }
 }

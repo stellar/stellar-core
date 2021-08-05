@@ -1341,6 +1341,19 @@ liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
     return op;
 }
 
+Operation
+liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
+                      int64_t minAmountB)
+{
+    Operation op;
+    op.body.type(LIQUIDITY_POOL_WITHDRAW);
+    op.body.liquidityPoolWithdrawOp().liquidityPoolID = poolID;
+    op.body.liquidityPoolWithdrawOp().amount = amount;
+    op.body.liquidityPoolWithdrawOp().minAmountA = minAmountA;
+    op.body.liquidityPoolWithdrawOp().minAmountB = minAmountB;
+    return op;
+}
+
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)
 {
