@@ -2,9 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -16,19 +13,6 @@
 
 using namespace stellar;
 using namespace stellar::txtest;
-
-static void
-checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
-                   int64_t reserveB, int64_t totalPoolShares)
-{
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto lp = loadLiquidityPool(ltx, poolID);
-    REQUIRE(lp);
-    auto const& cp = lp.current().data.liquidityPool().body.constantProduct();
-    REQUIRE(cp.reserveA == reserveA);
-    REQUIRE(cp.reserveB == reserveB);
-    REQUIRE(cp.totalPoolShares == totalPoolShares);
-}
 
 TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
 {

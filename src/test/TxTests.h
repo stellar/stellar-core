@@ -80,6 +80,10 @@ void validateTxResults(TransactionFramePtr const& tx, Application& app,
                        ValidationResult validationResult,
                        TransactionResult const& applyResult = {});
 
+void checkLiquidityPool(Application& app, PoolID const& poolID,
+                        int64_t reserveA, int64_t reserveB,
+                        int64_t totalPoolShares);
+
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
