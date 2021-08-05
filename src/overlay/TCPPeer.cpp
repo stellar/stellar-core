@@ -136,11 +136,8 @@ TCPPeer::getIP() const
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
-    if (mState == CLOSING)
+    if (shouldAbort())
     {
-        CLOG_ERROR(Overlay, "Trying to send message to {} after drop",
-                   toString());
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
         return;
     }
 
