@@ -554,6 +554,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\LiquidityPoolDepositOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\LiquidityPoolWithdrawOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp" />
@@ -570,6 +571,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\SetOptionsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\SetTrustLineFlagsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\LiquidityPoolDepositTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\LiquidityPoolWithdrawTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\SignatureUtilsTest.cpp" />
     <ClCompile Include="..\..\src\transactions\test\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\TxResultsTests.cpp" />
@@ -886,6 +888,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\LiquidityPoolDepositOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\LiquidityPoolWithdrawOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SignatureChecker.h" />
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
