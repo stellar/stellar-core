@@ -5,10 +5,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/InternalLedgerEntry.h"
+#include "herder/AccountCommutativityRequirements.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/types.h"
 
+
+#include <optional>
 #include <memory>
 #include <set>
 
@@ -65,6 +68,10 @@ class TransactionFrame : public TransactionFrameBase
         kMaybeValid
     };
 
+    xdr::pointer<TimeBounds> const& getTimeBounds() const;
+
+    xdr::xvector<Operation, MAX_OPS_PER_TX> const & getXDROperations() const;
+
     virtual bool isTooEarly(LedgerTxnHeader const& header,
                             uint64_t lowerBoundCloseTimeOffset) const;
     virtual bool isTooLate(LedgerTxnHeader const& header,
@@ -102,6 +109,9 @@ class TransactionFrame : public TransactionFrameBase
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
+
+
+    bool isWellFormedCommutativeEnvelope() const;
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -159,6 +169,13 @@ class TransactionFrame : public TransactionFrameBase
     uint32_t getNumOperations() const override;
 
     int64_t getFeeBid() const override;
+
+
+    bool isCommutativeTransaction() const override;
+    bool commutativityWellFormednessChecks() const override;
+
+    std::optional<AccountCommutativityRequirements>
+    getCommutativityRequirements(AbstractLedgerTxn& ltx) const override;
 
     int64_t getMinFee(LedgerHeader const& header) const override;
 

@@ -51,6 +51,8 @@ class TrustLineWrapper
     bool isAuthorizedToMaintainLiabilities() const;
     bool isClawbackEnabled() const;
 
+    bool isCommutativeTxEnabledTrustLine() const;
+
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const;
 
     int64_t getMaxAmountReceive(LedgerTxnHeader const& header) const;
@@ -87,6 +89,8 @@ class TrustLineWrapper::AbstractImpl
     virtual bool isAuthorized() const = 0;
     virtual bool isAuthorizedToMaintainLiabilities() const = 0;
     virtual bool isClawbackEnabled() const = 0;
+
+    virtual bool isCommutativeTxEnabledTrustLine() const = 0;
 
     virtual int64_t
     getAvailableBalance(LedgerTxnHeader const& header) const = 0;

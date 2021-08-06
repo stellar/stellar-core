@@ -114,8 +114,16 @@ TransactionFrame::getEnvelope()
 SequenceNumber
 TransactionFrame::getSeqNum() const
 {
-    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.seqNum
-                                                   : mEnvelope.v1().tx.seqNum;
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+            return mEnvelope.v0().tx.seqNum;
+        case ENVELOPE_TYPE_TX:
+            return mEnvelope.v1().tx.seqNum;
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return mEnvelope.commutativeTx().tx.seqNum;
+        default:
+            abort();
+    }
 }
 
 AccountID
@@ -127,28 +135,63 @@ TransactionFrame::getFeeSourceID() const
 AccountID
 TransactionFrame::getSourceID() const
 {
-    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
-    {
-        AccountID res;
-        res.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
-        return res;
+
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+        {
+            AccountID res;
+            res.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
+            return res;
+        }
+        case ENVELOPE_TYPE_TX:
+            return toAccountID(mEnvelope.v1().tx.sourceAccount);
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return toAccountID(mEnvelope.commutativeTx().tx.sourceAccount);
+        default:
+            abort();
     }
-    return toAccountID(mEnvelope.v1().tx.sourceAccount);
 }
 
 uint32_t
 TransactionFrame::getNumOperations() const
 {
-    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-               ? static_cast<uint32_t>(mEnvelope.v0().tx.operations.size())
-               : static_cast<uint32_t>(mEnvelope.v1().tx.operations.size());
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+            return static_cast<uint32_t>(mEnvelope.v0().tx.operations.size());
+        case ENVELOPE_TYPE_TX:
+            return static_cast<uint32_t>(mEnvelope.v1().tx.operations.size());
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return static_cast<uint32_t>(mEnvelope.commutativeTx().tx.operations.size());
+        default:
+            abort();
+    }
 }
 
 int64_t
 TransactionFrame::getFeeBid() const
 {
-    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.fee
-                                                   : mEnvelope.v1().tx.fee;
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+            return mEnvelope.v0().tx.fee;
+        case ENVELOPE_TYPE_TX:
+            return mEnvelope.v1().tx.fee;
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return mEnvelope.commutativeTx().tx.fee;
+        default:
+            abort();
+    }
+}
+
+std::optional<AccountCommutativityRequirements>
+TransactionFrame::getCommutativityRequirements(AbstractLedgerTxn& ltx) const
+{
+    AccountCommutativityRequirements reqs(getSourceID());
+    for (const auto& op : getOperations()) {
+        if (!op->addCommutativityRequirements(ltx, reqs)) {
+            return std::nullopt;
+        }
+    }
+    return reqs;
 }
 
 int64_t
@@ -284,13 +327,57 @@ TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
                                       static_cast<uint32_t>(index));
 }
 
+xdr::xvector<Operation, MAX_OPS_PER_TX> const&
+TransactionFrame::getXDROperations() const {
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+            return mEnvelope.v0().tx.operations;
+        case ENVELOPE_TYPE_TX:
+            return mEnvelope.v1().tx.operations;
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return mEnvelope.commutativeTx().tx.operations;
+        default:
+            abort();
+    }
+}
+
+bool isCommutativeOp(OperationType opType) {
+    switch(opType) {
+        case PAYMENT:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool
+TransactionFrame::commutativityWellFormednessChecks() const {
+    if (isCommutativeTransaction()) {
+        return isWellFormedCommutativeEnvelope();
+    }
+    return true;
+}
+
+bool
+TransactionFrame::isWellFormedCommutativeEnvelope() const {
+    if (mEnvelope.type() != ENVELOPE_TYPE_TX_COMMUTATIVE) {
+        return false;
+    }
+    auto& ops = getXDROperations();
+
+    for (auto& op : ops) {
+        if (!isCommutativeOp(op.body.type())) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void
 TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
                                bool applying)
 {
-    auto& ops = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                    ? mEnvelope.v0().tx.operations
-                    : mEnvelope.v1().tx.operations;
+    auto& ops = getXDROperations();
 
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -310,13 +397,27 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
     getResult().feeCharged = getFee(header, baseFee, applying);
 }
 
+xdr::pointer<TimeBounds> const&
+TransactionFrame::getTimeBounds() const
+{
+    switch(mEnvelope.type()) {
+        case ENVELOPE_TYPE_TX_V0:
+            return mEnvelope.v0().tx.timeBounds;
+        case ENVELOPE_TYPE_TX:
+            return mEnvelope.v1().tx.timeBounds;
+        case ENVELOPE_TYPE_TX_COMMUTATIVE:
+            return mEnvelope.commutativeTx().tx.timeBounds;
+        default:
+            abort();
+    }
+}
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const& tb = getTimeBounds();
+
     if (tb)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
@@ -330,9 +431,7 @@ bool
 TransactionFrame::isTooLate(LedgerTxnHeader const& header,
                             uint64_t upperBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const& tb = getTimeBounds();
     if (tb)
     {
         // Prior to consensus, we can pass in an upper bound estimate on when we
@@ -394,6 +493,11 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
     if (!loadSourceAccount(ltx, header))
     {
         getResult().result.code(txNO_ACCOUNT);
+        return false;
+    }
+
+    if (!commutativityWellFormednessChecks()) {
+        getResult().result.code(txBAD_COMMUTATIVITY_CONTEXT);
         return false;
     }
 
@@ -688,6 +792,11 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 {
     return checkValid(ltxOuter, current, true, lowerBoundCloseTimeOffset,
                       upperBoundCloseTimeOffset);
+}
+
+bool
+TransactionFrame::isCommutativeTransaction() const {
+    return mEnvelope.type() == ENVELOPE_TYPE_TX_COMMUTATIVE;
 }
 
 void

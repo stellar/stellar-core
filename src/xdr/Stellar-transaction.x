@@ -633,6 +633,26 @@ struct FeeBumpTransactionEnvelope
     DecoratedSignature signatures<20>;
 };
 
+struct CommutativeTransaction
+{
+    MuxedAccount sourceAccount;
+    uint32 fee;
+    SequenceNumber seqNum;
+
+    TimeBounds* timeBounds;
+
+    Memo memo;
+
+    Operation operations<MAX_OPS_PER_TX>;
+};
+
+struct CommutativeTransactionEnvelope
+{
+    CommutativeTransaction tx;
+
+    DecoratedSignature signatures<20>;
+};
+
 /* A TransactionEnvelope wraps a transaction with signatures. */
 union TransactionEnvelope switch (EnvelopeType type)
 {
@@ -642,6 +662,8 @@ case ENVELOPE_TYPE_TX:
     TransactionV1Envelope v1;
 case ENVELOPE_TYPE_TX_FEE_BUMP:
     FeeBumpTransactionEnvelope feeBump;
+case ENVELOPE_TYPE_TX_COMMUTATIVE:
+    CommutativeTransactionEnvelope commutativeTx;
 };
 
 struct TransactionSignaturePayload
@@ -654,6 +676,7 @@ struct TransactionSignaturePayload
         Transaction tx;
     case ENVELOPE_TYPE_TX_FEE_BUMP:
         FeeBumpTransaction feeBump;
+    //TODO wat is this
     }
     taggedTransaction;
 };
@@ -1383,7 +1406,8 @@ enum TransactionResultCode
 
     txNOT_SUPPORTED = -12,         // transaction type not supported
     txFEE_BUMP_INNER_FAILED = -13, // fee bump inner transaction failed
-    txBAD_SPONSORSHIP = -14        // sponsorship not confirmed
+    txBAD_SPONSORSHIP = -14,       // sponsorship not confirmed
+    txBAD_COMMUTATIVITY_CONTEXT = -15 // noncommutative op in commutative envelope
 };
 
 // InnerTransactionResult must be binary compatible with TransactionResult

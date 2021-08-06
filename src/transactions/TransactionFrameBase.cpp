@@ -17,6 +17,7 @@ TransactionFrameBase::makeTransactionFromWire(Hash const& networkID,
     {
     case ENVELOPE_TYPE_TX_V0:
     case ENVELOPE_TYPE_TX:
+    case ENVELOPE_TYPE_TX_COMMUTATIVE:
         return std::make_shared<TransactionFrame>(networkID, env);
     case ENVELOPE_TYPE_TX_FEE_BUMP:
         return std::make_shared<FeeBumpTransactionFrame>(networkID, env);

@@ -83,6 +83,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     AccountID getFeeSourceID() const override;
     AccountID getSourceID() const override;
 
+    
+    bool isCommutativeTransaction() const override;
+    bool commutativityWellFormednessChecks() const override;
+
+    std::optional<AccountCommutativityRequirements>
+    getCommutativityRequirements(AbstractLedgerTxn& ltx) const override;
+
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;

@@ -9,6 +9,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/SurgePricingUtils.h"
+#include "herder/TxSetCommutativityRequirements.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -286,11 +287,16 @@ TxSetFrame::checkOrTrim(Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
+    //UnorderedMap<AccountID, int64_t> accountFeeMap;
+    TxSetCommutativityRequirements reqs;
+
     auto accountTxMap = buildAccountTxQueues();
+    auto header = ltx.loadHeader();
+
     for (auto& kv : accountTxMap)
     {
         int64_t lastSeq = 0;
+        bool foundNoncommutative = false;
         auto iter = kv.second.begin();
         while (iter != kv.second.end())
         {
@@ -315,8 +321,35 @@ TxSetFrame::checkOrTrim(Application& app,
             }
             else
             {
+
+                if (tx -> isCommutativeTransaction() && foundNoncommutative) {
+                    
+                    if (justCheck) 
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Cannot follow noncommutative tx by commutative tx in one block");
+                        return false;
+                    }
+                    while(iter != kv.second.end())
+                    {
+                        trimmed.emplace_back(tx);
+                        removeTx(tx);
+                        iter = kv.second.erase(iter);
+                    }
+                    return false;
+                }
+
+                if (!tx -> isCommutativeTransaction()) {
+                    foundNoncommutative = true;
+                }
+
                 lastSeq = tx->getSeqNum();
-                int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
+
+                auto res = reqs.tryAddTransaction(tx, header, ltx);
+
+
+                /*int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
                 if (INT64_MAX - accFee < tx->getFeeBid())
                 {
                     accFee = INT64_MAX;
@@ -324,42 +357,25 @@ TxSetFrame::checkOrTrim(Application& app,
                 else
                 {
                     accFee += tx->getFeeBid();
-                }
-                ++iter;
-            }
-        }
-    }
+                } */
 
-    auto header = ltx.loadHeader();
-    for (auto& kv : accountTxMap)
-    {
-        auto iter = kv.second.begin();
-        while (iter != kv.second.end())
-        {
-            auto tx = *iter;
-            auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
-            auto totFee = accountFeeMap[tx->getFeeSourceID()];
-            if (getAvailableBalance(header, feeSource) < totFee)
-            {
-                if (justCheck)
-                {
-                    CLOG_DEBUG(Herder,
-                               "Got bad txSet: {} account can't pay fee tx: {}",
-                               hexAbbrev(mPreviousLedgerHash),
-                               xdr_to_string(tx->getEnvelope(),
-                                             "TransactionEnvelope"));
+                if (res) {
+                    ++iter;
+                } else {
+                    if (justCheck) {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Invalid TxSet: TODO logging");
+                        return false;
+                    }
+                    while (iter != kv.second.end())
+                    {
+                        trimmed.emplace_back(tx);
+                        removeTx(tx);
+                        iter = kv.second.erase(iter);
+                    }
                     return false;
                 }
-                while (iter != kv.second.end())
-                {
-                    trimmed.emplace_back(*iter);
-                    removeTx(*iter);
-                    ++iter;
-                }
-            }
-            else
-            {
-                ++iter;
             }
         }
     }

@@ -349,6 +349,28 @@ FeeBumpTransactionFrame::getSourceID() const
     return mInnerTx->getSourceID();
 }
 
+
+bool 
+FeeBumpTransactionFrame::isCommutativeTransaction() const 
+{
+    return false;
+    //TODO feebump on a commutative envelope is ok
+}
+
+bool 
+FeeBumpTransactionFrame::commutativityWellFormednessChecks() const
+{
+    return mInnerTx -> commutativityWellFormednessChecks();
+}
+
+std::optional<AccountCommutativityRequirements>
+FeeBumpTransactionFrame::getCommutativityRequirements(AbstractLedgerTxn& ltx) const
+{
+    //TODO get results from within feeBump tx
+    return std::nullopt;
+}
+
+
 void
 FeeBumpTransactionFrame::insertKeysForFeeProcessing(
     UnorderedSet<LedgerKey>& keys) const

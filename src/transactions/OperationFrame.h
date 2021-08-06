@@ -17,6 +17,9 @@ class MetricsRegistry;
 
 namespace stellar
 {
+
+class AccountCommutativityRequirements;
+
 class AbstractLedgerTxn;
 class LedgerManager;
 class LedgerTxnEntry;
@@ -41,6 +44,8 @@ class OperationFrame
 
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
+
+    virtual bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs) const;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -81,6 +86,8 @@ class OperationFrame
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
     bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx);
+
+    bool addCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs);
 
     Operation const&
     getOperation() const

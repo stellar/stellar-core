@@ -130,6 +130,22 @@ PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
     return true;
 }
 
+bool
+PaymentOpFrame::doAddCommutativityRequirements(AbstractLedgerTxn& ltx,
+                                               AccountCommutativityRequirements& reqs) const
+{
+    if (!reqs.checkTrustLine(ltx, toAccountID(mPayment.destination), mPayment.asset))
+    {
+        return false;
+    }
+
+    if (!reqs.tryAddAssetRequirement(ltx, mPayment.asset, mPayment.amount))
+    {
+        return false;
+    }
+    return true;
+}
+
 void
 PaymentOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {

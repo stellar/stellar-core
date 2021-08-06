@@ -137,6 +137,21 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     return res;
 }
 
+bool
+OperationFrame::doAddCommutativityRequirements(AbstractLedgerTxn& ltx,
+                                               AccountCommutativityRequirements& reqs) const
+{
+    return false;
+}
+
+bool
+OperationFrame::addCommutativityRequirements(AbstractLedgerTxn& ltx,
+                                             AccountCommutativityRequirements& reqs) {
+    ZoneScoped;
+    //TODO logging
+    return doAddCommutativityRequirements(ltx, reqs);
+}
+
 ThresholdLevel
 OperationFrame::getThresholdLevel() const
 {

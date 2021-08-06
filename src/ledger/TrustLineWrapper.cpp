@@ -36,6 +36,7 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
     bool isAuthorized() const override;
     bool isAuthorizedToMaintainLiabilities() const override;
     bool isClawbackEnabled() const override;
+    bool isCommutativeTxEnabledTrustLine() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -66,6 +67,7 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
     bool isAuthorized() const override;
     bool isAuthorizedToMaintainLiabilities() const override;
     bool isClawbackEnabled() const override;
+    bool isCommutativeTxEnabledTrustLine() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -172,6 +174,12 @@ TrustLineWrapper::isClawbackEnabled() const
     return getImpl()->isClawbackEnabled();
 }
 
+bool
+TrustLineWrapper::isCommutativeTxEnabledTrustLine() const {
+    return getImpl()->isCommutativeTxEnabledTrustLine();
+}
+
+
 int64_t
 TrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
@@ -270,6 +278,11 @@ TrustLineWrapper::NonIssuerImpl::isClawbackEnabled() const
     return stellar::isClawbackEnabledOnTrustline(mEntry);
 }
 
+bool
+TrustLineWrapper::NonIssuerImpl::isCommutativeTxEnabledTrustLine() const {
+    return stellar::isCommutativeTxEnabledTrustLine(mEntry);
+}
+
 int64_t
 TrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -353,6 +366,11 @@ bool
 TrustLineWrapper::IssuerImpl::isClawbackEnabled() const
 {
     throw std::runtime_error("issuer cannot clawback from itself");
+}
+
+bool
+TrustLineWrapper::IssuerImpl::isCommutativeTxEnabledTrustLine() const {
+    return true;
 }
 
 int64_t

@@ -568,6 +568,19 @@ getAvailableBalance(LedgerTxnHeader const& header,
     return getAvailableBalance(header.current(), entry.current());
 }
 
+int64_t 
+getAvailableBalance(LedgerTxnHeader const& header, AbstractLedgerTxn& ltx, AccountID account, Asset asset) {
+    if (asset.type() == ASSET_TYPE_NATIVE) {
+        auto accountEntry = loadAccount(ltx, account);
+        return getAvailableBalance(header.current(), accountEntry.current());
+    } else {
+        auto tl = loadTrustLine(ltx, account, asset);
+        return tl.getAvailableBalance(header);
+      //  return getAvailableBalance(header, assetEntry);
+    }
+}
+
+
 int64_t
 getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
@@ -822,6 +835,31 @@ isAuthorizedToMaintainLiabilities(uint32_t flags)
 }
 
 bool
+isCommutativeTxEnabledAsset(uint32_t flags)
+{
+    return (flags & AUTH_ISSUANCE_LIMIT) != 0;
+}
+
+bool
+isCommutativeTxEnabledAsset(LedgerEntry const& entry)
+{
+    return isCommutativeTxEnabledAsset(entry.data.account().flags);
+}
+
+bool
+isCommutativeTxEnabledTrustLine(LedgerEntry const& le)
+{
+    return isAuthorizedToMaintainLiabilities(le)
+        && le.data.trustLine().limit == INT64_MAX;
+}
+
+bool
+isCommutativeTxEnabledTrustLine(LedgerTxnEntry const& entry)
+{
+    return isCommutativeTxEnabledTrustLine(entry.current());
+}
+
+bool
 isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
     return isAuthorizedToMaintainLiabilities(le.data.trustLine().flags);
@@ -1050,6 +1088,12 @@ getAsset(AccountID const& issuer, AssetCode const& assetCode)
         throw std::runtime_error("Unexpected assetCode type");
     }
 
+    return asset;
+}
+
+Asset getNativeAsset() {
+    Asset asset;
+    asset.type(ASSET_TYPE_NATIVE);
     return asset;
 }
 

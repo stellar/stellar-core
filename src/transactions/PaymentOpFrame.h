@@ -9,6 +9,7 @@
 namespace stellar
 {
 class AbstractLedgerTxn;
+class AccountCommutativityRequirements;
 
 class PaymentOpFrame : public OperationFrame
 {
@@ -25,6 +26,9 @@ class PaymentOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
+
+    bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs) const override;
+    
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

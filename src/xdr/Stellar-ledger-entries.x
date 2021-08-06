@@ -121,12 +121,15 @@ enum AccountFlags
     // Trustlines are created with clawback enabled set to "true",
     // and claimable balances created from those trustlines are created
     // with clawback enabled set to "true"
-    AUTH_CLAWBACK_ENABLED_FLAG = 0x8
+    AUTH_CLAWBACK_ENABLED_FLAG = 0x8,
+    // Asset issuance amount limited to INT64_MAX
+    AUTH_ISSUANCE_LIMIT = 0x10
 };
 
 // mask for all valid flags
 const MASK_ACCOUNT_FLAGS = 0x7;
 const MASK_ACCOUNT_FLAGS_V17 = 0xF;
+const MASK_ACCOUNT_FLAGS_V99 = 0x1F;
 
 // maximum number of signers
 const MAX_SIGNERS = 20;
@@ -556,6 +559,7 @@ enum EnvelopeType
     ENVELOPE_TYPE_AUTH = 3,
     ENVELOPE_TYPE_SCPVALUE = 4,
     ENVELOPE_TYPE_TX_FEE_BUMP = 5,
-    ENVELOPE_TYPE_OP_ID = 6
+    ENVELOPE_TYPE_OP_ID = 6,
+    ENVELOPE_TYPE_TX_COMMUTATIVE = 7
 };
 }

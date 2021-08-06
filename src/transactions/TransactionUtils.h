@@ -117,6 +117,8 @@ int64_t getAvailableBalance(LedgerTxnHeader const& header,
 int64_t getAvailableBalance(LedgerTxnHeader const& header,
                             ConstLedgerTxnEntry const& entry);
 
+int64_t getAvailableBalance(LedgerTxnHeader const& header, AbstractLedgerTxn& ltx, AccountID account, Asset asset);
+
 int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
                              LedgerEntry const& le);
 int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
@@ -166,6 +168,13 @@ bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le);
 bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry);
 bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
+bool isCommutativeTxEnabledAsset(uint32_t flags);
+bool isCommutativeTxEnabledAsset(LedgerEntry const& entry);
+
+bool isCommutativeTxEnabledTrustLine(LedgerEntry const& le);
+bool isCommutativeTxEnabledTrustLine(LedgerTxnEntry const& entry);
+
+
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
 bool isClawbackEnabledOnTrustline(TrustLineEntry const& tl);
@@ -177,6 +186,7 @@ bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);
+
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
@@ -200,6 +210,7 @@ uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 bool hasAccountEntryExtV2(AccountEntry const& ae);
 
 Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
+Asset getNativeAsset();
 
 bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb);
 void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
