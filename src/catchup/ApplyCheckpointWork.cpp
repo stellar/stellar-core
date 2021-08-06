@@ -250,96 +250,75 @@ BasicWork::State
 ApplyCheckpointWork::onRun()
 {
     ZoneScoped;
-    try
+    if (mConditionalWork)
     {
-        if (mConditionalWork)
-        {
-            mConditionalWork->crankWork();
+        mConditionalWork->crankWork();
 
-            if (mConditionalWork->getState() == State::WORK_SUCCESS)
+        if (mConditionalWork->getState() == State::WORK_SUCCESS)
+        {
+            auto& lm = mApp.getLedgerManager();
+
+            CLOG_DEBUG(History, "{}",
+                       xdr_to_string(lm.getLastClosedLedgerHeader(),
+                                     "LedgerManager LCL"));
+
+            CLOG_DEBUG(History, "{}",
+                       xdr_to_string(mHeaderHistoryEntry, "Replay header"));
+            if (lm.getLastClosedLedgerHeader().hash != mHeaderHistoryEntry.hash)
             {
-                auto& lm = mApp.getLedgerManager();
-
-                CLOG_DEBUG(History, "{}",
-                           xdr_to_string(lm.getLastClosedLedgerHeader(),
-                                         "LedgerManager LCL"));
-
-                CLOG_DEBUG(History, "{}",
-                           xdr_to_string(mHeaderHistoryEntry, "Replay header"));
-                if (lm.getLastClosedLedgerHeader().hash !=
-                    mHeaderHistoryEntry.hash)
-                {
-                    mApplyLedgerFailure.Mark();
-                    throw std::runtime_error(fmt::format(
-                        "replay of {:s} produced mismatched ledger hash {:s}",
-                        LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
-                        LedgerManager::ledgerAbbrev(
-                            lm.getLastClosedLedgerHeader())));
-                }
-
-                mApplyLedgerSuccess.Mark();
+                mApplyLedgerFailure.Mark();
+                throw std::runtime_error(fmt::format(
+                    "replay of {:s} produced mismatched ledger hash {:s}",
+                    LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
+                    LedgerManager::ledgerAbbrev(
+                        lm.getLastClosedLedgerHeader())));
             }
-            else
-            {
-                return mConditionalWork->getState();
-            }
+
+            mApplyLedgerSuccess.Mark();
         }
-
-        auto const& lm = mApp.getLedgerManager();
-        auto done = (mLedgerRange.mCount == 0 ||
-                     lm.getLastClosedLedgerNum() == mLedgerRange.last());
-
-        if (done)
+        else
         {
-            return State::WORK_SUCCESS;
+            return mConditionalWork->getState();
         }
+    }
 
-        if (!mFilesOpen)
-        {
-            openInputFiles();
-        }
+    auto const& lm = mApp.getLedgerManager();
+    auto done = (mLedgerRange.mCount == 0 ||
+                 lm.getLastClosedLedgerNum() == mLedgerRange.last());
 
-        auto lcd = getNextLedgerCloseData();
-        if (!lcd)
-        {
-            return State::WORK_RUNNING;
-        }
+    if (done)
+    {
+        return State::WORK_SUCCESS;
+    }
 
-        auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
+    if (!mFilesOpen)
+    {
+        openInputFiles();
+    }
 
-        auto predicate = [](Application& app) {
-            auto& bl = app.getBucketManager().getBucketList();
-            auto& lm = app.getLedgerManager();
-            bl.resolveAnyReadyFutures();
-            return bl.futuresAllResolved(
-                bl.getMaxMergeLevel(lm.getLastClosedLedgerNum() + 1));
-        };
-
-        mConditionalWork = std::make_shared<ConditionalWork>(
-            mApp,
-            fmt::format("apply-ledger-conditional ledger({})",
-                        lcd->getLedgerSeq()),
-            predicate, applyLedger, std::chrono::milliseconds(500));
-
-        mConditionalWork->startWork(wakeSelfUpCallback());
+    auto lcd = getNextLedgerCloseData();
+    if (!lcd)
+    {
         return State::WORK_RUNNING;
     }
-    catch (InvariantDoesNotHold&)
-    {
-        // already displayed e.what()
-        CLOG_ERROR(History, "Replay failed");
-        throw;
-    }
-    catch (FileSystemException&)
-    {
-        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
-        return State::WORK_FAILURE;
-    }
-    catch (std::exception& e)
-    {
-        CLOG_ERROR(History, "Replay failed: {}", e.what());
-        return State::WORK_FAILURE;
-    }
+
+    auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
+
+    auto predicate = [](Application& app) {
+        auto& bl = app.getBucketManager().getBucketList();
+        auto& lm = app.getLedgerManager();
+        bl.resolveAnyReadyFutures();
+        return bl.futuresAllResolved(
+            bl.getMaxMergeLevel(lm.getLastClosedLedgerNum() + 1));
+    };
+
+    mConditionalWork = std::make_shared<ConditionalWork>(
+        mApp,
+        fmt::format("apply-ledger-conditional ledger({})", lcd->getLedgerSeq()),
+        predicate, applyLedger, std::chrono::milliseconds(500));
+
+    mConditionalWork->startWork(wakeSelfUpCallback());
+    return State::WORK_RUNNING;
 }
 
 void
