@@ -656,6 +656,7 @@ class LedgerTxn : public AbstractLedgerTxn
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 
+    // ok why is there a getHeader and a loadHeader method
     LedgerHeader const& getHeader() const override;
 
     std::vector<InflationWinner>

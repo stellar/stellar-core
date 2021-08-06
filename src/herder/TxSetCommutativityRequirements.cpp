@@ -1,5 +1,9 @@
 #include "TxSetCommutativityRequirements.h"
 
+#include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "util/XDROperators.h"
+
 namespace stellar {
 
 
@@ -11,7 +15,7 @@ TxSetCommutativityRequirements::getRequirements(AccountID account)
 }
 
 bool 
-TxSetCommutativityRequirements::tryAddFee(LedgerTxnHeader& header, AbstractLedgerTxn& ltx, AccountID feeAccount, int64_t fee) 
+TxSetCommutativityRequirements::canAddFee(LedgerTxnHeader& header, AbstractLedgerTxn& ltx, AccountID feeAccount, int64_t fee) 
 {
 
 	//Possibly redundant check
@@ -35,12 +39,14 @@ TxSetCommutativityRequirements::addFee(AccountID feeAccount, int64_t fee)
 	getRequirements(feeAccount).addAssetRequirement(getNativeAsset(), fee);
 }
 
-
 bool 
-TxSetCommutativityRequirements::tryAddTransaction(TransactionFrameBasePtr tx, LedgerTxnHeader& header, AbstractLedgerTxn& ltx)
+TxSetCommutativityRequirements::tryAddTransaction(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx)
 {
+
+	LedgerTxnHeader header = ltx.loadHeader();
+
 	if (!tx->isCommutativeTransaction()) {
-		if (!tryAddFee(header, ltx, tx->getFeeSourceID(), tx->getFeeBid())) {
+		if (!canAddFee(header, ltx, tx->getFeeSourceID(), tx->getFeeBid())) {
 			return false;
 		}
 		addFee(tx->getFeeSourceID(), tx->getFeeBid());
@@ -54,9 +60,8 @@ TxSetCommutativityRequirements::tryAddTransaction(TransactionFrameBasePtr tx, Le
 
 	auto sourceAccount = tx->getSourceID();
 
-	//auto [reqs_iter, _] = mAccountRequirements.emplace(std::make_pair(sourceAccount, sourceAccount));
+	auto& prevReqs = getRequirements(sourceAccount);
 
-	auto& prevReqs = getRequirements(sourceAccount);//reqs_iter -> second;//mAccountRequirements[sourceAccount];
 
 	for (auto& req : reqs->getRequiredAssets()) {
 		if (!prevReqs.checkAvailableBalanceSufficesForNewRequirement(header, ltx, req.first, req.second))
@@ -65,7 +70,7 @@ TxSetCommutativityRequirements::tryAddTransaction(TransactionFrameBasePtr tx, Le
 		}
 	}
 
-	if (!tryAddFee(header, ltx, tx->getFeeSourceID(), tx->getFeeBid())) {
+	if (!canAddFee(header, ltx, tx->getFeeSourceID(), tx->getFeeBid())) {
 		return false;
 	}
 
@@ -77,6 +82,95 @@ TxSetCommutativityRequirements::tryAddTransaction(TransactionFrameBasePtr tx, Le
 	addFee(tx->getFeeSourceID(), tx->getFeeBid());
 
 	return true;
+}
+
+bool 
+TxSetCommutativityRequirements::tryReplaceTransaction(TransactionFrameBasePtr newTx, 
+													  TransactionFrameBasePtr oldTx, 
+													  AbstractLedgerTxn& ltx)
+{
+
+	AccountID sourceAccount = newTx->getSourceID();
+	if (!(oldTx->getSourceID() == sourceAccount)) {
+		throw std::logic_error("can't replace from different account");
+	}
+
+	auto newReqs = newTx -> getCommutativityRequirements(ltx);
+	auto oldReqs = oldTx -> getCommutativityRequirements(ltx);
+
+	if (newTx -> isCommutativeTransaction() && (!newReqs)) {
+		return false;
+	}
+
+	auto newFeeBid = newTx -> getFeeBid();
+
+	if (newTx -> getFeeSourceID() == oldTx -> getFeeSourceID())
+	{
+		newFeeBid -= oldTx -> getFeeBid();
+	}
+	if (newFeeBid < 0) {
+		throw std::logic_error("replacement by fee should require an increase");
+	}
+
+	auto prevReqs = getRequirements(sourceAccount);
+
+	LedgerTxnHeader header = ltx.loadHeader();
+
+	if (newReqs)
+	{
+		if (oldReqs)
+		{
+			for (auto& oldReq : oldReqs -> getRequiredAssets())
+			{
+				newReqs->addAssetRequirement(oldReq.first, -oldReq.second);
+			}
+		}
+		for (auto& newReq : newReqs -> getRequiredAssets())
+		{
+			if (!prevReqs.checkAvailableBalanceSufficesForNewRequirement(header, ltx, newReq.first, newReq.second)) {
+				return false;
+			}
+		}
+	}
+
+	if (!canAddFee(header, ltx, newTx -> getFeeSourceID(), newFeeBid))
+	{
+		return false;
+	}
+
+	if (newReqs)
+	{
+		for (auto& req : newReqs -> getRequiredAssets())
+		{
+			prevReqs.addAssetRequirement(req.first, req.second);
+		}
+	}
+	addFee(newTx->getFeeSourceID(), newFeeBid);
+
+	if (!(newTx -> getFeeSourceID() == oldTx -> getFeeSourceID()))
+	{
+		addFee(oldTx -> getFeeSourceID(), -oldTx -> getFeeBid());
+	}
+	return true;
+}
+
+bool 
+TxSetCommutativityRequirements::tryCleanAccountEntry(AccountID account)
+{
+	auto iter = mAccountRequirements.find(account);
+	if (iter == mAccountRequirements.end())
+	{
+		return false;
+	}
+	iter -> second.cleanZeroedEntries();
+
+	if (iter -> second.isEmpty())
+	{
+		mAccountRequirements.erase(iter);
+		return true;
+	}
+	return false;
+
 }
 
 

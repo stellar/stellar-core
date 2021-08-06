@@ -48,6 +48,13 @@ public:
 	AssetMap const& getRequiredAssets() const {
 		return mRequiredAssets;
 	}
+
+	void cleanZeroedEntries();
+
+	bool isEmpty()
+	{
+		return mRequiredAssets.empty();
+	}
 };
 
 

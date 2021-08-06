@@ -87,6 +87,22 @@ AccountCommutativityRequirements::getNativeAssetReqs() {
 	return mRequiredAssets[getNativeAsset()];
 }
 
+void
+AccountCommutativityRequirements::cleanZeroedEntries()
+{
+	for (auto iter = mRequiredAssets.begin(); iter != mRequiredAssets.end();)
+	{
+		if (iter -> second == 0)
+		{
+			iter = mRequiredAssets.erase(iter);
+		} else
+		{
+			iter++;
+		}
+	}
+}
+
+
 
 
 } /* stellar */

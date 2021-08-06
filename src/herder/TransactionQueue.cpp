@@ -207,6 +207,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                     }
 
+                    //needs delta calc in asset reqs
+
                     oldTx = oldTxIter->mTx;
                     int64_t oldFee = oldTx->getFeeBid();
                     if (oldTx->getFeeSourceID() == tx->getFeeSourceID())
@@ -243,8 +245,23 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
+    if (oldTx)
+    {
+        if (!mCommutativityRequirements.tryReplaceTransaction(tx, oldTx, ltx))
+        {
+            tx->getResult().result.code(txINSUFFICIENT_BALANCE);
+            return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        }
+    } else {
+        if (!mCommutativityRequirements.tryAddTransaction(tx, ltx))
+        {
+            tx->getResult().result.code(txINSUFFICIENT_BALANCE);
+            return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        }
+    }
+
     // Note: stateIter corresponds to getSourceID() which is not necessarily
-    // the same as getFeeSourceID()
+   /* // the same as getFeeSourceID()
     auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
     auto feeStateIter = mAccountStates.find(tx->getFeeSourceID());
     int64_t totalFees = feeStateIter == mAccountStates.end()
@@ -254,7 +271,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
-    }
+    }*/
 
     return TransactionQueue::AddResult::ADD_STATUS_PENDING;
 }
@@ -269,10 +286,14 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
     iter->second.mTotalFees -= tx->getFeeBid();
     if (iter->second.mTransactions.empty())
     {
-        if (iter->second.mTotalFees == 0)
+        if (mCommutativityRequirements.tryCleanAccountEntry(iter->first))
         {
             mAccountStates.erase(iter);
         }
+   //     if (iter->second.mTotalFees == 0)
+     //   {
+       //     mAccountStates.erase(iter);
+        //}
     }
 }
 
@@ -372,10 +393,14 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
     // the fee-source for some other transaction or (2) reset the age otherwise.
     if (stateIter->second.mTransactions.empty())
     {
-        if (stateIter->second.mTotalFees == 0)
+        if (mCommutativityRequirements.tryCleanAccountEntry(stateIter->first))
         {
             mAccountStates.erase(stateIter);
         }
+       // if (stateIter->second.mTotalFees == 0)
+       // {
+       //     mAccountStates.erase(stateIter);
+       // }
         else
         {
             stateIter->second.mAge = 0;

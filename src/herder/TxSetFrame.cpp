@@ -291,7 +291,6 @@ TxSetFrame::checkOrTrim(Application& app,
     TxSetCommutativityRequirements reqs;
 
     auto accountTxMap = buildAccountTxQueues();
-    auto header = ltx.loadHeader();
 
     for (auto& kv : accountTxMap)
     {
@@ -346,7 +345,7 @@ TxSetFrame::checkOrTrim(Application& app,
 
                 lastSeq = tx->getSeqNum();
 
-                auto res = reqs.tryAddTransaction(tx, header, ltx);
+                auto res = reqs.tryAddTransaction(tx, ltx);
 
 
                 /*int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];

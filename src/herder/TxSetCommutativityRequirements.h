@@ -11,12 +11,14 @@
 
 namespace stellar {
 
+class AbstractLedgerTxn;
+
 class TxSetCommutativityRequirements {
 
 	std::map<AccountID, AccountCommutativityRequirements> mAccountRequirements;
 
 	bool
-	tryAddFee(LedgerTxnHeader& header, AbstractLedgerTxn& ltx, AccountID feeAccount, int64_t fee);
+	canAddFee(LedgerTxnHeader& header, AbstractLedgerTxn& ltx, AccountID feeAccount, int64_t fee);
 
 	void addFee(AccountID feeAccount, int64_t fee);
 
@@ -26,7 +28,12 @@ class TxSetCommutativityRequirements {
 
 public:
 
-	bool tryAddTransaction(TransactionFrameBasePtr tx, LedgerTxnHeader& header, AbstractLedgerTxn& ltx);
+	bool tryAddTransaction(TransactionFrameBasePtr tx, AbstractLedgerTxn& ltx);
+
+	bool tryReplaceTransaction(TransactionFrameBasePtr newTx, TransactionFrameBasePtr oldTx, AbstractLedgerTxn& ltx);
+
+	// returns true if account has been removed from the map
+	bool tryCleanAccountEntry(AccountID account);
 
 
 };

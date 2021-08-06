@@ -12,6 +12,8 @@
 #include "util/XDROperators.h"
 #include "xdr/Stellar-transaction.h"
 
+#include "herder/TxSetCommutativityRequirements.h"
+
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include <chrono>
@@ -173,6 +175,7 @@ class TransactionQueue
     uint32 const mPendingDepth;
 
     AccountStates mAccountStates;
+    TxSetCommutativityRequirements mCommutativityRequirements;
     BannedTransactions mBannedTransactions;
     uint32_t mLedgerVersion;
 
