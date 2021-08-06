@@ -252,6 +252,9 @@
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\simulation\test\LoadGeneratorTests.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\scp\SCP.cpp">
       <Filter>scp</Filter>
     </ClCompile>
@@ -1265,6 +1268,9 @@
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
     </ClInclude>
+    <ClCompile Include="..\..\src\simulation\test\LoadGeneratorTests.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
     <ClInclude Include="..\..\lib\json\json.h">
       <Filter>lib\json</Filter>
     </ClInclude>

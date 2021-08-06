@@ -590,6 +590,7 @@ exit /b 0
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
+    <ClCompile Include="..\..\src\simulation\test\LoadGeneratorTests.cpp" />
     <ClCompile Include="..\..\src\test\fuzz.cpp" />
     <ClCompile Include="..\..\src\test\test.cpp" />
     <ClCompile Include="..\..\src\test\TestAccount.cpp" />
@@ -858,6 +859,7 @@ exit /b 0
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
+    <ClInclude Include="..\..\src\simulation\test\LoadGeneratorTests.cpp" />
     <ClInclude Include="..\..\src\test\fuzz.h" />
     <ClInclude Include="..\..\src\test\SimpleTestReporter.h" />
     <ClInclude Include="..\..\src\test\test.h" />
