@@ -48,8 +48,10 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
     AccountID const mAccountID;
     Asset const mAsset;
 
+    LedgerTxnEntry mEntry;
+
   public:
-    IssuerImpl(AccountID const& accountID, Asset const& asset);
+    IssuerImpl(AccountID const& accountID, Asset const& asset, LedgerTxnEntry&& entry);
 
     operator bool() const override;
 
@@ -101,7 +103,12 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
     }
     else
     {
-        mImpl = std::make_unique<IssuerImpl>(accountID, asset);
+        LedgerKey key(ACCOUNT);
+        key.account().accountID = accountID;
+        auto entry = ltx.load(key);
+        if (entry) {
+            mImpl = std::make_unique<IssuerImpl>(accountID, asset, std::move(entry));
+        }
     }
 }
 
@@ -111,6 +118,7 @@ TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry)
     {
         mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));
     }
+    //TODO check entry type to determine issuer or nonissuer?
 }
 
 TrustLineWrapper::operator bool() const
@@ -299,8 +307,9 @@ TrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
 
 // Implementation of TrustLineWrapper::IssuerImpl -----------------------------
 TrustLineWrapper::IssuerImpl::IssuerImpl(AccountID const& accountID,
-                                         Asset const& asset)
-    : mAccountID(accountID), mAsset(asset)
+                                         Asset const& asset,
+                                         LedgerTxnEntry&& entry)
+    : mAccountID(accountID), mAsset(asset), mEntry(std::move(entry))
 {
 }
 
@@ -312,14 +321,15 @@ TrustLineWrapper::IssuerImpl::operator bool() const
 int64_t
 TrustLineWrapper::IssuerImpl::getBalance() const
 {
-    return INT64_MAX;
+    return stellar::getRemainingAssetIssuance(mEntry);
 }
 
 bool
 TrustLineWrapper::IssuerImpl::addBalance(LedgerTxnHeader const& header,
                                          int64_t delta)
 {
-    return true;
+
+    return stellar::issueAsset(mEntry, delta);
 }
 
 int64_t

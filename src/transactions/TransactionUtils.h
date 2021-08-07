@@ -42,6 +42,9 @@ prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
 LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le);
 
 AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae);
+AccountEntryExtensionV3& getAccountEntryExtensionV3(AccountEntry& ae);
+AccountEntryExtensionV3 const& getAccountEntryExtensionV3(AccountEntry const& ae);
+
 LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le);
 
 LedgerKey accountKey(AccountID const& accountID);
@@ -185,8 +188,13 @@ bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
+bool isImmutableAuth(LedgerEntry const& entry);
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
+int64_t getRemainingAssetIssuance(LedgerEntry const& entry);
+int64_t getRemainingAssetIssuance(LedgerTxnEntry const& entry);
+
+bool issueAsset(LedgerTxnEntry& entry, int64_t delta);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
@@ -208,6 +216,7 @@ bool hasMuxedAccount(TransactionEnvelope const& e);
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
+bool hasAccountEntryExtV3(AccountEntry const& ae);
 
 Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 Asset getNativeAsset();

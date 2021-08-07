@@ -136,6 +136,18 @@ const MAX_SIGNERS = 20;
 
 typedef AccountID* SponsorshipDescriptor;
 
+struct AccountEntryExtensionV3
+{
+    int64 *totalAssetIssued;
+
+    union switch(int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
 struct AccountEntryExtensionV2
 {
     uint32 numSponsored;
@@ -146,6 +158,8 @@ struct AccountEntryExtensionV2
     {
     case 0:
         void;
+    case 3:
+        AccountEntryExtensionV3 v3;
     }
     ext;
 };

@@ -121,6 +121,9 @@ PathPaymentOpFrameBase::shouldBypassIssuerCheck(
     // and the destination is the issuer we don't bother
     // checking if the destination account even exist
     // so that it's always possible to send credits back to its issuer
+    // Is this only invoked when PaymentOp is emulated via PathPaymentStrictSendOp???
+    // asset is not XLM && no intermediate assets && start asset == end asset && issuer of asset is dest account (so no trustline limit?)
+    // why
     return (getDestAsset().type() != ASSET_TYPE_NATIVE) && (path.size() == 0) &&
            (getSourceAsset() == getDestAsset()) &&
            (getIssuer(getDestAsset()) == getDestID());

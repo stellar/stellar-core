@@ -76,6 +76,27 @@ getAccountEntryExtensionV2(AccountEntry& ae)
     return ae.ext.v1().ext.v2();
 }
 
+AccountEntryExtensionV3&
+getAccountEntryExtensionV3(AccountEntry& ae)
+{
+    if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2 || ae.ext.v1().ext.v2().ext.v() != 3)
+    {
+        throw std::runtime_error("expected AccountEntry extension V3");
+    }
+    return ae.ext.v1().ext.v2().ext.v3();
+}
+
+AccountEntryExtensionV3 const&
+getAccountEntryExtensionV3(AccountEntry const& ae)
+{
+    if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2 || ae.ext.v1().ext.v2().ext.v() != 3)
+    {
+        throw std::runtime_error("expected AccountEntry extension V3");
+    }
+    return ae.ext.v1().ext.v2().ext.v3();
+}
+
+
 LedgerEntryExtensionV1&
 getLedgerEntryExtensionV1(LedgerEntry& le)
 {
@@ -420,6 +441,46 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
     }
 }
 
+bool issueAsset(LedgerTxnEntry& entry, int64_t delta)
+{
+    if (entry.current().data.type() == ACCOUNT)
+    {
+
+        if (!isCommutativeTxEnabledAsset(entry.current())) {
+            if (hasAccountEntryExtV3(entry.current().data.account()))
+            {
+                auto& v3 = getAccountEntryExtensionV3(entry.current().data.account());
+                if (v3.totalAssetIssued) {
+                    if (INT64_MAX - *v3.totalAssetIssued < delta)
+                    {
+                        v3.totalAssetIssued = nullptr;
+                    } else {
+                        *v3.totalAssetIssued += delta;
+                    }
+                }
+            }
+            return true;
+        }
+
+        if (hasAccountEntryExtV3(entry.current().data.account()))
+        {
+            auto& v3 = getAccountEntryExtensionV3(entry.current().data.account());
+
+            if (!v3.totalAssetIssued) {
+                throw std::logic_error("issuance limit asset not tracking total issuance");
+            }
+            if (INT64_MAX - *v3.totalAssetIssued < delta) {
+                return false;
+            }
+            *v3.totalAssetIssued += delta;
+            return true;
+
+        }
+        throw std::logic_error("issuance limit asset had no v3");
+    }
+    throw std::logic_error("can't issue on non Account entry");
+}
+
 bool
 addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                      int64_t delta)
@@ -576,7 +637,6 @@ getAvailableBalance(LedgerTxnHeader const& header, AbstractLedgerTxn& ltx, Accou
     } else {
         auto tl = loadTrustLine(ltx, account, asset);
         return tl.getAvailableBalance(header);
-      //  return getAvailableBalance(header, assetEntry);
     }
 }
 
@@ -927,9 +987,45 @@ isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isImmutableAuth(LedgerEntry const& entry)
+{
+    return (entry.data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
+}
+
+bool
 isImmutableAuth(LedgerTxnEntry const& entry)
 {
-    return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
+    return isImmutableAuth(entry.current());
+}
+
+int64_t 
+getRemainingAssetIssuance(LedgerEntry const& entry)
+{
+    if (entry.data.type() == ACCOUNT) 
+    {
+        if (!isCommutativeTxEnabledAsset(entry)) {
+            return INT64_MAX;
+        }
+        if (!hasAccountEntryExtV3(entry.data.account()))
+        {
+            throw std::logic_error("asset issuance total is missing");
+        }
+
+        auto const& v3 = getAccountEntryExtensionV3(entry.data.account());
+
+        if (!v3.totalAssetIssued) {
+            throw std::logic_error("total asset issued was untracked in ext v3");
+        }
+
+        return INT64_MAX - *(v3.totalAssetIssued);
+    }
+    throw std::logic_error("invalid asset issuance limit request");
+}
+
+int64_t
+getRemainingAssetIssuance(LedgerTxnEntry const& entry)
+{
+    return getRemainingAssetIssuance(entry.current());
 }
 
 void
@@ -1067,6 +1163,13 @@ hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
 }
+
+bool 
+hasAccountEntryExtV3(AccountEntry const& ae)
+{
+    return hasAccountEntryExtV2(ae) && ae.ext.v1().ext.v2().ext.v() == 3;
+}
+
 
 Asset
 getAsset(AccountID const& issuer, AssetCode const& assetCode)
