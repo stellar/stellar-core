@@ -763,6 +763,14 @@ void
 CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+
+    if (mApp.getState() == Application::APP_CREATED_STATE ||
+        mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
+    {
+        throw std::runtime_error(
+            "Application is not fully booted, try again later");
+    }
+
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 

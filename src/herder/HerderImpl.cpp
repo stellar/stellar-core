@@ -104,10 +104,18 @@ HerderImpl::getState() const
 }
 
 void
-HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value)
+HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
+                                bool isTrackingNetwork)
 {
     mTrackingSCP = ConsensusData{index, value.closeTime};
-    setState(Herder::HERDER_TRACKING_NETWORK_STATE);
+    if (isTrackingNetwork)
+    {
+        setState(Herder::HERDER_TRACKING_NETWORK_STATE);
+    }
+    else
+    {
+        setState(Herder::HERDER_SYNCING_STATE);
+    }
 }
 
 uint32
@@ -115,6 +123,17 @@ HerderImpl::trackingConsensusLedgerIndex() const
 {
     releaseAssert(getState() != Herder::State::HERDER_BOOTING_STATE);
     releaseAssert(mTrackingSCP.mConsensusIndex <= UINT32_MAX);
+
+    auto lcl = mLedgerManager.getLastClosedLedgerNum();
+    if (lcl > mTrackingSCP.mConsensusIndex)
+    {
+        std::string msg =
+            "Inconsistent state in Herder: LCL is ahead of tracking";
+        CLOG_ERROR(Herder, "{}", msg);
+        CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
+        throw std::runtime_error(msg);
+    }
+
     return static_cast<uint32>(mTrackingSCP.mConsensusIndex);
 }
 
@@ -525,7 +544,7 @@ uint32_t
 HerderImpl::getMinLedgerSeqToRemember() const
 {
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    auto currSlot = getCurrentLedgerSeq();
+    auto currSlot = trackingConsensusLedgerIndex();
     if (currSlot > maxSlotsToRemember)
     {
         return (currSlot - maxSlotsToRemember + 1);
@@ -577,7 +596,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // ledger closing
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
-    else if (!checkCloseTime(envelope, getCurrentLedgerSeq() <=
+    else if (!checkCloseTime(envelope, trackingConsensusLedgerIndex() <=
                                            LedgerManager::GENESIS_LEDGER_SEQ))
     {
         // if we've never been in sync, we can be more aggressive in how we
@@ -892,7 +911,7 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
     getHerderSCPDriver().purgeSlots(ledgerSeq);
     mPendingEnvelopes.eraseBelow(ledgerSeq);
-    auto lastIndex = getCurrentLedgerSeq();
+    auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }
 
@@ -951,19 +970,6 @@ SCPQuorumSetPtr
 HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mHerderSCPDriver.getQSet(qSetHash);
-}
-
-uint32_t
-HerderImpl::getCurrentLedgerSeq() const
-{
-    uint32_t res = mLedgerManager.getLastClosedLedgerNum();
-
-    if (getState() != HERDER_BOOTING_STATE)
-    {
-        res = std::max(res, trackingConsensusLedgerIndex());
-    }
-
-    return res;
 }
 
 uint32
@@ -1185,7 +1191,8 @@ void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
     auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
-    setTrackingSCPState(header.ledgerSeq, header.scpValue);
+    setTrackingSCPState(header.ledgerSeq, header.scpValue,
+                        /* isTrackingNetwork */ true);
 }
 
 bool
@@ -1197,26 +1204,25 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
         if (s.size() > 1 && s[0] == '@')
         {
             std::string arg = s.substr(1);
-            // go through SCP messages of the previous ledger
-            // (to increase the chances of finding the node)
-            uint32 seq = getCurrentLedgerSeq();
-            if (seq > 2)
-            {
-                seq--;
-            }
-            getSCP().processCurrentState(
-                seq,
-                [&](SCPEnvelope const& e) {
-                    std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
-                    if (curK.compare(0, arg.size(), arg) == 0)
-                    {
-                        retKey = e.statement.nodeID;
-                        r = true;
-                        return false;
-                    }
-                    return true;
-                },
-                true);
+            getSCP().processSlotsDescendingFrom(
+                std::numeric_limits<uint64>::max(), [&](uint64_t seq) {
+                    getSCP().processCurrentState(
+                        seq,
+                        [&](SCPEnvelope const& e) {
+                            std::string curK =
+                                KeyUtils::toStrKey(e.statement.nodeID);
+                            if (curK.compare(0, arg.size(), arg) == 0)
+                            {
+                                retKey = e.statement.nodeID;
+                                r = true;
+                                return false;
+                            }
+                            return true;
+                        },
+                        true);
+
+                    return !r;
+                });
         }
     }
     return r;
@@ -1510,7 +1516,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         auto& cfg = mApp.getConfig();
         auto qic = QuorumIntersectionChecker::create(
             qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag);
-        auto ledger = getCurrentLedgerSeq();
+        auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
@@ -1626,21 +1632,6 @@ void
 HerderImpl::restoreSCPState()
 {
     ZoneScoped;
-    // setup a sufficient state that we can participate in consensus
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-
-    setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
-
-    if (!mApp.getConfig().FORCE_SCP &&
-        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
-    {
-        // if we're on genesis ledger, there is no point in claiming
-        // that we're "in sync"
-        lostSync();
-        return;
-    }
-
-    trackingHeartBeat();
 
     // load saved state from database
     auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
@@ -1724,9 +1715,28 @@ HerderImpl::restoreUpgrades()
 }
 
 void
-HerderImpl::restoreState()
+HerderImpl::start()
 {
-    restoreSCPState();
+    // setup a sufficient state that we can participate in consensus
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
+    if (!mApp.getConfig().FORCE_SCP &&
+        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        // if we're on genesis ledger, there is no point in claiming
+        // that we're "in sync"
+        setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue,
+                            /* isTrackingNetwork */ false);
+    }
+    else
+    {
+        setTrackingSCPState(lcl.header.ledgerSeq, lcl.header.scpValue,
+                            /* isTrackingNetwork */ true);
+        trackingHeartBeat();
+        // Load SCP state from the database
+        restoreSCPState();
+    }
+
     restoreUpgrades();
     // make sure that the transaction queue is setup against
     // the lcl that we have right now
