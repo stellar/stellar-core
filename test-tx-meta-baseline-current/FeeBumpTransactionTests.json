@@ -1,0 +1,205 @@
+
+{
+	"!cfg protocol version" : 18,
+	"!rng seed" : 12345,
+	"!test all versions" : true,
+	"!versions to test" : [ 18 ],
+	"fee bump transactions|apply|bad signatures" : 
+	[
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk="
+	],
+	"fee bump transactions|apply|bad signatures|protocol version 13" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|bad signatures|protocol version 14" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|bad signatures|protocol version 15" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|bad signatures|protocol version 16" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|bad signatures|protocol version 17" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|bad signatures|protocol version 18" : [ "i6m/B6s/kP8=" ],
+	"fee bump transactions|apply|extra signatures" : 
+	[
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4=",
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4=",
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4=",
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4=",
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4=",
+		"Ai4B0vnogns=",
+		"d6/qZOuzNx4="
+	],
+	"fee bump transactions|apply|extra signatures|protocol version 13" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|extra signatures|protocol version 14" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|extra signatures|protocol version 15" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|extra signatures|protocol version 16" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|extra signatures|protocol version 17" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|extra signatures|protocol version 18" : [ "tmCiqQHsFbw=" ],
+	"fee bump transactions|apply|fee source does not exist" : 
+	[
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk="
+	],
+	"fee bump transactions|apply|fee source does not exist|protocol version 13" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|fee source does not exist|protocol version 14" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|fee source does not exist|protocol version 15" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|fee source does not exist|protocol version 16" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|fee source does not exist|protocol version 17" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|fee source does not exist|protocol version 18" : [ "VU0OL6uG5WY=" ],
+	"fee bump transactions|apply|inner transaction fails, operation level" : 
+	[
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk="
+	],
+	"fee bump transactions|apply|inner transaction fails, transaction level" : 
+	[
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk="
+	],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 13" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 14" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 15" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 16" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 17" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|inner transaction fails, transaction level|protocol version 18" : [ "HVyVwvAcXkE=" ],
+	"fee bump transactions|apply|insufficient balance" : 
+	[
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk=",
+		"yBA6fSUSbfk="
+	],
+	"fee bump transactions|apply|insufficient balance|protocol version 13" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|insufficient balance|protocol version 14" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|insufficient balance|protocol version 15" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|insufficient balance|protocol version 16" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|insufficient balance|protocol version 17" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|insufficient balance|protocol version 18" : [ "zuePZy5KSw8=" ],
+	"fee bump transactions|apply|one-time signer removal" : 
+	[
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM=",
+		"+/n8zN8TMek=",
+		"VRM2pYMe6jM="
+	],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 13" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 14" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 15" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 16" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 17" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|not sponsored|protocol version 18" : [ "lrK1Onb8b4g=", "2tj3ezMYKT0=" ],
+	"fee bump transactions|apply|one-time signer removal|sponsored|protocol version 14" : [ "lrK1Onb8b4g=" ],
+	"fee bump transactions|apply|one-time signer removal|sponsored|protocol version 15" : [ "lrK1Onb8b4g=" ],
+	"fee bump transactions|apply|one-time signer removal|sponsored|protocol version 16" : [ "lrK1Onb8b4g=" ],
+	"fee bump transactions|apply|one-time signer removal|sponsored|protocol version 17" : [ "lrK1Onb8b4g=" ],
+	"fee bump transactions|apply|one-time signer removal|sponsored|protocol version 18" : [ "lrK1Onb8b4g=" ],
+	"fee bump transactions|fee processing" : 
+	[
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q="
+	],
+	"fee bump transactions|validity|bad signatures, signature invalid" : 
+	[
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw="
+	],
+	"fee bump transactions|validity|bad signatures, signature missing" : 
+	[
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw="
+	],
+	"fee bump transactions|validity|extra signatures" : 
+	[
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q="
+	],
+	"fee bump transactions|validity|inner transaction invalid, operation level" : 
+	[
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q="
+	],
+	"fee bump transactions|validity|inner transaction invalid, transaction level" : 
+	[
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q="
+	],
+	"fee bump transactions|validity|insufficient balance" : 
+	[
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw=",
+		"3Wio2Spdevw="
+	],
+	"fee bump transactions|validity|valid" : 
+	[
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q=",
+		"xVjUo8vzo2Q="
+	]
+}

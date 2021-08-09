@@ -1,0 +1,173 @@
+
+{
+	"!cfg protocol version" : 19,
+	"!rng seed" : 12345,
+	"!test all versions" : true,
+	"!versions to test" : [ 19 ],
+	"create account|Amount too small to create account|protocol version 1" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 10" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 11" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 12" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 13" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 14" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 15" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 16" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 17" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 18" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 19" : [ "X2yKCWehH5U=" ],
+	"create account|Amount too small to create account|protocol version 2" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 3" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 4" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 5" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 6" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 7" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 8" : [ "/lfj8xIFS8I=" ],
+	"create account|Amount too small to create account|protocol version 9" : [ "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 1" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 10" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 11" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 12" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 13" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 14" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 15" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 16" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 17" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 18" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 19" : [ "x6hOin79MFA=", "ilGV88ojNl0=" ],
+	"create account|Not enough funds (source)|protocol version 2" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 3" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 4" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 5" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 6" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 7" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 8" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Not enough funds (source)|protocol version 9" : [ "4+svrnV0hxY=", "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 1" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 10" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 10|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 11" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 11|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 12" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 12|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 13" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 13|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 14" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 14|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 15" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 15|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 16" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 16|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 17" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 17|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 18" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 18|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 19" : [ "+MzwZ85SF/8=" ],
+	"create account|Success|protocol version 19|Account already exists" : [ "lJZobUmGDL4=" ],
+	"create account|Success|protocol version 1|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 2" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 2|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 3" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 3|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 4" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 4|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 5" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 5|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 6" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 6|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 7" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 7|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 8" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 8|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|Success|protocol version 9" : [ "IxXegoyiQk4=" ],
+	"create account|Success|protocol version 9|Account already exists" : [ "/lfj8xIFS8I=" ],
+	"create account|with native buying liabilities|protocol version 10" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 11" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 12" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 13" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 14" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 15" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 16" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 17" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 18" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native buying liabilities|protocol version 19" : [ "4sv8PaWzafE=", "aXoduKNHMDM=", "Ek45Y/e4dB4=" ],
+	"create account|with native selling liabilities|protocol version 10" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 11" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 12" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 13" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 14" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 15" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 16" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 17" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 18" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	],
+	"create account|with native selling liabilities|protocol version 19" : 
+	[
+		"4sv8PaWzafE=",
+		"5YbuupcCT/8=",
+		"CM88Rzzep0g=",
+		"1Gbrx2PrCuM=",
+		"M/57FauKTKo="
+	]
+}
