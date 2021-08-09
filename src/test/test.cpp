@@ -581,8 +581,16 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta)
         releaseAssert(gTestTxMetaMode == TestTxMetaMode::META_TEST_CHECK);
         auto i = gTestTxMetadata.find(ctx);
         CHECK(i != gTestTxMetadata.end());
+        if (i == gTestTxMetadata.end())
+        {
+            return;
+        }
         std::vector<Hash>& vec = i->second;
         CHECK(!vec.empty());
+        if (vec.empty())
+        {
+            return;
+        }
         Hash& expectedTxMetaHash = vec.back();
         CHECK(expectedTxMetaHash == gotTxMetaHash);
         vec.pop_back();
