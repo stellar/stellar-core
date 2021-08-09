@@ -226,7 +226,8 @@ TEST_CASE("application setup", "[applicationutils]")
 
         // Generate a bit of load, and crank for some time
         auto& loadGen = validator->getLoadGenerator();
-        loadGen.generateLoad(true, /* nAccounts */ 10, 0, 0, /*txRate*/ 1,
+        loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
+                             /*txRate*/ 1,
                              /*batchSize*/ 1, std::chrono::seconds(0), 0);
 
         auto& loadGenDone = validator->getMetrics().NewMeter(
