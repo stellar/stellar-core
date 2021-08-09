@@ -394,6 +394,19 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     REQUIRE(applyOk == shouldApplyOk);
 };
 
+void
+checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
+                   int64_t reserveB, int64_t totalPoolShares)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto lp = loadLiquidityPool(ltx, poolID);
+    REQUIRE(lp);
+    auto const& cp = lp.current().data.liquidityPool().body.constantProduct();
+    REQUIRE(cp.reserveA == reserveA);
+    REQUIRE(cp.reserveB == reserveB);
+    REQUIRE(cp.totalPoolShares == totalPoolShares);
+}
+
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
@@ -1326,6 +1339,19 @@ liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
     op.body.liquidityPoolDepositOp().maxAmountB = maxAmountB;
     op.body.liquidityPoolDepositOp().minPrice = minPrice;
     op.body.liquidityPoolDepositOp().maxPrice = maxPrice;
+    return op;
+}
+
+Operation
+liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
+                      int64_t minAmountB)
+{
+    Operation op;
+    op.body.type(LIQUIDITY_POOL_WITHDRAW);
+    op.body.liquidityPoolWithdrawOp().liquidityPoolID = poolID;
+    op.body.liquidityPoolWithdrawOp().amount = amount;
+    op.body.liquidityPoolWithdrawOp().minAmountA = minAmountA;
+    op.body.liquidityPoolWithdrawOp().minAmountB = minAmountB;
     return op;
 }
 

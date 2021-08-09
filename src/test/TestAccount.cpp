@@ -567,4 +567,14 @@ TestAccount::liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
                                              minPrice, maxPrice)}),
             mApp);
 }
+
+void
+TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
+                                   int64_t minAmountA, int64_t minAmountB)
+{
+    applyTx(tx({txtest::liquidityPoolWithdraw(poolID, amount, minAmountA,
+                                              minAmountB)}),
+            mApp);
+}
+
 };

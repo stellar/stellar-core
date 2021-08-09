@@ -115,6 +115,8 @@ class TestAccount
     void liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
                               int64_t maxAmountB, Price const& minPrice,
                               Price const& maxPrice);
+    void liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
+                               int64_t minAmountA, int64_t minAmountB);
 
     operator SecretKey() const
     {

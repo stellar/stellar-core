@@ -245,7 +245,7 @@ case ASSET_TYPE_POOL_SHARE:
 
 struct TrustLineEntryExtensionV2
 {
-    int32_t liquidityPoolUseCount;
+    int32 liquidityPoolUseCount;
 
     union switch (int v)
     {

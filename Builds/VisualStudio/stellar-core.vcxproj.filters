@@ -813,6 +813,9 @@
     <ClCompile Include="..\..\src\transactions\test\LiquidityPoolDepositTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\LiquidityPoolWithdrawTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\SignatureUtilsTest.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
@@ -871,6 +874,9 @@
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\LiquidityPoolDepositOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\LiquidityPoolWithdrawOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp">
@@ -1803,6 +1809,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\LiquidityPoolDepositOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\LiquidityPoolWithdrawOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\SignatureChecker.h">

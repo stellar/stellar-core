@@ -1223,6 +1223,18 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
     return tlAsset;
 }
 
+int64_t
+getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
+                        int64_t reserve)
+{
+    if (amountPoolShares > totalPoolShares)
+    {
+        throw std::runtime_error("Invalid amountPoolShares");
+    }
+
+    return bigDivide(amountPoolShares, reserve, totalPoolShares, ROUND_DOWN);
+}
+
 namespace detail
 {
 struct MuxChecker

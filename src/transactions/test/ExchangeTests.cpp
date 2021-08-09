@@ -6,6 +6,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/TransactionUtils.h"
 
 using namespace stellar;
 
@@ -934,4 +935,12 @@ TEST_CASE("Check price error bounds", "[exchange]")
             validateBounds(Price{3, 7}, 1000, 432, 425, canFavorWheat);
         }
     }
+}
+
+TEST_CASE("getPoolWithdrawalAmount", "[exchange]")
+{
+    REQUIRE(getPoolWithdrawalAmount(5, 10, 6) == 3);
+    REQUIRE(getPoolWithdrawalAmount(4, 5, 9) == 7);
+    REQUIRE(getPoolWithdrawalAmount(INT64_MAX, INT64_MAX, INT64_MAX) ==
+            INT64_MAX);
 }
