@@ -154,6 +154,7 @@ bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 static void saveTestTxMeta(std::string const& path);
 static void loadTestTxMeta(std::string const& path);
+static void reportTestTxMeta();
 
 // if this method is used outside of the catch test cases, gTestRoots needs to
 // be manually cleared using cleanupTmpDirs. If this isn't done, gTestRoots will
@@ -391,6 +392,10 @@ runTest(CommandLineArgs const& args)
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
         saveTestTxMeta(recordTestTxMeta);
+    }
+    else if (gTestTxMetaMode == TestTxMetaMode::CHECK)
+    {
+        reportTestTxMeta();
     }
     return r;
 }
@@ -648,5 +653,32 @@ saveTestTxMeta(std::string const& path)
     }
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out << root;
+}
+
+static void
+reportTestTxMeta()
+{
+    size_t contexts = 0, nonempty = 0, hashes = 0;
+    for (auto const& pair : gTestTxMetadata)
+    {
+        ++contexts;
+        if (!pair.second.empty())
+        {
+            ++nonempty;
+            hashes += pair.second.size();
+        }
+    }
+    if (nonempty == 0)
+    {
+        LOG_INFO(DEFAULT_LOG,
+                 "Checked all expected TxMeta for {} test contexts.", contexts);
+    }
+    else
+    {
+        LOG_WARNING(
+            DEFAULT_LOG,
+            "Found {} un-checked TxMeta hashes in {} of {} test contexts.",
+            hashes, nonempty, contexts);
+    }
 }
 }
