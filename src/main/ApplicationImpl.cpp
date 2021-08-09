@@ -724,6 +724,7 @@ ApplicationImpl::gracefulStop()
     {
         mOverlayManager->shutdown();
     }
+    mSelfCheckTimer.cancel();
     shutdownWorkScheduler();
     if (mProcessManager)
     {
