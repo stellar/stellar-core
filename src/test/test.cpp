@@ -2,8 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/Hex.h"
-#include "crypto/SHA.h"
+#include "crypto/ShortHash.h"
+#include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include <filesystem>
 #include <json/json.h>
@@ -145,7 +145,7 @@ namespace stdfs = std::filesystem;
 std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 
-static std::map<stdfs::path, std::map<std::string, std::vector<Hash>>>
+static std::map<stdfs::path, std::map<std::string, std::vector<uint64_t>>>
     gTestTxMetadata;
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
@@ -588,7 +588,7 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     TransactionMeta txMeta = txMetaIn;
     normalizeMeta(txMeta);
     auto ctx = getCurrentTestContext();
-    Hash gotTxMetaHash = xdrSha256(txMeta);
+    uint64_t gotTxMetaHash = shortHash::xdrComputeHash(txMeta);
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
         gTestTxMetadata[ctx.first][ctx.second].emplace_back(gotTxMetaHash);
@@ -608,13 +608,13 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
         {
             return;
         }
-        std::vector<Hash>& vec = j->second;
+        std::vector<uint64_t>& vec = j->second;
         CHECK(!vec.empty());
         if (vec.empty())
         {
             return;
         }
-        Hash& expectedTxMetaHash = vec.back();
+        uint64_t& expectedTxMetaHash = vec.back();
         CHECK(expectedTxMetaHash == gotTxMetaHash);
         vec.pop_back();
     }
@@ -648,11 +648,21 @@ loadTestTxMeta(stdfs::path const& dir)
         for (auto entry = root.begin(); entry != root.end(); ++entry)
         {
             std::string name = entry.key().asString();
-            std::vector<Hash> hashes;
+            std::vector<uint64_t> hashes;
             for (auto const& h : *entry)
             {
                 ++n;
-                hashes.emplace_back(hexToBin256(h.asString()));
+                // To keep the baseline files small, we store each
+                // 64-bit SIPHash as a base64 encoded string.
+                std::vector<uint8_t> buf;
+                decoder::decode_b64(h.asString(), buf);
+                uint64_t tmp = 0;
+                for (size_t i = 0; i < sizeof(uint64_t); ++i)
+                {
+                    tmp <<= 8;
+                    tmp |= buf.at(i);
+                }
+                hashes.emplace_back(tmp);
             }
             std::reverse(hashes.begin(), hashes.end());
             auto pair = fileTestCases.emplace(name, hashes);
@@ -678,7 +688,13 @@ saveTestTxMeta(stdfs::path const& dir)
             Json::Value& hashes = fileRoot[testCasePair.first];
             for (auto const& h : testCasePair.second)
             {
-                hashes.append(binToHex(h));
+                uint64_t tmp = h;
+                std::vector<uint8_t> buf;
+                for (size_t i = sizeof(uint64_t); i > 0; --i)
+                {
+                    buf.emplace_back(uint8_t(0xff & (tmp >> (8 * (i - 1)))));
+                }
+                hashes.append(decoder::encode_b64(buf));
             }
         }
         stdfs::path path = dir / filePair.first;
