@@ -3221,15 +3221,8 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             throw std::runtime_error("Unknown key type");
         }
     }
-    catch (NonSociRelatedException& e)
+    catch (NonSociRelatedException&)
     {
-        if (getHeader().ledgerVersion <= 14)
-        {
-            printErrorAndAbort(
-                "fatal error when loading ledger entry from LedgerTxnRoot: ",
-                e.what());
-        }
-
         throw;
     }
     catch (std::exception& e)
