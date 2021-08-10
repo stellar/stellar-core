@@ -5,6 +5,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "util/GlobalChecks.h"
+#include <filesystem>
 #include <json/json.h>
 #include <sstream>
 #define CATCH_CONFIG_RUNNER
@@ -16,6 +17,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Config.h"
 #include "main/StellarCoreVersion.h"
+#include "main/dumpxdr.h"
 #include "test.h"
 #include "test/TestUtils.h"
 #include "util/Logging.h"
@@ -93,10 +95,7 @@ struct TestContextListener : Catch::TestEventListenerBase
 {
     using TestEventListenerBase::TestEventListenerBase;
 
-    // Tests _probably_ can't be nested inside one another, but
-    // it's easy to support the same way we support nested
-    // sections, just in case.
-    static std::vector<Catch::TestCaseInfo> sTestCtx;
+    static std::optional<Catch::TestCaseInfo> sTestCtx;
     static std::vector<Catch::SectionInfo> sSectCtx;
 
     void
@@ -105,7 +104,8 @@ struct TestContextListener : Catch::TestEventListenerBase
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
-            sTestCtx.emplace_back(testInfo);
+            releaseAssert(!sTestCtx.has_value());
+            sTestCtx.emplace(testInfo);
         }
     }
     void
@@ -114,7 +114,9 @@ struct TestContextListener : Catch::TestEventListenerBase
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
-            sTestCtx.pop_back();
+            releaseAssert(sTestCtx.has_value());
+            releaseAssert(sSectCtx.empty());
+            sTestCtx.reset();
         }
     }
     void
@@ -139,10 +141,12 @@ struct TestContextListener : Catch::TestEventListenerBase
 
 CATCH_REGISTER_LISTENER(TestContextListener)
 
-std::vector<Catch::TestCaseInfo> TestContextListener::sTestCtx;
+namespace stdfs = std::filesystem;
+std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 
-static std::map<std::string, std::vector<Hash>> gTestTxMetadata;
+static std::map<stdfs::path, std::map<std::string, std::vector<Hash>>>
+    gTestTxMetadata;
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
@@ -152,8 +156,8 @@ int gBaseInstance{0};
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
-static void saveTestTxMeta(std::string const& path);
-static void loadTestTxMeta(std::string const& path);
+static void saveTestTxMeta(stdfs::path const& dir);
+static void loadTestTxMeta(stdfs::path const& dir);
 static void reportTestTxMeta();
 
 // if this method is used outside of the catch test cases, gTestRoots needs to
@@ -311,11 +315,11 @@ runTest(CommandLineArgs const& args)
     parser |= Catch::clara::Opt(gBaseInstance, "offset")["--base-instance"](
         "instance number offset so multiple instances of "
         "stellar-core can run tests concurrently");
-    parser |= Catch::clara::Opt(recordTestTxMeta,
-                                "FILENAME")["--record-test-tx-meta"](
-        "record baseline TxMeta from all tests");
     parser |=
-        Catch::clara::Opt(checkTestTxMeta, "FILENAME")["--check-test-tx-meta"](
+        Catch::clara::Opt(recordTestTxMeta, "DIRNAME")["--record-test-tx-meta"](
+            "record baseline TxMeta from all tests");
+    parser |=
+        Catch::clara::Opt(checkTestTxMeta, "DIRNAME")["--check-test-tx-meta"](
             "check TxMeta from all tests against recorded baseline");
     session.cli(parser);
 
@@ -393,7 +397,7 @@ runTest(CommandLineArgs const& args)
     {
         saveTestTxMeta(recordTestTxMeta);
     }
-    else if (gTestTxMetaMode == TestTxMetaMode::CHECK)
+    else if (gTestTxMetaMode == TestTxMetaMode::META_TEST_CHECK)
     {
         reportTestTxMeta();
     }
@@ -546,51 +550,65 @@ logErrAndThrow(std::string const& msg)
     throw std::runtime_error(msg);
 }
 
-static std::string
+static std::pair<stdfs::path, std::string>
 getCurrentTestContext()
 {
     assertThreadIsMain();
+
+    releaseAssert(TestContextListener::sTestCtx.has_value());
+    auto& tc = TestContextListener::sTestCtx.value();
+    stdfs::path file(tc.lineInfo.file);
+    file = file.filename().stem();
+
     std::stringstream oss;
     bool first = true;
-    for (auto const& tc : TestContextListener::sTestCtx)
+    for (auto const& sc : TestContextListener::sSectCtx)
     {
         if (!first)
         {
             oss << '|';
         }
-        first = false;
-        oss << tc.lineInfo.file << '#' << tc.name;
+        else
+        {
+            first = false;
+        }
+        oss << sc.name;
     }
-    for (auto const& sc : TestContextListener::sSectCtx)
-    {
-        oss << "|$" << sc.name;
-    }
-    return oss.str();
+
+    return std::make_pair(file, oss.str());
 }
 
 void
-recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta)
+recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
 {
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_IGNORE)
     {
         return;
     }
-    std::string ctx = getCurrentTestContext();
+    TransactionMeta txMeta = txMetaIn;
+    normalizeMeta(txMeta);
+    auto ctx = getCurrentTestContext();
     Hash gotTxMetaHash = xdrSha256(txMeta);
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
-        gTestTxMetadata[ctx].emplace_back(gotTxMetaHash);
+        gTestTxMetadata[ctx.first][ctx.second].emplace_back(gotTxMetaHash);
     }
     else
     {
         releaseAssert(gTestTxMetaMode == TestTxMetaMode::META_TEST_CHECK);
-        auto i = gTestTxMetadata.find(ctx);
+        auto i = gTestTxMetadata.find(ctx.first);
         CHECK(i != gTestTxMetadata.end());
         if (i == gTestTxMetadata.end())
         {
             return;
         }
-        std::vector<Hash>& vec = i->second;
+        auto j = i->second.find(ctx.second);
+        CHECK(j != i->second.end());
+        if (j == i->second.end())
+        {
+            return;
+        }
+        std::vector<Hash>& vec = j->second;
         CHECK(!vec.empty());
         if (vec.empty())
         {
@@ -603,69 +621,92 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta)
 }
 
 static void
-loadTestTxMeta(std::string const& path)
+loadTestTxMeta(stdfs::path const& dir)
 {
-    std::ifstream in(path);
-    if (!in)
+    if (!stdfs::is_directory(dir))
     {
-        logErrAndThrow(fmt::format("Failed to open {}", path));
+        logErrAndThrow(fmt::format("{} is not a directory", dir));
     }
-    in.exceptions(std::ios::failbit | std::ios::badbit);
-    Json::Value root;
-    in >> root;
     size_t n = 0;
-    for (auto entry = root.begin(); entry != root.end(); ++entry)
+    for (auto const& dirent : stdfs::directory_iterator{dir})
     {
-        std::string name = entry.key().asString();
-        std::vector<Hash> hashes;
-        for (auto const& h : *entry)
+        auto path = dirent.path();
+        if (path.extension() != ".json")
         {
-            ++n;
-            hashes.emplace_back(hexToBin256(h.asString()));
+            continue;
         }
-        std::reverse(hashes.begin(), hashes.end());
-        auto pair = gTestTxMetadata.emplace(name, hashes);
-        if (!pair.second)
+        std::ifstream in(path);
+        if (!in)
         {
-            logErrAndThrow(
-                fmt::format("Duplicate test TxMeta found for key: {}", name));
+            logErrAndThrow(fmt::format("Failed to open {}", path));
+        }
+        in.exceptions(std::ios::failbit | std::ios::badbit);
+        Json::Value root;
+        in >> root;
+        auto basename = path.filename().stem();
+        auto& fileTestCases = gTestTxMetadata[basename];
+        for (auto entry = root.begin(); entry != root.end(); ++entry)
+        {
+            std::string name = entry.key().asString();
+            std::vector<Hash> hashes;
+            for (auto const& h : *entry)
+            {
+                ++n;
+                hashes.emplace_back(hexToBin256(h.asString()));
+            }
+            std::reverse(hashes.begin(), hashes.end());
+            auto pair = fileTestCases.emplace(name, hashes);
+            if (!pair.second)
+            {
+                logErrAndThrow(
+                    fmt::format("Duplicate test TxMeta found for key: {}:{}",
+                                basename, name));
+            }
         }
     }
     LOG_INFO(DEFAULT_LOG, "Loaded {} TxMetas to check during replay", n);
 }
 
 static void
-saveTestTxMeta(std::string const& path)
+saveTestTxMeta(stdfs::path const& dir)
 {
-    Json::Value root;
-    for (auto const& pair : gTestTxMetadata)
+    for (auto const& filePair : gTestTxMetadata)
     {
-        Json::Value& hashes = root[pair.first];
-        for (auto const& h : pair.second)
+        Json::Value fileRoot;
+        for (auto const& testCasePair : filePair.second)
         {
-            hashes.append(binToHex(h));
+            Json::Value& hashes = fileRoot[testCasePair.first];
+            for (auto const& h : testCasePair.second)
+            {
+                hashes.append(binToHex(h));
+            }
         }
+        stdfs::path path = dir / filePair.first;
+        path.replace_extension(".json");
+        std::ofstream out(path, std::ios_base::trunc);
+        if (!out)
+        {
+            logErrAndThrow(fmt::format("Failed to open {}", path));
+        }
+        out.exceptions(std::ios::failbit | std::ios::badbit);
+        out << fileRoot;
     }
-    std::ofstream out(path);
-    if (!out)
-    {
-        logErrAndThrow(fmt::format("Failed to open {}", path));
-    }
-    out.exceptions(std::ios::failbit | std::ios::badbit);
-    out << root;
 }
 
 static void
 reportTestTxMeta()
 {
     size_t contexts = 0, nonempty = 0, hashes = 0;
-    for (auto const& pair : gTestTxMetadata)
+    for (auto const& filePair : gTestTxMetadata)
     {
-        ++contexts;
-        if (!pair.second.empty())
+        for (auto const& testCasePair : filePair.second)
         {
-            ++nonempty;
-            hashes += pair.second.size();
+            ++contexts;
+            if (!testCasePair.second.empty())
+            {
+                ++nonempty;
+                hashes += testCasePair.second.size();
+            }
         }
     }
     if (nonempty == 0)

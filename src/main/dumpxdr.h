@@ -8,7 +8,7 @@
 
 namespace stellar
 {
-
+void normalizeMeta(TransactionMeta& m);
 void dumpXdrStream(std::string const& filename, bool json);
 void printXdr(std::string const& filename, std::string const& filetype,
               bool base64, bool compact, bool rawMode);
