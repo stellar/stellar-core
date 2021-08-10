@@ -1313,7 +1313,7 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
             validate(ltx3, {});
         }
 
-        for_versions_from(15, *app, [&]() {
+        for_all_versions(*app, [&]() {
             SECTION("invalid keys")
             {
                 LedgerTxn ltx1(app->getLedgerTxnRoot());
@@ -1343,9 +1343,6 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
                     for (auto const& asset : invalidAssets)
                     {
                         auto key = trustlineKey(acc2.getPublicKey(), asset);
-
-                        // verify that this doesn't throw before V15
-                        validateTrustLineKey(14, key);
 
                         REQUIRE_THROWS_AS(ltx1.load(key),
                                           NonSociRelatedException);
