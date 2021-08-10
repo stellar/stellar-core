@@ -173,15 +173,15 @@ class HerderImpl : public Herder
     ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
                                       std::chrono::milliseconds::zero());
 
-    void ledgerClosed();
-
-    void maybeTriggerNextLedger(bool synchronous);
+    void maybeTriggerNextLedger();
 
     void startOutOfSyncTimer();
     void outOfSyncRecovery();
     void broadcast(SCPEnvelope const& e);
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
+    void safelyProcessSCPQueue(bool synchronous);
+    void newSlotExternalized(bool synchronous, StellarValue const& value);
 
     TransactionQueue mTransactionQueue;
 

@@ -198,8 +198,37 @@ HerderImpl::bootstrap()
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
-    ledgerClosed();
-    maybeTriggerNextLedger(true);
+    maybeTriggerNextLedger();
+    newSlotExternalized(
+        true, mLedgerManager.getLastClosedLedgerHeader().header.scpValue);
+}
+
+void
+HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
+{
+    ZoneScoped;
+    CLOG_TRACE(Herder, "HerderImpl::newSlotExternalized");
+
+    // start timing next externalize from this point
+    mLastExternalize = mApp.getClock().now();
+
+    // perform cleanups
+    TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
+    if (externalizedSet)
+    {
+        updateTransactionQueue(externalizedSet->mTransactions);
+    }
+
+    // Evict slots that are outside of our ledger validity bracket
+    auto minSlotToRemember = getMinLedgerSeqToRemember();
+    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        eraseBelow(minSlotToRemember);
+    }
+    mPendingEnvelopes.forceRebuildQuorum();
+
+    // Process new ready messages for the next slot
+    safelyProcessSCPQueue(synchronous);
 }
 
 void
@@ -299,16 +328,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 
         processExternalized(slotIndex, value);
 
-        // start timing next externalize from this point
-        mLastExternalize = mApp.getClock().now();
-
-        // perform cleanups
-        TxSetFramePtr externalizedSet =
-            mPendingEnvelopes.getTxSet(value.txSetHash);
-        updateTransactionQueue(externalizedSet->mTransactions);
-
-        ledgerClosed();
-        maybeTriggerNextLedger(false);
+        // Perform cleanups, and maybe process SCP queue
+        newSlotExternalized(false, value);
 
         // Check to see if quorums have changed and we need to reanalyze.
         checkAndMaybeReanalyzeQuorumMap();
@@ -328,7 +349,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // each other (i.e., track the same ledger)
         if (mLedgerManager.isSynced())
         {
-            maybeTriggerNextLedger(false);
+            maybeTriggerNextLedger();
+            safelyProcessSCPQueueUpToIndex(nextConsensusLedgerIndex(), false);
         }
     }
 }
@@ -818,7 +840,32 @@ HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
 }
 
 void
-HerderImpl::maybeTriggerNextLedger(bool synchronous)
+HerderImpl::safelyProcessSCPQueue(bool synchronous)
+{
+    // process any statements up to the next slot
+    // this may cause it to externalize
+    auto nextIndex = nextConsensusLedgerIndex();
+    auto processSCPQueueSomeMore = [this, nextIndex]() {
+        if (mApp.isStopping())
+        {
+            return;
+        }
+        processSCPQueueUpToIndex(nextIndex);
+    };
+
+    if (synchronous)
+    {
+        processSCPQueueSomeMore();
+    }
+    else
+    {
+        mApp.postOnMainThread(processSCPQueueSomeMore,
+                              "processSCPQueueSomeMore");
+    }
+}
+
+void
+HerderImpl::maybeTriggerNextLedger()
 {
     if (!isTracking())
     {
@@ -886,26 +933,6 @@ HerderImpl::maybeTriggerNextLedger(bool synchronous)
         CLOG_DEBUG(Herder,
                    "Not presently synced, not triggering ledger-close.");
     }
-
-    // process any statements up to the next slot
-    // this may cause it to externalize
-    auto processSCPQueueSomeMore = [this, nextIndex]() {
-        if (mApp.isStopping())
-        {
-            return;
-        }
-        processSCPQueueUpToIndex(nextIndex);
-    };
-
-    if (synchronous)
-    {
-        processSCPQueueSomeMore();
-    }
-    else
-    {
-        mApp.postOnMainThread(processSCPQueueSomeMore,
-                              "processSCPQueueSomeMore");
-    }
 }
 
 void
@@ -915,26 +942,6 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
     mPendingEnvelopes.eraseBelow(ledgerSeq);
     auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
-}
-
-void
-HerderImpl::ledgerClosed()
-{
-    // this method is triggered every time the most recent ledger is
-    // externalized it performs some cleanup and also decides if it needs to
-    // schedule triggering the next ledger
-
-    ZoneScoped;
-
-    CLOG_TRACE(Herder, "HerderImpl::ledgerClosed");
-
-    // Evict slots that are outside of our ledger validity bracket
-    auto minSlotToRemember = getMinLedgerSeqToRemember();
-    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
-    {
-        eraseBelow(minSlotToRemember);
-    }
-    mPendingEnvelopes.forceRebuildQuorum();
 }
 
 bool
