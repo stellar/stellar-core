@@ -173,7 +173,7 @@ class HerderImpl : public Herder
     ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
                                       std::chrono::milliseconds::zero());
 
-    void ledgerClosed(bool synchronous);
+    void ledgerClosed();
 
     void maybeTriggerNextLedger(bool synchronous);
 

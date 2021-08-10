@@ -198,7 +198,8 @@ HerderImpl::bootstrap()
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
-    ledgerClosed(true);
+    ledgerClosed();
+    maybeTriggerNextLedger(true);
 }
 
 void
@@ -306,7 +307,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
             mPendingEnvelopes.getTxSet(value.txSetHash);
         updateTransactionQueue(externalizedSet->mTransactions);
 
-        ledgerClosed(false);
+        ledgerClosed();
+        maybeTriggerNextLedger(false);
 
         // Check to see if quorums have changed and we need to reanalyze.
         checkAndMaybeReanalyzeQuorumMap();
@@ -916,14 +918,13 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
 }
 
 void
-HerderImpl::ledgerClosed(bool synchronous)
+HerderImpl::ledgerClosed()
 {
     // this method is triggered every time the most recent ledger is
     // externalized it performs some cleanup and also decides if it needs to
     // schedule triggering the next ledger
 
     ZoneScoped;
-    mTriggerTimer.cancel();
 
     CLOG_TRACE(Herder, "HerderImpl::ledgerClosed");
 
@@ -934,7 +935,6 @@ HerderImpl::ledgerClosed(bool synchronous)
         eraseBelow(minSlotToRemember);
     }
     mPendingEnvelopes.forceRebuildQuorum();
-    maybeTriggerNextLedger(synchronous);
 }
 
 bool
