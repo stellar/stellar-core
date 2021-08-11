@@ -934,6 +934,10 @@ HerderImpl::setupTriggerNextLedger()
                                            true),
                                  &VirtualTimer::onFailureNoop);
     }
+
+#ifdef BUILD_TESTS
+    mTriggerNextLedgerSeq = nextIndex;
+#endif
 }
 
 void

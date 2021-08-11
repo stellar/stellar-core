@@ -1989,6 +1989,7 @@ TEST_CASE("herder externalizes values", "[herder]")
         REQUIRE(!lmC.isSynced());
         checkHerder(*(getC()), herderC,
                     Herder::State::HERDER_TRACKING_NETWORK_STATE, fourth);
+        REQUIRE(herderC.getTriggerTimer().seq() == 0);
 
         // Next, externalize a contiguous ledger
         // This will cause LM to apply it, and catchup manager will try to apply
@@ -2016,10 +2017,17 @@ TEST_CASE("herder externalizes values", "[herder]")
             if (i == ledgers.size() - 1)
             {
                 checkSynced(*(getC()));
+                // All the buffered ledgers are applied by now, so it's safe to
+                // trigger the next ledger
+                REQUIRE(herderC.getTriggerTimer().seq() > 0);
+                REQUIRE(herderC.mTriggerNextLedgerSeq == fourth + 1);
             }
             else
             {
                 REQUIRE(!lmC.isSynced());
+                // As we're not in sync yet, ensure next ledger is not triggered
+                REQUIRE(herderC.getTriggerTimer().seq() == 0);
+                REQUIRE(herderC.mTriggerNextLedgerSeq == currentLedger + 1);
             }
         }
 
@@ -2058,6 +2066,11 @@ TEST_CASE("herder externalizes values", "[herder]")
                             msgPair.first);
                 // LM is synced
                 checkSynced(*(getC()));
+
+                // Since we're externalizing ledgers in order, make sure ledger
+                // trigger is scheduled
+                REQUIRE(herderC.getTriggerTimer().seq() > 0);
+                REQUIRE(herderC.mTriggerNextLedgerSeq == msgPair.first + 1);
             }
         };
 
@@ -2125,6 +2138,8 @@ TEST_CASE("herder externalizes values", "[herder]")
                         Herder::State::HERDER_TRACKING_NETWORK_STATE,
                         currentlyTracking);
             checkSynced(*newC);
+            // Externalizing an old ledger should not trigger next ledger
+            REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
         }
         SECTION("not tracking")
         {
@@ -2144,6 +2159,9 @@ TEST_CASE("herder externalizes values", "[herder]")
             checkHerder(*newC, newHerderC, Herder::State::HERDER_SYNCING_STATE,
                         currentlyTracking);
             checkSynced(*newC);
+
+            // Externalizing an old ledger should not trigger next ledger
+            REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
         }
     }
     SECTION("trigger next ledger")
@@ -2169,6 +2187,33 @@ TEST_CASE("herder externalizes values", "[herder]")
             REQUIRE(currentALedger() == nextLedger);
             // C is at most a ledger behind
             REQUIRE(currentCLedger() >= nextLedger - 1);
+        }
+        SECTION("restarting C should not trigger twice")
+        {
+            auto configC = getC()->getConfig();
+
+            simulation->removeNode(validatorCKey.getPublicKey());
+
+            auto newC =
+                simulation->addNode(validatorCKey, qset, &configC, false);
+
+            // Restarting C should trigger due to FORCE_SCP
+            newC->start();
+            HerderImpl& newHerderC =
+                *static_cast<HerderImpl*>(&newC->getHerder());
+
+            auto expiryTime = newHerderC.getTriggerTimer().expiry_time();
+            REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
+
+            simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+            // C receives enough messages to externalize LCL again
+            receiveLedger(newC->getLedgerManager().getLastClosedLedgerNum(),
+                          newHerderC);
+
+            // Trigger timer did not change
+            REQUIRE(expiryTime == newHerderC.getTriggerTimer().expiry_time());
+            REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
         }
     }
 }

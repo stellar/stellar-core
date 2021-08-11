@@ -137,6 +137,8 @@ class Herder
                      uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
+
+    virtual VirtualTimer const& getTriggerTimer() const = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;

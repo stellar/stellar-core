@@ -106,6 +106,14 @@ class HerderImpl : public Herder
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
+
+    VirtualTimer const&
+    getTriggerTimer() const override
+    {
+        return mTriggerTimer;
+    }
+
+    uint32_t mTriggerNextLedgerSeq{0};
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
