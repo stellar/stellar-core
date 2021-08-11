@@ -326,6 +326,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // and there is no point in taking a position after the round is over
         mTriggerTimer.cancel();
 
+        // This call may cause LedgerManager to close ledger and trigger next
+        // ledger
         processExternalized(slotIndex, value);
 
         // Perform cleanups, and maybe process SCP queue
@@ -340,18 +342,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
     }
     else
     {
-        // This may trigger getting back in sync (buffered ledgers
-        // application)
+        // This call may trigger application of buffered ledgers and in some
+        // cases a ledger trigger
         processExternalized(slotIndex, value);
-
-        // Any ledgers processed by Herder must have been buffered in LM.
-        // If LM applied them all, Herder and LM must now be consistent with
-        // each other (i.e., track the same ledger)
-        if (mLedgerManager.isSynced())
-        {
-            maybeTriggerNextLedger();
-            safelyProcessSCPQueueUpToIndex(nextConsensusLedgerIndex(), false);
-        }
     }
 }
 
@@ -862,6 +855,17 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
         mApp.postOnMainThread(processSCPQueueSomeMore,
                               "processSCPQueueSomeMore");
     }
+}
+
+void
+HerderImpl::lastClosedLedgerIncreased()
+{
+    releaseAssert(isTracking());
+    releaseAssert(trackingConsensusLedgerIndex() ==
+                  mLedgerManager.getLastClosedLedgerNum());
+    releaseAssert(mLedgerManager.isSynced());
+
+    maybeTriggerNextLedger();
 }
 
 void

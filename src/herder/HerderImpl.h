@@ -73,6 +73,8 @@ class HerderImpl : public Herder
 
     void start() override;
 
+    void lastClosedLedgerIncreased() override;
+
     SCP& getSCP();
     HerderSCPDriver&
     getHerderSCPDriver()
