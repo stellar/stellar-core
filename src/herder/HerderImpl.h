@@ -175,7 +175,7 @@ class HerderImpl : public Herder
     ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
                                       std::chrono::milliseconds::zero());
 
-    void maybeTriggerNextLedger();
+    void setupTriggerNextLedger();
 
     void startOutOfSyncTimer();
     void outOfSyncRecovery();
