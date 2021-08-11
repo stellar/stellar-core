@@ -6,8 +6,11 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -139,64 +142,33 @@ RevokeSponsorshipOpFrame::updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx)
     if (wasEntrySponsored && willEntryBeSponsored)
     {
         // Transfer sponsorship
-        auto oldSponsoringAcc = loadAccount(ltx, *le.ext.v1().sponsoringID);
         auto const& se = sponsorship.currentGeneralized().sponsorshipEntry();
-        auto newSponsoringAcc = loadAccount(ltx, se.sponsoringID);
-        auto res = canTransferEntrySponsorship(header.current(), le,
-                                               oldSponsoringAcc.current(),
-                                               newSponsoringAcc.current());
+        auto sponsorable = makeSponsorable(LedgerEntryKey(le));
+        auto res = sponsorable->transferSponsorship(ltx, se.sponsoringID);
         if (!processSponsorshipResult(res))
         {
             return false;
         }
-        transferEntrySponsorship(le, oldSponsoringAcc.current(),
-                                 newSponsoringAcc.current());
     }
     else if (wasEntrySponsored && !willEntryBeSponsored)
     {
         // Remove sponsorship
-        auto oldSponsoringAcc = loadAccount(ltx, *le.ext.v1().sponsoringID);
-        if (le.data.type() == ACCOUNT)
+        OwnedEntrySponsorable oes(LedgerEntryKey(le));
+        auto res = oes.removeSponsorship(ltx);
+        if (!processSponsorshipResult(res))
         {
-            if (!tryRemoveEntrySponsorship(ltx, header, le,
-                                           oldSponsoringAcc.current(), le))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            auto sponsoredAcc = loadAccount(ltx, getAccountID(le));
-            if (!tryRemoveEntrySponsorship(ltx, header, le,
-                                           oldSponsoringAcc.current(),
-                                           sponsoredAcc.current()))
-            {
-                return false;
-            }
+            return false;
         }
     }
     else if (!wasEntrySponsored && willEntryBeSponsored)
     {
         // Establish sponsorship
         auto const& se = sponsorship.currentGeneralized().sponsorshipEntry();
-        auto sponsoringAcc = loadAccount(ltx, se.sponsoringID);
-        if (le.data.type() == ACCOUNT)
+        auto sponsorable = makeSponsorable(LedgerEntryKey(le));
+        auto res = sponsorable->establishSponsorship(ltx, se.sponsoringID);
+        if (!processSponsorshipResult(res))
         {
-            if (!tryEstablishEntrySponsorship(ltx, header, le,
-                                              sponsoringAcc.current(), le))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            auto sponsoredAcc = loadAccount(ltx, getAccountID(le));
-            if (!tryEstablishEntrySponsorship(ltx, header, le,
-                                              sponsoringAcc.current(),
-                                              sponsoredAcc.current()))
-            {
-                return false;
-            }
+            return false;
         }
     }
     else // (!wasEntrySponsored && !willEntryBeSponsored)
@@ -205,35 +177,6 @@ RevokeSponsorshipOpFrame::updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx)
     }
 
     innerResult().code(REVOKE_SPONSORSHIP_SUCCESS);
-    return true;
-}
-
-bool
-RevokeSponsorshipOpFrame::tryRemoveEntrySponsorship(
-    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header, LedgerEntry& le,
-    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
-{
-    auto res = canRemoveEntrySponsorship(header.current(), le, sponsoringAcc,
-                                         &sponsoredAcc);
-    if (!processSponsorshipResult(res))
-    {
-        return false;
-    }
-    removeEntrySponsorship(le, sponsoringAcc, &sponsoredAcc);
-    return true;
-}
-bool
-RevokeSponsorshipOpFrame::tryEstablishEntrySponsorship(
-    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header, LedgerEntry& le,
-    LedgerEntry& sponsoringAcc, LedgerEntry& sponsoredAcc)
-{
-    auto res = canEstablishEntrySponsorship(header.current(), le, sponsoringAcc,
-                                            &sponsoredAcc);
-    if (!processSponsorshipResult(res))
-    {
-        return false;
-    }
-    establishEntrySponsorship(le, sponsoringAcc, &sponsoredAcc);
     return true;
 }
 
