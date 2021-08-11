@@ -1219,6 +1219,68 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     return res;
 }
 
+// Variables suffixed with "ToPool" are associated with the asset that will be
+// sent to the pool, and variables suffixed with "FromPool" are associated with
+// the asset that will be received from the pool. Compared to the interface of
+// exchangeV10, "ToPool" is analogous to "sheep" and "FromPool" is analogous to
+// "wheat".
+bool
+exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
+                 int64_t reservesFromPool, int64_t maxReceiveFromPool,
+                 int64_t& fromPool, int32_t feeBps, RoundingType round)
+{
+    ZoneScoped;
+
+    int32_t const maxBps = 10000;
+    if (feeBps < 0 || maxBps <= feeBps)
+    {
+        throw std::runtime_error("Liquidity pool fee out of range");
+    }
+
+    switch (round)
+    {
+    case RoundingType::PATH_PAYMENT_STRICT_SEND:
+    {
+        if (maxSendToPool > INT64_MAX - reservesToPool)
+        {
+            return false;
+        }
+        toPool = maxSendToPool;
+
+        uint128_t denominator = bigMultiply(maxBps, reservesToPool) +
+                                bigMultiply(maxBps - feeBps, toPool);
+        bool res = hugeDivide(fromPool, maxBps - feeBps,
+                              bigMultiply(reservesFromPool, toPool),
+                              denominator, ROUND_DOWN);
+        if (res)
+        {
+            fromPool = std::min(fromPool, maxReceiveFromPool);
+        }
+        return res;
+    }
+    case RoundingType::PATH_PAYMENT_STRICT_RECEIVE:
+    {
+        if (maxReceiveFromPool >= reservesFromPool)
+        {
+            return false;
+        }
+        fromPool = maxReceiveFromPool;
+
+        bool res = hugeDivide(
+            toPool, maxBps, bigMultiply(reservesToPool, fromPool),
+            bigMultiply(reservesFromPool - fromPool, maxBps - feeBps),
+            ROUND_UP);
+        if (res)
+        {
+            toPool = std::min(toPool, maxSendToPool);
+        }
+        return res;
+    }
+    default:
+        throw std::runtime_error("Invalid rounding type");
+    }
+}
+
 ConvertResult
 convertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
