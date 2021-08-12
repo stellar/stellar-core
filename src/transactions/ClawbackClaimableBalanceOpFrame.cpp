@@ -4,9 +4,11 @@
 
 #include "transactions/ClawbackClaimableBalanceOpFrame.h"
 #include "ledger/LedgerTxn.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -62,12 +64,12 @@ ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
-    removeEntryWithPossibleSponsorship(
-        ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
+    // Need this to ensure that buckets are the same as the original
+    // implementation
+    auto sourceAccount = loadSourceAccount(ltx, ltx.loadHeader());
 
-    claimableBalanceLtxEntry.erase();
+    UnownedEntrySponsorable ues(mClawbackClaimableBalance.balanceID);
+    ues.erase(ltx);
 
     innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_SUCCESS);
     return true;
