@@ -23,6 +23,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/TmpDir.h"
+#include "util/XDRCereal.h"
 
 #include <cstdlib>
 #include <fmt/format.h>
@@ -147,6 +148,7 @@ std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 
 static std::map<stdfs::path, std::map<std::string, std::vector<uint64_t>>>
     gTestTxMetadata;
+static std::optional<std::ofstream> gDebugTestTxMeta;
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
@@ -299,6 +301,7 @@ runTest(CommandLineArgs const& args)
 
     std::string recordTestTxMeta;
     std::string checkTestTxMeta;
+    std::string debugTestTxMeta;
 
     auto parser = session.cli();
     parser |= Catch::clara::Opt(
@@ -321,6 +324,10 @@ runTest(CommandLineArgs const& args)
     parser |=
         Catch::clara::Opt(checkTestTxMeta, "DIRNAME")["--check-test-tx-meta"](
             "check TxMeta from all tests against recorded baseline");
+    parser |=
+        Catch::clara::Opt(debugTestTxMeta, "FILENAME")["--debug-test-tx-meta"](
+            "dump full TxMeta from all tests to FILENAME");
+
     session.cli(parser);
 
     auto result = session.cli().parse(
@@ -362,6 +369,11 @@ runTest(CommandLineArgs const& args)
     {
         gTestTxMetaMode = TestTxMetaMode::META_TEST_CHECK;
         loadTestTxMeta(checkTestTxMeta);
+    }
+    if (!debugTestTxMeta.empty())
+    {
+        gDebugTestTxMeta.emplace(debugTestTxMeta);
+        releaseAssert(gDebugTestTxMeta.value().good());
     }
 
     ReseedPRNGListener::sCommandLineSeed = seed;
@@ -588,6 +600,12 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     TransactionMeta txMeta = txMetaIn;
     normalizeMeta(txMeta);
     auto ctx = getCurrentTestContext();
+    if (gDebugTestTxMeta.has_value())
+    {
+        gDebugTestTxMeta.value()
+            << "=== " << ctx.first << " : " << ctx.second << " ===" << std::endl
+            << xdr_to_string(txMeta, "TransactionMeta", false) << std::endl;
+    }
     uint64_t gotTxMetaHash = shortHash::xdrComputeHash(txMeta);
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
