@@ -416,8 +416,8 @@ TEST_CASE("huge divide", "[bigdivide]")
         std::vector<int64_t> values64;
         for (size_t i = 0; i < 10; ++i)
         {
-            values32.emplace_back(i);
-            values32.emplace_back(INT32_MAX - i);
+            values32.emplace_back(static_cast<int>(i));
+            values32.emplace_back(static_cast<int>(INT32_MAX - i));
             values64.emplace_back(i);
             values64.emplace_back(INT32_MAX - i);
             values64.emplace_back(INT64_MAX - i);

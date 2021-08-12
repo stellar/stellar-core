@@ -3102,7 +3102,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     {
         trustLines = loadPoolShareTrustLinesByAccountAndAsset(account, asset);
     }
-    catch (NonSociRelatedException& e)
+    catch (NonSociRelatedException&)
     {
         throw;
     }

@@ -558,7 +558,7 @@ LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
     vector<Operation> ops;
     ops.reserve(opCount);
     auto acc = findAccount(sourceAccount, ledgerNum);
-    for (int i = 0; i < opCount; i++)
+    for (uint32 i = 0; i < opCount; i++)
     {
         auto args = SetOptionsArguments{};
 

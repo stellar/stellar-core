@@ -82,12 +82,12 @@ CATCH_REGISTER_LISTENER(ReseedPRNGListener)
 
 enum class TestTxMetaMode
 {
-    IGNORE,
-    RECORD,
-    CHECK
+    META_TEST_IGNORE,
+    META_TEST_RECORD,
+    META_TEST_CHECK
 };
 
-static TestTxMetaMode gTestTxMetaMode{TestTxMetaMode::IGNORE};
+static TestTxMetaMode gTestTxMetaMode{TestTxMetaMode::META_TEST_IGNORE};
 
 struct TestContextListener : Catch::TestEventListenerBase
 {
@@ -102,7 +102,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::IGNORE)
+        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
             sTestCtx.emplace_back(testInfo);
@@ -111,7 +111,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     testCaseEnded(Catch::TestCaseStats const& testCaseStats) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::IGNORE)
+        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
             sTestCtx.pop_back();
@@ -120,7 +120,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     sectionStarting(Catch::SectionInfo const& sectionInfo) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::IGNORE)
+        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
             sSectCtx.emplace_back(sectionInfo);
@@ -129,7 +129,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     void
     sectionEnded(Catch::SectionStats const& sectionStats) override
     {
-        if (gTestTxMetaMode != TestTxMetaMode::IGNORE)
+        if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
             assertThreadIsMain();
             sSectCtx.pop_back();
@@ -347,11 +347,11 @@ runTest(CommandLineArgs const& args)
                       "are mutually exclusive");
             return 1;
         }
-        gTestTxMetaMode = TestTxMetaMode::RECORD;
+        gTestTxMetaMode = TestTxMetaMode::META_TEST_RECORD;
     }
     if (!checkTestTxMeta.empty())
     {
-        gTestTxMetaMode = TestTxMetaMode::CHECK;
+        gTestTxMetaMode = TestTxMetaMode::META_TEST_CHECK;
         loadTestTxMeta(checkTestTxMeta);
     }
 
@@ -391,7 +391,7 @@ runTest(CommandLineArgs const& args)
     {
         LOG_ERROR(DEFAULT_LOG, "Nonzero test result with --rng-seed {}", seed);
     }
-    if (gTestTxMetaMode == TestTxMetaMode::RECORD)
+    if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
         saveTestTxMeta(recordTestTxMeta);
     }
@@ -563,19 +563,19 @@ getCurrentTestContext()
 void
 recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta)
 {
-    if (gTestTxMetaMode == TestTxMetaMode::IGNORE)
+    if (gTestTxMetaMode == TestTxMetaMode::META_TEST_IGNORE)
     {
         return;
     }
     std::string ctx = getCurrentTestContext();
     Hash gotTxMetaHash = xdrSha256(txMeta);
-    if (gTestTxMetaMode == TestTxMetaMode::RECORD)
+    if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
         gTestTxMetadata[ctx].emplace_back(gotTxMetaHash);
     }
     else
     {
-        releaseAssert(gTestTxMetaMode == TestTxMetaMode::CHECK);
+        releaseAssert(gTestTxMetaMode == TestTxMetaMode::META_TEST_CHECK);
         auto i = gTestTxMetadata.find(ctx);
         CHECK(i != gTestTxMetadata.end());
         std::vector<Hash>& vec = i->second;
