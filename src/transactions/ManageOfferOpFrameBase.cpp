@@ -7,11 +7,13 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/OfferExchange.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -108,10 +110,7 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
-    auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
-
-    auto ledgerVersion = header.current().ledgerVersion;
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     if (ledgerVersion < 14 && creatingNewOffer &&
         (ledgerVersion >= 10 ||
          (mSheep.type() == ASSET_TYPE_NATIVE && ledgerVersion > 8)))
@@ -120,8 +119,9 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
         // updated reserve to avoid selling too many and falling
         // below the reserve when we try to create the offer later on
         auto le = buildOffer(0, 0, LedgerEntry::_ext_t{});
-        switch (canCreateEntryWithoutSponsorship(header.current(), le,
-                                                 sourceAccount.current()))
+        ltx.create(le);
+        OwnedEntrySponsorable oes(LedgerEntryKey(le));
+        switch (oes.create(ltx))
         {
         case SponsorshipResult::SUCCESS:
             break;
@@ -135,11 +135,12 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
             // Includes of SponsorshipResult::TOO_MANY_SPONSORING
             // and SponsorshipResult::TOO_MANY_SPONSORED
             throw std::runtime_error("Unexpected result from "
-                                     "createEntryWithPossibleSponsorship");
+                                     "OwnedEntrySponsorable::create");
         }
-        createEntryWithoutSponsorship(le, sourceAccount.current());
     }
 
+    auto header = ltx.loadHeader();
+    auto sourceAccount = loadSourceAccount(ltx, header);
     auto sheepLineA = loadTrustLineIfNotNative(ltx, getSourceID(), mSheep);
     auto wheatLineA = loadTrustLineIfNotNative(ltx, getSourceID(), mWheat);
 
@@ -280,9 +281,10 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             // This allows the entire operation to be applied after accounting
             // for potential of creating this entry.
             auto le = buildOffer(0, 0, LedgerEntry::_ext_t{});
-            auto sourceAccount = loadAccount(ltx, getSourceID());
-            switch (createEntryWithPossibleSponsorship(ltx, header, le,
-                                                       sourceAccount))
+            auto key = LedgerEntryKey(le);
+            ltx.create(le);
+            OwnedEntrySponsorable oes(key);
+            switch (oes.create(ltx))
             {
             case SponsorshipResult::SUCCESS:
                 break;
@@ -300,10 +302,12 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 // entries, fall through and throw
             default:
                 throw std::runtime_error("Unexpected result from "
-                                         "createEntryWithPossibleSponsorship");
+                                         "OwnedEntrySponsorable::create");
             }
 
-            extension = le.ext;
+            auto ltxe = ltx.load(key);
+            extension = ltxe.current().ext;
+            ltx.erase(key);
         }
     }
 
@@ -459,19 +463,25 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         }
     }
 
-    auto header = ltx.loadHeader();
     if (amount > 0)
     {
         auto newOffer = buildOffer(amount, flags, extension);
+        LedgerTxnEntry sellSheepOffer;
         if (creatingNewOffer)
         {
-            if (header.current().ledgerVersion < 14)
+            {
+                auto header = ltx.loadHeader();
+                newOffer.data.offer().offerID = generateNewOfferID(header);
+            }
+
+            auto key = LedgerEntryKey(newOffer);
+            if (ltx.loadHeader().current().ledgerVersion < 14)
             {
                 // make sure we don't allow us to add offers when we don't have
                 // the minbalance (should never happen at this stage in v9+)
-                auto sourceAccount = loadSourceAccount(ltx, header);
-                switch (canCreateEntryWithoutSponsorship(
-                    header.current(), newOffer, sourceAccount.current()))
+                ltx.create(newOffer);
+                OwnedEntrySponsorable oes(key);
+                switch (oes.create(ltx))
                 {
                 case SponsorshipResult::SUCCESS:
                     break;
@@ -484,43 +494,45 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 default:
                     // Includes of SponsorshipResult::TOO_MANY_SPONSORING
                     // and SponsorshipResult::TOO_MANY_SPONSORED
-                    throw std::runtime_error(
-                        "Unexpected result from "
-                        "createEntryWithPossibleSponsorship");
+                    throw std::runtime_error("Unexpected result from "
+                                             "OwnedEntrySponsorable::create");
                 }
-                createEntryWithoutSponsorship(newOffer,
-                                              sourceAccount.current());
+                sellSheepOffer = ltx.load(key);
             }
-            // In versions 14 and beyond, numSubEntries and sponsorships are
-            // updated at the beginning of this operation. Therefore, there is
-            // nothing to do here.
+            else
+            {
+                // In versions 14 and beyond, numSubEntries and sponsorships
+                // are updated at the beginning of this operation. Therefore,
+                // there is nothing to do here.
+                sellSheepOffer = ltx.create(newOffer);
+            }
 
-            newOffer.data.offer().offerID = generateNewOfferID(header);
             getSuccessResult().offer.effect(MANAGE_OFFER_CREATED);
         }
         else
         {
+            sellSheepOffer = ltx.create(newOffer);
             getSuccessResult().offer.effect(MANAGE_OFFER_UPDATED);
         }
 
-        auto sellSheepOffer = ltx.create(newOffer);
         getSuccessResult().offer.offer() =
             sellSheepOffer.current().data.offer();
 
-        if (header.current().ledgerVersion >= 10)
+        if (ltx.loadHeader().current().ledgerVersion >= 10)
         {
-            acquireLiabilities(ltx, header, sellSheepOffer);
+            acquireLiabilities(ltx, ltx.loadHeader(), sellSheepOffer);
         }
     }
     else
     {
         getSuccessResult().offer.effect(MANAGE_OFFER_DELETED);
 
-        if (!creatingNewOffer || header.current().ledgerVersion >= 14)
+        if (!creatingNewOffer || ltx.loadHeader().current().ledgerVersion >= 14)
         {
-            auto sourceAccount = loadSourceAccount(ltx, header);
             auto le = buildOffer(0, 0, extension);
-            removeEntryWithPossibleSponsorship(ltx, header, le, sourceAccount);
+            ltx.create(le);
+            OwnedEntrySponsorable oes(LedgerEntryKey(le));
+            oes.erase(ltx);
         }
     }
 
