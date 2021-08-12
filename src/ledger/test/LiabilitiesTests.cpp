@@ -10,7 +10,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
@@ -18,6 +18,7 @@
 #include "xdrpp/printer.h"
 
 using namespace stellar;
+using namespace stellar::SponsorshipUtils;
 
 TEST_CASE("liabilities", "[ledger][liabilities]")
 {
@@ -1010,15 +1011,15 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
                 ae.ext.v1().ext.v2().numSponsored = 0;
             }
 
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+
             LedgerEntry le;
             le.data.type(ACCOUNT);
             le.data.account() = ae;
-
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto header = ltx.loadHeader();
-            auto acc = ltx.create(le);
+            ltx.create(le);
 
             DataEntry de = LedgerTestUtils::generateValidDataEntry();
+            de.accountID = le.data.account().accountID;
             LedgerEntry dataLe;
             dataLe.data.type(DATA);
             dataLe.data.data() = de;
@@ -1026,14 +1027,23 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             bool res = true;
             if (addEntry)
             {
-                res = createEntryWithPossibleSponsorship(ltx, header, dataLe,
-                                                         acc) ==
-                      SponsorshipResult::SUCCESS;
+                OwnedEntrySponsorable oes(LedgerEntryKey(dataLe));
+                ltx.create(dataLe);
+                res = oes.create(ltx) == SponsorshipResult::SUCCESS;
+                if (res)
+                {
+                    ltx.erase(LedgerEntryKey(dataLe));
+                }
             }
             else
             {
-                removeEntryWithPossibleSponsorship(ltx, header, dataLe, acc);
+                OwnedEntrySponsorable oes(LedgerEntryKey(dataLe));
+                ltx.create(dataLe);
+                oes.erase(ltx);
             }
+
+            auto header = ltx.loadHeader();
+            auto acc = ltx.load(LedgerEntryKey(le));
 
             REQUIRE(getSellingLiabilities(header, acc) ==
                     initSellingLiabilities);
