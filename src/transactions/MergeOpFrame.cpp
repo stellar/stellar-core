@@ -8,13 +8,13 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
-using namespace soci;
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -153,9 +153,16 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    removeEntryWithPossibleSponsorship(
-        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
-    sourceAccountEntry.erase();
+    if (sourceAccountEntry.current().ext.v() == 1 &&
+        sourceAccountEntry.current().ext.v1().sponsoringID &&
+        toAccountID(mOperation.body.destination()) ==
+            *sourceAccountEntry.current().ext.v1().sponsoringID)
+    {
+        throw std::runtime_error("merged account into sponsor");
+    }
+
+    OwnedEntrySponsorable oes(LedgerEntryKey(sourceAccountEntry.current()));
+    oes.erase(ltx);
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     innerResult().sourceAccountBalance() = sourceBalance;
@@ -228,9 +235,8 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
         }
     }
 
-    removeEntryWithPossibleSponsorship(
-        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
-    sourceAccountEntry.erase();
+    OwnedEntrySponsorable oes(LedgerEntryKey(sourceAccountEntry.current()));
+    oes.erase(ltx);
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     innerResult().sourceAccountBalance() = sourceBalance;
