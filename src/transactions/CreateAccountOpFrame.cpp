@@ -9,7 +9,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -18,6 +18,8 @@
 #include <algorithm>
 
 #include "main/Application.h"
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -81,19 +83,18 @@ bool
 CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
-    auto header = ltx.loadHeader();
 
     LedgerEntry newAccountEntry;
     newAccountEntry.data.type(ACCOUNT);
     auto& newAccount = newAccountEntry.data.account();
     newAccount.thresholds[0] = 1;
     newAccount.accountID = mCreateAccount.destination;
-    newAccount.seqNum = getStartingSequenceNumber(header);
+    newAccount.seqNum = getStartingSequenceNumber(ltx.loadHeader());
     newAccount.balance = mCreateAccount.startingBalance;
 
-    LedgerTxnEntry empty;
-    switch (
-        createEntryWithPossibleSponsorship(ltx, header, newAccountEntry, empty))
+    ltx.create(newAccountEntry);
+    OwnedEntrySponsorable oes(LedgerEntryKey(newAccountEntry));
+    switch (oes.create(ltx))
     {
     case SponsorshipResult::SUCCESS:
         break;
@@ -111,9 +112,10 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
         // entries, fall through and throw
     default:
         throw std::runtime_error("Unexpected result from "
-                                 "createEntryWithPossibleSponsorship");
+                                 "OwnedEntrySponsorable::create");
     }
 
+    auto header = ltx.loadHeader();
     auto sourceAccount = loadAccount(ltx, getSourceID());
     if (getAvailableBalance(header, sourceAccount) <
         mCreateAccount.startingBalance)
@@ -126,7 +128,6 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
         addBalance(header, sourceAccount, -mCreateAccount.startingBalance);
     releaseAssertOrThrow(ok);
 
-    ltx.create(newAccountEntry);
     innerResult().code(CREATE_ACCOUNT_SUCCESS);
 
     ltx.commit();
