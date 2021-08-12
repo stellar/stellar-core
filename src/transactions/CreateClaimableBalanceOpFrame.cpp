@@ -8,9 +8,11 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -231,8 +233,9 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
                                  header.current().scpValue.closeTime);
     }
 
-    switch (createEntryWithPossibleSponsorship(ltx, header, newClaimableBalance,
-                                               sourceAccount))
+    ltx.create(newClaimableBalance);
+    UnownedEntrySponsorable ues(claimableBalanceEntry.balanceID);
+    switch (ues.create(ltx, getSourceID()))
     {
     case SponsorshipResult::SUCCESS:
         break;
@@ -250,10 +253,8 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         // Fall through and throw.
     default:
         throw std::runtime_error("Unexpected result from "
-                                 "canEstablishEntrySponsorship");
+                                 "UnownedEntrySponsorable::create");
     }
-
-    ltx.create(newClaimableBalance);
 
     innerResult().code(CREATE_CLAIMABLE_BALANCE_SUCCESS);
     innerResult().balanceID() = claimableBalanceEntry.balanceID;
