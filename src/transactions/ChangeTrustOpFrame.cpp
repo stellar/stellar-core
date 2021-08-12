@@ -10,9 +10,11 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -224,13 +226,6 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         if (mChangeTrust.limit == 0)
         { // we are deleting a trustline
-
-            // line gets deleted. first release reserves
-            auto header = ltx.loadHeader();
-            auto sourceAccount = loadSourceAccount(ltx, header);
-            removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
-                                               sourceAccount);
-
             // use a lambda so we don't hold a reference to the TrustLineEntry
             auto tlEntry = [&]() -> TrustLineEntry const& {
                 return trustLine.current().data.trustLine();
@@ -245,10 +240,11 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
                 return false;
             }
 
-            trustLine.erase();
-
+            // line gets deleted. first release reserves
+            OwnedEntrySponsorable oes(key);
             // this will create a child LedgerTxn and deactivate all loaded
             // entries!
+            oes.erase(ltx);
             managePoolOnDeletedTrustLine(ltx, tlAsset);
         }
         else
@@ -306,10 +302,9 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        auto header = ltx.loadHeader();
-        auto sourceAccount = loadSourceAccount(ltx, header);
-        switch (createEntryWithPossibleSponsorship(ltx, header, trustLineEntry,
-                                                   sourceAccount))
+        ltx.create(trustLineEntry);
+        OwnedEntrySponsorable oes(LedgerEntryKey(trustLineEntry));
+        switch (oes.create(ltx))
         {
         case SponsorshipResult::SUCCESS:
             break;
@@ -327,9 +322,8 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             // entries, fall through and throw
         default:
             throw std::runtime_error("Unexpected result from "
-                                     "createEntryWithPossibleSponsorship");
+                                     "OwnedEntrySponsorable::create");
         }
-        ltx.create(trustLineEntry);
 
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;
