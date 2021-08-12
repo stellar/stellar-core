@@ -11,11 +11,13 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 struct ExchangedQuantities
 {
@@ -1018,10 +1020,8 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     // Note: No changes have been stored before this point.
     if (newAmount == 0)
     { // entire offer is taken
-        auto accountB = stellar::loadAccount(ltx, accountBID);
-        removeEntryWithPossibleSponsorship(
-            ltx, ltx.loadHeader(), sellingWheatOffer.current(), accountB);
-        sellingWheatOffer.erase();
+        OwnedEntrySponsorable oes(offerKey(accountBID, offerID));
+        oes.erase(ltx);
     }
     else
     {
@@ -1200,17 +1200,15 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
                                    : CrossOfferResult::eOfferPartial;
     {
         LedgerTxn ltxInner(ltx);
-        header = ltxInner.loadHeader();
-        sellingWheatOffer = loadOffer(ltxInner, accountBID, offerID);
         if (res == CrossOfferResult::eOfferTaken)
         {
-            auto account = loadAccount(ltxInner, accountBID);
-            removeEntryWithPossibleSponsorship(
-                ltxInner, header, sellingWheatOffer.current(), account);
-            sellingWheatOffer.erase();
+            OwnedEntrySponsorable oes(offerKey(accountBID, offerID));
+            oes.erase(ltxInner);
         }
         else
         {
+            header = ltxInner.loadHeader();
+            sellingWheatOffer = loadOffer(ltxInner, accountBID, offerID);
             acquireLiabilities(ltxInner, header, sellingWheatOffer);
         }
         ltxInner.commit();
