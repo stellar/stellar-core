@@ -8,8 +8,10 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -126,11 +128,12 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
+    // Need this to ensure that buckets are the same as the original
+    // implementation
     auto sourceAccount = loadSourceAccount(ltx, header);
-    removeEntryWithPossibleSponsorship(
-        ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
-    claimableBalanceLtxEntry.erase();
+    UnownedEntrySponsorable ues(mClaimClaimableBalance.balanceID);
+    ues.erase(ltx);
 
     innerResult().code(CLAIM_CLAIMABLE_BALANCE_SUCCESS);
     return true;
