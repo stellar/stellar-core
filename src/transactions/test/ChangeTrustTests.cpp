@@ -339,7 +339,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // this should create a LiquidityPoolEntry, and modify
             // liquidityPoolUseCount on the asset trustlines
-            auto prePoolNumSubEntries = getNumSubEntries(root);
+            // auto prePoolNumSubEntries = getNumSubEntries(root);
             root.changeTrust(poolShareAsset, 10);
 
             // TODO: This line requires the update to SponsorshipUtils
