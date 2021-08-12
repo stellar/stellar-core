@@ -9,12 +9,14 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -51,9 +53,9 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
             dataEntry.dataName = mManageData.dataName;
             dataEntry.dataValue = *mManageData.dataValue;
 
-            auto sourceAccount = loadSourceAccount(ltx, header);
-            switch (createEntryWithPossibleSponsorship(ltx, header, newData,
-                                                       sourceAccount))
+            ltx.create(newData);
+            OwnedEntrySponsorable oes(LedgerEntryKey(newData));
+            switch (oes.create(ltx))
             {
             case SponsorshipResult::SUCCESS:
                 break;
@@ -71,9 +73,8 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
                 // entries, fall through and throw
             default:
                 throw std::runtime_error("Unexpected result from "
-                                         "createEntryWithPossibleSponsorship");
+                                         "OwnedEntrySponsorable::create");
             }
-            ltx.create(newData);
         }
         else
         { // modify an existing entry
@@ -88,10 +89,8 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        auto sourceAccount = loadSourceAccount(ltx, header);
-        removeEntryWithPossibleSponsorship(ltx, header, data.current(),
-                                           sourceAccount);
-        data.erase();
+        OwnedEntrySponsorable oes(LedgerEntryKey(data.current()));
+        oes.erase(ltx);
     }
 
     innerResult().code(MANAGE_DATA_SUCCESS);
