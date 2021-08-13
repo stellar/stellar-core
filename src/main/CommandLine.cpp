@@ -14,6 +14,7 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "main/Diagnostics.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
@@ -604,6 +605,23 @@ CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
         os << row << std::endl;
     }
 }
+}
+
+int
+diagBucketStats(CommandLineArgs const& args)
+{
+    std::string bucketFile;
+    bool aggAccountStats = false;
+
+    return runWithHelp(
+        args,
+        {fileNameParser(bucketFile),
+         clara::Opt{aggAccountStats}["--aggregate-account-stats"](
+             "aggregate entries on a per account basis")},
+        [&] {
+            diagnostics::bucketStats(bucketFile, aggAccountStats);
+            return 0;
+        });
 }
 
 int
@@ -1608,6 +1626,8 @@ handleCommandLine(int argc, char* const* argv)
          {"verify-checkpoints", "write verified checkpoint ledger hashes",
           runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
+         {"diag-bucket-stats", "reports statistics on the content of a bucket",
+          diagBucketStats},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
          {"encode-asset", "Print an encoded asset in base 64 for debugging",
           runEncodeAsset},
