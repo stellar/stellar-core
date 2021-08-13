@@ -2257,6 +2257,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case LIQUIDITY_POOL:
         accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
         break;
+    case SPEEDEX_CONFIG:
+        accum(iter, mSpeedexConfigToUpsert, mSpeedexConfigToDelete);
+        break;
     default:
         abort();
     }
@@ -2339,6 +2342,18 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
         deleteLiquidityPool.clear();
     }
+    auto& upsertSpeedexConfig = bleca.getSpeedexConfigToUpsert();
+    if (upsertSpeedexConfig.size() > bufferThreshold)
+    {
+        bulkUpsertSpeedexConfig(upsertSpeedexConfig);
+        upsertSpeedexConfig.clear();
+    }
+    auto& deleteSpeedexConfig = bleca.getSpeedexConfigToDelete();
+    if (deleteSpeedexConfig.size() > bufferThreshold)
+    {
+        bulkDeleteSpeedexConfig(deleteSpeedexConfig, cons);
+        deleteSpeedexConfig.clear();
+    }
 }
 
 void
@@ -2362,7 +2377,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
-        // FIXME: there is no medida historgram for this presently,
+        // FIXME: there is no medida histogram for this presently,
         // but maybe we would like one?
         TracyPlot("ledger.entry.commit", counter);
 

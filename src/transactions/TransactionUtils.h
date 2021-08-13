@@ -53,8 +53,10 @@ LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
 LedgerKey liquidityPoolKey(PoolID const& poolID);
+LedgerKey speedexConfigKey();
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
+InternalLedgerKey speedexIOCBatchKey();
 
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
@@ -96,6 +98,8 @@ LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
 
 LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
+
+LedgerTxnEntry loadSpeedexConfig(AbstractLedgerTxn& ltx);
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);

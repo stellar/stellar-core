@@ -55,7 +55,8 @@ enum OperationType
     REVOKE_SPONSORSHIP = 18,
     CLAWBACK = 19,
     CLAWBACK_CLAIMABLE_BALANCE = 20,
-    SET_TRUST_LINE_FLAGS = 21
+    SET_TRUST_LINE_FLAGS = 21,
+    CREATE_SPEEDEX_IOC_OFFER = 22
 };
 
 /* CreateAccount
@@ -432,6 +433,24 @@ struct SetTrustLineFlagsOp
     uint32 setFlags;   // which flags to set
 };
 
+
+/* CreateSpeedexIOCOfferOp
+
+    Create Speedex IoC (Immediate-or-Cancel) offer.
+    Threshold: med
+
+    Trades sellAmount units of sellAsset at minimum
+    rate of minPrice;
+*/
+
+struct CreateSpeedexIOCOfferOp
+{
+    Asset sellAsset;
+    Asset buyAsset;
+    int64 sellAmount;
+    Price minPrice;
+};
+
 const LIQUIDITY_POOL_FEE_V18 = 30;
 
 /* An operation is the lowest unit of work that a transaction does */
@@ -488,6 +507,8 @@ struct Operation
         ClawbackClaimableBalanceOp clawbackClaimableBalanceOp;
     case SET_TRUST_LINE_FLAGS:
         SetTrustLineFlagsOp setTrustLineFlagsOp;
+    case CREATE_SPEEDEX_IOC_OFFER:
+        CreateSpeedexIOCOfferOp createSpeedexIOCOfferOp;
     }
     body;
 };
@@ -1317,6 +1338,21 @@ default:
     void;
 };
 
+enum CreateSpeedexIOCOfferResultCode
+{
+    CREATE_SPEEDEX_IOC_OFFER_SUCCESS = 0
+
+};
+
+union CreateSpeedexIOCOfferResults switch (CreateSpeedexIOCOfferCode code)
+{
+case CREATE_SPEEDEX_IOC_OFFER_SUCCESS:
+    int64 soldAmount;
+    int64 boughtAmount;
+default:
+    void;
+};
+
 /* High level Operation Result */
 enum OperationResultCode
 {
@@ -1379,6 +1415,8 @@ case opINNER:
         ClawbackClaimableBalanceResult clawbackClaimableBalanceResult;
     case SET_TRUST_LINE_FLAGS:
         SetTrustLineFlagsResult setTrustLineFlagsResult;
+    case CREATE_SPEEDEX_IOC_OFFER:
+        CreateSpeedexIOCOfferResult createSpeedexIOCOfferResult;
     }
     tr;
 default:

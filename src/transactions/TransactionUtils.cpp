@@ -177,6 +177,13 @@ liquidityPoolKey(PoolID const& poolID)
     return key;
 }
 
+LedgerKey speedexConfigKey()
+{
+    LedgerKey key(SPEEDEX_CONFIG);
+    return key;
+}
+
+
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
@@ -190,6 +197,13 @@ sponsorshipCounterKey(AccountID const& sponsoringID)
 {
     InternalLedgerKey gkey(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     gkey.sponsorshipCounterKey().sponsoringID = sponsoringID;
+    return gkey;
+}
+
+InternalLedgerKey
+speedexIOCBatchKey()
+{
+    InternalLedgerKey gkey(InternalLedgerEntryType::SPEEDEX_IOC_BATCH);
     return gkey;
 }
 

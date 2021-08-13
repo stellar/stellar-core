@@ -86,6 +86,8 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mTrustLinesToDelete;
     std::vector<EntryIterator> mLiquidityPoolToUpsert;
     std::vector<EntryIterator> mLiquidityPoolToDelete;
+    std::vector<EntryIterator> mSpeedexConfigToUpsert;
+    std::vector<EntryIterator> mSpeedexConfigToDelete;
 
   public:
     std::vector<EntryIterator>&
@@ -158,6 +160,16 @@ class BulkLedgerEntryChangeAccumulator
     getLiquidityPoolToDelete()
     {
         return mLiquidityPoolToDelete;
+    }
+
+    std::vector<SpeedexConfig>&
+    getSpeedexConfigToUpsert() {
+        return mSpeedexConfigToUpsert;
+    }
+
+    std::vector<SpeedexConfig>&
+    getSpeedexConfigToDelete() {
+        return mSpeedexConfigToDelete;
     }
 
     void accumulate(EntryIterator const& iter);
@@ -768,6 +780,10 @@ class LedgerTxnRoot::Impl
                                     LedgerTxnConsistency cons);
     void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
     void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
+                                 LedgerTxnConsistency cons);
+
+    void bulkUpsertSpeedexConfig(std::vector<EntryIterator> const& entries);
+    void bulkDeleteSpeedexConfig(std::vector<EntryIterator> const& entries,
                                  LedgerTxnConsistency cons);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);

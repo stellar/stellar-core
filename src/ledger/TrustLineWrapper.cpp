@@ -119,6 +119,7 @@ TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry)
         mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));
     }
     //TODO check entry type to determine issuer or nonissuer?
+    // I do not believe this to be necessary.
 }
 
 TrustLineWrapper::operator bool() const
