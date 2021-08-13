@@ -44,16 +44,18 @@ Field | Type | Description
 ------|------|---------------
 accountid | VARCHAR(56)  PRIMARY KEY | (STRKEY)
 balance | BIGINT NOT NULL CHECK (balance >= 0) |
+buyingliabilities | BIGINT NOT NULL CHECK (buyingliabilities >= 0)
+sellingliabilities | BIGINT NOT NULL CHECK (sellingliabilities >= 0)
 seqnum | BIGINT NOT NULL |
 numsubentries | INT NOT NULL CHECK (numsubentries >= 0) |
 inflationdest | VARCHAR(56) | (STRKEY)
 homedomain | VARCHAR(44) | (BASE64)
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
+signers | TEXT | (XDR)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 extension | TEXT | Extension specific to AccountEntry (XDR)
-ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
-signers | TEXT | (XDR)
+ledgerext | TEXT NOT NULL | Extension common to all LedgerEntry types (XDR)
 
 ## offers
 
@@ -73,8 +75,8 @@ priced | INT NOT NULL | Price.d
 price | DOUBLE PRECISION NOT NULL | computed price n/d, used for ordering offers
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-extension | TEXT | Extension specific to OfferEntry (XDR)
-ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
+extension | TEXT NOT NULL | Extension specific to OfferEntry (XDR)
+ledgerext | TEXT NOT NULL | Extension common to all LedgerEntry types (XDR)
 (offerid) | PRIMARY KEY |
 
 ## trustlines
@@ -86,16 +88,10 @@ Equivalent to _TrustLineEntry_
 Field | Type | Description
 ------|------|---------------
 accountid | VARCHAR(56) NOT NULL | (STRKEY)
-assettype | INT NOT NULL | asset.type
-issuer | VARCHAR(56) NOT NULL | asset.*.issuer
-assetcode | VARCHAR(12) NOT NULL | asset.*.assetCode
-tlimit | BIGINT NOT NULL DEFAULT 0 CHECK (tlimit >= 0) | limit
-balance | BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0) |
-flags | INT NOT NULL |
+asset | TEXT NOT NULL | (XDR)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-extension | TEXT | Extension specific to TrustLineEntry (XDR)
-ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
-(accountid, issuer, assetcode) | PRIMARY KEY |
+ledgerentry | TEXT NOT NULL | Full LedgerEntry (XDR)
+(accountid, asset) | PRIMARY KEY |
 
 ## accountdata
 
@@ -110,7 +106,7 @@ dataname | VARCHAR(88) NOT NULL | (BASE64)
 datavalue | VARCHAR(112) NOT NULL | (BASE64)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 extension | TEXT | Extension specific to DataEntry (XDR)
-ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
+ledgerext | TEXT NOT NULL | Extension common to all LedgerEntry types (XDR)
 (accountid, dataname) | PRIMARY KEY |
 
 ## claimablebalance
@@ -123,6 +119,20 @@ Field | Type | Description
 ------|------|---------------
 balanceid | VARCHAR(48) PRIMARY KEY | This is a ClaimableBalanceID (XDR)
 ledgerentry | TEXT NOT NULL | LedgerEntry that contains a ClaimableBalanceEntry (XDR)
+lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+
+## liquiditypool
+
+Defined in [`src/ledger/LedgerTxnLiquidityPoolSQL.cpp`](/src/ledger/LedgerTxnLiquidityPoolSQL.cpp)
+
+Equivalent to _LiquidityPoolEntry_
+
+Field | Type | Description
+------|------|---------------
+poolasset | TEXT PRIMARY KEY | TrustLineAsset containing the PoolID (XDR)
+asseta | TEXT NOT NULL | Asset (XDR)
+assetb | TEXT NOT NULL | Asset (XDR)
+ledgerentry | TEXT NOT NULL | Full LedgerEntry (XDR)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## txhistory
