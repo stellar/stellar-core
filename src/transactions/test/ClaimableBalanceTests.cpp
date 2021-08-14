@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -50,7 +51,7 @@ static void
 randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
                       xdr::xvector<ClaimPredicate, 2>& vec)
 {
-    std::uniform_int_distribution<size_t> dist(0, 1);
+    stellar::uniform_int_distribution<size_t> dist(0, 1);
     bool randBool = dist(gRandomEngine);
 
     auto const& firstPred = randBool ? pred1 : pred2;

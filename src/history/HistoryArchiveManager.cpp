@@ -8,6 +8,7 @@
 #include "historywork/CheckSingleLedgerHeaderWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
@@ -160,7 +161,7 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
     }
     else
     {
-        std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
+        stellar::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
         size_t i = dist(gRandomEngine);
         CLOG_DEBUG(History, "Fetching from readable history archive #{}, '{}'",
                    i, archives[i]->getName());

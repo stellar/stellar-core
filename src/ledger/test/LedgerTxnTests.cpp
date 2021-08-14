@@ -8,6 +8,7 @@
 #include "ledger/NonSociRelatedException.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -325,7 +326,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                              UnorderedMap<LedgerKey, LedgerEntry>& entries) {
         size_t const MODIFY_ENTRIES = 25;
         UnorderedMap<LedgerKey, LedgerEntry> modifyBatch;
-        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+        stellar::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
         while (modifyBatch.size() < MODIFY_ENTRIES)
         {
             auto iter = entries.begin();
@@ -348,7 +349,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                              UnorderedSet<LedgerKey>& dead) {
         size_t const ERASE_ENTRIES = 25;
         UnorderedSet<LedgerKey> eraseBatch;
-        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+        stellar::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
         while (eraseBatch.size() < ERASE_ENTRIES)
         {
             auto iter = entries.begin();

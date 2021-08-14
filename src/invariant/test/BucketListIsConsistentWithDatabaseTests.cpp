@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -144,7 +145,7 @@ struct BucketListGenerator
         while (dead.size() < 2 && !live.empty())
         {
             auto dist =
-                std::uniform_int_distribution<size_t>(0, live.size() - 1);
+                stellar::uniform_int_distribution<size_t>(0, live.size() - 1);
             auto index = dist(gRandomEngine);
             auto iter = live.begin();
             std::advance(iter, index);
@@ -248,7 +249,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
 
             if (!filteredKeys.empty())
             {
-                std::uniform_int_distribution<size_t> dist(
+                stellar::uniform_int_distribution<size_t> dist(
                     0, filteredKeys.size() - 1);
                 auto iter = filteredKeys.begin();
                 std::advance(iter, dist(gRandomEngine));
@@ -547,7 +548,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         bool mModifiedRoot;
 
         TestRootBucketListGenerator()
-            : mTargetLedger(std::uniform_int_distribution<uint32_t>(2, 100)(
+            : mTargetLedger(stellar::uniform_int_distribution<uint32_t>(2, 100)(
                   gRandomEngine))
             , mModifiedRoot(false)
         {
@@ -598,7 +599,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
             BucketListGenerator blg;
             blg.generateLedgers(100);
 
-            std::uniform_int_distribution<uint32_t> addAtLedgerDist(
+            stellar::uniform_int_distribution<uint32_t> addAtLedgerDist(
                 2, blg.mLedgerSeq);
             auto le = LedgerTestUtils::generateValidLedgerEntry(5);
             le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
@@ -721,7 +722,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
         }
         uint32_t newestLedger = BucketList::oldestLedgerInCurr(101, level) +
                                 BucketList::sizeOfCurr(101, level) - 1;
-        std::uniform_int_distribution<uint32_t> ledgerToModifyDist(
+        stellar::uniform_int_distribution<uint32_t> ledgerToModifyDist(
             std::max(2u, oldestLedger), newestLedger);
 
         for (uint32_t i = 0; i < 10; ++i)
@@ -744,9 +745,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
                 minHighTargetLedger =
                     BucketList::oldestLedgerInCurr(101, level);
             }
-            std::uniform_int_distribution<uint32_t> lowTargetLedgerDist(
+            stellar::uniform_int_distribution<uint32_t> lowTargetLedgerDist(
                 1, maxLowTargetLedger);
-            std::uniform_int_distribution<uint32_t> highTargetLedgerDist(
+            stellar::uniform_int_distribution<uint32_t> highTargetLedgerDist(
                 minHighTargetLedger, std::numeric_limits<int32_t>::max());
 
             uint32_t lowTarget = lowTargetLedgerDist(gRandomEngine);

@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -48,7 +49,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
     }
     REQUIRE(lbound <= ubound);
 
-    std::uniform_int_distribution<int64_t> dist(lbound, ubound);
+    stellar::uniform_int_distribution<int64_t> dist(lbound, ubound);
     account.balance = dist(gRandomEngine);
     return le;
 }

@@ -19,6 +19,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -286,7 +287,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
             {
                 liveIdxs.emplace_back(i);
             }
-            std::shuffle(liveIdxs.begin(), liveIdxs.end(), gRandomEngine);
+            stellar::shuffle(liveIdxs.begin(), liveIdxs.end(), gRandomEngine);
             for (size_t src = 0; src < live.size(); ++src)
             {
                 size_t dst = liveIdxs.at(src);

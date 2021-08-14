@@ -4,6 +4,7 @@
 
 #include "autocheck/autocheck.hpp"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "lib/util/uint128_t.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -50,7 +51,7 @@ struct gen128
     result_type
     operator()(size_t size = 0)
     {
-        std::uniform_int_distribution<uint64_t> dist(1, full);
+        stellar::uniform_int_distribution<uint64_t> dist(1, full);
         auto a = dist(autocheck::rng());
         auto b = dist(autocheck::rng());
         return (((result_type)a) << 64) | b;

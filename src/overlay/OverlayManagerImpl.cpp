@@ -7,6 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
 #include "database/Database.h"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
@@ -917,7 +918,7 @@ OverlayManagerImpl::extractPeersFromMap(
 void
 OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 {
-    std::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
+    stellar::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
 }
 
 bool

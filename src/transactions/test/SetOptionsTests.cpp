@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
@@ -469,7 +470,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                 std::vector<SecretKey> keys;
                 ops.emplace_back(root.op(setOptions(setSigner(signer))));
 
-                std::uniform_int_distribution<size_t> dist(0, 1);
+                stellar::uniform_int_distribution<size_t> dist(0, 1);
                 if (dist(gRandomEngine))
                 {
                     auto sk = SecretKey::pseudoRandomForTesting();
@@ -511,7 +512,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             };
 
             for_versions_from(14, *app, [&]() {
-                std::uniform_int_distribution<size_t> dist(0, 2);
+                stellar::uniform_int_distribution<size_t> dist(0, 2);
 
                 // 67% change to add, 33% chance to remove
                 while (signers.size() < MAX_SIGNERS)

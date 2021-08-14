@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Random.h"
+#include "lib/util/stdrandom.h"
 #include "util/Math.h"
 
 #include <algorithm>
@@ -18,7 +19,7 @@ randomBytes(size_t length)
     std::vector<uint8_t> vec(length);
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    std::uniform_int_distribution<unsigned short> dist(0, 255);
+    stellar::uniform_int_distribution<unsigned short> dist(0, 255);
     std::generate(vec.begin(), vec.end(), [&]() {
         return static_cast<uint8_t>(dist(stellar::gRandomEngine));
     });

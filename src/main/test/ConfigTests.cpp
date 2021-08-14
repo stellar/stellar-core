@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
 #include "test/test.h"
@@ -491,7 +492,7 @@ TEST_CASE("operation filter configuration", "[config]")
     }
 
     // Test random subsets that are not necessarily in the typical order
-    std::uniform_int_distribution<size_t> dist(
+    stellar::uniform_int_distribution<size_t> dist(
         0, OperationTypeTraits::enum_values().size() - 1);
     for (size_t i = 0; i < 5; ++i)
     {
@@ -500,7 +501,7 @@ TEST_CASE("operation filter configuration", "[config]")
         {
             vals.emplace_back(static_cast<OperationType>(v));
         }
-        std::shuffle(vals.begin(), vals.end(), gRandomEngine);
+        stellar::shuffle(vals.begin(), vals.end(), gRandomEngine);
         vals.resize(dist(gRandomEngine));
         loadConfig(vals);
     }
