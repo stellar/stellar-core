@@ -1344,11 +1344,16 @@ enum CreateSpeedexIOCOfferResultCode
 
 };
 
-union CreateSpeedexIOCOfferResults switch (CreateSpeedexIOCOfferCode code)
+struct SpeedexOfferClearingStatus
 {
-case CREATE_SPEEDEX_IOC_OFFER_SUCCESS:
     int64 soldAmount;
     int64 boughtAmount;
+};
+
+union CreateSpeedexIOCOfferResult switch (CreateSpeedexIOCOfferResultCode code)
+{
+case CREATE_SPEEDEX_IOC_OFFER_SUCCESS:
+    SpeedexOfferClearingStatus trade;
 default:
     void;
 };

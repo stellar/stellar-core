@@ -28,11 +28,6 @@ struct SponsorshipCounterKey
     AccountID sponsoringID;
 };
 
-struct SpeedexIOCBatchKey
-{
-
-};
-
 class InternalLedgerKey
 {
   private:
@@ -42,7 +37,6 @@ class InternalLedgerKey
         LedgerKey mLedgerKey;
         SponsorshipKey mSponsorshipKey;
         SponsorshipCounterKey mSponsorshipCounterKey;
-        SpeedexIOCBatchKey mSpeedexIOCBatchKey;
     };
 
     void assign(InternalLedgerKey const& glk);
@@ -81,9 +75,6 @@ class InternalLedgerKey
     SponsorshipCounterKey& sponsorshipCounterKey();
     SponsorshipCounterKey const& sponsorshipCounterKey() const;
 
-    SpeedexIOCBatchKey& speedexIOCBatchKey();
-    SpeedexIOCBatchKey const& speedexIOCBatchKey() const;
-
     std::string toString() const;
 };
 
@@ -99,11 +90,6 @@ struct SponsorshipCounterEntry
     int64_t numSponsoring;
 };
 
-struct SpeedexIOCBatchEntry
-{
-    SpeedexIOCBatch batch;
-};
-
 class InternalLedgerEntry
 {
   private:
@@ -113,7 +99,6 @@ class InternalLedgerEntry
         LedgerEntry mLedgerEntry;
         SponsorshipEntry mSponsorshipEntry;
         SponsorshipCounterEntry mSponsorshipCounterEntry;
-        SpeedexIOCBatchEntry mSpeedexIOCBatch;
     };
 
     void assign(InternalLedgerEntry const& gle);
@@ -152,9 +137,6 @@ class InternalLedgerEntry
     SponsorshipCounterEntry& sponsorshipCounterEntry();
     SponsorshipCounterEntry const& sponsorshipCounterEntry() const;
 
-    SpeedexIOCBatchEntry& speedexIOCBatchEntry();
-    SpeedexIOCBatchEntry const& speedexIOCBatchEntry() const;
-
     InternalLedgerKey toKey() const;
 
     std::string toString() const;
@@ -173,11 +155,6 @@ bool operator==(SponsorshipCounterEntry const& lhs,
                 SponsorshipCounterEntry const& rhs);
 bool operator!=(SponsorshipCounterEntry const& lhs,
                 SponsorshipCounterEntry const& rhs);
-
-bool operator==(SpeedexIOCBatchKey const& lhs,
-                SpeedexIOCBatchKey const& rhs);
-bool operator!=(SpeedexIOCBatchEntry const& lhs,
-                SpeedexIOCBatchEntry const& rhs);
 
 bool operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs);
 bool operator!=(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs);

@@ -67,18 +67,6 @@ IsBetterOfferComparator::operator()(OfferDescriptor const& lhs,
     return isBetterOffer(lhs, rhs);
 }
 
-bool
-operator==(AssetPair const& lhs, AssetPair const& rhs)
-{
-    return lhs.buying == rhs.buying && lhs.selling == rhs.selling;
-}
-
-size_t
-AssetPairHash::operator()(AssetPair const& key) const
-{
-    std::hash<Asset> hashAsset;
-    return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
-}
 
 #ifdef BEST_OFFER_DEBUGGING
 void
@@ -468,6 +456,10 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                           : nullptr;
             updateWorstBestOffer(wboIter.assets(), descPtr);
         }
+
+        //gather speedex ioc offers
+
+        mSpeedexIOCOrderbooks.commitChild(mChild -> getSpeedexIOCOffers());
     }
     catch (std::exception& e)
     {
@@ -1370,6 +1362,31 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     return ltxe;
 }
 
+std::shared_ptr<const LedgerEntry>
+LegerTxn::loadSnapshotEntry(LedgerKey const& key) {
+    return mImpl -> loadSnapshotEntry(key);
+}
+
+std::shared_ptr<const LedgerEntry>
+LedgerTxn::Impl::loadSnapshotEntry(LedgerKey const& key)
+{
+    //maintain same access validity invariants on snapshots as on regular entries
+    throwIfSealed();
+    throwIfChild();
+
+    auto snapshotIter = mSnapshots.find(key);
+    if (snapshotIter != mSnapshots.end()) {
+        return *(snapshotIter->second);
+    }
+
+    auto parentSnapshot = mParent.loadSnapshotEntry(key);
+    if (parentSnapshot) {
+        mSnapshots.emplace(key, parentSnapshot);
+    }
+    return parentSnapshot;
+
+}
+
 std::map<AccountID, std::vector<LedgerTxnEntry>>
 LedgerTxn::loadAllOffers()
 {
@@ -1553,6 +1570,40 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
     }
 }
 
+void 
+LedgerTxn::addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) {
+    getImpl() -> addSpeedexIOCOffer(assetPair, offer);
+}
+
+void
+LedgerTxn::Impl::addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) {
+    throwIfChild();
+    throwIfSealed();
+    mSpeedexIOCOrderbooks.addOffer(assetPair, offer);
+}
+
+IOCOfferManager const&
+LedgerTxn::getSpeedexIOCOffers() const {
+    return getImpl() -> getSpeedexIOCOffers();
+}
+
+IOCOfferManager const& 
+LedgerTxn::Impl::getSpeedexIOCOffers() const {
+    throwIfChild();
+
+    return mSpeedexIOCOrderbooks;    
+}
+
+IOCOfferManager const&
+LedgerTxnRoot::getSpeedexIOCOffers() const {
+    return getImpl() -> getSpeedexIOCOffers();
+}
+IOCOfferManager const&
+LedgerTxnRoot::Impl::getSpeedexIOCOffers() const {
+    throwIfChild();
+    return mSpeedexIOCOrderbooks;
+}
+
 ConstLedgerTxnEntry
 LedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
 {
@@ -1611,7 +1662,9 @@ LedgerTxn::Impl::rollback()
     }
 
     mEntry.clear();
+    mSnapshots.clear();
     mMultiOrderBook.clear();
+    mSpeedexIOCOrderbooks.clear();
     mActive.clear();
     mActiveHeader.reset();
     mIsSealed = true;
@@ -2403,6 +2456,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // Clearing the cache does not throw
     mBestOffers.clear();
     mEntryCache.clear();
+    mSnapshotCache.clear();
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
@@ -3089,6 +3143,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         case LIQUIDITY_POOL:
             entry = loadLiquidityPool(key);
             break;
+        case SPEEDEX_CONFIG:
+            entry = loadSpeedexConfig(key);
+            break;
         default:
             throw std::runtime_error("Unknown key type");
         }
@@ -3126,6 +3183,88 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
         return nullptr;
     }
 }
+
+
+std::shared_ptr<const LedgerEntry>
+LedgerTxnRoot::loadSnapshotEntry(LedgerKey const& key) const {
+    return mImpl -> loadSnapshotEntry(key);
+}
+
+std::shared_ptr<const LedgerEntry>
+LedgerTxnRoot::Impl::loadSnapshotEntry(LedgerKey const& key) const {
+    
+    ZoneScoped;
+
+    if (mSnapshotCache.exists(key))
+    {
+        std::string zoneTxt("hit");
+        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        return getFromSnapshotCache(key);
+    }
+    else
+    {
+        std::string zoneTxt("miss");
+        ZoneText(zoneTxt.c_str(), zoneTxt.size());
+        ++mPrefetchMisses;
+    }
+
+    std::shared_ptr<LedgerEntry const> entry;
+    try
+    {
+        switch (key.type())
+        {
+        case ACCOUNT:
+            entry = loadAccount(key);
+            break;
+        case DATA:
+            entry = loadData(key);
+            break;
+        case OFFER:
+            entry = loadOffer(key);
+            break;
+        case TRUSTLINE:
+            entry = loadTrustLine(key);
+            break;
+        case CLAIMABLE_BALANCE:
+            entry = loadClaimableBalance(key);
+            break;
+        case LIQUIDITY_POOL:
+            entry = loadLiquidityPool(key);
+            break;
+        case SPEEDEX_CONFIG:
+            entry = loadSpeedexConfig(key);
+            break;
+        default:
+            throw std::runtime_error("Unknown key type");
+        }
+    }
+    catch (NonSociRelatedException& e)
+    {
+        if (getHeader().ledgerVersion <= 14)
+        {
+            printErrorAndAbort(
+                "fatal error when loading ledger entry from LedgerTxnRoot: ",
+                e.what());
+        }
+
+        throw;
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort(
+            "fatal error when loading ledger entry from LedgerTxnRoot: ",
+            e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("unknown fatal error when loading ledger entry from "
+                           "LedgerTxnRoot");
+    }
+
+    putInSnapshotCache(key, entry);
+    return entry;
+}
+
 
 void
 LedgerTxnRoot::rollbackChild()
@@ -3184,6 +3323,22 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
     }
 }
 
+std::shared_ptr<InternalLedgerEntry const>
+LedgerTxnRoot::Impl::getFromSnapshotCache(LedgerKey const& key) const
+{
+    try
+    {
+
+        return mSnapshotCache.get(key);
+        auto cached = mSnapshotCache.get(key);
+    }
+    catch (...)
+    {
+        mSnapshotCache.clear();
+        throw;
+    }
+}
+
 void
 LedgerTxnRoot::Impl::putInEntryCache(
     LedgerKey const& key, std::shared_ptr<LedgerEntry const> const& entry,
@@ -3192,6 +3347,21 @@ LedgerTxnRoot::Impl::putInEntryCache(
     try
     {
         mEntryCache.put(key, {entry, type});
+    }
+    catch (...)
+    {
+        mEntryCache.clear();
+        throw;
+    }
+}
+
+void
+LedgerTxnRoot::Impl::putInSnapshotCache(
+    LedgerKey const& key, std::shared_ptr<LedgerEntry const> const& entry) const
+{
+    try
+    {
+        mSnapshotCache.put(key, entry);
     }
     catch (...)
     {

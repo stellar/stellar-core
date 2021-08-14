@@ -12,6 +12,7 @@
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 #include <ledger/LedgerHashUtils.h>
+#include "ledger/AssetPair.h"
 #include <map>
 #include <memory>
 #include <set>
@@ -240,17 +241,6 @@ struct IsBetterOfferComparator
                     OfferDescriptor const& rhs) const;
 };
 
-struct AssetPair
-{
-    Asset buying;
-    Asset selling;
-};
-bool operator==(AssetPair const& lhs, AssetPair const& rhs);
-
-struct AssetPairHash
-{
-    size_t operator()(AssetPair const& key) const;
-};
 
 struct InflationWinner
 {
@@ -402,6 +392,10 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const = 0;
 
+
+    virtual std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) = 0;
+
     // Return the count of the number of ledger objects of type `let`. Will
     // throw when called on anything other than a (real or stub) root LedgerTxn.
     virtual uint64_t countObjects(LedgerEntryType let) const = 0;
@@ -411,6 +405,10 @@ class AbstractLedgerTxnParent
     // a (real or stub) root LedgerTxn.
     virtual uint64_t countObjects(LedgerEntryType let,
                                   LedgerRange const& ledgers) const = 0;
+
+    // Return batch of accumulated speedex offers
+    virtual IOCOfferManager const&
+    getSpeedexIOCOffers() const = 0;
 
     // Delete all ledger entries modified on-or-after `ledger`. Will throw
     // when called on anything other than a (real or stub) root LedgerTxn.
@@ -524,6 +522,9 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
+
+    virtual std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
 
@@ -591,6 +592,11 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
+
+    virtual IOCOfferManager const&
+    getSpeedexIOCOffers() const = 0;
+
+    virtual void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) = 0;
 
     // queryInflationWinners is a wrapper around getInflationWinners that throws
     // if the AbstractLedgerTxn is sealed or if the AbstractLedgerTxn has a
@@ -673,6 +679,15 @@ class LedgerTxn : public AbstractLedgerTxn
     getNewestVersion(InternalLedgerKey const& key) const override;
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
+
+    IOCOfferManager const&
+    getSpeedexIOCOffers() const override;
+
+    void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) override;
+
+
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) override;
 
     void
     createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) override;
@@ -781,6 +796,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
+
+    IOCOfferManager const&
+    getSpeedexIOCOffers() const override;
 
     LedgerHeader const& getHeader() const override;
 

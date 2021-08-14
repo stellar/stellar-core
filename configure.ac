@@ -46,7 +46,8 @@ AC_SUBST(LIBTOOL_DEPS)
 AC_LANG(C++)
 # if modifying the following macro for a future C++ version, please update CXX
 # for enable-afl in the fuzzer configuration block below
-AX_CXX_COMPILE_STDCXX(17, noext,mandatory)
+#AX_CXX_COMPILE_STDCXX(17, noext,mandatory)
+CXXFLAGS="$CXXFLAGS -std=c++2a"
 AX_FRESH_COMPILER
 # -pthread seems to be required by -std=c++14 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])

@@ -296,6 +296,11 @@ loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
     return ltx.load(sponsorshipCounterKey(sponsoringID));
 }
 
+LedgerTxnEntry
+loadSpeedexConfig(AbstractLedgerTxn& ltx) {
+    return ltx.load(speedexConfigKey());
+}
+
 static void
 acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
                             LedgerTxnHeader const& header,

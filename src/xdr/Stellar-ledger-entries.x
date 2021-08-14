@@ -513,7 +513,7 @@ struct LedgerEntry
     case LIQUIDITY_POOL:
         LiquidityPoolEntry liquidityPool;
     case SPEEDEX_CONFIG:
-        SpeedexConfigEntry speedexConfigEntry;
+        SpeedexConfigEntry speedexConfig;
     }
     data;
 

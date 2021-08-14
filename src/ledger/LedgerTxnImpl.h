@@ -194,11 +194,17 @@ class LedgerTxn::Impl
                          std::shared_ptr<InternalLedgerEntry>>
         EntryMap;
 
+    typedef UnorderedMap<LedgerKey,
+                          std::shared_ptr<const LedgerEntry>>
+        SnapshotEntryMap;
+
     AbstractLedgerTxnParent& mParent;
     AbstractLedgerTxn* mChild;
     std::unique_ptr<LedgerHeader> mHeader;
     std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
+    SnapshotEntryMap mSnapshots;
+
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
@@ -232,6 +238,8 @@ class LedgerTxn::Impl
     //     calls to LedgerTxn::Impl::updateEntry(), which essentially
     //     re-synchronizes an entry in mMultiOrderbook with mEntry/mActive.
     MultiOrderBook mMultiOrderBook;
+
+    IOCOrderbookManager mSpeedexIOCOrderbooks;
 
     // The WorstBestOfferMap is a cache which retains, for each asset pair, the
     // worst value (including possibly nullptr) returned from calling
@@ -548,6 +556,10 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, InternalLedgerKey const& key);
 
+    void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer);
+
+    LedgerEntry loadSnapshotEntry(LedgerTxn& self, LedgerKey const& key);
+
     // createOrUpdateWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
     void createOrUpdateWithoutLoading(LedgerTxn& self,
@@ -702,6 +714,7 @@ class LedgerTxnRoot::Impl
     };
 
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
+    typedef RandomEvictionCache<LedgerKey, std::shared_ptr<const LedgerEntry>> SnapshotCache;
 
     typedef AssetPair BestOffersKey;
 
@@ -721,6 +734,7 @@ class LedgerTxnRoot::Impl
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
+    mutable SnapshotCache mSnapshotCache;
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
@@ -760,6 +774,9 @@ class LedgerTxnRoot::Impl
     loadClaimableBalance(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadLiquidityPool(LedgerKey const& key) const;
+
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -806,6 +823,15 @@ class LedgerTxnRoot::Impl
     void putInEntryCache(LedgerKey const& key,
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
+
+    // The snapshot cache maintains a cache of entries as they appeared at
+    // the start of the ledger transaction.
+    // Cleared when commitChild is called (to ensure reads are from start
+    // of current transaction, not a past transaction).
+    std::shared_ptr<LedgerEntry const>
+    getFromSnapshotCache(LedgerKey const& key) const;
+    void putInSnapshotCache(LedgerKey const& key,
+                         std::shared_ptr<LedgerEntry const> const& entry) const;
 
     BestOffersEntryPtr getFromBestOffers(Asset const& buying,
                                          Asset const& selling) const;
