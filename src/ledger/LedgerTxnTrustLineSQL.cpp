@@ -22,7 +22,7 @@ validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key)
 {
     auto const& asset = key.trustLine().asset;
 
-    if (ledgerVersion >= 15 && !isAssetValid(asset, ledgerVersion))
+    if (!isAssetValid(asset, ledgerVersion))
     {
         throw NonSociRelatedException("TrustLine asset is invalid");
     }

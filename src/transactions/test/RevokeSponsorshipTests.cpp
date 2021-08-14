@@ -1220,16 +1220,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
     SECTION("native trust line")
     {
-        for_versions({14}, *app, [&]() {
-            auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-        });
-
-        for_versions({15}, *app, [&]() {
+        for_versions({14, 15}, *app, [&]() {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), root,
                 {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
@@ -1243,17 +1234,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
     SECTION("issuer trust line")
     {
-        for_versions({14}, *app, [&]() {
-            auto cur1 = makeAsset(root, "CUR1");
-            auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(revokeSponsorship(trustlineKey(root, cur1)))}, {});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-        });
-
-        for_versions({15}, *app, [&]() {
+        for_versions({14, 15}, *app, [&]() {
             auto cur1 = makeAsset(root, "CUR1");
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), root,
@@ -1277,23 +1258,11 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
-            if (ledgerVersion == 14)
-            {
-                TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                REQUIRE(!tx->apply(*app, ltx, txm));
-
-                REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
-                        REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
-            }
-            else
-            {
-                REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
-                auto error = ledgerKey.type() == LIQUIDITY_POOL
-                                 ? REVOKE_SPONSORSHIP_MALFORMED
-                                 : REVOKE_SPONSORSHIP_DOES_NOT_EXIST;
-                REQUIRE(getRevokeSponsorshipResultCode(tx, 0) == error);
-            }
+            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            auto error = ledgerKey.type() == LIQUIDITY_POOL
+                             ? REVOKE_SPONSORSHIP_MALFORMED
+                             : REVOKE_SPONSORSHIP_DOES_NOT_EXIST;
+            REQUIRE(getRevokeSponsorshipResultCode(tx, 0) == error);
 
             // This lambda can be used in a loop, so reset the seqnum
             a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);

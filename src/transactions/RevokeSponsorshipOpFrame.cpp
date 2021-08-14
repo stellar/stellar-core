@@ -390,11 +390,6 @@ RevokeSponsorshipOpFrame::doApply(AbstractLedgerTxn& ltx)
 bool
 RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    if (ledgerVersion <= 14)
-    {
-        return true;
-    }
-
     if (mRevokeSponsorshipOp.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
     {
         auto const& lk = mRevokeSponsorshipOp.ledgerKey();
