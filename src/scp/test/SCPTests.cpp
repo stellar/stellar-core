@@ -11,6 +11,7 @@
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -33,7 +34,7 @@ static void
 setupValues()
 {
     std::vector<Value> v;
-    std::string d = fmt::format("SEED_VALUE_DATA_{}", std::rand());
+    std::string d = fmt::format("SEED_VALUE_DATA_{}", gRandomEngine());
     for (int i = 0; i < 4; i++)
     {
         auto h = sha256(fmt::format("{}/{}", d, i));

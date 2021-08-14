@@ -368,7 +368,7 @@ computeBackoff(size_t numFailures)
     uint32 backoffCount = static_cast<uint32>(
         std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
     auto nsecs =
-        std::chrono::seconds(static_cast<uint32>(std::rand()) %
+        std::chrono::seconds(static_cast<uint32>(gRandomEngine()) %
                                  ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
                              1);
     return nsecs;
