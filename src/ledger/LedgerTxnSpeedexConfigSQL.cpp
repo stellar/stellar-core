@@ -16,7 +16,7 @@ throwIfNotSpeedexConfig(LedgerEntryType type)
 
 LedgerEntry getDefaultSpeedexConfig() {
     LedgerEntry entry;
-    entry.type(SPEEDEX_CONFIG);
+    entry.data.type(SPEEDEX_CONFIG);
     //TODO mock out default config
     //TODO sql
     return entry;
@@ -64,12 +64,12 @@ class BulkLoadSpeedexConfigOperation
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-LedgerTxnRoot::Impl::bulkLoadLiquidityPool(
+LedgerTxnRoot::Impl::bulkLoadSpeedexConfig(
     UnorderedSet<LedgerKey> const& keys) const
 {
     if (!keys.empty())
     {
-        BulkLoadLSpeedexConfigOperation op(mDatabase, keys);
+        BulkLoadSpeedexConfigOperation op(mDatabase, keys);
         return populateLoadedEntries(
             keys, mDatabase.doDatabaseTypeSpecificOperation(op));
     }
@@ -125,7 +125,7 @@ class BulkUpsertSpeedexConfigOperation
     Database& mDb;
 
   public:
-    BulkUpsertLiquidityPoolOperation(
+    BulkUpsertSpeedexConfigOperation(
         Database& Db, std::vector<EntryIterator> const& entryIter)
         : mDb(Db)
     {

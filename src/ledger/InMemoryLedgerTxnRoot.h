@@ -73,6 +73,10 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     void dropLiquidityPools() override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) const override;
+
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;
 #endif // BUILD_TESTS

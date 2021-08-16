@@ -1363,12 +1363,12 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
 }
 
 std::shared_ptr<const LedgerEntry>
-LegerTxn::loadSnapshotEntry(LedgerKey const& key) {
+LedgerTxn::loadSnapshotEntry(LedgerKey const& key) const {
     return mImpl -> loadSnapshotEntry(key);
 }
 
 std::shared_ptr<const LedgerEntry>
-LedgerTxn::Impl::loadSnapshotEntry(LedgerKey const& key)
+LedgerTxn::Impl::loadSnapshotEntry(LedgerKey const& key) const
 {
     //maintain same access validity invariants on snapshots as on regular entries
     throwIfSealed();
@@ -1376,7 +1376,7 @@ LedgerTxn::Impl::loadSnapshotEntry(LedgerKey const& key)
 
     auto snapshotIter = mSnapshots.find(key);
     if (snapshotIter != mSnapshots.end()) {
-        return *(snapshotIter->second);
+        return (snapshotIter->second);
     }
 
     auto parentSnapshot = mParent.loadSnapshotEntry(key);
@@ -1582,26 +1582,16 @@ LedgerTxn::Impl::addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) 
     mSpeedexIOCOrderbooks.addOffer(assetPair, offer);
 }
 
-IOCOfferManager const&
+IOCOrderbookManager const&
 LedgerTxn::getSpeedexIOCOffers() const {
     return getImpl() -> getSpeedexIOCOffers();
 }
 
-IOCOfferManager const& 
+IOCOrderbookManager const& 
 LedgerTxn::Impl::getSpeedexIOCOffers() const {
     throwIfChild();
 
     return mSpeedexIOCOrderbooks;    
-}
-
-IOCOfferManager const&
-LedgerTxnRoot::getSpeedexIOCOffers() const {
-    return getImpl() -> getSpeedexIOCOffers();
-}
-IOCOfferManager const&
-LedgerTxnRoot::Impl::getSpeedexIOCOffers() const {
-    throwIfChild();
-    return mSpeedexIOCOrderbooks;
 }
 
 ConstLedgerTxnEntry
@@ -2204,6 +2194,7 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     , mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
+    , mSnapshotCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 #ifdef BEST_OFFER_DEBUGGING
@@ -2430,6 +2421,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
+
         // FIXME: there is no medida histogram for this presently,
         // but maybe we would like one?
         TracyPlot("ledger.entry.commit", counter);
@@ -2611,6 +2603,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     UnorderedSet<LedgerKey> data;
     UnorderedSet<LedgerKey> claimablebalance;
     UnorderedSet<LedgerKey> liquiditypool;
+    UnorderedSet<LedgerKey> speedexConfig;
 
     auto cacheResult =
         [&](UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> const&
@@ -2682,6 +2675,14 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                 liquiditypool.clear();
             }
             break;
+        case SPEEDEX_CONFIG:
+            insertIfNotLoaded(speedexConfig, key);
+            if (speedexConfig.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadSpeedexConfig(speedexConfig));
+                speedexConfig.clear();
+            }
+            break;
         }
     }
 
@@ -2692,6 +2693,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     cacheResult(bulkLoadData(data));
     cacheResult(bulkLoadClaimableBalance(claimablebalance));
     cacheResult(bulkLoadLiquidityPool(liquiditypool));
+    cacheResult(bulkLoadSpeedexConfig(speedexConfig));
 
     return total;
 }
@@ -3323,7 +3325,7 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
     }
 }
 
-std::shared_ptr<InternalLedgerEntry const>
+std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getFromSnapshotCache(LedgerKey const& key) const
 {
     try

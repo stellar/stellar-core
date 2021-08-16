@@ -1,5 +1,9 @@
 #include "ledger/AssetPair.h"
 
+#include "util/XDROperators.h"
+
+#include "ledger/LedgerHashUtils.h"
+
 
 namespace stellar {
 

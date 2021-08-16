@@ -53,7 +53,6 @@ class InternalLedgerKey
     InternalLedgerKey(LedgerKey const& lk);
     explicit InternalLedgerKey(SponsorshipKey const& sk);
     explicit InternalLedgerKey(SponsorshipCounterKey const& sck);
-    explicit InternalLedgerKey(SpeedexIOCBatchKey const& sibk);
 
     InternalLedgerKey(InternalLedgerKey const& glk);
     InternalLedgerKey(InternalLedgerKey&& glk);
@@ -115,7 +114,6 @@ class InternalLedgerEntry
     InternalLedgerEntry(LedgerEntry const& le);
     explicit InternalLedgerEntry(SponsorshipEntry const& se);
     explicit InternalLedgerEntry(SponsorshipCounterEntry const& sce);
-    explicit InternalLedgerEntry(SpeedexIOCBatchEntry const& sibe);
 
     InternalLedgerEntry(InternalLedgerEntry const& gle);
     InternalLedgerEntry(InternalLedgerEntry&& gle);

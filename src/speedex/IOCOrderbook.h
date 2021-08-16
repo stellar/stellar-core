@@ -19,6 +19,9 @@ class IOCOrderbook {
 	struct PriceCompStats {
 		Price marginalPrice;
 		int64_t cumulativeOfferedForSale;
+
+		using int128_t = __int128_t;
+
 		int128_t cumulativeOfferedForSaleTimesPrice; // Fractional : Radix 32 bits;
 
 		constexpr static int OFFERED_TIMES_PRICE_RADIX = 32;

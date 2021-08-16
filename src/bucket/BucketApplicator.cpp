@@ -221,6 +221,8 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case LIQUIDITY_POOL:
             ++mLiquidityPoolUpsert;
             break;
+        case SPEEDEX_CONFIG:
+            break;
         }
     }
     else
@@ -244,6 +246,8 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             break;
         case LIQUIDITY_POOL:
             ++mLiquidityPoolDelete;
+            break;
+        case SPEEDEX_CONFIG:
             break;
         }
     }

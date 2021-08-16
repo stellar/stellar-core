@@ -13,6 +13,7 @@
 #include <functional>
 #include <ledger/LedgerHashUtils.h>
 #include "ledger/AssetPair.h"
+#include "speedex/IOCOrderbookManager.h"
 #include <map>
 #include <memory>
 #include <set>
@@ -394,7 +395,7 @@ class AbstractLedgerTxnParent
 
 
     virtual std::shared_ptr<const LedgerEntry>
-    loadSnapshotEntry(LedgerKey const& key) = 0;
+    loadSnapshotEntry(LedgerKey const& key) const = 0;
 
     // Return the count of the number of ledger objects of type `let`. Will
     // throw when called on anything other than a (real or stub) root LedgerTxn.
@@ -407,8 +408,8 @@ class AbstractLedgerTxnParent
                                   LedgerRange const& ledgers) const = 0;
 
     // Return batch of accumulated speedex offers
-    virtual IOCOfferManager const&
-    getSpeedexIOCOffers() const = 0;
+    //virtual IOCOrderbookManager const&
+    //getSpeedexIOCOffers() const = 0;
 
     // Delete all ledger entries modified on-or-after `ledger`. Will throw
     // when called on anything other than a (real or stub) root LedgerTxn.
@@ -523,8 +524,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
 
-    virtual std::shared_ptr<const LedgerEntry>
-    loadSnapshotEntry(LedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) = 0;
 
@@ -593,7 +592,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
 
-    virtual IOCOfferManager const&
+    virtual IOCOrderbookManager const&
     getSpeedexIOCOffers() const = 0;
 
     virtual void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) = 0;
@@ -680,14 +679,14 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
-    IOCOfferManager const&
+    IOCOrderbookManager const&
     getSpeedexIOCOffers() const override;
 
     void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer) override;
 
 
     std::shared_ptr<const LedgerEntry>
-    loadSnapshotEntry(LedgerKey const& key) override;
+    loadSnapshotEntry(LedgerKey const& key) const override;
 
     void
     createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) override;
@@ -781,6 +780,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropClaimableBalances() override;
     void dropLiquidityPools() override;
 
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) const override;
+
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;
 #endif // BUILD_TESTS
@@ -797,8 +799,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 
-    IOCOfferManager const&
-    getSpeedexIOCOffers() const override;
+    //IOCOrderbookManager const&
+    //getSpeedexIOCOffers() const override;
 
     LedgerHeader const& getHeader() const override;
 

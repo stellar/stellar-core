@@ -112,6 +112,22 @@ TxSetFrame::sortForApply()
     ZoneScoped;
     auto txQueues = buildAccountTxQueues();
 
+
+    vector<TransactionFrameBasePtr> retList;
+    retList.reserve(mTransactions.size());
+
+    for (auto& [_, queue] : txQueues) {
+        while (!queue.empty()) {
+            auto front = queue.front();
+            if (front->isCommutativeTransaction()) {
+                retList.push_back(front);
+                queue.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
     // build txBatches
     // txBatches i-th element contains each i-th transaction for accounts with a
     // transaction in the transaction set
@@ -124,6 +140,10 @@ TxSetFrame::sortForApply()
         // go over all users that still have transactions
         for (auto it = txQueues.begin(); it != txQueues.end();)
         {
+            if (it->second.empty()) {
+                it = txQueues.erase(it);
+                continue;
+            }
             auto& h = it->second.front();
             curBatch.emplace_back(h);
             it->second.pop_front();
@@ -139,8 +159,7 @@ TxSetFrame::sortForApply()
         }
     }
 
-    vector<TransactionFrameBasePtr> retList;
-    retList.reserve(mTransactions.size());
+
     for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
@@ -287,7 +306,6 @@ TxSetFrame::checkOrTrim(Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
-    //UnorderedMap<AccountID, int64_t> accountFeeMap;
     TxSetCommutativityRequirements reqs;
 
     auto accountTxMap = buildAccountTxQueues();
@@ -336,7 +354,7 @@ TxSetFrame::checkOrTrim(Application& app,
                         removeTx(tx);
                         iter = kv.second.erase(iter);
                     }
-                    return false;
+                    continue;
                 }
 
                 if (!tx -> isCommutativeTransaction()) {
@@ -373,7 +391,7 @@ TxSetFrame::checkOrTrim(Application& app,
                         removeTx(tx);
                         iter = kv.second.erase(iter);
                     }
-                    return false;
+                    continue;
                 }
             }
         }

@@ -149,6 +149,11 @@ InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
     return 0;
 }
 
+std::shared_ptr<const LedgerEntry>
+InMemoryLedgerTxnRoot::loadSnapshotEntry(LedgerKey const& key) const {
+    return nullptr;
+}
+
 #ifdef BUILD_TESTS
 void
 InMemoryLedgerTxnRoot::resetForFuzzer()

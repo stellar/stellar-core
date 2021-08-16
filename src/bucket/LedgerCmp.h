@@ -82,6 +82,8 @@ struct LedgerEntryIdCmp
         case LIQUIDITY_POOL:
             return a.liquidityPool().liquidityPoolID <
                    b.liquidityPool().liquidityPoolID;
+        case SPEEDEX_CONFIG:
+            throw std::runtime_error("there should only be one speedex config entry - unless we add extra fields/different speedex pools");
         }
         return false;
     }

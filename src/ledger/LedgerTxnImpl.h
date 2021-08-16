@@ -162,12 +162,12 @@ class BulkLedgerEntryChangeAccumulator
         return mLiquidityPoolToDelete;
     }
 
-    std::vector<SpeedexConfig>&
+    std::vector<EntryIterator>&
     getSpeedexConfigToUpsert() {
         return mSpeedexConfigToUpsert;
     }
 
-    std::vector<SpeedexConfig>&
+    std::vector<EntryIterator>&
     getSpeedexConfigToDelete() {
         return mSpeedexConfigToDelete;
     }
@@ -203,7 +203,7 @@ class LedgerTxn::Impl
     std::unique_ptr<LedgerHeader> mHeader;
     std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
-    SnapshotEntryMap mSnapshots;
+    mutable SnapshotEntryMap mSnapshots;
 
     UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
@@ -558,7 +558,11 @@ class LedgerTxn::Impl
 
     void addSpeedexIOCOffer(AssetPair assetPair, const IOCOffer& offer);
 
-    LedgerEntry loadSnapshotEntry(LedgerTxn& self, LedgerKey const& key);
+    IOCOrderbookManager const& 
+    getSpeedexIOCOffers() const;
+
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) const;
 
     // createOrUpdateWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
@@ -775,8 +779,8 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const>
     loadLiquidityPool(LedgerKey const& key) const;
 
-    std::shared_ptr<const LedgerEntry>
-    loadSnapshotEntry(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const>
+    loadSpeedexConfig(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -848,6 +852,9 @@ class LedgerTxnRoot::Impl
     bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadLiquidityPool(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadSpeedexConfig(UnorderedSet<LedgerKey> const& keys) const;
+
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
@@ -891,6 +898,9 @@ class LedgerTxnRoot::Impl
     void dropTrustLines();
     void dropClaimableBalances();
     void dropLiquidityPools();
+
+    std::shared_ptr<const LedgerEntry>
+    loadSnapshotEntry(LedgerKey const& key) const;
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();
