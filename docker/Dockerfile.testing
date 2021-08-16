@@ -17,9 +17,10 @@ ARG CC=clang-10
 ARG CXX=clang++-10
 ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
 ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
+ARG CONFIGURE_FLAGS
 
 RUN ./autogen.sh
-RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}"
+RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" ${CONFIGURE_FLAGS}
 RUN sh -c 'make -j $(nproc)'
 RUN make install
 
