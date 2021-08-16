@@ -538,5 +538,238 @@ UnownedEntrySponsorable::erase(AbstractLedgerTxn& ltxOuter)
     }
     load(ltxOuter).erase();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// SignerSponsorable implementation
+//
+////////////////////////////////////////////////////////////////////////////////
+SignerSponsorable::SignerSponsorable(AccountID const& accountID, size_t index)
+    : mAccountID(accountID), mIndex(index)
+{
+}
+
+LedgerTxnEntry
+SignerSponsorable::loadOwner(AbstractLedgerTxn& ltx)
+{
+    return loadAccount(ltx, mAccountID);
+}
+
+LedgerTxnEntry
+SignerSponsorable::loadSponsoring(AbstractLedgerTxn& ltx)
+{
+    AccountID sponsoringID;
+    {
+        auto ltxe = loadOwner(ltx);
+        sponsoringID = *ltxe.current()
+                            .data.account()
+                            .ext.v1()
+                            .ext.v2()
+                            .signerSponsoringIDs.at(mIndex);
+    }
+    return loadAccount(ltx, sponsoringID);
+}
+
+bool
+SignerSponsorable::isSignerSponsored(LedgerTxnEntry const& ltxe)
+{
+    auto const& ae = ltxe.current().data.account();
+    return hasAccountEntryExtV2(ae) &&
+           ae.ext.v1().ext.v2().signerSponsoringIDs.at(mIndex);
+}
+
+SponsorshipResult
+SignerSponsorable::establishSponsorship(AbstractLedgerTxn& ltxOuter,
+                                        AccountID sponsoringID)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    auto ltxh = ltx.loadHeader();
+    throwBeforeSponsorshipsEnabled(ltxh.current());
+
+    if (isSignerSponsored(loadOwner(ltx)))
+    {
+        throw std::runtime_error("bad signer sponsorship");
+    }
+    uint32_t const mult = 1;
+
+    SponsorshipResult res = SponsorshipResult::SUCCESS;
+    if (!addNumSponsoring(ltxh.current(),
+                          loadAccount(ltx, sponsoringID).current(), mult, res))
+    {
+        return res;
+    }
+    if (!addNumSponsored(ltxh.current(), loadOwner(ltx).current(), mult, res))
+    {
+        return res;
+    }
+    prepareAccountEntryExtensionV2(loadOwner(ltx).current().data.account())
+        .signerSponsoringIDs.at(mIndex)
+        .activate() = sponsoringID;
+
+    ltx.commit();
+    return SponsorshipResult::SUCCESS;
+}
+
+SponsorshipResult
+SignerSponsorable::removeSponsorshipHelper(AbstractLedgerTxn& ltxOuter,
+                                           bool checkReserve)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    auto ltxh = ltx.loadHeader();
+    throwBeforeSponsorshipsEnabled(ltxh.current());
+
+    if (!isSignerSponsored(loadOwner(ltx)))
+    {
+        throw std::runtime_error("bad signer sponsorship");
+    }
+    uint32_t const mult = 1;
+
+    removeNumSponsoring(loadSponsoring(ltx).current(), mult);
+    removeNumSponsored(loadOwner(ltx).current(), mult);
+
+    // It is permitted to be beneath the reserve when erasing entries
+    if (checkReserve &&
+        getAvailableBalance(ltxh.current(), loadOwner(ltx).current()) < 0)
+    {
+        return SponsorshipResult::LOW_RESERVE;
+    }
+
+    prepareAccountEntryExtensionV2(loadOwner(ltx).current().data.account())
+        .signerSponsoringIDs.at(mIndex)
+        .reset();
+
+    ltx.commit();
+    return SponsorshipResult::SUCCESS;
+}
+
+SponsorshipResult
+SignerSponsorable::removeSponsorship(AbstractLedgerTxn& ltxOuter)
+{
+    return removeSponsorshipHelper(ltxOuter, true);
+}
+
+SponsorshipResult
+SignerSponsorable::transferSponsorship(AbstractLedgerTxn& ltxOuter,
+                                       AccountID newSponsoringID)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    auto ltxh = ltx.loadHeader();
+    throwBeforeSponsorshipsEnabled(ltxh.current());
+
+    if (!isSignerSponsored(loadOwner(ltx)))
+    {
+        throw std::runtime_error("bad signer sponsorship");
+    }
+    uint32_t const mult = 1;
+
+    SponsorshipResult res = SponsorshipResult::SUCCESS;
+    if (!addNumSponsoring(ltxh.current(),
+                          loadAccount(ltx, newSponsoringID).current(), mult,
+                          res))
+    {
+        return res;
+    }
+    removeNumSponsoring(loadSponsoring(ltx).current(), mult);
+    prepareAccountEntryExtensionV2(loadOwner(ltx).current().data.account())
+        .signerSponsoringIDs.at(mIndex)
+        .activate() = newSponsoringID;
+
+    ltx.commit();
+    return SponsorshipResult::SUCCESS;
+}
+
+SponsorshipResult
+SignerSponsorable::create(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    if (ltx.loadHeader().current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS &&
+        loadOwner(ltx).current().data.account().numSubEntries >=
+            ACCOUNT_SUBENTRY_LIMIT)
+    {
+        return SponsorshipResult::TOO_MANY_SUBENTRIES;
+    }
+
+    std::optional<AccountID> sponsoringID;
+    {
+        auto sponsorship = loadSponsorship(ltx, mAccountID);
+        if (sponsorship)
+        {
+            sponsoringID = std::make_optional(sponsorship.currentGeneralized()
+                                                  .sponsorshipEntry()
+                                                  .sponsoringID);
+        }
+    }
+
+    if (sponsoringID)
+    {
+        auto res = establishSponsorship(ltx, *sponsoringID);
+        if (res != SponsorshipResult::SUCCESS)
+        {
+            return res;
+        }
+    }
+    else
+    {
+        auto ltxh = ltx.loadHeader();
+        if (getAvailableBalance(ltxh.current(), loadOwner(ltx).current()) <
+            ltxh.current().baseReserve)
+        {
+            return SponsorshipResult::LOW_RESERVE;
+        }
+    }
+    ++loadOwner(ltx).current().data.account().numSubEntries;
+
+    ltx.commit();
+    return SponsorshipResult::SUCCESS;
+}
+
+void
+SignerSponsorable::erase(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    {
+        uint32_t const mult = 1;
+        auto ltxeOwner = loadOwner(ltx);
+        if (ltxeOwner.current().data.account().numSubEntries < mult)
+        {
+            throw std::runtime_error("invalid account state");
+        }
+        ltxeOwner.current().data.account().numSubEntries -= mult;
+    }
+
+    if (ltx.loadHeader().current().ledgerVersion >= 14)
+    {
+        if (isSignerSponsored(loadOwner(ltx)))
+        {
+            if (removeSponsorshipHelper(ltx, false) !=
+                SponsorshipResult::SUCCESS)
+            {
+                throw std::runtime_error(
+                    "cannot remove sponsorship while removing key");
+            }
+        }
+
+        auto ltxeOwner = loadOwner(ltx);
+        if (hasAccountEntryExtV2(ltxeOwner.current().data.account()))
+        {
+            auto& signerSponsoringIDs =
+                getAccountEntryExtensionV2(ltxeOwner.current().data.account())
+                    .signerSponsoringIDs;
+            signerSponsoringIDs.erase(signerSponsoringIDs.begin() + mIndex);
+        }
+    }
+
+    auto ltxeOwner = loadOwner(ltx);
+    auto& signers = ltxeOwner.current().data.account().signers;
+    signers.erase(signers.begin() + mIndex);
+
+    ltx.commit();
+}
 }
 }

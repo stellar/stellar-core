@@ -139,6 +139,42 @@ class UnownedEntrySponsorable : public EntrySponsorable<Sponsorable>
     void erase(AbstractLedgerTxn& ltxOuter);
 };
 
+class SignerSponsorable : public RemovableSponsorable
+{
+    AccountID mAccountID;
+    size_t mIndex;
+
+    bool isSignerSponsored(LedgerTxnEntry const& ltxe);
+
+    LedgerTxnEntry loadOwner(AbstractLedgerTxn& ltx);
+    LedgerTxnEntry loadSponsoring(AbstractLedgerTxn& ltx);
+
+    SponsorshipResult removeSponsorshipHelper(AbstractLedgerTxn& ltxOuter,
+                                              bool checkReserve);
+
+  public:
+    explicit SignerSponsorable(AccountID const& accountID, size_t index);
+
+    virtual ~SignerSponsorable()
+    {
+    }
+
+    virtual SponsorshipResult
+    establishSponsorship(AbstractLedgerTxn& ltxOuter,
+                         AccountID sponsoringID) override;
+
+    virtual SponsorshipResult
+    removeSponsorship(AbstractLedgerTxn& ltxOuter) override;
+
+    virtual SponsorshipResult
+    transferSponsorship(AbstractLedgerTxn& ltxOuter,
+                        AccountID newSponsoringID) override;
+
+    SponsorshipResult create(AbstractLedgerTxn& ltxOuter);
+
+    void erase(AbstractLedgerTxn& ltxOuter);
+};
+
 std::unique_ptr<Sponsorable> makeSponsorable(LedgerKey const& key);
 
 }
