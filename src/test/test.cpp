@@ -67,6 +67,7 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
         shortHash::seed(sCommandLineSeed);
         Catch::rng().seed(sCommandLineSeed);
         autocheck::rng().seed(sCommandLineSeed);
+        randHash::initialize();
     }
     virtual void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override

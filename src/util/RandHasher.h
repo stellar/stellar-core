@@ -3,22 +3,27 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #pragma once
+#include "util/GlobalChecks.h"
 #include "util/Math.h"
 #include <functional>
 #include <limits>
 
 namespace stellar
 {
+namespace randHash
+{
+void initialize();
+extern bool gHaveInitialized;
+extern size_t gMixer;
+}
 template <class T, class Hasher = std::hash<T>> class RandHasher
 {
   public:
     size_t
     operator()(T const& t) const
     {
-        static size_t mixer =
-            stellar::rand_uniform<size_t>(std::numeric_limits<size_t>::min(),
-                                          std::numeric_limits<size_t>::max());
-        return Hasher()(t) ^ mixer;
+        releaseAssert(randHash::gHaveInitialized);
+        return Hasher()(t) ^ randHash::gMixer;
     }
 };
 }

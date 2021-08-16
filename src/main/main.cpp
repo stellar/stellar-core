@@ -7,6 +7,7 @@
 #include "util/Logging.h"
 
 #include "crypto/ShortHash.h"
+#include "util/RandHasher.h"
 #include <cstdlib>
 #include <exception>
 #include <sodium/core.h>
@@ -49,7 +50,7 @@ main(int argc, char* const* argv)
         return 1;
     }
     shortHash::initialize();
-
+    randHash::initialize();
     xdr::marshaling_stack_limit = 1000;
 
     return handleCommandLine(argc, argv);
