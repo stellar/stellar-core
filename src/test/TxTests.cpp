@@ -714,6 +714,7 @@ ChangeTrustAsset
 makeChangeTrustAssetPoolShare(Asset const& assetA, Asset const& assetB,
                               int32_t fee)
 {
+    REQUIRE(assetA < assetB);
     ChangeTrustAsset poolAsset;
     poolAsset.type(ASSET_TYPE_POOL_SHARE);
     poolAsset.liquidityPool().constantProduct().assetA = assetA;
