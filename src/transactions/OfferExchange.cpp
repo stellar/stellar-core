@@ -12,6 +12,7 @@
 #include "lib/util/uint128_t.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 
@@ -933,7 +934,7 @@ performExchange(LedgerTxnHeader const& header,
         {canSellAtMostBasedOnSheep(header, sheep, sheepLineAccountB, price),
          canSellAtMost(header, accountB, wheat, wheatLineAccountB),
          offer.amount});
-    assert(numWheatReceived >= 0);
+    releaseAssertOrThrow(numWheatReceived >= 0);
 
     newAmount = numWheatReceived;
     auto exchangeResult = header.current().ledgerVersion < 3
@@ -972,8 +973,8 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
            std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
-    assert(maxWheatReceived > 0);
-    assert(maxSheepSend > 0);
+    releaseAssertOrThrow(maxWheatReceived > 0);
+    releaseAssertOrThrow(maxSheepSend > 0);
 
     auto& offer = sellingWheatOffer.current().data.offer();
     // Note: These must be copies not references, since they are used even
@@ -1092,8 +1093,8 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
               RoundingType round, std::vector<ClaimAtom>& offerTrail)
 {
     ZoneScoped;
-    assert(maxWheatReceived > 0);
-    assert(maxSheepSend > 0);
+    releaseAssertOrThrow(maxWheatReceived > 0);
+    releaseAssertOrThrow(maxSheepSend > 0);
     auto header = ltx.loadHeader();
 
     auto& offer = sellingWheatOffer.current().data.offer();
@@ -1218,6 +1219,68 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     return res;
 }
 
+// Variables suffixed with "ToPool" are associated with the asset that will be
+// sent to the pool, and variables suffixed with "FromPool" are associated with
+// the asset that will be received from the pool. Compared to the interface of
+// exchangeV10, "ToPool" is analogous to "sheep" and "FromPool" is analogous to
+// "wheat".
+bool
+exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
+                 int64_t reservesFromPool, int64_t maxReceiveFromPool,
+                 int64_t& fromPool, int32_t feeBps, RoundingType round)
+{
+    ZoneScoped;
+
+    int32_t const maxBps = 10000;
+    if (feeBps < 0 || maxBps <= feeBps)
+    {
+        throw std::runtime_error("Liquidity pool fee out of range");
+    }
+
+    switch (round)
+    {
+    case RoundingType::PATH_PAYMENT_STRICT_SEND:
+    {
+        if (maxSendToPool > INT64_MAX - reservesToPool)
+        {
+            return false;
+        }
+        toPool = maxSendToPool;
+
+        uint128_t denominator = bigMultiply(maxBps, reservesToPool) +
+                                bigMultiply(maxBps - feeBps, toPool);
+        bool res = hugeDivide(fromPool, maxBps - feeBps,
+                              bigMultiply(reservesFromPool, toPool),
+                              denominator, ROUND_DOWN);
+        if (res)
+        {
+            fromPool = std::min(fromPool, maxReceiveFromPool);
+        }
+        return res;
+    }
+    case RoundingType::PATH_PAYMENT_STRICT_RECEIVE:
+    {
+        if (maxReceiveFromPool >= reservesFromPool)
+        {
+            return false;
+        }
+        fromPool = maxReceiveFromPool;
+
+        bool res = hugeDivide(
+            toPool, maxBps, bigMultiply(reservesToPool, fromPool),
+            bigMultiply(reservesFromPool - fromPool, maxBps - feeBps),
+            ROUND_UP);
+        if (res)
+        {
+            toPool = std::min(toPool, maxSendToPool);
+        }
+        return res;
+    }
+    default:
+        throw std::runtime_error("Invalid rounding type");
+    }
+}
+
 ConvertResult
 convertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
@@ -1234,7 +1297,7 @@ convertWithOffers(
 
     // If offerTrail is not empty at the start, then the limit maxOffersToCross
     // will not be imposed correctly.
-    assert(offerTrail.empty());
+    releaseAssertOrThrow(offerTrail.empty());
 
     sheepSend = 0;
     wheatReceived = 0;
@@ -1292,10 +1355,10 @@ convertWithOffers(
             needMore = true;
         }
 
-        assert(numSheepSend >= 0);
-        assert(numSheepSend <= maxSheepSend);
-        assert(numWheatReceived >= 0);
-        assert(numWheatReceived <= maxWheatReceive);
+        releaseAssertOrThrow(numSheepSend >= 0);
+        releaseAssertOrThrow(numSheepSend <= maxSheepSend);
+        releaseAssertOrThrow(numWheatReceived >= 0);
+        releaseAssertOrThrow(numWheatReceived <= maxWheatReceive);
 
         if (cor == CrossOfferResult::eOfferCantConvert)
         {

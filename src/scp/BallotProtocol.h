@@ -6,6 +6,7 @@
 
 #include "lib/json/json-forwards.h"
 #include "scp/SCP.h"
+#include "util/GlobalChecks.h"
 #include <functional>
 #include <memory>
 #include <set>
@@ -51,12 +52,12 @@ class BallotProtocol
         explicit SCPBallotWrapper(uint32 c, ValueWrapperPtr vw)
             : mWvalue(vw), mBallot(c, vw->getValue())
         {
-            assert(vw);
+            releaseAssert(vw);
         }
         explicit SCPBallotWrapper(SCPBallotWrapper const& o)
             : mWvalue(o.mWvalue), mBallot(o.mBallot)
         {
-            assert(o.mWvalue);
+            releaseAssert(o.mWvalue);
         }
 
         SCPBallot const&

@@ -56,6 +56,19 @@ prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
     return tl.ext.v1();
 }
 
+TrustLineEntryExtensionV2&
+prepareTrustLineEntryExtensionV2(TrustLineEntry& tl)
+{
+    auto& extV1 = prepareTrustLineEntryExtensionV1(tl);
+
+    if (extV1.ext.v() == 0)
+    {
+        extV1.ext.v(2);
+        extV1.ext.v2().liquidityPoolUseCount = 0;
+    }
+    return extV1.ext.v2();
+}
+
 LedgerEntryExtensionV1&
 prepareLedgerEntryExtensionV1(LedgerEntry& le)
 {
@@ -98,6 +111,18 @@ getAccountEntryExtensionV3(AccountEntry const& ae)
 }
 
 
+
+TrustLineEntryExtensionV2&
+getTrustLineEntryExtensionV2(TrustLineEntry& tl)
+{
+    if (!hasTrustLineEntryExtV2(tl))
+    {
+        throw std::runtime_error("expected TrustLineEntry extension V2");
+    }
+
+    return tl.ext.v1().ext.v2();
+}
+
 LedgerEntryExtensionV1&
 getLedgerEntryExtensionV1(LedgerEntry& le)
 {
@@ -138,9 +163,15 @@ accountKey(AccountID const& accountID)
 LedgerKey
 trustlineKey(AccountID const& accountID, Asset const& asset)
 {
+    return trustlineKey(accountID, assetToTrustLineAsset(asset));
+}
+
+LedgerKey
+trustlineKey(AccountID const& accountID, TrustLineAsset const& asset)
+{
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = accountID;
-    key.trustLine().asset = assetToTrustLineAsset(asset);
+    key.trustLine().asset = asset;
     return key;
 }
 
@@ -184,6 +215,16 @@ LedgerKey speedexConfigKey()
     return key;
 }
 
+
+LedgerKey
+poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset.type(ASSET_TYPE_POOL_SHARE);
+    key.trustLine().asset.liquidityPoolID() = poolID;
+    return key;
+}
 
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
@@ -307,6 +348,21 @@ SpeedexConfigEntryFrame
 loadSpeedexConfigSnapshot(AbstractLedgerTxn&ltx)
 {
     return SpeedexConfigEntryFrame(ltx.loadSnapshotEntry(speedexConfigKey()));
+}
+
+LedgerTxnEntry
+loadPoolShareTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
+                       PoolID const& poolID)
+{
+    ZoneScoped;
+    return ltx.load(poolShareTrustLineKey(accountID, poolID));
+}
+
+LedgerTxnEntry
+loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
+{
+    ZoneScoped;
+    return ltx.load(liquidityPoolKey(poolID));
 }
 
 static void
@@ -916,7 +972,7 @@ isAuthorized(ConstLedgerTxnEntry const& entry)
 }
 
 bool
-isAuthorizedToMaintainLiabilities(uint32_t flags)
+isAuthorizedToMaintainLiabilitiesUnsafe(uint32_t flags)
 {
     return (flags & TRUSTLINE_AUTH_FLAGS) != 0;
 }
@@ -949,7 +1005,11 @@ isCommutativeTxEnabledTrustLine(LedgerTxnEntry const& entry)
 bool
 isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
 {
-    return isAuthorizedToMaintainLiabilities(le.data.trustLine().flags);
+    if (le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
+    {
+        return true;
+    }
+    return isAuthorizedToMaintainLiabilitiesUnsafe(le.data.trustLine().flags);
 }
 
 bool
@@ -1198,6 +1258,12 @@ hasAccountEntryExtV3(AccountEntry const& ae)
 }
 
 
+bool
+hasTrustLineEntryExtV2(TrustLineEntry const& tl)
+{
+    return tl.ext.v() == 1 && tl.ext.v1().ext.v() == 2;
+}
+
 Asset
 getAsset(AccountID const& issuer, AssetCode const& assetCode)
 {
@@ -1330,6 +1396,18 @@ changeTrustAssetToTrustLineAsset(ChangeTrustAsset const& ctAsset)
     }
 
     return tlAsset;
+}
+
+int64_t
+getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
+                        int64_t reserve)
+{
+    if (amountPoolShares > totalPoolShares)
+    {
+        throw std::runtime_error("Invalid amountPoolShares");
+    }
+
+    return bigDivide(amountPoolShares, reserve, totalPoolShares, ROUND_DOWN);
 }
 
 namespace detail

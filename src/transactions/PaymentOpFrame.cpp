@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -106,8 +107,9 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    assert(PathPaymentStrictReceiveOpFrame::getInnerCode(
-               ppayment.getResult()) == PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
+    releaseAssertOrThrow(
+        PathPaymentStrictReceiveOpFrame::getInnerCode(ppayment.getResult()) ==
+        PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 
     innerResult().code(PAYMENT_SUCCESS);
 

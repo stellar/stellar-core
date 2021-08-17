@@ -94,3 +94,6 @@ min-testcases/
 *.vcxproj.user
 **/.vs/*
 
+# Mac specific
+*.DS_STORE
+

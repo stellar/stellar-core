@@ -9,6 +9,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
+#include "util/GlobalChecks.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
@@ -18,7 +19,7 @@ bool
 WrappedValuePtrComparator::operator()(ValueWrapperPtr const& l,
                                       ValueWrapperPtr const& r) const
 {
-    assert(l && r);
+    releaseAssert(l && r);
     return l->getValue() < r->getValue();
 }
 

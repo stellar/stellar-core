@@ -8,6 +8,7 @@
 #include "herder/AccountCommutativityRequirements.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
+#include "util/GlobalChecks.h"
 #include "util/types.h"
 
 
@@ -133,7 +134,7 @@ class TransactionFrame : public TransactionFrameBase
     getOperations() const
     {
         // this can only be used on an initialized TransactionFrame
-        assert(!mOperations.empty());
+        releaseAssert(!mOperations.empty());
         return mOperations;
     }
 

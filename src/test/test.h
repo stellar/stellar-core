@@ -14,9 +14,16 @@ namespace stellar
 class Application;
 class Config;
 struct CommandLineArgs;
+struct TransactionMeta;
 
 Config const& getTestConfig(int instanceNumber = 0,
                             Config::TestDbMode mode = Config::TESTDB_DEFAULT);
+
+// Records or checks a TxMetadata value against a persistent record
+// of metadata hashes. Each unit-test name and section has a separate
+// vector of TxMetadata hashes, containing all the txs in that
+// test-and-section.
+void recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta);
 
 int runTest(CommandLineArgs const& args);
 

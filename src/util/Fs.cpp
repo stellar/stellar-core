@@ -5,6 +5,7 @@
 #include "util/Fs.h"
 #include "crypto/Hex.h"
 #include "util/FileSystemException.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <filesystem>
@@ -341,7 +342,7 @@ hexDir(std::string const& hexStr)
         "([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
     std::smatch sm;
     bool matched = std::regex_match(hexStr, sm, rx);
-    assert(matched);
+    releaseAssert(matched);
     return (std::string(sm[1]) + "/" + std::string(sm[2]) + "/" +
             std::string(sm[3]));
 }
@@ -390,7 +391,7 @@ size_t
 size(std::ifstream& ifs)
 {
     ZoneScoped;
-    assert(ifs.is_open());
+    releaseAssert(ifs.is_open());
 
     ifs.seekg(0, ifs.end);
     auto result = ifs.tellg();

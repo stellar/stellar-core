@@ -261,6 +261,18 @@ case ASSET_TYPE_POOL_SHARE:
     // add other asset types here in the future
 };
 
+struct TrustLineEntryExtensionV2
+{
+    int32 liquidityPoolUseCount;
+
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
 struct TrustLineEntry
 {
     AccountID accountID; // account this trustline belongs to
@@ -285,6 +297,8 @@ struct TrustLineEntry
             {
             case 0:
                 void;
+            case 2:
+                TrustLineEntryExtensionV2 v2;
             }
             ext;
         } v1;

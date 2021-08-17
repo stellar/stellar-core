@@ -3,6 +3,7 @@
 #include "crypto/Hex.h"
 #include "herder/Upgrades.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <overlay/OverlayManager.h>
@@ -21,7 +22,7 @@ LedgerCloseData::LedgerCloseData(
     , mValue(v)
     , mExpectedLedgerHash(expectedLedgerHash)
 {
-    assert(txSet->getContentsHash() == mValue.txSetHash);
+    releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
 }
 
 std::string

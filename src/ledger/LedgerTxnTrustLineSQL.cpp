@@ -8,6 +8,7 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -21,7 +22,7 @@ validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key)
 {
     auto const& asset = key.trustLine().asset;
 
-    if (ledgerVersion >= 15 && !isAssetValid(asset, ledgerVersion))
+    if (!isAssetValid(asset, ledgerVersion))
     {
         throw NonSociRelatedException("TrustLine asset is invalid");
     }
@@ -75,6 +76,49 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
+std::vector<LedgerEntry>
+LedgerTxnRoot::Impl::loadPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& accountID, Asset const& asset) const
+{
+    ZoneScoped;
+
+    std::string accountIDStr = KeyUtils::toStrKey(accountID);
+    auto assetStr = toOpaqueBase64(asset);
+
+    std::string trustLineEntryStr;
+
+    auto prep = mDatabase.getPreparedStatement(
+        "SELECT trustlines.ledgerentry "
+        "FROM trustlines "
+        "INNER JOIN liquiditypool "
+        "ON trustlines.asset = liquiditypool.poolasset "
+        "AND trustlines.accountid = :v1 "
+        "AND (liquiditypool.asseta = :v2 OR liquiditypool.assetb = :v3)");
+    auto& st = prep.statement();
+    st.exchange(soci::into(trustLineEntryStr));
+    st.exchange(soci::use(accountIDStr));
+    st.exchange(soci::use(assetStr));
+    st.exchange(soci::use(assetStr));
+    st.define_and_bind();
+    {
+        auto timer = mDatabase.getSelectTimer("trust");
+        st.execute(true);
+    }
+
+    std::vector<LedgerEntry> trustLines;
+    while (st.got_data())
+    {
+        trustLines.emplace_back();
+        fromOpaqueBase64(trustLines.back(), trustLineEntryStr);
+        if (trustLines.back().data.type() != TRUSTLINE)
+        {
+            throw NonSociRelatedException("Loaded non-trustline entry");
+        }
+        st.fetch();
+    }
+    return trustLines;
+}
+
 class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
@@ -96,10 +140,11 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 
         for (auto const& e : entries)
         {
-            assert(e.entryExists());
-            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entryExists());
+            releaseAssert(e.entry().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
-            assert(le.data.type() == TRUSTLINE);
+            releaseAssert(le.data.type() == TRUSTLINE);
 
             auto const& tl = le.data.trustLine();
 
@@ -207,9 +252,10 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         mAssets.reserve(entries.size());
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            assert(e.key().ledgerKey().type() == TRUSTLINE);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().ledgerKey().type() == TRUSTLINE);
             auto const& tl = e.key().ledgerKey().trustLine();
 
             validateTrustLineKey(ledgerVersion, e.key().ledgerKey());
@@ -348,8 +394,9 @@ class BulkLoadTrustLinesOperation
             auto& le = res.back();
 
             fromOpaqueBase64(le, trustLineEntryStr);
-            assert(le.data.type() == TRUSTLINE);
-            assert(le.data.trustLine().asset.type() != ASSET_TYPE_NATIVE);
+            releaseAssert(le.data.type() == TRUSTLINE);
+            releaseAssert(le.data.trustLine().asset.type() !=
+                          ASSET_TYPE_NATIVE);
 
             st.fetch();
         }
@@ -366,8 +413,8 @@ class BulkLoadTrustLinesOperation
 
         for (auto const& k : keys)
         {
-            assert(k.type() == TRUSTLINE);
-            assert(k.trustLine().asset.type() != ASSET_TYPE_NATIVE);
+            releaseAssert(k.type() == TRUSTLINE);
+            releaseAssert(k.trustLine().asset.type() != ASSET_TYPE_NATIVE);
 
             mAccountIDs.emplace_back(
                 KeyUtils::toStrKey(k.trustLine().accountID));
@@ -378,7 +425,7 @@ class BulkLoadTrustLinesOperation
     virtual std::vector<LedgerEntry>
     doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
-        assert(mAccountIDs.size() == mAssets.size());
+        releaseAssert(mAccountIDs.size() == mAssets.size());
 
         std::vector<char const*> cstrAccountIDs;
         std::vector<char const*> cstrAssets;
@@ -423,7 +470,7 @@ class BulkLoadTrustLinesOperation
     virtual std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        assert(mAccountIDs.size() == mAssets.size());
+        releaseAssert(mAccountIDs.size() == mAssets.size());
 
         std::string strAccountIDs;
         std::string strAssets;

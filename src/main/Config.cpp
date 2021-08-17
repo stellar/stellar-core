@@ -14,6 +14,7 @@
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -46,7 +47,9 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
-    "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING"};
+    "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+    "LOADGEN_OP_COUNT_FOR_TESTING",
+    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -107,7 +110,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_AUTO_STARTS_OVERLAY = true;
     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING =
         std::vector<std::chrono::microseconds>();
-    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<unsigned short>();
+    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
+    LOADGEN_OP_COUNT_FOR_TESTING = {};
+    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -309,7 +314,7 @@ readXdrEnumArray(ConfigItem const& item)
     {
         auto enumNameCharPtr =
             xdr::xdr_traits<T>::enum_name(static_cast<T>(enumVal));
-        assert(enumNameCharPtr);
+        releaseAssert(enumNameCharPtr);
         enumNames.emplace(enumNameCharPtr, static_cast<T>(enumVal));
     }
 
@@ -730,7 +735,37 @@ Config::verifyHistoryValidatorsBlocking(
     }
 }
 
-std::vector<std::chrono::microseconds>
+void
+Config::verifyLoadGenOpCountForTestingConfigs()
+{
+    if (LOADGEN_OP_COUNT_FOR_TESTING.size() !=
+        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.size())
+    {
+        throw std::invalid_argument("LOADGEN_OP_COUNT_FOR_TESTING and "
+                                    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING "
+                                    "must be defined together and "
+                                    "must have the exact same size.");
+    }
+    else if (!LOADGEN_OP_COUNT_FOR_TESTING.empty() &&
+             !ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        throw std::invalid_argument(
+            "When LOADGEN_OP_COUNT_FOR_TESTING and "
+            "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING are defined "
+            "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true");
+    }
+
+    if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
+                     LOADGEN_OP_COUNT_FOR_TESTING.end(),
+                     [](unsigned short i) { return 1 <= i && i <= 100; }))
+    {
+        throw std::invalid_argument(
+            "All elements in NUM_OPS_PER_TX_COUNT_FOR_TESTING must be "
+            "integers in [1, 100]");
+    }
+}
+
+void
 Config::processOpApplySleepTimeForTestingConfigs()
 {
     if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size() !=
@@ -741,26 +776,16 @@ Config::processOpApplySleepTimeForTestingConfigs()
             "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be defined together "
             "and have the same size");
     }
-    if (std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
-                        OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(), 0) != 100)
-    {
-        throw std::invalid_argument(
-            "The sum of the weights in "
-            "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must equal 100");
-    }
-    std::vector<std::chrono::microseconds> ret;
-    ret.reserve(100);
+
+    auto sum = std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
+                               OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(), 0);
+
     for (size_t i = 0; i < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.size(); i++)
     {
-        LOG_INFO(DEFAULT_LOG, "Sleeps for {} {}% of the time",
+        LOG_INFO(DEFAULT_LOG, "Sleeps for {} roughly {}% of the time",
                  OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i],
-                 OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]);
-        for (size_t j = 0; j < OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i]; j++)
-        {
-            ret.push_back(OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[i]);
-        }
+                 100 * OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING[i] / sum);
     }
-    return ret;
 }
 
 void
@@ -1154,11 +1179,32 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 auto input = readArray<int64_t>(item);
                 OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to unsigned short
+                // Convert int64_t to uint32
                 std::transform(
                     input.begin(), input.end(),
                     std::back_inserter(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING),
+                    [](int64_t x) { return static_cast<uint32>(x); });
+            }
+            else if (item.first == "LOADGEN_OP_COUNT_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                LOADGEN_OP_COUNT_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to unsigned short
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(LOADGEN_OP_COUNT_FOR_TESTING),
                     [](int64_t x) { return static_cast<unsigned short>(x); });
+            }
+            else if (item.first == "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING")
+            {
+                auto input = readArray<int64_t>(item);
+                LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.reserve(input.size());
+                // Convert int64_t to uint32
+                std::transform(
+                    input.begin(), input.end(),
+                    std::back_inserter(
+                        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING),
+                    [](int64_t x) { return static_cast<uint32>(x); });
             }
             else
             {
@@ -1172,9 +1218,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         if (!OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.empty() ||
             !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
         {
-            mOpApplySleepTimeForTesting =
-                processOpApplySleepTimeForTestingConfigs();
+            processOpApplySleepTimeForTestingConfigs();
         }
+
+        verifyLoadGenOpCountForTestingConfigs();
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
@@ -1790,12 +1837,6 @@ Config::toString(SCPQuorumSet const& qset)
         qset, [&](PublicKey const& k) { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
-}
-
-std::vector<std::chrono::microseconds> const&
-Config::getOpApplySleepTimeForTesting() const
-{
-    return mOpApplySleepTimeForTesting;
 }
 
 std::string const Config::STDIN_SPECIAL_NAME = "/dev/stdin";

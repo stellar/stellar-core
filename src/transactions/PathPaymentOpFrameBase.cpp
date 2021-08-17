@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 
 namespace stellar
@@ -68,8 +69,8 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
                                 RoundingType round,
                                 std::vector<ClaimAtom>& offerTrail)
 {
-    assert(offerTrail.empty());
-    assert(!(sendAsset == recvAsset));
+    releaseAssertOrThrow(offerTrail.empty());
+    releaseAssertOrThrow(!(sendAsset == recvAsset));
 
     // sendAsset -> recvAsset
     ConvertResult r = convertWithOffers(
@@ -167,7 +168,7 @@ PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
         }
 
         auto ok = addBalance(header, sourceAccount, -amount);
-        assert(ok);
+        releaseAssertOrThrow(ok);
     }
     else
     {

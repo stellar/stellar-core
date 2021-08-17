@@ -10,6 +10,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -177,7 +178,7 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         auto amountOk = addBalance(header, sourceAccount, -amount);
-        assert(amountOk);
+        releaseAssertOrThrow(amountOk);
     }
     else
     {

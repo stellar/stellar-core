@@ -16,6 +16,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
@@ -69,7 +70,7 @@ ApplyBucketsWork::getBucket(std::string const& hash)
     auto b = (i != mBuckets.end())
                  ? i->second
                  : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
-    assert(b);
+    releaseAssert(b);
     return b;
 }
 
@@ -133,7 +134,7 @@ void
 ApplyBucketsWork::startLevel()
 {
     ZoneScoped;
-    assert(isLevelComplete());
+    releaseAssert(isLevelComplete());
 
     CLOG_DEBUG(History, "ApplyBuckets : starting level {}", mLevel);
     auto& level = getBucketLevel(mLevel);
@@ -228,8 +229,8 @@ ApplyBucketsWork::advance(std::string const& bucketName,
                           BucketApplicator& applicator)
 {
     ZoneScoped;
-    assert(applicator);
-    assert(mTotalSize != 0);
+    releaseAssert(applicator);
+    releaseAssert(mTotalSize != 0);
     auto sz = applicator.advance(mCounters);
     mAppliedEntries += sz;
     mCounters.logDebug(bucketName, mLevel, mApp.getClock().now());

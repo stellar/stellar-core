@@ -16,6 +16,8 @@
 #include "transactions/CreateSpeedexIOCOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/LiquidityPoolDepositOpFrame.h"
+#include "transactions/LiquidityPoolWithdrawOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
@@ -109,6 +111,10 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<SetTrustLineFlagsOpFrame>(op, res, tx);
     case CREATE_SPEEDEX_IOC_OFFER:
         return std::make_shared<CreateSpeedexIOCOfferOpFrame>(op, res, tx, index);
+    case LIQUIDITY_POOL_DEPOSIT:
+        return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
+    case LIQUIDITY_POOL_WITHDRAW:
+        return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

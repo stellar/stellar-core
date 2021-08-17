@@ -1209,5 +1209,64 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 eur, 100, {makeClaimant(issuer, u)});
             issuer.claimClaimableBalance(balanceID);
         }
+
+        SECTION("op source account last modified is updated on claim of "
+                "sponsored balance")
+        {
+            {
+                issuer.pay(acc2, usd, 1);
+
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(acc2)),
+                     acc2.op(createClaimableBalance(usd, 1, validClaimants)),
+                     acc2.op(endSponsoringFutureReserves())},
+                    {acc2});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(tx->apply(*app, ltx, txm));
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+                ltx.commit();
+            }
+
+            uint32_t lastModifiedLedgerSeq;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                lastModifiedLedgerSeq =
+                    loadAccount(ltx, acc2.getPublicKey(), true)
+                        .current()
+                        .lastModifiedLedgerSeq;
+            }
+
+            {
+                auto balanceID = root.getBalanceID(1);
+
+                auto tx2 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {acc2.op(claimClaimableBalance(balanceID))}, {acc2});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm2(2);
+                REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                REQUIRE(tx2->apply(*app, ltx, txm2));
+                REQUIRE(tx2->getResultCode() == txSUCCESS);
+
+                // increment ledgerSeq
+                auto header = ltx.loadHeader();
+                ++header.current().ledgerSeq;
+
+                ltx.commit();
+            }
+            // The op source account was loaded in the last transaction
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                REQUIRE(lastModifiedLedgerSeq + 1 ==
+                        loadAccount(ltx, acc2.getPublicKey(), true)
+                            .current()
+                            .lastModifiedLedgerSeq);
+            }
+        }
     });
 }

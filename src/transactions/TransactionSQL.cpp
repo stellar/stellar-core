@@ -9,6 +9,7 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -185,7 +186,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
     TransactionEnvelope tx;
     uint32_t curLedgerSeq;
 
-    assert(begin <= end);
+    releaseAssert(begin <= end);
     soci::statement st =
         (sess.prepare << "SELECT ledgerseq, txbody, txresult FROM txhistory "
                          "WHERE ledgerseq >= :begin AND ledgerseq < :end ORDER "

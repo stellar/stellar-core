@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
@@ -61,7 +62,7 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
 
     auto ok =
         addBalance(header, sourceAccount, -mCreateAccount.startingBalance);
-    assert(ok);
+    releaseAssertOrThrow(ok);
 
     LedgerEntry newAccountEntry;
     newAccountEntry.data.type(ACCOUNT);
@@ -123,7 +124,7 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
 
     auto ok =
         addBalance(header, sourceAccount, -mCreateAccount.startingBalance);
-    assert(ok);
+    releaseAssertOrThrow(ok);
 
     ltx.create(newAccountEntry);
     innerResult().code(CREATE_ACCOUNT_SUCCESS);

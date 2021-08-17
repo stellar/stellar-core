@@ -12,6 +12,7 @@
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
@@ -187,9 +188,9 @@ CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     auto offlineCatchup = configuration.offline();
-    assert(offlineCatchup == mSyncingLedgers.empty());
+    releaseAssert(offlineCatchup == mSyncingLedgers.empty());
 
-    assert(!mCatchupWork);
+    releaseAssert(!mCatchupWork);
 
     // NB: if WorkScheduler is aborting this returns nullptr, but that
     // which means we don't "really" start catchup.
@@ -206,7 +207,7 @@ CatchupManagerImpl::getStatus() const
 BasicWork::State
 CatchupManagerImpl::getCatchupWorkState() const
 {
-    assert(mCatchupWork);
+    releaseAssert(mCatchupWork);
     return mCatchupWork->getState();
 }
 
@@ -304,7 +305,7 @@ CatchupManagerImpl::syncMetrics()
 void
 CatchupManagerImpl::trimAndReset()
 {
-    assert(mCatchupWork);
+    releaseAssert(mCatchupWork);
     mCatchupWork.reset();
 
     logAndUpdateCatchupStatus(true);
@@ -322,7 +323,7 @@ CatchupManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
 void
 CatchupManagerImpl::startOnlineCatchup()
 {
-    assert(mSyncingLedgers.size() > 1);
+    releaseAssert(mSyncingLedgers.size() > 1);
 
     // catchup just before first buffered ledger that way we will have a
     // way to verify history consistency - compare previousLedgerHash of

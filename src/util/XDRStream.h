@@ -8,6 +8,7 @@
 #include "crypto/SHA.h"
 #include "util/FileSystemException.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -78,7 +79,7 @@ class XDRInputFileStream
     size_t
     pos()
     {
-        assert(!mIn.fail());
+        releaseAssertOrThrow(!mIn.fail());
 
         return mIn.tellg();
     }
@@ -290,7 +291,7 @@ class XDROutputFileStream
         }
 
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
-        assert(sz < 0x80000000);
+        releaseAssertOrThrow(sz < 0x80000000);
 
         if (mBuf.size() < sz + 4)
         {

@@ -56,7 +56,9 @@ enum OperationType
     CLAWBACK = 19,
     CLAWBACK_CLAIMABLE_BALANCE = 20,
     SET_TRUST_LINE_FLAGS = 21,
-    CREATE_SPEEDEX_IOC_OFFER = 22
+    LIQUIDITY_POOL_DEPOSIT = 22,
+    LIQUIDITY_POOL_WITHDRAW = 23,
+    CREATE_SPEEDEX_IOC_OFFER = 24
 };
 
 /* CreateAccount
@@ -461,6 +463,35 @@ struct SpeedexIOCOfferHashContents
 
 const LIQUIDITY_POOL_FEE_V18 = 30;
 
+/* Deposit assets into a liquidity pool
+
+    Threshold: med
+
+    Result: LiquidityPoolDepositResult
+*/
+struct LiquidityPoolDepositOp
+{
+    PoolID liquidityPoolID;
+    int64 maxAmountA;     // maximum amount of first asset to deposit
+    int64 maxAmountB;     // maximum amount of second asset to deposit
+    Price minPrice;       // minimum depositA/depositB
+    Price maxPrice;       // maximum depositA/depositB
+};
+
+/* Withdraw assets from a liquidity pool
+
+    Threshold: med
+
+    Result: LiquidityPoolWithdrawResult
+*/
+struct LiquidityPoolWithdrawOp
+{
+    PoolID liquidityPoolID;
+    int64 amount;         // amount of pool shares to withdraw
+    int64 minAmountA;     // minimum amount of first asset to withdraw
+    int64 minAmountB;     // minimum amount of second asset to withdraw
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -517,6 +548,10 @@ struct Operation
         SetTrustLineFlagsOp setTrustLineFlagsOp;
     case CREATE_SPEEDEX_IOC_OFFER:
         CreateSpeedexIOCOfferOp createSpeedexIOCOfferOp;
+    case LIQUIDITY_POOL_DEPOSIT:
+        LiquidityPoolDepositOp liquidityPoolDepositOp;
+    case LIQUIDITY_POOL_WITHDRAW:
+        LiquidityPoolWithdrawOp liquidityPoolWithdrawOp;
     }
     body;
 };
@@ -1369,6 +1404,63 @@ default:
     void;
 };
 
+/******* LiquidityPoolDeposit Result ********/
+
+enum LiquidityPoolDepositResultCode
+{
+    // codes considered as "success" for the operation
+    LIQUIDITY_POOL_DEPOSIT_SUCCESS = 0,
+
+    // codes considered as "failure" for the operation
+    LIQUIDITY_POOL_DEPOSIT_MALFORMED = -1,      // bad input
+    LIQUIDITY_POOL_DEPOSIT_NO_TRUST = -2,       // no trust line for one of the
+                                                // assets
+    LIQUIDITY_POOL_DEPOSIT_NOT_AUTHORIZED = -3, // not authorized for one of the
+                                                // assets
+    LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED = -4,    // not enough balance for one of
+                                                // the assets
+    LIQUIDITY_POOL_DEPOSIT_LINE_FULL = -5,      // pool share trust line doesn't
+                                                // have sufficient limit
+    LIQUIDITY_POOL_DEPOSIT_BAD_PRICE = -6,      // deposit price outside bounds
+    LIQUIDITY_POOL_DEPOSIT_POOL_FULL = -7       // pool reserves are full
+};
+
+union LiquidityPoolDepositResult switch (
+    LiquidityPoolDepositResultCode code)
+{
+case LIQUIDITY_POOL_DEPOSIT_SUCCESS:
+    void;
+default:
+    void;
+};
+
+/******* LiquidityPoolWithdraw Result ********/
+
+enum LiquidityPoolWithdrawResultCode
+{
+    // codes considered as "success" for the operation
+    LIQUIDITY_POOL_WITHDRAW_SUCCESS = 0,
+
+    // codes considered as "failure" for the operation
+    LIQUIDITY_POOL_WITHDRAW_MALFORMED = -1,      // bad input
+    LIQUIDITY_POOL_WITHDRAW_NO_TRUST = -2,       // no trust line for one of the
+                                                 // assets
+    LIQUIDITY_POOL_WITHDRAW_UNDERFUNDED = -3,    // not enough balance of the
+                                                 // pool share
+    LIQUIDITY_POOL_WITHDRAW_LINE_FULL = -4,      // would go above limit for one
+                                                 // of the assets
+    LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM = -5   // didn't withdraw enough
+};
+
+union LiquidityPoolWithdrawResult switch (
+    LiquidityPoolWithdrawResultCode code)
+{
+case LIQUIDITY_POOL_WITHDRAW_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 enum OperationResultCode
 {
@@ -1433,6 +1525,10 @@ case opINNER:
         SetTrustLineFlagsResult setTrustLineFlagsResult;
     case CREATE_SPEEDEX_IOC_OFFER:
         CreateSpeedexIOCOfferResult createSpeedexIOCOfferResult;
+    case LIQUIDITY_POOL_DEPOSIT:
+        LiquidityPoolDepositResult liquidityPoolDepositResult;
+    case LIQUIDITY_POOL_WITHDRAW:
+        LiquidityPoolWithdrawResult liquidityPoolWithdrawResult;
     }
     tr;
 default:

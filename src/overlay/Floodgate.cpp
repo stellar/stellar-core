@@ -10,6 +10,7 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -68,7 +69,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
     if (result == mFloodMap.end())
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
-            msg, mApp.getHerder().getCurrentLedgerSeq(), peer);
+            msg, mApp.getHerder().trackingConsensusLedgerIndex(), peer);
         mFloodMapSize.set_count(mFloodMap.size());
         TracyPlot("overlay.memory.flood-known",
                   static_cast<int64_t>(mFloodMap.size()));
@@ -97,7 +98,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message / start from scratch
         fr = std::make_shared<FloodRecord>(
-            msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
+            msg, mApp.getHerder().trackingConsensusLedgerIndex(),
+            Peer::pointer());
         mFloodMap[index] = fr;
         mFloodMapSize.set_count(mFloodMap.size());
     }
@@ -116,7 +118,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         std::make_shared<StellarMessage>(msg);
     for (auto peer : peers)
     {
-        assert(peer.second->isAuthenticated());
+        releaseAssert(peer.second->isAuthenticated());
         if (peersTold.insert(peer.second->toString()).second)
         {
             mSendFromBroadcast.Mark();

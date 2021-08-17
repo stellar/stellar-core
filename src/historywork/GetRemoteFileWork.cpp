@@ -8,6 +8,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -33,8 +34,8 @@ GetRemoteFileWork::getCommand()
         mCurrentArchive = mApp.getHistoryArchiveManager()
                               .selectRandomReadableHistoryArchive();
     }
-    assert(mCurrentArchive);
-    assert(mCurrentArchive->hasGetCmd());
+    releaseAssert(mCurrentArchive);
+    releaseAssert(mCurrentArchive->hasGetCmd());
     auto cmdLine = mCurrentArchive->getFileCmd(mRemote, mLocal);
 
     return CommandInfo{cmdLine, std::string()};
@@ -50,14 +51,14 @@ GetRemoteFileWork::onReset()
 void
 GetRemoteFileWork::onSuccess()
 {
-    assert(mCurrentArchive);
+    releaseAssert(mCurrentArchive);
     RunCommandWork::onSuccess();
 }
 
 void
 GetRemoteFileWork::onFailureRaise()
 {
-    assert(mCurrentArchive);
+    releaseAssert(mCurrentArchive);
     CLOG_ERROR(History,
                "Could not download file: archive {} maybe missing file {}",
                mCurrentArchive->getName(), mRemote);

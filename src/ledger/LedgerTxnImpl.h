@@ -519,6 +519,15 @@ class LedgerTxn::Impl
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
 
+    // getPoolShareTrustLinesByAccountAndAsset has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    // - the entry cache may be, but is not guaranteed to be, modified.
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                            Asset const& asset);
+
     // getHeader does not throw
     LedgerHeader const& getHeader() const;
 
@@ -603,6 +612,14 @@ class LedgerTxn::Impl
     std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(LedgerTxn& self, AccountID const& accountID,
                                 Asset const& asset);
+
+    // loadPoolShareTrustLinesByAccountAndAsset has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    // - the entry cache may be, but is not guaranteed to be, modified.
+    std::vector<LedgerTxnEntry> loadPoolShareTrustLinesByAccountAndAsset(
+        LedgerTxn& self, AccountID const& account, Asset const& asset);
 
     // loadWithoutRecord has the basic exception safety guarantee. If it throws
     // an exception, then
@@ -774,6 +791,9 @@ class LedgerTxnRoot::Impl
                                                       int64_t minBalance) const;
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
+    std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset) const;
     std::shared_ptr<LedgerEntry const>
     loadClaimableBalance(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
@@ -930,6 +950,14 @@ class LedgerTxnRoot::Impl
     //   modified
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
+
+    // getPoolShareTrustLinesByAccountAndAsset has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    UnorderedMap<LedgerKey, LedgerEntry>
+    getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
+                                            Asset const& asset);
 
     // getHeader does not throw
     LedgerHeader const& getHeader() const;

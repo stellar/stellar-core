@@ -69,6 +69,13 @@ InMemoryLedgerTxnRoot::getOffersByAccountAndAsset(AccountID const& account,
     return UnorderedMap<LedgerKey, LedgerEntry>();
 }
 
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxnRoot::getPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& account, Asset const& asset)
+{
+    return UnorderedMap<LedgerKey, LedgerEntry>();
+}
+
 LedgerHeader const&
 InMemoryLedgerTxnRoot::getHeader() const
 {

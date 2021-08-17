@@ -328,6 +328,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
+        recordOrCheckGlobalTestTxMetadata(tm);
     }
 
     // Undo the increment from the beginning of this function. Note that if this
@@ -392,6 +393,19 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     REQUIRE(tx->getResult() == applyResult);
     REQUIRE(applyOk == shouldApplyOk);
 };
+
+void
+checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
+                   int64_t reserveB, int64_t totalPoolShares)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto lp = loadLiquidityPool(ltx, poolID);
+    REQUIRE(lp);
+    auto const& cp = lp.current().data.liquidityPool().body.constantProduct();
+    REQUIRE(cp.reserveA == reserveA);
+    REQUIRE(cp.reserveB == reserveB);
+    REQUIRE(cp.totalPoolShares == totalPoolShares);
+}
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
@@ -595,8 +609,18 @@ allowTrust(PublicKey const& trustor, Asset const& asset, uint32_t authorize)
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor;
-    op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    op.body.allowTrustOp().asset.assetCode4() = asset.alphaNum4().assetCode;
+    op.body.allowTrustOp().asset.type(asset.type());
+
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        op.body.allowTrustOp().asset.assetCode4() = asset.alphaNum4().assetCode;
+    }
+    else
+    {
+        op.body.allowTrustOp().asset.assetCode12() =
+            asset.alphaNum12().assetCode;
+    }
+
     op.body.allowTrustOp().authorize = authorize;
 
     return op;
@@ -1300,6 +1324,34 @@ clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
     Operation op;
     op.body.type(CLAWBACK_CLAIMABLE_BALANCE);
     op.body.clawbackClaimableBalanceOp().balanceID = balanceID;
+    return op;
+}
+
+Operation
+liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                     int64_t maxAmountB, Price const& minPrice,
+                     Price const& maxPrice)
+{
+    Operation op;
+    op.body.type(LIQUIDITY_POOL_DEPOSIT);
+    op.body.liquidityPoolDepositOp().liquidityPoolID = poolID;
+    op.body.liquidityPoolDepositOp().maxAmountA = maxAmountA;
+    op.body.liquidityPoolDepositOp().maxAmountB = maxAmountB;
+    op.body.liquidityPoolDepositOp().minPrice = minPrice;
+    op.body.liquidityPoolDepositOp().maxPrice = maxPrice;
+    return op;
+}
+
+Operation
+liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
+                      int64_t minAmountB)
+{
+    Operation op;
+    op.body.type(LIQUIDITY_POOL_WITHDRAW);
+    op.body.liquidityPoolWithdrawOp().liquidityPoolID = poolID;
+    op.body.liquidityPoolWithdrawOp().amount = amount;
+    op.body.liquidityPoolWithdrawOp().minAmountA = minAmountA;
+    op.body.liquidityPoolWithdrawOp().minAmountB = minAmountB;
     return op;
 }
 

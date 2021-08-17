@@ -71,7 +71,7 @@ SetTrustLineFlagsOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         shouldRemoveOffers =
             isAuthorizedToMaintainLiabilities(trust) &&
-            !isAuthorizedToMaintainLiabilities(expectedFlagValue);
+            !isAuthorizedToMaintainLiabilitiesUnsafe(expectedFlagValue);
     }
 
     if (shouldRemoveOffers)

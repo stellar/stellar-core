@@ -4,6 +4,7 @@
 
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -78,7 +79,7 @@ getOperations(TransactionEnvelope& env)
     case ENVELOPE_TYPE_TX:
         return env.v1().tx.operations;
     case ENVELOPE_TYPE_TX_FEE_BUMP:
-        assert(env.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX);
+        releaseAssert(env.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX);
         return env.feeBump().tx.innerTx.v1().tx.operations;
     default:
         abort();
@@ -108,6 +109,15 @@ setFee(TransactionFramePtr tx, uint32_t fee)
     uint32_t& f =
         env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.fee : env.v1().tx.fee;
     f = fee;
+}
+
+void
+setMemo(TransactionFramePtr tx, Memo memo)
+{
+    auto& env = tx->getEnvelope();
+    Memo& m =
+        env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.memo : env.v1().tx.memo;
+    m = memo;
 }
 
 void

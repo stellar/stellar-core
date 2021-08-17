@@ -47,7 +47,7 @@ class WorkScheduler : public Work
     std::shared_ptr<T>
     scheduleWork(Args&&... args)
     {
-        if (isAborting())
+        if (isAborting() || isDone())
         {
             return nullptr;
         }

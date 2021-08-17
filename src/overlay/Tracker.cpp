@@ -11,6 +11,7 @@
 #include "main/Application.h"
 #include "medida/medida.h"
 #include "overlay/OverlayManager.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
@@ -33,7 +34,7 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
           app.getOverlayManager().getOverlayMetrics().mItemFetcherNextPeer)
     , mFetchTime("fetch-" + hexAbbrev(hash), LogSlowExecution::Mode::MANUAL)
 {
-    assert(mAskPeer);
+    releaseAssert(mAskPeer);
 }
 
 Tracker::~Tracker()

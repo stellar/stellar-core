@@ -409,6 +409,10 @@ TEST_CASE("work with children", "[work]")
         REQUIRE(w2->getState() == TestBasicWork::State::WORK_ABORTED);
         REQUIRE(l1->getState() == TestBasicWork::State::WORK_ABORTED);
         REQUIRE(l2->getState() == TestBasicWork::State::WORK_ABORTED);
+
+        // no work can be scheduled
+        REQUIRE(wm.scheduleWork<TestBasicWork>("cannot-be-scheduled") ==
+                nullptr);
     }
 }
 

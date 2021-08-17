@@ -34,6 +34,7 @@
 #include "ExternalQueue.h"
 
 #ifdef BUILD_TESTS
+#include "simulation/LoadGenerator.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #endif
@@ -763,6 +764,14 @@ void
 CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+
+    if (mApp.getState() == Application::APP_CREATED_STATE ||
+        mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
+    {
+        throw std::runtime_error(
+            "Application is not fully booted, try again later");
+    }
+
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 
@@ -810,21 +819,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
-        bool isCreate;
-        std::string mode =
-            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
-        if (mode == std::string("create"))
-        {
-            isCreate = true;
-        }
-        else if (mode == std::string("pay"))
-        {
-            isCreate = false;
-        }
-        else
-        {
-            throw std::runtime_error("Unknown mode.");
-        }
+        LoadGenMode mode = LoadGenerator::getMode(
+            parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
+        bool isCreate = mode == LoadGenMode::CREATE;
 
         uint32_t nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
@@ -850,7 +847,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             retStr = "Setting batch size to its limit of 100.";
         }
 
-        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
+        mApp.generateLoad(mode, nAccounts, offset, nTxs, txRate, batchSize,
                           spikeInterval, spikeSize);
 
         retStr += fmt::format(" Generating load: {:d} {:s}, {:d} tx/s",

@@ -20,12 +20,12 @@
 #include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
-#include <cassert>
 #include <fmt/format.h>
 #include <future>
 
@@ -35,7 +35,7 @@ namespace stellar
 Bucket::Bucket(std::string const& filename, Hash const& hash)
     : mFilename(filename), mHash(hash)
 {
-    assert(filename.empty() || fs::exists(filename));
+    releaseAssert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
     {
         CLOG_TRACE(Bucket, "Bucket::Bucket() created, file exists : {}",
@@ -131,11 +131,11 @@ Bucket::convertToBucketEntry(bool useInit,
 
     BucketEntryIdCmp cmp;
     std::sort(bucket.begin(), bucket.end(), cmp);
-    assert(std::adjacent_find(
-               bucket.begin(), bucket.end(),
-               [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
-                   return !cmp(lhs, rhs);
-               }) == bucket.end());
+    releaseAssert(std::adjacent_find(
+                      bucket.begin(), bucket.end(),
+                      [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
+                          return !cmp(lhs, rhs);
+                      }) == bucket.end());
     return bucket;
 }
 
@@ -604,8 +604,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     // buckets together into a new 3rd bucket, while calculating its hash,
     // in a single pass.
 
-    assert(oldBucket);
-    assert(newBucket);
+    releaseAssert(oldBucket);
+    releaseAssert(newBucket);
 
     MergeCounters mc;
     BucketInputIterator oi(oldBucket);
@@ -664,7 +664,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 uint32_t
 Bucket::getBucketVersion(std::shared_ptr<Bucket> const& bucket)
 {
-    assert(bucket);
+    releaseAssert(bucket);
     BucketInputIterator it(bucket);
     return it.getMetadata().ledgerVersion;
 }

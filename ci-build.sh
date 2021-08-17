@@ -103,10 +103,12 @@ config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfpre
 export CFLAGS="-O2 -g1"
 export CXXFLAGS="-w -O2 -g1"
 
+# quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
+# crashing in tests that churn a lot of memory
 # disable leak detection: this requires the container to be run with
 # "--cap-add SYS_PTRACE" or "--privileged"
 # as the leak detector relies on ptrace
-export LSAN_OPTIONS=detect_leaks=0
+export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0"
 
 echo "config_flags = $config_flags"
 
@@ -115,7 +117,7 @@ export CCACHE_DIR=$HOME/.ccache
 export CCACHE_COMPRESS=true
 export CCACHE_COMPRESSLEVEL=9
 # cache size should be large enough for a full build
-export CCACHE_MAXSIZE=300M
+export CCACHE_MAXSIZE=500M
 export CCACHE_CPP2=true
 
 # purge cache if it's too old

@@ -61,6 +61,17 @@ TestAccount::getTrustlineBalance(Asset const& asset) const
 }
 
 int64_t
+TestAccount::getTrustlineBalance(PoolID const& poolID) const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    TrustLineAsset asset(ASSET_TYPE_POOL_SHARE);
+    asset.liquidityPoolID() = poolID;
+    auto trustLine = ltx.load(trustlineKey(getPublicKey(), asset));
+    REQUIRE(trustLine);
+    return trustLine.current().data.trustLine().balance;
+}
+
+int64_t
 TestAccount::getBalance() const
 {
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -270,20 +281,32 @@ TestAccount::setTrustLineFlags(
 TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const
 {
+    return loadTrustLine(assetToTrustLineAsset(asset));
+}
+
+TrustLineEntry
+TestAccount::loadTrustLine(TrustLineAsset const& asset) const
+{
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = assetToTrustLineAsset(asset);
+    key.trustLine().asset = asset;
     return ltx.load(key).current().data.trustLine();
 }
 
 bool
 TestAccount::hasTrustLine(Asset const& asset) const
 {
+    return hasTrustLine(assetToTrustLineAsset(asset));
+}
+
+bool
+TestAccount::hasTrustLine(TrustLineAsset const& asset) const
+{
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
-    key.trustLine().asset = assetToTrustLineAsset(asset);
+    key.trustLine().asset = asset;
     return (bool)ltx.load(key);
 }
 
@@ -534,4 +557,24 @@ TestAccount::clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     REQUIRE(!stellar::loadClaimableBalance(ltx, balanceID));
 }
+
+void
+TestAccount::liquidityPoolDeposit(PoolID const& poolID, int64_t maxAmountA,
+                                  int64_t maxAmountB, Price const& minPrice,
+                                  Price const& maxPrice)
+{
+    applyTx(tx({txtest::liquidityPoolDeposit(poolID, maxAmountA, maxAmountB,
+                                             minPrice, maxPrice)}),
+            mApp);
+}
+
+void
+TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
+                                   int64_t minAmountA, int64_t minAmountB)
+{
+    applyTx(tx({txtest::liquidityPoolWithdraw(poolID, amount, minAmountA,
+                                              minAmountB)}),
+            mApp);
+}
+
 };
