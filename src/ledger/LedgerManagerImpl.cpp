@@ -1133,6 +1133,7 @@ LedgerManagerImpl::applyTransactions(
                              txResultSet);
         }
     }
+    //TODO solution computation here
 
     logTxApplyMetrics(ltx, numTxs, numOps);
 }
