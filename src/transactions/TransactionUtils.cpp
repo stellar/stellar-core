@@ -306,7 +306,7 @@ loadSpeedexConfig(AbstractLedgerTxn& ltx)
 SpeedexConfigEntryFrame
 loadSpeedexConfigSnapshot(AbstractLedgerTxn&ltx)
 {
-    return SpeedexConfigEntryFrame(ltx.loadSnapshot(speedexConfigKey()));
+    return SpeedexConfigEntryFrame(ltx.loadSnapshotEntry(speedexConfigKey()));
 }
 
 static void

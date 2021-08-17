@@ -12,6 +12,7 @@ class CreateSpeedexIOCOfferOpFrame : public OperationFrame
     {
         return mResult.tr().createSpeedexIOCOfferResult();
     }
+    
     CreateSpeedexIOCOfferOp const& mCreateSpeedexIOCOffer;
 
     uint32_t mOperationIndex;
@@ -37,4 +38,5 @@ class CreateSpeedexIOCOfferOpFrame : public OperationFrame
         return res.tr().createSpeedexIOCOfferResult().code();
     }
 };
-}
+
+} /* stellar */

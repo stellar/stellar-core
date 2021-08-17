@@ -1,5 +1,7 @@
 #include "speedex/SpeedexConfigEntryFrame.h"
 
+#include "util/XDROperators.h"
+
 namespace stellar {
 
 SpeedexConfigEntryFrame::SpeedexConfigEntryFrame(std::shared_ptr<const LedgerEntry> config)
@@ -10,9 +12,9 @@ SpeedexConfigEntryFrame::SpeedexConfigEntryFrame(std::shared_ptr<const LedgerEnt
 	}
 
 bool 
-SpeedexConfigEntryFrame::isValidAssetPair(AssetPair tradingPair) const
+SpeedexConfigEntryFrame::isValidAssetPair(const AssetPair& tradingPair) const
 {
-	auto const& assets = config -> data.speedexConfig().speedexAssets;
+	auto const& assets = mSpeedexConfig -> data.speedexConfig().speedexAssets;
 	bool foundBuying = false, foundSelling = false;
 	for (auto const& asset : assets) {
 		if (tradingPair.selling == asset) {

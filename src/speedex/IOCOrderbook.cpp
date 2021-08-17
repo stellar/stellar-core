@@ -11,9 +11,9 @@ IOCOrderbook::doPriceComputationPreprocessing() {
 	for (auto& offer : mOffers) {
 		mPrecomputedTatonnementData.push_back(stats); // intentionally starting with 0
 		stats.marginalPrice = offer.mMinPrice;
-		stats.cumulativeOfferedForSale += offer.mAmount;
+		stats.cumulativeOfferedForSale += offer.mSellAmount;
 
-		int128_t offerTimesPrice = offer.mAmount * offer.mMinPrice.n;
+		int128_t offerTimesPrice = offer.mSellAmount * offer.mMinPrice.n;
 		offerTimesPrice <<= PriceCompStats::OFFERED_TIMES_PRICE_RADIX;
 
 		stats.cumulativeOfferedForSaleTimesPrice += offerTimesPrice / offer.mMinPrice.d;
@@ -35,7 +35,7 @@ IOCOrderbook::getOffers() {
 void
 IOCOrderbook::commitChild(const IOCOrderbook& other) {
 
-	if (tradingPair != other.tradingPair) {
+	if (mTradingPair != other.mTradingPair) {
 		throw std::runtime_error("merge orderbooks trading pair mismatch!");
 	}
 	mOffers.insert(other.mOffers.begin(), other.mOffers.end());

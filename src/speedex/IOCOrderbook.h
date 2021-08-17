@@ -16,11 +16,11 @@ struct IOCOrderbookClearingParams {
 
 class IOCOrderbook {
 
+	using int128_t = __int128_t;
+
 	struct PriceCompStats {
 		Price marginalPrice;
 		int64_t cumulativeOfferedForSale;
-
-		using int128_t = __int128_t;
 
 		int128_t cumulativeOfferedForSaleTimesPrice; // Fractional : Radix 32 bits;
 

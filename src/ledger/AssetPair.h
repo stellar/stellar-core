@@ -17,3 +17,4 @@ struct AssetPairHash
 };
 
 } /* stellar */
+

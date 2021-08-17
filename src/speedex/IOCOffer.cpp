@@ -1,8 +1,11 @@
 #include "speedex/IOCOffer.h"
 
-#include "utils/XDROperators.h"
+#include "util/XDROperators.h"
 
 #include <xdrpp/marshal.h>
+
+#include "xdr/Stellar-transaction.h"
+#include "crypto/SHA.h"
 
 namespace stellar {
 
@@ -10,7 +13,7 @@ IOCOffer::IOCOffer(int64_t sellAmount, Price minPrice, Hash totalOrderingHash, A
 	: mSellAmount(sellAmount), mMinPrice(minPrice), mTotalOrderingHash(totalOrderingHash), mSourceAccount(sourceAccount) {}
 
 std::strong_ordering 
-IOCOffer::operator<=>(const IOCOffer& other) {
+IOCOffer::operator<=>(const IOCOffer& other) const {
 	int64_t lhs = ((int64_t)mMinPrice.n) * ((int64_t) other.mMinPrice.d);
 	int64_t rhs = ((int64_t)mMinPrice.d) * ((int64_t) other.mMinPrice.n);
 
@@ -36,13 +39,11 @@ IOCOffer::offerHash(Price price, AccountID sourceAccount, uint64_t sourceSeqNum,
 {
 	SHA256 hasher;
 
-	SpeedexIOCOfferHashContents hashContents
-	{
-		.sourceAccount = sourceAccount,
-		.minPrice = price,
-		.seqNum = sourceSeqNum,
-		.opIdx = opIdNum;
-	};
+	SpeedexIOCOfferHashContents hashContents(
+		sourceAccount,
+		price,
+		sourceSeqNum,
+		opIdNum);
 
 	hasher.add(xdr::xdr_to_opaque(hashContents));
 	return hasher.finish();

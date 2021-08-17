@@ -1,6 +1,7 @@
 #pragma once
 
 #include "xdr/Stellar-types.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 #include <compare>
 
@@ -16,7 +17,7 @@ struct IOCOffer {
 
 	IOCOffer(int64_t sellAmount, Price minPrice, Hash totalOrderingHash, AccountID sourceAccount);
 
-	std::strong_ordering operator<=>(const IOCOffer& other);
+	std::strong_ordering operator<=>(const IOCOffer& other) const;
 
 	// should not be changed by feeBumpTx;
 	static Hash offerHash(Price price, AccountID sourceAccount, uint64_t sourceSeqNum, uint32_t opIdNum);

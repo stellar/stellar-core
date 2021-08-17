@@ -2433,6 +2433,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
         // still prepared statements open at commit time.
         mDatabase.clearPreparedStatementCache();
         ZoneNamedN(commitZone, "SOCI commit", true);
+        //sql transaction, not stellar transaction
         mTransaction->commit();
     }
     catch (std::exception& e)

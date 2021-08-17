@@ -21,3 +21,4 @@ AssetPairHash::operator()(AssetPair const& key) const
 }
 
 } /* stellar */
+

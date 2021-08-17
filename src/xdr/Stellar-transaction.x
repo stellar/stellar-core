@@ -453,7 +453,7 @@ struct CreateSpeedexIOCOfferOp
 
 struct SpeedexIOCOfferHashContents
 {
-    AccounID sourceAccount;
+    AccountID sourceAccount;
     Price minPrice;
     uint64 seqNum;
     uint32 opIdx;
@@ -1351,8 +1351,8 @@ enum CreateSpeedexIOCOfferResultCode
     CREATE_SPEEDEX_IOC_OFFER_SUCCESS = 0,
     CREATE_SPEEDEX_IOC_OFFER_NO_SPEEDEX_CONFIG = -1,
     CREATE_SPEEDEX_IOC_OFFER_INVALID_TRADING_PAIR = -2,
-    CREATE_SPEEDEX_IOC_OFFER_INSUFFICENT_BALANCE = -3,
-    CREATE_SPEEDEX_IOC_OFFER_MALFORMED = -4;
+    CREATE_SPEEDEX_IOC_OFFER_INSUFFICIENT_BALANCE = -3,
+    CREATE_SPEEDEX_IOC_OFFER_MALFORMED = -4
 };
 
 struct SpeedexOfferClearingStatus

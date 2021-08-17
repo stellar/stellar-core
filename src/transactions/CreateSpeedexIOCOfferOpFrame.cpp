@@ -1,5 +1,9 @@
 #include "transactions/CreateSpeedexIOCOfferOpFrame.h"
 
+#include "speedex/SpeedexConfigEntryFrame.h"
+
+#include "ledger/LedgerTxn.h"
+
 namespace stellar {
 
 CreateSpeedexIOCOfferOpFrame::CreateSpeedexIOCOfferOpFrame(
@@ -14,13 +18,13 @@ CreateSpeedexIOCOfferOpFrame::CreateSpeedexIOCOfferOpFrame(
 
 bool
 CreateSpeedexIOCOfferOpFrame::checkMalformed() {
-	if (mCreateSpeedexOfferOp.amount <= 0) {
-		innerResult.code(CREATE_SPEEDEX_IOC_OFFER_MALFORMED);
+	if (mCreateSpeedexIOCOffer.sellAmount <= 0) {
+		innerResult().code(CREATE_SPEEDEX_IOC_OFFER_MALFORMED);
 		return false;
 	}
-	auto price = mCreateSpeedexOfferOp.minPrice;
+	auto price = mCreateSpeedexIOCOffer.minPrice;
 	if (price.n <= 0 || price.d <= 0) {
-		innerResult.code(CREATE_SPEEDEX_IOC_OFFER_MALFORMED):
+		innerResult().code(CREATE_SPEEDEX_IOC_OFFER_MALFORMED);
 		return false;
 	}
 	return true;
@@ -35,8 +39,8 @@ CreateSpeedexIOCOfferOpFrame::checkValidAssetPair(AbstractLedgerTxn& ltx) {
 	}
 
 	AssetPair tradingPair {
-		.buying = mCreateSpeedexIOCOffer.buying,
-		.selling = mCreateSpeedexIOCOffer.selling
+		.buying = mCreateSpeedexIOCOffer.buyAsset,
+		.selling = mCreateSpeedexIOCOffer.sellAsset
 	};
 
 	if (!speedexConfig.isValidAssetPair(tradingPair)) {
@@ -58,15 +62,20 @@ CreateSpeedexIOCOfferOpFrame::doApply(AbstractLedgerTxn& ltx)
 	}
 
 	auto price = mCreateSpeedexIOCOffer.minPrice;
-	auto amount = mCreateSpeedexIOCOffer.amount;
+	auto amount = mCreateSpeedexIOCOffer.sellAmount;
 
 	auto hash = IOCOffer::offerHash(
 		price,
 		getSourceID(),
-		getSeqNum(),
+		mParentTx.getSeqNum(),
 		mOperationIndex);
 	
-	IOCOffer offer(price, amount, hash, getSourceID());
+	IOCOffer offer(amount, price, hash, getSourceID());
+
+	AssetPair tradingPair {
+		.buying = mCreateSpeedexIOCOffer.buyAsset,
+		.selling = mCreateSpeedexIOCOffer.sellAsset
+	};
 
 	ltx.addSpeedexIOCOffer(tradingPair, offer);
 
@@ -78,7 +87,7 @@ CreateSpeedexIOCOfferOpFrame::doApply(AbstractLedgerTxn& ltx)
 
 	auto header = ltx.loadHeader();
 
-	auto sellAsset = mCreateSpeedexIOCOffer.selling;
+	auto sellAsset = mCreateSpeedexIOCOffer.sellAsset;
 	if (sellAsset.type() == ASSET_TYPE_NATIVE) {
 		auto ok = stellar::addBalance(header, sourceAccount, -amount);
 		if (!ok) {
@@ -112,12 +121,12 @@ CreateSpeedexIOCOfferOpFrame::doAddCommutativityRequirements(AbstractLedgerTxn& 
 		return false;
 	}
 
-	if (!reqs.checkTrustLine(ltx, getSourceID(), mCreateSpeedexIOCOffer.buying)) {
+	if (!reqs.checkTrustLine(ltx, getSourceID(), mCreateSpeedexIOCOffer.buyAsset)) {
 		innerResult().code(CREATE_SPEEDEX_IOC_OFFER_MALFORMED);
 		return false;
 	}
 
-    if (!reqs.tryAddAssetRequirement(ltx, mCreateSpeedexIOCOffer.selling, mCreateSpeedexIOCOffer.amount))
+    if (!reqs.tryAddAssetRequirement(ltx, mCreateSpeedexIOCOffer.sellAsset, mCreateSpeedexIOCOffer.sellAmount))
     {
     	innerResult().code(CREATE_SPEEDEX_IOC_OFFER_INSUFFICIENT_BALANCE);
         return false;
@@ -134,10 +143,10 @@ CreateSpeedexIOCOfferOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>
 		if (asset.type() != ASSET_TYPE_NATIVE) {
 			keys.emplace(trustlineKey(sourceID, asset));
 		}
-	}
+	};
 
-	trustLineKeyGen(mCreateSpeedexIOCOffer.selling);
-	trustLineKeyGen(mCreateSpeedexIOCOffer.buying);
+	trustLineKeyGen(mCreateSpeedexIOCOffer.sellAsset);
+	trustLineKeyGen(mCreateSpeedexIOCOffer.buyAsset);
 }
 
 

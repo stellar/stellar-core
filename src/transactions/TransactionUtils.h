@@ -24,7 +24,7 @@ struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
-struct SpeedexConfigEntryFrame;
+class SpeedexConfigEntryFrame;
 
 template <typename IterType>
 std::pair<IterType, bool>

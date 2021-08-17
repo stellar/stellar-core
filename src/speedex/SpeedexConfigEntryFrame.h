@@ -15,10 +15,10 @@ public:
 	SpeedexConfigEntryFrame(std::shared_ptr<const LedgerEntry> config);
 
 	operator bool() const {
-		return mSpeedexConfig;
+		return (bool) mSpeedexConfig;
 	}
 
-	bool isValidAssetPair(AssetPair tradingPair) const;
+	bool isValidAssetPair(const AssetPair& tradingPair) const;
 
 };
 
