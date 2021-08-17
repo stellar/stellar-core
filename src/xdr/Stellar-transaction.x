@@ -451,6 +451,14 @@ struct CreateSpeedexIOCOfferOp
     Price minPrice;
 };
 
+struct SpeedexIOCOfferHashContents
+{
+    AccounID sourceAccount;
+    Price minPrice;
+    uint64 seqNum;
+    uint32 opIdx;
+};
+
 const LIQUIDITY_POOL_FEE_V18 = 30;
 
 /* An operation is the lowest unit of work that a transaction does */
@@ -1340,8 +1348,11 @@ default:
 
 enum CreateSpeedexIOCOfferResultCode
 {
-    CREATE_SPEEDEX_IOC_OFFER_SUCCESS = 0
-
+    CREATE_SPEEDEX_IOC_OFFER_SUCCESS = 0,
+    CREATE_SPEEDEX_IOC_OFFER_NO_SPEEDEX_CONFIG = -1,
+    CREATE_SPEEDEX_IOC_OFFER_INVALID_TRADING_PAIR = -2,
+    CREATE_SPEEDEX_IOC_OFFER_INSUFFICENT_BALANCE = -3,
+    CREATE_SPEEDEX_IOC_OFFER_MALFORMED = -4;
 };
 
 struct SpeedexOfferClearingStatus

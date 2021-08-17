@@ -2,10 +2,12 @@
 
 #include "utils/XDROperators.h"
 
+#include <xdrpp/marshal.h>
+
 namespace stellar {
 
-IOCOffer::IOCOffer(int64_t sellAmount, Price minPrice, Hash totalOrderingHash)
-	: mSellAmount(sellAmount), mMinPrice(minPrice), mTotalOrderingHash(totalOrderingHash) {}
+IOCOffer::IOCOffer(int64_t sellAmount, Price minPrice, Hash totalOrderingHash, AccountID sourceAccount)
+	: mSellAmount(sellAmount), mMinPrice(minPrice), mTotalOrderingHash(totalOrderingHash), mSourceAccount(sourceAccount) {}
 
 std::strong_ordering 
 IOCOffer::operator<=>(const IOCOffer& other) {
@@ -27,6 +29,25 @@ IOCOffer::operator<=>(const IOCOffer& other) {
 	}
 	return std::strong_ordering::equal;
 }
+
+//should not be changed by fee bump tx
+Hash 
+IOCOffer::offerHash(Price price, AccountID sourceAccount, uint64_t sourceSeqNum, uint32_t opIdNum)
+{
+	SHA256 hasher;
+
+	SpeedexIOCOfferHashContents hashContents
+	{
+		.sourceAccount = sourceAccount,
+		.minPrice = price,
+		.seqNum = sourceSeqNum,
+		.opIdx = opIdNum;
+	};
+
+	hasher.add(xdr::xdr_to_opaque(hashContents));
+	return hasher.finish();
+}
+
 
 
 } /* stellar */

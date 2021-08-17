@@ -132,15 +132,17 @@ PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 
 bool
 PaymentOpFrame::doAddCommutativityRequirements(AbstractLedgerTxn& ltx,
-                                               AccountCommutativityRequirements& reqs) const
+                                               AccountCommutativityRequirements& reqs)
 {
     if (!reqs.checkTrustLine(ltx, toAccountID(mPayment.destination), mPayment.asset))
     {
+        innerResult().code(PAYMENT_MALFORMED); //TODO proper error code
         return false;
     }
 
     if (!reqs.tryAddAssetRequirement(ltx, mPayment.asset, mPayment.amount))
     {
+        innerResult().code(PAYMENT_UNDERFUNDED);
         return false;
     }
     return true;

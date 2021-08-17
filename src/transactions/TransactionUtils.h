@@ -24,6 +24,7 @@ struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
+struct SpeedexConfigEntryFrame;
 
 template <typename IterType>
 std::pair<IterType, bool>
@@ -100,6 +101,8 @@ LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
 
 LedgerTxnEntry loadSpeedexConfig(AbstractLedgerTxn& ltx);
+
+SpeedexConfigEntryFrame loadSpeedexConfigSnapshot(AbstractLedgerTxn& ltx);
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);

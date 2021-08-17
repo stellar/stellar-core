@@ -1590,8 +1590,9 @@ LedgerTxn::getSpeedexIOCOffers() const {
 IOCOrderbookManager const& 
 LedgerTxn::Impl::getSpeedexIOCOffers() const {
     throwIfChild();
-
-    return mSpeedexIOCOrderbooks;    
+    throwIfSealed();
+    //TODO some check to see whether parent has any offers that aren't included here?
+    return mSpeedexIOCOrderbooks;
 }
 
 ConstLedgerTxnEntry

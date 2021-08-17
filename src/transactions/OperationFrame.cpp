@@ -13,6 +13,7 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
+#include "transactions/CreateSpeedexIOCOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
@@ -106,6 +107,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ClawbackClaimableBalanceOpFrame>(op, res, tx);
     case SET_TRUST_LINE_FLAGS:
         return std::make_shared<SetTrustLineFlagsOpFrame>(op, res, tx);
+    case CREATE_SPEEDEX_IOC_OFFER:
+        return std::make_shared<CreateSpeedexIOCOfferOpFrame>(op, res, tx, index);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
@@ -139,7 +142,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
 
 bool
 OperationFrame::doAddCommutativityRequirements(AbstractLedgerTxn& ltx,
-                                               AccountCommutativityRequirements& reqs) const
+                                               AccountCommutativityRequirements& reqs)
 {
     return false;
 }

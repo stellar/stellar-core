@@ -14,14 +14,19 @@ class CreateSpeedexIOCOfferOpFrame : public OperationFrame
     }
     CreateSpeedexIOCOfferOp const& mCreateSpeedexIOCOffer;
 
+    uint32_t mOperationIndex;
+
+    bool checkMalformed();
+    bool checkValidAssetPair(AbstractLedgerTxn& ltx);
+
   public:
     CreateSpeedexIOCOfferOpFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+                   TransactionFrame& parentTx, uint32_t index);
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
-    bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs) const override;
+    bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs) override;
     
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

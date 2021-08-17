@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "speedex/SpeedexConfigEntryFrame.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
 #include "util/XDROperators.h"
@@ -297,8 +298,15 @@ loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 }
 
 LedgerTxnEntry
-loadSpeedexConfig(AbstractLedgerTxn& ltx) {
+loadSpeedexConfig(AbstractLedgerTxn& ltx)
+{
     return ltx.load(speedexConfigKey());
+}
+
+SpeedexConfigEntryFrame
+loadSpeedexConfigSnapshot(AbstractLedgerTxn&ltx)
+{
+    return SpeedexConfigEntryFrame(ltx.loadSnapshot(speedexConfigKey()));
 }
 
 static void

@@ -45,7 +45,7 @@ class OperationFrame
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
-    virtual bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs) const;
+    virtual bool doAddCommutativityRequirements(AbstractLedgerTxn& ltx, AccountCommutativityRequirements& reqs);
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;

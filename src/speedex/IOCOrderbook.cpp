@@ -35,6 +35,11 @@ IOCOrderbook::getOffers() {
 void
 IOCOrderbook::commitChild(const IOCOrderbook& other) {
 
+	if (tradingPair != other.tradingPair) {
+		throw std::runtime_error("merge orderbooks trading pair mismatch!");
+	}
+	mOffers.insert(other.mOffers.begin(), other.mOffers.end());
+	mPrecomputedTatonnementData.clear();
 }
 
 
