@@ -1228,7 +1228,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             TransactionMeta txm(2);
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
-                    REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                    REVOKE_SPONSORSHIP_MALFORMED);
         });
     }
 
@@ -1243,7 +1243,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             TransactionMeta txm(2);
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
-                    REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                    REVOKE_SPONSORSHIP_MALFORMED);
         });
     }
 
@@ -1259,10 +1259,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
-            auto error = ledgerKey.type() == LIQUIDITY_POOL
-                             ? REVOKE_SPONSORSHIP_MALFORMED
-                             : REVOKE_SPONSORSHIP_DOES_NOT_EXIST;
-            REQUIRE(getRevokeSponsorshipResultCode(tx, 0) == error);
+            REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                    REVOKE_SPONSORSHIP_MALFORMED);
 
             // This lambda can be used in a loop, so reset the seqnum
             a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);

@@ -404,7 +404,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
                 (tl.asset.type() == ASSET_TYPE_NATIVE) ||
                 isIssuer(tl.accountID, tl.asset))
             {
-                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
                 return false;
             }
             break;
@@ -412,7 +412,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case OFFER:
             if (lk.offer().offerID <= 0)
             {
-                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
                 return false;
             }
             break;
@@ -421,7 +421,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
             auto const& name = lk.data().dataName;
             if ((name.size() < 1) || !isString32Valid(name))
             {
-                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
                 return false;
             }
             break;
