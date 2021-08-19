@@ -317,4 +317,8 @@ ConvertResult convertWithOffersAndPools(
     int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimAtom>& offerTrail, int64_t maxOffersToCross);
+
+// Compute a PoolID as needed for offer exchange. Determines the correct order
+// for x and y.
+PoolID getPoolID(Asset const& x, Asset const& y, int32_t feeBps);
 }

@@ -1288,7 +1288,7 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
     }
 }
 
-static PoolID
+PoolID
 getPoolID(Asset const& x, Asset const& y, int32_t feeBps)
 {
     LiquidityPoolParameters lpp(LIQUIDITY_POOL_CONSTANT_PRODUCT);

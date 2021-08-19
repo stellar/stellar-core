@@ -12,7 +12,11 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+
+#include "util/Logging.h"
+#include "util/XDRCereal.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -382,4 +386,141 @@ TEST_CASE("liquidity pool trade", "[tx][liquiditypool]")
             }
         }
     });
+}
+
+static void
+testGetPoolID(Asset const& x, Asset const& y, std::string const& hex)
+{
+    int64_t const feeBps = LIQUIDITY_POOL_FEE_V18;
+
+    REQUIRE(x < y);
+    if (hex.empty())
+    {
+        CLOG_ERROR(Tx, "{}", binToHex(getPoolID(x, y, feeBps)));
+    }
+    else
+    {
+        REQUIRE(getPoolID(x, y, feeBps) == hexToBin256(hex));
+        REQUIRE(getPoolID(y, x, feeBps) == hexToBin256(hex));
+    }
+}
+
+static Asset
+makeAsset(std::string const& code, AccountID const& issuer)
+{
+    REQUIRE(!code.empty());
+    REQUIRE(code.size() <= 12);
+
+    Asset asset;
+    if (code.size() <= 4)
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        strToAssetCode(asset.alphaNum4().assetCode, code);
+        asset.alphaNum4().issuer = issuer;
+    }
+    else
+    {
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        strToAssetCode(asset.alphaNum12().assetCode, code);
+        asset.alphaNum12().issuer = issuer;
+    }
+    return asset;
+}
+
+TEST_CASE("liquidity pool id", "[tx][liquiditypool]")
+{
+    AccountID acc1(PUBLIC_KEY_TYPE_ED25519);
+    acc1.ed25519() = hexToBin256("0123456789abcdef0123456789abcdef"
+                                 "0123456789abcdef0123456789abcdef");
+
+    AccountID acc2(PUBLIC_KEY_TYPE_ED25519);
+    acc2.ed25519() = hexToBin256("abcdef0123456789abcdef0123456789"
+                                 "abcdef0123456789abcdef0123456789");
+
+    // NATIVE and ALPHANUM4 (short and full length)
+    testGetPoolID(
+        makeNativeAsset(), makeAsset("AbC", acc1),
+        "c17f36fbd210e43dca1cda8edc5b6c0f825fcb72b39f0392fd6309844d77ff7d");
+    testGetPoolID(
+        makeNativeAsset(), makeAsset("AbCd", acc1),
+        "80e0c5dc79ed76bb7e63681f6456136762f0d01ede94bb379dbc793e66db35e6");
+
+    // NATIVE and ALPHANUM12 (short and full length)
+    testGetPoolID(
+        makeNativeAsset(), makeAsset("AbCdEfGhIjK", acc1),
+        "d2306c6e8532f99418e9d38520865e1c1059cddb6793da3cc634224f2ffb5bd4");
+    testGetPoolID(
+        makeNativeAsset(), makeAsset("AbCdEfGhIjKl", acc1),
+        "807e9e66653b5fda4dd4e672ff64a929fc5fdafe152eeadc07bb460c4849d711");
+
+    // ALPHANUM4 and ALPHANUM4 (short and full length)
+    testGetPoolID(
+        makeAsset("AbC", acc1), makeAsset("aBc", acc1),
+        "0239013ab016985fc3ab077d165a9b21b822efa013fdd422381659e76aec505b");
+    testGetPoolID(
+        makeAsset("AbCd", acc1), makeAsset("aBc", acc1),
+        "cadb490d15b4333890377cd17400acf7681e14d6d949869ffa1fbbad7a6d2fde");
+    testGetPoolID(
+        makeAsset("AbC", acc1), makeAsset("aBcD", acc1),
+        "a938f8f346f3aff41d2e03b05137ef1955a723861802a4042f51f0f816e0db36");
+    testGetPoolID(
+        makeAsset("AbCd", acc1), makeAsset("aBcD", acc1),
+        "c89646bb6db726bfae784ab66041abbf54747cf4b6b16dff2a5c05830ad9c16b");
+
+    // ALPHANUM12 and ALPHANUM12 (short and full length)
+    testGetPoolID(
+        makeAsset("AbCdEfGhIjK", acc1), makeAsset("aBcDeFgHiJk", acc1),
+        "88dc054dd0f8146bac0e691095ce2b90cd902b499761d22b1c94df120ca0b060");
+    testGetPoolID(
+        makeAsset("AbCdEfGhIjKl", acc1), makeAsset("aBcDeFgHiJk", acc1),
+        "09672910d891e658219d2f33a8885a542b2a5a09e9f486461201bd278a3e92a4");
+    testGetPoolID(
+        makeAsset("AbCdEfGhIjK", acc1), makeAsset("aBcDeFgHiJkl", acc1),
+        "63501addf8a5a6522eac996226069190b5226c71cfdda22347022418af1948a0");
+    testGetPoolID(
+        makeAsset("AbCdEfGhIjKl", acc1), makeAsset("aBcDeFgHiJkl", acc1),
+        "e851197a0148e949bdc03d52c53821b9afccc0fadfdc41ae01058c14c252e03b");
+
+    // ALPHANUM4 same code different issuer (short and full length)
+    testGetPoolID(
+        makeAsset("aBc", acc1), makeAsset("aBc", acc2),
+        "5d7188454299529856586e81ea385d2c131c6afdd9d58c82e9aa558c16522fea");
+    testGetPoolID(
+        makeAsset("aBcD", acc1), makeAsset("aBcD", acc2),
+        "00d152f5f6b7e46eaf558576512207ea835a332f17ca777fba3cb835ef7dc1ef");
+
+    // ALPHANUM12 same code different issuer (short and full length)
+    testGetPoolID(
+        makeAsset("aBcDeFgHiJk", acc1), makeAsset("aBcDeFgHiJk", acc2),
+        "cad65154300f087e652981fa5f76aa469b43ad53e9a5d348f1f93da57193d022");
+    testGetPoolID(
+        makeAsset("aBcDeFgHiJkL", acc1), makeAsset("aBcDeFgHiJkL", acc2),
+        "93fa82ecaabe987461d1e3c8e0fd6510558b86ac82a41f7c70b112281be90c71");
+
+    // ALPHANUM4 before ALPHANUM12 (short and full length) doesn't depend on
+    // issuer or code
+    testGetPoolID(
+        makeAsset("aBc", acc1), makeAsset("aBcDeFgHiJk", acc2),
+        "c0d4c87bbaade53764b904fde2901a0353af437e9d3a976f1252670b85a36895");
+    testGetPoolID(
+        makeAsset("aBcD", acc1), makeAsset("aBcDeFgHiJk", acc2),
+        "1ee5aa0f0e6b8123c2da6592389481f64d816bfe3c3c06be282b0cdb0971f840");
+    testGetPoolID(
+        makeAsset("aBc", acc1), makeAsset("aBcDeFgHiJkL", acc2),
+        "a87bc151b119c1ea289905f0cb3cf95be7b0f096a0b6685bf2dcae70f9515d53");
+    testGetPoolID(
+        makeAsset("aBcD", acc1), makeAsset("aBcDeFgHiJkL", acc2),
+        "3caf78118d6cabd42618eef47bbc2da8abe7fe42539b4b502f08766485592a81");
+    testGetPoolID(
+        makeAsset("aBc", acc2), makeAsset("aBcDeFgHiJk", acc1),
+        "befb7f966ae63adcfde6a6670478bb7d936c29849e25e3387bb9e74566e3a29f");
+    testGetPoolID(
+        makeAsset("aBcD", acc2), makeAsset("aBcDeFgHiJk", acc1),
+        "593cc996c3f0d32e165fcbee9fdc5dba6ab05140a4a9254e08ad8cb67fe657a1");
+    testGetPoolID(
+        makeAsset("aBc", acc2), makeAsset("aBcDeFgHiJkL", acc1),
+        "d66af9b7417547c3dc000617533405349d1f622015daf3e9bad703ea34ee1d17");
+    testGetPoolID(
+        makeAsset("aBcD", acc2), makeAsset("aBcDeFgHiJkL", acc1),
+        "c1c7a4b9db6e3754cae3017f72b6b7c93198f593182c541bcab3795c6413a677");
 }
