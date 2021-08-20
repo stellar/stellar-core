@@ -143,6 +143,36 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
     }
 }
 
+static uint32_t
+getNumReservesRequiredForOperation(Operation const& op)
+{
+    if (op.body.type() == REVOKE_SPONSORSHIP &&
+        op.body.revokeSponsorshipOp().type() ==
+            REVOKE_SPONSORSHIP_LEDGER_ENTRY &&
+        (op.body.revokeSponsorshipOp().ledgerKey().type() == ACCOUNT ||
+         (op.body.revokeSponsorshipOp().ledgerKey().type() == TRUSTLINE &&
+          op.body.revokeSponsorshipOp().ledgerKey().trustLine().asset.type() ==
+              ASSET_TYPE_POOL_SHARE)))
+    {
+        return 2;
+    }
+    else if (op.body.type() == CREATE_ACCOUNT)
+    {
+        return 2;
+    }
+    else if (op.body.type() == CHANGE_TRUST &&
+             op.body.changeTrustOp().line.type() == ASSET_TYPE_POOL_SHARE)
+    {
+        return 2;
+    }
+    else if (op.body.type() == CREATE_CLAIMABLE_BALANCE)
+    {
+        return op.body.createClaimableBalanceOp().claimants.size();
+    }
+
+    return 1;
+}
+
 static void
 createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                     Operation const& opCreate,
@@ -203,6 +233,8 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                 }
             };
 
+            auto numReserves = getNumReservesRequiredForOperation(opCreate);
+
             {
                 LedgerTxn ltx(app.getLedgerTxnRoot());
                 TransactionMeta txm(2);
@@ -210,9 +242,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                 REQUIRE(tx->apply(app, ltx, txm));
 
                 check(ltx);
-                checkSponsorship(ltx, sponsoredAcc, 0, nullptr, nse + 1, 2, 0,
-                                 1);
-                checkSponsorship(ltx, root, 0, nullptr, 0, 2, 1, 0);
+                checkSponsorship(ltx, sponsoredAcc, 0, nullptr,
+                                 nse + numReserves, 2, 0, numReserves);
+                checkSponsorship(ltx, root, 0, nullptr, 0, 2, numReserves, 0);
                 ltx.commit();
             }
 
@@ -224,9 +256,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                 REQUIRE(tx2->apply(app, ltx2, txm2));
 
                 check(ltx2);
-                checkSponsorship(ltx2, sponsoredAcc, 0, nullptr, nse + 1, 2, 0,
-                                 1);
-                checkSponsorship(ltx2, root, 0, nullptr, 0, 2, 1, 0);
+                checkSponsorship(ltx2, sponsoredAcc, 0, nullptr,
+                                 nse + numReserves, 2, 0, numReserves);
+                checkSponsorship(ltx2, root, 0, nullptr, 0, 2, numReserves, 0);
                 ltx2.commit();
             }
 
@@ -238,9 +270,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                 REQUIRE(tx3->apply(app, ltx3, txm3));
 
                 check(ltx3);
-                checkSponsorship(ltx3, sponsoredAcc, 0, nullptr, nse + 1, 2, 0,
-                                 1);
-                checkSponsorship(ltx3, root, 0, nullptr, 0, 2, 1, 0);
+                checkSponsorship(ltx3, sponsoredAcc, 0, nullptr,
+                                 nse + numReserves, 2, 0, numReserves);
+                checkSponsorship(ltx3, root, 0, nullptr, 0, 2, numReserves, 0);
                 checkSponsorship(ltx3, a2, 0, nullptr, 0, 0, 0, 0);
                 ltx3.commit();
             }
@@ -320,36 +352,6 @@ getMinProtocolVersionForTooManyTestsFromOp(Operation const& op)
     }
 
     return 14;
-}
-
-static uint32_t
-getNumReservesRequiredForOperation(Operation const& op)
-{
-    if (op.body.type() == REVOKE_SPONSORSHIP &&
-        op.body.revokeSponsorshipOp().type() ==
-            REVOKE_SPONSORSHIP_LEDGER_ENTRY &&
-        (op.body.revokeSponsorshipOp().ledgerKey().type() == ACCOUNT ||
-         (op.body.revokeSponsorshipOp().ledgerKey().type() == TRUSTLINE &&
-          op.body.revokeSponsorshipOp().ledgerKey().trustLine().asset.type() ==
-              ASSET_TYPE_POOL_SHARE)))
-    {
-        return 2;
-    }
-    else if (op.body.type() == CREATE_ACCOUNT)
-    {
-        return 2;
-    }
-    else if (op.body.type() == CHANGE_TRUST &&
-             op.body.changeTrustOp().line.type() == ASSET_TYPE_POOL_SHARE)
-    {
-        return 2;
-    }
-    else if (op.body.type() == CREATE_CLAIMABLE_BALANCE)
-    {
-        return op.body.createClaimableBalanceOp().claimants.size();
-    }
-
-    return 1;
 }
 
 static void

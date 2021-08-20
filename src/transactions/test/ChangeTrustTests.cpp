@@ -284,6 +284,23 @@ TEST_CASE("change trust", "[tx][changetrust]")
         }
     }
 
+    SECTION("pool trustline sponsorship")
+    {
+        auto usd = makeAsset(gateway, "USD");
+        auto idrUsd =
+            makeChangeTrustAssetPoolShare(idr, usd, LIQUIDITY_POOL_FEE_V18);
+
+        auto acc1 =
+            root.create("a1", app->getLedgerManager().getLastMinBalance(3));
+        acc1.changeTrust(idr, 10);
+        acc1.changeTrust(usd, 10);
+
+        createModifyAndRemoveSponsoredEntry(
+            *app, acc1, changeTrust(idrUsd, 1000), changeTrust(idrUsd, 999),
+            changeTrust(idrUsd, 1001), changeTrust(idrUsd, 0),
+            trustlineKey(acc1, changeTrustAssetToTrustLineAsset(idrUsd)), 18);
+    }
+
     SECTION("pool trustline")
     {
         auto getNumSubEntries = [&](AccountID const& accountID) {
@@ -588,6 +605,41 @@ TEST_CASE("change trust", "[tx][changetrust]")
                 {
                     tooManySubentries(*app, acc1, changeTrust(idrUsd, 1),
                                       changeTrust(shareNative1, 1));
+                }
+            }
+
+            SECTION("sponsored pool share trustline where sponsor is issuer of "
+                    "both assets")
+            {
+                auto acc1 = root.create(
+                    "a1", app->getLedgerManager().getLastMinBalance(4));
+
+                // gateway is the issuer of usd and idr
+                acc1.changeTrust(idr, 10);
+                acc1.changeTrust(usd, 10);
+
+                {
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), gateway,
+                        {gateway.op(beginSponsoringFutureReserves(acc1)),
+                         acc1.op(changeTrust(idrUsd, 10)),
+                         acc1.op(endSponsoringFutureReserves())},
+                        {acc1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                    ltx.commit();
+                }
+
+                auto tlAsset = changeTrustAssetToTrustLineAsset(idrUsd);
+                REQUIRE(acc1.hasTrustLine(tlAsset));
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, trustlineKey(acc1, tlAsset), 1,
+                                     &gateway.getPublicKey());
                 }
             }
         });
