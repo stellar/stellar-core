@@ -149,11 +149,12 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                     Operation const& opModify1,
                                     Operation const& opModify2,
                                     Operation const& opRemove,
-                                    RevokeSponsorshipOp const& rso)
+                                    RevokeSponsorshipOp const& rso,
+                                    uint32_t ledgerVersionFrom)
 {
     SECTION("create, modify, and remove sponsored entry")
     {
-        for_versions_from(14, app, [&] {
+        for_versions_from(ledgerVersionFrom, app, [&] {
             uint32_t nse;
             {
                 LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -264,17 +265,16 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 }
 
 void
-createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
-                                    Operation const& opCreate,
-                                    Operation const& opModify1,
-                                    Operation const& opModify2,
-                                    Operation const& opRemove,
-                                    LedgerKey const& lk)
+createModifyAndRemoveSponsoredEntry(
+    Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
+    Operation const& opModify1, Operation const& opModify2,
+    Operation const& opRemove, LedgerKey const& lk, uint32_t ledgerVersionFrom)
 {
     RevokeSponsorshipOp rso(REVOKE_SPONSORSHIP_LEDGER_ENTRY);
     rso.ledgerKey() = lk;
     createModifyAndRemoveSponsoredEntry(app, sponsoredAcc, opCreate, opModify1,
-                                        opModify2, opRemove, rso);
+                                        opModify2, opRemove, rso,
+                                        ledgerVersionFrom);
 }
 
 void
@@ -289,7 +289,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
     rso.signer().accountID = sponsoredAcc;
     rso.signer().signerKey = signerKey;
     createModifyAndRemoveSponsoredEntry(app, sponsoredAcc, opCreate, opModify1,
-                                        opModify2, opRemove, rso);
+                                        opModify2, opRemove, rso, 14);
 }
 
 void

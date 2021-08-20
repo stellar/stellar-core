@@ -263,7 +263,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         createModifyAndRemoveSponsoredEntry(
             *app, acc2, changeTrust(idr, 1000), changeTrust(idr, 999),
             changeTrust(idr, 1001), changeTrust(idr, 0),
-            trustlineKey(acc2, idr));
+            trustlineKey(acc2, idr), 14);
     }
 
     SECTION("too many")
