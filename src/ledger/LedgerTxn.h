@@ -357,7 +357,7 @@ class AbstractLedgerTxnParent
     // addChild is called by a newly constructed AbstractLedgerTxn to become a
     // child of AbstractLedgerTxnParent. Throws if AbstractLedgerTxnParent
     // is in the sealed state or already has a child.
-    virtual void addChild(AbstractLedgerTxn& child) = 0;
+    virtual void addChild(AbstractLedgerTxn& child, bool useTransaction) = 0;
 
     // commitChild and rollbackChild are called by a child AbstractLedgerTxn
     // to trigger an atomic commit or an atomic rollback of the data stored in
@@ -635,13 +635,20 @@ class LedgerTxn : public AbstractLedgerTxn
     std::unique_ptr<Impl> const& getImpl() const;
 
   public:
+    // WARNING: use useTransaction flag with caution. It does not start a SQL
+    // transaction, which uses the strongest SERIALIZABLE level isolation.
+    // Therefore, if you have concurrent transactions, you are risking getting
+    // inconsistent view of the database. Only use this mode for read-only
+    // transactions with no concurrent writers present.
     explicit LedgerTxn(AbstractLedgerTxnParent& parent,
-                       bool shouldUpdateLastModified = true);
-    explicit LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified = true);
+                       bool shouldUpdateLastModified = true,
+                       bool useTransaction = true);
+    explicit LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified = true,
+                       bool useTransaction = true);
 
     virtual ~LedgerTxn();
 
-    void addChild(AbstractLedgerTxn& child) override;
+    void addChild(AbstractLedgerTxn& child, bool useTransaction) override;
 
     void commit() override;
 
@@ -769,7 +776,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     virtual ~LedgerTxnRoot();
 
-    void addChild(AbstractLedgerTxn& child) override;
+    void addChild(AbstractLedgerTxn& child, bool useTransaction) override;
 
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
 

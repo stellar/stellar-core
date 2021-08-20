@@ -236,7 +236,12 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     auto closeTime = mApp.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.scpValue.closeTime;
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+
+    // Transaction queue performs read-only transactions to the database and
+    // there are no concurrent writers, so it is safe to not enclose all the SQL
+    // statements into one transaction here.
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
+                  /* useTransaction */ false);
     if (!tx->checkValid(ltx, seqNum, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {

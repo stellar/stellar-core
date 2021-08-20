@@ -48,7 +48,7 @@ class InMemoryLedgerTxn : public LedgerTxn
     InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent, Database& db);
     virtual ~InMemoryLedgerTxn();
 
-    void addChild(AbstractLedgerTxn& child) override;
+    void addChild(AbstractLedgerTxn& child, bool useTransaction) override;
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
     void rollbackChild() override;
 };

@@ -223,18 +223,21 @@ AbstractLedgerTxn::~AbstractLedgerTxn()
 
 // Implementation of LedgerTxn ----------------------------------------------
 LedgerTxn::LedgerTxn(AbstractLedgerTxnParent& parent,
-                     bool shouldUpdateLastModified)
-    : mImpl(std::make_unique<Impl>(*this, parent, shouldUpdateLastModified))
+                     bool shouldUpdateLastModified, bool useTransaction)
+    : mImpl(std::make_unique<Impl>(*this, parent, shouldUpdateLastModified,
+                                   useTransaction))
 {
 }
 
-LedgerTxn::LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified)
-    : LedgerTxn((AbstractLedgerTxnParent&)parent, shouldUpdateLastModified)
+LedgerTxn::LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified,
+                     bool useTransaction)
+    : LedgerTxn((AbstractLedgerTxnParent&)parent, shouldUpdateLastModified,
+                useTransaction)
 {
 }
 
 LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
-                      bool shouldUpdateLastModified)
+                      bool shouldUpdateLastModified, bool useTransaction)
     : mParent(parent)
     , mChild(nullptr)
     , mHeader(std::make_unique<LedgerHeader>(mParent.getHeader()))
@@ -242,7 +245,7 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mIsSealed(false)
     , mConsistency(LedgerTxnConsistency::EXACT)
 {
-    mParent.addChild(self);
+    mParent.addChild(self, useTransaction);
 }
 
 LedgerTxn::~LedgerTxn()
@@ -264,13 +267,13 @@ LedgerTxn::getImpl() const
 }
 
 void
-LedgerTxn::addChild(AbstractLedgerTxn& child)
+LedgerTxn::addChild(AbstractLedgerTxn& child, bool useTransaction)
 {
-    getImpl()->addChild(child);
+    getImpl()->addChild(child, useTransaction);
 }
 
 void
-LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
+LedgerTxn::Impl::addChild(AbstractLedgerTxn& child, bool useTransaction)
 {
     throwIfSealed();
     throwIfChild();
@@ -2289,19 +2292,25 @@ LedgerTxnRoot::resetForFuzzer()
 #endif // BUILD_TESTS
 
 void
-LedgerTxnRoot::addChild(AbstractLedgerTxn& child)
+LedgerTxnRoot::addChild(AbstractLedgerTxn& child, bool useTransaction)
 {
-    mImpl->addChild(child);
+    mImpl->addChild(child, useTransaction);
 }
 
 void
-LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child)
+LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, bool useTransaction)
 {
     if (mChild)
     {
         throw std::runtime_error("LedgerTxnRoot already has child");
     }
-    mTransaction = std::make_unique<soci::transaction>(mDatabase.getSession());
+
+    if (useTransaction)
+    {
+        mTransaction =
+            std::make_unique<soci::transaction>(mDatabase.getSession());
+    }
+
     mChild = &child;
 }
 
@@ -2447,6 +2456,16 @@ void
 LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
     ZoneScoped;
+
+    // In this mode, where we do not start a SQL transaction, so we crash if
+    // there's an attempt to commit, since the expected behavior is load and
+    // rollback.
+    if (!mTransaction)
+    {
+        throw std::runtime_error("Illegal action in LedgerTxnRoot: committing "
+                                 "child in read-only mode");
+    }
+
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
@@ -3264,20 +3283,24 @@ LedgerTxnRoot::rollbackChild()
 void
 LedgerTxnRoot::Impl::rollbackChild()
 {
-    try
+    if (mTransaction)
     {
-        mTransaction->rollback();
-        mTransaction.reset();
-    }
-    catch (std::exception& e)
-    {
-        printErrorAndAbort(
-            "fatal error when rolling back child of LedgerTxnRoot: ", e.what());
-    }
-    catch (...)
-    {
-        printErrorAndAbort(
-            "unknown fatal error when rolling back child of LedgerTxnRoot");
+        try
+        {
+            mTransaction->rollback();
+            mTransaction.reset();
+        }
+        catch (std::exception& e)
+        {
+            printErrorAndAbort(
+                "fatal error when rolling back child of LedgerTxnRoot: ",
+                e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort(
+                "unknown fatal error when rolling back child of LedgerTxnRoot");
+        }
     }
 
     mChild = nullptr;
