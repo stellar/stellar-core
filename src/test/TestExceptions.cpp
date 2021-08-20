@@ -546,6 +546,9 @@ throwIf(TransactionResult const& result)
     case opNOT_SUPPORTED:
         throw ex_opNOT_SUPPORTED{};
         break;
+    case opEXCEEDED_WORK_LIMIT:
+        throw ex_opEXCEEDED_WORK_LIMIT{};
+        break;
     default:
         throw ex_UNKNOWN{};
     };

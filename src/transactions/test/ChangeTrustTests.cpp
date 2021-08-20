@@ -472,18 +472,38 @@ TEST_CASE("change trust", "[tx][changetrust]")
                 idr, usd, LIQUIDITY_POOL_FEE_V18 - 1);
             REQUIRE_THROWS_AS(root.changeTrust(invalidFee, 10),
                               ex_CHANGE_TRUST_MALFORMED);
-            auto invalidOrder =
-                makeChangeTrustAssetPoolShare(usd, idr, LIQUIDITY_POOL_FEE_V18);
+
+            // makeChangeTrustAssetPoolShare forbids invalid order so need to
+            // make it manually
+            ChangeTrustAsset invalidOrder;
+            invalidOrder.type(ASSET_TYPE_POOL_SHARE);
+            invalidOrder.liquidityPool().constantProduct().assetA = usd;
+            invalidOrder.liquidityPool().constantProduct().assetB = idr;
+            invalidOrder.liquidityPool().constantProduct().fee =
+                LIQUIDITY_POOL_FEE_V18;
             REQUIRE_THROWS_AS(root.changeTrust(invalidOrder, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
-            auto invalidOrderNative = makeChangeTrustAssetPoolShare(
-                idr, makeNativeAsset(), LIQUIDITY_POOL_FEE_V18);
+            // makeChangeTrustAssetPoolShare forbids invalid order so need to
+            // make it manually
+            ChangeTrustAsset invalidOrderNative;
+            invalidOrderNative.type(ASSET_TYPE_POOL_SHARE);
+            invalidOrderNative.liquidityPool().constantProduct().assetA = idr;
+            invalidOrderNative.liquidityPool().constantProduct().assetB =
+                makeNativeAsset();
+            invalidOrderNative.liquidityPool().constantProduct().fee =
+                LIQUIDITY_POOL_FEE_V18;
             REQUIRE_THROWS_AS(root.changeTrust(invalidOrderNative, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 
-            auto sameAssets =
-                makeChangeTrustAssetPoolShare(idr, idr, LIQUIDITY_POOL_FEE_V18);
+            // makeChangeTrustAssetPoolShare forbids invalid order so need to
+            // make it manually
+            ChangeTrustAsset sameAssets;
+            sameAssets.type(ASSET_TYPE_POOL_SHARE);
+            sameAssets.liquidityPool().constantProduct().assetA = idr;
+            sameAssets.liquidityPool().constantProduct().assetB = idr;
+            sameAssets.liquidityPool().constantProduct().fee =
+                LIQUIDITY_POOL_FEE_V18;
             REQUIRE_THROWS_AS(root.changeTrust(sameAssets, 10),
                               ex_CHANGE_TRUST_MALFORMED);
 

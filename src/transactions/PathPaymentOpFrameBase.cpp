@@ -73,7 +73,7 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
     releaseAssertOrThrow(!(sendAsset == recvAsset));
 
     // sendAsset -> recvAsset
-    ConvertResult r = convertWithOffers(
+    ConvertResult r = convertWithOffersAndPools(
         ltx, sendAsset, maxSend, amountSend, recvAsset, maxRecv, amountRecv,
         round,
         [this](LedgerTxnEntry const& o) {
