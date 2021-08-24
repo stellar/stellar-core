@@ -11,14 +11,16 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "xdrpp/marshal.h"
 
 #include <numeric>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -400,14 +402,13 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
         return; // probably account was removed due to merge operation
     }
 
-    auto header = ltx.loadHeader();
     auto signerKey = SignerKeyUtils::preAuthTxKey(*this);
     auto& signers = account.current().data.account().signers;
     auto findRes = findSignerByKey(signers.begin(), signers.end(), signerKey);
     if (findRes.second)
     {
-        removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
-                                            account);
+        SignerSponsorable ss(getFeeSourceID(), findRes.first - signers.begin());
+        ss.erase(ltx);
     }
 }
 

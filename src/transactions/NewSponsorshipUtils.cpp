@@ -14,6 +14,28 @@ namespace stellar
 {
 namespace SponsorshipUtils
 {
+uint32_t
+getNumSponsored(LedgerEntry const& le)
+{
+    auto const& ae = le.data.account();
+    if (hasAccountEntryExtV2(ae))
+    {
+        return ae.ext.v1().ext.v2().numSponsored;
+    }
+    return 0;
+}
+
+uint32_t
+getNumSponsoring(LedgerEntry const& le)
+{
+    auto const& ae = le.data.account();
+    if (hasAccountEntryExtV2(ae))
+    {
+        return ae.ext.v1().ext.v2().numSponsoring;
+    }
+    return 0;
+}
+
 std::unique_ptr<Sponsorable>
 makeSponsorable(LedgerKey const& key)
 {

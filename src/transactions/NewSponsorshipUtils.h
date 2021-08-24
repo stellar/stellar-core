@@ -4,12 +4,29 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/SponsorshipUtils.h"
+#include "overlay/StellarXDR.h"
+#include <cstdint>
 
 namespace stellar
 {
+class AbstractLedgerTxn;
+class LedgerTxnEntry;
+class LedgerTxnHeader;
+
 namespace SponsorshipUtils
 {
+enum class SponsorshipResult
+{
+    SUCCESS,
+    LOW_RESERVE,
+    TOO_MANY_SUBENTRIES,
+    TOO_MANY_SPONSORING,
+    TOO_MANY_SPONSORED
+};
+
+uint32_t getNumSponsored(LedgerEntry const& le);
+uint32_t getNumSponsoring(LedgerEntry const& le);
+
 class Sponsorable
 {
   public:

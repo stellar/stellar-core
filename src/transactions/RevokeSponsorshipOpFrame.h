@@ -8,7 +8,11 @@
 
 namespace stellar
 {
+
+namespace SponsorshipUtils
+{
 enum class SponsorshipResult;
+}
 
 class RevokeSponsorshipOpFrame : public OperationFrame
 {
@@ -21,7 +25,7 @@ class RevokeSponsorshipOpFrame : public OperationFrame
     }
     RevokeSponsorshipOp const& mRevokeSponsorshipOp;
 
-    bool processSponsorshipResult(SponsorshipResult sr);
+    bool processSponsorshipResult(SponsorshipUtils::SponsorshipResult sr);
 
     bool updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx);
     bool updateSignerSponsorship(AbstractLedgerTxn& ltx);
