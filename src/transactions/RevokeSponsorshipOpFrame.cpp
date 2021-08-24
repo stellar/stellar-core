@@ -7,7 +7,6 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "transactions/NewSponsorshipUtils.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 
 using namespace stellar::SponsorshipUtils;
@@ -262,50 +261,37 @@ RevokeSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx)
     if (wasSignerSponsored && willSignerBeSponsored)
     {
         // Transfer sponsorship
-        auto const& ssIDs = ae.ext.v1().ext.v2().signerSponsoringIDs;
-        auto oldSponsoringAcc = loadAccount(ltx, *ssIDs.at(index));
         auto const& se = sponsorship.currentGeneralized().sponsorshipEntry();
-        auto newSponsoringAcc = loadAccount(ltx, se.sponsoringID);
-        auto res = canTransferSignerSponsorship(
-            header.current(), it, oldSponsoringAcc.current(),
-            newSponsoringAcc.current(), sponsoredAcc.current());
+        SignerSponsorable ss(sponsoredAcc.current().data.account().accountID,
+                             index);
+        auto res = ss.transferSponsorship(ltx, se.sponsoringID);
         if (!processSponsorshipResult(res))
         {
             return false;
         }
-        transferSignerSponsorship(it, oldSponsoringAcc.current(),
-                                  newSponsoringAcc.current(),
-                                  sponsoredAcc.current());
     }
     else if (wasSignerSponsored && !willSignerBeSponsored)
     {
         // Remove sponsorship
-        auto const& ssIDs = ae.ext.v1().ext.v2().signerSponsoringIDs;
-        auto oldSponsoringAcc = loadAccount(ltx, *ssIDs.at(index));
-        auto res = canRemoveSignerSponsorship(header.current(), it,
-                                              oldSponsoringAcc.current(),
-                                              sponsoredAcc.current());
+        SignerSponsorable ss(sponsoredAcc.current().data.account().accountID,
+                             index);
+        auto res = ss.removeSponsorship(ltx);
         if (!processSponsorshipResult(res))
         {
             return false;
         }
-        removeSignerSponsorship(it, oldSponsoringAcc.current(),
-                                sponsoredAcc.current());
     }
     else if (!wasSignerSponsored && willSignerBeSponsored)
     {
         // Establish sponsorship
         auto const& se = sponsorship.currentGeneralized().sponsorshipEntry();
-        auto sponsoringAcc = loadAccount(ltx, se.sponsoringID);
-        auto res = canEstablishSignerSponsorship(header.current(), it,
-                                                 sponsoringAcc.current(),
-                                                 sponsoredAcc.current());
+        SignerSponsorable ss(sponsoredAcc.current().data.account().accountID,
+                             index);
+        auto res = ss.establishSponsorship(ltx, se.sponsoringID);
         if (!processSponsorshipResult(res))
         {
             return false;
         }
-        establishSignerSponsorship(it, sponsoringAcc.current(),
-                                   sponsoredAcc.current());
     }
     else // (!wasSignerSponsored && !willSignerBeSponsored)
     {
