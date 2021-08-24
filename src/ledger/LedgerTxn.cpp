@@ -3039,11 +3039,10 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
             populateEntryCacheFromBestOffers(iter, lastOfferIter);
         }
 
-        putInEntryCache(LedgerEntryKey(*iter),
-                        std::make_shared<LedgerEntry const>(*iter),
-                        LoadType::IMMEDIATE);
+        auto le = std::make_shared<LedgerEntry const>(*iter);
+        putInEntryCache(LedgerEntryKey(*iter), le, LoadType::IMMEDIATE);
 
-        return std::make_shared<LedgerEntry const>(*iter);
+        return le;
     }
     return nullptr;
 }
