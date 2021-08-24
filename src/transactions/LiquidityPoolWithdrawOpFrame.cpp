@@ -21,7 +21,7 @@ LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
 bool
 LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 18;
+    return header.ledgerVersion >= 18 && !isPoolWithdrawalDisabled(header);
 }
 
 bool

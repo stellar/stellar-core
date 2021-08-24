@@ -1313,6 +1313,10 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         // Only exchange with pools starting at protocol version 18
         return false;
     }
+    if (isPoolTradingDisabled(ltx.loadHeader().current()))
+    {
+        return false;
+    }
     if (round == RoundingType::NORMAL)
     {
         // Only exchange with pools for path payments

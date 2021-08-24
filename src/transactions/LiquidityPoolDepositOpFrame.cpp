@@ -21,7 +21,7 @@ LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
 bool
 LiquidityPoolDepositOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 18;
+    return header.ledgerVersion >= 18 && !isPoolDepositDisabled(header);
 }
 
 static bool
