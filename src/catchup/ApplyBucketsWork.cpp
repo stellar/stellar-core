@@ -119,6 +119,15 @@ ApplyBucketsWork::onReset()
             addBucket(getBucket(hsb.snap));
             addBucket(getBucket(hsb.curr));
         }
+        // estimate the number of ledger entries contained in those buckets
+        // use accounts as a rough approximator as to overestimate a bit
+        // (default BucketEntry contains a default AccountEntry)
+        size_t const estimatedLedgerEntrySize =
+            xdr::xdr_traits<BucketEntry>::serial_size(BucketEntry{});
+        size_t const totalLECount = mTotalSize / estimatedLedgerEntrySize;
+        CLOG_INFO(History, "ApplyBuckets estimated {} ledger entries",
+                  totalLECount);
+        mApp.getLedgerTxnRoot().prepareNewObjects(totalLECount);
     }
 
     mLevel = BucketList::kNumLevels - 1;

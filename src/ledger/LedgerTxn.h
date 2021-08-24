@@ -458,6 +458,9 @@ class AbstractLedgerTxnParent
     // than a (real or stub) root LedgerTxn.
     virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
 
+    // prepares to increase the capacity of pending changes by up to "s" changes
+    virtual void prepareNewObjects(size_t s) = 0;
+
 #ifdef BUILD_TESTS
     virtual void resetForFuzzer() = 0;
 #endif // BUILD_TESTS
@@ -730,6 +733,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropLiquidityPools() override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+    void prepareNewObjects(size_t s) override;
 
     bool hasSponsorshipEntry() const override;
 
@@ -818,6 +822,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     double getPrefetchHitRate() const override;
+
+    void prepareNewObjects(size_t s) override;
 
 #ifdef BEST_OFFER_DEBUGGING
     bool bestOfferDebuggingEnabled() const override;
