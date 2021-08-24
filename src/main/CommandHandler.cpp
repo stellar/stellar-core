@@ -483,6 +483,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         p.mMaxTxSize = parseOptionalParam<uint32>(retMap, "maxtxsize");
         p.mProtocolVersion =
             parseOptionalParam<uint32>(retMap, "protocolversion");
+        p.mFlags = parseOptionalParam<uint32>(retMap, "flags");
 
         mApp.getHerder().setUpgrades(p);
     }
