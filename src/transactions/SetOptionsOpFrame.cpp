@@ -9,10 +9,12 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
-#include "transactions/SponsorshipUtils.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -79,7 +81,8 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
                                          SponsorshipDescriptor{});
     }
 
-    switch (createSignerWithPossibleSponsorship(ltx, header, it, sourceAccount))
+    SignerSponsorable ss(getSourceID(), it - account.signers.begin());
+    switch (ss.create(ltx))
     {
     case SponsorshipResult::SUCCESS:
         break;
@@ -97,14 +100,13 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
         // entries, fall through and throw
     default:
         throw std::runtime_error(
-            "Unexpected result from createSignerWithPossibleSponsorship");
+            "Unexpected result from SignerSponsorable::create");
     }
     return true;
 }
 
 void
 SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
-                                LedgerTxnHeader const& header,
                                 LedgerTxnEntry& sourceAccount)
 {
     auto& account = sourceAccount.current().data.account();
@@ -114,8 +116,15 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
                                    mSetOptions.signer->key);
     if (findRes.second)
     {
-        removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
-                                            sourceAccount);
+        SignerSponsorable ss(getSourceID(), findRes.first - signers.begin());
+        ss.erase(ltx);
+
+        // This replicates buggy caching in old protocol versions
+        if (ltx.loadHeader().current().ledgerVersion < 8)
+        {
+            auto le = loadAccount(ltx, getSourceID()).current();
+            loadSourceAccount(ltx, ltx.loadHeader()).current() = le;
+        }
     }
 }
 
@@ -216,7 +225,8 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
         else
         {
-            deleteSigner(ltx, header, sourceAccount);
+            header.deactivate();
+            deleteSigner(ltx, sourceAccount);
         }
     }
 
