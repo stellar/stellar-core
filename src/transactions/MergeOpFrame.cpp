@@ -61,92 +61,128 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
     }
 }
 
+static void
+throwIfMergingIntoSponsorOfSigner(LedgerTxnEntry& sourceAccountEntry,
+                                  AccountID const& destination)
+{
+    auto& acc = sourceAccountEntry.current().data.account();
+    if (hasAccountEntryExtV2(acc))
+    {
+        auto& signerSponsoringIDs =
+            getAccountEntryExtensionV2(acc).signerSponsoringIDs;
+        for (auto const& sid : signerSponsoringIDs)
+        {
+            if (sid && *sid == destination)
+            {
+                throw std::runtime_error("merged into sponsor of signer");
+            }
+        }
+    }
+}
+
 bool
 MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
 {
-    auto header = ltx.loadHeader();
-
-    auto otherAccount =
-        stellar::loadAccount(ltx, toAccountID(mOperation.body.destination()));
-    if (!otherAccount)
-    {
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-        return false;
-    }
-
     int64_t sourceBalance = 0;
-    if (header.current().ledgerVersion > 4 &&
-        header.current().ledgerVersion < 8)
     {
-        // in versions < 8, merge account could be called with a stale account
-        LedgerKey key(ACCOUNT);
-        key.account().accountID = getSourceID();
-        auto thisAccount = ltx.loadWithoutRecord(key);
-        if (!thisAccount)
+        auto header = ltx.loadHeader();
+
+        if (!loadAccount(ltx, toAccountID(mOperation.body.destination())))
         {
             innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
             return false;
         }
 
-        if (header.current().ledgerVersion > 5)
+        if (header.current().ledgerVersion > 4 &&
+            header.current().ledgerVersion < 8)
         {
-            sourceBalance = thisAccount.current().data.account().balance;
+            // in versions < 8, merge account could be called with a stale
+            // account
+            LedgerKey key(ACCOUNT);
+            key.account().accountID = getSourceID();
+            auto thisAccount = ltx.loadWithoutRecord(key);
+            if (!thisAccount)
+            {
+                innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+                return false;
+            }
+
+            if (header.current().ledgerVersion > 5)
+            {
+                sourceBalance = thisAccount.current().data.account().balance;
+            }
         }
-    }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header);
-    auto const& sourceAccount = sourceAccountEntry.current().data.account();
-    // Only set sourceBalance here if it wasn't set in the previous block
-    if (header.current().ledgerVersion <= 5 ||
-        header.current().ledgerVersion >= 8)
-    {
-        sourceBalance = sourceAccount.balance;
-    }
-
-    if (isImmutableAuth(sourceAccountEntry))
-    {
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
-        return false;
-    }
-
-    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
-    {
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-        return false;
-    }
-
-    if (header.current().ledgerVersion >= 10)
-    {
-        if (isSeqnumTooFar(header, sourceAccount))
+        auto sourceAccountEntry = loadSourceAccount(ltx, header);
+        auto const& sourceAccount = sourceAccountEntry.current().data.account();
+        // Only set sourceBalance here if it wasn't set in the previous block
+        if (header.current().ledgerVersion <= 5 ||
+            header.current().ledgerVersion >= 8)
         {
-            innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
-            return false;
+            sourceBalance = sourceAccount.balance;
         }
-    }
 
-    if (header.current().ledgerVersion >= 14)
-    {
-        if (loadSponsorshipCounter(ltx, getSourceID()))
+        if (isImmutableAuth(sourceAccountEntry))
         {
-            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
             return false;
         }
 
-        if (getNumSponsoring(sourceAccountEntry.current()) > 0)
+        if (sourceAccount.numSubEntries != sourceAccount.signers.size())
         {
-            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
             return false;
         }
 
-        while (!sourceAccount.signers.empty())
+        if (header.current().ledgerVersion >= 10)
         {
-            removeSignerWithPossibleSponsorship(ltx, header,
-                                                sourceAccount.signers.end() - 1,
-                                                sourceAccountEntry);
+            if (isSeqnumTooFar(header, sourceAccount))
+            {
+                innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+                return false;
+            }
         }
+    }
+
+    {
+        LedgerTxn ltxSponsorship(ltx);
+        if (ltxSponsorship.loadHeader().current().ledgerVersion >= 14)
+        {
+            if (loadSponsorshipCounter(ltxSponsorship, getSourceID()))
+            {
+                innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+                return false;
+            }
+
+            auto sourceAccountEntry =
+                loadAccount(ltxSponsorship, getSourceID());
+            if (getNumSponsoring(sourceAccountEntry.current()) > 0)
+            {
+                innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+                return false;
+            }
+
+            // Reproduce internal error when merging into sponsor
+            throwIfMergingIntoSponsorOfSigner(
+                sourceAccountEntry, toAccountID(mOperation.body.destination()));
+
+            for (size_t n =
+                     sourceAccountEntry.current().data.account().signers.size();
+                 n > 0; --n)
+            {
+                SignerSponsorable ss(getSourceID(), 0);
+                ss.erase(ltxSponsorship);
+            }
+        }
+        ltxSponsorship.commit();
     }
 
     // "success" path starts
+    auto header = ltx.loadHeader();
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
+    auto otherAccount =
+        loadAccount(ltx, toAccountID(mOperation.body.destination()));
+
     if (!addBalance(header, otherAccount, sourceBalance))
     {
         innerResult().code(ACCOUNT_MERGE_DEST_FULL);
@@ -172,59 +208,73 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
 bool
 MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
 {
-    auto header = ltx.loadHeader();
-
-    if (!stellar::loadAccount(ltx, toAccountID(mOperation.body.destination())))
     {
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-        return false;
+        auto header = ltx.loadHeader();
+
+        if (!stellar::loadAccount(ltx,
+                                  toAccountID(mOperation.body.destination())))
+        {
+            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+            return false;
+        }
+
+        auto sourceAccountEntry = loadSourceAccount(ltx, header);
+
+        if (isImmutableAuth(sourceAccountEntry))
+        {
+            innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
+            return false;
+        }
+
+        // use a lambda so we don't hold a reference to the AccountEntry
+        auto sourceAccount = [&]() -> AccountEntry const& {
+            return sourceAccountEntry.current().data.account();
+        };
+
+        if (sourceAccount().numSubEntries != sourceAccount().signers.size())
+        {
+            innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            return false;
+        }
+
+        if (isSeqnumTooFar(header, sourceAccount()))
+        {
+            innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+            return false;
+        }
+
+        if (loadSponsorshipCounter(ltx, getSourceID()))
+        {
+            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            return false;
+        }
+
+        if (getNumSponsoring(sourceAccountEntry.current()) > 0)
+        {
+            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            return false;
+        }
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header);
-
-    if (isImmutableAuth(sourceAccountEntry))
     {
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
-        return false;
-    }
-
-    // use a lambda so we don't hold a reference to the AccountEntry
-    auto sourceAccount = [&]() -> AccountEntry const& {
-        return sourceAccountEntry.current().data.account();
-    };
-
-    if (sourceAccount().numSubEntries != sourceAccount().signers.size())
-    {
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-        return false;
-    }
-
-    if (isSeqnumTooFar(header, sourceAccount()))
-    {
-        innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
-        return false;
-    }
-
-    if (loadSponsorshipCounter(ltx, getSourceID()))
-    {
-        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
-        return false;
-    }
-
-    if (getNumSponsoring(sourceAccountEntry.current()) > 0)
-    {
-        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
-        return false;
-    }
-
-    while (!sourceAccount().signers.empty())
-    {
-        removeSignerWithPossibleSponsorship(
-            ltx, header, sourceAccount().signers.end() - 1, sourceAccountEntry);
+        LedgerTxn ltxSponsorship(ltx);
+        auto header = ltxSponsorship.loadHeader();
+        auto sourceAccountEntry = loadSourceAccount(ltxSponsorship, header);
+        for (size_t n =
+                 sourceAccountEntry.current().data.account().signers.size();
+             n > 0; --n)
+        {
+            SignerSponsorable ss(getSourceID(), 0);
+            ss.erase(ltxSponsorship);
+        }
+        ltxSponsorship.commit();
     }
 
     // "success" path starts
-    auto sourceBalance = sourceAccount().balance;
+    auto header = ltx.loadHeader();
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
+
+    auto sourceBalance = sourceAccountEntry.current().data.account().balance;
     {
         auto otherAccount = stellar::loadAccount(
             ltx, toAccountID(mOperation.body.destination()));
