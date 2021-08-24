@@ -47,6 +47,27 @@ struct StellarValue
     ext;
 };
 
+const MASK_LEDGER_HEADER_FLAGS = 0x7;
+
+enum LedgerHeaderFlags
+{
+    DISABLE_LIQUIDITY_POOL_TRADING_FLAG = 0x1,
+    DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG = 0x2,
+    DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG = 0x4
+};
+
+struct LedgerHeaderExtensionV1
+{
+    uint32 flags; // LedgerHeaderFlags
+
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
 /* The LedgerHeader is the highest level structure representing the
  * state of a ledger, cryptographically linked to previous ledgers.
  */
@@ -84,6 +105,8 @@ struct LedgerHeader
     {
     case 0:
         void;
+    case 1:
+        LedgerHeaderExtensionV1 v1;
     }
     ext;
 };
@@ -98,7 +121,8 @@ enum LedgerUpgradeType
     LEDGER_UPGRADE_VERSION = 1,
     LEDGER_UPGRADE_BASE_FEE = 2,
     LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3,
-    LEDGER_UPGRADE_BASE_RESERVE = 4
+    LEDGER_UPGRADE_BASE_RESERVE = 4,
+    LEDGER_UPGRADE_FLAGS = 5
 };
 
 union LedgerUpgrade switch (LedgerUpgradeType type)
@@ -111,6 +135,8 @@ case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     uint32 newMaxTxSetSize; // update maxTxSetSize
 case LEDGER_UPGRADE_BASE_RESERVE:
     uint32 newBaseReserve; // update baseReserve
+case LEDGER_UPGRADE_FLAGS:
+    uint32 newFlags; // update flags
 };
 
 /* Entries used to define the bucket list */
