@@ -79,6 +79,17 @@ prepareLedgerEntryExtensionV1(LedgerEntry& le)
     return le.ext.v1();
 }
 
+void
+setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags)
+{
+    if (lh.ext.v() == 0)
+    {
+        lh.ext.v(1);
+    }
+
+    lh.ext.v1().flags = flags;
+}
+
 AccountEntryExtensionV2&
 getAccountEntryExtensionV2(AccountEntry& ae)
 {

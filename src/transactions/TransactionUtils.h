@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
 #include <algorithm>
 
@@ -41,6 +42,7 @@ TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
 TrustLineEntryExtensionV2& prepareTrustLineEntryExtensionV2(TrustLineEntry& tl);
 LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le);
+void setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags);
 
 AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae);
 TrustLineEntryExtensionV2& getTrustLineEntryExtensionV2(TrustLineEntry& le);

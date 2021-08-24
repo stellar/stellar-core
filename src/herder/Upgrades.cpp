@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -42,6 +43,7 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     ar(make_nvp("fee", p.mBaseFee));
     ar(make_nvp("maxtxsize", p.mMaxTxSize));
     ar(make_nvp("reserve", p.mBaseReserve));
+    ar(make_nvp("flags", p.mFlags));
 }
 
 template <class Archive>
@@ -55,6 +57,7 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
     ar(make_nvp("fee", o.mBaseFee));
     ar(make_nvp("maxtxsize", o.mMaxTxSize));
     ar(make_nvp("reserve", o.mBaseReserve));
+    ar(make_nvp("flags", o.mFlags));
 }
 } // namespace cereal
 
@@ -177,6 +180,14 @@ Upgrades::createUpgradesFor(LedgerHeader const& header) const
         result.emplace_back(LEDGER_UPGRADE_BASE_RESERVE);
         result.back().newBaseReserve() = *mParams.mBaseReserve;
     }
+    if (mParams.mFlags)
+    {
+        if (LedgerHeaderUtils::getFlags(header) != *mParams.mFlags)
+        {
+            result.emplace_back(LEDGER_UPGRADE_FLAGS);
+            result.back().newFlags() = *mParams.mFlags;
+        }
+    }
 
     return result;
 }
@@ -197,6 +208,9 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx)
         break;
     case LEDGER_UPGRADE_BASE_RESERVE:
         applyReserveUpgrade(ltx, upgrade.newBaseReserve());
+        break;
+    case LEDGER_UPGRADE_FLAGS:
+        setLedgerHeaderFlag(ltx.loadHeader().current(), upgrade.newFlags());
         break;
     default:
     {
@@ -219,6 +233,8 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
         return fmt::format("maxtxsetsize={0}", upgrade.newMaxTxSetSize());
     case LEDGER_UPGRADE_BASE_RESERVE:
         return fmt::format("basereserve={0}", upgrade.newBaseReserve());
+    case LEDGER_UPGRADE_FLAGS:
+        return fmt::format("flags={0}", upgrade.newFlags());
     default:
         return "<unsupported>";
     }
@@ -248,6 +264,7 @@ Upgrades::toString() const
     appendInfo("basefee", mParams.mBaseFee);
     appendInfo("basereserve", mParams.mBaseReserve);
     appendInfo("maxtxsize", mParams.mMaxTxSize);
+    appendInfo("flags", mParams.mFlags);
 
     return r.str();
 }
@@ -278,6 +295,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mBaseFee);
         resetParamIfSet(res.mMaxTxSize);
         resetParamIfSet(res.mBaseReserve);
+        resetParamIfSet(res.mFlags);
 
         return res;
     }
@@ -315,6 +333,9 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
             break;
         case LEDGER_UPGRADE_BASE_RESERVE:
             resetParam(res.mBaseReserve, lu.newBaseReserve());
+            break;
+        case LEDGER_UPGRADE_FLAGS:
+            resetParam(res.mFlags, lu.newFlags());
             break;
         default:
             // skip unknown
@@ -359,6 +380,10 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
     case LEDGER_UPGRADE_BASE_RESERVE:
         res = res && (upgrade.newBaseReserve() != 0);
         break;
+    case LEDGER_UPGRADE_FLAGS:
+        res = res && header.ledgerVersion >= 18 &&
+              (upgrade.newFlags() & ~MASK_LEDGER_HEADER_FLAGS) == 0;
+        break;
     default:
         res = false;
     }
@@ -388,6 +413,8 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
     case LEDGER_UPGRADE_BASE_RESERVE:
         return mParams.mBaseReserve &&
                (upgrade.newBaseReserve() == *mParams.mBaseReserve);
+    case LEDGER_UPGRADE_FLAGS:
+        return mParams.mFlags && (upgrade.newFlags() == *mParams.mFlags);
     default:
         return false;
     }

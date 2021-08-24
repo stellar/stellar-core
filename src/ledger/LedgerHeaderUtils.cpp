@@ -24,6 +24,12 @@ namespace stellar
 namespace LedgerHeaderUtils
 {
 
+uint32_t
+getFlags(LedgerHeader const& lh)
+{
+    return lh.ext.v() == 1 ? lh.ext.v1().flags : 0;
+}
+
 bool
 isValid(LedgerHeader const& lh)
 {
