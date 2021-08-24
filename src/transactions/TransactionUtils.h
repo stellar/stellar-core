@@ -193,6 +193,10 @@ void setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
+bool isPoolDepositDisabled(LedgerHeader const& header);
+bool isPoolWithdrawalDisabled(LedgerHeader const& header);
+bool isPoolTradingDisabled(LedgerHeader const& header);
+
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
