@@ -12,8 +12,8 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/OfferExchange.h"
-#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
@@ -27,6 +27,8 @@
 #include <optional>
 #include <regex>
 #include <xdrpp/marshal.h>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace cereal
 {
@@ -693,9 +695,7 @@ getOfferAccountMinBalances(
 
 static void
 eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
-                                  LedgerTxnHeader const& header,
                                   LedgerTxnEntry& offerEntry,
-                                  LedgerTxnEntry& accountEntry,
                                   UnorderedSet<AccountID>& changedAccounts)
 {
     LedgerEntry::_ext_t extension = offerEntry.current().ext;
@@ -717,10 +717,8 @@ eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
 
     // If offer is not sponsored -
     // 1. the offers account will have at least 1 subEntry
-    removeEntryWithPossibleSponsorship(ltx, header, offerEntry.current(),
-                                       accountEntry);
-
-    offerEntry.erase();
+    OwnedEntrySponsorable oes(LedgerEntryKey(offerEntry.current()));
+    oes.erase(ltx);
 }
 
 // This function is used to bring offers and liabilities into a valid state.
@@ -734,11 +732,20 @@ eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
 // using the initial result of step (1), so it does not matter what order the
 // offers are processed.
 static void
-prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
+prepareLiabilities(AbstractLedgerTxn& ltxOuter)
 {
     CLOG_INFO(Ledger, "Starting prepareLiabilities");
+    LedgerTxn ltx(ltxOuter);
 
     auto offersByAccount = ltx.loadAllOffers();
+    std::map<AccountID, std::vector<LedgerKey>> keysByAccount;
+    for (auto const& kv : offersByAccount)
+    {
+        std::transform(
+            kv.second.begin(), kv.second.end(),
+            std::back_inserter(keysByAccount[kv.first]),
+            [](auto const& ltxe) { return LedgerEntryKey(ltxe.current()); });
+    }
 
     UnorderedSet<AccountID> changedAccounts;
     uint64_t nChangedTrustLines = 0;
@@ -748,9 +755,10 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
     // We want to keep track of the original minBalances before they are changed
     // due to sponsorship changes from deleted offers
     auto offerAccountMinBalanceMap =
-        getOfferAccountMinBalances(ltx, header, offersByAccount);
+        getOfferAccountMinBalances(ltx, ltx.loadHeader(), offersByAccount);
+    offersByAccount.clear();
 
-    for (auto& accountOffers : offersByAccount)
+    for (auto& accountKeys : keysByAccount)
     {
         // The purpose of std::unique_ptr here is to have a special value
         // (nullptr) to indicate that an integer overflow would have occurred.
@@ -759,30 +767,26 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         // handled in what follows.
         std::map<Asset, std::unique_ptr<int64_t>> initialBuyingLiabilities;
         std::map<Asset, std::unique_ptr<int64_t>> initialSellingLiabilities;
-        for (auto const& offerEntry : accountOffers.second)
+        for (auto const& key : accountKeys.second)
         {
+            auto offerEntry = ltx.load(key);
             auto const& offer = offerEntry.current().data.offer();
-            addLiabilities(initialBuyingLiabilities, offer.sellerID,
-                           offer.buying,
-                           getOfferBuyingLiabilities(header, offerEntry));
-            addLiabilities(initialSellingLiabilities, offer.sellerID,
-                           offer.selling,
-                           getOfferSellingLiabilities(header, offerEntry));
+            addLiabilities(
+                initialBuyingLiabilities, offer.sellerID, offer.buying,
+                getOfferBuyingLiabilities(ltx.loadHeader(), offerEntry));
+            addLiabilities(
+                initialSellingLiabilities, offer.sellerID, offer.selling,
+                getOfferSellingLiabilities(ltx.loadHeader(), offerEntry));
         }
 
-        auto accountEntry = stellar::loadAccount(ltx, accountOffers.first);
-        if (!accountEntry)
-        {
-            throw std::runtime_error("account does not exist");
-        }
-        auto const& acc = accountEntry.current().data.account();
-        AccountEntry const accountBefore = acc;
+        auto const accountBefore =
+            loadAccount(ltx, accountKeys.first).current().data.account();
 
         // balanceAboveReserve must exclude native selling liabilities, since
         // these are in the process of being recalculated from scratch.
-        int64_t balance = acc.balance;
+        int64_t balance = accountBefore.balance;
 
-        auto it = offerAccountMinBalanceMap.find(accountOffers.first);
+        auto it = offerAccountMinBalanceMap.find(accountKeys.first);
         if (it == offerAccountMinBalanceMap.end())
         {
             // this shouldn't happen. getOfferAccountMinBalances added all keys
@@ -794,17 +798,19 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         int64_t balanceAboveReserve = balance - minBalance;
 
         std::map<Asset, Liabilities> liabilities;
-        for (auto& offerEntry : accountOffers.second)
+        for (auto& key : accountKeys.second)
         {
+            auto offerEntry = ltx.load(key);
             auto offerID = offerEntry.current().data.offer().offerID;
-            auto res = updateOffer(offerEntry, balance, balanceAboveReserve,
-                                   liabilities, initialBuyingLiabilities,
-                                   initialSellingLiabilities, ltx, header);
+            auto res =
+                updateOffer(offerEntry, balance, balanceAboveReserve,
+                            liabilities, initialBuyingLiabilities,
+                            initialSellingLiabilities, ltx, ltx.loadHeader());
             if (res == UpdateOfferResult::AdjustedToZero ||
                 res == UpdateOfferResult::Erase)
             {
-                eraseOfferWithPossibleSponsorship(
-                    ltx, header, offerEntry, accountEntry, changedAccounts);
+                eraseOfferWithPossibleSponsorship(ltx, offerEntry,
+                                                  changedAccounts);
             }
 
             ++nUpdatedOffers[res];
@@ -829,6 +835,8 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
             }
         }
 
+        auto header = ltx.loadHeader();
+        auto accountEntry = loadAccount(ltx, accountKeys.first);
         for (auto const& assetLiabilities : liabilities)
         {
             Asset const& asset = assetLiabilities.first;
@@ -853,7 +861,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
             else
             {
                 auto trustEntry =
-                    stellar::loadTrustLine(ltx, accountOffers.first, asset);
+                    stellar::loadTrustLine(ltx, accountKeys.first, asset);
                 int64_t deltaSelling =
                     liab.selling - trustEntry.getSellingLiabilities(header);
                 int64_t deltaBuying =
@@ -884,12 +892,14 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
             }
         }
 
-        if (!(acc == accountBefore))
+        if (!(accountEntry.current().data.account() == accountBefore))
         {
-            changedAccounts.emplace(acc.accountID);
+            changedAccounts.emplace(
+                accountEntry.current().data.account().accountID);
         }
     }
 
+    ltx.commit();
     CLOG_INFO(Ledger,
               "prepareLiabilities completed with {} accounts modified, {} "
               "trustlines modified, {} offers adjusted, {} offers adjusted to "
@@ -954,7 +964,7 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
     header.current().ledgerVersion = newVersion;
     if (header.current().ledgerVersion >= 10 && prevVersion < 10)
     {
-        prepareLiabilities(ltx, header);
+        prepareLiabilities(ltx);
     }
     else if (header.current().ledgerVersion == 16 && prevVersion == 15)
     {
@@ -971,7 +981,7 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
     header.current().baseReserve = newReserve;
     if (header.current().ledgerVersion >= 10 && didReserveIncrease)
     {
-        prepareLiabilities(ltx, header);
+        prepareLiabilities(ltx);
     }
 }
 }
