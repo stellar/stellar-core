@@ -10,11 +10,13 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/NewSponsorshipUtils.h"
 #include "transactions/OfferExchange.h"
-#include "transactions/SponsorshipUtils.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
+
+using namespace stellar::SponsorshipUtils;
 
 namespace stellar
 {
@@ -1135,10 +1137,18 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
 {
     LedgerTxn ltxInner(ltx);
 
-    auto header = ltxInner.loadHeader();
     auto offers = ltxInner.loadOffersByAccountAndAsset(account, asset);
-    for (auto& offer : offers)
+
+    std::vector<LedgerKey> keys;
+    std::transform(
+        offers.begin(), offers.end(), std::back_inserter(keys),
+        [](auto const& ltxe) { return LedgerEntryKey(ltxe.current()); });
+
+    offers.clear();
+
+    for (auto& key : keys)
     {
+        auto offer = ltxInner.load(key);
         auto const& oe = offer.current().data.offer();
         if (!(oe.sellerID == account))
         {
@@ -1150,12 +1160,12 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
                 "Offer not buying or selling expected asset");
         }
 
-        releaseLiabilities(ltxInner, header, offer);
-        auto trustAcc = stellar::loadAccount(ltxInner, account);
-        removeEntryWithPossibleSponsorship(ltxInner, header, offer.current(),
-                                           trustAcc);
-        offer.erase();
+        releaseLiabilities(ltxInner, ltxInner.loadHeader(), offer);
+
+        OwnedEntrySponsorable oes(key);
+        oes.erase(ltxInner);
     }
+
     ltxInner.commit();
 }
 
