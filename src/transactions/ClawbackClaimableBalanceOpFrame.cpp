@@ -19,10 +19,9 @@ ClawbackClaimableBalanceOpFrame::ClawbackClaimableBalanceOpFrame(
 }
 
 bool
-ClawbackClaimableBalanceOpFrame::isVersionSupported(
-    uint32_t protocolVersion) const
+ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 17;
+    return header.ledgerVersion >= 17;
 }
 
 bool

@@ -31,9 +31,9 @@ ManageBuyOfferOpFrame::ManageBuyOfferOpFrame(Operation const& op,
 }
 
 bool
-ManageBuyOfferOpFrame::isVersionSupported(uint32_t protocolVersion) const
+ManageBuyOfferOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 11;
+    return header.ledgerVersion >= 11;
 }
 
 bool

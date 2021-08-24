@@ -45,8 +45,9 @@ class OperationFrame
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
 
-    // returns true if the operation is supported given a protocol version
-    virtual bool isVersionSupported(uint32_t protocolVersion) const;
+    // returns true if the operation is supported given a protocol version and
+    // header flags
+    virtual bool isOpSupported(LedgerHeader const& header) const;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);

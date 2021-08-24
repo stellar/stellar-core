@@ -149,7 +149,8 @@ OperationFrame::getThresholdLevel() const
     return ThresholdLevel::MEDIUM;
 }
 
-bool OperationFrame::isVersionSupported(uint32_t) const
+bool
+OperationFrame::isOpSupported(LedgerHeader const&) const
 {
     return true;
 }
@@ -215,13 +216,13 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker,
     ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
     LedgerTxn ltx(ltxOuter);
-    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    if (!isVersionSupported(ledgerVersion))
+    if (!isOpSupported(ltx.loadHeader().current()))
     {
         mResult.code(opNOT_SUPPORTED);
         return false;
     }
 
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     if (!forApply || ledgerVersion < 10)
     {
         if (!checkSignature(signatureChecker, ltx, forApply))

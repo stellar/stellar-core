@@ -21,9 +21,9 @@ RevokeSponsorshipOpFrame::RevokeSponsorshipOpFrame(Operation const& op,
 }
 
 bool
-RevokeSponsorshipOpFrame::isVersionSupported(uint32_t protocolVersion) const
+RevokeSponsorshipOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 14;
+    return header.ledgerVersion >= 14;
 }
 
 static AccountID const&

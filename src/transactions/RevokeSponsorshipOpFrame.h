@@ -12,7 +12,7 @@ enum class SponsorshipResult;
 
 class RevokeSponsorshipOpFrame : public OperationFrame
 {
-    bool isVersionSupported(uint32_t protocolVersion) const override;
+    bool isOpSupported(LedgerHeader const& header) const override;
 
     RevokeSponsorshipResult&
     innerResult()

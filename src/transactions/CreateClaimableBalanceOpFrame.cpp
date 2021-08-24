@@ -132,10 +132,9 @@ CreateClaimableBalanceOpFrame::CreateClaimableBalanceOpFrame(
 }
 
 bool
-CreateClaimableBalanceOpFrame::isVersionSupported(
-    uint32_t protocolVersion) const
+CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 14;
+    return header.ledgerVersion >= 14;
 }
 
 bool

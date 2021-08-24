@@ -17,9 +17,9 @@ ClawbackOpFrame::ClawbackOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ClawbackOpFrame::isVersionSupported(uint32_t protocolVersion) const
+ClawbackOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 17;
+    return header.ledgerVersion >= 17;
 }
 
 bool

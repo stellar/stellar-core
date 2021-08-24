@@ -30,9 +30,9 @@ SetTrustLineFlagsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetTrustLineFlagsOpFrame::isVersionSupported(uint32_t protocolVersion) const
+SetTrustLineFlagsOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 17;
+    return header.ledgerVersion >= 17;
 }
 
 bool

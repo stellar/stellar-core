@@ -14,7 +14,7 @@ namespace stellar
 class BumpSequenceOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
-    bool isVersionSupported(uint32_t protocolVersion) const override;
+    bool isOpSupported(LedgerHeader const& header) const override;
 
     BumpSequenceResult&
     innerResult()
