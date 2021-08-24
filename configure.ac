@@ -355,6 +355,11 @@ AC_ARG_ENABLE(tracy-capture,
         [Enable 'tracy' profiler/tracer capture program]))
 AM_CONDITIONAL(USE_TRACY_CAPTURE, [test x$enable_tracy_capture = xyes])
 
+AC_ARG_ENABLE(tracy-csvexport,
+    AS_HELP_STRING([--enable-tracy-csvexport],
+        [Enable 'tracy' profiler/tracer csvexport program]))
+AM_CONDITIONAL(USE_TRACY_CSVEXPORT, [test x$enable_tracy_csvexport = xyes])
+
 AC_ARG_ENABLE(spdlog,
     AS_HELP_STRING([--disable-spdlog],
         [Disable spdlog]))

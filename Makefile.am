@@ -49,6 +49,18 @@ tracy-capture: $(TRACY_CAPTURE_BUILD)/capture-release
 	cp -v $< $@
 endif # USE_TRACY_CAPTURE
 
+if USE_TRACY_CSVEXPORT
+TRACY_CSVEXPORT_DIR=$(top_srcdir)/lib/tracy/csvexport
+TRACY_CSVEXPORT_SOURCE=$(TRACY_CSVEXPORT_DIR)/src
+TRACY_CSVEXPORT_BUILD=$(TRACY_CSVEXPORT_DIR)/build/unix
+
+$(TRACY_CSVEXPORT_BUILD)/csvexport-release: $(wildcard $(TRACY_CSVEXPORT_SOURCE)/*.*)
+	$(MAKE) -C $(TRACY_CSVEXPORT_BUILD) release CC="$(CC)" CXX="$(CXX)"
+
+tracy-csvexport: $(TRACY_CSVEXPORT_BUILD)/csvexport-release
+	cp -v $< $@
+endif # USE_TRACY_CSVEXPORT
+
 EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
 	test/testnet/run-test.sh README.md make-mks
 
