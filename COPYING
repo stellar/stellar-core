@@ -204,3 +204,11 @@ lib/spdlog
   (https://github.com/gabime/spdlog)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+src/ledger/LedgerHashUtils.h
+
+    Portion copied from fast-hash
+    Copyright (C) Zilong Tan (eric.zltan@gmail.com)
+    ( https://github.com/ztanml/fast-hash )
+    Licensed under the MIT license
+    (http://opensource.org/licenses/MIT)

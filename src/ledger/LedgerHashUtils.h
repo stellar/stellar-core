@@ -24,6 +24,17 @@ getLiquidityPoolID(TrustLineAsset const& tlAsset)
     return tlAsset.liquidityPoolID();
 }
 
+static inline void
+hashMix(size_t& h, size_t v)
+{
+    // from https://github.com/ztanml/fast-hash (MIT license)
+    v ^= v >> 23;
+    v *= 0x2127599bf4325c37ULL;
+    v ^= v >> 47;
+    h ^= v;
+    h *= 0x880355f21e6d1965ULL;
+}
+
 template <typename T>
 static size_t
 getAssetHash(T const& asset)
@@ -37,23 +48,25 @@ getAssetHash(T const& asset)
     case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
     {
         auto& a4 = asset.alphaNum4();
-        res ^= stellar::shortHash::computeHash(
-            stellar::ByteSlice(a4.issuer.ed25519().data(), 8));
-        res ^= a4.assetCode[0];
+        hashMix(res, stellar::shortHash::computeHash(
+                         stellar::ByteSlice(a4.issuer.ed25519().data(), 8)));
+        hashMix(res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         a4.assetCode.data(), a4.assetCode.size())));
         break;
     }
     case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
     {
         auto& a12 = asset.alphaNum12();
-        res ^= stellar::shortHash::computeHash(
-            stellar::ByteSlice(a12.issuer.ed25519().data(), 8));
-        res ^= a12.assetCode[0];
+        hashMix(res, stellar::shortHash::computeHash(
+                         stellar::ByteSlice(a12.issuer.ed25519().data(), 8)));
+        hashMix(res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         a12.assetCode.data(), a12.assetCode.size())));
         break;
     }
     case stellar::ASSET_TYPE_POOL_SHARE:
     {
-        res ^= stellar::shortHash::computeHash(
-            stellar::ByteSlice(getLiquidityPoolID(asset).data(), 8));
+        hashMix(res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         getLiquidityPoolID(asset).data(), 8)));
         break;
     }
     default:
@@ -93,38 +106,46 @@ template <> class hash<stellar::LedgerKey>
     size_t
     operator()(stellar::LedgerKey const& lk) const
     {
-        size_t res;
+        size_t res = lk.type();
         switch (lk.type())
         {
         case stellar::ACCOUNT:
-            res = stellar::shortHash::computeHash(
-                stellar::ByteSlice(lk.account().accountID.ed25519().data(), 8));
+            stellar::hashMix(res,
+                             stellar::shortHash::computeHash(stellar::ByteSlice(
+                                 lk.account().accountID.ed25519().data(), 8)));
             break;
         case stellar::TRUSTLINE:
         {
             auto& tl = lk.trustLine();
-            res = stellar::shortHash::computeHash(
-                stellar::ByteSlice(tl.accountID.ed25519().data(), 8));
-            res ^= hash<stellar::TrustLineAsset>()(tl.asset);
+            stellar::hashMix(
+                res, stellar::shortHash::computeHash(
+                         stellar::ByteSlice(tl.accountID.ed25519().data(), 8)));
+            stellar::hashMix(res, hash<stellar::TrustLineAsset>()(tl.asset));
             break;
         }
         case stellar::DATA:
-            res = stellar::shortHash::computeHash(
-                stellar::ByteSlice(lk.data().accountID.ed25519().data(), 8));
-            res ^= stellar::shortHash::computeHash(stellar::ByteSlice(
-                lk.data().dataName.data(), lk.data().dataName.size()));
+            stellar::hashMix(res,
+                             stellar::shortHash::computeHash(stellar::ByteSlice(
+                                 lk.data().accountID.ed25519().data(), 8)));
+            stellar::hashMix(
+                res,
+                stellar::shortHash::computeHash(stellar::ByteSlice(
+                    lk.data().dataName.data(), lk.data().dataName.size())));
             break;
         case stellar::OFFER:
-            res = stellar::shortHash::computeHash(stellar::ByteSlice(
-                &lk.offer().offerID, sizeof(lk.offer().offerID)));
+            stellar::hashMix(
+                res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         &lk.offer().offerID, sizeof(lk.offer().offerID))));
             break;
         case stellar::CLAIMABLE_BALANCE:
-            res = stellar::shortHash::computeHash(stellar::ByteSlice(
-                lk.claimableBalance().balanceID.v0().data(), 8));
+            stellar::hashMix(
+                res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         lk.claimableBalance().balanceID.v0().data(), 8)));
             break;
         case stellar::LIQUIDITY_POOL:
-            res = stellar::shortHash::computeHash(stellar::ByteSlice(
-                lk.liquidityPool().liquidityPoolID.data(), 8));
+            stellar::hashMix(
+                res, stellar::shortHash::computeHash(stellar::ByteSlice(
+                         lk.liquidityPool().liquidityPoolID.data(), 8)));
             break;
         default:
             abort();
