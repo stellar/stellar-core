@@ -251,5 +251,15 @@ TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys);
+
+LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
+
+UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);
+
+LedgerHeader executeUpgrades(Application& app,
+                             xdr::xvector<UpgradeType, 6> const& upgrades);
+
+LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade);
+
 } // end txtest namespace
 }

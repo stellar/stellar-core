@@ -1425,5 +1425,39 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys));
 }
+
+LedgerUpgrade
+makeBaseReserveUpgrade(int baseReserve)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_BASE_RESERVE};
+    result.newBaseReserve() = baseReserve;
+    return result;
+}
+
+UpgradeType
+toUpgradeType(LedgerUpgrade const& upgrade)
+{
+    auto v = xdr::xdr_to_opaque(upgrade);
+    auto result = UpgradeType{v.begin(), v.end()};
+    return result;
+}
+
+LedgerHeader
+executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
+{
+    auto& lm = app.getLedgerManager();
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+
+    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
+                                     upgrades);
+    return lm.getLastClosedLedgerHeader().header;
+};
+
+LedgerHeader
+executeUpgrade(Application& app, LedgerUpgrade const& lupgrade)
+{
+    return executeUpgrades(app, {toUpgradeType(lupgrade)});
+};
 }
 }
