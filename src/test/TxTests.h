@@ -82,7 +82,8 @@ void validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t reserveA, int64_t reserveB,
-                        int64_t totalPoolShares);
+                        int64_t totalPoolShares,
+                        int64_t poolSharesTrustLineCount);
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,

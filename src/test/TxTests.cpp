@@ -396,7 +396,8 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 void
 checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
-                   int64_t reserveB, int64_t totalPoolShares)
+                   int64_t reserveB, int64_t totalPoolShares,
+                   int64_t poolSharesTrustLineCount)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto lp = loadLiquidityPool(ltx, poolID);
@@ -405,6 +406,7 @@ checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
     REQUIRE(cp.reserveA == reserveA);
     REQUIRE(cp.reserveB == reserveB);
     REQUIRE(cp.totalPoolShares == totalPoolShares);
+    REQUIRE(cp.poolSharesTrustLineCount == poolSharesTrustLineCount);
 }
 
 TxSetResultMeta
