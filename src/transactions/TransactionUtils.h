@@ -187,6 +187,8 @@ bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(ClaimableBalanceEntry const& entry);
 bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
+void setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb);
+
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,

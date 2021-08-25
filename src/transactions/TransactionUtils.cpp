@@ -947,6 +947,19 @@ isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
     return isClawbackEnabledOnAccount(entry.current());
 }
 
+void
+setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
+{
+    if (cb.ext.v() != 0)
+    {
+        throw std::runtime_error(
+            "unexpected ClaimableBalanceEntry ext version");
+    }
+
+    cb.ext.v(1);
+    cb.ext.v1().flags = CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG;
+}
+
 bool
 isImmutableAuth(LedgerTxnEntry const& entry)
 {

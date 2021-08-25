@@ -15,19 +15,6 @@
 namespace stellar
 {
 
-static void
-setClaimableBalanceClawbackEnabled(ClaimableBalanceEntry& cb)
-{
-    if (cb.ext.v() != 0)
-    {
-        throw std::runtime_error(
-            "unexpected ClaimableBalanceEntry ext version");
-    }
-
-    cb.ext.v(1);
-    cb.ext.v1().flags = CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG;
-}
-
 static int64_t
 relativeToAbsolute(TimePoint closeTime, int64_t relative)
 {
