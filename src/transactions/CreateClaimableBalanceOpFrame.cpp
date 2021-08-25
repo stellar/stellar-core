@@ -298,12 +298,12 @@ CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
 Hash
 CreateClaimableBalanceOpFrame::getBalanceID()
 {
-    OperationID operationID;
-    operationID.type(ENVELOPE_TYPE_OP_ID);
-    operationID.id().sourceAccount = mParentTx.getSourceID();
-    operationID.id().seqNum = mParentTx.getSeqNum();
-    operationID.id().opNum = mOpIndex;
+    HashIDPreimage hashPreimage;
+    hashPreimage.type(ENVELOPE_TYPE_OP_ID);
+    hashPreimage.operationID().sourceAccount = mParentTx.getSourceID();
+    hashPreimage.operationID().seqNum = mParentTx.getSeqNum();
+    hashPreimage.operationID().opNum = mOpIndex;
 
-    return xdrSha256(operationID);
+    return xdrSha256(hashPreimage);
 }
 }
