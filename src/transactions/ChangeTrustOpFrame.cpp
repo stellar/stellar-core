@@ -17,27 +17,6 @@
 namespace stellar
 {
 
-static void
-decrementPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
-                      AccountID const& accountID)
-{
-    if (!isIssuer(accountID, asset) && asset.type() != ASSET_TYPE_NATIVE)
-    {
-        auto assetTrustLine = ltx.load(trustlineKey(accountID, asset));
-        if (!assetTrustLine)
-        {
-            throw std::runtime_error("asset trustline is missing");
-        }
-
-        if (--getTrustLineEntryExtensionV2(
-                  assetTrustLine.current().data.trustLine())
-                  .liquidityPoolUseCount < 0)
-        {
-            throw std::runtime_error("liquidityPoolUseCount is negative");
-        }
-    }
-}
-
 void
 ChangeTrustOpFrame::managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
                                                  TrustLineAsset const& tlAsset)
@@ -51,8 +30,8 @@ ChangeTrustOpFrame::managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
 
     auto const& cp = mChangeTrust.line.liquidityPool().constantProduct();
 
-    decrementPoolUseCount(ltxInner, cp.assetA, getSourceID());
-    decrementPoolUseCount(ltxInner, cp.assetB, getSourceID());
+    decrementLiquidityPoolUseCount(ltxInner, cp.assetA, getSourceID());
+    decrementLiquidityPoolUseCount(ltxInner, cp.assetB, getSourceID());
 
     auto poolLtxEntry = loadLiquidityPool(ltxInner, tlAsset.liquidityPoolID());
     if (!poolLtxEntry)
