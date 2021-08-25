@@ -1142,7 +1142,9 @@ claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
     return true;
 }
 
-void
+// The following static methods are used for authorization revocation
+
+static void
 removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
                               Asset const& asset)
 {
@@ -1170,6 +1172,347 @@ removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx, AccountID const& account,
         offer.erase();
     }
     ltxInner.commit();
+}
+
+static bool
+tryGetEntrySponsor(LedgerTxnEntry& entry, AccountID& sponsor)
+{
+    if (entry.current().ext.v() == 1 &&
+        getLedgerEntryExtensionV1(entry.current()).sponsoringID)
+    {
+        sponsor = *getLedgerEntryExtensionV1(entry.current()).sponsoringID;
+        return true;
+    }
+
+    return false;
+}
+
+static AccountID
+getTrustLineBacker(LedgerTxnEntry& trustLine)
+{
+    AccountID sponsor;
+    if (tryGetEntrySponsor(trustLine, sponsor))
+    {
+        return sponsor;
+    }
+
+    return trustLine.current().data.trustLine().accountID;
+}
+
+static void
+prefetchForRevokeFromPoolShareTrustLines(
+    AbstractLedgerTxn& ltx, AccountID const& accountID,
+    std::vector<LedgerTxnEntry>& poolShareTrustLines)
+{
+    // first prefetch the liquidity pools and pool share trustline sponsors
+    UnorderedSet<LedgerKey> keys;
+    for (auto& trustLine : poolShareTrustLines)
+    {
+        keys.emplace(liquidityPoolKey(
+            trustLine.current().data.trustLine().asset.liquidityPoolID()));
+
+        AccountID sponsor;
+        if (tryGetEntrySponsor(trustLine, sponsor))
+        {
+            keys.emplace(accountKey(sponsor));
+        }
+    }
+    ltx.prefetch(keys);
+
+    // now prefetch the asset trustlines
+    keys.clear();
+    for (auto const& trustLine : poolShareTrustLines)
+    {
+        // prefetching shouldn't affect the protocol, so use loadWithoutRecord
+        // to not touch lastModified
+        auto pool = ltx.loadWithoutRecord(liquidityPoolKey(
+            trustLine.current().data.trustLine().asset.liquidityPoolID()));
+
+        auto const& params =
+            pool.current().data.liquidityPool().body.constantProduct().params;
+
+        if (params.assetA.type() != ASSET_TYPE_NATIVE &&
+            !isIssuer(accountID, params.assetA))
+        {
+            keys.emplace(trustlineKey(accountID, params.assetA));
+        }
+
+        if (params.assetB.type() != ASSET_TYPE_NATIVE &&
+            !isIssuer(accountID, params.assetB))
+        {
+            keys.emplace(trustlineKey(accountID, params.assetB));
+        }
+    }
+    ltx.prefetch(keys);
+}
+
+static ClaimableBalanceID
+getRevokeID(AccountID const& txSourceID, SequenceNumber txSeqNum,
+            uint32_t opIndex, PoolID const& poolID, Asset const& asset)
+{
+    HashIDPreimage hashPreimage;
+    hashPreimage.type(ENVELOPE_TYPE_POOL_REVOKE_OP_ID);
+    hashPreimage.revokeID().sourceAccount = txSourceID;
+    hashPreimage.revokeID().seqNum = txSeqNum;
+    hashPreimage.revokeID().opNum = opIndex;
+    hashPreimage.revokeID().liquidityPoolID = poolID;
+    hashPreimage.revokeID().asset = asset;
+
+    ClaimableBalanceID balanceID;
+    balanceID.type(CLAIMABLE_BALANCE_ID_TYPE_V0);
+    balanceID.v0() = xdrSha256(hashPreimage);
+
+    return balanceID;
+}
+
+static Claimant
+makeUnconditionalClaimant(AccountID const& accountID)
+{
+    Claimant c;
+    c.v0().destination = accountID;
+    c.v0().predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+
+    return c;
+}
+
+RemoveResult
+removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
+                                   AccountID const& accountID,
+                                   Asset const& asset,
+                                   AccountID const& txSourceID,
+                                   SequenceNumber txSeqNum, uint32_t opIndex)
+{
+    removeOffersByAccountAndAsset(ltx, accountID, asset);
+
+    LedgerTxn ltxInner(ltx);
+
+    if (ltxInner.loadHeader().current().ledgerVersion < 18)
+    {
+        return RemoveResult::SUCCESS;
+    }
+
+    // redeem from pools
+    // load all relevant pool share trustLines
+    auto poolShareTrustLines =
+        ltxInner.loadPoolShareTrustLinesByAccountAndAsset(accountID, asset);
+
+    if (poolShareTrustLines.empty())
+    {
+        return RemoveResult::SUCCESS;
+    }
+
+    prefetchForRevokeFromPoolShareTrustLines(ltxInner, accountID,
+                                             poolShareTrustLines);
+
+    for (auto& poolShareTrustLine : poolShareTrustLines)
+    {
+        // use a lambda so we don't hold a reference to the internals of
+        // TrustLineEntry
+        auto poolTL = [&]() -> TrustLineEntry const& {
+            return poolShareTrustLine.current().data.trustLine();
+        };
+
+        auto poolID = poolTL().asset.liquidityPoolID();
+        auto balance = poolTL().balance;
+        auto cbSponsoringAccID = getTrustLineBacker(poolShareTrustLine);
+
+        // release reserves and delete the pool share trustline
+        {
+            auto trustAcc = stellar::loadAccount(ltxInner, accountID);
+            removeEntryWithPossibleSponsorship(ltxInner, ltxInner.loadHeader(),
+                                               poolShareTrustLine.current(),
+                                               trustAcc);
+
+            // using poolTL() after this will throw an exception
+            poolShareTrustLine.erase();
+        }
+
+        auto redeemIntoClaimableBalance =
+            [&ltxInner, &txSourceID, txSeqNum, opIndex, &poolID, &accountID,
+             &cbSponsoringAccID](Asset const& assetInPool,
+                                 int64_t amount) -> RemoveResult {
+            // if the amount is 0 or the claimant is the issuer, then we don't
+            // create the claimable balance
+            if (isIssuer(accountID, assetInPool) || amount == 0)
+            {
+                return RemoveResult::SUCCESS;
+            }
+
+            // create a claimable balance for the asset in the pool
+            LedgerEntry claimableBalance;
+            claimableBalance.data.type(CLAIMABLE_BALANCE);
+
+            auto& claimableBalanceEntry =
+                claimableBalance.data.claimableBalance();
+
+            claimableBalanceEntry.balanceID =
+                getRevokeID(txSourceID, txSeqNum, opIndex, poolID, assetInPool);
+            claimableBalanceEntry.amount = amount;
+            claimableBalanceEntry.asset = assetInPool;
+            claimableBalanceEntry.claimants = {
+                makeUnconditionalClaimant(accountID)};
+
+            // if this asset isn't native
+            // 1. set clawback if it's set on the trustline
+            // 2. decrement liquidityPoolUseCount on the asset trustline
+            if (assetInPool.type() != ASSET_TYPE_NATIVE)
+            {
+                // asset trustline must exist because the pool share trustline
+                // exists, and this lambda returns early if the issuer is the
+                // claimant
+                auto assetTrustLine =
+                    loadTrustLine(ltxInner, accountID, assetInPool);
+                if (assetTrustLine.isClawbackEnabled())
+                {
+                    setClaimableBalanceClawbackEnabled(claimableBalanceEntry);
+                }
+            }
+
+            // The account that sponsored the deleted pool share trustline will
+            // be used for the claimable balances. If that account is currently
+            // in a sponsorship sandwich, that sponsoring account will instead
+            // sponsor the claimable balance.
+            if (loadSponsorship(ltxInner, cbSponsoringAccID))
+            {
+                auto cbSponsoringLtxAcc =
+                    stellar::loadAccount(ltxInner, cbSponsoringAccID);
+                switch (createEntryWithPossibleSponsorship(
+                    ltxInner, ltxInner.loadHeader(), claimableBalance,
+                    cbSponsoringLtxAcc))
+                {
+                case SponsorshipResult::SUCCESS:
+                    break;
+                // LOW_RESERVE and TOO_MANY_SPONSORING are possible because the
+                // sponsoring account in the sandwich was not the account that
+                // released the pool share trustline, so there might not be
+                // available reserves or sponsoring space
+                case SponsorshipResult::LOW_RESERVE:
+                    return RemoveResult::LOW_RESERVE;
+                case SponsorshipResult::TOO_MANY_SPONSORING:
+                    return RemoveResult::TOO_MANY_SPONSORING;
+                case SponsorshipResult::TOO_MANY_SPONSORED:
+                    // This is impossible because there's no sponsored account.
+                    // Fall through and throw.
+                case SponsorshipResult::TOO_MANY_SUBENTRIES:
+                    // This is impossible because claimable balances don't use
+                    // subentries. Fall through and throw.
+                default:
+                    throw std::runtime_error("Unexpected result from "
+                                             "canEstablishEntrySponsorship");
+                }
+            }
+            else
+            {
+                // not in a sponsorship sandwich
+                // we don't use createEntryWithPossibleSponsorship here since
+                // it can return LOW_RESERVE if the base reserve
+                // was increased after the pool share trustline was created. We
+                // are allowing this claimable balance to take the reserve that
+                // the pool share trustline took, even if this account is below
+                // the minimum balance.
+                auto cbSponsoringLtxAcc =
+                    stellar::loadAccount(ltxInner, cbSponsoringAccID);
+
+                uint32_t mult = computeMultiplier(claimableBalance);
+                if (getNumSponsoring(cbSponsoringLtxAcc.current()) >
+                    UINT32_MAX - mult)
+                {
+                    throw std::runtime_error(
+                        "no numSponsoring available for revoke");
+                }
+
+                establishEntrySponsorship(
+                    claimableBalance, cbSponsoringLtxAcc.current(), nullptr);
+            }
+
+            ltxInner.create(claimableBalance);
+            return RemoveResult::SUCCESS;
+        };
+
+        auto pool = loadLiquidityPool(ltxInner, poolID);
+        // use a lambda so we don't hold a reference to the
+        // LiquidityPoolEntry
+        auto constantProduct = [&]() -> auto&
+        {
+            return pool.current().data.liquidityPool().body.constantProduct();
+        };
+
+        if (balance != 0)
+        {
+            auto amountA = getPoolWithdrawalAmount(
+                balance, constantProduct().totalPoolShares,
+                constantProduct().reserveA);
+
+            if (auto res = redeemIntoClaimableBalance(
+                    constantProduct().params.assetA, amountA);
+                res != RemoveResult::SUCCESS)
+            {
+                return res;
+            }
+
+            auto amountB = getPoolWithdrawalAmount(
+                balance, constantProduct().totalPoolShares,
+                constantProduct().reserveB);
+
+            if (auto res = redeemIntoClaimableBalance(
+                    constantProduct().params.assetB, amountB);
+                res != RemoveResult::SUCCESS)
+            {
+                return res;
+            }
+
+            constantProduct().totalPoolShares -= balance;
+            constantProduct().reserveA -= amountA;
+            constantProduct().reserveB -= amountB;
+        }
+
+        decrementLiquidityPoolUseCount(
+            ltxInner, constantProduct().params.assetA, accountID);
+        decrementLiquidityPoolUseCount(
+            ltxInner, constantProduct().params.assetB, accountID);
+        decrementPoolSharesTrustLineCount(pool);
+    }
+
+    ltxInner.commit();
+    return RemoveResult::SUCCESS;
+}
+
+void
+decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool)
+{
+    auto poolTLCount = --liquidityPool.current()
+                             .data.liquidityPool()
+                             .body.constantProduct()
+                             .poolSharesTrustLineCount;
+    if (poolTLCount == 0)
+    {
+        liquidityPool.erase();
+    }
+    else if (poolTLCount < 0)
+    {
+        throw std::runtime_error("poolSharesTrustLineCount is negative");
+    }
+}
+
+void
+decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
+                               AccountID const& accountID)
+{
+    if (!isIssuer(accountID, asset) && asset.type() != ASSET_TYPE_NATIVE)
+    {
+        auto assetTrustLine = ltx.load(trustlineKey(accountID, asset));
+        if (!assetTrustLine)
+        {
+            throw std::runtime_error("asset trustline is missing");
+        }
+
+        if (--getTrustLineEntryExtensionV2(
+                  assetTrustLine.current().data.trustLine())
+                  .liquidityPoolUseCount < 0)
+        {
+            throw std::runtime_error("liquidityPoolUseCount is negative");
+        }
+    }
 }
 
 template <typename T>

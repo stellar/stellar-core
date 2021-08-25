@@ -216,9 +216,22 @@ bool hasTrustLineEntryExtV2(TrustLineEntry const& tl);
 Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 
 bool claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb);
-void removeOffersByAccountAndAsset(AbstractLedgerTxn& ltx,
-                                   AccountID const& account,
-                                   Asset const& asset);
+
+enum class RemoveResult
+{
+    SUCCESS,
+    LOW_RESERVE,
+    TOO_MANY_SPONSORING
+};
+
+RemoveResult removeOffersAndPoolShareTrustLines(
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset,
+    AccountID const& txSourceID, SequenceNumber txSeqNum, uint32_t opIndex);
+
+// this can delete the pool
+void decrementPoolSharesTrustLineCount(LedgerTxnEntry& liquidityPool);
+void decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
+                                    AccountID const& accountID);
 
 ClaimAtom makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
                         int64_t offerID, Asset const& wheat,
