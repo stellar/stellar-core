@@ -527,7 +527,7 @@ struct Operation
     body;
 };
 
-union OperationID switch (EnvelopeType type)
+union HashIDPreimage switch (EnvelopeType type)
 {
 case ENVELOPE_TYPE_OP_ID:
     struct
@@ -535,7 +535,16 @@ case ENVELOPE_TYPE_OP_ID:
         AccountID sourceAccount;
         SequenceNumber seqNum;
         uint32 opNum;
-    } id;
+    } operationID;
+case ENVELOPE_TYPE_POOL_REVOKE_OP_ID:
+    struct
+    {
+        AccountID sourceAccount;
+        SequenceNumber seqNum;
+        uint32 opNum;
+        PoolID liquidityPoolID;
+        Asset asset;
+    } revokeID;
 };
 
 enum MemoType
@@ -1071,7 +1080,9 @@ enum AllowTrustResultCode
                                     // source account does not require trust
     ALLOW_TRUST_TRUST_NOT_REQUIRED = -3,
     ALLOW_TRUST_CANT_REVOKE = -4,     // source account can't revoke trust,
-    ALLOW_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
+    ALLOW_TRUST_SELF_NOT_ALLOWED = -5, // trusting self is not allowed
+    ALLOW_TRUST_LOW_RESERVE = -6 // claimable balances can't be created
+                                 // on revoke due to low reserves
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)
@@ -1334,7 +1345,9 @@ enum SetTrustLineFlagsResultCode
     SET_TRUST_LINE_FLAGS_MALFORMED = -1,
     SET_TRUST_LINE_FLAGS_NO_TRUST_LINE = -2,
     SET_TRUST_LINE_FLAGS_CANT_REVOKE = -3,
-    SET_TRUST_LINE_FLAGS_INVALID_STATE = -4
+    SET_TRUST_LINE_FLAGS_INVALID_STATE = -4,
+    SET_TRUST_LINE_FLAGS_LOW_RESERVE = -5 // claimable balances can't be created
+                                          // on revoke due to low reserves
 };
 
 union SetTrustLineFlagsResult switch (SetTrustLineFlagsResultCode code)
