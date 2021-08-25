@@ -302,27 +302,36 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        ltx.create(trustLineEntry);
-        OwnedEntrySponsorable oes(LedgerEntryKey(trustLineEntry));
-        switch (oes.create(ltx))
         {
-        case SponsorshipResult::SUCCESS:
-            break;
-        case SponsorshipResult::LOW_RESERVE:
-            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
-            return false;
-        case SponsorshipResult::TOO_MANY_SUBENTRIES:
-            mResult.code(opTOO_MANY_SUBENTRIES);
-            return false;
-        case SponsorshipResult::TOO_MANY_SPONSORING:
-            mResult.code(opTOO_MANY_SPONSORING);
-            return false;
-        case SponsorshipResult::TOO_MANY_SPONSORED:
-            // This is impossible right now because there is a limit on sub
-            // entries, fall through and throw
-        default:
-            throw std::runtime_error("Unexpected result from "
-                                     "OwnedEntrySponsorable::create");
+            // This LedgerTxn guarantees that the trust line will only be
+            // created on success, which is needed to replicate the behavior
+            // of failed transactions in old protocol versions
+            LedgerTxn ltxInner(ltx);
+
+            ltxInner.create(trustLineEntry);
+            OwnedEntrySponsorable oes(LedgerEntryKey(trustLineEntry));
+            switch (oes.create(ltxInner))
+            {
+            case SponsorshipResult::SUCCESS:
+                break;
+            case SponsorshipResult::LOW_RESERVE:
+                innerResult().code(CHANGE_TRUST_LOW_RESERVE);
+                return false;
+            case SponsorshipResult::TOO_MANY_SUBENTRIES:
+                mResult.code(opTOO_MANY_SUBENTRIES);
+                return false;
+            case SponsorshipResult::TOO_MANY_SPONSORING:
+                mResult.code(opTOO_MANY_SPONSORING);
+                return false;
+            case SponsorshipResult::TOO_MANY_SPONSORED:
+                // This is impossible right now because there is a limit on sub
+                // entries, fall through and throw
+            default:
+                throw std::runtime_error("Unexpected result from "
+                                         "OwnedEntrySponsorable::create");
+            }
+
+            ltxInner.commit();
         }
 
         innerResult().code(CHANGE_TRUST_SUCCESS);
