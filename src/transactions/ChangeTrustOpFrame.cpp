@@ -60,18 +60,7 @@ ChangeTrustOpFrame::managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
         throw std::runtime_error("liquidity pool is missing");
     }
 
-    auto poolTLCount = --poolLtxEntry.current()
-                             .data.liquidityPool()
-                             .body.constantProduct()
-                             .poolSharesTrustLineCount;
-    if (poolTLCount == 0)
-    {
-        poolLtxEntry.erase();
-    }
-    else if (poolTLCount < 0)
-    {
-        throw std::runtime_error("poolSharesTrustLineCount is negative");
-    }
+    decrementPoolSharesTrustLineCount(poolLtxEntry);
 
     ltxInner.commit();
 }
