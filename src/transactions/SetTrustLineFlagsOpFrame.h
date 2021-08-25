@@ -23,9 +23,11 @@ class SetTrustLineFlagsOpFrame : public OperationFrame
 
     SetTrustLineFlagsOp const& mSetTrustLineFlags;
 
+    uint32_t mOpIndex;
+
   public:
     SetTrustLineFlagsOpFrame(Operation const& op, OperationResult& res,
-                             TransactionFrame& parentTx);
+                             TransactionFrame& parentTx, uint32_t index);
 
     bool isVersionSupported(uint32_t protocolVersion) const override;
 

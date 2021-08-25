@@ -38,10 +38,11 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 }
 
 AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
+                                     TransactionFrame& parentTx, uint32_t index)
     : OperationFrame(op, res, parentTx)
     , mAllowTrust(mOperation.body.allowTrustOp())
     , mAsset(getAsset(getSourceID(), mAllowTrust.asset))
+    , mOpIndex(index)
 {
 }
 
