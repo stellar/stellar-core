@@ -212,7 +212,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             root.setOptions(setFlags(AUTH_REQUIRED_FLAG));
 
             // This section is all about depositing into an empty pool
-            auto a1 = root.create("a1", minBal(2) + 6 * 100);
+            auto a1 = root.create("a1", minBal(3) + 6 * 100);
 
             // No trust
             REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,
@@ -260,7 +260,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46341);
 
             // This section is all about depositing into a non-empty pool
-            auto a2 = root.create("a2", minBal(2) + 6 * 100);
+            auto a2 = root.create("a2", minBal(3) + 6 * 100);
 
             // No trust
             REQUIRE_THROWS_AS(a2.liquidityPoolDeposit(poolNative1, 1, INT32_MAX,

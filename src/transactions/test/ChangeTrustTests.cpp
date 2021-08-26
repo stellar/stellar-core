@@ -274,8 +274,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
             return acc.current().data.account().numSubEntries;
         };
 
-        auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
-
         auto poolShareTest = [&](Asset const& assetA, Asset const& assetB,
                                  bool startWithPool) {
             auto poolShareAsset = makeChangeTrustAssetPoolShare(
@@ -283,7 +281,9 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             if (startWithPool)
             {
-                auto acc1 = root.create("a1", minBalance4);
+                auto acc1 = root.create(
+                    "a1",
+                    app->getLedgerManager().getLastMinBalance(4) + 3 * 100);
                 if (assetA.type() != ASSET_TYPE_NATIVE)
                 {
                     acc1.changeTrust(assetA, 10);
@@ -339,11 +339,10 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // this should create a LiquidityPoolEntry, and modify
             // liquidityPoolUseCount on the asset trustlines
-            // auto prePoolNumSubEntries = getNumSubEntries(root);
+            auto prePoolNumSubEntries = getNumSubEntries(root);
             root.changeTrust(poolShareAsset, 10);
 
-            // TODO: This line requires the update to SponsorshipUtils
-            // REQUIRE(getNumSubEntries(root) - prePoolNumSubEntries == 2);
+            REQUIRE(getNumSubEntries(root) - prePoolNumSubEntries == 2);
 
             auto poolShareTlAsset =
                 changeTrustAssetToTrustLineAsset(poolShareAsset);
@@ -419,11 +418,11 @@ TEST_CASE("change trust", "[tx][changetrust]")
             }
 
             // delete the pool sharetrust line
+            auto postPoolNumSubEntries = getNumSubEntries(root);
             root.changeTrust(poolShareAsset, 0);
             REQUIRE(!root.hasTrustLine(poolShareTlAsset));
 
-            // TODO: This line requires the update to SponsorshipUtils
-            // REQUIRE(getNumSubEntries(root) == prePoolNumSubEntries);
+            REQUIRE(getNumSubEntries(root) == postPoolNumSubEntries - 2);
 
             if (hasTrustA)
             {
