@@ -266,6 +266,24 @@ TEST_CASE("change trust", "[tx][changetrust]")
             trustlineKey(acc2, idr));
     }
 
+    SECTION("too many")
+    {
+        auto acc1 =
+            root.create("acc1", app->getLedgerManager().getLastMinBalance(0));
+        auto usd = makeAsset(gateway, "USD");
+
+        SECTION("too many sponsoring")
+        {
+            tooManySponsoring(*app, acc1, acc1.op(changeTrust(idr, 1)),
+                              acc1.op(changeTrust(usd, 1)));
+        }
+        SECTION("too many subentries")
+        {
+            tooManySubentries(*app, acc1, changeTrust(idr, 1),
+                              changeTrust(usd, 1));
+        }
+    }
+
     SECTION("pool trustline")
     {
         auto getNumSubEntries = [&](AccountID const& accountID) {
@@ -548,6 +566,29 @@ TEST_CASE("change trust", "[tx][changetrust]")
             {
                 poolShareTest(makeAsset(root, "IDR"), makeAsset(root, "USD"),
                               true);
+            }
+            SECTION("too many")
+            {
+                auto acc1 = root.create(
+                    "acc1", app->getLedgerManager().getLastMinBalance(3));
+                auto native = makeNativeAsset();
+                auto shareNative1 = makeChangeTrustAssetPoolShare(
+                    native, idr, LIQUIDITY_POOL_FEE_V18);
+
+                acc1.changeTrust(idr, 1);
+                acc1.changeTrust(usd, 1);
+
+                SECTION("too many sponsoring")
+                {
+                    tooManySponsoring(*app, acc1,
+                                      acc1.op(changeTrust(idrUsd, 1)),
+                                      acc1.op(changeTrust(shareNative1, 1)));
+                }
+                SECTION("too many subentries")
+                {
+                    tooManySubentries(*app, acc1, changeTrust(idrUsd, 1),
+                                      changeTrust(shareNative1, 1));
+                }
             }
         });
     }

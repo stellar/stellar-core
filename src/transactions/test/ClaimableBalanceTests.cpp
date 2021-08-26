@@ -1198,6 +1198,19 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 acc1.op(createClaimableBalance(native, 1, validClaimants)));
         }
 
+        SECTION("too many sponsoring multiple claimants")
+        {
+            validClaimants.emplace_back(
+                makeClaimant(root, makeSimplePredicate(1)));
+            validClaimants.emplace_back(
+                makeClaimant(acc1, makeSimplePredicate(1)));
+
+            tooManySponsoring(
+                *app, acc1,
+                acc1.op(createClaimableBalance(native, 1, validClaimants)),
+                acc1.op(createClaimableBalance(native, 1, validClaimants)));
+        }
+
         SECTION("source account is issuer")
         {
             auto eur = makeAsset(issuer, "EUR");

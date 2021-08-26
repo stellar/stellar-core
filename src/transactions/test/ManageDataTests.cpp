@@ -176,4 +176,12 @@ TEST_CASE("manage data", "[tx][managedata]")
             *app, acc2, manageData(t1, &value), manageData(t1, &value2),
             manageData(t1, &value), manageData(t1, nullptr), dataKey(acc2, t1));
     }
+
+    SECTION("too many subentries")
+    {
+        auto acc1 =
+            root.create("acc1", app->getLedgerManager().getLastMinBalance(0));
+        tooManySubentries(*app, acc1, manageData(t1, &value),
+                          manageData(t2, &value2));
+    }
 }

@@ -1216,6 +1216,38 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 *app, a1, a1.op(revokeSponsorship(claimableBalanceKey(id1))),
                 a1.op(revokeSponsorship(claimableBalanceKey(id2))));
         }
+        SECTION("pool share trustline")
+        {
+            auto native = makeNativeAsset();
+            auto cur1 = makeAsset(root, "CUR1");
+            auto cur2 = makeAsset(root, "CUR2");
+
+            auto shareNative1 = makeChangeTrustAssetPoolShare(
+                native, cur1, LIQUIDITY_POOL_FEE_V18);
+            auto share12 = makeChangeTrustAssetPoolShare(
+                cur1, cur2, LIQUIDITY_POOL_FEE_V18);
+
+            a1.changeTrust(cur1, 1);
+            a1.changeTrust(cur2, 1);
+
+            // a1 needs a higher balance for the pool share trustline reserves
+            root.pay(a1, minBal(2));
+
+            for_versions_from(18, *app, [&]() {
+                a1.changeTrust(share12, 1);
+                a1.changeTrust(shareNative1, 1);
+
+                auto pool12 = xdrSha256(share12.liquidityPool());
+                auto poolNative1 = xdrSha256(shareNative1.liquidityPool());
+
+                auto shareNativeKey = poolShareTrustLineKey(a1, poolNative1);
+                auto share12Key = poolShareTrustLineKey(a1, pool12);
+
+                tooManySponsoring(*app, a1,
+                                  a1.op(revokeSponsorship(shareNativeKey)),
+                                  a1.op(revokeSponsorship(share12Key)));
+            });
+        }
     }
 
     SECTION("native trust line")
@@ -1303,6 +1335,13 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
         {
             for_versions_from(15, *app,
                               [&]() { revoke(liquidityPoolKey(PoolID{})); });
+        }
+
+        SECTION("pool share trustline")
+        {
+            for_versions(15, 17, *app, [&]() {
+                revoke(poolShareTrustLineKey(a1, PoolID{}));
+            });
         }
     }
 }
