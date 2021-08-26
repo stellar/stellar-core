@@ -38,6 +38,7 @@ std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
 AccountEntry generateValidAccountEntry(size_t b = 3);
 std::vector<AccountEntry> generateValidAccountEntries(size_t n);
 
+TrustLineEntry generateNonPoolShareValidTrustLineEntry(size_t b = 3);
 TrustLineEntry generateValidTrustLineEntry(size_t b = 3);
 std::vector<TrustLineEntry> generateValidTrustLineEntries(size_t n);
 
