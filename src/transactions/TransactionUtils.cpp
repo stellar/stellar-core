@@ -1275,6 +1275,35 @@ makeUnconditionalClaimant(AccountID const& accountID)
     return c;
 }
 
+static std::vector<LedgerKey>
+prefetchPoolShareTrustLinesByAccountAndGetKeys(AbstractLedgerTxn& ltx,
+                                               AccountID const& accountID,
+                                               Asset const& asset)
+{
+    // always rolls back
+    LedgerTxn ltxInner(ltx);
+
+    // this will get the pool share trustlines into the mEntryCache
+    auto poolShareTrustLines =
+        ltxInner.loadPoolShareTrustLinesByAccountAndAsset(accountID, asset);
+
+    if (poolShareTrustLines.empty())
+    {
+        return {};
+    }
+
+    prefetchForRevokeFromPoolShareTrustLines(ltxInner, accountID,
+                                             poolShareTrustLines);
+
+    std::vector<LedgerKey> poolTLKeys;
+    for (auto const& poolShareTrustLine : poolShareTrustLines)
+    {
+        poolTLKeys.emplace_back(LedgerEntryKey(poolShareTrustLine.current()));
+    }
+
+    return poolTLKeys;
+}
+
 RemoveResult
 removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
                                    AccountID const& accountID,
@@ -1291,21 +1320,20 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
         return RemoveResult::SUCCESS;
     }
 
-    // redeem from pools
-    // load all relevant pool share trustLines
-    auto poolShareTrustLines =
-        ltxInner.loadPoolShareTrustLinesByAccountAndAsset(accountID, asset);
-
-    if (poolShareTrustLines.empty())
+    // Get the keys and load the pool share trustlines individually below so we
+    // can use nested LedgerTxns.
+    auto poolTLKeys = prefetchPoolShareTrustLinesByAccountAndGetKeys(
+        ltxInner, accountID, asset);
+    if (poolTLKeys.empty())
     {
         return RemoveResult::SUCCESS;
     }
 
-    prefetchForRevokeFromPoolShareTrustLines(ltxInner, accountID,
-                                             poolShareTrustLines);
-
-    for (auto& poolShareTrustLine : poolShareTrustLines)
+    for (auto const& poolTLKey : poolTLKeys)
     {
+        auto poolShareTrustLine = loadPoolShareTrustLine(
+            ltxInner, accountID, poolTLKey.trustLine().asset.liquidityPoolID());
+
         // use a lambda so we don't hold a reference to the internals of
         // TrustLineEntry
         auto poolTL = [&]() -> TrustLineEntry const& {
@@ -1466,10 +1494,17 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
             constantProduct().reserveB -= amountB;
         }
 
+        // decrementLiquidityPoolUseCount will create a nested LedgerTxn and
+        // deactivate all loaded entries, so copy assetB here
+        auto const assetB = constantProduct().params.assetB;
+
         decrementLiquidityPoolUseCount(
             ltxInner, constantProduct().params.assetA, accountID);
-        decrementLiquidityPoolUseCount(
-            ltxInner, constantProduct().params.assetB, accountID);
+
+        decrementLiquidityPoolUseCount(ltxInner, assetB, accountID);
+
+        // pool was deactivated in decrementLiquidityPoolUseCount
+        pool = loadLiquidityPool(ltxInner, poolID);
         decrementPoolSharesTrustLineCount(pool);
     }
 
@@ -1498,9 +1533,10 @@ void
 decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
                                AccountID const& accountID)
 {
+    LedgerTxn ltxInner(ltx);
     if (!isIssuer(accountID, asset) && asset.type() != ASSET_TYPE_NATIVE)
     {
-        auto assetTrustLine = ltx.load(trustlineKey(accountID, asset));
+        auto assetTrustLine = ltxInner.load(trustlineKey(accountID, asset));
         if (!assetTrustLine)
         {
             throw std::runtime_error("asset trustline is missing");
@@ -1513,6 +1549,7 @@ decrementLiquidityPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
             throw std::runtime_error("liquidityPoolUseCount is negative");
         }
     }
+    ltxInner.commit();
 }
 
 template <typename T>
