@@ -42,4 +42,7 @@ void tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
 void tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
                        TestAccount& failOpAcc, Operation const& successfulOp,
                        Operation const& failOp);
+
+void tooManySubentries(Application& app, TestAccount& testAcc,
+                       Operation const& opCreate1, Operation const& opCreate2);
 }

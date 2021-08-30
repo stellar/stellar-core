@@ -179,6 +179,12 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
         {
             return "Account signers not paired with signerSponsoringIDs";
         }
+
+        if (version >= 18 &&
+            ae.numSubEntries > UINT32_MAX - extV2.numSponsoring)
+        {
+            return "Account numSubEntries + numSponsoring is > UINT32_MAX";
+        }
     }
     return {};
 }

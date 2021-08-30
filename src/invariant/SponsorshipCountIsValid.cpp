@@ -39,6 +39,8 @@ getMult(LedgerEntry const& le)
     case ACCOUNT:
         return 2;
     case TRUSTLINE:
+        return le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE ? 2
+                                                                         : 1;
     case OFFER:
     case DATA:
         return 1;

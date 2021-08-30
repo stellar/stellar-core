@@ -21,6 +21,17 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
+static uint32_t
+computeMultiplier(LedgerEntry const& le)
+{
+    if (le.data.type() == TRUSTLINE &&
+        le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
+    {
+        return 2;
+    }
+    return 1;
+}
+
 static LedgerEntry
 generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
 {
@@ -68,8 +79,19 @@ generateRandomSubEntry(LedgerEntry const& acc)
         break;
     case TRUSTLINE:
         le.data.trustLine().accountID = acc.data.account().accountID;
-        le.data.trustLine().asset.alphaNum4().issuer =
-            validAccountIDGenerator();
+        switch (le.data.trustLine().asset.type())
+        {
+        case ASSET_TYPE_CREDIT_ALPHANUM4:
+            le.data.trustLine().asset.alphaNum4().issuer =
+                validAccountIDGenerator();
+            break;
+        case ASSET_TYPE_CREDIT_ALPHANUM12:
+            le.data.trustLine().asset.alphaNum12().issuer =
+                validAccountIDGenerator();
+            break;
+        default:
+            break;
+        }
         break;
     case DATA:
         le.data.data().accountID = acc.data.account().accountID;
@@ -180,7 +202,7 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
     {
         auto se = generateRandomSubEntry(le);
         subentries.push_back(se);
-        updateAccountSubEntries(app, le, lePrev, 1,
+        updateAccountSubEntries(app, le, lePrev, computeMultiplier(se),
                                 makeUpdateList({se}, nullptr));
     }
 }
@@ -259,7 +281,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
         auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
         subentries.erase(subentries.begin() + index);
-        updateAccountSubEntries(app, le, lePrev, -1,
+        updateAccountSubEntries(app, le, lePrev, -computeMultiplier(se),
                                 makeUpdateList(nullptr, {se}));
     }
 }

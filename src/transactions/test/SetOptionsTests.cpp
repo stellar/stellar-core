@@ -325,6 +325,15 @@ TEST_CASE("set options", "[tx][setoptions]")
                               a1.op(setOptions(setSigner(signer2))));
         }
 
+        SECTION("too many subentries")
+        {
+            auto signer1 = makeSigner(getAccount("S1"), 1);
+            auto signer2 = makeSigner(getAccount("S2"), 1);
+
+            tooManySubentries(*app, a1, setOptions(setSigner(signer1)),
+                              setOptions(setSigner(signer2)));
+        }
+
         SECTION("delete signer that does not exist with sponsorships")
         {
             for_versions_from(14, *app, [&]() {

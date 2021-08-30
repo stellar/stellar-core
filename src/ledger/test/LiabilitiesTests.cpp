@@ -541,7 +541,8 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
         auto addSellingLiabilities = [&](int64_t initLimit, int64_t initBalance,
                                          int64_t initSellingLiabilities,
                                          int64_t deltaLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = initLimit;
@@ -581,7 +582,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             [&](int64_t initLimit, int64_t initBalance,
                 int64_t deltaLiabilities) {
                 TrustLineEntry tl =
-                    LedgerTestUtils::generateValidTrustLineEntry();
+                    LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
                 tl.flags = AUTHORIZED_FLAG;
                 tl.balance = initBalance;
                 tl.limit = initLimit;
@@ -683,7 +684,8 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
         auto addBuyingLiabilities = [&](int64_t initLimit, int64_t initBalance,
                                         int64_t initBuyingLiabilities,
                                         int64_t deltaLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = initLimit;
@@ -722,7 +724,8 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
         auto addBuyingLiabilitiesUninitialized = [&](int64_t initLimit,
                                                      int64_t initBalance,
                                                      int64_t deltaLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = initLimit;
@@ -1154,7 +1157,8 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
         auto addBalance = [&](int64_t initLimit, int64_t initBalance,
                               Liabilities initLiabilities,
                               int64_t deltaBalance) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.balance = initBalance;
             tl.limit = initLimit;
             tl.flags = AUTHORIZED_FLAG;
@@ -1443,7 +1447,8 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
     {
         auto checkAvailableBalance = [&](int64_t initLimit, int64_t initBalance,
                                          int64_t initSellingLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = initLimit;
@@ -1488,7 +1493,8 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
     {
         auto checkAvailableLimit = [&](int64_t initLimit, int64_t initBalance,
                                        int64_t initBuyingLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = initLimit;
@@ -1536,7 +1542,8 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
     {
         auto checkMinimumLimit = [&](int64_t initBalance,
                                      int64_t initBuyingLiabilities) {
-            TrustLineEntry tl = LedgerTestUtils::generateValidTrustLineEntry();
+            TrustLineEntry tl =
+                LedgerTestUtils::generateNonPoolShareValidTrustLineEntry();
             tl.flags = AUTHORIZED_FLAG;
             tl.balance = initBalance;
             tl.limit = INT64_MAX;
