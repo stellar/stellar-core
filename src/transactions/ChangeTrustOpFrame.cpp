@@ -224,13 +224,6 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         if (mChangeTrust.limit == 0)
         { // we are deleting a trustline
-
-            // line gets deleted. first release reserves
-            auto header = ltx.loadHeader();
-            auto sourceAccount = loadSourceAccount(ltx, header);
-            removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
-                                               sourceAccount);
-
             // use a lambda so we don't hold a reference to the TrustLineEntry
             auto tlEntry = [&]() -> TrustLineEntry const& {
                 return trustLine.current().data.trustLine();
@@ -245,6 +238,11 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
                 return false;
             }
 
+            // line gets deleted. first release reserves
+            auto header = ltx.loadHeader();
+            auto sourceAccount = loadSourceAccount(ltx, header);
+            removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
+                                               sourceAccount);
             trustLine.erase();
 
             // this will create a child LedgerTxn and deactivate all loaded
