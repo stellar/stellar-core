@@ -2983,7 +2983,7 @@ TEST_CASE("create offer", "[tx][offers]")
             *app, acc2, manageOffer(0, usd, idr, Price{1, 1}, 1000),
             manageOffer(1, usd, idr, Price{1, 1}, 999),
             manageOffer(1, usd, idr, Price{1, 1}, 1001),
-            manageOffer(1, usd, idr, Price{1, 1}, 0), offerKey(acc2, 1));
+            manageOffer(1, usd, idr, Price{1, 1}, 0), offerKey(acc2, 1), 14);
     }
 
     SECTION("crossed sponsored offers")

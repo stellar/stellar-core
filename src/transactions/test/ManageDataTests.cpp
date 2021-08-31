@@ -174,7 +174,8 @@ TEST_CASE("manage data", "[tx][managedata]")
 
         createModifyAndRemoveSponsoredEntry(
             *app, acc2, manageData(t1, &value), manageData(t1, &value2),
-            manageData(t1, &value), manageData(t1, nullptr), dataKey(acc2, t1));
+            manageData(t1, &value), manageData(t1, nullptr), dataKey(acc2, t1),
+            14);
     }
 
     SECTION("too many subentries")

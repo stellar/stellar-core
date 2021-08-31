@@ -29,7 +29,7 @@ void createSponsoredEntryButSponsorHasInsufficientBalance(
 void createModifyAndRemoveSponsoredEntry(
     Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
     Operation const& opModify1, Operation const& opModify2,
-    Operation const& opRemove, LedgerKey const& lk);
+    Operation const& opRemove, LedgerKey const& lk, uint32_t ledgerVersionFrom);
 
 void createModifyAndRemoveSponsoredEntry(
     Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,

@@ -20,9 +20,8 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
     auto app = createTestApplication(clock, getTestConfig());
 
     // set up world
-    auto minBal = [&](int32_t n) {
-        return app->getLedgerManager().getLastMinBalance(n);
-    };
+    auto const& lm = app->getLedgerManager();
+    auto minBal = [&](int32_t n) { return lm.getLastMinBalance(n); };
     auto root = TestAccount::createRoot(*app);
     auto native = makeNativeAsset();
     auto cur1 = makeAsset(root, "CUR1");
@@ -313,6 +312,85 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             REQUIRE(a2.getTrustlineBalance(poolNative1) == 46341);
             checkLiquidityPool(*app, poolNative1, 2, 2 * (int64_t)INT32_MAX,
                                92682);
+        });
+    }
+
+    SECTION("underfunded due to liabilities")
+    {
+        for_versions_from(18, *app, [&] {
+            auto a1 = root.create("a1", minBal(10));
+            auto buyingAsset = makeAsset(root, "BUY1");
+
+            a1.changeTrust(cur1, 1);
+            a1.changeTrust(cur2, 1);
+            a1.changeTrust(buyingAsset, 1);
+
+            root.pay(a1, cur1, 1);
+            root.pay(a1, cur2, 1);
+            a1.changeTrust(share12, 2);
+
+            auto underfundedTest = [&](Asset const& sellingAsset) {
+                bool isNative = sellingAsset.type() == ASSET_TYPE_NATIVE;
+                auto poolID = isNative ? poolNative1 : pool12;
+
+                if (isNative)
+                {
+                    // leave enough for fees and offer
+                    a1.pay(root, a1.getAvailableBalance() -
+                                     lm.getLastTxFee() * 3 -
+                                     lm.getLastReserve() - 1);
+                }
+
+                auto offerID1 = a1.manageOffer(0, sellingAsset, buyingAsset,
+                                               Price{1, 1}, 1);
+                REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(
+                                      poolID, 1, 1, Price{1, 1}, Price{1, 1}),
+                                  ex_LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
+
+                if (isNative)
+                {
+                    // pay enough for the fees for the next two ops
+                    root.pay(a1, lm.getLastTxFee() * 2);
+                }
+
+                // delete offer
+                a1.manageOffer(offerID1, sellingAsset, buyingAsset, Price{1, 1},
+                               0, ManageOfferEffect::MANAGE_OFFER_DELETED);
+
+                // deposit succeeds
+                a1.liquidityPoolDeposit(poolID, 1, 1, Price{1, 1}, Price{1, 1});
+            };
+
+            SECTION("assetA")
+            {
+                underfundedTest(cur1);
+
+                // do it again so we can test with an existing pool
+                root.pay(a1, cur1, 1);
+                root.pay(a1, cur2, 1);
+                underfundedTest(cur1);
+            }
+
+            SECTION("assetB")
+            {
+                underfundedTest(cur2);
+
+                // do it again so we can test with an existing pool
+                root.pay(a1, cur1, 1);
+                root.pay(a1, cur2, 1);
+                underfundedTest(cur2);
+            }
+
+            SECTION("native")
+            {
+                a1.changeTrust(shareNative1, 2);
+                underfundedTest(native);
+
+                // do it again so we can test with an existing pool
+                root.pay(a1, minBal(10));
+                root.pay(a1, cur1, 1);
+                underfundedTest(native);
+            }
         });
     }
 }
