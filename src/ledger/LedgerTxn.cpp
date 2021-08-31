@@ -2125,6 +2125,28 @@ LedgerTxn::Impl::hasSponsorshipEntry() const
     return false;
 }
 
+void
+LedgerTxn::prepareNewObjects(size_t s)
+{
+    getImpl()->prepareNewObjects(s);
+}
+
+void
+LedgerTxn::Impl::prepareNewObjects(size_t s)
+{
+    size_t newSize = mEntry.size();
+    auto constexpr m = std::numeric_limits<size_t>::max();
+    if (newSize >= m - s)
+    {
+        newSize = m;
+    }
+    else
+    {
+        newSize += s;
+    }
+    mEntry.reserve(newSize);
+}
+
 #ifdef BUILD_TESTS
 UnorderedMap<AssetPair,
              std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
@@ -2746,6 +2768,16 @@ LedgerTxnRoot::Impl::getPrefetchHitRate() const
            (mPrefetchMisses + mPrefetchHits);
 }
 
+void
+LedgerTxnRoot::prepareNewObjects(size_t s)
+{
+    mImpl->prepareNewObjects(s);
+}
+
+void LedgerTxnRoot::Impl::prepareNewObjects(size_t)
+{
+}
+
 UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxnRoot::getAllOffers()
 {
@@ -3039,11 +3071,10 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
             populateEntryCacheFromBestOffers(iter, lastOfferIter);
         }
 
-        putInEntryCache(LedgerEntryKey(*iter),
-                        std::make_shared<LedgerEntry const>(*iter),
-                        LoadType::IMMEDIATE);
+        auto le = std::make_shared<LedgerEntry const>(*iter);
+        putInEntryCache(LedgerEntryKey(*iter), le, LoadType::IMMEDIATE);
 
-        return std::make_shared<LedgerEntry const>(*iter);
+        return le;
     }
     return nullptr;
 }

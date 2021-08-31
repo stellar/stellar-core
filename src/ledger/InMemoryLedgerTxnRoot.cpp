@@ -156,6 +156,10 @@ InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
     return 0;
 }
 
+void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
+{
+}
+
 #ifdef BUILD_TESTS
 void
 InMemoryLedgerTxnRoot::resetForFuzzer()

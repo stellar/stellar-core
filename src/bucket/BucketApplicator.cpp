@@ -73,7 +73,24 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
     size_t count = 0;
 
     auto& root = mApp.getLedgerTxnRoot();
-    LedgerTxn ltx(root, false);
+    AbstractLedgerTxn* ltx;
+    std::unique_ptr<LedgerTxn> innerLtx;
+
+    // when running in memory mode, make changes to the in memory ledger
+    // directly instead of creating a temporary inner LedgerTxn
+    // as "advance" commits changes during each step this does not introduce any
+    // new failure mode
+    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        ltx = static_cast<AbstractLedgerTxn*>(&root);
+    }
+    else
+    {
+        innerLtx = std::make_unique<LedgerTxn>(root, false);
+        ltx = innerLtx.get();
+        ltx->prepareNewObjects(LEDGER_ENTRY_BATCH_COMMIT_SIZE);
+    }
+
     for (; mBucketIter; ++mBucketIter)
     {
         BucketEntry const& e = *mBucketIter;
@@ -85,11 +102,11 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                ltx.createOrUpdateWithoutLoading(e.liveEntry());
+                ltx->createOrUpdateWithoutLoading(e.liveEntry());
             }
             else
             {
-                ltx.eraseWithoutLoading(e.deadEntry());
+                ltx->eraseWithoutLoading(e.deadEntry());
             }
 
             if ((++count > LEDGER_ENTRY_BATCH_COMMIT_SIZE))
@@ -98,7 +115,10 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
             }
         }
     }
-    ltx.commit();
+    if (innerLtx)
+    {
+        ltx->commit();
+    }
 
     mCount += count;
     return count;
