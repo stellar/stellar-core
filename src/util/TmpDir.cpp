@@ -9,7 +9,9 @@
 #include "main/Config.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+
 #include <Tracy.hpp>
+#include <fmt/format.h>
 
 namespace stellar
 {
@@ -72,7 +74,11 @@ TmpDir::~TmpDir()
 TmpDirManager::TmpDirManager(std::string const& root) : mRoot(root)
 {
     clean();
-    fs::mkpath(root);
+    if (!fs::mkpath(root))
+    {
+        throw std::runtime_error(
+            fmt::format("Could not create directory {}", mRoot));
+    }
 }
 
 TmpDirManager::~TmpDirManager()

@@ -75,7 +75,6 @@ std::vector<PeerBareAddress>
 RandomPeerSource::getRandomPeers(
     size_t size, std::function<bool(PeerBareAddress const&)> pred)
 {
-    releaseAssert(size >= 0);
     if (size == 0)
     {
         return {};
