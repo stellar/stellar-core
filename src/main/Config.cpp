@@ -131,15 +131,15 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     // automatic maintenance settings:
-    // 11 minutes is relatively short and prime with 1 hour
-    // which will cause automatic maintenance to rarely conflict with any other
-    // scheduled tasks on a machine (that tend to run on a fixed schedule)
-    AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{11 * 60};
+    // short and prime with 1 hour which will cause automatic maintenance to
+    // rarely conflict with any other scheduled tasks on a machine (that tend to
+    // run on a fixed schedule)
+    AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{359};
     // count picked as to catchup with 1 month worth of ledgers
     // in about 1 week.
-    // (30*24*3600/5) / (700 - (11*60)/5 ) // number of periods
-    //   * (11*60) / (24*3600) = 6.97 days
-    AUTOMATIC_MAINTENANCE_COUNT = 700;
+    // (30*24*3600/5) / (400 - 359/5 ) // number of periods needed to catchup
+    //   * (359) / (24*3600) = 6.56 days
+    AUTOMATIC_MAINTENANCE_COUNT = 400;
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
