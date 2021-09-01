@@ -277,6 +277,31 @@ readArray(ConfigItem const& item)
 
 template <typename T>
 T
+castInt(int64_t v, std::string const& name, T min, T max)
+{
+    if (std::is_signed_v<T>)
+    {
+        if (v < min || v > max)
+        {
+            throw std::invalid_argument(fmt::format("bad '{}'", name));
+        }
+    }
+    else if (v < 0)
+    {
+        throw std::invalid_argument(fmt::format("bad '{}'", name));
+    }
+    else
+    {
+        if (static_cast<T>(v) < min || static_cast<T>(v) > max)
+        {
+            throw std::invalid_argument(fmt::format("bad '{}'", name));
+        }
+    }
+    return static_cast<T>(v);
+}
+
+template <typename T>
+T
 readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
         T max = std::numeric_limits<T>::max())
 {
@@ -284,26 +309,21 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
     {
         throw std::invalid_argument(fmt::format("invalid '{}'", item.first));
     }
-    int64_t v = item.second->as<int64_t>()->get();
-    if (std::is_signed_v<T>)
-    {
-        if (v < min || v > max)
-        {
-            throw std::invalid_argument(fmt::format("bad '{}'", item.first));
-        }
-    }
-    else if (v < 0)
-    {
-        throw std::invalid_argument(fmt::format("bad '{}'", item.first));
-    }
-    else
-    {
-        if (static_cast<T>(v) < min || static_cast<T>(v) > max)
-        {
-            throw std::invalid_argument(fmt::format("bad '{}'", item.first));
-        }
-    }
-    return static_cast<T>(v);
+    return castInt<T>(item.second->as<int64_t>()->get(), item.first, min, max);
+}
+
+template <typename T>
+std::vector<T>
+readIntArray(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
+             T max = std::numeric_limits<T>::max())
+{
+    auto resultInt64 = readArray<int64_t>(item);
+    auto result = std::vector<T>{};
+    result.reserve(resultInt64.size());
+    std::transform(
+        resultInt64.begin(), resultInt64.end(), std::back_inserter(result),
+        [&](int64_t v) { return castInt<T>(v, item.first, min, max); });
+    return result;
 }
 
 template <typename T>
@@ -747,8 +767,13 @@ Config::verifyLoadGenOpCountForTestingConfigs()
                                     "must be defined together and "
                                     "must have the exact same size.");
     }
-    else if (!LOADGEN_OP_COUNT_FOR_TESTING.empty() &&
-             !ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+
+    if (LOADGEN_OP_COUNT_FOR_TESTING.empty())
+    {
+        return;
+    }
+
+    if (!ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
         throw std::invalid_argument(
             "When LOADGEN_OP_COUNT_FOR_TESTING and "
@@ -756,12 +781,21 @@ Config::verifyLoadGenOpCountForTestingConfigs()
             "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true");
     }
 
+    if (std::any_of(LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.begin(),
+                    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.end(),
+                    [](unsigned short i) { return i == 0; }))
+    {
+        throw std::invalid_argument(
+            "All elements in LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING must be "
+            "positive integers");
+    }
+
     if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
                      LOADGEN_OP_COUNT_FOR_TESTING.end(),
                      [](unsigned short i) { return 1 <= i && i <= 100; }))
     {
         throw std::invalid_argument(
-            "All elements in NUM_OPS_PER_TX_COUNT_FOR_TESTING must be "
+            "All elements in LOADGEN_OP_COUNT_FOR_TESTING must be "
             "integers in [1, 100]");
     }
 }
@@ -776,6 +810,20 @@ Config::processOpApplySleepTimeForTestingConfigs()
             "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING and "
             "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be defined together "
             "and have the same size");
+    }
+
+    if (OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+    {
+        return;
+    }
+
+    if (std::any_of(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
+                    OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(),
+                    [](unsigned short i) { return i == 0; }))
+    {
+        throw std::invalid_argument(
+            "All elements in OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be "
+            "positive integers");
     }
 
     auto sum = std::accumulate(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
@@ -1167,45 +1215,31 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING")
             {
-                auto input = readArray<int64_t>(item);
+                // Since it doesn't make sense to sleep for a negative amount of
+                // time, we use an unsigned integer type.
+                auto input = readIntArray<uint32>(item);
                 OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to std::chrono::microseconds
+                // Convert uint32 to std::chrono::microseconds
                 std::transform(
                     input.begin(), input.end(),
                     std::back_inserter(
                         OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                    [](int64_t x) { return std::chrono::microseconds(x); });
+                    [](uint32 x) { return std::chrono::microseconds(x); });
             }
             else if (item.first == "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING")
             {
-                auto input = readArray<int64_t>(item);
-                OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to uint32
-                std::transform(
-                    input.begin(), input.end(),
-                    std::back_inserter(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING),
-                    [](int64_t x) { return static_cast<uint32>(x); });
+                OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
+                    readIntArray<uint32>(item);
             }
             else if (item.first == "LOADGEN_OP_COUNT_FOR_TESTING")
             {
-                auto input = readArray<int64_t>(item);
-                LOADGEN_OP_COUNT_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to unsigned short
-                std::transform(
-                    input.begin(), input.end(),
-                    std::back_inserter(LOADGEN_OP_COUNT_FOR_TESTING),
-                    [](int64_t x) { return static_cast<unsigned short>(x); });
+                LOADGEN_OP_COUNT_FOR_TESTING =
+                    readIntArray<unsigned short>(item);
             }
             else if (item.first == "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING")
             {
-                auto input = readArray<int64_t>(item);
-                LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.reserve(input.size());
-                // Convert int64_t to uint32
-                std::transform(
-                    input.begin(), input.end(),
-                    std::back_inserter(
-                        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING),
-                    [](int64_t x) { return static_cast<uint32>(x); });
+                LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
             }
             else
             {
