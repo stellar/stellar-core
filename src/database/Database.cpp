@@ -336,6 +336,16 @@ Database::getUpsertTimer(std::string const& entityName)
 }
 
 void
+Database::maybeArtificiallySleepForSimulatedLatency()
+{
+    auto usec = mApp.getConfig().ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING;
+    if (usec.count() != 0)
+    {
+        std::this_thread::sleep_for(usec);
+    }
+}
+
+void
 Database::setCurrentTransactionReadOnly()
 {
     if (!isSqlite())
@@ -417,6 +427,7 @@ Database::getSession()
 {
     // global session can only be used from the main thread
     assertThreadIsMain();
+    maybeArtificiallySleepForSimulatedLatency();
     return mSession;
 }
 
@@ -488,6 +499,7 @@ class SQLLogContext : NonCopyable
 StatementContext
 Database::getPreparedStatement(std::string const& query)
 {
+    maybeArtificiallySleepForSimulatedLatency();
     auto i = mStatements.find(query);
     std::shared_ptr<soci::statement> p;
     if (i == mStatements.end())

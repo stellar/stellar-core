@@ -46,6 +46,7 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
+    "ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
     "LOADGEN_OP_COUNT_FOR_TESTING",
@@ -148,6 +149,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = false;
     ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING = false;
+    ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING = std::chrono::microseconds(0);
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
@@ -918,6 +920,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING =
                     readBool(item);
+            }
+            else if (item.first == "ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING")
+            {
+                ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING =
+                    std::chrono::microseconds{readInt<uint32_t>(item)};
             }
             else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
             {

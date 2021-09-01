@@ -133,6 +133,8 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getUpdateTimer(std::string const& entityName);
     medida::TimerContext getUpsertTimer(std::string const& entityName);
 
+    void maybeArtificiallySleepForSimulatedLatency();
+
     // If possible (i.e. "on postgres") issue an SQL pragma that marks
     // the current transaction as read-only. The effects of this last
     // only as long as the current SQL transaction.

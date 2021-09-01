@@ -196,6 +196,11 @@ class Config : public std::enable_shared_from_this<Config>
     // system.
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
+    // A config parameter that causes each database call to sleep for a given
+    // number of microseconds before returning. This allows simulating a slow
+    // database (or a database on a slow disk) in performance tests.
+    std::chrono::microseconds ARTIFICIAL_DATABASE_LATENCY_FOR_TESTING;
+
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
     // The probability that it sleeps for
