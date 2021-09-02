@@ -20,9 +20,11 @@ class AllowTrustOpFrame : public OperationFrame
     AllowTrustOp const& mAllowTrust;
     Asset const mAsset;
 
+    uint32_t mOpIndex;
+
   public:
     AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                      TransactionFrame& parentTx);
+                      TransactionFrame& parentTx, uint32_t index);
 
     bool doApply(AbstractLedgerTxn& ls) override;
     bool doCheckValid(uint32_t ledgerVersion) override;

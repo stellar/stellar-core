@@ -82,7 +82,8 @@ void validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t reserveA, int64_t reserveB,
-                        int64_t totalPoolShares);
+                        int64_t totalPoolShares,
+                        int64_t poolSharesTrustLineCount);
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
@@ -250,5 +251,15 @@ TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys);
+
+LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
+
+UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);
+
+LedgerHeader executeUpgrades(Application& app,
+                             xdr::xvector<UpgradeType, 6> const& upgrades);
+
+LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade);
+
 } // end txtest namespace
 }

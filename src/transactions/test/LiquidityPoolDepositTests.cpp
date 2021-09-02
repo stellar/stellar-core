@@ -144,7 +144,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             REQUIRE(a1.getTrustlineBalance(cur1) == 400);
             REQUIRE(a1.getTrustlineBalance(cur2) == 900);
             REQUIRE(a1.getTrustlineBalance(pool12) == 600);
-            checkLiquidityPool(*app, pool12, 400, 900, 600);
+            checkLiquidityPool(*app, pool12, 400, 900, 600, 1);
 
             // This section is all about depositing into a non-empty pool
             auto a2 = root.create("a2", minBal(10));
@@ -201,7 +201,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX - 67);
             REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX - 150);
             REQUIRE(a2.getTrustlineBalance(pool12) == 100);
-            checkLiquidityPool(*app, pool12, 467, 1050, 700);
+            checkLiquidityPool(*app, pool12, 467, 1050, 700, 2);
         });
     }
 
@@ -256,7 +256,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             REQUIRE(a1.getBalance() == balance - 100 - 1);
             REQUIRE(a1.getTrustlineBalance(cur1) == INT64_MAX - INT32_MAX);
             REQUIRE(a1.getTrustlineBalance(poolNative1) == 46341);
-            checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46341);
+            checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46341, 1);
 
             // This section is all about depositing into a non-empty pool
             auto a2 = root.create("a2", minBal(3) + 6 * 100);
@@ -311,7 +311,7 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX - INT32_MAX);
             REQUIRE(a2.getTrustlineBalance(poolNative1) == 46341);
             checkLiquidityPool(*app, poolNative1, 2, 2 * (int64_t)INT32_MAX,
-                               92682);
+                               92682, 2);
         });
     }
 

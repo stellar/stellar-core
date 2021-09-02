@@ -15,9 +15,11 @@ namespace stellar
 
 SetTrustLineFlagsOpFrame::SetTrustLineFlagsOpFrame(Operation const& op,
                                                    OperationResult& res,
-                                                   TransactionFrame& parentTx)
+                                                   TransactionFrame& parentTx,
+                                                   uint32_t index)
     : OperationFrame(op, res, parentTx)
     , mSetTrustLineFlags(mOperation.body.setTrustLineFlagsOp())
+    , mOpIndex(index)
 {
 }
 
@@ -50,7 +52,7 @@ SetTrustLineFlagsOpFrame::doApply(AbstractLedgerTxn& ltx)
     uint32_t expectedFlagValue = 0;
     {
         // trustline is loaded in this inner scope because it can be loaded
-        // again in removeOffersByAccountAndAsset
+        // again in removeOffersAndPoolShareTrustLines
         auto const trust = ltx.load(key);
         if (!trust)
         {
@@ -76,8 +78,23 @@ SetTrustLineFlagsOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     if (shouldRemoveOffers)
     {
-        removeOffersByAccountAndAsset(ltx, mSetTrustLineFlags.trustor,
-                                      mSetTrustLineFlags.asset);
+        auto res = removeOffersAndPoolShareTrustLines(
+            ltx, mSetTrustLineFlags.trustor, mSetTrustLineFlags.asset,
+            mParentTx.getSourceID(), mParentTx.getSeqNum(), mOpIndex);
+
+        switch (res)
+        {
+        case RemoveResult::SUCCESS:
+            break;
+        case RemoveResult::LOW_RESERVE:
+            innerResult().code(SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+            return false;
+        case RemoveResult::TOO_MANY_SPONSORING:
+            mResult.code(opTOO_MANY_SPONSORING);
+            return false;
+        default:
+            throw std::runtime_error("Unexpected RemoveResult");
+        }
     }
 
     auto trust = ltx.load(key);

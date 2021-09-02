@@ -38,10 +38,11 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 }
 
 AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
+                                     TransactionFrame& parentTx, uint32_t index)
     : OperationFrame(op, res, parentTx)
     , mAllowTrust(mOperation.body.allowTrustOp())
     , mAsset(getAsset(getSourceID(), mAllowTrust.asset))
+    , mOpIndex(index)
 {
 }
 
@@ -129,8 +130,25 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
     if (ledgerVersion >= 10 && shouldRemoveOffers)
     {
         // Delete all offers owned by the trustor that are either buying or
-        // selling the asset which had authorization revoked.
-        removeOffersByAccountAndAsset(ltx, mAllowTrust.trustor, mAsset);
+        // selling the asset which had authorization revoked. Also redeem pool
+        // share trustlines owned by the trustor that use this asset
+        auto res = removeOffersAndPoolShareTrustLines(
+            ltx, mAllowTrust.trustor, mAsset, mParentTx.getSourceID(),
+            mParentTx.getSeqNum(), mOpIndex);
+
+        switch (res)
+        {
+        case RemoveResult::SUCCESS:
+            break;
+        case RemoveResult::LOW_RESERVE:
+            innerResult().code(ALLOW_TRUST_LOW_RESERVE);
+            return false;
+        case RemoveResult::TOO_MANY_SPONSORING:
+            mResult.code(opTOO_MANY_SPONSORING);
+            return false;
+        default:
+            throw std::runtime_error("Unexpected RemoveResult");
+        }
     }
 
     auto trustLineEntry = ltx.load(key);

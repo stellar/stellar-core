@@ -106,24 +106,24 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 100);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 25);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 50);
-            checkLiquidityPool(*app, pool12, 100, 25, 50);
+            checkLiquidityPool(*app, pool12, 100, 25, 50, 1);
 
             // add a different depositor
             root.changeTrust(share12, 50);
             root.liquidityPoolDeposit(pool12, 100, 25, Price{4, 1},
                                       Price{4, 1});
-            checkLiquidityPool(*app, pool12, 200, 50, 100);
+            checkLiquidityPool(*app, pool12, 200, 50, 100, 2);
 
             // empty the pool share trustline
             acc1.liquidityPoolWithdraw(pool12, 50, 100, 25);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 200);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 50);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 0);
-            checkLiquidityPool(*app, pool12, 100, 25, 50);
+            checkLiquidityPool(*app, pool12, 100, 25, 50, 2);
 
             // empty the pool
             root.liquidityPoolWithdraw(pool12, 50, 100, 25);
-            checkLiquidityPool(*app, pool12, 0, 0, 0);
+            checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
 
             // Do another deposit/withdraw where rounding comes into play
             root.allowTrust(cur1, acc1);
@@ -135,7 +135,7 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 110);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 26);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 47);
-            checkLiquidityPool(*app, pool12, 90, 24, 47);
+            checkLiquidityPool(*app, pool12, 90, 24, 47, 2);
 
             // floor(2/47*90) = 3
             // floor(2/47*24) = 1
@@ -143,14 +143,14 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 113);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 27);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 45);
-            checkLiquidityPool(*app, pool12, 87, 23, 45);
+            checkLiquidityPool(*app, pool12, 87, 23, 45, 2);
 
             // empty the pool
             acc1.liquidityPoolWithdraw(pool12, 45, 0, 0);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 200);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 50);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 0);
-            checkLiquidityPool(*app, pool12, 0, 0, 0);
+            checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
         }
 
         SECTION("one non-native without liabilities")
@@ -189,13 +189,13 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getBalance() == balance - 100 + 25);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 100);
             REQUIRE(acc1.getTrustlineBalance(poolNative1) == 50);
-            checkLiquidityPool(*app, poolNative1, 25, 100, 50);
+            checkLiquidityPool(*app, poolNative1, 25, 100, 50, 1);
 
             // add a different depositor
             root.changeTrust(shareNative1, 50);
             root.liquidityPoolDeposit(poolNative1, 25, 100, Price{1, 4},
                                       Price{1, 4});
-            checkLiquidityPool(*app, poolNative1, 50, 200, 100);
+            checkLiquidityPool(*app, poolNative1, 50, 200, 100, 2);
 
             // empty pool share trustline
             balance = acc1.getBalance();
@@ -203,14 +203,14 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getBalance() == balance - 100 + 25);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 200);
             REQUIRE(acc1.getTrustlineBalance(poolNative1) == 0);
-            checkLiquidityPool(*app, poolNative1, 25, 100, 50);
+            checkLiquidityPool(*app, poolNative1, 25, 100, 50, 2);
 
             // empty the other pool share trustline
             balance = root.getBalance();
             root.liquidityPoolWithdraw(poolNative1, 50, 25, 100);
             REQUIRE(root.getBalance() == balance - 100 + 25);
             REQUIRE(root.getTrustlineBalance(poolNative1) == 0);
-            checkLiquidityPool(*app, poolNative1, 0, 0, 0);
+            checkLiquidityPool(*app, poolNative1, 0, 0, 0, 2);
         }
 
         SECTION("line full on native balance")
@@ -242,7 +242,8 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             root.changeTrust(share12, INT64_MAX);
             root.liquidityPoolDeposit(pool12, INT64_MAX, INT64_MAX, Price{1, 1},
                                       Price{1, 1});
-            checkLiquidityPool(*app, pool12, INT64_MAX, INT64_MAX, INT64_MAX);
+            checkLiquidityPool(*app, pool12, INT64_MAX, INT64_MAX, INT64_MAX,
+                               1);
 
             {
                 // test pool full
@@ -258,7 +259,7 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             }
 
             root.liquidityPoolWithdraw(pool12, INT64_MAX, INT64_MAX, 1);
-            checkLiquidityPool(*app, pool12, 0, 0, 0);
+            checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
             root.changeTrust(share12, 0);
         }
 
@@ -268,7 +269,7 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             root.liquidityPoolDeposit(poolNative1, 1000, 1000, Price{1, 1},
                                       Price{1, 1});
             root.liquidityPoolWithdraw(poolNative1, 1000, 1000, 1000);
-            checkLiquidityPool(*app, poolNative1, 0, 0, 0);
+            checkLiquidityPool(*app, poolNative1, 0, 0, 0, 1);
             root.changeTrust(shareNative1, 0);
         }
 
@@ -285,16 +286,16 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 0);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 0);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 4);
-            checkLiquidityPool(*app, pool12, 1, 10, 4);
+            checkLiquidityPool(*app, pool12, 1, 10, 4, 1);
 
             acc1.liquidityPoolWithdraw(pool12, 3, 0, 7);
-            checkLiquidityPool(*app, pool12, 1, 3, 1);
+            checkLiquidityPool(*app, pool12, 1, 3, 1, 1);
 
             acc1.liquidityPoolWithdraw(pool12, 1, 1, 3);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 1);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 10);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 0);
-            checkLiquidityPool(*app, pool12, 0, 0, 0);
+            checkLiquidityPool(*app, pool12, 0, 0, 0, 1);
 
             // now make assetB withdraw 0
             root.pay(acc1, cur1, 9);
@@ -305,16 +306,16 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 0);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 0);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 4);
-            checkLiquidityPool(*app, pool12, 10, 1, 4);
+            checkLiquidityPool(*app, pool12, 10, 1, 4, 1);
 
             acc1.liquidityPoolWithdraw(pool12, 3, 7, 0);
-            checkLiquidityPool(*app, pool12, 3, 1, 1);
+            checkLiquidityPool(*app, pool12, 3, 1, 1, 1);
 
             acc1.liquidityPoolWithdraw(pool12, 1, 3, 1);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 10);
             REQUIRE(acc1.getTrustlineBalance(cur2) == 1);
             REQUIRE(acc1.getTrustlineBalance(pool12) == 0);
-            checkLiquidityPool(*app, pool12, 0, 0, 0);
+            checkLiquidityPool(*app, pool12, 0, 0, 0, 1);
         }
 
         SECTION("native asset withdraw is zero")
@@ -329,17 +330,17 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getBalance() == balance - 100 - 1);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 0);
             REQUIRE(acc1.getTrustlineBalance(poolNative1) == 4);
-            checkLiquidityPool(*app, poolNative1, 1, 10, 4);
+            checkLiquidityPool(*app, poolNative1, 1, 10, 4, 1);
 
             acc1.liquidityPoolWithdraw(poolNative1, 3, 0, 7);
-            checkLiquidityPool(*app, poolNative1, 1, 3, 1);
+            checkLiquidityPool(*app, poolNative1, 1, 3, 1, 1);
 
             balance = acc1.getBalance();
             acc1.liquidityPoolWithdraw(poolNative1, 1, 1, 3);
             REQUIRE(acc1.getBalance() == balance - 100 + 1);
             REQUIRE(acc1.getTrustlineBalance(cur1) == 10);
             REQUIRE(acc1.getTrustlineBalance(poolNative1) == 0);
-            checkLiquidityPool(*app, poolNative1, 0, 0, 0);
+            checkLiquidityPool(*app, poolNative1, 0, 0, 0, 1);
         }
     });
 }

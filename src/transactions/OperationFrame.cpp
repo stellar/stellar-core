@@ -76,7 +76,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case CHANGE_TRUST:
         return std::make_shared<ChangeTrustOpFrame>(op, res, tx);
     case ALLOW_TRUST:
-        return std::make_shared<AllowTrustOpFrame>(op, res, tx);
+        return std::make_shared<AllowTrustOpFrame>(op, res, tx, index);
     case ACCOUNT_MERGE:
         return std::make_shared<MergeOpFrame>(op, res, tx);
     case INFLATION:
@@ -107,7 +107,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case CLAWBACK_CLAIMABLE_BALANCE:
         return std::make_shared<ClawbackClaimableBalanceOpFrame>(op, res, tx);
     case SET_TRUST_LINE_FLAGS:
-        return std::make_shared<SetTrustLineFlagsOpFrame>(op, res, tx);
+        return std::make_shared<SetTrustLineFlagsOpFrame>(op, res, tx, index);
     case LIQUIDITY_POOL_DEPOSIT:
         return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     case LIQUIDITY_POOL_WITHDRAW:

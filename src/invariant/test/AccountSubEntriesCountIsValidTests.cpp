@@ -21,17 +21,6 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-static int32_t
-computeMultiplier(LedgerEntry const& le)
-{
-    if (le.data.type() == TRUSTLINE &&
-        le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
-    {
-        return 2;
-    }
-    return 1;
-}
-
 static LedgerEntry
 generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
 {
@@ -202,7 +191,8 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
     {
         auto se = generateRandomSubEntry(le);
         subentries.push_back(se);
-        updateAccountSubEntries(app, le, lePrev, computeMultiplier(se),
+        updateAccountSubEntries(app, le, lePrev,
+                                testutil::computeMultiplier(se),
                                 makeUpdateList({se}, nullptr));
     }
 }
@@ -281,7 +271,8 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
         auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
         subentries.erase(subentries.begin() + index);
-        updateAccountSubEntries(app, le, lePrev, -computeMultiplier(se),
+        updateAccountSubEntries(app, le, lePrev,
+                                -testutil::computeMultiplier(se),
                                 makeUpdateList(nullptr, {se}));
     }
 }

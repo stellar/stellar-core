@@ -28,6 +28,8 @@ void shutdownWorkScheduler(Application& app);
 
 std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
+int32_t computeMultiplier(LedgerEntry const& le);
+
 class BucketListDepthModifier
 {
     uint32_t const mPrevDepth;

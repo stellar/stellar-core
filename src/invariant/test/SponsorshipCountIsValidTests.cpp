@@ -15,27 +15,6 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-static int32_t
-computeMultiplier(LedgerEntry const& le)
-{
-    switch (le.data.type())
-    {
-    case ACCOUNT:
-        return 2;
-    case TRUSTLINE:
-        return le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE ? 2
-                                                                         : 1;
-    case OFFER:
-    case DATA:
-        return 1;
-    case CLAIMABLE_BALANCE:
-        return static_cast<uint32_t>(
-            le.data.claimableBalance().claimants.size());
-    default:
-        throw std::runtime_error("Unexpected LedgerEntry type");
-    }
-}
-
 TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
 {
     VirtualClock clock;
@@ -216,13 +195,13 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
                     entry =
                         doSponsoring(*entry, sponsoringID, updateSponsoring);
                     auto initSponsoring = createAccount(sponsoringID);
-                    auto sponsoring = doNumSponsoring(*initSponsoring,
-                                                      computeMultiplier(*entry),
-                                                      updateNumSponsoring);
+                    auto sponsoring = doNumSponsoring(
+                        *initSponsoring, testutil::computeMultiplier(*entry),
+                        updateNumSponsoring);
                     auto initSponsored = createAccount(sponsoredID);
-                    auto sponsored = doNumSponsored(*initSponsored,
-                                                    computeMultiplier(*entry),
-                                                    updateNumSponsored);
+                    auto sponsored = doNumSponsored(
+                        *initSponsored, testutil::computeMultiplier(*entry),
+                        updateNumSponsored);
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     prepareState(ltx, {*initSponsoring, *initSponsored});
@@ -240,9 +219,9 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
                 auto entry = createEntry(CLAIMABLE_BALANCE, sponsoredID);
                 entry = doSponsoring(*entry, sponsoringID, updateSponsoring);
                 auto initSponsoring = createAccount(sponsoringID);
-                auto sponsoring =
-                    doNumSponsoring(*initSponsoring, computeMultiplier(*entry),
-                                    updateNumSponsoring);
+                auto sponsoring = doNumSponsoring(
+                    *initSponsoring, testutil::computeMultiplier(*entry),
+                    updateNumSponsoring);
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 prepareState(ltx, {*initSponsoring});
@@ -332,14 +311,14 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
             auto entry1 = doSponsoring(*initEntry, sponsoringID);
             auto entry2 = doSponsoring(*entry1, sponsoringID2);
             auto initSponsoring1 = createAccount(sponsoringID, true);
-            auto sponsoring1 = doNumSponsoring(*initSponsoring1,
-                                               computeMultiplier(*initEntry));
+            auto sponsoring1 = doNumSponsoring(
+                *initSponsoring1, testutil::computeMultiplier(*initEntry));
             auto initSponsoring2 = createAccount(sponsoringID2, true);
-            auto sponsoring2 =
-                doNumSponsoring(*initSponsoring2, computeMultiplier(*entry1));
+            auto sponsoring2 = doNumSponsoring(
+                *initSponsoring2, testutil::computeMultiplier(*entry1));
             auto initSponsored = createAccount(sponsoredID, true);
-            auto sponsored =
-                doNumSponsored(*initSponsored, computeMultiplier(*entry2));
+            auto sponsored = doNumSponsored(
+                *initSponsored, testutil::computeMultiplier(*entry2));
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             prepareState(ltx, {*initEntry, *initSponsoring1, *initSponsoring2,
@@ -361,11 +340,11 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
             auto entry1 = doSponsoring(*initEntry, sponsoringID);
             auto entry2 = doSponsoring(*entry1, sponsoringID2);
             auto initSponsoring1 = createAccount(sponsoringID, true);
-            auto sponsoring1 =
-                doNumSponsoring(*initSponsoring1, computeMultiplier(*entry1));
+            auto sponsoring1 = doNumSponsoring(
+                *initSponsoring1, testutil::computeMultiplier(*entry1));
             auto initSponsoring2 = createAccount(sponsoringID2, true);
-            auto sponsoring2 =
-                doNumSponsoring(*initSponsoring2, computeMultiplier(*entry2));
+            auto sponsoring2 = doNumSponsoring(
+                *initSponsoring2, testutil::computeMultiplier(*entry2));
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             prepareState(ltx, {*initEntry, *initSponsoring1, *initSponsoring2});
@@ -437,12 +416,14 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
                                              updateSponsoring);
                     auto initSponsoring = createAccount(sponsoringID, true);
                     auto sponsoring = doNumSponsoring(
-                        *initSponsoring, -computeMultiplier(*initEntry),
+                        *initSponsoring,
+                        -testutil::computeMultiplier(*initEntry),
                         updateNumSponsoring);
                     auto initSponsored = createAccount(sponsoredID, true);
-                    auto sponsored = doNumSponsored(
-                        *initSponsored, -computeMultiplier(*initEntry),
-                        updateNumSponsored);
+                    auto sponsored =
+                        doNumSponsored(*initSponsored,
+                                       -testutil::computeMultiplier(*initEntry),
+                                       updateNumSponsored);
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     prepareState(ltx,
@@ -463,7 +444,7 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
                     doSponsoring(*initEntry, sponsoringID, updateSponsoring);
                 auto initSponsoring = createAccount(sponsoringID, true);
                 auto sponsoring = doNumSponsoring(
-                    *initSponsoring, -computeMultiplier(*initEntry),
+                    *initSponsoring, -testutil::computeMultiplier(*initEntry),
                     updateNumSponsoring);
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());

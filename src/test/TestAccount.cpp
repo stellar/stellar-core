@@ -389,14 +389,14 @@ TestAccount::getBalanceID(uint32_t opIndex, SequenceNumber sn)
         sn = getLastSequenceNumber();
     }
 
-    OperationID operationID;
-    operationID.type(ENVELOPE_TYPE_OP_ID);
-    operationID.id().sourceAccount = getPublicKey();
-    operationID.id().seqNum = sn;
-    operationID.id().opNum = opIndex;
+    HashIDPreimage hashPreimage;
+    hashPreimage.type(ENVELOPE_TYPE_OP_ID);
+    hashPreimage.operationID().sourceAccount = getPublicKey();
+    hashPreimage.operationID().seqNum = sn;
+    hashPreimage.operationID().opNum = opIndex;
 
     ClaimableBalanceID balanceID;
-    balanceID.v0() = sha256(xdr::xdr_to_opaque(operationID));
+    balanceID.v0() = sha256(xdr::xdr_to_opaque(hashPreimage));
 
     return balanceID;
 }
