@@ -35,7 +35,7 @@ enum class SponsorshipResult
     TOO_MANY_SPONSORED
 };
 
-uint32_t computeMultiplier(LedgerEntry const& le);
+int32_t computeMultiplier(LedgerEntry const& le);
 
 SponsorshipResult canEstablishEntrySponsorship(LedgerHeader const& lh,
                                                LedgerEntry const& le,

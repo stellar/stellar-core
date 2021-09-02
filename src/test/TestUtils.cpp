@@ -101,6 +101,27 @@ getInvalidAssets(SecretKey const& issuer)
     return assets;
 }
 
+int32_t
+computeMultiplier(LedgerEntry const& le)
+{
+    switch (le.data.type())
+    {
+    case ACCOUNT:
+        return 2;
+    case TRUSTLINE:
+        return le.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE ? 2
+                                                                         : 1;
+    case OFFER:
+    case DATA:
+        return 1;
+    case CLAIMABLE_BALANCE:
+        return static_cast<uint32_t>(
+            le.data.claimableBalance().claimants.size());
+    default:
+        throw std::runtime_error("Unexpected LedgerEntry type");
+    }
+}
+
 BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
     : mPrevDepth(BucketList::kNumLevels)
 {

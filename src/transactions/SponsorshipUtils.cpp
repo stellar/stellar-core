@@ -183,7 +183,7 @@ isSignerSponsored(std::vector<Signer>::const_iterator const& signerIt,
 // Utility functions to check if you can establish/remove/transfer sponsorships
 //
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t
+int32_t
 computeMultiplier(LedgerEntry const& le)
 {
     switch (le.data.type())
