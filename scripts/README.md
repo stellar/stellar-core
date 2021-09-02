@@ -3,6 +3,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 
 ## List of scripts
 - [Overlay survey](#overlay-survey)
+- [Diff Tracy CSV](#diff-tracy-csv)
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
@@ -24,6 +25,11 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-json JSONOUTPUT` - output json file
+
+### Diff Tracy CSV
+- Name - `DiffTracyCSV.py`
+- Description - A Python script that compares two CSV files produced by `tracy-csvexport` (which in turn reads output from `tracy-capture`). The purpose of this script is to detect significant performance impacts of changes to stellar-core by capturing before-and-after traces.
+- Usage - Ex. `tracy-capture -o old.tracy -s 10 -a 127.0.0.1` to capture a 10 second trace of stellar-core running on the local machine. Then run `tracy-csvexport -u old.tracy >old.csv`. Then make a change to stellar-core and repeat the process to capture `new.tracy` and `new.csv`. Finally, run `DiffTracyCSV.py --old old.csv --new new.csv` and inspect the differences.
 
 ## Style guide
 We follow [PEP-0008](https://www.python.org/dev/peps/pep-0008/).

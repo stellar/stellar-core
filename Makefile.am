@@ -1,5 +1,6 @@
 ## Process this file with automake to produce Makefile.in
 
+bin_PROGRAMS =
 SUBDIRS = lib src
 AM_EXTRA_RECURSIVE_TARGETS = check-valgrind
 ACLOCAL_AMFLAGS = -I m4
@@ -35,6 +36,8 @@ $(TRACY_GUI_BUILD)/Tracy-release: $(wildcard $(TRACY_GUI_SOURCE)/*.*)
 
 tracy-gui: $(TRACY_GUI_BUILD)/Tracy-release
 	cp -v $< $@
+
+bin_PROGRAMS += tracy-gui
 endif # USE_TRACY_GUI
 
 if USE_TRACY_CAPTURE
@@ -47,7 +50,23 @@ $(TRACY_CAPTURE_BUILD)/capture-release: $(wildcard $(TRACY_CAPTURE_SOURCE)/*.*)
 
 tracy-capture: $(TRACY_CAPTURE_BUILD)/capture-release
 	cp -v $< $@
+
+bin_PROGRAMS += tracy-capture
 endif # USE_TRACY_CAPTURE
+
+if USE_TRACY_CSVEXPORT
+TRACY_CSVEXPORT_DIR=$(top_srcdir)/lib/tracy/csvexport
+TRACY_CSVEXPORT_SOURCE=$(TRACY_CSVEXPORT_DIR)/src
+TRACY_CSVEXPORT_BUILD=$(TRACY_CSVEXPORT_DIR)/build/unix
+
+$(TRACY_CSVEXPORT_BUILD)/csvexport-release: $(wildcard $(TRACY_CSVEXPORT_SOURCE)/*.*)
+	$(MAKE) -C $(TRACY_CSVEXPORT_BUILD) release CC="$(CC)" CXX="$(CXX)"
+
+tracy-csvexport: $(TRACY_CSVEXPORT_BUILD)/csvexport-release
+	cp -v $< $@
+
+bin_PROGRAMS += tracy-csvexport
+endif # USE_TRACY_CSVEXPORT
 
 EXTRA_DIST = stellar-core.supp test/testnet/multitail.conf	\
 	test/testnet/run-test.sh README.md make-mks
