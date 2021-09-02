@@ -57,7 +57,17 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
     ar(make_nvp("fee", o.mBaseFee));
     ar(make_nvp("maxtxsize", o.mMaxTxSize));
     ar(make_nvp("reserve", o.mBaseReserve));
-    ar(make_nvp("flags", o.mFlags));
+
+    // the flags upgrade was added after the fields above, so it's possible for
+    // them not to exist in the database
+    try
+    {
+        ar(make_nvp("flags", o.mFlags));
+    }
+    catch (cereal::Exception&)
+    {
+        // flags name not found
+    }
 }
 } // namespace cereal
 
