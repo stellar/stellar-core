@@ -167,7 +167,8 @@ getNumReservesRequiredForOperation(Operation const& op)
     }
     else if (op.body.type() == CREATE_CLAIMABLE_BALANCE)
     {
-        return op.body.createClaimableBalanceOp().claimants.size();
+        return static_cast<uint32_t>(
+            op.body.createClaimableBalanceOp().claimants.size());
     }
 
     return 1;

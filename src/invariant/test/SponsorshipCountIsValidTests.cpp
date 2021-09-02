@@ -15,7 +15,7 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-static uint32_t
+static int32_t
 computeMultiplier(LedgerEntry const& le)
 {
     switch (le.data.type())
