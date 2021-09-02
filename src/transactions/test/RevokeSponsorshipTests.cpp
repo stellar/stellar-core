@@ -47,6 +47,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
     auto root = TestAccount::createRoot(*app);
 
+    auto const native = makeNativeAsset();
+
     for_versions_from(14, *app, [&]() {
         SECTION("entry is not sponsored")
         {
@@ -111,7 +113,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("claimable balances")
                 {
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(2));
 
                     auto balanceID =
@@ -252,7 +253,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("claimable balances")
                 {
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(2));
 
                     auto balanceID =
@@ -382,7 +382,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("claimable balance")
                 {
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(1));
 
                     auto tx1 = transactionFrameFromOps(
@@ -538,7 +537,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("claimable balances")
                 {
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(0) + 1);
                     auto a2 = root.create("a2", minBal(2));
 
@@ -621,7 +619,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 SECTION("offer")
                 {
                     auto cur1 = makeAsset(root, "CUR1");
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(3));
                     auto a2 = root.create("a2", minBal(2));
 
@@ -803,7 +800,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 SECTION("offer")
                 {
                     auto cur1 = makeAsset(root, "CUR1");
-                    auto native = makeNativeAsset();
                     auto a1 = root.create("a1", minBal(3));
 
                     a1.changeTrust(cur1, INT64_MAX);
@@ -867,7 +863,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("use wrong account in offer key")
                 {
-                    auto native = makeNativeAsset();
                     auto a2 = root.create("a2", minBal(3));
 
                     a2.changeTrust(cur1, INT64_MAX);
@@ -1173,7 +1168,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
     SECTION("too many sponsoring")
     {
-        auto native = makeNativeAsset();
         auto a1 = root.create("a1", minBal(3));
 
         SECTION("account")
@@ -1218,7 +1212,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
         }
         SECTION("pool share trustline")
         {
-            auto native = makeNativeAsset();
             auto cur1 = makeAsset(root, "CUR1");
             auto cur2 = makeAsset(root, "CUR2");
 
@@ -1288,7 +1281,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
