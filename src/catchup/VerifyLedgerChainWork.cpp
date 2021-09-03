@@ -169,8 +169,20 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
                ft.localPath_nogz(), mCurrCheckpoint);
 
-    while (hdrIn && hdrIn.readOne(curr))
+    while (hdrIn)
     {
+        try
+        {
+            if (!hdrIn.readOne(curr))
+            {
+                break;
+            }
+        }
+        catch (xdr::xdr_bad_message_size&)
+        {
+            return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
+        }
+
         if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
