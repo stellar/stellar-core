@@ -12,6 +12,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -955,4 +956,62 @@ TEST_CASE("revoke from pool",
             revokeTest(TrustFlagOp::ALLOW_TRUST);
         }
     });
+
+    SECTION("too many sponsoring")
+    {
+        for_versions_from(18, *app, [&] {
+            SECTION("one claimable balance")
+            {
+                // use two assets issued by acc1. No claimable balances will be
+                // created for them on revoke
+                auto eur = makeAsset(acc1, "eur");
+                auto usd = makeAsset(acc1, "usd");
+
+                depositIntoPool(acc1, cur1, eur);
+                depositIntoPool(acc1, cur2, usd);
+
+                SECTION("allow trust")
+                {
+                    tooManySponsoring(*app, acc1,
+                                      root.op(allowTrust(acc1, cur1, 0)),
+                                      root.op(allowTrust(acc1, cur2, 0)), 1);
+                }
+                SECTION("set trustline flags")
+                {
+                    tooManySponsoring(
+                        *app, acc1,
+                        root.op(setTrustLineFlags(
+                            acc1, cur1, clearTrustLineFlags(AUTHORIZED_FLAG))),
+                        root.op(setTrustLineFlags(
+                            acc1, cur2, clearTrustLineFlags(AUTHORIZED_FLAG))),
+                        1);
+                }
+            }
+
+            SECTION("two claimable balances")
+            {
+                auto cur3 = makeAsset(root, "CUR3");
+
+                depositIntoPool(acc1, cur1, cur2);
+                depositIntoPool(acc1, cur2, cur3);
+
+                SECTION("allow trust")
+                {
+                    tooManySponsoring(*app, acc1,
+                                      root.op(allowTrust(acc1, cur1, 0)),
+                                      root.op(allowTrust(acc1, cur2, 0)), 2);
+                }
+                SECTION("set trustline flags")
+                {
+                    tooManySponsoring(
+                        *app, acc1,
+                        root.op(setTrustLineFlags(
+                            acc1, cur1, clearTrustLineFlags(AUTHORIZED_FLAG))),
+                        root.op(setTrustLineFlags(
+                            acc1, cur2, clearTrustLineFlags(AUTHORIZED_FLAG))),
+                        2);
+                }
+            }
+        });
+    }
 }

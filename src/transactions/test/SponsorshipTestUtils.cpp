@@ -353,6 +353,13 @@ getMinProtocolVersionForTooManyTestsFromOp(Operation const& op)
     {
         return 18;
     }
+    else if (op.body.type() == ALLOW_TRUST ||
+             op.body.type() == SET_TRUST_LINE_FLAGS)
+    {
+        // An assumption is made here that if you are using one of these
+        // operations, you are testing the pool share revoke scenario.
+        return 18;
+    }
 
     return 14;
 }
