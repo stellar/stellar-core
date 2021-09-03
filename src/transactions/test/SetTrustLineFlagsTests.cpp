@@ -964,13 +964,19 @@ TEST_CASE("revoke from pool",
                                   acc1, cur1,
                                   clearTrustLineFlags(TRUSTLINE_AUTH_FLAGS));
 
+                    std::vector<SecretKey> opKeys = {sponsoredAcc};
+                    if (sponsoringAcc.getAccountId() != root.getAccountId())
+                    {
+                        opKeys.emplace_back(root);
+                    }
+
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), sponsoringAcc,
                         {sponsoringAcc.op(
                              beginSponsoringFutureReserves(sponsoredAcc)),
                          root.op(op),
                          sponsoredAcc.op(endSponsoringFutureReserves())},
-                        {sponsoredAcc, root});
+                        opKeys);
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMeta txm(2);
@@ -1035,7 +1041,22 @@ TEST_CASE("revoke from pool",
                     submitRevokeInSandwich(acc2, acc1, true);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
+                SECTION("same reserve - issuer sandwich on revoke - success")
+                {
+                    depositIntoPool(false);
 
+                    submitRevokeInSandwich(root, acc1, true);
+                    claimAndValidatePoolCounters(root, 1);
+                }
+                SECTION("same reserve - issuer sandwich on revoke - fail")
+                {
+                    depositIntoPool(false);
+
+                    // leave enough to pay for this tx and the sponsorship
+                    // sandwich
+                    root.pay(acc2, root.getAvailableBalance() - txFee * 4);
+                    submitRevokeInSandwich(root, acc1, false);
+                }
                 SECTION("same reserve - sandwich on revoke - fail")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
@@ -1073,6 +1094,24 @@ TEST_CASE("revoke from pool",
                     root.pay(acc2, lm.getLastMinBalance(1));
                     submitRevokeInSandwich(acc2, acc1, true);
                     claimAndValidatePoolCounters(acc2, 1);
+                }
+                SECTION(
+                    "increase reserve - issuer sandwich on revoke - success")
+                {
+                    depositIntoPool(false);
+                    increaseReserve();
+
+                    submitRevokeInSandwich(root, acc1, true);
+                    claimAndValidatePoolCounters(root, 1);
+                }
+                SECTION("increase reserve - issuer sandwich on revoke - fail")
+                {
+                    depositIntoPool(false);
+                    root.pay(acc2, root.getAvailableBalance() -
+                                       lm.getLastMinBalance(1));
+
+                    increaseReserve();
+                    submitRevokeInSandwich(root, acc1, false);
                 }
                 SECTION("increase reserve - sandwich on revoke - fail")
                 {
