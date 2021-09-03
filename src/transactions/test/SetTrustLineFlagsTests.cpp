@@ -11,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Timer.h"
@@ -67,6 +68,16 @@ getBalance(TestAccount const& account, Asset const& asset)
     return asset.type() == ASSET_TYPE_NATIVE
                ? account.getBalance()
                : account.getTrustlineBalance(asset);
+}
+
+static void
+checkNumSponsoring(Application& app, TestAccount const& account,
+                   uint32_t numSponsoring)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+
+    auto ltxe = loadAccount(ltx, account.getPublicKey(), true);
+    REQUIRE(getNumSponsoring(ltxe.current()) == numSponsoring);
 }
 
 TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
@@ -448,15 +459,19 @@ TEST_CASE("revoke from pool",
                                Asset const& assetB) {
         REQUIRE(assetA < assetB);
 
-        if (assetA.type() != ASSET_TYPE_NATIVE)
+        // This method assumes that either root or account is the issuer
+        if (assetA.type() != ASSET_TYPE_NATIVE && isIssuer(root, assetA))
         {
             account.changeTrust(assetA, 200 * 2);
             root.pay(account, assetA, 200);
         }
 
         // assetB can't be native
-        account.changeTrust(assetB, 50 * 2);
-        root.pay(account, assetB, 50);
+        if (isIssuer(root, assetB))
+        {
+            account.changeTrust(assetB, 50 * 2);
+            root.pay(account, assetB, 50);
+        }
 
         auto ctAsset = makeChangeTrustAssetPoolShare(assetA, assetB,
                                                      LIQUIDITY_POOL_FEE_V18);
@@ -632,6 +647,147 @@ TEST_CASE("revoke from pool",
                 // the issuer
                 REQUIRE_THROWS_AS(acc1.claimClaimableBalance(usdBalanceID),
                                   ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+            }
+
+            SECTION("revoke pool share trustline that results in only 1 "
+                    "claimable balance due to rounding")
+            {
+                auto depositForRoundingRevoke = [&](Asset const& assetA,
+                                                    Asset const& assetB) {
+                    auto ctAsset = depositIntoPool(acc1, assetA, assetB);
+                    auto poolID = xdrSha256(ctAsset.liquidityPool());
+
+                    auto acc2 = root.create("acc2", minBal(10));
+                    depositIntoPool(acc2, assetA, assetB);
+
+                    checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
+                };
+
+                auto tradeAndRevoke = [&](Asset const& sendAsset,
+                                          int64_t sendMax,
+                                          Asset const& destAsset,
+                                          int64_t destAmount, bool sendAssetA,
+                                          ChangeTrustAsset const& ctAsset) {
+                    root.pay(acc1, sendAsset, sendMax, destAsset, destAmount,
+                             {});
+                    auto poolID = xdrSha256(ctAsset.liquidityPool());
+
+                    if (sendAssetA)
+                    {
+                        auto reserveA = 400 + sendMax;
+                        checkLiquidityPool(*app, poolID, reserveA, 1, 200, 2);
+
+                        revoke(acc1, cur2, {ctAsset});
+
+                        // half of the pool shares were redeemed in the revoke,
+                        // but reserveB was unchanged due to rounding
+                        auto redeemed = reserveA / 2;
+                        checkLiquidityPool(*app, poolID, reserveA - redeemed, 1,
+                                           100, 1);
+                    }
+                    else
+                    {
+                        auto reserveB = 100 + sendMax;
+                        checkLiquidityPool(*app, poolID, 1, reserveB, 200, 2);
+
+                        revoke(acc1, cur2, {ctAsset});
+
+                        // half of the pool shares were redeemed in the revoke,
+                        // but reserveA was unchanged due to rounding
+                        auto redeemed = reserveB / 2;
+                        checkLiquidityPool(*app, poolID, 1, reserveB - redeemed,
+                                           100, 1);
+                    }
+
+                    // make sure this account is only sponsoring one
+                    // claimable balances
+                    checkNumSponsoring(*app, acc1, 1);
+                };
+
+                auto validateClaimableBalances =
+                    [&](PoolID poolID, Asset const& claimAsset,
+                        Asset const& failClaimAsset, int64_t amount) {
+                        auto revokeSeqNum = root.getLastSequenceNumber();
+
+                        // we use cur2 to trigger the revoke, so authorize it
+                        // here in case it's the claimAsset
+                        root.allowTrust(cur2, acc1);
+
+                        if (claimAsset.type() != ASSET_TYPE_NATIVE)
+                        {
+                            acc1.changeTrust(claimAsset, amount);
+                        }
+
+                        redeemBalance(false, acc1, root, claimAsset, poolID,
+                                      revokeSeqNum, 0, amount);
+
+                        // verify that no claimable balance was created for the
+                        // other asset
+                        auto balanceID = getRevokeBalanceID(
+                            root, revokeSeqNum, failClaimAsset, poolID, 0);
+                        REQUIRE_THROWS_AS(
+                            acc1.claimClaimableBalance(balanceID),
+                            ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                        // make sure this account isn't sponsoring any
+                        // claimable balances (the one that was sponsored
+                        // was claimed above)
+                        checkNumSponsoring(*app, acc1, 0);
+                    };
+
+                SECTION("trade down assetB - non-native")
+                {
+                    depositForRoundingRevoke(cur1, cur2);
+
+                    // ceil((400*99)/(100-99)/(1-.003)) = 39720
+                    tradeAndRevoke(cur1, 39720, cur2, 99, true, share12);
+
+                    // reserveA was 400 before the trade
+                    validateClaimableBalances(pool12, cur1, cur2,
+                                              (39720 + 400) / 2);
+                }
+
+                SECTION("trade down assetA - non-native")
+                {
+                    depositForRoundingRevoke(cur1, cur2);
+
+                    // ceil((100*399)/(400-399)/(1-.003)) = 40021
+                    tradeAndRevoke(cur2, 40021, cur1, 399, false, share12);
+
+                    // reserveB was 100 before the trade
+                    validateClaimableBalances(pool12, cur2, cur1,
+                                              (40021 + 100) / 2);
+                }
+
+                // we use cur2 to trigger the revoke, so make it assetB here
+                auto shareNative2 = makeChangeTrustAssetPoolShare(
+                    native, cur2, LIQUIDITY_POOL_FEE_V18);
+                auto poolNative2 = xdrSha256(shareNative2.liquidityPool());
+
+                SECTION("trade down assetB - native")
+                {
+                    depositForRoundingRevoke(native, cur2);
+
+                    // ceil((400*99)/(100-99)/(1-.003)) = 39720
+                    tradeAndRevoke(native, 39720, cur2, 99, true, shareNative2);
+
+                    // reserveA was 400 before the trade
+                    validateClaimableBalances(poolNative2, native, cur2,
+                                              (39720 + 400) / 2);
+                }
+
+                SECTION("trade down assetA - native")
+                {
+                    depositForRoundingRevoke(native, cur2);
+
+                    // ceil((100*399)/(400-399)/(1-.003)) = 40021
+                    tradeAndRevoke(cur2, 40021, native, 399, false,
+                                   shareNative2);
+
+                    // reserveB was 100 before the trade
+                    validateClaimableBalances(poolNative2, cur2, native,
+                                              (40021 + 100) / 2);
+                }
             }
 
             SECTION("revoke from 0 balance pool share trustline")
