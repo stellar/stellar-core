@@ -3804,7 +3804,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         tooManySponsoring(
             *app, acc1, acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)),
-            acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)));
+            acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)), 1);
     }
 
     SECTION("pull sponsored offers when authorization is revoked")

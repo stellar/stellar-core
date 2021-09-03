@@ -37,11 +37,13 @@ void createModifyAndRemoveSponsoredEntry(
     Operation const& opRemove, SignerKey const& signerKey);
 
 void tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
-                       Operation const& successfulOp, Operation const& failOp);
+                       Operation const& successfulOp, Operation const& failOp,
+                       uint32_t reservesForSuccesfulOp);
 
 void tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
                        TestAccount& failOpAcc, Operation const& successfulOp,
-                       Operation const& failOp);
+                       Operation const& failOp,
+                       uint32_t reservesForSuccesfulOp);
 
 void tooManySubentries(Application& app, TestAccount& testAcc,
                        Operation const& opCreate1, Operation const& opCreate2);

@@ -276,7 +276,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         SECTION("too many sponsoring")
         {
             tooManySponsoring(*app, acc1, acc1.op(changeTrust(idr, 1)),
-                              acc1.op(changeTrust(usd, 1)));
+                              acc1.op(changeTrust(usd, 1)), 1);
         }
         SECTION("too many subentries")
         {
@@ -642,7 +642,7 @@ TEST_CASE("change trust pool share trustline",
                 {
                     tooManySponsoring(*app, acc1,
                                       acc1.op(changeTrust(idrUsd, 1)),
-                                      acc1.op(changeTrust(shareNative1, 1)));
+                                      acc1.op(changeTrust(shareNative1, 1)), 2);
                 }
                 SECTION("too many subentries")
                 {
