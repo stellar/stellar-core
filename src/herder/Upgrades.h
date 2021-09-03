@@ -43,12 +43,14 @@ class Upgrades
                 std::make_optional<uint32>(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
             mBaseReserve =
                 std::make_optional<uint32>(cfg.TESTING_UPGRADE_RESERVE);
+            mFlags = std::make_optional<uint32>(cfg.TESTING_UPGRADE_FLAGS);
         }
         VirtualClock::system_time_point mUpgradeTime;
         std::optional<uint32> mProtocolVersion;
         std::optional<uint32> mBaseFee;
         std::optional<uint32> mMaxTxSize;
         std::optional<uint32> mBaseReserve;
+        std::optional<uint32> mFlags;
 
         std::string toJson() const;
         void fromJson(std::string const& s);

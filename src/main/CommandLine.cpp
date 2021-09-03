@@ -1521,8 +1521,18 @@ runSimulateBuckets(CommandLineArgs const& args)
                 hdrIn.open(ft.localPath_nogz());
                 LedgerHeaderHistoryEntry curr;
                 // Read the last LedgerHeaderHistoryEntry to use as LCL
-                while (hdrIn && hdrIn.readOne(curr))
-                    ;
+                try
+                {
+                    while (hdrIn && hdrIn.readOne(curr))
+                        ;
+                }
+                catch (xdr::xdr_bad_message_size&)
+                {
+                    LOG_ERROR(DEFAULT_LOG,
+                              "Failed to read LedgerHeaderHistoryEntry. "
+                              "Version upgrade is likely required");
+                    return 1;
+                }
 
                 LOG_INFO(DEFAULT_LOG, "Assuming state for ledger {}",
                          curr.header.ledgerSeq);

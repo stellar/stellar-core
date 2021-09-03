@@ -19,9 +19,9 @@ LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::isVersionSupported(uint32_t protocolVersion) const
+LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 18;
+    return header.ledgerVersion >= 18 && !isPoolWithdrawalDisabled(header);
 }
 
 bool

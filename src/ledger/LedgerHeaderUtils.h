@@ -13,6 +13,9 @@ class XDROutputFileStream;
 
 namespace LedgerHeaderUtils
 {
+
+uint32_t getFlags(LedgerHeader const& lh);
+
 bool isValid(LedgerHeader const& lh);
 
 void storeInDatabase(Database& db, LedgerHeader const& header);

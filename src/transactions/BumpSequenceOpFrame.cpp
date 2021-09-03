@@ -28,9 +28,9 @@ BumpSequenceOpFrame::getThresholdLevel() const
 }
 
 bool
-BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
+BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 10;
+    return header.ledgerVersion >= 10;
 }
 
 bool

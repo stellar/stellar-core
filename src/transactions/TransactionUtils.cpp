@@ -79,6 +79,17 @@ prepareLedgerEntryExtensionV1(LedgerEntry& le)
     return le.ext.v1();
 }
 
+void
+setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags)
+{
+    if (lh.ext.v() == 0)
+    {
+        lh.ext.v(1);
+    }
+
+    lh.ext.v1().flags = flags;
+}
+
 AccountEntryExtensionV2&
 getAccountEntryExtensionV2(AccountEntry& ae)
 {
@@ -964,6 +975,31 @@ bool
 isImmutableAuth(LedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
+}
+
+static bool
+isLedgerHeaderFlagSet(LedgerHeader const& header, uint32_t flag)
+{
+    return header.ext.v() == 1 && (header.ext.v1().flags & flag) != 0;
+}
+
+bool
+isPoolDepositDisabled(LedgerHeader const& header)
+{
+    return isLedgerHeaderFlagSet(header, DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG);
+}
+
+bool
+isPoolWithdrawalDisabled(LedgerHeader const& header)
+{
+    return isLedgerHeaderFlagSet(header,
+                                 DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG);
+}
+
+bool
+isPoolTradingDisabled(LedgerHeader const& header)
+{
+    return isLedgerHeaderFlagSet(header, DISABLE_LIQUIDITY_POOL_TRADING_FLAG);
 }
 
 void

@@ -28,9 +28,9 @@ ClaimClaimableBalanceOpFrame::getThresholdLevel() const
 }
 
 bool
-ClaimClaimableBalanceOpFrame::isVersionSupported(uint32_t protocolVersion) const
+ClaimClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 14;
+    return header.ledgerVersion >= 14;
 }
 
 bool

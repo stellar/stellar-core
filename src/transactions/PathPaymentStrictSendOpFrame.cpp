@@ -22,9 +22,9 @@ PathPaymentStrictSendOpFrame::PathPaymentStrictSendOpFrame(
 }
 
 bool
-PathPaymentStrictSendOpFrame::isVersionSupported(uint32_t protocolVersion) const
+PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 12;
+    return header.ledgerVersion >= 12;
 }
 
 bool

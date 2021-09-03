@@ -19,9 +19,9 @@ LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
 }
 
 bool
-LiquidityPoolDepositOpFrame::isVersionSupported(uint32_t protocolVersion) const
+LiquidityPoolDepositOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return protocolVersion >= 18;
+    return header.ledgerVersion >= 18 && !isPoolDepositDisabled(header);
 }
 
 static bool

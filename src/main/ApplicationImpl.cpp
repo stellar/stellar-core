@@ -32,6 +32,7 @@
 #include "invariant/SponsorshipCountIsValid.h"
 #include "ledger/InMemoryLedgerTxn.h"
 #include "ledger/InMemoryLedgerTxnRoot.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/ApplicationUtils.h"
@@ -433,6 +434,13 @@ ApplicationImpl::getJsonInfo()
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["maxTxSetSize"] = lcl.header.maxTxSetSize;
+
+    auto currentHeaderFlags = LedgerHeaderUtils::getFlags(lcl.header);
+    if (currentHeaderFlags != 0)
+    {
+        info["ledger"]["flags"] = currentHeaderFlags;
+    }
+
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     info["peers"]["pending_count"] = getOverlayManager().getPendingPeersCount();
     info["peers"]["authenticated_count"] =

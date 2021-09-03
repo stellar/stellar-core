@@ -575,9 +575,19 @@ TxSimApplyTransactionsWork::onRun()
     std::vector<TransactionEnvelope> transactions;
     std::vector<UpgradeType> upgrades;
     mResults.clear();
-    if (!getNextLedger(transactions, mResults, upgrades))
+
+    try
     {
-        return State::WORK_SUCCESS;
+        if (!getNextLedger(transactions, mResults, upgrades))
+        {
+            return State::WORK_SUCCESS;
+        }
+    }
+    catch (xdr::xdr_bad_message_size&)
+    {
+        CLOG_ERROR(History,
+                   "Failed to read xdr. Most likely a version mismatch");
+        return State::WORK_FAILURE;
     }
 
     // When creating SimulationTxSetFrame, we only want to use mMultiplier when

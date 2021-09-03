@@ -29,7 +29,7 @@ class SetTrustLineFlagsOpFrame : public OperationFrame
     SetTrustLineFlagsOpFrame(Operation const& op, OperationResult& res,
                              TransactionFrame& parentTx, uint32_t index);
 
-    bool isVersionSupported(uint32_t protocolVersion) const override;
+    bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;

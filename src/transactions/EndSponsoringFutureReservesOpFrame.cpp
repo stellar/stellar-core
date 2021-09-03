@@ -17,10 +17,10 @@ EndSponsoringFutureReservesOpFrame::EndSponsoringFutureReservesOpFrame(
 }
 
 bool
-EndSponsoringFutureReservesOpFrame::isVersionSupported(
-    uint32_t protocolVersion) const
+EndSponsoringFutureReservesOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
-    return protocolVersion >= 14;
+    return header.ledgerVersion >= 14;
 }
 
 bool

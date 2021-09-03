@@ -20,10 +20,10 @@ BeginSponsoringFutureReservesOpFrame::BeginSponsoringFutureReservesOpFrame(
 }
 
 bool
-BeginSponsoringFutureReservesOpFrame::isVersionSupported(
-    uint32_t protocolVersion) const
+BeginSponsoringFutureReservesOpFrame::isOpSupported(
+    LedgerHeader const& header) const
 {
-    return protocolVersion >= 14;
+    return header.ledgerVersion >= 14;
 }
 
 void

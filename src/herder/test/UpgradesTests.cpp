@@ -16,6 +16,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
+#include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -203,6 +204,14 @@ makeTxCountUpgrade(int txCount)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_MAX_TX_SET_SIZE};
     result.newMaxTxSetSize() = txCount;
+    return result;
+}
+
+LedgerUpgrade
+makeFlagsUpgrade(int flags)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_FLAGS};
+    result.newFlags() = flags;
     return result;
 }
 
@@ -2225,6 +2234,23 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
     // Base Fee / Base Reserve to 0
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
+
+    for_versions_to(17, *app, [&] {
+        REQUIRE_THROWS(executeUpgrade(*app, makeFlagsUpgrade(1)));
+    });
+
+    for_versions_from(18, *app, [&] {
+        auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
+                        DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
+                        DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
+        REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
+
+        REQUIRE_THROWS(executeUpgrade(
+            *app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1)));
+
+        // success
+        executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS));
+    });
 }
 
 TEST_CASE("validate upgrade expiration logic", "[upgrades]")
@@ -2235,6 +2261,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
     cfg.TESTING_UPGRADE_RESERVE = 100000000;
     cfg.TESTING_UPGRADE_DATETIME = genesis(0, 0);
+    cfg.TESTING_UPGRADE_FLAGS = 1;
 
     auto header = LedgerHeader{};
 
@@ -2243,6 +2270,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
     header.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE - 1;
     header.baseReserve = cfg.TESTING_UPGRADE_RESERVE - 1;
     header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 1;
+    setLedgerHeaderFlag(header, cfg.TESTING_UPGRADE_FLAGS - 1);
 
     SECTION("remove expired upgrades")
     {
@@ -2259,6 +2287,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(!upgrades.mBaseFee);
         REQUIRE(!upgrades.mMaxTxSize);
         REQUIRE(!upgrades.mBaseReserve);
+        REQUIRE(!upgrades.mFlags);
     }
 
     SECTION("upgrades not yet expired")
@@ -2277,6 +2306,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(upgrades.mBaseFee);
         REQUIRE(upgrades.mMaxTxSize);
         REQUIRE(upgrades.mBaseReserve);
+        REQUIRE(upgrades.mFlags);
     }
 }
 
@@ -2297,6 +2327,9 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     },
     "reserve": {
         "has": false
+    },
+    "flags": {
+        "has": false
     }
 })";
     Upgrades::UpgradeParameters up;
@@ -2308,4 +2341,102 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(up.mMaxTxSize.has_value());
     REQUIRE(up.mMaxTxSize.value() == 10000);
     REQUIRE(!up.mBaseReserve.has_value());
+}
+
+TEST_CASE("upgrade flags", "[upgrades][liquiditypool]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    auto root = TestAccount::createRoot(*app);
+    auto native = makeNativeAsset();
+    auto cur1 = makeAsset(root, "CUR1");
+
+    auto shareNative1 =
+        makeChangeTrustAssetPoolShare(native, cur1, LIQUIDITY_POOL_FEE_V18);
+    auto poolNative1 = xdrSha256(shareNative1.liquidityPool());
+
+    auto executeUpgrade = [&](uint32_t newFlags) {
+        REQUIRE(
+            ::executeUpgrade(*app, makeFlagsUpgrade(newFlags)).ext.v1().flags ==
+            newFlags);
+    };
+
+    for_versions_from(18, *app, [&] {
+        // deposit
+        REQUIRE_THROWS_AS(root.liquidityPoolDeposit(poolNative1, 1, 1,
+                                                    Price{1, 1}, Price{1, 1}),
+                          ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
+
+        executeUpgrade(DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG);
+
+        REQUIRE_THROWS_AS(root.liquidityPoolDeposit(poolNative1, 1, 1,
+                                                    Price{1, 1}, Price{1, 1}),
+                          ex_opNOT_SUPPORTED);
+
+        // withdraw
+        REQUIRE_THROWS_AS(root.liquidityPoolWithdraw(poolNative1, 1, 0, 0),
+                          ex_LIQUIDITY_POOL_WITHDRAW_NO_TRUST);
+
+        executeUpgrade(DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG);
+
+        REQUIRE_THROWS_AS(root.liquidityPoolWithdraw(poolNative1, 1, 0, 0),
+                          ex_opNOT_SUPPORTED);
+
+        // clear flag
+        executeUpgrade(0);
+
+        // try both after clearing flags
+        REQUIRE_THROWS_AS(root.liquidityPoolDeposit(poolNative1, 1, 1,
+                                                    Price{1, 1}, Price{1, 1}),
+                          ex_LIQUIDITY_POOL_DEPOSIT_NO_TRUST);
+
+        REQUIRE_THROWS_AS(root.liquidityPoolWithdraw(poolNative1, 1, 0, 0),
+                          ex_LIQUIDITY_POOL_WITHDRAW_NO_TRUST);
+
+        // set both flags
+        executeUpgrade(DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
+                       DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG);
+
+        REQUIRE_THROWS_AS(root.liquidityPoolDeposit(poolNative1, 1, 1,
+                                                    Price{1, 1}, Price{1, 1}),
+                          ex_opNOT_SUPPORTED);
+
+        REQUIRE_THROWS_AS(root.liquidityPoolWithdraw(poolNative1, 1, 0, 0),
+                          ex_opNOT_SUPPORTED);
+
+        // clear flags
+        executeUpgrade(0);
+
+        root.changeTrust(shareNative1, INT64_MAX);
+
+        // deposit so we can test the disable trading flag
+        root.liquidityPoolDeposit(poolNative1, 1000, 1000, Price{1, 1},
+                                  Price{1, 1});
+
+        auto a1 =
+            root.create("a1", app->getLedgerManager().getLastMinBalance(0));
+
+        auto balance = a1.getBalance();
+        root.pay(a1, cur1, 2, native, 1, {});
+        REQUIRE(balance + 1 == a1.getBalance());
+
+        executeUpgrade(DISABLE_LIQUIDITY_POOL_TRADING_FLAG);
+
+        REQUIRE_THROWS_AS(root.pay(a1, cur1, 2, native, 1, {}),
+                          ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+
+        executeUpgrade(0);
+
+        balance = a1.getBalance();
+        root.pay(a1, cur1, 2, native, 1, {});
+        REQUIRE(balance + 1 == a1.getBalance());
+
+        // block it again after trade (and add on a second flag)
+        executeUpgrade(DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
+                       DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG);
+
+        REQUIRE_THROWS_AS(root.pay(a1, cur1, 2, native, 1, {}),
+                          ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+    });
 }
