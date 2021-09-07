@@ -412,79 +412,103 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
     auto root = TestAccount::createRoot(app);
     auto minVersion = getMinProtocolVersionForTooManyTestsFromOp(successfulOp);
 
-    SECTION("too many sponsoring")
+    auto tooManySponsoring = [&](uint32_t reservesForFirstOp) {
+        SECTION("too many sponsoring")
+        {
+            for_versions_from(minVersion, app, [&] {
+                {
+                    LedgerTxn ltx(app.getLedgerTxnRoot());
+                    auto acc = stellar::loadAccount(ltx, root.getPublicKey());
+                    auto& le = acc.current();
+                    auto& ae = le.data.account();
+                    ae.ext.v(1);
+                    ae.ext.v1().ext.v(2);
+
+                    // we want to be able to do one successful op before the
+                    // fail op
+                    ae.ext.v1().ext.v2().numSponsoring =
+                        UINT32_MAX - reservesForFirstOp;
+                    ltx.commit();
+                }
+
+                submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
+                                           successfulOp, failOp);
+            });
+        }
+        SECTION("too many sponsoring but not due to subentries")
+        {
+            for_versions(minVersion, 17, app, [&] {
+                {
+                    LedgerTxn ltx(app.getLedgerTxnRoot());
+                    auto acc = stellar::loadAccount(ltx, root.getPublicKey());
+                    auto& le = acc.current();
+                    auto& ae = le.data.account();
+                    ae.ext.v(1);
+                    ae.ext.v1().ext.v(2);
+
+                    // we want to be able to do one successful op before the
+                    // fail op
+                    ae.ext.v1().ext.v2().numSponsoring =
+                        UINT32_MAX - reservesForFirstOp;
+
+                    // make sure numSubEntry + numSponsoring limit doesn't exist
+                    // pre 18
+                    ae.numSubEntries = 50;
+
+                    ltx.commit();
+                }
+
+                submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
+                                           successfulOp, failOp);
+            });
+        }
+        SECTION("too many sponsoring but due to subentries")
+        {
+            for_versions_from(18, app, [&] {
+                {
+                    LedgerTxn ltx(app.getLedgerTxnRoot());
+                    auto acc = stellar::loadAccount(ltx, root.getPublicKey());
+                    auto& le = acc.current();
+                    auto& ae = le.data.account();
+                    ae.ext.v(1);
+                    ae.ext.v1().ext.v(2);
+
+                    // Set numSponsoring close to UINT32_MAX and set
+                    // numSubEntries high enough so only the successfulOp will
+                    // succeed. This should validate the numSponsoring +
+                    // numSubEntries <= UINT32_MAX protocol v18 check.
+                    ae.ext.v1().ext.v2().numSponsoring =
+                        UINT32_MAX - reservesForFirstOp - 50;
+
+                    ae.numSubEntries = 50;
+
+                    ltx.commit();
+                }
+
+                submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
+                                           successfulOp, failOp);
+            });
+        }
+    };
+
+    SECTION("no space left after first op")
     {
-        for_versions_from(minVersion, app, [&] {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                auto acc = stellar::loadAccount(ltx, root.getPublicKey());
-                auto& le = acc.current();
-                auto& ae = le.data.account();
-                ae.ext.v(1);
-                ae.ext.v1().ext.v(2);
-
-                // we want to be able to do one successful op before the fail op
-                ae.ext.v1().ext.v2().numSponsoring =
-                    UINT32_MAX - reservesForSuccesfulOp;
-                ltx.commit();
-            }
-
-            submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
-                                       successfulOp, failOp);
-        });
+        tooManySponsoring(reservesForSuccesfulOp);
     }
-    SECTION("too many sponsoring but not due to subentries")
+
+    // For entries that need more than one reserve, we want to make sure the
+    // second operation would still fail if there is space for one reserve
+    // (instead of no space like in the test above). We assume that both
+    // operations will require the same number of reserves, and if they use at
+    // least two reserves each, one extra space of reserve should not make a
+    // difference. This is just making sure we’re not assuming the entry
+    // uses one reserve for any overflow checks.
+    if (reservesForSuccesfulOp > 1)
     {
-        for_versions(minVersion, 17, app, [&] {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                auto acc = stellar::loadAccount(ltx, root.getPublicKey());
-                auto& le = acc.current();
-                auto& ae = le.data.account();
-                ae.ext.v(1);
-                ae.ext.v1().ext.v(2);
-
-                // we want to be able to do one successful op before the fail op
-                ae.ext.v1().ext.v2().numSponsoring =
-                    UINT32_MAX - reservesForSuccesfulOp;
-
-                // make sure numSubEntry + numSponsoring limit doesn't exist pre
-                // 18
-                ae.numSubEntries = 50;
-
-                ltx.commit();
-            }
-
-            submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
-                                       successfulOp, failOp);
-        });
-    }
-    SECTION("too many sponsoring but due to subentries")
-    {
-        for_versions_from(18, app, [&] {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                auto acc = stellar::loadAccount(ltx, root.getPublicKey());
-                auto& le = acc.current();
-                auto& ae = le.data.account();
-                ae.ext.v(1);
-                ae.ext.v1().ext.v(2);
-
-                // Set numSponsoring close to UINT32_MAX and set numSubEntries
-                // high enough so only the successfulOp will succeed. This
-                // should validate the numSponsoring + numSubEntries <=
-                // UINT32_MAX protocol v18 check.
-                ae.ext.v1().ext.v2().numSponsoring =
-                    UINT32_MAX - reservesForSuccesfulOp - 50;
-
-                ae.numSubEntries = 50;
-
-                ltx.commit();
-            }
-
-            submitTooManySponsoringTxs(app, successfulOpAcc, failOpAcc,
-                                       successfulOp, failOp);
-        });
+        SECTION("one reserve left after first op")
+        {
+            tooManySponsoring(reservesForSuccesfulOp + 1);
+        }
     }
 }
 
