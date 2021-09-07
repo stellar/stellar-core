@@ -607,46 +607,74 @@ TEST_CASE("revoke from pool",
 
             SECTION("claimable balance created for issuer")
             {
-                auto acc1Usd = makeAsset(acc1, "USD1");
-                auto share1Usd = makeChangeTrustAssetPoolShare(
-                    cur1, acc1Usd, LIQUIDITY_POOL_FEE_V18);
-                auto pool1Usd = xdrSha256(share1Usd.liquidityPool());
-
-                acc1.changeTrust(cur1, 10);
-                root.pay(acc1, cur1, 10);
-
-                acc1.changeTrust(share1Usd, 10);
-
-                acc1.liquidityPoolDeposit(pool1Usd, 10, 10, Price{1, 1},
-                                          Price{1, 1});
-
-                checkLiquidityPool(*app, pool1Usd, 10, 10, 10, 1);
-
-                revoke(acc1, cur1, {share1Usd});
-                checkPoolUseCounts(acc1, cur1, 0);
-
-                auto cur1BalanceID = getRevokeBalanceID(
-                    root, root.getLastSequenceNumber(), cur1, pool1Usd, 0);
-                auto usdBalanceID = getRevokeBalanceID(
-                    root, root.getLastSequenceNumber(), acc1Usd, pool1Usd, 0);
-
-                root.allowTrust(cur1, acc1);
-
-                // Pool should be deleted since the last pool share
-                // trustline was deleted
+                SECTION("assetA issuer")
                 {
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!loadLiquidityPool(ltx, pool1Usd));
+                    auto acc1Btc = makeAsset(acc1, "BTC");
+                    auto shareBtc1 = depositIntoPool(acc1, acc1Btc, cur1);
+                    auto poolBtc1 = xdrSha256(shareBtc1.liquidityPool());
+
+                    revoke(acc1, cur1, {shareBtc1});
+
+                    checkPoolUseCounts(acc1, cur1, 0);
+
+                    // Pool should be deleted since the last pool share
+                    // trustline was deleted
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        REQUIRE(!loadLiquidityPool(ltx, poolBtc1));
+                    }
+
+                    auto revokeSeqNum = root.getLastSequenceNumber();
+                    root.allowTrust(cur1, acc1);
+
+                    redeemBalance(false, acc1, root, cur1, poolBtc1,
+                                  revokeSeqNum, 0, 50);
+
+                    // A claimable balance was not created for btc because acc1
+                    // is the issuer
+                    auto btcBalanceID =
+                        getRevokeBalanceID(root, root.getLastSequenceNumber(),
+                                           acc1Btc, poolBtc1, 0);
+                    REQUIRE_THROWS_AS(
+                        acc1.claimClaimableBalance(btcBalanceID),
+                        ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                    checkNumSponsoring(*app, acc1, 0);
                 }
+                SECTION("assetB issuer")
+                {
+                    auto acc1Usd = makeAsset(acc1, "USD1");
+                    auto share1Usd = depositIntoPool(acc1, cur1, acc1Usd);
+                    auto pool1Usd = xdrSha256(share1Usd.liquidityPool());
 
-                REQUIRE(acc1.getTrustlineBalance(cur1) == 0);
-                acc1.claimClaimableBalance(cur1BalanceID);
-                REQUIRE(acc1.getTrustlineBalance(cur1) == 10);
+                    revoke(acc1, cur1, {share1Usd});
 
-                // A claimable balance was not created for usd because acc1 is
-                // the issuer
-                REQUIRE_THROWS_AS(acc1.claimClaimableBalance(usdBalanceID),
-                                  ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+                    checkPoolUseCounts(acc1, cur1, 0);
+
+                    // Pool should be deleted since the last pool share
+                    // trustline was deleted
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        REQUIRE(!loadLiquidityPool(ltx, pool1Usd));
+                    }
+
+                    auto revokeSeqNum = root.getLastSequenceNumber();
+                    root.allowTrust(cur1, acc1);
+
+                    redeemBalance(false, acc1, root, cur1, pool1Usd,
+                                  revokeSeqNum, 0, 200);
+
+                    // A claimable balance was not created for usd because acc1
+                    // is the issuer
+                    auto usdBalanceID =
+                        getRevokeBalanceID(root, root.getLastSequenceNumber(),
+                                           acc1Usd, pool1Usd, 0);
+                    REQUIRE_THROWS_AS(
+                        acc1.claimClaimableBalance(usdBalanceID),
+                        ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                    checkNumSponsoring(*app, acc1, 0);
+                }
             }
 
             SECTION("revoke pool share trustline that results in only 1 "
