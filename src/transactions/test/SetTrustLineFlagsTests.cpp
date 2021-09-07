@@ -459,18 +459,28 @@ TEST_CASE("revoke from pool",
                                Asset const& assetB) {
         REQUIRE(assetA < assetB);
 
-        // This method assumes that either root or account is the issuer
-        if (assetA.type() != ASSET_TYPE_NATIVE && isIssuer(root, assetA))
+        // This method assumes that either root or acc1 is the issuer
+        auto getIssuerAcc = [&](Asset const& asset) -> TestAccount& {
+            if (getIssuer(asset) == acc1.getPublicKey())
+            {
+                return acc1;
+            }
+
+            REQUIRE(getIssuer(asset) == root.getPublicKey());
+            return root;
+        };
+
+        if (assetA.type() != ASSET_TYPE_NATIVE && !isIssuer(account, assetA))
         {
             account.changeTrust(assetA, 200 * 2);
-            root.pay(account, assetA, 200);
+            getIssuerAcc(assetA).pay(account, assetA, 200);
         }
 
         // assetB can't be native
-        if (isIssuer(root, assetB))
+        if (!isIssuer(account, assetB))
         {
             account.changeTrust(assetB, 50 * 2);
-            root.pay(account, assetB, 50);
+            getIssuerAcc(assetB).pay(account, assetB, 50);
         }
 
         auto ctAsset = makeChangeTrustAssetPoolShare(assetA, assetB,
@@ -677,7 +687,7 @@ TEST_CASE("revoke from pool",
                 }
             }
 
-            SECTION("revoke pool share trustline that results in only 1 "
+            SECTION("revoke pool share trustline that results in one less "
                     "claimable balance due to rounding")
             {
                 auto depositForRoundingRevoke = [&](Asset const& assetA,
@@ -695,7 +705,8 @@ TEST_CASE("revoke from pool",
                                           int64_t sendMax,
                                           Asset const& destAsset,
                                           int64_t destAmount, bool sendAssetA,
-                                          ChangeTrustAsset const& ctAsset) {
+                                          ChangeTrustAsset const& ctAsset,
+                                          uint32_t numSponsoringAfterRevoke) {
                     root.pay(acc1, sendAsset, sendMax, destAsset, destAmount,
                              {});
                     auto poolID = xdrSha256(ctAsset.liquidityPool());
@@ -727,9 +738,7 @@ TEST_CASE("revoke from pool",
                                            100, 1);
                     }
 
-                    // make sure this account is only sponsoring one
-                    // claimable balances
-                    checkNumSponsoring(*app, acc1, 1);
+                    checkNumSponsoring(*app, acc1, numSponsoringAfterRevoke);
                 };
 
                 auto validateClaimableBalances =
@@ -768,7 +777,7 @@ TEST_CASE("revoke from pool",
                     depositForRoundingRevoke(cur1, cur2);
 
                     // ceil((400*99)/(100-99)/(1-.003)) = 39720
-                    tradeAndRevoke(cur1, 39720, cur2, 99, true, share12);
+                    tradeAndRevoke(cur1, 39720, cur2, 99, true, share12, 1);
 
                     // reserveA was 400 before the trade
                     validateClaimableBalances(pool12, cur1, cur2,
@@ -780,7 +789,7 @@ TEST_CASE("revoke from pool",
                     depositForRoundingRevoke(cur1, cur2);
 
                     // ceil((100*399)/(400-399)/(1-.003)) = 40021
-                    tradeAndRevoke(cur2, 40021, cur1, 399, false, share12);
+                    tradeAndRevoke(cur2, 40021, cur1, 399, false, share12, 1);
 
                     // reserveB was 100 before the trade
                     validateClaimableBalances(pool12, cur2, cur1,
@@ -797,7 +806,8 @@ TEST_CASE("revoke from pool",
                     depositForRoundingRevoke(native, cur2);
 
                     // ceil((400*99)/(100-99)/(1-.003)) = 39720
-                    tradeAndRevoke(native, 39720, cur2, 99, true, shareNative2);
+                    tradeAndRevoke(native, 39720, cur2, 99, true, shareNative2,
+                                   1);
 
                     // reserveA was 400 before the trade
                     validateClaimableBalances(poolNative2, native, cur2,
@@ -810,11 +820,75 @@ TEST_CASE("revoke from pool",
 
                     // ceil((100*399)/(400-399)/(1-.003)) = 40021
                     tradeAndRevoke(cur2, 40021, native, 399, false,
-                                   shareNative2);
+                                   shareNative2, 1);
 
                     // reserveB was 100 before the trade
                     validateClaimableBalances(poolNative2, cur2, native,
                                               (40021 + 100) / 2);
+                }
+
+                auto noClaimableBalancesCreated = [&](PoolID poolID,
+                                                      Asset const& assetA,
+                                                      Asset const& assetB) {
+                    auto revokeSeqNum = root.getLastSequenceNumber();
+
+                    auto balanceIdAssetA = getRevokeBalanceID(
+                        root, revokeSeqNum, assetA, poolID, 0);
+                    auto balanceIdAssetB = getRevokeBalanceID(
+                        root, revokeSeqNum, assetB, poolID, 0);
+
+                    REQUIRE_THROWS_AS(
+                        acc1.claimClaimableBalance(balanceIdAssetA),
+                        ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                    REQUIRE_THROWS_AS(
+                        acc1.claimClaimableBalance(balanceIdAssetB),
+                        ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                    checkNumSponsoring(*app, acc1, 0);
+                };
+
+                SECTION("revoked account is issuer of assetA")
+                {
+                    auto acc1Btc = makeAsset(acc1, "BTC");
+                    auto shareBtc2 = makeChangeTrustAssetPoolShare(
+                        acc1Btc, cur2, LIQUIDITY_POOL_FEE_V18);
+                    auto poolBtc2 = xdrSha256(shareBtc2.liquidityPool());
+
+                    depositForRoundingRevoke(acc1Btc, cur2);
+
+                    // the root account is used to make the trade in
+                    // tradeAndRevoke
+                    root.changeTrust(acc1Btc, 39720);
+                    acc1.pay(root, acc1Btc, 39720);
+
+                    // ceil((400*99)/(100-99)/(1-.003)) = 39720
+                    tradeAndRevoke(acc1Btc, 39720, cur2, 99, true, shareBtc2,
+                                   0);
+
+                    noClaimableBalancesCreated(poolBtc2, acc1Btc, cur2);
+                }
+
+                SECTION("revoked account is issuer of assetB")
+                {
+                    auto acc1Usd = makeAsset(acc1, "USD1");
+
+                    auto share2Usd = makeChangeTrustAssetPoolShare(
+                        cur2, acc1Usd, LIQUIDITY_POOL_FEE_V18);
+                    auto pool2Usd = xdrSha256(share2Usd.liquidityPool());
+
+                    depositForRoundingRevoke(cur2, acc1Usd);
+
+                    // the root account is used to make the trade in
+                    // tradeAndRevoke
+                    root.changeTrust(acc1Usd, 40021);
+                    acc1.pay(root, acc1Usd, 40021);
+
+                    // ceil((100*399)/(400-399)/(1-.003)) = 40021
+                    tradeAndRevoke(acc1Usd, 40021, cur2, 399, false, share2Usd,
+                                   0);
+
+                    noClaimableBalancesCreated(pool2Usd, acc1Usd, cur2);
                 }
             }
 
