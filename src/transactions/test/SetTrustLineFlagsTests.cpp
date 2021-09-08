@@ -928,6 +928,59 @@ TEST_CASE("revoke from pool",
                 }
             }
 
+            SECTION("trade with pool, revoke, then trade again")
+            {
+                auto tradeRevokeTest = [&](Asset const& assetA,
+                                           Asset const& assetB) {
+                    auto ctAsset = depositIntoPool(acc1, assetA, assetB);
+                    auto poolID = xdrSha256(ctAsset.liquidityPool());
+
+                    auto acc2 = root.create("acc2", minBal(10));
+                    depositIntoPool(acc2, assetA, assetB);
+
+                    checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
+
+                    // ceil((400*10)/(100-10)/(1-.003)) = 45
+                    root.pay(acc2, assetA, 45, assetB, 10, {});
+
+                    checkLiquidityPool(*app, poolID, 445, 90, 200, 2);
+
+                    revoke(acc1, assetB, {ctAsset});
+
+                    checkLiquidityPool(*app, poolID, 223, 45, 100, 1);
+
+                    // redeem the claimable balances
+                    auto revokeSeqNum = root.getLastSequenceNumber();
+                    root.allowTrust(assetB, acc1);
+
+                    redeemBalance(false, acc1, root, assetA, poolID,
+                                  revokeSeqNum, 0, 222);
+                    redeemBalance(false, acc1, root, assetB, poolID,
+                                  revokeSeqNum, 0, 45);
+
+                    // ceil((223*20)/(45-20)/(1-.003)) = 179
+                    root.pay(acc2, assetA, 179, assetB, 20, {});
+
+                    checkLiquidityPool(*app, poolID, 402, 25, 100, 1);
+
+                    // now trade the other way
+
+                    // ceil((25*40)/(402-40)/(1-.003)) = 3
+                    root.pay(acc2, assetB, 3, assetA, 40, {});
+
+                    checkLiquidityPool(*app, poolID, 362, 28, 100, 1);
+                };
+
+                SECTION("both non-native")
+                {
+                    tradeRevokeTest(cur1, cur2);
+                }
+                SECTION("one non-native")
+                {
+                    tradeRevokeTest(native, cur2);
+                }
+            }
+
             SECTION("revoke from multiple pools")
             {
                 auto usd = makeAsset(root, "usd");
