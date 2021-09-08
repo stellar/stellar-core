@@ -981,6 +981,50 @@ TEST_CASE("revoke from pool",
                 }
             }
 
+            SECTION("revoke leads to redeemed pool shares and pulled offers")
+            {
+                auto poolAndOfferRevokeTest = [&](Asset const& assetA,
+                                                  Asset const& assetB,
+                                                  Asset const& assetToRevoke) {
+                    auto ctAsset = depositIntoPool(acc1, assetA, assetB);
+                    auto poolID = xdrSha256(ctAsset.liquidityPool());
+
+                    root.pay(acc1, assetA, 10);
+
+                    auto market = TestMarket{*app};
+                    auto offer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(
+                            acc1, {assetA, assetB, Price{1, 1}, 10});
+                    });
+
+                    market.requireChanges(
+                        {{offer.key, OfferState::DELETED}}, [&] {
+                            revoke(acc1, assetToRevoke, {ctAsset});
+
+                            auto revokeSeqNum = root.getLastSequenceNumber();
+                            root.allowTrust(assetToRevoke, acc1);
+
+                            redeemBalance(false, acc1, root, assetA, poolID,
+                                          revokeSeqNum, 0, 200);
+                            redeemBalance(false, acc1, root, assetB, poolID,
+                                          revokeSeqNum, 0, 50);
+                        });
+                };
+
+                SECTION("both non-native - revoke assetA")
+                {
+                    poolAndOfferRevokeTest(cur1, cur2, cur1);
+                }
+                SECTION("both non-native - revoke assetB")
+                {
+                    poolAndOfferRevokeTest(cur1, cur2, cur2);
+                }
+                SECTION("one non-native - revoke assetB")
+                {
+                    poolAndOfferRevokeTest(native, cur2, cur2);
+                }
+            }
+
             SECTION("revoke from multiple pools")
             {
                 auto usd = makeAsset(root, "usd");
