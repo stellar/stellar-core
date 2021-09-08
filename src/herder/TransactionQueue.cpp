@@ -241,7 +241,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     // there are no concurrent writers, so it is safe to not enclose all the SQL
     // statements into one transaction here.
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
-                  /* useTransaction */ false);
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     if (!tx->checkValid(ltx, seqNum, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {

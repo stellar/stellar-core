@@ -424,10 +424,10 @@ class LedgerTxn::Impl
   public:
     // Constructor has the strong exception safety guarantee
     Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
-         bool shouldUpdateLastModified, bool useTransaction);
+         bool shouldUpdateLastModified, TransactionMode mode);
 
     // addChild has the strong exception safety guarantee
-    void addChild(AbstractLedgerTxn& child, bool useTransaction);
+    void addChild(AbstractLedgerTxn& child);
 
     // commit has the strong exception safety guarantee.
     void commit();
@@ -848,7 +848,7 @@ class LedgerTxnRoot::Impl
     ~Impl();
 
     // addChild has the strong exception safety guarantee.
-    void addChild(AbstractLedgerTxn& child, bool useTransaction);
+    void addChild(AbstractLedgerTxn& child, TransactionMode mode);
 
     // commitChild has the strong exception safety guarantee.
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons);

@@ -27,7 +27,7 @@ InMemoryLedgerTxnRoot::InMemoryLedgerTxnRoot(
 }
 
 void
-InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, bool useTransaction)
+InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
 }
 

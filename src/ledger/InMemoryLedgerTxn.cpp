@@ -20,15 +20,15 @@ InMemoryLedgerTxn::~InMemoryLedgerTxn()
 }
 
 void
-InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, bool useTransaction)
+InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     if (mTransaction)
     {
         throw std::runtime_error(
             "Adding child to already-open InMemoryLedgerTxn");
     }
-    LedgerTxn::addChild(child, useTransaction);
-    if (useTransaction)
+    LedgerTxn::addChild(child, mode);
+    if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
         mTransaction = std::make_unique<soci::transaction>(mDb.getSession());
     }

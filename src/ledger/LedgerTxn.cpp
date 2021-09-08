@@ -223,21 +223,21 @@ AbstractLedgerTxn::~AbstractLedgerTxn()
 
 // Implementation of LedgerTxn ----------------------------------------------
 LedgerTxn::LedgerTxn(AbstractLedgerTxnParent& parent,
-                     bool shouldUpdateLastModified, bool useTransaction)
-    : mImpl(std::make_unique<Impl>(*this, parent, shouldUpdateLastModified,
-                                   useTransaction))
+                     bool shouldUpdateLastModified, TransactionMode mode)
+    : mImpl(
+          std::make_unique<Impl>(*this, parent, shouldUpdateLastModified, mode))
 {
 }
 
 LedgerTxn::LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified,
-                     bool useTransaction)
+                     TransactionMode mode)
     : LedgerTxn((AbstractLedgerTxnParent&)parent, shouldUpdateLastModified,
-                useTransaction)
+                mode)
 {
 }
 
 LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
-                      bool shouldUpdateLastModified, bool useTransaction)
+                      bool shouldUpdateLastModified, TransactionMode mode)
     : mParent(parent)
     , mChild(nullptr)
     , mHeader(std::make_unique<LedgerHeader>(mParent.getHeader()))
@@ -245,7 +245,7 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mIsSealed(false)
     , mConsistency(LedgerTxnConsistency::EXACT)
 {
-    mParent.addChild(self, useTransaction);
+    mParent.addChild(self, mode);
 }
 
 LedgerTxn::~LedgerTxn()
@@ -267,13 +267,13 @@ LedgerTxn::getImpl() const
 }
 
 void
-LedgerTxn::addChild(AbstractLedgerTxn& child, bool useTransaction)
+LedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
-    getImpl()->addChild(child, useTransaction);
+    getImpl()->addChild(child);
 }
 
 void
-LedgerTxn::Impl::addChild(AbstractLedgerTxn& child, bool useTransaction)
+LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
 {
     throwIfSealed();
     throwIfChild();
@@ -2292,23 +2292,29 @@ LedgerTxnRoot::resetForFuzzer()
 #endif // BUILD_TESTS
 
 void
-LedgerTxnRoot::addChild(AbstractLedgerTxn& child, bool useTransaction)
+LedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
-    mImpl->addChild(child, useTransaction);
+    mImpl->addChild(child, mode);
 }
 
 void
-LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, bool useTransaction)
+LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     if (mChild)
     {
         throw std::runtime_error("LedgerTxnRoot already has child");
     }
 
-    if (useTransaction)
+    if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
         mTransaction =
             std::make_unique<soci::transaction>(mDatabase.getSession());
+    }
+    else
+    {
+        // Read-only transactions are only allowed on the main thread to ensure
+        // we're not competing with writes
+        assertThreadIsMain();
     }
 
     mChild = &child;
