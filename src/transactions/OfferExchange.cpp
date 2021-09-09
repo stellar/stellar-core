@@ -1244,6 +1244,13 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
         throw std::runtime_error("Liquidity pool fee out of range");
     }
 
+    if (reservesToPool <= 0 || reservesFromPool <= 0)
+    {
+        // This should never happen, but the following code makes positivity
+        // assumptions about these values.
+        throw std::runtime_error("non-positive reserve in exchangeWithPool");
+    }
+
     switch (round)
     {
     case RoundingType::PATH_PAYMENT_STRICT_SEND:
@@ -1394,6 +1401,17 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
     {
         return lp.current().data.liquidityPool().body.constantProduct();
     };
+
+    if (cp().reserveA <= 0 || cp().reserveB <= 0)
+    {
+        // It is possible to have reserveA = reserveB = 0, specifically when a
+        // pool share trust line exists but no deposits have been made. It
+        // should not be possible to have either
+        //      reserveA = 0 && reserveB != 0
+        //      reserveA < 0 || reserveB < 0
+        // but for safety we disallow trading with the pool in those cases.
+        return false;
+    }
 
     bool res = false;
     if (toPoolAsset == cp().params.assetA &&
