@@ -75,9 +75,22 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         throw std::runtime_error("pool withdrawal invalid");
     }
-    constantProduct().totalPoolShares -= mLiquidityPoolWithdraw.amount;
-    constantProduct().reserveA -= amountA;
-    constantProduct().reserveB -= amountB;
+
+    if (!addBalance(constantProduct().totalPoolShares,
+                    -mLiquidityPoolWithdraw.amount))
+    {
+        throw std::runtime_error("insufficient totalPoolShares");
+    }
+
+    if (!addBalance(constantProduct().reserveA, -amountA))
+    {
+        throw std::runtime_error("insufficient reserveA");
+    }
+
+    if (!addBalance(constantProduct().reserveB, -amountB))
+    {
+        throw std::runtime_error("insufficient reserveB");
+    }
 
     innerResult().code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
     return true;
