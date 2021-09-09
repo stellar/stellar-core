@@ -89,6 +89,14 @@ TestAccount::getAvailableBalance() const
     return stellar::getAvailableBalance(header, entry);
 }
 
+uint32_t
+TestAccount::getNumSubEntries() const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto entry = stellar::loadAccount(ltx, getPublicKey());
+    return entry.current().data.account().numSubEntries;
+}
+
 bool
 TestAccount::exists() const
 {

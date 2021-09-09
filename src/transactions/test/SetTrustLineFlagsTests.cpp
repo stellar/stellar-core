@@ -80,6 +80,13 @@ checkNumSponsoring(Application& app, TestAccount const& account,
     REQUIRE(getNumSponsoring(ltxe.current()) == numSponsoring);
 }
 
+static uint32_t
+getNumOffers(Application& app, TestAccount const& account, Asset const& asset)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    return ltx.getOffersByAccountAndAsset(account, asset).size();
+}
+
 TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
 {
     auto const& cfg = getTestConfig();
@@ -497,7 +504,12 @@ TEST_CASE("revoke from pool",
         auto revokeTest = [&](TrustFlagOp flagOp) {
             auto revoke = [&](TestAccount const& account, Asset const& asset,
                               std::vector<ChangeTrustAsset> const& ctAssets) {
+                auto preRevokeNumSubEntries = account.getNumSubEntries();
+                auto numOffers = getNumOffers(*app, account, asset);
                 root.denyTrust(asset, account, flagOp);
+                REQUIRE(preRevokeNumSubEntries == account.getNumSubEntries() +
+                                                      numOffers +
+                                                      (2 * ctAssets.size()));
 
                 for (auto const& ctAsset : ctAssets)
                 {
