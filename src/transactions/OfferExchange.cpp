@@ -1273,9 +1273,26 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
                               bigMultiply(reservesFromPool, toPool),
                               denominator, ROUND_DOWN);
 
-        // Fail if the division overflows, or if we would be receiving too much
-        // from the pool.
-        return res && fromPool <= maxReceiveFromPool;
+        // To be defensive, we need a bound on fromPool. First, note that
+        //
+        // denominator
+        //  = maxBps * reservesToPool + (maxBps - feeBps) * toPool
+        // >= (maxBps - feeBps) * toPool
+        //
+        // Using this result, we can evaluate
+        //
+        // fromPool
+        //  = floor[(maxBps - feeBps) * reservesFromPool * toPool / denominator]
+        // <= (maxBps - feeBps) * reservesFromPool * toPool / denominator
+        // <= reservesFromPool
+        if (res && fromPool > maxReceiveFromPool)
+        {
+            // This should never happen, see the above proof.
+            throw std::runtime_error("received too much from pool");
+        }
+
+        // Fail if the division overflows.
+        return res;
     }
     case RoundingType::PATH_PAYMENT_STRICT_RECEIVE:
     {
