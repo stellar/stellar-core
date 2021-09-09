@@ -1267,8 +1267,20 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
         }
         toPool = maxSendToPool;
 
+        // This can't overflow:
+        // - 0 <  reservesToPool <= INT64_MAX
+        // - 0 <= toPool <= INT64_MAX
+        // - 0 <  maxBps - feeBps <= maxBps <= 10000
+        //
+        // from which it follows that
+        //
+        // denominator
+        //  = maxBps * reservesToPool + (maxBps - feeBps) * toPool
+        // <= 10000 * INT64_MAX + 10000 * INT64_MAX
+        // <  UINT128_MAX
         uint128_t denominator = bigMultiply(maxBps, reservesToPool) +
                                 bigMultiply(maxBps - feeBps, toPool);
+
         bool res = hugeDivide(fromPool, maxBps - feeBps,
                               bigMultiply(reservesFromPool, toPool),
                               denominator, ROUND_DOWN);
