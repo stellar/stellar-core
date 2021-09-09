@@ -1392,8 +1392,11 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
                                feeBps, round);
         if (res)
         {
-            cp().reserveA += toPool;
-            cp().reserveB -= fromPool;
+            if (!addBalance(cp().reserveA, toPool) ||
+                !addBalance(cp().reserveB, -fromPool))
+            {
+                throw std::runtime_error("could not update reserves");
+            }
         }
     }
     else if (fromPoolAsset == cp().params.assetA &&
@@ -1404,8 +1407,11 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
                                feeBps, round);
         if (res)
         {
-            cp().reserveA -= fromPool;
-            cp().reserveB += toPool;
+            if (!addBalance(cp().reserveA, -fromPool) ||
+                !addBalance(cp().reserveB, toPool))
+            {
+                throw std::runtime_error("could not update reserves");
+            }
         }
     }
     else
