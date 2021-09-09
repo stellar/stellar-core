@@ -79,6 +79,15 @@ getNumSponsoring(Application& app, TestAccount const& account)
     return getNumSponsoring(ltxe.current());
 }
 
+static uint32_t
+getNumSponsored(Application& app, TestAccount const& account)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+
+    auto ltxe = loadAccount(ltx, account.getPublicKey(), true);
+    return getNumSponsored(ltxe.current());
+}
+
 static void
 checkNumSponsoring(Application& app, TestAccount const& account,
                    uint32_t numSponsoring)
@@ -1133,18 +1142,35 @@ TEST_CASE("revoke from pool",
                                  acc1.op(endSponsoringFutureReserves())},
                                 {acc1});
 
-                            LedgerTxn ltx(app->getLedgerTxnRoot());
-                            TransactionMeta txm(2);
-                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                            REQUIRE(tx->apply(*app, ltx, txm));
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
-                            ltx.commit();
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                TransactionMeta txm(2);
+                                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                                REQUIRE(tx->apply(*app, ltx, txm));
+                                REQUIRE(tx->getResultCode() == txSUCCESS);
+                                ltx.commit();
+                            }
+
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                auto tlAsset =
+                                    changeTrustAssetToTrustLineAsset(share12);
+                                checkSponsorship(ltx,
+                                                 trustlineKey(acc1, tlAsset), 1,
+                                                 &acc3.getPublicKey());
+                                checkSponsorship(ltx, acc1, 0, nullptr, 4, 2, 0,
+                                                 2);
+                                checkSponsorship(ltx, acc3, 0, nullptr, 0, 2, 2,
+                                                 0);
+                            }
 
                             acc3.pay(root, acc3.getAvailableBalance() - txFee);
                         }
                         else
                         {
                             acc1.changeTrust(share12, 10);
+
+                            REQUIRE(acc1.getNumSubEntries() == 4);
                         }
 
                         acc1.liquidityPoolDeposit(pool12, 10, 10, Price{1, 1},
@@ -1206,36 +1232,60 @@ TEST_CASE("revoke from pool",
                          sponsoredAcc.op(endSponsoringFutureReserves())},
                         opKeys);
 
-                    LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm(2);
-                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm) == success);
+                    auto preRevokeNumSubEntries = acc1.getNumSubEntries();
+                    auto preRevokeNumSponsoring =
+                        getNumSponsoring(*app, sponsoringAcc);
+                    bool trustlineIsSponsored = getNumSponsored(*app, acc1) > 0;
 
-                    if (success)
                     {
-                        ltx.commit();
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                    }
-                    else
-                    {
-                        REQUIRE(tx->getResultCode() == txFAILED);
-                        if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        TransactionMeta txm(2);
+                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(*app, ltx, txm) == success);
+
+                        if (success)
                         {
-                            REQUIRE(tx->getResult()
-                                        .result.results()[1]
-                                        .tr()
-                                        .allowTrustResult()
-                                        .code() == ALLOW_TRUST_LOW_RESERVE);
+                            ltx.commit();
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
                         }
                         else
                         {
-                            REQUIRE(tx->getResult()
-                                        .result.results()[1]
-                                        .tr()
-                                        .setTrustLineFlagsResult()
-                                        .code() ==
-                                    SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                            REQUIRE(tx->getResultCode() == txFAILED);
+                            if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                            {
+                                REQUIRE(tx->getResult()
+                                            .result.results()[1]
+                                            .tr()
+                                            .allowTrustResult()
+                                            .code() == ALLOW_TRUST_LOW_RESERVE);
+                            }
+                            else
+                            {
+                                REQUIRE(tx->getResult()
+                                            .result.results()[1]
+                                            .tr()
+                                            .setTrustLineFlagsResult()
+                                            .code() ==
+                                        SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                            }
                         }
+                    }
+
+                    if (success)
+                    {
+                        REQUIRE(preRevokeNumSubEntries ==
+                                acc1.getNumSubEntries() + 2);
+
+                        // sponsoringAcc will be sponsoring the two claimable
+                        // balances, but if the same account was sponsoring the
+                        // pool share trustline, then the delta is 0
+                        auto delta = trustlineIsSponsored &&
+                                             sponsoringAcc.getPublicKey() ==
+                                                 acc3.getPublicKey()
+                                         ? 0
+                                         : 2;
+                        REQUIRE(preRevokeNumSponsoring ==
+                                getNumSponsoring(*app, sponsoringAcc) - delta);
                     }
                 };
 
@@ -1261,7 +1311,25 @@ TEST_CASE("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(true);
 
                     root.denyTrust(cur1, acc1, flagOp);
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        // verify that acc1 lost two numSubEntries and 2
+                        // numSponsored due to the deleted sponsored pool share
+                        // trustline, while acc3 ends up with the same state due
+                        // to the two claimable balances.
+                        checkSponsorship(ltx, acc1, 0, nullptr, 2, 2, 0, 0);
+                        checkSponsorship(ltx, acc3, 0, nullptr, 0, 2, 2, 0);
+                    }
+
                     claimAndValidatePoolCounters(root, 0);
+                }
+                SECTION("same reserve - sponsored account is the sponsor "
+                        "of the pool share trustline")
+                {
+                    depositIntoMaybeSponsoredPoolShare(true);
+
+                    submitRevokeInSandwich(acc2, acc3, true);
+                    claimAndValidatePoolCounters(acc2, 1);
                 }
                 SECTION("same reserve - sandwich on revoke - success")
                 {
@@ -1271,14 +1339,14 @@ TEST_CASE("revoke from pool",
                 }
                 SECTION("same reserve - issuer sandwich on revoke - success")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
 
                     submitRevokeInSandwich(root, acc1, true);
                     claimAndValidatePoolCounters(root, 1);
                 }
                 SECTION("same reserve - issuer sandwich on revoke - fail")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
 
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
@@ -1326,7 +1394,7 @@ TEST_CASE("revoke from pool",
                 SECTION(
                     "increase reserve - issuer sandwich on revoke - success")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
                     submitRevokeInSandwich(root, acc1, true);
@@ -1334,7 +1402,7 @@ TEST_CASE("revoke from pool",
                 }
                 SECTION("increase reserve - issuer sandwich on revoke - fail")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     root.pay(acc2, root.getAvailableBalance() -
                                        lm.getLastMinBalance(1));
 
@@ -1348,8 +1416,8 @@ TEST_CASE("revoke from pool",
 
                     submitRevokeInSandwich(acc2, acc1, false);
                 }
-                SECTION("increase reserve - sponsored pool share trustline - "
-                        "sandwich on revoke - fail")
+                SECTION("increase reserve - sponsored account is the sponsor "
+                        "of the pool share trustline - fail")
                 {
                     depositIntoMaybeSponsoredPoolShare(true);
                     increaseReserve();
@@ -1366,6 +1434,81 @@ TEST_CASE("revoke from pool",
                     root.pay(acc3, lm.getLastMinBalance(1));
                     submitRevokeInSandwich(acc3, acc1, true);
                     claimAndValidatePoolCounters(acc3, 1);
+                }
+
+                SECTION("trustline is owned by one issuer and sponsored by the "
+                        "other")
+                {
+                    auto usd = makeAsset(acc1, "USD");
+
+                    auto share1Usd = makeChangeTrustAssetPoolShare(
+                        cur1, usd, LIQUIDITY_POOL_FEE_V18);
+                    auto poolID = xdrSha256(share1Usd.liquidityPool());
+
+                    acc1.changeTrust(cur1, 100);
+                    root.pay(acc1, cur1, 10);
+
+                    {
+                        auto tx = transactionFrameFromOps(
+                            app->getNetworkID(), root,
+                            {root.op(beginSponsoringFutureReserves(acc1)),
+                             acc1.op(changeTrust(share1Usd, 10)),
+                             acc1.op(endSponsoringFutureReserves())},
+                            {acc1});
+
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        TransactionMeta txm(2);
+                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(*app, ltx, txm));
+                        REQUIRE(tx->getResultCode() == txSUCCESS);
+
+                        auto tlAsset =
+                            changeTrustAssetToTrustLineAsset(share1Usd);
+                        checkSponsorship(ltx, trustlineKey(acc1, tlAsset), 1,
+                                         &root.getPublicKey());
+                        checkSponsorship(ltx, acc1, 0, nullptr, 3, 2, 0, 2);
+                        checkSponsorship(ltx, root, 0, nullptr, 0, 2, 2, 0);
+
+                        ltx.commit();
+                    }
+
+                    acc1.liquidityPoolDeposit(poolID, 10, 10, Price{1, 1},
+                                              Price{1, 1});
+
+                    auto preRevokeNumSponsoring = getNumSponsoring(*app, root);
+
+                    // No claimable balances are sponsored by acc1, which is why
+                    // 0 is passed in here
+                    revoke(acc1, cur1, {share1Usd}, 0);
+
+                    // root is no longer sponsoring the trustline, but it is
+                    // sponsoring one claimable balance after the revoke
+                    REQUIRE(preRevokeNumSponsoring ==
+                            getNumSponsoring(*app, root) + 1);
+
+                    checkPoolUseCounts(acc1, cur1, 0);
+
+                    // Pool should be deleted since the last pool share
+                    // trustline was deleted
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        REQUIRE(!loadLiquidityPool(ltx, poolID));
+                    }
+
+                    auto revokeSeqNum = root.getLastSequenceNumber();
+                    root.allowTrust(cur1, acc1);
+
+                    redeemBalance(false, acc1, root, cur1, poolID, revokeSeqNum,
+                                  0, 10);
+
+                    auto usdBalanceID = getRevokeBalanceID(
+                        root, root.getLastSequenceNumber(), usd, poolID, 0);
+
+                    REQUIRE_THROWS_AS(
+                        acc1.claimClaimableBalance(usdBalanceID),
+                        ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+
+                    checkNumSponsoring(*app, acc1, 0);
                 }
             }
         };

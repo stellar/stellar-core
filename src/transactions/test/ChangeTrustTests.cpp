@@ -698,6 +698,8 @@ TEST_CASE("change trust pool share trustline",
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     checkSponsorship(ltx, trustlineKey(acc1, tlAsset), 1,
                                      &gateway.getPublicKey());
+                    checkSponsorship(ltx, acc1, 0, nullptr, 4, 2, 0, 2);
+                    checkSponsorship(ltx, gateway, 0, nullptr, 0, 2, 2, 0);
                 }
 
                 // give gateway enough fees for three operations
