@@ -1309,9 +1309,15 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
             // This should never happen, see the above proof.
             throw std::runtime_error("received too much from pool");
         }
+        if (res && fromPool < 0)
+        {
+            // This should never happen
+            throw std::runtime_error("fromPool is negative");
+        }
 
-        // Fail if the division overflows.
-        return res;
+        // Fail if the division overflows, or if we are receiving 0. It is
+        // possible to receive 0 due to the ROUND_DOWN.
+        return res && fromPool != 0;
     }
     case RoundingType::PATH_PAYMENT_STRICT_RECEIVE:
     {
@@ -1338,6 +1344,12 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
             toPool, maxBps, bigMultiply(reservesToPool, fromPool),
             bigMultiply(reservesFromPool - fromPool, maxBps - feeBps),
             ROUND_UP);
+
+        if (res && toPool < 0)
+        {
+            // This should never happen
+            throw std::runtime_error("toPool is negative");
+        }
 
         // Fail if the division overflows, or if we would be sending too much to
         // the pool.
