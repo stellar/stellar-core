@@ -70,14 +70,20 @@ getBalance(TestAccount const& account, Asset const& asset)
                : account.getTrustlineBalance(asset);
 }
 
-static void
-checkNumSponsoring(Application& app, TestAccount const& account,
-                   uint32_t numSponsoring)
+static uint32_t
+getNumSponsoring(Application& app, TestAccount const& account)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
     auto ltxe = loadAccount(ltx, account.getPublicKey(), true);
-    REQUIRE(getNumSponsoring(ltxe.current()) == numSponsoring);
+    return getNumSponsoring(ltxe.current());
+}
+
+static void
+checkNumSponsoring(Application& app, TestAccount const& account,
+                   uint32_t numSponsoring)
+{
+    REQUIRE(getNumSponsoring(app, account) == numSponsoring);
 }
 
 static uint32_t
@@ -503,13 +509,21 @@ TEST_CASE("revoke from pool",
     for_versions_from(18, *app, [&] {
         auto revokeTest = [&](TrustFlagOp flagOp) {
             auto revoke = [&](TestAccount const& account, Asset const& asset,
-                              std::vector<ChangeTrustAsset> const& ctAssets) {
+                              std::vector<ChangeTrustAsset> const& ctAssets,
+                              uint32_t numClaimableBalancesCreated) {
                 auto preRevokeNumSubEntries = account.getNumSubEntries();
                 auto numOffers = getNumOffers(*app, account, asset);
+
+                auto preRevokeNumSponsoring = getNumSponsoring(*app, account);
+
                 root.denyTrust(asset, account, flagOp);
                 REQUIRE(preRevokeNumSubEntries == account.getNumSubEntries() +
                                                       numOffers +
                                                       (2 * ctAssets.size()));
+
+                REQUIRE(preRevokeNumSponsoring ==
+                        getNumSponsoring(*app, account) -
+                            numClaimableBalancesCreated);
 
                 for (auto const& ctAsset : ctAssets)
                 {
@@ -533,7 +547,7 @@ TEST_CASE("revoke from pool",
                 SECTION("pool is deleted")
                 {
                     // revoke
-                    revoke(acc1, assetB, {ctAsset});
+                    revoke(acc1, assetB, {ctAsset}, 2);
                     checkPoolUseCounts(acc1, assetA, 0);
                     checkPoolUseCounts(acc1, assetB, 0);
 
@@ -563,7 +577,7 @@ TEST_CASE("revoke from pool",
                     checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
 
                     // revoke
-                    revoke(acc1, assetB, {ctAsset});
+                    revoke(acc1, assetB, {ctAsset}, 2);
                     checkLiquidityPool(*app, poolID, 200, 50, 100, 1);
                     checkPoolUseCounts(acc1, assetA, 0);
                     checkPoolUseCounts(acc1, assetB, 0);
@@ -635,7 +649,7 @@ TEST_CASE("revoke from pool",
                     auto shareBtc1 = depositIntoPool(acc1, acc1Btc, cur1);
                     auto poolBtc1 = xdrSha256(shareBtc1.liquidityPool());
 
-                    revoke(acc1, cur1, {shareBtc1});
+                    revoke(acc1, cur1, {shareBtc1}, 1);
 
                     checkPoolUseCounts(acc1, cur1, 0);
 
@@ -669,7 +683,7 @@ TEST_CASE("revoke from pool",
                     auto share1Usd = depositIntoPool(acc1, cur1, acc1Usd);
                     auto pool1Usd = xdrSha256(share1Usd.liquidityPool());
 
-                    revoke(acc1, cur1, {share1Usd});
+                    revoke(acc1, cur1, {share1Usd}, 1);
 
                     checkPoolUseCounts(acc1, cur1, 0);
 
@@ -713,45 +727,48 @@ TEST_CASE("revoke from pool",
                     checkLiquidityPool(*app, poolID, 400, 100, 200, 2);
                 };
 
-                auto tradeAndRevoke = [&](Asset const& sendAsset,
-                                          int64_t sendMax,
-                                          Asset const& destAsset,
-                                          int64_t destAmount, bool sendAssetA,
-                                          ChangeTrustAsset const& ctAsset,
-                                          uint32_t numSponsoringAfterRevoke) {
-                    root.pay(acc1, sendAsset, sendMax, destAsset, destAmount,
-                             {});
-                    auto poolID = xdrSha256(ctAsset.liquidityPool());
+                auto tradeAndRevoke =
+                    [&](Asset const& sendAsset, int64_t sendMax,
+                        Asset const& destAsset, int64_t destAmount,
+                        bool sendAssetA, ChangeTrustAsset const& ctAsset,
+                        uint32_t numClaimableBalancesCreated) {
+                        root.pay(acc1, sendAsset, sendMax, destAsset,
+                                 destAmount, {});
+                        auto poolID = xdrSha256(ctAsset.liquidityPool());
 
-                    if (sendAssetA)
-                    {
-                        auto reserveA = 400 + sendMax;
-                        checkLiquidityPool(*app, poolID, reserveA, 1, 200, 2);
+                        if (sendAssetA)
+                        {
+                            auto reserveA = 400 + sendMax;
+                            checkLiquidityPool(*app, poolID, reserveA, 1, 200,
+                                               2);
 
-                        revoke(acc1, cur2, {ctAsset});
+                            revoke(acc1, cur2, {ctAsset},
+                                   numClaimableBalancesCreated);
 
-                        // half of the pool shares were redeemed in the revoke,
-                        // but reserveB was unchanged due to rounding
-                        auto redeemed = reserveA / 2;
-                        checkLiquidityPool(*app, poolID, reserveA - redeemed, 1,
-                                           100, 1);
-                    }
-                    else
-                    {
-                        auto reserveB = 100 + sendMax;
-                        checkLiquidityPool(*app, poolID, 1, reserveB, 200, 2);
+                            // half of the pool shares were redeemed in the
+                            // revoke, but reserveB was unchanged due to
+                            // rounding
+                            auto redeemed = reserveA / 2;
+                            checkLiquidityPool(*app, poolID,
+                                               reserveA - redeemed, 1, 100, 1);
+                        }
+                        else
+                        {
+                            auto reserveB = 100 + sendMax;
+                            checkLiquidityPool(*app, poolID, 1, reserveB, 200,
+                                               2);
 
-                        revoke(acc1, cur2, {ctAsset});
+                            revoke(acc1, cur2, {ctAsset},
+                                   numClaimableBalancesCreated);
 
-                        // half of the pool shares were redeemed in the revoke,
-                        // but reserveA was unchanged due to rounding
-                        auto redeemed = reserveB / 2;
-                        checkLiquidityPool(*app, poolID, 1, reserveB - redeemed,
-                                           100, 1);
-                    }
-
-                    checkNumSponsoring(*app, acc1, numSponsoringAfterRevoke);
-                };
+                            // half of the pool shares were redeemed in the
+                            // revoke, but reserveA was unchanged due to
+                            // rounding
+                            auto redeemed = reserveB / 2;
+                            checkLiquidityPool(*app, poolID, 1,
+                                               reserveB - redeemed, 100, 1);
+                        }
+                    };
 
                 auto validateClaimableBalances =
                     [&](PoolID poolID, Asset const& claimAsset,
@@ -912,7 +929,7 @@ TEST_CASE("revoke from pool",
 
                 checkLiquidityPool(*app, pool12, 0, 0, 0, 1);
 
-                revoke(acc1, cur1, {share12});
+                revoke(acc1, cur1, {share12}, 0);
                 checkPoolUseCounts(acc1, cur1, 0);
                 checkPoolUseCounts(acc1, cur2, 0);
 
@@ -957,7 +974,7 @@ TEST_CASE("revoke from pool",
 
                     checkLiquidityPool(*app, poolID, 445, 90, 200, 2);
 
-                    revoke(acc1, assetB, {ctAsset});
+                    revoke(acc1, assetB, {ctAsset}, 2);
 
                     checkLiquidityPool(*app, poolID, 223, 45, 100, 1);
 
@@ -1011,7 +1028,7 @@ TEST_CASE("revoke from pool",
 
                     market.requireChanges(
                         {{offer.key, OfferState::DELETED}}, [&] {
-                            revoke(acc1, assetToRevoke, {ctAsset});
+                            revoke(acc1, assetToRevoke, {ctAsset}, 2);
 
                             auto revokeSeqNum = root.getLastSequenceNumber();
                             root.allowTrust(assetToRevoke, acc1);
@@ -1070,7 +1087,7 @@ TEST_CASE("revoke from pool",
                         checkLiquidityPool(*app, poolEurUsd, 600, 150, 300, 3);
                         checkLiquidityPool(*app, poolBtcEur, 600, 150, 300, 3);
 
-                        revoke(acc, btc, {shareBtcUsd, shareBtcEur});
+                        revoke(acc, btc, {shareBtcUsd, shareBtcEur}, 4);
 
                         auto revokeSeqNum = root.getLastSequenceNumber();
                         root.allowTrust(btc, acc);
