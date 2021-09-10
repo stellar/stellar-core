@@ -859,12 +859,6 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 void
 BucketManagerImpl::shutdown()
 {
-    if (mIsShutdown)
-    {
-        CLOG_WARNING(Bucket,
-                     "BucketManager: shutdown is called more than once");
-    }
-
     mIsShutdown = true;
 }
 
