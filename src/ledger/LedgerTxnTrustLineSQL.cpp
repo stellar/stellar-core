@@ -414,7 +414,11 @@ class BulkLoadTrustLinesOperation
         for (auto const& k : keys)
         {
             releaseAssert(k.type() == TRUSTLINE);
-            releaseAssert(k.trustLine().asset.type() != ASSET_TYPE_NATIVE);
+            if (k.trustLine().asset.type() == ASSET_TYPE_NATIVE)
+            {
+                throw NonSociRelatedException(
+                    "TrustLine asset can't be native");
+            }
 
             mAccountIDs.emplace_back(
                 KeyUtils::toStrKey(k.trustLine().accountID));
