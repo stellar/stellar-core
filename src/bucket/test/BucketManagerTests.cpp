@@ -165,13 +165,9 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
               ledgerNum, hexAbbrev(lcl.hash),
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
-    StellarValue sv = app.getHerder().makeStellarValue(
-        txSet->getContentsHash(), lcl.header.scpValue.closeTime,
-        emptyUpgradeSteps,
-        (skToSignValue ? *skToSignValue : app.getConfig().NODE_SEED));
-
-    LedgerCloseData lcd(ledgerNum, txSet, sv);
-    lm.valueExternalized(lcd);
+    app.getHerder().externalizeValue(txSet, ledgerNum,
+                                     lcl.header.scpValue.closeTime,
+                                     emptyUpgradeSteps, skToSignValue);
     return lm.getLastClosedLedgerHeader().hash;
 }
 
