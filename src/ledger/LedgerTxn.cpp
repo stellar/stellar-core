@@ -1849,32 +1849,24 @@ LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     return mParent.prefetch(keys);
 }
 
-LedgerTxn::Impl::EntryMap
-LedgerTxn::Impl::maybeUpdateLastModified() const
+void
+LedgerTxn::Impl::maybeUpdateLastModified() noexcept
 {
     throwIfSealed();
     throwIfChild();
 
-    // Note: We do a deep copy here since a shallow copy would not be exception
-    // safe.
-    EntryMap entries;
-    entries.reserve(mEntry.size());
-    for (auto const& kv : mEntry)
+    for (auto& kv : mEntry)
     {
-        auto const& key = kv.first;
-        std::shared_ptr<InternalLedgerEntry> entry;
+        auto& entry = kv.second;
         if (kv.second)
         {
-            entry = std::make_shared<InternalLedgerEntry>(*kv.second);
             if (mShouldUpdateLastModified &&
                 entry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
             {
                 entry->ledgerEntry().lastModifiedLedgerSeq = mHeader->ledgerSeq;
             }
         }
-        entries.emplace(key, entry);
     }
-    return entries;
 }
 
 void
@@ -1883,19 +1875,10 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
 {
     if (!mIsSealed)
     {
-        // Invokes throwIfChild and throwIfSealed
-        auto entries = maybeUpdateLastModified();
+        maybeUpdateLastModified();
 
-        f(entries);
+        f(mEntry);
 
-        // For associative containers, swap does not throw unless the exception
-        // is thrown by the swap of the Compare object (which is of type
-        // std::less<LedgerKey>, so this should not throw when swapped)
-        mEntry.swap(entries);
-
-        // std::multiset<...>::clear does not throw
-        // std::set<...>::clear does not throw
-        // std::shared_ptr<...>::reset does not throw
         mMultiOrderBook.clear();
         mActive.clear();
         mActiveHeader.reset();

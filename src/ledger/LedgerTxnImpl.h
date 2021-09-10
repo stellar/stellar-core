@@ -392,8 +392,7 @@ class LedgerTxn::Impl
     // getEntryIterator has the strong exception safety guarantee
     EntryIterator getEntryIterator(EntryMap const& entries) const;
 
-    // maybeUpdateLastModified has the strong exception safety guarantee
-    EntryMap maybeUpdateLastModified() const;
+    void maybeUpdateLastModified() noexcept;
 
     // f should not throw
     // C++ doesn't support "std::function<void(EntryMap const&) nothrow>" yet
