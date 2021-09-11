@@ -1,5 +1,7 @@
 #include "uint128_t.h"
 #include <cstring>
+namespace libu128
+{
 
 const uint128_t uint128_0(0u);
 const uint128_t uint128_1(1u);
@@ -543,4 +545,5 @@ std::ostream & operator<<(std::ostream & stream, const uint128_t & rhs){
         stream << rhs.str(16);
     }
     return stream;
+}
 }

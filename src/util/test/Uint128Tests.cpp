@@ -20,6 +20,7 @@
 #if defined(__SIZEOF_INT128__) || defined(_GLIBCXX_USE_INT128)
 
 const uint64_t full = std::numeric_limits<uint64_t>::max();
+using libu128::uint128_t;
 
 uint128_t
 fromNative(unsigned __int128 x)

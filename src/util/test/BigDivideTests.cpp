@@ -337,7 +337,7 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
     SECTION("upper limits")
     {
         uint128_t const unsignedLimit = bigMultiply(UINT64_MAX, UINT64_MAX);
-        uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
+        uint128_t const UINT128_MAX = uint128_max();
         REQUIRE(UINT128_MAX + 1u == 0u);
 
         verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_UP);
@@ -455,7 +455,7 @@ TEST_CASE("huge divide", "[bigdivide]")
 
     SECTION("uint128 values")
     {
-        uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
+        uint128_t const UINT128_MAX = uint128_max();
         uint128_t maxC =
             uint128_t((uint32_t)INT32_MAX) * uint128_t((uint64_t)INT64_MAX);
 

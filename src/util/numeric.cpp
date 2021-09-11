@@ -85,7 +85,7 @@ bigDivide(uint64_t& result, uint128_t a, uint64_t B, Rounding rounding)
     //         = (UINT64_MAX * UINT64_MAX + 2 * UINT64_MAX) / UINT64_MAX
     //         = UINT64_MAX + 2
     // which would have overflowed uint64_t anyway.
-    uint128_t const UINT128_MAX = ~uint128_0;
+    uint128_t const UINT128_MAX = uint128_max();
     if ((rounding == ROUND_UP) && (a > UINT128_MAX - (b - 1u)))
     {
         return false;
@@ -219,7 +219,7 @@ bigSquareRootCeil(uint64_t a, uint64_t b)
     uint128_t R = bigMultiply(a, b) - 1u;
 
     // Seed the result with a reasonable estimate x >= ceil(sqrt(R+1))
-    uint8_t numBits = R.bits() / 2 + 1;
+    uint8_t numBits = uint128_bits(R) / 2 + 1;
     uint64_t x = numBits >= 64 ? UINT64_MAX : (1ull << numBits);
 
     uint64_t prev = 0;
