@@ -30,6 +30,7 @@ struct SponsorshipCounterKey
 class InternalLedgerKey
 {
   private:
+    size_t mutable mHash;
     InternalLedgerEntryType mType;
     union
     {
@@ -74,6 +75,8 @@ class InternalLedgerKey
     SponsorshipCounterKey const& sponsorshipCounterKey() const;
 
     std::string toString() const;
+
+    size_t hash() const;
 };
 
 struct SponsorshipEntry

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerHashUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
@@ -131,10 +132,39 @@ InternalLedgerKey::~InternalLedgerKey()
     destruct();
 }
 
+size_t
+InternalLedgerKey::hash() const
+{
+    if (mHash != 0)
+    {
+        return mHash;
+    }
+    size_t res;
+    switch (type())
+    {
+    case stellar::InternalLedgerEntryType::LEDGER_ENTRY:
+        res = std::hash<stellar::LedgerKey>()(ledgerKey());
+        break;
+    case stellar::InternalLedgerEntryType::SPONSORSHIP:
+        res = shortHash::computeHash(stellar::ByteSlice(
+            sponsorshipKey().sponsoredID.ed25519().data(), 8));
+        break;
+    case stellar::InternalLedgerEntryType::SPONSORSHIP_COUNTER:
+        res = shortHash::computeHash(stellar::ByteSlice(
+            sponsorshipCounterKey().sponsoringID.ed25519().data(), 8));
+        break;
+    default:
+        abort();
+    }
+    mHash = res;
+    return res;
+}
+
 void
 InternalLedgerKey::assign(InternalLedgerKey const& glk)
 {
     releaseAssert(glk.type() == mType);
+    mHash = glk.mHash;
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -155,6 +185,7 @@ void
 InternalLedgerKey::assign(InternalLedgerKey&& glk)
 {
     releaseAssert(glk.type() == mType);
+    mHash = glk.mHash;
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -188,6 +219,7 @@ InternalLedgerKey::construct()
     default:
         abort();
     }
+    mHash = 0;
 }
 
 void
@@ -207,6 +239,7 @@ InternalLedgerKey::destruct()
     default:
         abort();
     }
+    mHash = 0;
 }
 
 void
@@ -301,7 +334,7 @@ InternalLedgerKey::toString() const
 bool
 operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
 {
-    if (lhs.type() != rhs.type())
+    if (lhs.hash() != rhs.hash() || lhs.type() != rhs.type())
     {
         return false;
     }
