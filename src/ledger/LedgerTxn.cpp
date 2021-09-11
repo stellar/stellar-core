@@ -384,11 +384,17 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
 
     mConsistency = joinConsistencyLevels(mConsistency, cons);
 
+    if (!mActive.empty())
+    {
+        printErrorAndAbort(
+            "Attempting to commit a child while parent has active entries");
+    }
     try
     {
         for (; (bool)iter; ++iter)
         {
-            updateEntry(iter.key(), iter.entryPtr());
+            updateEntry(iter.key(), iter.entryPtr(),
+                        /* effectiveActive */ false);
         }
 
         // We will show that the following update procedure leaves the self
@@ -512,7 +518,7 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    updateEntry(key, current);
+    updateEntry(key, current, /* effectiveActive */ true);
     return ltxe;
 }
 
@@ -536,7 +542,8 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(key, std::make_shared<InternalLedgerEntry>(entry));
+    updateEntry(key, std::make_shared<InternalLedgerEntry>(entry),
+                /* effectiveActive */ false);
 }
 
 void
@@ -1430,7 +1437,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     // If this throws, the order book will not be modified because of the strong
     // exception safety guarantee. Furthermore, ltxe will be destructed leading
     // to key being deactivated. This will leave LedgerTxn unmodified.
-    updateEntry(key, current);
+    updateEntry(key, current, /* effectiveActive */ true);
     return ltxe;
 }
 
