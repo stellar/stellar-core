@@ -7,6 +7,8 @@
 #include "lib/util/uint128_t.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include <chrono>
+#include <fmt/chrono.h>
 #include <limits>
 #include <ostream>
 
@@ -57,6 +59,41 @@ operator<<(std::ostream& out, unsigned __int128 const& x)
 {
     return out << std::hex << "0x" << uint64_t(x >> 64) << uint64_t(x);
 }
+}
+
+TEST_CASE("uint128_t bench", "[bench][uint128][!hide]")
+{
+    gen128 g;
+    size_t const n = 1000000;
+    uint128_t res1{0};
+    __uint128_t res2{0};
+
+    std::vector<__uint128_t> native;
+    std::vector<uint128_t> lib;
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        __uint128_t n = g();
+        n |= 1; // ensure nonzero
+        native.emplace_back(n);
+        lib.emplace_back(fromNative(n));
+    }
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (auto k : lib)
+    {
+        res1 = res1 + (k * (k + k)) / k;
+    }
+    auto step1 = std::chrono::high_resolution_clock::now();
+    for (auto k : native)
+    {
+        res2 = res2 + (k * (k + k)) / k;
+    }
+    auto step2 = std::chrono::high_resolution_clock::now();
+    assert(res1 == fromNative(res2));
+    LOG_INFO(DEFAULT_LOG, "library time: {} per iteration",
+             (step1 - start) / n);
+    LOG_INFO(DEFAULT_LOG, "native time: {} per iteration", (step2 - step1) / n);
 }
 
 TEST_CASE("uint128_t", "[uint128]")
