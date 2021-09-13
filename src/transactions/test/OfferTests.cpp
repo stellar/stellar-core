@@ -2986,6 +2986,17 @@ TEST_CASE("create offer", "[tx][offers]")
             manageOffer(1, usd, idr, Price{1, 1}, 0), offerKey(acc2, 1), 14);
     }
 
+    auto prepareAccount = [&](std::string const& seed) {
+        auto const initBalance = app->getLedgerManager().getLastMinBalance(10);
+
+        auto acc = root.create(seed, initBalance);
+        acc.changeTrust(usd, INT64_MAX);
+        acc.changeTrust(idr, INT64_MAX);
+        issuer.pay(acc, usd, 1000);
+        issuer.pay(acc, idr, 1000);
+        return acc;
+    };
+
     SECTION("crossed sponsored offers")
     {
         auto doRevokeSponsorship = [&](TestAccount& source, int64_t offerID,
@@ -3002,18 +3013,6 @@ TEST_CASE("create offer", "[tx][offers]")
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
-        };
-
-        auto prepareAccount = [&](std::string const& seed) {
-            auto const initBalance =
-                app->getLedgerManager().getLastMinBalance(10);
-
-            auto acc = root.create(seed, initBalance);
-            acc.changeTrust(usd, INT64_MAX);
-            acc.changeTrust(idr, INT64_MAX);
-            issuer.pay(acc, usd, 1000);
-            issuer.pay(acc, idr, 1000);
-            return acc;
         };
 
         TestMarket market(*app);
@@ -3716,6 +3715,83 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
             });
         }
+    }
+
+    SECTION(
+        "partially fill resting offer where owner is in a sponsorship sandwich")
+    {
+        auto a1 = prepareAccount("accA1");
+        auto a2 = prepareAccount("accA2");
+
+        TestMarket market(*app);
+        auto o1 = market
+                      .requireChangesWithOffer(
+                          {},
+                          [&] {
+                              return market.addOffer(
+                                  a1, {usd, idr, Price{1, 1}, 100});
+                          })
+                      .key;
+
+        market.requireChangesWithOffer(
+            {{o1, {usd, idr, Price{1, 1}, 50}}}, [&] {
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a2.op(manageOffer(0, idr, usd, Price{1, 1}, 50)),
+                     a1.op(endSponsoringFutureReserves())},
+                    {a1, a2});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto expOfferID = ltx.loadHeader().current().idPool + 1;
+
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(tx->apply(*app, ltx, txm));
+
+                REQUIRE(!loadOffer(ltx, a2.getPublicKey(), expOfferID));
+                ltx.commit();
+
+                return TestMarketOffer{{a2, static_cast<int64_t>(expOfferID)},
+                                       OfferState::DELETED};
+            });
+
+        // the offer should still not be sponsored
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        checkSponsorship(ltx, offerKey(o1.sellerID, o1.offerID), 0, nullptr);
+    }
+
+    SECTION("modify offer in sponsorship sandwich")
+    {
+        auto a1 = prepareAccount("accA1");
+
+        TestMarket market(*app);
+        auto o1 = market
+                      .requireChangesWithOffer(
+                          {},
+                          [&] {
+                              return market.addOffer(
+                                  a1, {usd, idr, Price{1, 1}, 100});
+                          })
+                      .key;
+        {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(beginSponsoringFutureReserves(a1)),
+                 a1.op(manageOffer(0, usd, idr, Price{1, 1}, 50)),
+                 a1.op(endSponsoringFutureReserves())},
+                {a1});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+
+        // the offer should still not be sponsored
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        checkSponsorship(ltx, offerKey(o1.sellerID, o1.offerID), 0, nullptr);
     }
 
     SECTION("too many sponsoring")
