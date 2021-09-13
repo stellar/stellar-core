@@ -104,6 +104,17 @@ AS_IF([test "x$enable_asan" = "xyes"], [
   sanitizeopts="address"
 ])
 
+AC_ARG_ENABLE([codecoverage],
+  AS_HELP_STRING([--enable-codecoverage],
+        [build with code coverage enabled]))
+AS_IF([test "x$enable_codecoverage" = "xyes"], [
+  AC_MSG_NOTICE([ enabling codecoverage, see https://clang.llvm.org/docs/SourceBasedCodeCoverage.html ])
+
+  LDFLAGS="$LDFLAGS -fprofile-instr-generate -fcoverage-mapping"
+  CXXFLAGS="$CXXFLAGS -fprofile-instr-generate -fcoverage-mapping"
+  CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping"
+])
+
 AC_ARG_ENABLE([memcheck],
   AS_HELP_STRING([--enable-memcheck],
         [build with memcheck (memory-sanitizer) instrumentation]))

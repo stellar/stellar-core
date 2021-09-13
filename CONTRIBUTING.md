@@ -81,6 +81,24 @@ More information can be found:
   * Note that when using the default libc++, we set `_LIBCPP_DEBUG=0` to avoid compatibility issues with the default shared runtimes.
   * To enable full debug mode `_LIBCPP_DEBUG=1`, you need to build a custom libc++ with the same flags, including `_LIBCPP_DEBUG=1` (see below on how to do this)
 
+#### enable-codecoverage
+This enables source based code coverage.
+
+More information can be found [here](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html)
+
+Steps (tested on Mac OS):
+
+1. Run `./configure --enable-codecoverage` (include `--enable-next-protocol-version-unsafe-for-production` if testing a future protocol version)
+2. Compile stellar core
+3. Run the desired test, but with the LLVM_PROFILE_FILE environment variable set (ex. `LLVM_PROFILE_FILE="cov.profraw" src/stellar-core test '[liquiditypool]'`). This should generate a cov.profraw file in the current directory.
+4. Run `xcrun llvm-profdata merge -output=cov.profdata cov.profraw`
+   * the llvm tools are only accessible on Mac OS through `xcrun`
+5. Run `xcrun llvm-cov show ./src/stellar-core -instr-profile=cov.profdata -format="html" > cov.html`
+   * The resulting html file can be around ~45MB, so it can be difficult to navigate with a
+   browser. You can use the `-ignore-filename-regex` option to remove files/directories that you aren't
+   interested in (ex. The following option excludes every directory specified `-ignore-filename-regex='.*lib[/\\].*|.*bucket[/\\].*|.*catchup[/\\].*|.*crypto[/\\].*|.*database[/\\].*|.*herder[/\\].*|.*history[/\\].*|.*historywork[/\\].*|.*overlay[/\\].*|.*xdr[/\\].*|.*sodium[/\\].*|.*work[/\\].*|.*test[/\\].*|.*scp[/\\].*|.*main[/\\].*|.*simulation[/\\].*|.*invariant[/\\].*|.*util[/\\].*'`)
+
+
 ### Special configure flags for unreleased protocol versions
 
 When building with `configure`, the flag below must be used to enable unreleased protocol
