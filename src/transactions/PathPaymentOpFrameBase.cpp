@@ -81,7 +81,6 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
             if (offer.sellerID == getSourceID())
             {
                 // we are crossing our own offer
-                setResultOfferCrossSelf();
                 return OfferFilterResult::eStop;
             }
             return OfferFilterResult::eKeep;
@@ -96,6 +95,7 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
     switch (r)
     {
     case ConvertResult::eFilterStop:
+        setResultOfferCrossSelf();
         return false;
     case ConvertResult::eOK:
         if (checkTransfer(maxSend, amountSend, maxRecv, amountRecv))
