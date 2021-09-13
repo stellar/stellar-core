@@ -36,6 +36,7 @@ class EntryIterator::AbstractImpl
     virtual bool atEnd() const = 0;
 
     virtual InternalLedgerEntry const& entry() const = 0;
+    virtual std::shared_ptr<InternalLedgerEntry> entryPtr() const = 0;
 
     virtual bool entryExists() const = 0;
 
@@ -646,6 +647,7 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     bool atEnd() const override;
 
     InternalLedgerEntry const& entry() const override;
+    std::shared_ptr<InternalLedgerEntry> entryPtr() const override;
 
     bool entryExists() const override;
 

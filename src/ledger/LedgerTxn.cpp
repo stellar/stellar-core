@@ -152,6 +152,12 @@ EntryIterator::entry() const
     return getImpl()->entry();
 }
 
+std::shared_ptr<InternalLedgerEntry>
+EntryIterator::entryPtr() const
+{
+    return getImpl()->entryPtr();
+}
+
 bool
 EntryIterator::entryExists() const
 {
@@ -382,17 +388,7 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
     {
         for (; (bool)iter; ++iter)
         {
-            auto const& key = iter.key();
-
-            if (iter.entryExists())
-            {
-                updateEntry(
-                    key, std::make_shared<InternalLedgerEntry>(iter.entry()));
-            }
-            else
-            {
-                updateEntry(key, nullptr);
-            }
+            updateEntry(iter.key(), iter.entryPtr());
         }
 
         // We will show that the following update procedure leaves the self
@@ -2173,6 +2169,12 @@ InternalLedgerEntry const&
 LedgerTxn::Impl::EntryIteratorImpl::entry() const
 {
     return *(mIter->second);
+}
+
+std::shared_ptr<InternalLedgerEntry>
+LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
+{
+    return mIter->second;
 }
 
 bool
