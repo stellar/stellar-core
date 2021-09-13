@@ -291,14 +291,16 @@ bool exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool,
 enum class OfferFilterResult
 {
     eKeep,
-    eStop
+    eStopBadPrice,
+    eStopCrossSelf
 };
 
 enum class ConvertResult
 {
     eOK,
     ePartial,
-    eFilterStop,
+    eFilterStopBadPrice,
+    eFilterStopCrossSelf,
     eCrossedTooMany
 };
 
