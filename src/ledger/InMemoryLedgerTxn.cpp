@@ -20,15 +20,18 @@ InMemoryLedgerTxn::~InMemoryLedgerTxn()
 }
 
 void
-InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child)
+InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 {
     if (mTransaction)
     {
         throw std::runtime_error(
             "Adding child to already-open InMemoryLedgerTxn");
     }
-    LedgerTxn::addChild(child);
-    mTransaction = std::make_unique<soci::transaction>(mDb.getSession());
+    LedgerTxn::addChild(child, mode);
+    if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
+    {
+        mTransaction = std::make_unique<soci::transaction>(mDb.getSession());
+    }
 }
 
 void
@@ -60,16 +63,14 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 void
 InMemoryLedgerTxn::rollbackChild()
 {
-    if (!mTransaction)
-    {
-        throw std::runtime_error(
-            "Rolling back child on non-open InMemoryLedgerTxn");
-    }
     try
     {
         LedgerTxn::rollbackChild();
-        mTransaction->rollback();
-        mTransaction.reset();
+        if (mTransaction)
+        {
+            mTransaction->rollback();
+            mTransaction.reset();
+        }
     }
     catch (std::exception& e)
     {

@@ -37,7 +37,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
         bool bestOfferDebuggingEnabled
 #endif
     );
-    void addChild(AbstractLedgerTxn& child) override;
+    void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
     void rollbackChild() override;
 
