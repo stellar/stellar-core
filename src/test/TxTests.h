@@ -261,5 +261,9 @@ LedgerHeader executeUpgrades(Application& app,
 
 LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade);
 
+void
+depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
+                         std::vector<std::pair<bool, int64_t>> const& trades);
+
 } // end txtest namespace
 }

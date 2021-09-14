@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -341,6 +342,29 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             REQUIRE(acc1.getTrustlineBalance(cur1) == 10);
             REQUIRE(acc1.getTrustlineBalance(poolNative1) == 0);
             checkLiquidityPool(*app, poolNative1, 0, 0, 0, 1);
+        }
+
+        SECTION("large deposit/withdraw test")
+        {
+            // balances between 1000 and 1050, with # of trades and trade sizes
+            // between 5 and 25
+            for (int i = 1000; i < 1050; ++i)
+            {
+                std::uniform_int_distribution<int64_t> dist(5, 25);
+
+                SECTION(fmt::format("deposit amount = {}", i))
+                {
+                    std::vector<std::pair<bool, int64_t>> trades;
+                    int64_t numTrades = dist(gRandomEngine);
+                    for (int j = 0; j < numTrades; ++j)
+                    {
+                        int64_t tradeSize = dist(gRandomEngine);
+                        trades.emplace_back(tradeSize % 2 == 0, tradeSize);
+                    }
+
+                    depositTradeWithdrawTest(*app, root, i, trades);
+                }
+            }
         }
     });
 }
