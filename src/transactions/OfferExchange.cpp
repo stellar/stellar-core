@@ -1244,29 +1244,96 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
         throw std::runtime_error("Liquidity pool fee out of range");
     }
 
+    if (reservesToPool <= 0 || reservesFromPool <= 0)
+    {
+        // This should never happen, but the following code makes positivity
+        // assumptions about these values.
+        throw std::runtime_error("non-positive reserve in exchangeWithPool");
+    }
+
     switch (round)
     {
     case RoundingType::PATH_PAYMENT_STRICT_SEND:
     {
+        // PathPaymentStrictSend always allows INT64_MAX to be received at
+        // every hop, and exchange with a pool always happens as a unit
+        // (compare against the order book where multiple offers might execute
+        // in a hop).
+        if (maxReceiveFromPool != INT64_MAX)
+        {
+            throw std::runtime_error("strict send with bounded receive?");
+        }
+        // We can't receive more from the pool then it has reserves.
+        maxReceiveFromPool = reservesFromPool;
+
+        // We have to send this amount exactly, and we can't do it if that would
+        // overflow reserves.
         if (maxSendToPool > INT64_MAX - reservesToPool)
         {
             return false;
         }
         toPool = maxSendToPool;
 
+        // This can't overflow:
+        // - 0 <  reservesToPool <= INT64_MAX
+        // - 0 <= toPool <= INT64_MAX
+        // - 0 <  maxBps - feeBps <= maxBps <= 10000
+        //
+        // from which it follows that
+        //
+        // denominator
+        //  = maxBps * reservesToPool + (maxBps - feeBps) * toPool
+        // <= 10000 * INT64_MAX + 10000 * INT64_MAX
+        // <  UINT128_MAX
         uint128_t denominator = bigMultiply(maxBps, reservesToPool) +
                                 bigMultiply(maxBps - feeBps, toPool);
+
         bool res = hugeDivide(fromPool, maxBps - feeBps,
                               bigMultiply(reservesFromPool, toPool),
                               denominator, ROUND_DOWN);
-        if (res)
+
+        // To be defensive, we need a bound on fromPool. First, note that
+        //
+        // denominator
+        //  = maxBps * reservesToPool + (maxBps - feeBps) * toPool
+        // >= (maxBps - feeBps) * toPool
+        //
+        // Using this result, we can evaluate
+        //
+        // fromPool
+        //  = floor[(maxBps - feeBps) * reservesFromPool * toPool / denominator]
+        // <= (maxBps - feeBps) * reservesFromPool * toPool / denominator
+        // <= reservesFromPool
+        if (res && fromPool > maxReceiveFromPool)
         {
-            fromPool = std::min(fromPool, maxReceiveFromPool);
+            // This should never happen, see the above proof.
+            throw std::runtime_error("received too much from pool");
         }
-        return res;
+        if (res && fromPool < 0)
+        {
+            // This should never happen
+            throw std::runtime_error("fromPool is negative");
+        }
+
+        // Fail if the division overflows, or if we are receiving 0. It is
+        // possible to receive 0 due to the ROUND_DOWN.
+        return res && fromPool != 0;
     }
     case RoundingType::PATH_PAYMENT_STRICT_RECEIVE:
     {
+        // PathPaymentStrictReceive always allows INT64_MAX to be sent at every
+        // hop, and exchange with a pool always happens as a unit (compare
+        // against the order book where multiple offers might execute in a hop).
+        if (maxSendToPool != INT64_MAX)
+        {
+            throw std::runtime_error("strict receive with bounded send?");
+        }
+        // We can't send more to the pool then it has space for additional
+        // reserves.
+        maxSendToPool = INT64_MAX - reservesToPool;
+
+        // We have to receive this amount exactly, and we can't do it if that
+        // would deplete reserves entirely.
         if (maxReceiveFromPool >= reservesFromPool)
         {
             return false;
@@ -1277,11 +1344,16 @@ exchangeWithPool(int64_t reservesToPool, int64_t maxSendToPool, int64_t& toPool,
             toPool, maxBps, bigMultiply(reservesToPool, fromPool),
             bigMultiply(reservesFromPool - fromPool, maxBps - feeBps),
             ROUND_UP);
-        if (res)
+
+        if (res && toPool < 0)
         {
-            toPool = std::min(toPool, maxSendToPool);
+            // This should never happen
+            throw std::runtime_error("toPool is negative");
         }
-        return res;
+
+        // Fail if the division overflows, or if we would be sending too much to
+        // the pool.
+        return res && toPool <= maxSendToPool;
     }
     default:
         throw std::runtime_error("Invalid rounding type");
@@ -1342,6 +1414,17 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
         return lp.current().data.liquidityPool().body.constantProduct();
     };
 
+    if (cp().reserveA <= 0 || cp().reserveB <= 0)
+    {
+        // It is possible to have reserveA = reserveB = 0, specifically when a
+        // pool share trust line exists but no deposits have been made. It
+        // should not be possible to have either
+        //      reserveA = 0 && reserveB != 0
+        //      reserveA < 0 || reserveB < 0
+        // but for safety we disallow trading with the pool in those cases.
+        return false;
+    }
+
     bool res = false;
     if (toPoolAsset == cp().params.assetA &&
         fromPoolAsset == cp().params.assetB)
@@ -1351,8 +1434,11 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
                                feeBps, round);
         if (res)
         {
-            cp().reserveA += toPool;
-            cp().reserveB -= fromPool;
+            if (!addBalance(cp().reserveA, toPool) ||
+                !addBalance(cp().reserveB, -fromPool))
+            {
+                throw std::runtime_error("could not update reserves");
+            }
         }
     }
     else if (fromPoolAsset == cp().params.assetA &&
@@ -1363,8 +1449,11 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
                                feeBps, round);
         if (res)
         {
-            cp().reserveA -= fromPool;
-            cp().reserveB += toPool;
+            if (!addBalance(cp().reserveA, -fromPool) ||
+                !addBalance(cp().reserveB, toPool))
+            {
+                throw std::runtime_error("could not update reserves");
+            }
         }
     }
     else

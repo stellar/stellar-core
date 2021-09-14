@@ -968,11 +968,15 @@ TEST_CASE("Exchange with liquidity pools", "[exchange]")
     {
         RoundingType const send = RoundingType::PATH_PAYMENT_STRICT_SEND;
         RoundingType const recv = RoundingType::PATH_PAYMENT_STRICT_RECEIVE;
-        REQUIRE_THROWS(validate(100, 50, 100, 50, -1, send, false, 0, 0));
-        REQUIRE_THROWS(validate(100, 50, 100, 50, -1, recv, false, 0, 0));
+        REQUIRE_THROWS(
+            validate(100, 50, 100, INT64_MAX, -1, send, false, 0, 0));
+        REQUIRE_THROWS(
+            validate(100, INT64_MAX, 100, 50, -1, recv, false, 0, 0));
 
-        REQUIRE_THROWS(validate(100, 50, 100, 50, 10000, send, false, 0, 0));
-        REQUIRE_THROWS(validate(100, 50, 100, 50, 10000, recv, false, 0, 0));
+        REQUIRE_THROWS(
+            validate(100, 50, 100, INT64_MAX, 10000, send, false, 0, 0));
+        REQUIRE_THROWS(
+            validate(100, INT64_MAX, 100, 50, 10000, recv, false, 0, 0));
 
         REQUIRE_THROWS(
             validate(100, 50, 100, 50, 0, RoundingType::NORMAL, false, 0, 0));
@@ -985,26 +989,13 @@ TEST_CASE("Exchange with liquidity pools", "[exchange]")
             RoundingType const round = RoundingType::PATH_PAYMENT_STRICT_SEND;
 
             // Works exactly
-            validate(100, 100, 100, 49, 0, round, true, 100, 49);
-            validate(100, 100, 100, 50, 0, round, true, 100, 50);
-            validate(100, 100, 100, 51, 0, round, true, 100, 50);
+            validate(100, 100, 100, INT64_MAX, 0, round, true, 100, 50);
 
             // Requires rounding
-            validate(100, 50, 100, 32, 0, round, true, 50, 32);
-            validate(100, 50, 100, 33, 0, round, true, 50, 33);
-            validate(100, 50, 100, 34, 0, round, true, 50, 33);
+            validate(100, 50, 100, INT64_MAX, 0, round, true, 50, 33);
 
-            // Sending 0 or receiving 0
-            validate(100, 0, 100, 50, 0, round, true, 0, 0);
-            validate(100, 50, 100, 0, 0, round, true, 50, 0);
-
-            // Sending the maximum
-            validate(100, INT64_MAX - 100, 100, 98, 0, round, true,
-                     INT64_MAX - 100, 98);
-            validate(100, INT64_MAX - 100, 100, 99, 0, round, true,
-                     INT64_MAX - 100, 99);
-            validate(100, INT64_MAX - 100, 100, 100, 0, round, true,
-                     INT64_MAX - 100, 99);
+            // Sending 0
+            validate(100, 0, 100, INT64_MAX, 0, round, false, 0, 0);
 
             // Sending too much
             validate(100, INT64_MAX - 99, 100, INT64_MAX, 0, round, false, 0,
@@ -1017,23 +1008,13 @@ TEST_CASE("Exchange with liquidity pools", "[exchange]")
                 RoundingType::PATH_PAYMENT_STRICT_RECEIVE;
 
             // Works exactly
-            validate(100, 99, 100, 50, 0, round, true, 99, 50);
-            validate(100, 100, 100, 50, 0, round, true, 100, 50);
-            validate(100, 101, 100, 50, 0, round, true, 100, 50);
+            validate(100, INT64_MAX, 100, 50, 0, round, true, 100, 50);
 
             // Requires rounding
-            validate(100, 49, 100, 33, 0, round, true, 49, 33);
-            validate(100, 50, 100, 33, 0, round, true, 50, 33);
-            validate(100, 51, 100, 33, 0, round, true, 50, 33);
+            validate(100, INT64_MAX, 100, 33, 0, round, true, 50, 33);
 
-            // Sending 0 or receiving 0
-            validate(100, 0, 100, 50, 0, round, true, 0, 50);
-            validate(100, 50, 100, 0, 0, round, true, 0, 0);
-
-            // Receiving the maximum
-            validate(100, 9899, 100, 99, 0, round, true, 9899, 99);
-            validate(100, 9900, 100, 99, 0, round, true, 9900, 99);
-            validate(100, 9901, 100, 99, 0, round, true, 9900, 99);
+            // Receiving 0
+            validate(100, INT64_MAX, 100, 0, 0, round, true, 0, 0);
 
             // Receiving too much
             validate(100, INT64_MAX, 100, 100, 0, round, false, 0, 0);
