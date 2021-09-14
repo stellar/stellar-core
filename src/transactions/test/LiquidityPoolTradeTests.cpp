@@ -21,6 +21,901 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
+void
+testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
+{
+    auto share12 = makeChangeTrustAssetPoolShare(
+        std::min(cur1, cur2), std::max(cur1, cur2), LIQUIDITY_POOL_FEE_V18);
+    auto pool12 = xdrSha256(share12.liquidityPool());
+
+    auto minBal = [&](int32_t n) {
+        return app.getLedgerManager().getLastMinBalance(n);
+    };
+    auto root = TestAccount::createRoot(app);
+
+    auto checkLiquidityPool12 = [&](int64_t reserveA, int64_t reserveB,
+                                    int64_t totalPoolShares,
+                                    int64_t poolSharesTrustLineCount) {
+        if (!(cur1 < cur2))
+        {
+            std::swap(reserveA, reserveB);
+        }
+        stellar::txtest::checkLiquidityPool(app, pool12, reserveA, reserveB,
+                                            totalPoolShares,
+                                            poolSharesTrustLineCount);
+    };
+
+    auto depositIntoPool12 = [&](TestAccount& acc, int64_t amountA,
+                                 int64_t amountB, Price const& minPrice,
+                                 Price const& maxPrice) {
+        if (!(cur1 < cur2))
+        {
+            std::swap(amountA, amountB);
+        }
+        acc.liquidityPoolDeposit(pool12, amountA, amountB, minPrice, maxPrice);
+    };
+
+    SECTION("chooses best price")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        a1.changeTrust(cur2, INT64_MAX);
+        a1.changeTrust(share12, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+        root.pay(a1, cur2, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur1, INT64_MAX);
+        a2.changeTrust(cur2, INT64_MAX);
+        a2.changeTrust(share12, INT64_MAX);
+        root.pay(a2, cur1, 10000);
+        root.pay(a2, cur2, 10000);
+
+        SECTION("pool has strictly better price")
+        {
+            // Buying 10 cur2 costs 20 cur1
+            a1.manageOffer(0, cur2, cur1, Price{2, 1}, 4);
+            a1.manageOffer(0, cur2, cur1, Price{2, 1}, 6);
+
+            // 1000*1000/990 = 1010.1010 so buying 10 cur2 costs 11 cur1
+            depositIntoPool12(a1, 1000, 1000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
+            REQUIRE(res.success().offers.size() == 1);
+            REQUIRE(res.success().offers[0].type() ==
+                    CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+        }
+
+        SECTION("both prices equal")
+        {
+            // Buying 10 cur2 costs 19 cur1
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1);
+            a1.manageOffer(0, cur2, cur1, Price{2, 1}, 9);
+
+            // 1800*1000/990 = 1818.1818 so buying 10 cur2 costs 19 cur1
+            depositIntoPool12(a1, 1800, 1000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
+            REQUIRE(res.success().offers.size() == 1);
+            REQUIRE(res.success().offers[0].type() ==
+                    CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
+        }
+
+        SECTION("book has strictly better price")
+        {
+            // Buying 10 cur2 costs 20 cur1
+            a1.manageOffer(0, cur2, cur1, Price{2, 1}, 4);
+            a1.manageOffer(0, cur2, cur1, Price{2, 1}, 6);
+
+            // 2000*1000/990 = 2020.2020 so buying 10 cur2 costs 21 cur1
+            depositIntoPool12(a1, 2000, 1000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
+            REQUIRE(res.success().offers.size() == 2);
+            REQUIRE(res.success().offers[0].type() ==
+                    CLAIM_ATOM_TYPE_ORDER_BOOK);
+            REQUIRE(res.success().offers[1].type() ==
+                    CLAIM_ATOM_TYPE_ORDER_BOOK);
+        }
+    }
+
+    SECTION("max offers to cross")
+    {
+        auto cur3 = makeAsset(root, "CUR3");
+
+        auto a1 = root.create("a1", minBal(2000));
+        a1.changeTrust(cur1, INT64_MAX);
+        a1.changeTrust(cur2, INT64_MAX);
+        a1.changeTrust(cur3, INT64_MAX);
+        a1.changeTrust(share12, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+        root.pay(a1, cur2, 10000);
+        root.pay(a1, cur3, 10000);
+
+        auto a2 = root.create("a2", minBal(2000));
+        a2.changeTrust(cur1, INT64_MAX);
+        a2.changeTrust(cur2, INT64_MAX);
+        a2.changeTrust(cur3, INT64_MAX);
+        root.pay(a2, cur1, 10000);
+        root.pay(a2, cur2, 10000);
+        root.pay(a2, cur3, 10000);
+
+        auto a3 = root.create("a3", minBal(10));
+        a3.changeTrust(cur1, INT64_MAX);
+        a3.changeTrust(cur2, INT64_MAX);
+        a3.changeTrust(cur3, INT64_MAX);
+        root.pay(a3, cur1, 10000);
+        root.pay(a3, cur2, 10000);
+        root.pay(a3, cur3, 10000);
+
+        for (size_t i = 0; i < 500; ++i)
+        {
+            a1.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
+            a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
+        }
+
+        SECTION("order book succeeds when crossing limit")
+        {
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
+            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
+        }
+
+        SECTION("order book fails when crossing one above limit")
+        {
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
+            REQUIRE_THROWS_AS(a3.pay(a1, cur1, 2000, cur3, 1000, {cur2}),
+                              ex_opEXCEEDED_WORK_LIMIT);
+        }
+
+        SECTION("liquidity pool succeeds when crossing limit")
+        {
+            depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
+        }
+
+        SECTION("liquidity pool fails when crossing one above limit")
+        {
+            // Can't cross pool, no offers in book
+            depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+
+            // Can't cross pool, offer in book is self trade
+            a3.manageOffer(0, cur2, cur1, Price{2, 1}, 1000);
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
+
+            // Can't cross pool, offer in book exceeds work limit
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+                              ex_opEXCEEDED_WORK_LIMIT);
+        }
+    }
+
+    SECTION("liquidity pool charges the correct fee")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+        depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        // Need to send 1000 to receive 1000 (note that this swaps the
+        // reserves). But the send amount is _after fees_, and observe that
+        // - 0.3% of 1003 is 999.91 < 1000
+        // - 0.3% of 1004 is 1000.98 > 1000
+        // So the fee is just above 3, and rounding up makes it 4.
+
+        SECTION("strict send")
+        {
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1001, {}),
+                ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+            a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1000, {});
+        }
+
+        SECTION("strict receive")
+        {
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, 1003, cur2, 1000, {}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+            a1.pay(a2, cur1, 1004, cur2, 1000, {});
+        }
+    }
+
+    SECTION("trade fails due to excess reserves")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, INT64_MAX);
+        root.pay(mm12, cur2, INT64_MAX);
+        depositIntoPool12(mm12, INT64_MAX - 10, INT64_MAX - 10,
+                          Price{1, INT32_MAX}, Price{INT32_MAX, 1});
+
+        SECTION("strict send")
+        {
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 11, cur2, 9, {}),
+                ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+            a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+        }
+
+        SECTION("strict receive")
+        {
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, 11, cur2, 10, {}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+            a1.pay(a2, cur1, 10, cur2, 9, {});
+        }
+    }
+
+    SECTION("payment through empty liquidity pools")
+    {
+        auto cur3 = makeAsset(root, "CUR3");
+        auto share23 =
+            makeChangeTrustAssetPoolShare(cur2, cur3, LIQUIDITY_POOL_FEE_V18);
+
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+        a2.changeTrust(cur3, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, INT64_MAX);
+        root.pay(mm12, cur2, INT64_MAX);
+
+        auto mm23 = root.create("mm23", minBal(10));
+        mm23.changeTrust(cur2, INT64_MAX);
+        mm23.changeTrust(cur3, INT64_MAX);
+        mm23.changeTrust(share23, INT64_MAX);
+        root.pay(mm23, cur2, INT64_MAX);
+        root.pay(mm23, cur3, INT64_MAX);
+
+        SECTION("strict send")
+        {
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 1, {}),
+                ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur3, 1, {cur2}),
+                ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+        }
+
+        SECTION("strict receive")
+        {
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, INT64_MAX, cur2, 100, {}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, INT64_MAX, cur3, 100, {cur2}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+        }
+    }
+
+    SECTION("payment through pool that yields nothing")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, INT64_MAX);
+        root.pay(mm12, cur2, INT64_MAX);
+        depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        SECTION("strict send")
+        {
+            // selling 1 to a pool always yields 0, which means to use the
+            // order book instead. the order book is empty, so the result
+            // is TOO_FEW_OFFERS.
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
+                ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+        }
+
+        // Not possible with PathPaymentStrictReceive.
+    }
+
+    SECTION("payment through pool after offer that yields nothing")
+    {
+        auto cur3 = makeAsset(root, "CUR3");
+        auto share23 =
+            makeChangeTrustAssetPoolShare(cur2, cur3, LIQUIDITY_POOL_FEE_V18);
+        auto pool23 = xdrSha256(share23.liquidityPool());
+
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur3, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+        mm12.manageOffer(0, cur2, cur1, Price{2, 1}, 10);
+
+        auto mm23 = root.create("mm23", minBal(10));
+        mm23.changeTrust(cur2, INT64_MAX);
+        mm23.changeTrust(cur3, INT64_MAX);
+        mm23.changeTrust(share23, INT64_MAX);
+        root.pay(mm23, cur2, INT64_MAX);
+        root.pay(mm23, cur3, INT64_MAX);
+        mm23.liquidityPoolDeposit(pool23, 100, 100, Price{1, INT32_MAX},
+                                  Price{INT32_MAX, 1});
+
+        SECTION("strict send")
+        {
+            // destination minimum is 1, so clearly selling 1 CUR1 to the
+            // pool yields 0 CUR2.
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
+                ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+
+            // the first hop yields 0, so the second hop has 0 as input.
+            // there are always enough offers to send 0 through the order
+            // book, so we get UNDER_DESTMIN instead of TOO_FEW_OFFERS.
+            REQUIRE_THROWS_AS(
+                a1.pathPaymentStrictSend(a2, cur1, 1, cur3, 1, {cur2}),
+                ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+        }
+
+        // Not possible with PathPaymentStrictReceive.
+    }
+
+    SECTION("payment through a pool that the sender participates in")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        a1.changeTrust(cur2, INT64_MAX);
+        a1.changeTrust(share12, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+        root.pay(a1, cur2, 10000);
+        depositIntoPool12(a1, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        SECTION("strict send")
+        {
+            a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+
+        SECTION("strict receive")
+        {
+            a1.pay(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+    }
+
+    SECTION("payment through a pool that the destination participates in")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur1, INT64_MAX);
+        a2.changeTrust(cur2, INT64_MAX);
+        a2.changeTrust(share12, INT64_MAX);
+        root.pay(a2, cur1, 10000);
+        root.pay(a2, cur2, 10000);
+        depositIntoPool12(a2, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        SECTION("strict send")
+        {
+            a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+
+        SECTION("strict receive")
+        {
+            a1.pay(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+    }
+
+    SECTION("payment through a pool that a market maker participates in")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+        mm12.manageOffer(0, cur2, cur1, Price{10, 9}, 10);
+        depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        SECTION("strict send")
+        {
+            a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+
+        SECTION("strict receive")
+        {
+            a1.pay(a2, cur1, 10, cur2, 9, {});
+            checkLiquidityPool12(1010, 991, 1000, 1);
+        }
+    }
+
+    SECTION("order book is better, but there is a self-trade")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        a1.changeTrust(cur2, INT64_MAX);
+        a1.changeTrust(share12, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+        root.pay(a1, cur2, 10000);
+        depositIntoPool12(a1, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+
+        SECTION("strict send")
+        {
+            SECTION("no self trade")
+            {
+                mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+                checkLiquidityPool12(1000, 1000, 1000, 2);
+            }
+
+            SECTION("self trade")
+            {
+                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
+                checkLiquidityPool12(1010, 991, 1000, 2);
+            }
+        }
+
+        SECTION("strict receive")
+        {
+            SECTION("no self trade")
+            {
+                mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                a1.pay(a2, cur1, 10, cur2, 9, {});
+                checkLiquidityPool12(1000, 1000, 1000, 2);
+            }
+
+            SECTION("self trade")
+            {
+                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+                a1.pay(a2, cur1, 10, cur2, 9, {});
+                checkLiquidityPool12(1010, 991, 1000, 2);
+            }
+        }
+    }
+
+    SECTION("payment would receive more than the reserve")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, INT64_MAX);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+        depositIntoPool12(mm12, 1000, 1000, Price{1, INT32_MAX},
+                          Price{INT32_MAX, 1});
+
+        // This isn't possible with PathPaymentStrictSend.
+
+        SECTION("strict receive")
+        {
+            // Strictly above the reserve
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, INT64_MAX, cur2, 1001, {}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+
+            // At the reserve
+            REQUIRE_THROWS_AS(a1.pay(a2, cur1, INT64_MAX, cur2, 1000, {}),
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+
+            // Below the reserve
+            a1.pay(a2, cur1, INT64_MAX, cur2, 999, {});
+            checkLiquidityPool12(1003007, 1, 1000, 1);
+        }
+    }
+
+    SECTION("payment into pool would be larger than INT64_MAX")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, INT64_MAX);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, INT64_MAX / 2);
+        root.pay(mm12, cur2, INT64_MAX / 2);
+        depositIntoPool12(mm12, INT64_MAX / 2, INT64_MAX / 2,
+                          Price{1, INT32_MAX}, Price{INT32_MAX, 1});
+
+        // This isn't possible with PathPaymentStrictSend.
+
+        SECTION("strict receive")
+        {
+            REQUIRE_THROWS_AS(
+                a1.pay(a2, cur1, INT64_MAX, cur2, INT64_MAX / 2 - 1, {}),
+                ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+        }
+    }
+
+    SECTION("cross the same pair twice in the same direction")
+    {
+        auto cur3 = makeAsset(root, "CUR3");
+
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur2, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+
+        auto mm23 = root.create("mm23", minBal(10));
+        mm23.changeTrust(cur2, INT64_MAX);
+        mm23.changeTrust(cur3, INT64_MAX);
+        root.pay(mm23, cur2, 10000);
+        root.pay(mm23, cur3, 10000);
+        mm23.manageOffer(0, cur3, cur2, Price{1, 1}, 1000);
+
+        auto mm31 = root.create("mm31", minBal(10));
+        mm31.changeTrust(cur1, INT64_MAX);
+        mm31.changeTrust(cur3, INT64_MAX);
+        root.pay(mm31, cur1, 10000);
+        root.pay(mm31, cur3, 10000);
+        mm31.manageOffer(0, cur1, cur3, Price{1, 1}, 1000);
+
+        SECTION("liquidity pool both times")
+        {
+            mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 100 CUR1 leaving pool12 with
+                // reserves 1100, 1819
+                //
+                // The second pass sells 181 CUR1 leaving pool12 with
+                // reserves 1281, 1563
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 100, cur2,
+                                                           257,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 256,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(1281, 1563, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 256 CUR2 leaving pool12 with
+                // reserves 1148, 1744
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 148 CUR2 leaving pool12 with
+                // reserves 1255, 1596
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, 106, cur2, 256, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 107, cur2, 256, {cur2, cur3, cur1});
+                checkLiquidityPool12(1255, 1596, 1415, 1);
+            }
+        }
+
+        SECTION("liquidity pool once, order book once, strict send "
+                "prefers liquidity pool on first hop")
+        {
+            mm12.manageOffer(0, cur2, cur1, Price{11, 20}, 1000);
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 100 CUR1 leaving pool12 with
+                // reserves 1100, 1819
+                //
+                // The second pass sells 181 CUR1 to the order book
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 100, cur2,
+                                                           330,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 329,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(1100, 1819, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 329 CUR2 from the order book
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 181 CUR2 leaving pool12 with
+                // reserves 1100, 1819
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, 99, cur2, 329, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 100, cur2, 329, {cur2, cur3, cur1});
+                checkLiquidityPool12(1100, 1819, 1415, 1);
+            }
+        }
+
+        SECTION("liquidity pool once, order book once, strict send "
+                "indifferent on first hop")
+        {
+            mm12.manageOffer(0, cur2, cur1, Price{100, 181}, 1000);
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 100 CUR1 leaving pool12 with
+                // reserves 1100, 1819
+                //
+                // The second pass sells 181 CUR1 to the order book
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 100, cur2,
+                                                           328,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 327,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(1100, 1819, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 327 CUR2 from the order book
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 181 CUR2 leaving pool12 with
+                // reserves 1100, 1819
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, 99, cur2, 327, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 100, cur2, 327, {cur2, cur3, cur1});
+                checkLiquidityPool12(1100, 1819, 1415, 1);
+            }
+        }
+
+        SECTION("liquidity pool once, order book once, strict send "
+                "prefers order book on first hop")
+        {
+            // Enough to do this as the first pass for both operations, but
+            // not enough to do this as the second pass for either operation
+            mm12.manageOffer(0, cur2, cur1, Price{1, 2}, 350);
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 100 CUR1 to the order book
+                //
+                // The second pass sells 200 CUR1 leaving pool12 with
+                // reserves 1200, 1668
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 100, cur2,
+                                                           333,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 332,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(1200, 1668, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 332 CUR2 from the order book
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 166 CUR2 leaving pool12 with
+                // reserves 1091, 1834
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, 90, cur2, 332, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 91, cur2, 332, {cur2, cur3, cur1});
+                checkLiquidityPool12(1091, 1834, 1415, 1);
+            }
+        }
+
+        SECTION("order book both times")
+        {
+            mm12.manageOffer(0, cur2, cur1, Price{1, 2}, 1000);
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 100 CUR1 to the order book
+                //
+                // The second pass sells 200 CUR1 to the order book
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 100, cur2,
+                                                           401,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 400,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(1000, 2000, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 400 CUR2 from the order book
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 200 CUR2 from the order book
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, 99, cur2, 400, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 100, cur2, 400, {cur2, cur3, cur1});
+                checkLiquidityPool12(1000, 2000, 1415, 1);
+            }
+        }
+    }
+
+    SECTION("cross the same pair twice in opposite directions")
+    {
+        auto a1 = root.create("a1", minBal(10));
+        a1.changeTrust(cur1, INT64_MAX);
+        root.pay(a1, cur1, 10000);
+
+        auto a2 = root.create("a2", minBal(10));
+        a2.changeTrust(cur1, INT64_MAX);
+
+        auto mm12 = root.create("mm12", minBal(10));
+        mm12.changeTrust(cur1, INT64_MAX);
+        mm12.changeTrust(cur2, INT64_MAX);
+        mm12.changeTrust(share12, INT64_MAX);
+        root.pay(mm12, cur1, 10000);
+        root.pay(mm12, cur2, 10000);
+
+        SECTION("liquidity pool both times")
+        {
+            depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                              Price{INT32_MAX, 1});
+
+            SECTION("strict send")
+            {
+                // Processing order cur1/cur2, cur2/cur1
+                //
+                // The first pass sells 100 CUR1 leaving pool12 with
+                // reserves 1100, 1819
+                //
+                // The second pass sells 181 CUR2 leaving pool12 with
+                // reserves 1001, 2000
+                REQUIRE_THROWS_AS(
+                    a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 100, {cur2}),
+                    ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+                a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 99, {cur2});
+                checkLiquidityPool12(1001, 2000, 1415, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Processing order cur1/cur2, cur2/cur1
+                //
+                // The first pass (which is actually the first pass from
+                // source to destination) buys 99 CUR1 leaving pool12 with
+                // reserves 901, 2221
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 221 CUR2 leaving pool12 with
+                // reserves 1001, 2000
+                REQUIRE_THROWS_AS(a1.pay(a2, cur1, 100, cur1, 100, {cur2}),
+                                  ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                a1.pay(a2, cur1, 100, cur1, 99, {cur2});
+                checkLiquidityPool12(1001, 2000, 1415, 1);
+            }
+        }
+    }
+}
+
 TEST_CASE("liquidity pool trade", "[tx][liquiditypool]")
 {
     VirtualClock clock;
@@ -242,880 +1137,14 @@ TEST_CASE("liquidity pool trade", "[tx][liquiditypool]")
             }
         }
 
-        SECTION("chooses best price")
+        SECTION("CUR1, CUR2")
         {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            a1.changeTrust(cur2, INT64_MAX);
-            a1.changeTrust(share12, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur1, INT64_MAX);
-            a2.changeTrust(cur2, INT64_MAX);
-            a2.changeTrust(share12, INT64_MAX);
-            root.pay(a2, cur1, 10000);
-            root.pay(a2, cur2, 10000);
-
-            SECTION("pool has strictly better price")
-            {
-                // Buying 10 cur2 costs 20 cur1
-                a1.manageOffer(0, cur2, cur1, Price{2, 1}, 4);
-                a1.manageOffer(0, cur2, cur1, Price{2, 1}, 6);
-
-                // 1000*1000/990 = 1010.1010 so buying 10 cur2 costs 11 cur1
-                a1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                        Price{INT32_MAX, 1});
-
-                auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
-                REQUIRE(res.success().offers.size() == 1);
-                REQUIRE(res.success().offers[0].type() ==
-                        CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
-            }
-
-            SECTION("both prices equal")
-            {
-                // Buying 10 cur2 costs 19 cur1
-                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1);
-                a1.manageOffer(0, cur2, cur1, Price{2, 1}, 9);
-
-                // 1800*1000/990 = 1818.1818 so buying 10 cur2 costs 19 cur1
-                a1.liquidityPoolDeposit(pool12, 1800, 1000, Price{1, INT32_MAX},
-                                        Price{INT32_MAX, 1});
-
-                auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
-                REQUIRE(res.success().offers.size() == 1);
-                REQUIRE(res.success().offers[0].type() ==
-                        CLAIM_ATOM_TYPE_LIQUIDITY_POOL);
-            }
-
-            SECTION("book has strictly better price")
-            {
-                // Buying 10 cur2 costs 20 cur1
-                a1.manageOffer(0, cur2, cur1, Price{2, 1}, 4);
-                a1.manageOffer(0, cur2, cur1, Price{2, 1}, 6);
-
-                // 2000*1000/990 = 2020.2020 so buying 10 cur2 costs 21 cur1
-                a1.liquidityPoolDeposit(pool12, 2000, 1000, Price{1, INT32_MAX},
-                                        Price{INT32_MAX, 1});
-
-                auto res = a2.pay(a2, cur1, 100, cur2, 10, {});
-                REQUIRE(res.success().offers.size() == 2);
-                REQUIRE(res.success().offers[0].type() ==
-                        CLAIM_ATOM_TYPE_ORDER_BOOK);
-                REQUIRE(res.success().offers[1].type() ==
-                        CLAIM_ATOM_TYPE_ORDER_BOOK);
-            }
+            testLiquidityPoolTrading(*app, cur1, cur2);
         }
 
-        SECTION("max offers to cross")
+        SECTION("CUR2, CUR1")
         {
-            auto cur3 = makeAsset(root, "CUR3");
-
-            auto a1 = root.create("a1", minBal(2000));
-            a1.changeTrust(cur1, INT64_MAX);
-            a1.changeTrust(cur2, INT64_MAX);
-            a1.changeTrust(cur3, INT64_MAX);
-            a1.changeTrust(share12, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
-            root.pay(a1, cur3, 10000);
-
-            auto a2 = root.create("a2", minBal(2000));
-            a2.changeTrust(cur1, INT64_MAX);
-            a2.changeTrust(cur2, INT64_MAX);
-            a2.changeTrust(cur3, INT64_MAX);
-            root.pay(a2, cur1, 10000);
-            root.pay(a2, cur2, 10000);
-            root.pay(a2, cur3, 10000);
-
-            auto a3 = root.create("a3", minBal(10));
-            a3.changeTrust(cur1, INT64_MAX);
-            a3.changeTrust(cur2, INT64_MAX);
-            a3.changeTrust(cur3, INT64_MAX);
-            root.pay(a3, cur1, 10000);
-            root.pay(a3, cur2, 10000);
-            root.pay(a3, cur3, 10000);
-
-            for (size_t i = 0; i < 500; ++i)
-            {
-                a1.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
-                a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
-            }
-
-            SECTION("order book succeeds when crossing limit")
-            {
-                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-                REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
-            }
-
-            SECTION("order book fails when crossing one above limit")
-            {
-                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-                REQUIRE_THROWS_AS(a3.pay(a1, cur1, 2000, cur3, 1000, {cur2}),
-                                  ex_opEXCEEDED_WORK_LIMIT);
-            }
-
-            SECTION("liquidity pool succeeds when crossing limit")
-            {
-                a1.liquidityPoolDeposit(pool12, 100, 2000, Price{1, INT32_MAX},
-                                        Price{INT32_MAX, 1});
-                REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
-            }
-
-            SECTION("liquidity pool fails when crossing one above limit")
-            {
-                // Can't cross pool, no offers in book
-                a1.liquidityPoolDeposit(pool12, 100, 2000, Price{1, INT32_MAX},
-                                        Price{INT32_MAX, 1});
-                REQUIRE_THROWS_AS(
-                    a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-
-                // Can't cross pool, offer in book is self trade
-                a3.manageOffer(0, cur2, cur1, Price{2, 1}, 1000);
-                REQUIRE_THROWS_AS(
-                    a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
-
-                // Can't cross pool, offer in book exceeds work limit
-                a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-                REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
-                                  ex_opEXCEEDED_WORK_LIMIT);
-            }
-        }
-
-        SECTION("liquidity pool charges the correct fee")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-            mm12.liquidityPoolDeposit(pool12, 1000, 2000, Price{1, INT32_MAX},
-                                      Price{INT32_MAX, 1});
-
-            // Need to send 1000 to receive 1000 (note that this swaps the
-            // reserves). But the send amount is _after fees_, and observe that
-            // - 0.3% of 1003 is 999.91 < 1000
-            // - 0.3% of 1004 is 1000.98 > 1000
-            // So the fee is just above 3, and rounding up makes it 4.
-
-            SECTION("strict send")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1001, {}),
-                    ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                a1.pathPaymentStrictSend(a2, cur1, 1004, cur2, 1000, {});
-            }
-
-            SECTION("strict receive")
-            {
-                REQUIRE_THROWS_AS(a1.pay(a2, cur1, 1003, cur2, 1000, {}),
-                                  ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                a1.pay(a2, cur1, 1004, cur2, 1000, {});
-            }
-        }
-
-        SECTION("trade fails due to excess reserves")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, INT64_MAX);
-            root.pay(mm12, cur2, INT64_MAX);
-            mm12.liquidityPoolDeposit(pool12, INT64_MAX - 10, INT64_MAX - 10,
-                                      Price{1, INT32_MAX}, Price{INT32_MAX, 1});
-
-            SECTION("strict send")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 11, cur2, 9, {}),
-                    ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-            }
-
-            SECTION("strict receive")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, 11, cur2, 10, {}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-                a1.pay(a2, cur1, 10, cur2, 9, {});
-            }
-        }
-
-        SECTION("payment through empty liquidity pools")
-        {
-            auto cur3 = makeAsset(root, "CUR3");
-            auto share23 = makeChangeTrustAssetPoolShare(
-                cur2, cur3, LIQUIDITY_POOL_FEE_V18);
-
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-            a2.changeTrust(cur3, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, INT64_MAX);
-            root.pay(mm12, cur2, INT64_MAX);
-
-            auto mm23 = root.create("mm23", minBal(10));
-            mm23.changeTrust(cur2, INT64_MAX);
-            mm23.changeTrust(cur3, INT64_MAX);
-            mm23.changeTrust(share23, INT64_MAX);
-            root.pay(mm23, cur2, INT64_MAX);
-            root.pay(mm23, cur3, INT64_MAX);
-
-            SECTION("strict send")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 1, {}),
-                    ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur3, 1, {cur2}),
-                    ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-            }
-
-            SECTION("strict receive")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, INT64_MAX, cur2, 100, {}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, INT64_MAX, cur3, 100, {cur2}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-            }
-        }
-
-        SECTION("payment through pool that yields nothing")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, INT64_MAX);
-            root.pay(mm12, cur2, INT64_MAX);
-            mm12.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                      Price{INT32_MAX, 1});
-
-            SECTION("strict send")
-            {
-                // selling 1 to a pool always yields 0, which means to use the
-                // order book instead. the order book is empty, so the result
-                // is TOO_FEW_OFFERS.
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
-                    ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
-            }
-
-            // Not possible with PathPaymentStrictReceive.
-        }
-
-        SECTION("payment through pool after offer that yields nothing")
-        {
-            auto cur3 = makeAsset(root, "CUR3");
-            auto share23 = makeChangeTrustAssetPoolShare(
-                cur2, cur3, LIQUIDITY_POOL_FEE_V18);
-            auto pool23 = xdrSha256(share23.liquidityPool());
-
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur3, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-            mm12.manageOffer(0, cur2, cur1, Price{2, 1}, 10);
-
-            auto mm23 = root.create("mm23", minBal(10));
-            mm23.changeTrust(cur2, INT64_MAX);
-            mm23.changeTrust(cur3, INT64_MAX);
-            mm23.changeTrust(share23, INT64_MAX);
-            root.pay(mm23, cur2, INT64_MAX);
-            root.pay(mm23, cur3, INT64_MAX);
-            mm23.liquidityPoolDeposit(pool23, 100, 100, Price{1, INT32_MAX},
-                                      Price{INT32_MAX, 1});
-
-            SECTION("strict send")
-            {
-                // destination minimum is 1, so clearly selling 1 CUR1 to the
-                // pool yields 0 CUR2.
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 1, cur2, 1, {}),
-                    ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-
-                // the first hop yields 0, so the second hop has 0 as input.
-                // there are always enough offers to send 0 through the order
-                // book, so we get UNDER_DESTMIN instead of TOO_FEW_OFFERS.
-                REQUIRE_THROWS_AS(
-                    a1.pathPaymentStrictSend(a2, cur1, 1, cur3, 1, {cur2}),
-                    ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-            }
-
-            // Not possible with PathPaymentStrictReceive.
-        }
-
-        SECTION("payment through a pool that the sender participates in")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            a1.changeTrust(cur2, INT64_MAX);
-            a1.changeTrust(share12, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
-            a1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                    Price{INT32_MAX, 1});
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            SECTION("strict send")
-            {
-                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-
-            SECTION("strict receive")
-            {
-                a1.pay(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-        }
-
-        SECTION("payment through a pool that the destination participates in")
-        {
-
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur1, INT64_MAX);
-            a2.changeTrust(cur2, INT64_MAX);
-            a2.changeTrust(share12, INT64_MAX);
-            root.pay(a2, cur1, 10000);
-            root.pay(a2, cur2, 10000);
-            a2.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                    Price{INT32_MAX, 1});
-
-            SECTION("strict send")
-            {
-                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-
-            SECTION("strict receive")
-            {
-                a1.pay(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-        }
-
-        SECTION("payment through a pool that a market maker participates in")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-            mm12.manageOffer(0, cur2, cur1, Price{10, 9}, 10);
-            mm12.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                      Price{INT32_MAX, 1});
-
-            SECTION("strict send")
-            {
-                a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-
-            SECTION("strict receive")
-            {
-                a1.pay(a2, cur1, 10, cur2, 9, {});
-                checkLiquidityPool(*app, pool12, 1010, 991, 1000, 1);
-            }
-        }
-
-        SECTION("order book is better, but there is a self-trade")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            a1.changeTrust(cur2, INT64_MAX);
-            a1.changeTrust(share12, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-            root.pay(a1, cur2, 10000);
-            a1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                    Price{INT32_MAX, 1});
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-
-            SECTION("strict send")
-            {
-                SECTION("no self trade")
-                {
-                    mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-                    a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-                    checkLiquidityPool(*app, pool12, 1000, 1000, 1000, 2);
-                }
-
-                SECTION("self trade")
-                {
-                    a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-                    a1.pathPaymentStrictSend(a2, cur1, 10, cur2, 9, {});
-                    checkLiquidityPool(*app, pool12, 1010, 991, 1000, 2);
-                }
-            }
-
-            SECTION("strict receive")
-            {
-                SECTION("no self trade")
-                {
-                    mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-                    a1.pay(a2, cur1, 10, cur2, 9, {});
-                    checkLiquidityPool(*app, pool12, 1000, 1000, 1000, 2);
-                }
-
-                SECTION("self trade")
-                {
-                    a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
-                    a1.pay(a2, cur1, 10, cur2, 9, {});
-                    checkLiquidityPool(*app, pool12, 1010, 991, 1000, 2);
-                }
-            }
-        }
-
-        SECTION("payment would receive more than the reserve")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, INT64_MAX);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-            mm12.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, INT32_MAX},
-                                      Price{INT32_MAX, 1});
-
-            // This isn't possible with PathPaymentStrictSend.
-
-            SECTION("strict receive")
-            {
-                // Strictly above the reserve
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, INT64_MAX, cur2, 1001, {}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-
-                // At the reserve
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, INT64_MAX, cur2, 1000, {}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-
-                // Below the reserve
-                a1.pay(a2, cur1, INT64_MAX, cur2, 999, {});
-                checkLiquidityPool(*app, pool12, 1003007, 1, 1000, 1);
-            }
-        }
-
-        SECTION("payment into pool would be larger than INT64_MAX")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, INT64_MAX);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, INT64_MAX / 2);
-            root.pay(mm12, cur2, INT64_MAX / 2);
-            mm12.liquidityPoolDeposit(pool12, INT64_MAX / 2, INT64_MAX / 2,
-                                      Price{1, INT32_MAX}, Price{INT32_MAX, 1});
-
-            // This isn't possible with PathPaymentStrictSend.
-
-            SECTION("strict receive")
-            {
-                REQUIRE_THROWS_AS(
-                    a1.pay(a2, cur1, INT64_MAX, cur2, INT64_MAX / 2 - 1, {}),
-                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
-            }
-        }
-
-        SECTION("cross the same pair twice in the same direction")
-        {
-            auto cur3 = makeAsset(root, "CUR3");
-
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur2, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-
-            auto mm23 = root.create("mm23", minBal(10));
-            mm23.changeTrust(cur2, INT64_MAX);
-            mm23.changeTrust(cur3, INT64_MAX);
-            root.pay(mm23, cur2, 10000);
-            root.pay(mm23, cur3, 10000);
-            mm23.manageOffer(0, cur3, cur2, Price{1, 1}, 1000);
-
-            auto mm31 = root.create("mm31", minBal(10));
-            mm31.changeTrust(cur1, INT64_MAX);
-            mm31.changeTrust(cur3, INT64_MAX);
-            root.pay(mm31, cur1, 10000);
-            root.pay(mm31, cur3, 10000);
-            mm31.manageOffer(0, cur1, cur3, Price{1, 1}, 1000);
-
-            SECTION("liquidity pool both times")
-            {
-                mm12.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
-                    // cur1/cur2
-                    //
-                    // The first pass sells 100 CUR1 leaving pool12 with
-                    // reserves 1100, 1819
-                    //
-                    // The second pass sells 181 CUR1 leaving pool12 with
-                    // reserves 1281, 1563
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 257,
-                                                 {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 256,
-                                             {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1281, 1563, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
-                    // cur1/cur2
-                    //
-                    // The first pass (which is actually the second pass from
-                    // source to destination) buys 256 CUR2 leaving pool12 with
-                    // reserves 1148, 1744
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 148 CUR2 leaving pool12 with
-                    // reserves 1255, 1596
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 106, cur2, 256, {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 107, cur2, 256, {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1255, 1596, 1415, 1);
-                }
-            }
-
-            SECTION("liquidity pool once, order book once, strict send "
-                    "prefers liquidity pool on first hop")
-            {
-                mm12.manageOffer(0, cur2, cur1, Price{11, 20}, 1000);
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
-                    // cur1/cur2
-                    //
-                    // The first pass sells 100 CUR1 leaving pool12 with
-                    // reserves 1100, 1819
-                    //
-                    // The second pass sells 181 CUR1 to the order book
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 330,
-                                                 {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 329,
-                                             {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1100, 1819, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
-                    // cur1/cur2
-                    //
-                    // The first pass (which is actually the second pass from
-                    // source to destination) buys 329 CUR2 from the order book
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 181 CUR2 leaving pool12 with
-                    // reserves 1100, 1819
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 99, cur2, 329, {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 100, cur2, 329, {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1100, 1819, 1415, 1);
-                }
-            }
-
-            SECTION("liquidity pool once, order book once, strict send "
-                    "indifferent on first hop")
-            {
-                mm12.manageOffer(0, cur2, cur1, Price{100, 181}, 1000);
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
-                    // cur1/cur2
-                    //
-                    // The first pass sells 100 CUR1 leaving pool12 with
-                    // reserves 1100, 1819
-                    //
-                    // The second pass sells 181 CUR1 to the order book
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 328,
-                                                 {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 327,
-                                             {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1100, 1819, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
-                    // cur1/cur2
-                    //
-                    // The first pass (which is actually the second pass from
-                    // source to destination) buys 327 CUR2 from the order book
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 181 CUR2 leaving pool12 with
-                    // reserves 1100, 1819
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 99, cur2, 327, {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 100, cur2, 327, {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1100, 1819, 1415, 1);
-                }
-            }
-
-            SECTION("liquidity pool once, order book once, strict send "
-                    "prefers order book on first hop")
-            {
-                // Enough to do this as the first pass for both operations, but
-                // not enough to do this as the second pass for either operation
-                mm12.manageOffer(0, cur2, cur1, Price{1, 2}, 350);
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
-                    // cur1/cur2
-                    //
-                    // The first pass sells 100 CUR1 to the order book
-                    //
-                    // The second pass sells 200 CUR1 leaving pool12 with
-                    // reserves 1200, 1668
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 333,
-                                                 {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 332,
-                                             {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1200, 1668, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
-                    // cur1/cur2
-                    //
-                    // The first pass (which is actually the second pass from
-                    // source to destination) buys 332 CUR2 from the order book
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 166 CUR2 leaving pool12 with
-                    // reserves 1091, 1834
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 90, cur2, 332, {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 91, cur2, 332, {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1091, 1834, 1415, 1);
-                }
-            }
-
-            SECTION("order book both times")
-            {
-                mm12.manageOffer(0, cur2, cur1, Price{1, 2}, 1000);
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
-                    // cur1/cur2
-                    //
-                    // The first pass sells 100 CUR1 to the order book
-                    //
-                    // The second pass sells 200 CUR1 to the order book
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 401,
-                                                 {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 400,
-                                             {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1000, 2000, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
-                    // cur1/cur2
-                    //
-                    // The first pass (which is actually the second pass from
-                    // source to destination) buys 400 CUR2 from the order book
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 200 CUR2 from the order book
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 99, cur2, 400, {cur2, cur3, cur1}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 100, cur2, 400, {cur2, cur3, cur1});
-                    checkLiquidityPool(*app, pool12, 1000, 2000, 1415, 1);
-                }
-            }
-        }
-
-        SECTION("cross the same pair twice in opposite directions")
-        {
-            auto a1 = root.create("a1", minBal(10));
-            a1.changeTrust(cur1, INT64_MAX);
-            root.pay(a1, cur1, 10000);
-
-            auto a2 = root.create("a2", minBal(10));
-            a2.changeTrust(cur1, INT64_MAX);
-
-            auto mm12 = root.create("mm12", minBal(10));
-            mm12.changeTrust(cur1, INT64_MAX);
-            mm12.changeTrust(cur2, INT64_MAX);
-            mm12.changeTrust(share12, INT64_MAX);
-            root.pay(mm12, cur1, 10000);
-            root.pay(mm12, cur2, 10000);
-
-            SECTION("liquidity pool both times")
-            {
-                mm12.liquidityPoolDeposit(pool12, 1000, 2000,
-                                          Price{1, INT32_MAX},
-                                          Price{INT32_MAX, 1});
-
-                SECTION("strict send")
-                {
-                    // Processing order cur1/cur2, cur2/cur1
-                    //
-                    // The first pass sells 100 CUR1 leaving pool12 with
-                    // reserves 1100, 1819
-                    //
-                    // The second pass sells 181 CUR2 leaving pool12 with
-                    // reserves 1001, 2000
-                    REQUIRE_THROWS_AS(
-                        a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 100,
-                                                 {cur2}),
-                        ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
-                    a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 99, {cur2});
-                    checkLiquidityPool(*app, pool12, 1001, 2000, 1415, 1);
-                }
-
-                SECTION("strict receive")
-                {
-                    // Processing order cur1/cur2, cur2/cur1
-                    //
-                    // The first pass (which is actually the first pass from
-                    // source to destination) buys 99 CUR1 leaving pool12 with
-                    // reserves 901, 2221
-                    //
-                    // The second pass (which is actually the first pass from
-                    // source to destination) buys 221 CUR2 leaving pool12 with
-                    // reserves 1001, 2000
-                    REQUIRE_THROWS_AS(
-                        a1.pay(a2, cur1, 100, cur1, 100, {cur2}),
-                        ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
-                    a1.pay(a2, cur1, 100, cur1, 99, {cur2});
-                    checkLiquidityPool(*app, pool12, 1001, 2000, 1415, 1);
-                }
-            }
+            testLiquidityPoolTrading(*app, cur2, cur1);
         }
     });
 }
