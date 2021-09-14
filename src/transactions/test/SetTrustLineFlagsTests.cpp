@@ -49,7 +49,7 @@ getRevokeBalanceID(TestAccount& testAccount, SequenceNumber sn,
 
 static void
 checkPoolUseCounts(TestAccount const& account, Asset const& asset,
-                   uint32_t count)
+                   int32_t count)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -732,43 +732,44 @@ TEST_CASE("revoke from pool",
                 auto acc2 = root.create("acc2", lm.getLastMinBalance(3));
                 auto acc3 = root.create("acc3", lm.getLastMinBalance(3));
 
-                auto depositIntoPool = [&](bool poolShareTrustlineIsSponsored) {
-                    acc1.changeTrust(cur1, 10);
-                    acc1.changeTrust(cur2, 10);
-                    root.pay(acc1, cur1, 10);
-                    root.pay(acc1, cur2, 10);
+                auto depositIntoMaybeSponsoredPoolShare =
+                    [&](bool poolShareTrustlineIsSponsored) {
+                        acc1.changeTrust(cur1, 10);
+                        acc1.changeTrust(cur2, 10);
+                        root.pay(acc1, cur1, 10);
+                        root.pay(acc1, cur2, 10);
 
-                    if (poolShareTrustlineIsSponsored)
-                    {
-                        auto tx = transactionFrameFromOps(
-                            app->getNetworkID(), acc3,
-                            {acc3.op(beginSponsoringFutureReserves(acc1)),
-                             acc1.op(changeTrust(share12, 10)),
-                             acc1.op(endSponsoringFutureReserves())},
-                            {acc1});
+                        if (poolShareTrustlineIsSponsored)
+                        {
+                            auto tx = transactionFrameFromOps(
+                                app->getNetworkID(), acc3,
+                                {acc3.op(beginSponsoringFutureReserves(acc1)),
+                                 acc1.op(changeTrust(share12, 10)),
+                                 acc1.op(endSponsoringFutureReserves())},
+                                {acc1});
 
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMeta txm(2);
-                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(*app, ltx, txm));
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                        ltx.commit();
+                            LedgerTxn ltx(app->getLedgerTxnRoot());
+                            TransactionMeta txm(2);
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(tx->apply(*app, ltx, txm));
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            ltx.commit();
 
-                        acc3.pay(root, acc3.getAvailableBalance() - txFee);
-                    }
-                    else
-                    {
-                        acc1.changeTrust(share12, 10);
-                    }
+                            acc3.pay(root, acc3.getAvailableBalance() - txFee);
+                        }
+                        else
+                        {
+                            acc1.changeTrust(share12, 10);
+                        }
 
-                    acc1.liquidityPoolDeposit(pool12, 10, 10, Price{1, 1},
-                                              Price{1, 1});
+                        acc1.liquidityPoolDeposit(pool12, 10, 10, Price{1, 1},
+                                                  Price{1, 1});
 
-                    checkLiquidityPool(*app, pool12, 10, 10, 10, 1);
+                        checkLiquidityPool(*app, pool12, 10, 10, 10, 1);
 
-                    // get rid of rest of available native balance
-                    acc1.pay(root, acc1.getAvailableBalance() - txFee);
-                };
+                        // get rid of rest of available native balance
+                        acc1.pay(root, acc1.getAvailableBalance() - txFee);
+                    };
 
                 auto claimAndValidatePoolCounters =
                     [&](TestAccount& txSourceAcc, uint32_t opIndex) {
@@ -858,7 +859,7 @@ TEST_CASE("revoke from pool",
                 // same reserves
                 SECTION("same reserve - no sandwich on revoke")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
 
                     root.denyTrust(cur1, acc1, flagOp);
                     claimAndValidatePoolCounters(root, 0);
@@ -866,21 +867,21 @@ TEST_CASE("revoke from pool",
                 SECTION("same reserve - sponsored pool share trustline - no "
                         "sandwich on revoke")
                 {
-                    depositIntoPool(true);
+                    depositIntoMaybeSponsoredPoolShare(true);
 
                     root.denyTrust(cur1, acc1, flagOp);
                     claimAndValidatePoolCounters(root, 0);
                 }
                 SECTION("same reserve - sandwich on revoke - success")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     submitRevokeInSandwich(acc2, acc1, true);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
 
                 SECTION("same reserve - sandwich on revoke - fail")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
 
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
@@ -890,7 +891,7 @@ TEST_CASE("revoke from pool",
                 SECTION("same reserve - sponsoring account is the sponsor of "
                         "the pool share trustline")
                 {
-                    depositIntoPool(true);
+                    depositIntoMaybeSponsoredPoolShare(true);
 
                     // acc3 is the sponsor of the pool share trustline
                     root.pay(acc3, lm.getLastMinBalance(1));
@@ -901,7 +902,7 @@ TEST_CASE("revoke from pool",
                 // upgrade reserves
                 SECTION("increase reserve - no sandwich on revoke - success")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
                     root.denyTrust(cur1, acc1, flagOp);
@@ -909,7 +910,7 @@ TEST_CASE("revoke from pool",
                 }
                 SECTION("increase reserve - sandwich on revoke - success")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
                     root.pay(acc2, lm.getLastMinBalance(1));
@@ -918,7 +919,7 @@ TEST_CASE("revoke from pool",
                 }
                 SECTION("increase reserve - sandwich on revoke - fail")
                 {
-                    depositIntoPool(false);
+                    depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
                     submitRevokeInSandwich(acc2, acc1, false);
@@ -926,7 +927,7 @@ TEST_CASE("revoke from pool",
                 SECTION("increase reserve - sponsored pool share trustline - "
                         "sandwich on revoke - fail")
                 {
-                    depositIntoPool(true);
+                    depositIntoMaybeSponsoredPoolShare(true);
                     increaseReserve();
 
                     submitRevokeInSandwich(acc2, acc3, false);
@@ -934,7 +935,7 @@ TEST_CASE("revoke from pool",
                 SECTION("increase reserve - sponsoring account is the sponsor "
                         "of the pool share trustline")
                 {
-                    depositIntoPool(true);
+                    depositIntoMaybeSponsoredPoolShare(true);
                     increaseReserve();
 
                     // acc3 is the sponsor of the pool share trustline
