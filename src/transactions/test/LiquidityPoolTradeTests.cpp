@@ -683,6 +683,61 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
             }
         }
 
+        SECTION("liquidity pool both times, fails on the second hop")
+        {
+            SECTION("strict send")
+            {
+                // Need higher balances for this test
+                root.pay(mm12, cur1, INT64_MAX - 10000);
+                root.pay(mm12, cur2, INT64_MAX - 10000);
+
+                depositIntoPool12(mm12, INT64_MAX - 1000, INT64_MAX - 1000,
+                                  Price{1, INT32_MAX}, Price{INT32_MAX, 1});
+
+                // Processing order cur1/cur2, cur2/cur3, cur3/cur1,
+                // cur1/cur2
+                //
+                // The first pass sells 501 CUR1 leaving pool12 with
+                // reserves INT64_MAX + 501, INT64_MAX - 1499
+                //
+                // The second pass sells 499 CUR1 leaving pool12 with
+                // reserves INT64_MAX, INT64_MAX - 1996
+                REQUIRE_THROWS_AS(a1.pathPaymentStrictSend(a2, cur1, 502, cur2,
+                                                           1,
+                                                           {cur2, cur3, cur1}),
+                                  ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+                a1.pathPaymentStrictSend(a2, cur1, 501, cur2, 1,
+                                         {cur2, cur3, cur1});
+                checkLiquidityPool12(INT64_MAX, INT64_MAX - 1996,
+                                     INT64_MAX - 1000, 1);
+            }
+
+            SECTION("strict receive")
+            {
+                // Need higher balances for this test
+                root.pay(a1, cur1, INT64_MAX - 10000);
+
+                depositIntoPool12(mm12, 1000, 2000, Price{1, INT32_MAX},
+                                  Price{INT32_MAX, 1});
+
+                // Processing order cur1/cur2, cur3/cur1, cur2/cur3,
+                // cur1/cur2
+                //
+                // The first pass (which is actually the second pass from
+                // source to destination) buys 998 CUR2 leaving pool12 with
+                // reserves 2000, 1002
+                //
+                // The second pass (which is actually the first pass from
+                // source to destination) buys 1000 CUR2 leaving pool12 with
+                // reserves 1005010, 2
+                REQUIRE_THROWS_AS(
+                    a1.pay(a2, cur1, INT64_MAX, cur2, 999, {cur2, cur3, cur1}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+                a1.pay(a2, cur1, INT64_MAX, cur2, 998, {cur2, cur3, cur1});
+                checkLiquidityPool12(1005010, 2, 1415, 1);
+            }
+        }
+
         SECTION("liquidity pool once, order book once, strict send "
                 "prefers liquidity pool on first hop")
         {
