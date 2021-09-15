@@ -284,6 +284,22 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               changeTrust(usd, 1));
         }
     }
+}
+
+TEST_CASE("change trust pool share trustline",
+          "[tx][changetrust][liquiditypool]")
+{
+    Config const& cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    // set up world
+    auto root = TestAccount::createRoot(*app);
+    auto const& lm = app->getLedgerManager();
+    auto const minBalance2 = lm.getLastMinBalance(2);
+    auto gateway = root.create("gw", minBalance2);
+    Asset idr = makeAsset(gateway, "IDR");
 
     SECTION("pool trustline sponsorship")
     {
