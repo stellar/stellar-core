@@ -469,6 +469,30 @@ TEST_CASE("change trust pool share trustline",
                 root.changeTrust(poolAZ, 0);
             }
 
+            // try to reduce limit of pool share trust line below the balance
+            if (hasTrustA)
+            {
+                gateway.allowTrust(assetA, root);
+                gateway.pay(root, assetA, 10);
+            }
+            if (hasTrustB)
+            {
+                gateway.allowTrust(assetB, root);
+                gateway.pay(root, assetB, 10);
+            }
+
+            auto poolID = xdrSha256(poolShareAsset.liquidityPool());
+            root.liquidityPoolDeposit(poolID, 10, 10, Price{1, 1}, Price{1, 1});
+
+            REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 9),
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
+            REQUIRE_THROWS_AS(root.changeTrust(poolShareAsset, 0),
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
+
+            // increase the limit
+            root.changeTrust(poolShareAsset, 11);
+            root.liquidityPoolWithdraw(poolID, 10, 10, 10);
+
             // delete the pool sharetrust line
             auto postPoolNumSubEntries = getNumSubEntries(root);
             root.changeTrust(poolShareAsset, 0);
@@ -499,10 +523,12 @@ TEST_CASE("change trust pool share trustline",
             // now the asset trustlines can be deleted
             if (hasTrustA)
             {
+                root.pay(gateway, assetA, 10);
                 root.changeTrust(assetA, 0);
             }
             if (hasTrustB)
             {
+                root.pay(gateway, assetB, 10);
                 root.changeTrust(assetB, 0);
             }
         };
