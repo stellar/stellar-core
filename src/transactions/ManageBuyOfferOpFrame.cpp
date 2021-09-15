@@ -83,13 +83,6 @@ ManageBuyOfferOpFrame::getExchangeParametersBeforeV10(int64_t& maxSheepSend,
     throw std::runtime_error("ManageBuyOffer used before protocol version 10");
 }
 
-bool
-ManageBuyOfferOpFrame::isResultSuccess()
-{
-    return mResult.tr().manageBuyOfferResult().code() ==
-           MANAGE_BUY_OFFER_SUCCESS;
-}
-
 ManageOfferSuccessResult&
 ManageBuyOfferOpFrame::getSuccessResult()
 {
