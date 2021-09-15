@@ -1866,6 +1866,9 @@ TEST_CASE("herder externalizes values", "[herder]")
     auto currentALedger = [&]() {
         return A->getLedgerManager().getLastClosedLedgerNum();
     };
+    auto currentBLedger = [&]() {
+        return B->getLedgerManager().getLastClosedLedgerNum();
+    };
     auto currentCLedger = [&]() {
         return getC()->getLedgerManager().getLastClosedLedgerNum();
     };
@@ -1880,10 +1883,13 @@ TEST_CASE("herder externalizes values", "[herder]")
         return std::min(currentALedger(), currentCLedger());
     };
 
-    auto waitForA = [&](int nLedgers) {
+    auto waitForAB = [&](int nLedgers, bool waitForB) {
         auto destinationLedger = currentALedger() + nLedgers;
         simulation->crankUntil(
-            [&]() { return currentALedger() >= destinationLedger; },
+            [&]() {
+                return currentALedger() >= destinationLedger &&
+                       (!waitForB || currentBLedger() >= destinationLedger);
+            },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
         return currentALedger();
     };
@@ -1915,7 +1921,7 @@ TEST_CASE("herder externalizes values", "[herder]")
     std::map<uint32_t, std::pair<SCPEnvelope, TxSetFramePtr>>
         validatorSCPMessagesB;
 
-    auto destinationLedger = waitForA(4);
+    auto destinationLedger = waitForAB(4, true);
     for (auto start = currentLedger + 1; start <= destinationLedger; start++)
     {
         for (auto const& env : herderA.getSCP().getLatestMessagesSend(start))
@@ -2183,7 +2189,7 @@ TEST_CASE("herder externalizes values", "[herder]")
             // Make sure A and C are starting from the same ledger
             REQUIRE(lcl == currentCLedger());
 
-            waitForA(fewLedgers);
+            waitForAB(fewLedgers, false);
             REQUIRE(currentALedger() == nextLedger);
             // C is at most a ledger behind
             REQUIRE(currentCLedger() >= nextLedger - 1);

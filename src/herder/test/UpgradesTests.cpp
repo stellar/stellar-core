@@ -1670,8 +1670,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
     VirtualClock clock;
     auto cfg = getTestConfig(0);
 
-    // Do our setup in version 1 so that for_versions_* below do not
-    // try to downgrade us from >1 to 1.
+    // Do our setup in version 0 so that for_versions_* below do not
+    // try to downgrade us from >0 to 0.
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
@@ -2219,17 +2219,28 @@ TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
 TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    // Do our setup in version 0 so that for_versions_* below do not
+    // try to downgrade us from >0 to 0.
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
 
-    // Version upgrade to unsupported
-    REQUIRE_THROWS(
-        executeUpgrade(*app, makeProtocolVersionUpgrade(
-                                 Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1)));
+    auto app = createTestApplication(clock, cfg);
 
-    // Version downgrade
-    REQUIRE_THROWS(
+    SECTION("invalid version changes")
+    {
+        // Version upgrade to unsupported
+        REQUIRE_THROWS(executeUpgrade(
+            *app, makeProtocolVersionUpgrade(
+                      Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1)));
+
         executeUpgrade(*app, makeProtocolVersionUpgrade(
-                                 Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1)));
+                                 Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+
+        // Version downgrade
+        REQUIRE_THROWS(executeUpgrade(
+            *app, makeProtocolVersionUpgrade(
+                      Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1)));
+    }
 
     // Base Fee / Base Reserve to 0
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
@@ -2346,7 +2357,12 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
 TEST_CASE("upgrade flags", "[upgrades][liquiditypool]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    // Do our setup in version 0 so that for_versions_* below do not
+    // try to downgrade us from >0 to 0.
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
 
     auto root = TestAccount::createRoot(*app);
     auto native = makeNativeAsset();

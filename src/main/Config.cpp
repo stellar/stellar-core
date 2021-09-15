@@ -30,7 +30,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 17
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 18
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -119,8 +119,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 16;
-    OVERLAY_PROTOCOL_VERSION = 17;
+    OVERLAY_PROTOCOL_MIN_VERSION = 17;
+    OVERLAY_PROTOCOL_VERSION = 18;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
