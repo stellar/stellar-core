@@ -39,7 +39,6 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
     void getExchangeParametersBeforeV10(int64_t& maxSheepSend,
                                         int64_t& maxWheatReceive) override;
 
-    bool isResultSuccess() override;
     ManageOfferSuccessResult& getSuccessResult() override;
 
     void setResultSuccess() override;

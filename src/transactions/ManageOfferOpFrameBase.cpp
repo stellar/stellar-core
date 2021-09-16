@@ -345,17 +345,17 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 if ((passive && (o.price >= maxWheatPrice)) ||
                     (o.price > maxWheatPrice))
                 {
-                    return OfferFilterResult::eStop;
+                    return OfferFilterResult::eStopBadPrice;
                 }
                 if (o.sellerID == getSourceID())
                 {
                     // we are crossing our own offer
-                    setResultCrossSelf();
-                    return OfferFilterResult::eStop;
+                    return OfferFilterResult::eStopCrossSelf;
                 }
                 return OfferFilterResult::eKeep;
             },
             offerTrail, maxOffersToCross);
+
         releaseAssertOrThrow(sheepSent >= 0);
 
         bool sheepStays;
@@ -367,13 +367,12 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         case ConvertResult::ePartial:
             sheepStays = true;
             break;
-        case ConvertResult::eFilterStop:
-            if (!isResultSuccess())
-            {
-                return false;
-            }
+        case ConvertResult::eFilterStopBadPrice:
             sheepStays = true;
             break;
+        case ConvertResult::eFilterStopCrossSelf:
+            setResultCrossSelf();
+            return false;
         case ConvertResult::eCrossedTooMany:
             mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;

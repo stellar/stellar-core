@@ -100,13 +100,6 @@ ManageSellOfferOpFrame::getExchangeParametersBeforeV10(int64_t& maxSheepSend,
         std::min({maxSheepSend, maxSheepBasedOnWheat, mManageSellOffer.amount});
 }
 
-bool
-ManageSellOfferOpFrame::isResultSuccess()
-{
-    return mResult.tr().manageSellOfferResult().code() ==
-           MANAGE_SELL_OFFER_SUCCESS;
-}
-
 ManageOfferSuccessResult&
 ManageSellOfferOpFrame::getSuccessResult()
 {

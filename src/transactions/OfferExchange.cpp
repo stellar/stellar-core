@@ -1514,9 +1514,19 @@ convertWithOffers(
             wheatOffer.current().ext.v1().sponsoringID.activate() = sponsorID;
         }
 
-        if (filter && filter(wheatOffer) == OfferFilterResult::eStop)
+        if (filter)
         {
-            return ConvertResult::eFilterStop;
+            switch (filter(wheatOffer))
+            {
+            case OfferFilterResult::eKeep:
+                break;
+            case OfferFilterResult::eStopBadPrice:
+                return ConvertResult::eFilterStopBadPrice;
+            case OfferFilterResult::eStopCrossSelf:
+                return ConvertResult::eFilterStopCrossSelf;
+            default:
+                throw std::runtime_error("unexpected filter result");
+            }
         }
 
         // Note: maxOffersToCross == INT64_MAX before protocol version 11

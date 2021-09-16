@@ -57,7 +57,6 @@ class ManageOfferOpFrameBase : public OperationFrame
     virtual void getExchangeParametersBeforeV10(int64_t& maxSheepSend,
                                                 int64_t& maxWheatReceive) = 0;
 
-    virtual bool isResultSuccess() = 0;
     virtual ManageOfferSuccessResult& getSuccessResult() = 0;
 
     virtual void setResultSuccess() = 0;
