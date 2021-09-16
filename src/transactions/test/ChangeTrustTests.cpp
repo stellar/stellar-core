@@ -774,6 +774,108 @@ TEST_CASE("change trust pool share trustline",
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                 }
             }
+
+            SECTION("below reserve")
+            {
+                auto increaseReserve = [&]() {
+                    // double the reserve
+                    auto newReserve = lm.getLastReserve() * 2;
+                    REQUIRE(
+                        executeUpgrade(*app, makeBaseReserveUpgrade(newReserve))
+                            .baseReserve == newReserve);
+                };
+
+                auto usd = makeAsset(gateway, "USD");
+                auto idrUsd = makeChangeTrustAssetPoolShare(
+                    idr, usd, LIQUIDITY_POOL_FEE_V18);
+                auto acc1 = root.create("acc1", lm.getLastMinBalance(5));
+
+                auto deletePoolTl = [&]() {
+                    // delete the pool share trustline. acc1 can't pay the fee
+                    // so use root
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {acc1.op(changeTrust(idrUsd, 0))}, {acc1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+                    ltx.commit();
+                };
+
+                SECTION("delete pool share trustline while below the reserve")
+                {
+                    acc1.changeTrust(idr, 1);
+                    acc1.changeTrust(usd, 1);
+                    acc1.changeTrust(idrUsd, 1);
+
+                    // get rid of rest of available native balance
+                    acc1.pay(root, acc1.getAvailableBalance() - 100);
+
+                    REQUIRE(acc1.getAvailableBalance() == 0);
+
+                    increaseReserve();
+
+                    // acc1 is responsible for 6 reserves (2 for the account, 2
+                    // for the asset trustlines, and 2 for the pool share
+                    // trustlines)
+                    REQUIRE(acc1.getAvailableBalance() == -600000000);
+
+                    deletePoolTl();
+
+                    REQUIRE(acc1.getAvailableBalance() == -200000000);
+                }
+
+                SECTION("delete sponsored pool share trustline while below the "
+                        "reserve")
+                {
+                    acc1.changeTrust(idr, 1);
+                    acc1.changeTrust(usd, 1);
+
+                    auto sponsoringAcc =
+                        root.create("sponsoringAcc", lm.getLastMinBalance(5));
+
+                    {
+                        auto tx = transactionFrameFromOps(
+                            app->getNetworkID(), sponsoringAcc,
+                            {sponsoringAcc.op(
+                                 beginSponsoringFutureReserves(acc1)),
+                             acc1.op(changeTrust(idrUsd, 1)),
+                             acc1.op(endSponsoringFutureReserves())},
+                            {acc1});
+
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        TransactionMeta txm(2);
+                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(*app, ltx, txm));
+                        ltx.commit();
+                    }
+
+                    // get rid of rest of available native balance
+                    acc1.pay(root, acc1.getAvailableBalance() - 100);
+                    sponsoringAcc.pay(
+                        root, sponsoringAcc.getAvailableBalance() - 100);
+
+                    REQUIRE(acc1.getAvailableBalance() == 0);
+                    REQUIRE(sponsoringAcc.getAvailableBalance() == 0);
+
+                    increaseReserve();
+
+                    // acc1 is responsible for 4 reserves (2 for the account and
+                    // 2 for the asset trustlines)
+                    REQUIRE(acc1.getAvailableBalance() == -400000000);
+
+                    /// sponsoringAcc is responsible for 4 reserves (2 for the
+                    /// account and 2 for the pool share trustline)
+                    REQUIRE(sponsoringAcc.getAvailableBalance() == -400000000);
+
+                    deletePoolTl();
+
+                    REQUIRE(acc1.getAvailableBalance() == -400000000);
+                    REQUIRE(sponsoringAcc.getAvailableBalance() == 0);
+                }
+            }
         });
     }
 }
