@@ -355,6 +355,14 @@ runTest(CommandLineArgs const& args)
         return 0;
     }
 
+    ReseedPRNGListener::sCommandLineSeed = seed;
+    ReseedPRNGListener::reseed();
+
+    if (gVersionsToTest.empty())
+    {
+        gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+
     if (!recordTestTxMeta.empty())
     {
         if (!checkTestTxMeta.empty())
@@ -377,9 +385,6 @@ runTest(CommandLineArgs const& args)
         releaseAssert(gDebugTestTxMeta.value().good());
     }
 
-    ReseedPRNGListener::sCommandLineSeed = seed;
-    ReseedPRNGListener::reseed();
-
     // Note: Have to setLogLevel twice here to ensure --list-test-names-only is
     // not mixed with stellar-core logging.
     Logging::setFmt("<test>");
@@ -393,11 +398,6 @@ runTest(CommandLineArgs const& args)
 
     LOG_INFO(DEFAULT_LOG, "Testing stellar-core {}", STELLAR_CORE_VERSION);
     LOG_INFO(DEFAULT_LOG, "Logging to {}", logFile);
-
-    if (gVersionsToTest.empty())
-    {
-        gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
-    }
 
     auto r = session.run();
     gTestRoots.clear();
@@ -639,6 +639,36 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     }
 }
 
+static char const* TESTKEY_PROTOCOL_VERSION = "!cfg protocol version";
+static char const* TESTKEY_RNG_SEED = "!rng seed";
+static char const* TESTKEY_ALL_VERSIONS = "!test all versions";
+static char const* TESTKEY_VERSIONS_TO_TEST = "!versions to test";
+
+template <typename T>
+void
+checkTestKeyVal(std::string const& k, T const& expected, T const& got,
+                stdfs::path const& path)
+{
+    if (expected != got)
+    {
+        throw std::runtime_error(fmt::format("Expected '{}' = {}, got {} in {}",
+                                             k, expected, got, path));
+    }
+}
+
+template <typename T>
+void
+checkTestKeyVals(std::string const& k, T const& expected, T const& got,
+                 stdfs::path const& path)
+{
+    if (expected != got)
+    {
+        throw std::runtime_error(fmt::format("Expected '{}' = {}, got {} in {}",
+                                             k, fmt::join(expected, ", "),
+                                             fmt::join(got, ", "), path));
+    }
+}
+
 static void
 loadTestTxMeta(stdfs::path const& dir)
 {
@@ -667,6 +697,35 @@ loadTestTxMeta(stdfs::path const& dir)
         for (auto entry = root.begin(); entry != root.end(); ++entry)
         {
             std::string name = entry.key().asString();
+            if (!name.empty() && name.at(0) == '!')
+            {
+                if (name == TESTKEY_PROTOCOL_VERSION)
+                {
+                    checkTestKeyVal(name,
+                                    Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                    entry->asUInt(), path);
+                }
+                else if (name == TESTKEY_RNG_SEED)
+                {
+                    checkTestKeyVal(name, ReseedPRNGListener::sCommandLineSeed,
+                                    entry->asUInt(), path);
+                }
+                else if (name == TESTKEY_ALL_VERSIONS)
+                {
+                    checkTestKeyVal(name, gTestAllVersions, entry->asBool(),
+                                    path);
+                }
+                else if (name == TESTKEY_VERSIONS_TO_TEST)
+                {
+                    std::vector<uint32> versions;
+                    for (auto v : *entry)
+                    {
+                        versions.emplace_back(v.asUInt());
+                    }
+                    checkTestKeyVals(name, gVersionsToTest, versions, path);
+                }
+                continue;
+            }
             std::vector<uint64_t> hashes;
             for (auto const& h : *entry)
             {
@@ -702,6 +761,18 @@ saveTestTxMeta(stdfs::path const& dir)
     for (auto const& filePair : gTestTxMetadata)
     {
         Json::Value fileRoot;
+        fileRoot[TESTKEY_PROTOCOL_VERSION] =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        fileRoot[TESTKEY_RNG_SEED] = ReseedPRNGListener::sCommandLineSeed;
+        fileRoot[TESTKEY_ALL_VERSIONS] = gTestAllVersions;
+        {
+            Json::Value versions;
+            for (auto v : gVersionsToTest)
+            {
+                versions.append(v);
+            }
+            fileRoot[TESTKEY_VERSIONS_TO_TEST] = versions;
+        }
         for (auto const& testCasePair : filePair.second)
         {
             Json::Value& hashes = fileRoot[testCasePair.first];
