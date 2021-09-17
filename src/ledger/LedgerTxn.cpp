@@ -2274,7 +2274,7 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
                           )
     : mMaxBestOffersBatchSize(
           std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
-                   MAX_OFFERS_TO_CROSS))
+                   getMaxOffersToCross()))
     , mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)

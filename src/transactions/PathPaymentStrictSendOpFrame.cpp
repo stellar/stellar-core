@@ -84,8 +84,8 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx)
         // offersCrossed will never be bigger than INT64_MAX because
         // - the machine would have run out of memory
         // - the limit, which cannot exceed INT64_MAX, should be enforced
-        // so this subtraction is safe because MAX_OFFERS_TO_CROSS >= 0
-        int64_t maxOffersToCross = MAX_OFFERS_TO_CROSS - offersCrossed;
+        // so this subtraction is safe because getMaxOffersToCross() >= 0
+        int64_t maxOffersToCross = getMaxOffersToCross() - offersCrossed;
 
         int64_t amountSend = 0;
         int64_t amountRecv = 0;

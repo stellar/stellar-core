@@ -330,7 +330,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         if (ltx.loadHeader().current().ledgerVersion >=
             FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS)
         {
-            maxOffersToCross = MAX_OFFERS_TO_CROSS;
+            maxOffersToCross = getMaxOffersToCross();
         }
 
         int64_t sheepSent, wheatReceived;

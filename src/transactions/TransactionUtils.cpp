@@ -19,6 +19,44 @@
 namespace stellar
 {
 
+#ifdef BUILD_TESTS
+#define PROD_CONST
+#else
+#define PROD_CONST const
+#endif
+
+static uint32_t PROD_CONST ACCOUNT_SUBENTRY_LIMIT = 1000;
+static size_t PROD_CONST MAX_OFFERS_TO_CROSS = 1000;
+
+uint32_t
+getAccountSubEntryLimit()
+{
+    return ACCOUNT_SUBENTRY_LIMIT;
+}
+
+size_t
+getMaxOffersToCross()
+{
+    return MAX_OFFERS_TO_CROSS;
+}
+
+#ifdef BUILD_TESTS
+TempReduceLimitsForTesting::TempReduceLimitsForTesting(
+    uint32_t accountSubEntryLimit, size_t maxOffersToCross)
+    : mOldAccountSubEntryLimit(ACCOUNT_SUBENTRY_LIMIT)
+    , mOldMaxOffersToCross(MAX_OFFERS_TO_CROSS)
+{
+    ACCOUNT_SUBENTRY_LIMIT = accountSubEntryLimit;
+    MAX_OFFERS_TO_CROSS = maxOffersToCross;
+}
+
+TempReduceLimitsForTesting::~TempReduceLimitsForTesting()
+{
+    ACCOUNT_SUBENTRY_LIMIT = mOldAccountSubEntryLimit;
+    MAX_OFFERS_TO_CROSS = mOldMaxOffersToCross;
+}
+#endif
+
 AccountEntryExtensionV1&
 prepareAccountEntryExtensionV1(AccountEntry& ae)
 {

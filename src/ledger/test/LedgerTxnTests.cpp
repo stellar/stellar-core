@@ -2044,6 +2044,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
         {
             VirtualClock clock;
             auto cfg = getTestConfig(0, mode);
+            TempReduceLimitsForTesting limitUpdater(100, 10);
 
             // Enough space to store an offer, 1002 accounts (to keep a missing
             // account from evicting a prefetched account), and 2000 trustlines
@@ -2059,9 +2060,9 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
             oe = LedgerTestUtils::generateValidOfferEntry();
             oe.offerID = 1;
 
-            // The comments below are written assuming MAX_OFFERS_TO_CROSS is
-            // 1000
-            int64_t numOffers = MAX_OFFERS_TO_CROSS + 2;
+            // The comments below are written assuming getMaxOffersToCross()
+            //  is 1000
+            int64_t numOffers = getMaxOffersToCross() + 2;
             auto accounts =
                 LedgerTestUtils::generateValidAccountEntries(numOffers);
             // First create 1002 offers that have different accounts and
@@ -2109,7 +2110,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
                 // Note that we can't prefetch for more than 1000 offers
                 double expectedPrefetchHitRate =
                     std::min(numOffers - offerID,
-                             static_cast<int64_t>(MAX_OFFERS_TO_CROSS)) /
+                             static_cast<int64_t>(getMaxOffersToCross())) /
                     static_cast<double>(accounts.size());
                 REQUIRE(fabs(expectedPrefetchHitRate -
                              ltx2.getPrefetchHitRate()) < .000001);
@@ -2119,13 +2120,13 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
             SECTION("prefetch for all worse remaining offers")
             {
                 // There are 1000 better offers than offerID 2
-                loadOfferAndPrefetch(numOffers - MAX_OFFERS_TO_CROSS);
+                loadOfferAndPrefetch(numOffers - getMaxOffersToCross());
             }
             SECTION("prefetch for the next MAX_OFFERS_TO_CROSS offers")
             {
                 // There are 1001 better offers than offerID 1. Should still
                 // only prefetch for 1000
-                loadOfferAndPrefetch(numOffers - MAX_OFFERS_TO_CROSS - 1);
+                loadOfferAndPrefetch(numOffers - getMaxOffersToCross() - 1);
             }
             SECTION("prefetch less than MAX_OFFERS_TO_CROSS offers")
             {
