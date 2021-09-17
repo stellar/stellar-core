@@ -1398,6 +1398,8 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
     {
         // offerTrail is going to be too long after exchanging with the
         // liquidity pool
+        // note that this condition can only happen in path payment when
+        // performing subsequent hops
         return false;
     }
 
@@ -1491,6 +1493,15 @@ convertWithOffers(
     wheatReceived = 0;
 
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+    if (needMore && maxOffersToCross == 0 &&
+        ltxOuter.loadHeader().current().ledgerVersion >= 18)
+    {
+        // offerTrail is going to be too long, fast fail
+        // note that this condition can only happen in path payment when
+        // performing subsequent hops
+        return ConvertResult::eCrossedTooMany;
+    }
+
     while (needMore)
     {
         LedgerTxn ltx(ltxOuter);

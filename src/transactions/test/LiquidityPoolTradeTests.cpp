@@ -189,12 +189,12 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
             // Can't cross pool, no offers in book
             REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+                              ex_opEXCEEDED_WORK_LIMIT);
 
             // Can't cross pool, offer in book is self trade
             auto id = a3.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
             REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
-                              ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
+                              ex_opEXCEEDED_WORK_LIMIT);
             a3.manageOffer(id, cur2, cur1, Price{1, 1}, 0,
                            MANAGE_OFFER_DELETED);
 
