@@ -1093,4 +1093,29 @@ TEST_CASE("Exchange with liquidity pools", "[exchange]")
             validate(100, INT64_MAX, 100, 100, 0, recv, false, 0, 0);
         }
     }
+
+    SECTION("30 bps fee actually charges 30 bps")
+    {
+        // These test cases look weird because they actually charge 31 bps
+        // instead of 30 bps. But this is expected, because you pay fees on
+        // the fees you provided: I want to send 10000 after fees, so I send
+        // 100030.... but that doesn't work because 0.997 * 10030 = 9999.910
+        // is too low.
+
+        SECTION("Strict send")
+        {
+            // With no fee, sending 10000 would receive 10000. So to receive
+            // 1000 we need to send ceil(10000 / 0.997) = 10031.
+            validate(10000, 10031, 20000, INT64_MAX, 30, send, true, 10031,
+                     10000);
+        }
+
+        SECTION("Strict receive")
+        {
+            // With no fee, sending 10000 would receive 10000. So to send
+            // ceil(10000 / 0.997) = 10031 we need to receive 10000.
+            validate(10000, INT64_MAX, 20000, 10000, 30, recv, true, 10031,
+                     10000);
+        }
+    }
 }
