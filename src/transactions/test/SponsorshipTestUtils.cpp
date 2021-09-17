@@ -553,51 +553,71 @@ tooManySubentries(Application& app, TestAccount& testAcc,
 
     auto minVersion = getMinProtocolVersionForTooManyTestsFromOp(successfulOp);
 
-    SECTION("too many subentries")
+    auto tooManySubentries = [&](uint32_t reservesForFirstOp) {
+        SECTION("too many subentries")
+        {
+            for_versions_from(minVersion, app, [&] {
+                {
+                    LedgerTxn ltx(app.getLedgerTxnRoot());
+                    auto acc =
+                        stellar::loadAccount(ltx, testAcc.getPublicKey());
+                    auto& le = acc.current();
+                    auto& ae = le.data.account();
+
+                    ae.numSubEntries =
+                        getAccountSubEntryLimit() - reservesForFirstOp;
+
+                    ltx.commit();
+                }
+
+                submitTooManyNumSubEntries(app, testAcc, successfulOp, failOp);
+            });
+        }
+        SECTION("too many subentries due to numSponsoring")
+        {
+            for_versions_from(18, app, [&] {
+                {
+                    LedgerTxn ltx(app.getLedgerTxnRoot());
+                    auto acc =
+                        stellar::loadAccount(ltx, testAcc.getPublicKey());
+                    auto& le = acc.current();
+                    auto& ae = le.data.account();
+
+                    // Set numSponsoring close to UINT32_MAX and set
+                    // numSubEntries high enough so only the successfulOp will
+                    // succeed. This should validate the numSponsoring +
+                    // numSubEntries <= UINT32_MAX protocol v18 check.
+                    ae.ext.v(1);
+                    ae.ext.v1().ext.v(2);
+                    ae.ext.v1().ext.v2().numSponsoring =
+                        UINT32_MAX - reservesForFirstOp - 50;
+
+                    ae.numSubEntries = 50;
+
+                    ltx.commit();
+                }
+
+                submitTooManyNumSubEntries(app, testAcc, successfulOp, failOp);
+            });
+        }
+    };
+
+    auto reservesForSuccesfulOp =
+        getNumReservesRequiredForOperation(successfulOp);
+
+    SECTION("no space left after first op")
     {
-        for_versions_from(minVersion, app, [&] {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                auto acc = stellar::loadAccount(ltx, testAcc.getPublicKey());
-                auto& le = acc.current();
-                auto& ae = le.data.account();
-
-                ae.numSubEntries =
-                    getAccountSubEntryLimit() -
-                    getNumReservesRequiredForOperation(successfulOp);
-
-                ltx.commit();
-            }
-
-            submitTooManyNumSubEntries(app, testAcc, successfulOp, failOp);
-        });
+        tooManySubentries(reservesForSuccesfulOp);
     }
-    SECTION("too many subentries due to numSponsoring")
+
+    // See comment at the bottom of tooManySponsoring for an explanation on how
+    // this works
+    if (reservesForSuccesfulOp > 1)
     {
-        for_versions_from(18, app, [&] {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                auto acc = stellar::loadAccount(ltx, testAcc.getPublicKey());
-                auto& le = acc.current();
-                auto& ae = le.data.account();
-
-                // Set numSponsoring close to UINT32_MAX and set numSubEntries
-                // high enough so only the successfulOp will succeed. This
-                // should validate the numSponsoring + numSubEntries <=
-                // UINT32_MAX protocol v18 check.
-                ae.ext.v(1);
-                ae.ext.v1().ext.v(2);
-                ae.ext.v1().ext.v2().numSponsoring =
-                    UINT32_MAX -
-                    getNumReservesRequiredForOperation(successfulOp) - 50;
-
-                ae.numSubEntries = 50;
-
-                ltx.commit();
-            }
-
-            submitTooManyNumSubEntries(app, testAcc, successfulOp, failOp);
-        });
+        SECTION("one reserve left after first op")
+        {
+            tooManySubentries(reservesForSuccesfulOp + 1);
+        }
     }
 }
 }
