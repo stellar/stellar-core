@@ -124,6 +124,8 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
     SECTION("max offers to cross")
     {
+        TempReduceLimitsForTesting limitUpdater(100, 10);
+
         auto cur3 = makeAsset(root, "CUR3");
 
         auto a1 = root.create("a1", minBal(2000));
@@ -151,7 +153,8 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         root.pay(a3, cur2, 10000);
         root.pay(a3, cur3, 10000);
 
-        for (size_t i = 0; i < 500; ++i)
+        REQUIRE(getMaxOffersToCross() == 10);
+        for (size_t i = 0; i < 5; ++i)
         {
             a1.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
             a2.manageOffer(0, cur3, cur2, Price{1, 1}, 1);
@@ -159,14 +162,14 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 
         SECTION("order book succeeds when crossing limit")
         {
-            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 9, {cur2}));
         }
 
         SECTION("order book fails when crossing one above limit")
         {
-            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-            REQUIRE_THROWS_AS(a3.pay(a1, cur1, 2000, cur3, 1000, {cur2}),
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+            REQUIRE_THROWS_AS(a3.pay(a1, cur1, 2000, cur3, 10, {cur2}),
                               ex_opEXCEEDED_WORK_LIMIT);
         }
 
@@ -174,25 +177,30 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
         {
             depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
                               Price{INT32_MAX, 1});
-            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 999, {cur2}));
+            REQUIRE_NOTHROW(a3.pay(a3, cur1, 2000, cur3, 9, {cur2}));
         }
 
         SECTION("liquidity pool fails when crossing one above limit")
         {
-            // Can't cross pool, no offers in book
+            // in this section, the pool can't be crossed for cur1->cur2
+            // because we've already reached the limit with cur2->cur3
             depositIntoPool12(a1, 100, 2000, Price{1, INT32_MAX},
                               Price{INT32_MAX, 1});
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+
+            // Can't cross pool, no offers in book
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
 
             // Can't cross pool, offer in book is self trade
-            a3.manageOffer(0, cur2, cur1, Price{2, 1}, 1000);
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+            auto id = a3.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
                               ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
+            a3.manageOffer(id, cur2, cur1, Price{1, 1}, 0,
+                           MANAGE_OFFER_DELETED);
 
             // Can't cross pool, offer in book exceeds work limit
-            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 1000);
-            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 1000, {cur2}),
+            a1.manageOffer(0, cur2, cur1, Price{1, 1}, 10);
+            REQUIRE_THROWS_AS(a3.pay(a3, cur1, 2000, cur3, 10, {cur2}),
                               ex_opEXCEEDED_WORK_LIMIT);
         }
     }

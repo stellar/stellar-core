@@ -533,7 +533,7 @@ tooManySubentries(Application& app, TestAccount& testAcc,
                 auto& ae = le.data.account();
 
                 ae.numSubEntries =
-                    ACCOUNT_SUBENTRY_LIMIT -
+                    getAccountSubEntryLimit() -
                     getNumReservesRequiredForOperation(successfulOp);
 
                 ltx.commit();

@@ -42,7 +42,7 @@ tooManyNumSubEntries(LedgerHeader const& lh, LedgerEntry const& acc,
                      uint32_t mult)
 {
     if (lh.ledgerVersion >= FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS &&
-        acc.data.account().numSubEntries > ACCOUNT_SUBENTRY_LIMIT - mult)
+        acc.data.account().numSubEntries > getAccountSubEntryLimit() - mult)
     {
         return true;
     }

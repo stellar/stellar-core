@@ -936,7 +936,7 @@ HerderImpl::setupTriggerNextLedger()
     }
 
 #ifdef BUILD_TESTS
-    mTriggerNextLedgerSeq = nextIndex;
+    mTriggerNextLedgerSeq = static_cast<uint32_t>(nextIndex);
 #endif
 }
 

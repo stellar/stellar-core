@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
@@ -61,9 +62,26 @@ InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
-uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
+
+uint32_t getAccountSubEntryLimit();
+size_t getMaxOffersToCross();
+
+#ifdef BUILD_TESTS
+class TempReduceLimitsForTesting : public NonMovableOrCopyable
+{
+  private:
+    uint32_t mOldAccountSubEntryLimit;
+    size_t mOldMaxOffersToCross;
+
+  public:
+    TempReduceLimitsForTesting(uint32_t accountSubEntryLimit,
+                               size_t maxOffersToCross);
+    ~TempReduceLimitsForTesting();
+};
+
+#endif
+
 int32_t const EXPECTED_CLOSE_TIME_MULT = 2;
-size_t const MAX_OFFERS_TO_CROSS = 1000;
 uint32_t const TRUSTLINE_AUTH_FLAGS =
     AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
 
