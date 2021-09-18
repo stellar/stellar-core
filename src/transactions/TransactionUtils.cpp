@@ -1569,12 +1569,11 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
         }
 
         // decrementLiquidityPoolUseCount will create a nested LedgerTxn and
-        // deactivate all loaded entries, so copy assetB here
+        // deactivate all loaded entries, so copy the assets here
+        auto const assetA = constantProduct().params.assetA;
         auto const assetB = constantProduct().params.assetB;
 
-        decrementLiquidityPoolUseCount(
-            ltxInner, constantProduct().params.assetA, accountID);
-
+        decrementLiquidityPoolUseCount(ltxInner, assetA, accountID);
         decrementLiquidityPoolUseCount(ltxInner, assetB, accountID);
 
         // pool was deactivated in decrementLiquidityPoolUseCount
