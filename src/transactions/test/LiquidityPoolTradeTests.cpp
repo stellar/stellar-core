@@ -668,7 +668,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                                   ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 256,
                                          {cur2, cur3, cur1});
-                checkLiquidityPool12(1281, 1563, 1415, 1);
+                checkLiquidityPool12(1281, 1563, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -687,7 +687,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, 106, cur2, 256, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 107, cur2, 256, {cur2, cur3, cur1});
-                checkLiquidityPool12(1255, 1596, 1415, 1);
+                checkLiquidityPool12(1255, 1596, 1414, 1);
             }
         }
 
@@ -742,7 +742,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, INT64_MAX, cur2, 999, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
                 a1.pay(a2, cur1, INT64_MAX, cur2, 998, {cur2, cur3, cur1});
-                checkLiquidityPool12(1005010, 2, 1415, 1);
+                checkLiquidityPool12(1005010, 2, 1414, 1);
             }
         }
 
@@ -768,7 +768,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                                   ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 329,
                                          {cur2, cur3, cur1});
-                checkLiquidityPool12(1100, 1819, 1415, 1);
+                checkLiquidityPool12(1100, 1819, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -786,7 +786,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, 99, cur2, 329, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 100, cur2, 329, {cur2, cur3, cur1});
-                checkLiquidityPool12(1100, 1819, 1415, 1);
+                checkLiquidityPool12(1100, 1819, 1414, 1);
             }
         }
 
@@ -812,7 +812,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                                   ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 327,
                                          {cur2, cur3, cur1});
-                checkLiquidityPool12(1100, 1819, 1415, 1);
+                checkLiquidityPool12(1100, 1819, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -830,7 +830,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, 99, cur2, 327, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 100, cur2, 327, {cur2, cur3, cur1});
-                checkLiquidityPool12(1100, 1819, 1415, 1);
+                checkLiquidityPool12(1100, 1819, 1414, 1);
             }
         }
 
@@ -858,7 +858,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                                   ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 332,
                                          {cur2, cur3, cur1});
-                checkLiquidityPool12(1200, 1668, 1415, 1);
+                checkLiquidityPool12(1200, 1668, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -876,7 +876,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, 90, cur2, 332, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 91, cur2, 332, {cur2, cur3, cur1});
-                checkLiquidityPool12(1091, 1834, 1415, 1);
+                checkLiquidityPool12(1091, 1834, 1414, 1);
             }
         }
 
@@ -900,7 +900,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                                   ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur2, 400,
                                          {cur2, cur3, cur1});
-                checkLiquidityPool12(1000, 2000, 1415, 1);
+                checkLiquidityPool12(1000, 2000, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -917,7 +917,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pay(a2, cur1, 99, cur2, 400, {cur2, cur3, cur1}),
                     ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 100, cur2, 400, {cur2, cur3, cur1});
-                checkLiquidityPool12(1000, 2000, 1415, 1);
+                checkLiquidityPool12(1000, 2000, 1414, 1);
             }
         }
     }
@@ -956,7 +956,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                     a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 100, {cur2}),
                     ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
                 a1.pathPaymentStrictSend(a2, cur1, 100, cur1, 99, {cur2});
-                checkLiquidityPool12(1001, 2000, 1415, 1);
+                checkLiquidityPool12(1001, 2000, 1414, 1);
             }
 
             SECTION("strict receive")
@@ -973,7 +973,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
                 REQUIRE_THROWS_AS(a1.pay(a2, cur1, 100, cur1, 100, {cur2}),
                                   ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
                 a1.pay(a2, cur1, 100, cur1, 99, {cur2});
-                checkLiquidityPool12(1001, 2000, 1415, 1);
+                checkLiquidityPool12(1001, 2000, 1414, 1);
             }
         }
     }

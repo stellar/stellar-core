@@ -255,8 +255,8 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
                                     Price{1, INT32_MAX}, Price{1, INT32_MAX});
             REQUIRE(a1.getBalance() == balance - 100 - 1);
             REQUIRE(a1.getTrustlineBalance(cur1) == INT64_MAX - INT32_MAX);
-            REQUIRE(a1.getTrustlineBalance(poolNative1) == 46341);
-            checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46341, 1);
+            REQUIRE(a1.getTrustlineBalance(poolNative1) == 46340);
+            checkLiquidityPool(*app, poolNative1, 1, INT32_MAX, 46340, 1);
 
             // This section is all about depositing into a non-empty pool
             auto a2 = root.create("a2", minBal(3) + 6 * 100);
@@ -309,9 +309,9 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
                                     Price{1, INT32_MAX}, Price{INT32_MAX, 1});
             REQUIRE(a2.getBalance() == balance - 100 - 1);
             REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX - INT32_MAX);
-            REQUIRE(a2.getTrustlineBalance(poolNative1) == 46341);
+            REQUIRE(a2.getTrustlineBalance(poolNative1) == 46340);
             checkLiquidityPool(*app, poolNative1, 2, 2 * (int64_t)INT32_MAX,
-                               92682, 2);
+                               92680, 2);
         });
     }
 
