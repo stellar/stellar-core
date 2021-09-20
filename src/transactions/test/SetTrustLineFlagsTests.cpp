@@ -1208,86 +1208,91 @@ TEST_CASE("revoke from pool",
                         }
                     };
 
-                auto submitRevokeInSandwich = [&](TestAccount& sponsoringAcc,
-                                                  TestAccount& sponsoredAcc,
-                                                  bool success) {
-                    auto op =
-                        flagOp == TrustFlagOp::ALLOW_TRUST
-                            ? allowTrust(acc1, cur1, 0)
-                            : setTrustLineFlags(
-                                  acc1, cur1,
-                                  clearTrustLineFlags(TRUSTLINE_AUTH_FLAGS));
+                auto submitRevokeInSandwich =
+                    [&](TestAccount& sponsoringAcc, TestAccount& sponsoredAcc,
+                        bool success, int32_t numPoolShareTrustlines) {
+                        auto op =
+                            flagOp == TrustFlagOp::ALLOW_TRUST
+                                ? allowTrust(acc1, cur1, 0)
+                                : setTrustLineFlags(acc1, cur1,
+                                                    clearTrustLineFlags(
+                                                        TRUSTLINE_AUTH_FLAGS));
 
-                    std::vector<SecretKey> opKeys = {sponsoredAcc};
-                    if (sponsoringAcc.getAccountId() != root.getAccountId())
-                    {
-                        opKeys.emplace_back(root);
-                    }
-
-                    auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), sponsoringAcc,
-                        {sponsoringAcc.op(
-                             beginSponsoringFutureReserves(sponsoredAcc)),
-                         root.op(op),
-                         sponsoredAcc.op(endSponsoringFutureReserves())},
-                        opKeys);
-
-                    auto preRevokeNumSubEntries = acc1.getNumSubEntries();
-                    auto preRevokeNumSponsoring =
-                        getNumSponsoring(*app, sponsoringAcc);
-                    bool trustlineIsSponsored = getNumSponsored(*app, acc1) > 0;
-
-                    {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMeta txm(2);
-                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(*app, ltx, txm) == success);
-
-                        if (success)
+                        std::vector<SecretKey> opKeys = {sponsoredAcc};
+                        if (sponsoringAcc.getAccountId() != root.getAccountId())
                         {
-                            ltx.commit();
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            opKeys.emplace_back(root);
                         }
-                        else
+
+                        auto tx = transactionFrameFromOps(
+                            app->getNetworkID(), sponsoringAcc,
+                            {sponsoringAcc.op(
+                                 beginSponsoringFutureReserves(sponsoredAcc)),
+                             root.op(op),
+                             sponsoredAcc.op(endSponsoringFutureReserves())},
+                            opKeys);
+
+                        auto preRevokeNumSubEntries = acc1.getNumSubEntries();
+                        auto preRevokeNumSponsoring =
+                            getNumSponsoring(*app, sponsoringAcc);
+                        bool trustlineIsSponsored =
+                            getNumSponsored(*app, acc1) > 0;
+
                         {
-                            REQUIRE(tx->getResultCode() == txFAILED);
-                            if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                            LedgerTxn ltx(app->getLedgerTxnRoot());
+                            TransactionMeta txm(2);
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                            REQUIRE(tx->apply(*app, ltx, txm) == success);
+
+                            if (success)
                             {
-                                REQUIRE(tx->getResult()
-                                            .result.results()[1]
-                                            .tr()
-                                            .allowTrustResult()
-                                            .code() == ALLOW_TRUST_LOW_RESERVE);
+                                ltx.commit();
+                                REQUIRE(tx->getResultCode() == txSUCCESS);
                             }
                             else
                             {
-                                REQUIRE(tx->getResult()
-                                            .result.results()[1]
-                                            .tr()
-                                            .setTrustLineFlagsResult()
-                                            .code() ==
-                                        SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                                REQUIRE(tx->getResultCode() == txFAILED);
+                                if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                                {
+                                    REQUIRE(tx->getResult()
+                                                .result.results()[1]
+                                                .tr()
+                                                .allowTrustResult()
+                                                .code() ==
+                                            ALLOW_TRUST_LOW_RESERVE);
+                                }
+                                else
+                                {
+                                    REQUIRE(tx->getResult()
+                                                .result.results()[1]
+                                                .tr()
+                                                .setTrustLineFlagsResult()
+                                                .code() ==
+                                            SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                                }
                             }
                         }
-                    }
 
-                    if (success)
-                    {
-                        REQUIRE(preRevokeNumSubEntries ==
-                                acc1.getNumSubEntries() + 2);
+                        if (success)
+                        {
+                            REQUIRE(preRevokeNumSubEntries ==
+                                    acc1.getNumSubEntries() +
+                                        numPoolShareTrustlines * 2);
 
-                        // sponsoringAcc will be sponsoring the two claimable
-                        // balances, but if the same account was sponsoring the
-                        // pool share trustline, then the delta is 0
-                        auto delta = trustlineIsSponsored &&
-                                             sponsoringAcc.getPublicKey() ==
-                                                 acc3.getPublicKey()
-                                         ? 0
-                                         : 2;
-                        REQUIRE(preRevokeNumSponsoring ==
-                                getNumSponsoring(*app, sponsoringAcc) - delta);
-                    }
-                };
+                            // sponsoringAcc will be sponsoring the two
+                            // claimable balances, but if the same account was
+                            // sponsoring the pool share trustline, then the
+                            // delta is 0
+                            auto delta = trustlineIsSponsored &&
+                                                 sponsoringAcc.getPublicKey() ==
+                                                     acc3.getPublicKey()
+                                             ? 0
+                                             : 2;
+                            REQUIRE(preRevokeNumSponsoring ==
+                                    getNumSponsoring(*app, sponsoringAcc) -
+                                        delta);
+                        }
+                    };
 
                 auto increaseReserve = [&]() {
                     // double the reserve
@@ -1328,20 +1333,20 @@ TEST_CASE("revoke from pool",
                 {
                     depositIntoMaybeSponsoredPoolShare(true);
 
-                    submitRevokeInSandwich(acc2, acc3, true);
+                    submitRevokeInSandwich(acc2, acc3, true, 1);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
                 SECTION("same reserve - sandwich on revoke - success")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
-                    submitRevokeInSandwich(acc2, acc1, true);
+                    submitRevokeInSandwich(acc2, acc1, true, 1);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
                 SECTION("same reserve - issuer sandwich on revoke - success")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
 
-                    submitRevokeInSandwich(root, acc1, true);
+                    submitRevokeInSandwich(root, acc1, true, 1);
                     claimAndValidatePoolCounters(root, 1);
                 }
                 SECTION("same reserve - issuer sandwich on revoke - fail")
@@ -1351,7 +1356,7 @@ TEST_CASE("revoke from pool",
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
                     root.pay(acc2, root.getAvailableBalance() - txFee * 4);
-                    submitRevokeInSandwich(root, acc1, false);
+                    submitRevokeInSandwich(root, acc1, false, 1);
                 }
                 SECTION("same reserve - sandwich on revoke - fail")
                 {
@@ -1360,7 +1365,7 @@ TEST_CASE("revoke from pool",
                     // leave enough to pay for this tx and the sponsorship
                     // sandwich
                     acc2.pay(root, acc2.getAvailableBalance() - txFee * 4);
-                    submitRevokeInSandwich(acc2, acc1, false);
+                    submitRevokeInSandwich(acc2, acc1, false, 1);
                 }
                 SECTION("same reserve - sponsoring account is the sponsor of "
                         "the pool share trustline")
@@ -1369,8 +1374,52 @@ TEST_CASE("revoke from pool",
 
                     // acc3 is the sponsor of the pool share trustline
                     root.pay(acc3, lm.getLastMinBalance(1));
-                    submitRevokeInSandwich(acc3, acc1, true);
+                    submitRevokeInSandwich(acc3, acc1, true, 1);
                     claimAndValidatePoolCounters(acc3, 1);
+                }
+                SECTION("same reserve - multiple pool share trustlines - one "
+                        "sponsored pool share trustline - "
+                        "sandwich on revoke")
+                {
+                    depositIntoMaybeSponsoredPoolShare(true);
+
+                    // pay acc1 so it can deposit into another pool
+                    root.pay(acc1, lm.getLastMinBalance(6));
+                    depositIntoPool(acc1, native, cur1);
+
+                    submitRevokeInSandwich(acc2, acc3, true, 2);
+
+                    auto revokeSeqNum = acc2.getLastSequenceNumber();
+
+                    root.allowTrust(cur1, acc1);
+
+                    redeemBalance(false, acc1, acc2, cur1, pool12, revokeSeqNum,
+                                  1, 10);
+                    redeemBalance(false, acc1, acc2, cur2, pool12, revokeSeqNum,
+                                  1, 10);
+
+                    redeemBalance(false, acc1, acc2, cur1, poolNative1,
+                                  revokeSeqNum, 1, 50);
+                    redeemBalance(false, acc1, acc2, native, poolNative1,
+                                  revokeSeqNum, 1, 200);
+
+                    checkPoolUseCounts(acc1, cur1, 0);
+                    checkPoolUseCounts(acc1, cur2, 0);
+
+                    REQUIRE(!acc1.hasTrustLine(
+                        changeTrustAssetToTrustLineAsset(share12)));
+                    REQUIRE(!acc1.hasTrustLine(
+                        changeTrustAssetToTrustLineAsset(shareNative1)));
+
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        REQUIRE(!loadLiquidityPool(ltx, pool12));
+                        REQUIRE(!loadLiquidityPool(ltx, poolNative1));
+
+                        checkSponsorship(ltx, acc1, 0, nullptr, 2, 2, 0, 0);
+                        checkSponsorship(ltx, acc2, 0, nullptr, 0, 2, 0, 0);
+                        checkSponsorship(ltx, acc3, 0, nullptr, 0, 2, 0, 0);
+                    }
                 }
 
                 // upgrade reserves
@@ -1388,7 +1437,7 @@ TEST_CASE("revoke from pool",
                     increaseReserve();
 
                     root.pay(acc2, lm.getLastMinBalance(1));
-                    submitRevokeInSandwich(acc2, acc1, true);
+                    submitRevokeInSandwich(acc2, acc1, true, 1);
                     claimAndValidatePoolCounters(acc2, 1);
                 }
                 SECTION(
@@ -1397,7 +1446,7 @@ TEST_CASE("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
-                    submitRevokeInSandwich(root, acc1, true);
+                    submitRevokeInSandwich(root, acc1, true, 1);
                     claimAndValidatePoolCounters(root, 1);
                 }
                 SECTION("increase reserve - issuer sandwich on revoke - fail")
@@ -1407,14 +1456,14 @@ TEST_CASE("revoke from pool",
                                        lm.getLastMinBalance(1));
 
                     increaseReserve();
-                    submitRevokeInSandwich(root, acc1, false);
+                    submitRevokeInSandwich(root, acc1, false, 1);
                 }
                 SECTION("increase reserve - sandwich on revoke - fail")
                 {
                     depositIntoMaybeSponsoredPoolShare(false);
                     increaseReserve();
 
-                    submitRevokeInSandwich(acc2, acc1, false);
+                    submitRevokeInSandwich(acc2, acc1, false, 1);
                 }
                 SECTION("increase reserve - sponsored account is the sponsor "
                         "of the pool share trustline - fail")
@@ -1422,7 +1471,7 @@ TEST_CASE("revoke from pool",
                     depositIntoMaybeSponsoredPoolShare(true);
                     increaseReserve();
 
-                    submitRevokeInSandwich(acc2, acc3, false);
+                    submitRevokeInSandwich(acc2, acc3, false, 1);
                 }
                 SECTION("increase reserve - sponsoring account is the sponsor "
                         "of the pool share trustline")
@@ -1432,7 +1481,7 @@ TEST_CASE("revoke from pool",
 
                     // acc3 is the sponsor of the pool share trustline
                     root.pay(acc3, lm.getLastMinBalance(1));
-                    submitRevokeInSandwich(acc3, acc1, true);
+                    submitRevokeInSandwich(acc3, acc1, true, 1);
                     claimAndValidatePoolCounters(acc3, 1);
                 }
 
