@@ -379,7 +379,7 @@ TEST_CASE("bigSquareRoot tests", "[bigdivide]")
     roots.emplace_back(0);
     for (uint64_t i = 1; i <= 10; ++i)
     {
-        for (uint64_t j = 1; j <= 2 * i - 1; ++j)
+        for (uint64_t j = 1; j <= 2 * i + 1; ++j)
         {
             roots.emplace_back(i);
         }
@@ -393,17 +393,17 @@ TEST_CASE("bigSquareRoot tests", "[bigdivide]")
     }
 
     // Test large values
-    REQUIRE(bigSquareRoot(UINT64_MAX, 1) == 1ull << 32);
-    REQUIRE(bigSquareRoot(UINT32_MAX, 1) == 1ull << 16);
+    REQUIRE(bigSquareRoot(UINT64_MAX, 1) == (1ull << 32) - 1);
+    REQUIRE(bigSquareRoot(UINT32_MAX, 1) == (1ull << 16) - 1);
     REQUIRE(bigSquareRoot(UINT64_MAX, UINT64_MAX) == UINT64_MAX);
     REQUIRE(bigSquareRoot(UINT32_MAX, UINT32_MAX) == UINT32_MAX);
 
     // UINT64_MAX * UINT32_MAX = ((1 << 32) + 1) * UINT32_MAX * UINT32_MAX
     // but
-    // ceil(sqrt(UINT64_MAX * UINT32_MAX)) != ((1 << 16) + 1) * UINT32_MAX
-    // because the ceil occurs after the multiplication
-    REQUIRE(bigSquareRoot(UINT64_MAX, UINT32_MAX) == 281474976677888);
-    REQUIRE(((1ull << 16) + 1) * ((1ull << 32) - 1) != 281474976677888);
+    // floor(sqrt(UINT64_MAX * UINT32_MAX)) != (1 << 16) * UINT32_MAX
+    // because the floor occurs after the multiplication
+    REQUIRE(bigSquareRoot(UINT64_MAX, UINT32_MAX) == 281474976677887);
+    REQUIRE((1ull << 16) * ((1ull << 32) - 1) != 281474976677887);
 }
 
 TEST_CASE("huge divide", "[bigdivide]")
