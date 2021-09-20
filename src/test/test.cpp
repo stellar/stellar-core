@@ -62,6 +62,7 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
     static void
     reseed()
     {
+        PubKeyUtils::clearVerifySigCache();
         srand(sCommandLineSeed);
         gRandomEngine.seed(sCommandLineSeed);
         shortHash::seed(sCommandLineSeed);
