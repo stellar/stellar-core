@@ -208,8 +208,8 @@ bigMultiply(int64_t a, int64_t b)
 // Now that we have an algorithm to compute ceil(sqrt(R+1)) then we can simply
 // use R-1 instead of R in the definition of the sequence to compute
 // ceil(sqrt(R)). This requires handling R=0 as a special case.
-uint64_t
-bigSquareRoot(uint64_t a, uint64_t b)
+static uint64_t
+bigSquareRootCeil(uint64_t a, uint64_t b)
 {
     // a * b = 0 is a special-case because we can't compute a * b - 1
     if (a == 0 || b == 0)
@@ -248,6 +248,32 @@ bigSquareRoot(uint64_t a, uint64_t b)
     }
 
     return x;
+}
+
+// Find x such that x * x <= a * b < (x+1) * (x+1).
+uint64_t
+bigSquareRoot(uint64_t a, uint64_t b)
+{
+    uint64_t sqrtCeil = bigSquareRootCeil(a, b);
+
+    // sqrtCeil * sqrtCeil >= a * b so
+    //     sqrtCeil * sqrtCeil <= a * b
+    // implies sqrtCeil * sqrtCeil = a * b.
+    if (bigMultiply(sqrtCeil, sqrtCeil) <= bigMultiply(a, b))
+    {
+        return sqrtCeil;
+    }
+
+    // sqrtCeil > 0 because
+    //     0 * 0 <= a * b
+    // for all a, b.
+    //
+    // sqrtCeil * sqrtCeil > a * b implies that
+    //     (sqrtCeil - 1) * (sqrtCeil - 1) = a * b - 2 * sqrtCeil + 1
+    //                                     < a * b
+    // because
+    //     1 - 2 * sqrtCeil < 0 .
+    return sqrtCeil - 1;
 }
 
 bool
