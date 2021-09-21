@@ -107,9 +107,14 @@ LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
                               ROUND_DOWN);
         if (!minAmongValid(amountPoolShares, sharesA, resA, sharesB, resB))
         {
-            // sharesA > INT64_MAX and sharesB > INT64_MAX so we always fail
-            innerResult().code(LIQUIDITY_POOL_DEPOSIT_POOL_FULL);
-            return false;
+            // This can't happen.
+            // It is guaranteed that either reserveA >=
+            // totalPoolShares or reserveB >= totalPoolShares. Suppose that
+            // reserveA >= totalPoolShares (everything works analogously for
+            // reserveB). Then sharesA = floor(totalPoolShares * maxAmountA /
+            // reserveA) <= floor(reserveA * maxAmountA / reserveA) =
+            // maxAmountA.
+            throw std::runtime_error("both shares calculations overflowed");
         }
     }
 
@@ -120,8 +125,17 @@ LiquidityPoolDepositOpFrame::depositIntoNonEmptyPool(
                               cp.totalPoolShares, ROUND_UP);
         if (!(resA && resB))
         {
-            innerResult().code(LIQUIDITY_POOL_DEPOSIT_UNDERFUNDED);
-            return false;
+            // This can't happen.
+            // Everything below works analogously for amountB.
+            //
+            // amountA  = ceil(amountPoolShares * reserveA / totalPoolShares)
+            // = ceil(min(sharesA, sharesB) * reserveA / totalPoolShares)
+            // <= ceil(sharesA * reserveA / totalPoolShares)
+            // = ceil(floor(totalPoolShares * maxAmountA / reserveA) * reserveA
+            // / totalPoolShares)
+            // <= ceil(totalPoolShares * maxAmountA / reserveA * reserveA /
+            // totalPoolShares) = maxAmountA.
+            throw std::runtime_error("amount overflowed");
         }
     }
 
