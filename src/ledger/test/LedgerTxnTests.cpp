@@ -3968,12 +3968,19 @@ TEST_CASE("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset", "[ledgertxn]")
             testPoolShareTrustLinesByAccountAndAsset(a1, cur1, {}, {{}});
         }
 
-        SECTION("two trust lines")
+        SECTION("two trust lines - assetA")
         {
             testPoolShareTrustLinesByAccountAndAsset(
                 a1, cur1, {{cur1, native, 1}, {cur1, cur2, 2}},
                 {{{{{a1, cur1, native}, 1}, {{a1, cur1, cur2}, 2}},
                   {{{cur1, native}, 1}, {{cur1, cur2}, 1}}}});
+        }
+
+        SECTION("two trust lines - assetB")
+        {
+            testPoolShareTrustLinesByAccountAndAsset(
+                a1, cur2, {{cur1, cur2, 1}},
+                {{{{{a1, cur1, cur2}, 1}}, {{{cur1, cur2}, 1}}}});
         }
     }
 

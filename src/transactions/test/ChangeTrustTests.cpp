@@ -650,7 +650,19 @@ TEST_CASE("change trust pool share trustline",
                                       changeTrust(shareNative1, 1));
                 }
             }
+            SECTION("low reserve")
+            {
+                auto acc1 = root.create("acc1", lm.getLastMinBalance(3));
 
+                acc1.changeTrust(idr, 10);
+                acc1.changeTrust(usd, 10);
+
+                REQUIRE_THROWS_AS(acc1.changeTrust(idrUsd, 10),
+                                  ex_CHANGE_TRUST_LOW_RESERVE);
+
+                root.pay(acc1, lm.getLastMinBalance(0));
+                acc1.changeTrust(idrUsd, 10);
+            }
             SECTION("sponsored pool share trustline where sponsor is issuer of "
                     "both assets")
             {
