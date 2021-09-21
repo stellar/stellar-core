@@ -268,6 +268,12 @@ LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
+    if (amountA <= 0 || amountB <= 0 || amountPoolShares <= 0)
+    {
+        throw std::runtime_error("must deposit positive amounts and receive a"
+                                 " positive amount of pool shares");
+    }
+
     // At most one of these can use source because at most one of tlA and tlB
     // can be null
     updateBalance(header, tlA, source, -amountA);
