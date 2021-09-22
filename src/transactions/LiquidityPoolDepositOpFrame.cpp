@@ -238,6 +238,12 @@ LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx)
     int64_t amountPoolShares = 0;
     int64_t availableA = tlA ? tlA.getAvailableBalance(header)
                              : getAvailableBalance(header, source);
+
+    // it's currently not possible for tlB to be false here because assetB can't
+    // be the native asset (pool share assets follow a lexicographically
+    // ordering, and the native asset is the "smallest" asset at the moment).
+    // The condition is still here in case a change is made in the future to
+    // allow assets with negative AssetTypes.
     int64_t availableB = tlB ? tlB.getAvailableBalance(header)
                              : getAvailableBalance(header, source);
     int64_t availableLimitPoolShares = getMaxAmountReceive(header, tlPool);

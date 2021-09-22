@@ -237,6 +237,27 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
                 ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
         }
 
+        SECTION("line full on non-native balance")
+        {
+            acc1.changeTrust(cur1, 1000);
+            acc1.changeTrust(cur2, 1000);
+            root.pay(acc1, cur1, 1000);
+            root.pay(acc1, cur2, 1000);
+
+            acc1.changeTrust(share12, INT64_MAX);
+
+            acc1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, 1},
+                                      Price{1, 1});
+
+            root.pay(acc1, cur1, 100);
+            acc1.manageOffer(0, cur1, cur2, Price{1, 1}, 100);
+
+            REQUIRE_THROWS_AS(acc1.liquidityPoolWithdraw(pool12, 901, 901, 901),
+                              ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
+
+            acc1.liquidityPoolWithdraw(pool12, 900, 900, 900);
+        }
+
         SECTION("both non-native issuer deposit and withdraw")
         {
             root.changeTrust(share12, INT64_MAX);
