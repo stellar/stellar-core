@@ -208,6 +208,6 @@ TEST_CASE("create account", "[tx][createaccount]")
         // This works because root is the sponsoring account in
         // tooManySponsoring
         tooManySponsoring(*app, a1, a2, root.op(createAccount(a1, 0)),
-                          root.op(createAccount(a2, 0)));
+                          root.op(createAccount(a2, 0)), 2);
     }
 }

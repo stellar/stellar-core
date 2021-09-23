@@ -1175,7 +1175,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             auto a2 = root.create("a2", minBal(3));
             tooManySponsoring(*app, a2, a1,
                               a2.op(revokeSponsorship(accountKey(a2))),
-                              a1.op(revokeSponsorship(accountKey(a1))));
+                              a1.op(revokeSponsorship(accountKey(a1))), 2);
         }
 
         SECTION("signer")
@@ -1187,7 +1187,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
             tooManySponsoring(*app, a1,
                               a1.op(revokeSponsorship(a1, signer1.key)),
-                              a1.op(revokeSponsorship(a1, signer2.key)));
+                              a1.op(revokeSponsorship(a1, signer2.key)), 1);
         }
 
         SECTION("trustline")
@@ -1197,9 +1197,9 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             a1.changeTrust(cur1, 1000);
             a1.changeTrust(cur2, 1000);
 
-            tooManySponsoring(*app, a1,
-                              a1.op(revokeSponsorship(trustlineKey(a1, cur2))),
-                              a1.op(revokeSponsorship(trustlineKey(a1, cur1))));
+            tooManySponsoring(
+                *app, a1, a1.op(revokeSponsorship(trustlineKey(a1, cur2))),
+                a1.op(revokeSponsorship(trustlineKey(a1, cur1))), 1);
         }
         SECTION("claimable balance")
         {
@@ -1208,7 +1208,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
             tooManySponsoring(
                 *app, a1, a1.op(revokeSponsorship(claimableBalanceKey(id1))),
-                a1.op(revokeSponsorship(claimableBalanceKey(id2))));
+                a1.op(revokeSponsorship(claimableBalanceKey(id2))), 1);
         }
         SECTION("pool share trustline")
         {
@@ -1238,7 +1238,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 tooManySponsoring(*app, a1,
                                   a1.op(revokeSponsorship(shareNativeKey)),
-                                  a1.op(revokeSponsorship(share12Key)));
+                                  a1.op(revokeSponsorship(share12Key)), 2);
             });
         }
     }

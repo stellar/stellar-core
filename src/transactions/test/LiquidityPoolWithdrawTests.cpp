@@ -228,34 +228,58 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             acc1.changeTrust(cur2, INT64_MAX);
             root.pay(acc1, cur2, INT64_MAX);
 
-            // acc1 native line is full
+            // acc1 native line is full (minus the fee paid for this op)
             acc1.manageOffer(0, cur2, native, Price{1, 1},
                              INT64_MAX - acc1.getBalance());
 
+            // we can withdraw enough for the fee of the above operation plus
+            // this one
+            acc1.liquidityPoolWithdraw(poolNative1, 200, 200, 0);
+
+            // at the limit, so we can't withdraw more than the fee
             REQUIRE_THROWS_AS(
-                acc1.liquidityPoolWithdraw(poolNative1, 1000, 1000, 0),
+                acc1.liquidityPoolWithdraw(poolNative1, 101, 101, 0),
                 ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
         }
 
-        SECTION("line full on non-native balance")
+        SECTION("withdraw into account with liabilities")
         {
-            acc1.changeTrust(cur1, 1000);
-            acc1.changeTrust(cur2, 1000);
-            root.pay(acc1, cur1, 1000);
-            root.pay(acc1, cur2, 1000);
+            acc1.changeTrust(cur1, 100);
+            acc1.changeTrust(cur2, 100);
+            root.pay(acc1, cur1, 100);
+            root.pay(acc1, cur2, 100);
 
-            acc1.changeTrust(share12, INT64_MAX);
+            acc1.changeTrust(share12, 100);
 
-            acc1.liquidityPoolDeposit(pool12, 1000, 1000, Price{1, 1},
+            acc1.liquidityPoolDeposit(pool12, 100, 100, Price{1, 1},
                                       Price{1, 1});
 
-            root.pay(acc1, cur1, 100);
-            acc1.manageOffer(0, cur1, cur2, Price{1, 1}, 100);
+            auto cur1OfferID =
+                acc1.manageOffer(0, native, cur1, Price{1, 1}, 100);
 
-            REQUIRE_THROWS_AS(acc1.liquidityPoolWithdraw(pool12, 901, 901, 901),
+            REQUIRE_THROWS_AS(acc1.liquidityPoolWithdraw(pool12, 1, 1, 0),
                               ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
 
-            acc1.liquidityPoolWithdraw(pool12, 900, 900, 900);
+            // delete the offer
+            acc1.manageOffer(cur1OfferID, native, cur1, Price{1, 1}, 0,
+                             ManageOfferEffect::MANAGE_OFFER_DELETED);
+
+            // withdraw should succeed now
+            acc1.liquidityPoolWithdraw(pool12, 1, 1, 0);
+
+            // now test liabilities on the second asset
+            auto cur2OfferID =
+                acc1.manageOffer(0, native, cur2, Price{1, 1}, 99);
+
+            REQUIRE_THROWS_AS(acc1.liquidityPoolWithdraw(pool12, 1, 1, 0),
+                              ex_LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
+
+            // delete the offer
+            acc1.manageOffer(cur2OfferID, native, cur2, Price{1, 1}, 0,
+                             ManageOfferEffect::MANAGE_OFFER_DELETED);
+
+            // withdraw should succeed again
+            acc1.liquidityPoolWithdraw(pool12, 1, 1, 0);
         }
 
         SECTION("both non-native issuer deposit and withdraw")

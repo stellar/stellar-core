@@ -1195,7 +1195,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
             tooManySponsoring(
                 *app, acc1,
                 acc1.op(createClaimableBalance(native, 1, validClaimants)),
-                acc1.op(createClaimableBalance(native, 1, validClaimants)));
+                acc1.op(createClaimableBalance(native, 1, validClaimants)), 1);
         }
 
         SECTION("too many sponsoring multiple claimants")
@@ -1208,7 +1208,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
             tooManySponsoring(
                 *app, acc1,
                 acc1.op(createClaimableBalance(native, 1, validClaimants)),
-                acc1.op(createClaimableBalance(native, 1, validClaimants)));
+                acc1.op(createClaimableBalance(native, 1, validClaimants)), 3);
         }
 
         SECTION("source account is issuer")

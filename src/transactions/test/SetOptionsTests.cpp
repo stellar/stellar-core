@@ -322,7 +322,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             auto signer2 = makeSigner(getAccount("S2"), 1);
 
             tooManySponsoring(*app, a1, a1.op(setOptions(setSigner(signer1))),
-                              a1.op(setOptions(setSigner(signer2))));
+                              a1.op(setOptions(setSigner(signer2))), 1);
         }
 
         SECTION("too many subentries")

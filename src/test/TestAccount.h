@@ -175,6 +175,7 @@ class TestAccount
     int64_t getTrustlineBalance(PoolID const& poolID) const;
     int64_t getBalance() const;
     int64_t getAvailableBalance() const;
+    uint32_t getNumSubEntries() const;
 
     bool exists() const;
 
