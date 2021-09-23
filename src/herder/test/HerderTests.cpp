@@ -2488,7 +2488,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.FLOOD_TX_PERIOD_MS = 0;
+    cfg.FLOOD_TX_PERIOD_MS = 1; // flood as fast as possible
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
@@ -2511,7 +2511,12 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
 
     externalize(cfg.NODE_SEED, lm, herder, {tx1r});
-    REQUIRE(numBroadcast == 1);
+    auto timeout = clock.now() + std::chrono::seconds(5);
+    while (numBroadcast != 1)
+    {
+        clock.crank(true);
+        REQUIRE(clock.now() < timeout);
+    }
 
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txSet = tq.toTxSet(lhhe);
@@ -2523,7 +2528,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 
 TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {
-    auto test = [](bool delayed, uint32_t numOps) {
+    auto test = [](uint32_t numOps) {
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
         auto simulation = std::make_shared<Simulation>(
             Simulation::OVER_LOOPBACK, networkID, [&](int i) {
@@ -2531,7 +2536,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
                 cfg.NODE_IS_VALIDATOR = false;
                 cfg.FORCE_SCP = false;
-                cfg.FLOOD_TX_PERIOD_MS = delayed ? 100 : 0;
+                cfg.FLOOD_TX_PERIOD_MS = 100;
                 cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
                 return cfg;
             });
@@ -2653,80 +2658,58 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 
         externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
 
-        if (delayed)
+        // no broadcast right away
+        REQUIRE(numBroadcast == 0);
+        // wait for a bit more than a broadcast period
+        // rate per period is
+        // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
+        // 1000*100/5000=20
+        auto constexpr opsRatePerPeriod = 20;
+        auto broadcastPeriod =
+            std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
+        auto const delta = std::chrono::milliseconds(1);
+        simulation->crankForAtLeast(broadcastPeriod + delta, false);
+
+        if (numOps <= opsRatePerPeriod)
         {
-            // no broadcast right away
-            REQUIRE(numBroadcast == 0);
-            // wait for a bit more than a broadcast period
-            // rate per period is
-            // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
-            // 1000*100/5000=20
-            auto constexpr opsRatePerPeriod = 20;
-            auto broadcastPeriod =
-                std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
-            auto const delta = std::chrono::milliseconds(1);
-            simulation->crankForAtLeast(broadcastPeriod + delta, false);
-
-            if (numOps <= opsRatePerPeriod)
-            {
-                auto opsBroadcasted = numBroadcast * numOps;
-                // goal reached
-                REQUIRE(opsBroadcasted <= opsRatePerPeriod);
-                // an extra tx would have exceeded the limit
-                REQUIRE(opsBroadcasted + numOps > opsRatePerPeriod);
-            }
-            else
-            {
-                // can only flood up to 1 transaction per cycle
-                REQUIRE(numBroadcast <= 1);
-            }
-            // as we're waiting for a ledger worth of capacity
-            // and we have a multiplier of 2
-            // it should take about half a ledger period to broadcast everything
-
-            // we wait a bit more, and inject an extra high fee transaction
-            // from an account with no pending transactions
-            // this transactions should be the next one to be broadcasted
-            simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
-            genTx(root, numOps, true);
-
-            simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
-            REQUIRE(numBroadcast == (numTx - 1));
-            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 1);
+            auto opsBroadcasted = numBroadcast * numOps;
+            // goal reached
+            REQUIRE(opsBroadcasted <= opsRatePerPeriod);
+            // an extra tx would have exceeded the limit
+            REQUIRE(opsBroadcasted + numOps > opsRatePerPeriod);
         }
         else
         {
-            REQUIRE(numBroadcast == (numTx - 2));
-            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
-            // check that there is no broadcast after that
-            simulation->crankForAtLeast(std::chrono::seconds(1), false);
-            REQUIRE(numBroadcast == (numTx - 2));
-            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+            // can only flood up to 1 transaction per cycle
+            REQUIRE(numBroadcast <= 1);
         }
+        // as we're waiting for a ledger worth of capacity
+        // and we have a multiplier of 2
+        // it should take about half a ledger period to broadcast everything
+
+        // we wait a bit more, and inject an extra high fee transaction
+        // from an account with no pending transactions
+        // this transactions should be the next one to be broadcasted
+        simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
+        genTx(root, numOps, true);
+
+        simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
+        REQUIRE(numBroadcast == (numTx - 1));
+        REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 1);
         simulation->stopAllNodes();
     };
 
-    auto testOps = [&](bool delayed) {
-        SECTION("one operation per transaction")
-        {
-            test(delayed, 1);
-        }
-        SECTION("a few operations per transaction")
-        {
-            test(delayed, 7);
-        }
-        SECTION("full transactions")
-        {
-            test(delayed, 100);
-        }
-    };
-    SECTION("no delay")
+    SECTION("one operation per transaction")
     {
-        testOps(false);
+        test(1);
     }
-    SECTION("delayed")
+    SECTION("a few operations per transaction")
     {
-        testOps(true);
+        test(7);
+    }
+    SECTION("full transactions")
+    {
+        test(100);
     }
 }
 
