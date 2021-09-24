@@ -1119,7 +1119,7 @@ runPrintXdr(CommandLineArgs const& args)
     auto rawMode = false;
 
     auto fileTypeOpt = clara::Opt(fileType, "FILE-TYPE")["--filetype"](
-        "[auto|ledgerheader|meta|result|resultpair|tx|txfee]");
+        "[auto|ledgerentry|ledgerheader|meta|result|resultpair|tx|txfee]");
 
     return runWithHelp(args,
                        {fileNameParser(xdr), fileTypeOpt, base64Parser(base64),
