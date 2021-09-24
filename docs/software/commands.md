@@ -61,7 +61,7 @@ Command options can only by placed after command.
   Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
   controls type used for printing (default: auto).<br>
   Option **--base64** alters the behavior to work on base64-encoded XDR rather than
-  raw XDR.
+  raw XDR, and converts a stream of encoded objects separated by space/newline.
 * **publish**: Execute publish of all items remaining in publish queue without
   connecting to network. May not publish last checkpoint if last closed ledger
   is on checkpoint boundary.

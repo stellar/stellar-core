@@ -109,29 +109,53 @@ dumpXdrStream(std::string const& filename, bool compact)
                                  xdr_strerror(errno)); \
     } while (0)
 
-static xdr::opaque_vec<>
-readFile(const std::string& filename, bool base64 = false)
+static void
+readFile(const std::string& filename, bool base64,
+         std::function<void(xdr::opaque_vec<>)> proc)
 {
     using namespace std;
-    ostringstream input;
+    ifstream file;
+    istream* in;
+
     if (filename == Config::STDIN_SPECIAL_NAME || filename.empty())
-        input << cin.rdbuf();
+    {
+        in = &cin;
+    }
     else
     {
-        ifstream file(filename.c_str());
+        in = &file;
+        file.open(filename.c_str());
         if (!file)
         {
             throw_perror(filename);
         }
         file.exceptions(std::ios::badbit);
-        input << file.rdbuf();
     }
-    string ret;
+
     if (base64)
-        decoder::decode_b64(input.str(), ret);
+    {
+        // process line by line until empty line/space
+        while (true)
+        {
+            string b64;
+            (*in) >> b64;
+            if (b64.empty() || in->eof())
+            {
+                return;
+            }
+            string s;
+            decoder::decode_b64(b64, s);
+            proc(xdr::opaque_vec<>(s.begin(), s.end()));
+        }
+    }
     else
-        ret = input.str();
-    return {ret.begin(), ret.end()};
+    {
+        ostringstream input;
+        input << in->rdbuf();
+        string s;
+        s = input.str();
+        proc(xdr::opaque_vec<>(s.begin(), s.end()));
+    }
 }
 
 template <typename T>
@@ -258,41 +282,41 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
 
     try
     {
-        auto d = readFile(filename, base64);
-
-        if (filetype == "auto")
-        {
-            bool processed = false;
-            for (auto const& it : dumpMap)
+        readFile(filename, base64, [&](xdr::opaque_vec<> d) {
+            if (filetype == "auto")
             {
-                try
+                bool processed = false;
+                for (auto const& it : dumpMap)
                 {
-                    it.second(d);
-                    processed = true;
-                    break;
+                    try
+                    {
+                        it.second(d);
+                        processed = true;
+                        break;
+                    }
+                    catch (xdr::xdr_runtime_error&)
+                    {
+                    }
                 }
-                catch (xdr::xdr_runtime_error&)
+                if (!processed)
                 {
+                    throw std::invalid_argument("Could not detect type");
                 }
-            }
-            if (!processed)
-            {
-                throw std::invalid_argument("Could not detect type");
-            }
-        }
-        else
-        {
-            auto it = dumpMap.find(filetype);
-            if (it != dumpMap.end())
-            {
-                it->second(d);
             }
             else
             {
-                throw std::invalid_argument(
-                    fmt::format("unknown filetype {}", filetype));
+                auto it = dumpMap.find(filetype);
+                if (it != dumpMap.end())
+                {
+                    it->second(d);
+                }
+                else
+                {
+                    throw std::invalid_argument(
+                        fmt::format("unknown filetype {}", filetype));
+                }
             }
-        }
+        });
     }
     catch (const std::exception& e)
     {
@@ -446,49 +470,51 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             throw std::runtime_error(
                 "Refusing to write binary transaction to terminal");
 
-        TransactionEnvelope txenv;
-        xdr::xdr_from_opaque(readFile(filename, base64), txenv);
-        auto& signatures = txbridge::getSignatures(txenv);
-        if (signatures.size() == signatures.max_size())
-            throw std::runtime_error(
-                "Envelope already contains maximum number of signatures");
+        readFile(filename, base64, [&](xdr::opaque_vec<> d) {
+            TransactionEnvelope txenv;
+            xdr::xdr_from_opaque(d, txenv);
+            auto& signatures = txbridge::getSignatures(txenv);
+            if (signatures.size() == signatures.max_size())
+                throw std::runtime_error(
+                    "Envelope already contains maximum number of signatures");
 
-        SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
-            fmt::format("Secret key seed [network id: '{}']: ", netId),
-            txn_stdin)));
-        TransactionSignaturePayload payload;
-        payload.networkId = sha256(netId);
-        switch (txenv.type())
-        {
-        case ENVELOPE_TYPE_TX_V0:
-            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-            // TransactionV0 and Transaction always have the same signatures so
-            // there is no reason to check versions here, just always convert to
-            // Transaction
-            payload.taggedTransaction.tx() =
-                txbridge::convertForV13(txenv).v1().tx;
-            break;
-        case ENVELOPE_TYPE_TX:
-            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-            payload.taggedTransaction.tx() = txenv.v1().tx;
-            break;
-        case ENVELOPE_TYPE_TX_FEE_BUMP:
-            payload.taggedTransaction.type(ENVELOPE_TYPE_TX_FEE_BUMP);
-            payload.taggedTransaction.feeBump() = txenv.feeBump().tx;
-            break;
-        default:
-            abort();
-        }
+            SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
+                fmt::format("Secret key seed [network id: '{}']: ", netId),
+                txn_stdin)));
+            TransactionSignaturePayload payload;
+            payload.networkId = sha256(netId);
+            switch (txenv.type())
+            {
+            case ENVELOPE_TYPE_TX_V0:
+                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+                // TransactionV0 and Transaction always have the same signatures
+                // so there is no reason to check versions here, just always
+                // convert to Transaction
+                payload.taggedTransaction.tx() =
+                    txbridge::convertForV13(txenv).v1().tx;
+                break;
+            case ENVELOPE_TYPE_TX:
+                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+                payload.taggedTransaction.tx() = txenv.v1().tx;
+                break;
+            case ENVELOPE_TYPE_TX_FEE_BUMP:
+                payload.taggedTransaction.type(ENVELOPE_TYPE_TX_FEE_BUMP);
+                payload.taggedTransaction.feeBump() = txenv.feeBump().tx;
+                break;
+            default:
+                abort();
+            }
 
-        signatures.emplace_back(
-            SignatureUtils::getHint(sk.getPublicKey().ed25519()),
-            sk.sign(sha256(xdr::xdr_to_opaque(payload))));
+            signatures.emplace_back(
+                SignatureUtils::getHint(sk.getPublicKey().ed25519()),
+                sk.sign(sha256(xdr::xdr_to_opaque(payload))));
 
-        auto out = xdr::xdr_to_opaque(txenv);
-        if (base64)
-            cout << decoder::encode_b64(out) << std::endl;
-        else
-            cout.write(reinterpret_cast<char*>(out.data()), out.size());
+            auto out = xdr::xdr_to_opaque(txenv);
+            if (base64)
+                cout << decoder::encode_b64(out) << std::endl;
+            else
+                cout.write(reinterpret_cast<char*>(out.data()), out.size());
+        });
     }
     catch (const std::exception& e)
     {

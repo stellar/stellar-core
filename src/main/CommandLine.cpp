@@ -219,7 +219,7 @@ compactParser(bool& compact)
 clara::Opt
 base64Parser(bool& base64)
 {
-    return clara::Opt{base64}["--base64"]("use base64");
+    return clara::Opt{base64}["--base64"]("batch process base64 encoded input");
 }
 
 clara::Opt
