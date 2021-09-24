@@ -246,6 +246,7 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
                 : printerFunc(std::bind(printTransactionMeta, _1, compact));
 
     auto dumpMap = std::map<std::string, printerFunc>{
+        {"asset", PRINTONEXDR(Asset)},
         {"ledgerentry", PRINTONEXDR(LedgerEntry)},
         {"ledgerheader", PRINTONEXDR(LedgerHeader)},
         {"meta", metaPrinter},
