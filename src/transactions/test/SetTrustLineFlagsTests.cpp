@@ -99,7 +99,8 @@ static uint32_t
 getNumOffers(Application& app, TestAccount const& account, Asset const& asset)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    return ltx.getOffersByAccountAndAsset(account, asset).size();
+    auto s = ltx.getOffersByAccountAndAsset(account, asset).size();
+    return static_cast<uint32_t>(s);
 }
 
 TEST_CASE("set trustline flags", "[tx][settrustlineflags]")

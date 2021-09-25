@@ -799,9 +799,6 @@ TEST_CASE("change trust pool share trustline",
                             .baseReserve == newReserve);
                 };
 
-                auto usd = makeAsset(gateway, "USD");
-                auto idrUsd = makeChangeTrustAssetPoolShare(
-                    idr, usd, LIQUIDITY_POOL_FEE_V18);
                 auto acc1 = root.create("acc1", lm.getLastMinBalance(5));
 
                 auto deletePoolTl = [&]() {

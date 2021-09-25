@@ -1515,10 +1515,10 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
     // withdraw in reverse order
     for (auto rit = deposits.rbegin(); rit != deposits.rend(); ++rit)
     {
-        auto& deposit = *rit;
-        deposit.acc.liquidityPoolWithdraw(pool12, deposit.numPoolShares, 0, 0);
+        auto& d = *rit;
+        d.acc.liquidityPoolWithdraw(pool12, d.numPoolShares, 0, 0);
 
-        total -= deposit.numPoolShares;
+        total -= d.numPoolShares;
     }
 
     checkLiquidityPool(app, pool12, 0, 0, 0, 2);
