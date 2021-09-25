@@ -49,8 +49,9 @@ class InMemoryLedgerTxn : public LedgerTxn
     virtual ~InMemoryLedgerTxn();
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
-    void rollbackChild() override;
+    void commitChild(EntryIterator iter,
+                     LedgerTxnConsistency cons) noexcept override;
+    void rollbackChild() noexcept override;
 };
 
 }

@@ -332,14 +332,14 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
 }
 
 void
-LedgerTxn::commit()
+LedgerTxn::commit() noexcept
 {
     getImpl()->commit();
     mImpl.reset();
 }
 
 void
-LedgerTxn::Impl::commit()
+LedgerTxn::Impl::commit() noexcept
 {
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
@@ -349,7 +349,7 @@ LedgerTxn::Impl::commit()
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept
 {
     getImpl()->commitChild(std::move(iter), cons);
 }
@@ -369,7 +369,8 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
 }
 
 void
-LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxn::Impl::commitChild(EntryIterator iter,
+                             LedgerTxnConsistency cons) noexcept
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
@@ -1701,14 +1702,14 @@ LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self,
 }
 
 void
-LedgerTxn::rollback()
+LedgerTxn::rollback() noexcept
 {
     getImpl()->rollback();
     mImpl.reset();
 }
 
 void
-LedgerTxn::Impl::rollback()
+LedgerTxn::Impl::rollback() noexcept
 {
     if (mChild)
     {
@@ -1725,13 +1726,13 @@ LedgerTxn::Impl::rollback()
 }
 
 void
-LedgerTxn::rollbackChild()
+LedgerTxn::rollbackChild() noexcept
 {
     getImpl()->rollbackChild();
 }
 
 void
-LedgerTxn::Impl::rollbackChild()
+LedgerTxn::Impl::rollbackChild() noexcept
 {
     mChild = nullptr;
 }
@@ -1878,7 +1879,7 @@ LedgerTxn::Impl::maybeUpdateLastModified() const
 
 void
 LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
-    std::function<void(EntryMap const&)> f)
+    std::function<void(EntryMap const&)> f) noexcept
 {
     if (!mIsSealed)
     {
@@ -2352,7 +2353,8 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxnRoot::commitChild(EntryIterator iter,
+                           LedgerTxnConsistency cons) noexcept
 {
     mImpl->commitChild(std::move(iter), cons);
 }
@@ -2481,7 +2483,8 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
 }
 
 void
-LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
+                                 LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
 
@@ -2490,8 +2493,8 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // rollback.
     if (!mTransaction)
     {
-        throw std::runtime_error("Illegal action in LedgerTxnRoot: committing "
-                                 "child in read-only mode");
+        printErrorAndAbort("Illegal action in LedgerTxnRoot: committing "
+                           "child in read-only mode");
     }
 
     // Assignment of xdrpp objects does not have the strong exception safety
@@ -3305,13 +3308,13 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
 }
 
 void
-LedgerTxnRoot::rollbackChild()
+LedgerTxnRoot::rollbackChild() noexcept
 {
     mImpl->rollbackChild();
 }
 
 void
-LedgerTxnRoot::Impl::rollbackChild()
+LedgerTxnRoot::Impl::rollbackChild() noexcept
 {
     if (mTransaction)
     {

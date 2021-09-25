@@ -395,10 +395,10 @@ class LedgerTxn::Impl
     // maybeUpdateLastModified has the strong exception safety guarantee
     EntryMap maybeUpdateLastModified() const;
 
-    // maybeUpdateLastModifiedThenInvokeThenSeal has the same exception safety
-    // guarantee as f
+    // f should not throw
+    // C++ doesn't support "std::function<void(EntryMap const&) nothrow>" yet
     void maybeUpdateLastModifiedThenInvokeThenSeal(
-        std::function<void(EntryMap const&)> f);
+        std::function<void(EntryMap const&)> f) noexcept;
 
     // findInOrderBook has the strong exception safety guarantee
     std::pair<MultiOrderBook::iterator, OrderBook::iterator>
@@ -429,11 +429,9 @@ class LedgerTxn::Impl
     // addChild has the strong exception safety guarantee
     void addChild(AbstractLedgerTxn& child);
 
-    // commit has the strong exception safety guarantee.
-    void commit();
+    void commit() noexcept;
 
-    // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
     // create has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -601,11 +599,8 @@ class LedgerTxn::Impl
     ConstLedgerTxnEntry loadWithoutRecord(LedgerTxn& self,
                                           InternalLedgerKey const& key);
 
-    // rollback does not throw
-    void rollback();
-
-    // rollbackChild does not throw
-    void rollbackChild();
+    void rollback() noexcept;
+    void rollbackChild() noexcept;
 
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
@@ -852,8 +847,7 @@ class LedgerTxnRoot::Impl
     // addChild has the strong exception safety guarantee.
     void addChild(AbstractLedgerTxn& child, TransactionMode mode);
 
-    // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
     // countObjects has the strong exception safety guarantee.
     uint64_t countObjects(LedgerEntryType let) const;
@@ -927,8 +921,7 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const;
 
-    // rollbackChild has the strong exception safety guarantee.
-    void rollbackChild();
+    void rollbackChild() noexcept;
 
     // Prefetch some or all of given keys in batches. Note that no prefetching
     // could occur if the cache is at its fill ratio. Returns number of keys
