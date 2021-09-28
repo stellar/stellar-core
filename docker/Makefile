@@ -23,7 +23,7 @@ endif
 ifndef TAG
 	TAG = stellar/stellar-core:$(STELLAR_CORE_VERSION)
 endif
-	$(SUDO)  docker build --pull \
+	$(SUDO)  docker build --pull --no-cache \
 	--label org.opencontainers.image.created="$(BUILD_DATE)" \
 	--build-arg STELLAR_CORE_VERSION=${STELLAR_CORE_VERSION} \
 	--build-arg DISTRO=${DISTRO} \
