@@ -48,12 +48,12 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
     {
         Tracker t{*app, hash, nullAskPeer};
         auto env1 = makeEnvelope(1);
-        t.listen(env1);
+        t.listen(env1, nullptr);
 
         REQUIRE(t.size() == 1);
         REQUIRE(!t.empty());
         REQUIRE(t.getLastSeenSlotIndex() == 1);
-        REQUIRE(env1 == t.pop());
+        REQUIRE(env1 == t.pop().first);
         REQUIRE(t.size() == 0);
         REQUIRE(t.empty());
         REQUIRE(t.getLastSeenSlotIndex() == 1);
@@ -65,12 +65,12 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
     {
         Tracker t{*app, hash, nullAskPeer};
         auto env1 = makeEnvelope(1);
-        t.listen(env1);
+        t.listen(env1, nullptr);
         // this should no-op (idempotent)
-        t.listen(env1);
+        t.listen(env1, nullptr);
         REQUIRE(t.getLastSeenSlotIndex() == 1);
 
-        REQUIRE(env1 == t.pop());
+        REQUIRE(env1 == t.pop().first);
         REQUIRE(t.empty());
     }
 
@@ -79,13 +79,13 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         Tracker t{*app, hash, nullAskPeer};
         auto env1 = makeEnvelope(1);
         auto env2 = makeEnvelope(2);
-        t.listen(env1);
+        t.listen(env1, nullptr);
         REQUIRE(t.getLastSeenSlotIndex() == 1);
-        t.listen(env2);
+        t.listen(env2, nullptr);
         REQUIRE(t.getLastSeenSlotIndex() == 2);
 
-        REQUIRE(env2 == t.pop());
-        REQUIRE(env1 == t.pop());
+        REQUIRE(env2 == t.pop().first);
+        REQUIRE(env1 == t.pop().first);
     }
 
     SECTION("properly removes old envelopes")
@@ -96,11 +96,11 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         auto env3 = makeEnvelope(3);
         auto env4 = makeEnvelope(4);
         auto env5 = makeEnvelope(5);
-        t.listen(env5);
-        t.listen(env3);
-        t.listen(env1);
-        t.listen(env2);
-        t.listen(env4);
+        t.listen(env5, nullptr);
+        t.listen(env3, nullptr);
+        t.listen(env1, nullptr);
+        t.listen(env2, nullptr);
+        t.listen(env4, nullptr);
 
         REQUIRE(t.size() == 5);
         REQUIRE(t.getLastSeenSlotIndex() == 5);
@@ -109,8 +109,8 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         {
             REQUIRE(t.clearEnvelopesBelow(4));
             REQUIRE(t.size() == 2);
-            REQUIRE(env4 == t.pop());
-            REQUIRE(env5 == t.pop());
+            REQUIRE(env4 == t.pop().first);
+            REQUIRE(env5 == t.pop().first);
         }
 
         SECTION("properly removes all old envelopes")

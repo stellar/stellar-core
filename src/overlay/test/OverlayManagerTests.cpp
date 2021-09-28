@@ -50,7 +50,8 @@ class PeerStub : public Peer
     {
     }
     virtual void
-    sendMessage(xdr::msg_ptr&& xdrBytes) override
+    sendMessage(xdr::msg_ptr&& xdrBytes,
+                Peer::TimeToProcessMessagePtr cb) override
     {
         sent++;
     }
@@ -264,15 +265,15 @@ class OverlayManagerTests
                 pm.recvFloodedMsg(AtoB, p.second);
             }
         }
-        pm.broadcastMessage(AtoB);
+        pm.broadcastMessage(AtoB, nullptr);
         crank(10);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
-        pm.broadcastMessage(AtoB);
+        pm.broadcastMessage(AtoB, nullptr);
         crank(10);
         REQUIRE(sentCounts(pm) == expected);
         StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
-        pm.broadcastMessage(CtoD);
+        pm.broadcastMessage(CtoD, nullptr);
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);
@@ -280,7 +281,7 @@ class OverlayManagerTests
         // Test that we updating a flood record actually prevents re-broadcast
         StellarMessage AtoC = a.tx({payment(c, 10)})->toStellarMessage();
         pm.updateFloodRecord(AtoB, AtoC);
-        pm.broadcastMessage(AtoC);
+        pm.broadcastMessage(AtoC, nullptr);
         crank(10);
         REQUIRE(sentCounts(pm) == expectedFinal);
     }

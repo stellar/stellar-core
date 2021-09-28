@@ -31,6 +31,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
 
+#include "overlay/Peer.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
@@ -40,6 +41,15 @@
 using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
+
+static std::shared_ptr<Peer::MetricTracker>
+makeCallback(Application& app, SCPEnvelope const& envelope)
+{
+    StellarMessage msg;
+    msg.type(SCP_MESSAGE);
+    msg.envelope() = envelope;
+    return std::make_shared<Peer::MetricTracker>(msg, app);
+}
 
 TEST_CASE("standalone", "[herder][acceptance]")
 {
@@ -1146,7 +1156,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         auto addToCandidates = [&](TxPair const& p) {
             auto envelope = makeEnvelope(
                 herder, p, {}, herder.trackingConsensusLedgerIndex() + 1, true);
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+
+            REQUIRE(herder.recvSCPEnvelope(envelope,
+                                           makeCallback(*app, envelope)) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
             auto v = herder.getHerderSCPDriver().wrapValue(p.first);
@@ -1279,7 +1291,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
             // make sure that txSet0 is loaded
             auto p = makeTxPair(herder, txSet0, ct);
             auto envelope = makeEnvelope(herder, p, {}, seq, true);
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+            REQUIRE(herder.recvSCPEnvelope(envelope,
+                                           makeCallback(*app, envelope)) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(txSet0->getContentsHash(), *txSet0));
         }
@@ -1377,7 +1390,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
                 auto val = makeTxPair(herder, txSet, nextCloseTime);
                 auto const seq = herder.trackingConsensusLedgerIndex() + 1;
                 auto envelope = makeEnvelope(herder, val, {}, seq, true);
-                REQUIRE(herder.recvSCPEnvelope(envelope) ==
+
+                REQUIRE(herder.recvSCPEnvelope(envelope,
+                                               makeCallback(*app, envelope)) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(herder.recvTxSet(txSet->getContentsHash(), *txSet));
 
@@ -1465,39 +1480,40 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         auto saneEnvelopeQ2T1 =
             makeEnvelope(herder, p1, saneQSet2Hash, lseq, true);
         auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash, lseq, true);
+        auto t = makeCallback(*app, bigEnvelope);
 
         SECTION("return FETCHING until fetched")
         {
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
             // will not return ENVELOPE_STATUS_READY as the recvSCPEnvelope() is
             // called internally
             // when QSet and TxSet are both received
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_PROCESSED);
         }
 
         SECTION("only accepts qset once")
         {
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
             REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
             }
 
             SECTION("when receiving different envelope with the same qset")
             {
-                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T2) ==
+                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T2, t) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
             }
@@ -1505,13 +1521,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         SECTION("only accepts txset once")
         {
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
                                           *p1.second));
@@ -1519,7 +1535,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
             SECTION("when receiving different envelope with the same txset")
             {
-                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ2T1) ==
+                REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ2T1, t) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
                                           *p1.second));
@@ -1543,7 +1559,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         SECTION("do not accept not sane qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
+            REQUIRE(herder.recvSCPEnvelope(bigEnvelope, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
         }
@@ -1551,7 +1567,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         SECTION("do not accept txset from envelope discarded because of unsane "
                 "qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
+            REQUIRE(herder.recvSCPEnvelope(bigEnvelope, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
             REQUIRE(
@@ -1561,7 +1577,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         SECTION(
             "accept txset from envelope with unsane qset before receiving qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
+            REQUIRE(herder.recvSCPEnvelope(bigEnvelope, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
@@ -1569,9 +1585,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
         SECTION("accept txset from envelopes with both valid and unsane qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
+            REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
+            REQUIRE(herder.recvSCPEnvelope(bigEnvelope, t) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
@@ -1955,13 +1971,12 @@ TEST_CASE("herder externalizes values", "[herder]")
     auto receiveLedger = [&](uint32_t ledger, Herder& herder) {
         auto newMsgB = validatorSCPMessagesB.at(ledger);
         auto newMsgA = validatorSCPMessagesA.at(ledger);
+        auto t = makeCallback(*(getC()), newMsgA.first);
 
-        REQUIRE(
-            herder.recvSCPEnvelope(newMsgA.first, qset, *(newMsgA.second)) ==
-            Herder::ENVELOPE_STATUS_READY);
-        REQUIRE(
-            herder.recvSCPEnvelope(newMsgB.first, qset, *(newMsgB.second)) ==
-            Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(herder.recvSCPEnvelope(newMsgA.first, qset, *(newMsgA.second),
+                                       t) == Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(herder.recvSCPEnvelope(newMsgB.first, qset, *(newMsgB.second),
+                                       t) == Herder::ENVELOPE_STATUS_READY);
     };
 
     auto testOutOfOrder = [&](bool partial) {
@@ -2771,7 +2786,10 @@ TEST_CASE("slot herder policy", "[herder]")
         ext.nH = 1;
         envelope.statement.nodeID = sk.getPublicKey();
         herder.signEnvelope(sk, envelope);
-        auto res = herder.recvSCPEnvelope(envelope, qSet, *txSet);
+
+        auto t = makeCallback(*app, envelope);
+
+        auto res = herder.recvSCPEnvelope(envelope, qSet, *txSet, t);
         REQUIRE(res == Herder::ENVELOPE_STATUS_READY);
     };
 

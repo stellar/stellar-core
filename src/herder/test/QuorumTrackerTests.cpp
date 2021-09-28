@@ -69,7 +69,12 @@ testQuorumTracker()
         envelope.statement.nodeID = k.getPublicKey();
         envelope.signature = k.sign(xdr::xdr_to_opaque(
             app->getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
-        herder->recvSCPEnvelope(envelope);
+
+        StellarMessage msg;
+        msg.type(SCP_MESSAGE);
+        msg.envelope() = envelope;
+        auto t = std::make_shared<Peer::MetricTracker>(msg, *app);
+        herder->recvSCPEnvelope(envelope, t);
         herder->recvSCPQuorumSet(qSetH, qSet);
         for (auto& p : pp)
         {

@@ -33,7 +33,8 @@ class HerderStub : public HerderImpl
 
   private:
     EnvelopeStatus
-    recvSCPEnvelope(SCPEnvelope const& envelope) override
+    recvSCPEnvelope(SCPEnvelope const& envelope,
+                    Peer::TimeToProcessMessagePtr cb) override
     {
         received.push_back(envelope.statement.pledges.confirm().nPrepared);
         return Herder::ENVELOPE_STATUS_PROCESSED;
@@ -106,9 +107,15 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     auto twelveEnvelope1 = makeEnvelope(12);
     auto twelveEnvelope2 = makeEnvelope(12);
 
-    itemFetcher.fetch(ten, tenEnvelope);
-    itemFetcher.fetch(twelve, twelveEnvelope1);
-    itemFetcher.fetch(twelve, twelveEnvelope2);
+    StellarMessage msg;
+    msg.type(SCP_MESSAGE);
+    msg.envelope() = tenEnvelope;
+
+    auto t = std::make_shared<Peer::MetricTracker>(msg, *app);
+
+    itemFetcher.fetch(ten, tenEnvelope, t);
+    itemFetcher.fetch(twelve, twelveEnvelope1, t);
+    itemFetcher.fetch(twelve, twelveEnvelope2, t);
 
     REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
     REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) != 0);
@@ -190,13 +197,13 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         SECTION("no cache")
         {
             auto zeroEnvelope1 = makeEnvelope(0);
-            itemFetcher.fetch(zero, zeroEnvelope1);
+            itemFetcher.fetch(zero, zeroEnvelope1, t);
             itemFetcher.recv(zero, timer);
 
             auto zeroEnvelope2 = makeEnvelope(0);
-            itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current
-                                                    // implementation, will
-                                                    // re-fetch
+            itemFetcher.fetch(zero, zeroEnvelope2, t); // no cache in current
+                                                       // implementation, will
+                                                       // re-fetch
 
             expectedReceived = std::vector<int>{12, 12, 10, 0};
             REQUIRE(app->getHerder().received == expectedReceived);
@@ -224,15 +231,15 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
             SECTION("fetching once works")
             {
                 auto zeroEnvelope1 = makeEnvelope(0);
-                itemFetcher.fetch(zero, zeroEnvelope1);
+                itemFetcher.fetch(zero, zeroEnvelope1, t);
             }
             SECTION("fetching twice does not trigger any additional network "
                     "activity")
             {
                 auto zeroEnvelope1 = makeEnvelope(0);
                 auto zeroEnvelope2 = makeEnvelope(0);
-                itemFetcher.fetch(zero, zeroEnvelope1);
-                itemFetcher.fetch(zero, zeroEnvelope2);
+                itemFetcher.fetch(zero, zeroEnvelope1, t);
+                itemFetcher.fetch(zero, zeroEnvelope2, t);
             }
             REQUIRE(asked.size() == 0);
 

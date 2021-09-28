@@ -45,7 +45,7 @@ LoopbackPeer::getAuthCert()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
+LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, Peer::TimeToProcessMessagePtr cb)
 {
     if (mRemote.expired())
     {
