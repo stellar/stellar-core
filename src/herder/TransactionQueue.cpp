@@ -743,8 +743,8 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
 #endif
     tx.mBroadcasted = true;
     state.mBroadcastQueueOps -= tx.mTx->getNumOperations();
-    return mApp.getOverlayManager().broadcastMessage(
-        tx.mTx->toStellarMessage());
+    return mApp.getOverlayManager().broadcastMessage(tx.mTx->toStellarMessage(),
+                                                     nullptr);
 }
 
 struct TxQueueTracker

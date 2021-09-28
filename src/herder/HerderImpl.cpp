@@ -246,6 +246,7 @@ HerderImpl::shutdown()
         mLastQuorumMapIntersectionState.mInterruptFlag = true;
     }
     mTransactionQueue.shutdown();
+    mPendingEnvelopes.shutdown();
 }
 
 void
@@ -402,7 +403,9 @@ HerderImpl::broadcast(SCPEnvelope const& e)
                    e.statement.slotIndex);
 
         mSCPMetrics.mEnvelopeEmit.Mark();
-        mApp.getOverlayManager().broadcastMessage(m, true);
+        // Broadcast initiated by progress in a consensus round, no need to
+        // pass a callback
+        mApp.getOverlayManager().broadcastMessage(m, nullptr, true);
     }
 }
 
@@ -573,7 +576,8 @@ HerderImpl::getMinLedgerSeqToRemember() const
 }
 
 Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
+HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
+                            Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     if (mApp.getConfig().MANUAL_CLOSE)
@@ -654,7 +658,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
-    auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
+    auto status = mPendingEnvelopes.recvSCPEnvelope(envelope, cb);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
         std::string txt("READY");
@@ -691,14 +695,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset, TxSetFrame txset)
+                            const SCPQuorumSet& qset, TxSetFrame txset,
+                            Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     mPendingEnvelopes.addTxSet(txset.getContentsHash(),
                                envelope.statement.slotIndex,
                                std::make_shared<TxSetFrame>(txset));
     mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
-    return recvSCPEnvelope(envelope);
+    return recvSCPEnvelope(envelope, cb);
 }
 
 void
@@ -717,7 +722,8 @@ HerderImpl::externalizeValue(std::shared_ptr<TxSetFrame> txSet,
 #endif
 
 void
-HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
+HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer,
+                               Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     bool log = true;
@@ -730,7 +736,9 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
                 StellarMessage m;
                 m.type(SCP_MESSAGE);
                 m.envelope() = e;
-                peer->sendMessage(m, log);
+                // Last message to get sent will release the last reference to
+                // `cb` which will update the timer
+                peer->sendMessage(m, cb, log);
                 log = false;
                 slotHadData = true;
                 return true;

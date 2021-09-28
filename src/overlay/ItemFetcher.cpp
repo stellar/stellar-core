@@ -25,7 +25,8 @@ ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
 }
 
 void
-ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
+ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope,
+                   Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "fetch {}", hexAbbrev(itemHash));
@@ -36,12 +37,12 @@ ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
             std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
         mTrackers[itemHash] = tracker;
 
-        tracker->listen(envelope);
+        tracker->listen(envelope, cb);
         tracker->tryNextPeer();
     }
     else
     {
-        entryIt->second->listen(envelope);
+        entryIt->second->listen(envelope, cb);
     }
 }
 
@@ -95,7 +96,7 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
     auto const& waiting = iter->second->waitingEnvelopes();
     std::transform(
         std::begin(waiting), std::end(waiting), std::back_inserter(result),
-        [](std::pair<Hash, SCPEnvelope> const& x) { return x.second; });
+        [](Tracker::EnvelopeToTrack const& x) { return x.envelope; });
     return result;
 }
 
@@ -155,7 +156,8 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
         timer.Update(tracker->getDuration());
         while (!tracker->empty())
         {
-            mApp.getHerder().recvSCPEnvelope(tracker->pop());
+            auto res = tracker->pop();
+            mApp.getHerder().recvSCPEnvelope(res.first, res.second);
         }
         // stop the timer, stop requesting the item as we have it
         tracker->resetLastSeenSlotIndex();
@@ -164,6 +166,15 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
     else
     {
         CLOG_TRACE(Overlay, "Recv untracked {}", hexAbbrev(itemHash));
+    }
+}
+
+void
+ItemFetcher::shutdown()
+{
+    for (auto const& t : mTrackers)
+    {
+        t.second->shutdown();
     }
 }
 

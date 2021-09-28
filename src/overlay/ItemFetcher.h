@@ -52,7 +52,8 @@ class ItemFetcher : private NonMovableOrCopyable
      * Fetch data identified by @p hash and needed by @p envelope. Multiple
      * envelopes may require one set of data.
      */
-    void fetch(Hash const& itemHash, SCPEnvelope const& envelope);
+    void fetch(Hash const& itemHash, SCPEnvelope const& envelope,
+               Peer::TimeToProcessMessagePtr cb = nullptr);
 
     /**
      * Stops fetching data identified by @p hash for @p envelope. If other
@@ -91,6 +92,8 @@ class ItemFetcher : private NonMovableOrCopyable
      * to Herder, matching @see Tracker will be cleaned up.
      */
     void recv(Hash itemHash, medida::Timer& timer);
+
+    void shutdown();
 
 #ifdef BUILD_TESTS
     std::shared_ptr<Tracker> getTracker(Hash const& h);

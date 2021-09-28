@@ -104,6 +104,7 @@ class OverlayManagerImpl : public OverlayManager
                           Hash& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     bool broadcastMessage(StellarMessage const& msg,
+                          Peer::TimeToProcessMessagePtr cb,
                           bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 

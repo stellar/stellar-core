@@ -327,7 +327,7 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
 void
 SurveyManager::broadcast(StellarMessage const& msg) const
 {
-    mApp.getOverlayManager().broadcastMessage(msg, false);
+    mApp.getOverlayManager().broadcastMessage(msg, nullptr, false);
 }
 
 void

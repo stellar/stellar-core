@@ -936,10 +936,12 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 }
 
 bool
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
+                                     Peer::TimeToProcessMessagePtr cb,
+                                     bool force)
 {
     ZoneScoped;
-    auto res = mFloodGate.broadcast(msg, force);
+    auto res = mFloodGate.broadcast(msg, force, cb);
     if (res)
     {
         mOverlayMetrics.mMessagesBroadcast.Mark();

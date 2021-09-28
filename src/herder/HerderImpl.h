@@ -96,11 +96,13 @@ class HerderImpl : public Herder
     TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx) override;
 
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
-#ifdef BUILD_TESTS
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                   const SCPQuorumSet& qset,
-                                   TxSetFrame txset) override;
+                                   Peer::TimeToProcessMessagePtr cb) override;
+#ifdef BUILD_TESTS
+    EnvelopeStatus
+    recvSCPEnvelope(SCPEnvelope const& envelope, const SCPQuorumSet& qset,
+                    TxSetFrame txset,
+                    Peer::TimeToProcessMessagePtr cb = nullptr) override;
 
     void externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
@@ -115,7 +117,8 @@ class HerderImpl : public Herder
 
     uint32_t mTriggerNextLedgerSeq{0};
 #endif
-    void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
+    void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer,
+                            Peer::TimeToProcessMessagePtr cb) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
     bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;

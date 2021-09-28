@@ -568,6 +568,10 @@ ApplicationImpl::~ApplicationImpl()
     LOG_INFO(DEFAULT_LOG, "Application destructing");
     try
     {
+        if (mOverlayManager)
+        {
+            mOverlayManager->shutdown();
+        }
         shutdownWorkScheduler();
         if (mProcessManager)
         {
@@ -576,6 +580,10 @@ ApplicationImpl::~ApplicationImpl()
         if (mBucketManager)
         {
             mBucketManager->shutdown();
+        }
+        if (mHerder)
+        {
+            mHerder->shutdown();
         }
     }
     catch (std::exception const& e)

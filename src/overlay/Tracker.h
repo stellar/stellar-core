@@ -39,6 +39,14 @@ using AskPeer = std::function<void(Peer::pointer, Hash)>;
 
 class Tracker
 {
+  public:
+    struct EnvelopeToTrack
+    {
+        Hash hash;
+        SCPEnvelope envelope;
+        Peer::TimeToProcessMessagePtr cb;
+    };
+
   private:
     AskPeer mAskPeer;
     Application& mApp;
@@ -48,7 +56,7 @@ class Tracker
     // or not at the time
     std::map<Peer::pointer, bool> mPeersAsked;
     VirtualTimer mTimer;
-    std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
+    std::vector<EnvelopeToTrack> mWaitingEnvelopes;
     Hash mItemHash;
     medida::Meter& mTryNextPeer;
     uint64 mLastSeenSlotIndex{0};
@@ -62,6 +70,8 @@ class Tracker
     explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer);
     virtual ~Tracker();
 
+    void shutdown();
+
     /**
      * Return true if does not wait for any envelope.
      */
@@ -74,7 +84,7 @@ class Tracker
     /**
      * Return list of envelopes this tracker is waiting for.
      */
-    const std::vector<std::pair<Hash, SCPEnvelope>>&
+    const std::vector<EnvelopeToTrack>&
     waitingEnvelopes() const
     {
         return mWaitingEnvelopes;
@@ -92,7 +102,7 @@ class Tracker
     /**
      * Pop envelope from stack.
      */
-    SCPEnvelope pop();
+    std::pair<SCPEnvelope, Peer::TimeToProcessMessagePtr> pop();
 
     /**
      * Get duration since fetch start
@@ -111,7 +121,7 @@ class Tracker
      * Add @p env to list of envelopes that will be resend to Herder when data
      * is received.
      */
-    void listen(const SCPEnvelope& env);
+    void listen(const SCPEnvelope& env, Peer::TimeToProcessMessagePtr cb);
 
     /**
      * Stops tracking envelope @p env.

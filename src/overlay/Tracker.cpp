@@ -42,12 +42,24 @@ Tracker::~Tracker()
     cancel();
 }
 
-SCPEnvelope
+std::pair<SCPEnvelope, Peer::TimeToProcessMessagePtr>
 Tracker::pop()
 {
-    auto env = mWaitingEnvelopes.back().second;
+    auto env = mWaitingEnvelopes.back();
     mWaitingEnvelopes.pop_back();
-    return env;
+    return std::pair(env.envelope, env.cb);
+}
+
+void
+Tracker::shutdown()
+{
+    // Purge callbacks before destruction of other objects
+    // TODO: is there a better way? `stopAllBelow` does not seem suitable as it
+    // is asynchronous (intentionally)
+    for (auto& env : mWaitingEnvelopes)
+    {
+        env.cb.reset();
+    }
 }
 
 // returns false if no one cares about this guy anymore
@@ -58,7 +70,7 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
-        if (iter->second.statement.slotIndex < slotIndex)
+        if (iter->envelope.statement.slotIndex < slotIndex)
         {
             iter = mWaitingEnvelopes.erase(iter);
         }
@@ -152,7 +164,7 @@ Tracker::tryNextPeer()
     std::map<NodeID, Peer::pointer> newPeersWithEnvelope;
     for (auto const& e : mWaitingEnvelopes)
     {
-        auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
+        auto const& s = mApp.getOverlayManager().getPeersKnows(e.hash);
         for (auto pit = s.begin(); pit != s.end(); ++pit)
         {
             auto& p = *pit;
@@ -211,16 +223,15 @@ Tracker::tryNextPeer()
                       VirtualTimer::onFailureNoop);
 }
 
-static std::function<bool(std::pair<Hash, SCPEnvelope> const&)>
+static std::function<bool(Tracker::EnvelopeToTrack)>
 matchEnvelope(SCPEnvelope const& env)
 {
-    return [&env](std::pair<Hash, SCPEnvelope> const& x) {
-        return x.second == env;
-    };
+    return
+        [&env](Tracker::EnvelopeToTrack const& x) { return x.envelope == env; };
 }
 
 void
-Tracker::listen(const SCPEnvelope& env)
+Tracker::listen(const SCPEnvelope& env, Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     mLastSeenSlotIndex = std::max(env.statement.slotIndex, mLastSeenSlotIndex);
@@ -242,7 +253,7 @@ Tracker::listen(const SCPEnvelope& env)
     // what the floodmap is keyed by, and we're storing its keys
     // in mWaitingEnvelopes, not the mItemHash that is the SHA256
     // of the item being tracked.
-    mWaitingEnvelopes.push_back(std::make_pair(xdrBlake2(m), env));
+    mWaitingEnvelopes.push_back({xdrBlake2(m), env, cb});
 }
 
 void

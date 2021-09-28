@@ -134,7 +134,7 @@ TCPPeer::getIP() const
 }
 
 void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
+TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, Peer::TimeToProcessMessagePtr cb)
 {
     if (shouldAbort())
     {
@@ -146,7 +146,8 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     TimestampedMessage msg;
     msg.mEnqueuedTime = mApp.getClock().now();
     msg.mMessage = std::move(xdrBytes);
-    mWriteQueue.emplace_back(std::move(msg));
+    // TODO: ensure proper shutdown, and add a test
+    mWriteQueue.emplace_back(std::move(msg), cb);
 
     if (!mWriting)
     {
@@ -251,8 +252,9 @@ TCPPeer::messageSender()
     size_t maxQueueSize = mApp.getConfig().MAX_BATCH_WRITE_COUNT;
     releaseAssert(maxQueueSize > 0);
     size_t const maxTotalBytes = mApp.getConfig().MAX_BATCH_WRITE_BYTES;
-    for (auto& tsm : mWriteQueue)
+    for (auto& pair : mWriteQueue)
     {
+        auto& tsm = pair.first;
         tsm.mIssuedTime = now;
         size_t sz = tsm.mMessage->raw_size();
         mWriteBuffers.emplace_back(tsm.mMessage->raw_data(), sz);
@@ -292,8 +294,9 @@ TCPPeer::messageSender()
                           auto i = self->mWriteQueue.begin();
                           while (!self->mWriteBuffers.empty())
                           {
-                              i->mCompletedTime = now;
-                              i->recordWriteTiming(self->getOverlayMetrics());
+                              auto& msg = i->first;
+                              msg.mCompletedTime = now;
+                              msg.recordWriteTiming(self->getOverlayMetrics());
                               ++i;
                               self->mWriteBuffers.pop_back();
                           }
@@ -561,8 +564,9 @@ bool
 TCPPeer::sendQueueIsOverloaded() const
 {
     auto now = mApp.getClock().now();
-    return (!mWriteQueue.empty() && (now - mWriteQueue.front().mEnqueuedTime) >
-                                        SCHEDULER_LATENCY_WINDOW);
+    return (!mWriteQueue.empty() &&
+            (now - mWriteQueue.front().first.mEnqueuedTime) >
+                SCHEDULER_LATENCY_WINDOW);
 }
 
 void
@@ -658,6 +662,13 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
               DropMode dropMode)
 {
     assertThreadIsMain();
+
+    // Release any references to metrics before peer starts to shut down
+    for (auto& wq : mWriteQueue)
+    {
+        wq.second.reset();
+    }
+
     if (shouldAbort())
     {
         return;

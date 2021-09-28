@@ -55,6 +55,24 @@ class Peer : public std::enable_shared_from_this<Peer>,
   public:
     typedef std::shared_ptr<Peer> pointer;
 
+    // Data structure that records the time it takes to process a message
+    // Callers ensure that this struct is only destructed after the message is
+    // done
+    struct MetricTracker
+    {
+        std::chrono::system_clock::time_point mStart;
+        std::unique_ptr<std::chrono::system_clock::time_point>
+            mSCPMessageTypeCtx;
+
+        Application& mApp;
+        StellarMessage const mMsg;
+
+        MetricTracker(StellarMessage const& msg, Application& app);
+        ~MetricTracker();
+    };
+
+    using TimeToProcessMessagePtr = std::shared_ptr<MetricTracker>;
+
     enum PeerState
     {
         CONNECTING = 0,
@@ -159,25 +177,29 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void updatePeerRecordAfterAuthentication();
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
-    void recvGetPeers(StellarMessage const& msg);
+    void recvGetPeers(StellarMessage const& msg, TimeToProcessMessagePtr cb);
     void recvHello(Hello const& elo);
     void recvPeers(StellarMessage const& msg);
     void recvSurveyRequestMessage(StellarMessage const& msg);
     void recvSurveyResponseMessage(StellarMessage const& msg);
 
-    void recvGetTxSet(StellarMessage const& msg);
+    void recvGetTxSet(StellarMessage const& msg, TimeToProcessMessagePtr cb);
     void recvTxSet(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
-    void recvGetSCPQuorumSet(StellarMessage const& msg);
+    void recvGetSCPQuorumSet(StellarMessage const& msg,
+                             TimeToProcessMessagePtr cb);
     void recvSCPQuorumSet(StellarMessage const& msg);
-    void recvSCPMessage(StellarMessage const& msg);
-    void recvGetSCPState(StellarMessage const& msg);
+    void recvSCPMessage(StellarMessage const& msg,
+                        Peer::TimeToProcessMessagePtr cb);
+    void recvGetSCPState(StellarMessage const& msg, TimeToProcessMessagePtr cb);
 
     void sendHello();
     void sendAuth();
-    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
-    void sendDontHave(MessageType type, uint256 const& itemID);
-    void sendPeers();
+    void sendSCPQuorumSet(SCPQuorumSetPtr qSet,
+                          Peer::TimeToProcessMessagePtr cb);
+    void sendDontHave(MessageType type, uint256 const& itemID,
+                      TimeToProcessMessagePtr cb);
+    void sendPeers(TimeToProcessMessagePtr cb);
     void sendError(ErrorCode error, std::string const& message);
 
     // NB: This is a move-argument because the write-buffer has to travel
@@ -187,7 +209,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // put in a reused/non-owned buffer without having to buffer/queue
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             Peer::TimeToProcessMessagePtr cb) = 0;
     virtual void
     connected()
     {
@@ -224,7 +247,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
 
-    void sendMessage(StellarMessage const& msg, bool log = true);
+    void sendMessage(StellarMessage const& msg,
+                     Peer::TimeToProcessMessagePtr cb = nullptr,
+                     bool log = true);
 
     PeerRole
     getRole() const

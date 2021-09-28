@@ -88,10 +88,12 @@ class PendingEnvelopes
 
     void updateMetrics();
 
-    void envelopeReady(SCPEnvelope const& envelope);
+    void envelopeReady(SCPEnvelope const& envelope,
+                       Peer::TimeToProcessMessagePtr cb);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
     bool isFullyFetched(SCPEnvelope const& envelope);
-    void startFetch(SCPEnvelope const& envelope);
+    void startFetch(SCPEnvelope const& envelope,
+                    Peer::TimeToProcessMessagePtr cb);
     void stopFetch(SCPEnvelope const& envelope);
     void touchFetchCache(SCPEnvelope const& envelope);
     bool isDiscarded(SCPEnvelope const& envelope) const;
@@ -128,7 +130,8 @@ class PendingEnvelopes
      *
      * Return status of received envelope.
      */
-    Herder::EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope);
+    Herder::EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
+                                           Peer::TimeToProcessMessagePtr cb);
 
     /**
      * Add @p qset identified by @p hash to local cache. Notifies
@@ -202,5 +205,7 @@ class PendingEnvelopes
     void reportCostOutliersForSlot(int64_t slotIndex, bool updateMetrics) const;
     Json::Value getJsonValidatorCost(bool summary, bool fullKeys,
                                      uint64 index) const;
+
+    void shutdown();
 };
 }

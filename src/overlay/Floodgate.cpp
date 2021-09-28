@@ -84,7 +84,8 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 
 // send message to anyone you haven't gotten it from
 bool
-Floodgate::broadcast(StellarMessage const& msg, bool force)
+Floodgate::broadcast(StellarMessage const& msg, bool force,
+                     Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     if (mShuttingDown)
@@ -125,11 +126,11 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             std::weak_ptr<Peer> weak(
                 std::static_pointer_cast<Peer>(peer.second));
             mApp.postOnMainThread(
-                [smsg, weak, log = !broadcasted]() {
+                [smsg, weak, log = !broadcasted, cb]() {
                     auto strong = weak.lock();
                     if (strong)
                     {
-                        strong->sendMessage(*smsg, log);
+                        strong->sendMessage(*smsg, cb, log);
                     }
                 },
                 fmt::format("broadcast to {}", peer.second->toString()));

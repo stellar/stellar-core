@@ -67,6 +67,7 @@ class OverlayManager
     // Send a given message to all peers, via the FloodGate.
     // returns true if message was sent to at least one peer
     virtual bool broadcastMessage(StellarMessage const& msg,
+                                  Peer::TimeToProcessMessagePtr cb,
                                   bool force = false) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a

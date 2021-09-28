@@ -124,13 +124,16 @@ class Herder
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
+    virtual EnvelopeStatus
+    recvSCPEnvelope(SCPEnvelope const& envelope,
+                    Peer::TimeToProcessMessagePtr cb) = 0;
 
 #ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
-                                           TxSetFrame txset) = 0;
+    virtual EnvelopeStatus
+    recvSCPEnvelope(SCPEnvelope const& envelope, const SCPQuorumSet& qset,
+                    TxSetFrame txset,
+                    Peer::TimeToProcessMessagePtr cb = nullptr) = 0;
 
     virtual void
     externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
@@ -141,7 +144,8 @@ class Herder
     virtual VirtualTimer const& getTriggerTimer() const = 0;
 #endif
     // a peer needs our SCP state
-    virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
+    virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer,
+                                    Peer::TimeToProcessMessagePtr) = 0;
 
     virtual uint32_t trackingConsensusLedgerIndex() const = 0;
 

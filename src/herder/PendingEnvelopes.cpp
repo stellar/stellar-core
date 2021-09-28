@@ -275,7 +275,8 @@ txSetsToStr(SCPEnvelope const& envelope)
 
 // called from Peer and when an Item tracker completes
 Herder::EnvelopeStatus
-PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
+PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope,
+                                  Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     auto const& nodeID = envelope.statement.nodeID;
@@ -313,7 +314,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 // insert it into the fetching set
                 fetchIt =
                     fetching.emplace(envelope, mApp.getClock().now()).first;
-                startFetch(envelope);
+                startFetch(envelope, cb);
                 updateMetrics();
             }
             else
@@ -343,7 +344,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             processed.emplace(envelope);
             fetching.erase(fetchIt);
 
-            envelopeReady(envelope);
+            envelopeReady(envelope, cb);
             updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         }
@@ -351,7 +352,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         {
             // else just keep waiting for it to come in
             // and refresh fetchers as needed
-            startFetch(envelope);
+            startFetch(envelope, cb);
         }
 
         return Herder::ENVELOPE_STATUS_FETCHING;
@@ -513,7 +514,8 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
 }
 
 void
-PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
+PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope,
+                                Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     auto slot = envelope.statement.slotIndex;
@@ -529,7 +531,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     StellarMessage msg;
     msg.type(SCP_MESSAGE);
     msg.envelope() = envelope;
-    mApp.getOverlayManager().broadcastMessage(msg);
+    mApp.getOverlayManager().broadcastMessage(msg, cb);
 
     auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
     mEnvelopes[slot].mReadyEnvelopes.push_back(envW);
@@ -553,7 +555,8 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 }
 
 void
-PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
+PendingEnvelopes::startFetch(SCPEnvelope const& envelope,
+                             Peer::TimeToProcessMessagePtr cb)
 {
     ZoneScoped;
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
@@ -561,7 +564,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     bool needSomething = false;
     if (!getKnownQSet(h, false))
     {
-        mQuorumSetFetcher.fetch(h, envelope);
+        mQuorumSetFetcher.fetch(h, envelope, cb);
         needSomething = true;
     }
 
@@ -569,7 +572,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
     {
         if (!getKnownTxSet(h2, 0, false))
         {
-            mTxSetFetcher.fetch(h2, envelope);
+            mTxSetFetcher.fetch(h2, envelope, cb);
             needSomething = true;
         }
     }
@@ -967,5 +970,12 @@ PendingEnvelopes::getJsonValidatorCost(bool summary, bool fullKeys,
         res = static_cast<Json::UInt64>(summaryTotal);
     }
     return res;
+}
+
+void
+PendingEnvelopes::shutdown()
+{
+    mTxSetFetcher.shutdown();
+    mQuorumSetFetcher.shutdown();
 }
 }
