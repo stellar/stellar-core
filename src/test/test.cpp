@@ -155,6 +155,10 @@ bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 static void saveTestTxMeta(std::string const& path);
 static void loadTestTxMeta(std::string const& path);
 
+// if this method is used outside of the catch test cases, gTestRoots needs to
+// be manually cleared using cleanupTmpDirs. If this isn't done, gTestRoots will
+// try to use the logger when it is destructed, which is an issue because the
+// logger will have been destroyed.
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
@@ -378,14 +382,7 @@ runTest(CommandLineArgs const& args)
     }
 
     auto r = session.run();
-    while (!gTestRoots.empty())
-    {
-        // Don't call gTestRoots.clear() here -- order of deletion is
-        // not actually specified by vector::clear, and varies between
-        // different C++ stdlibs, and we're (ulp) relying on destructor
-        // order to clean up tmpdirs sensibly. Instead: pop repeatedly.
-        gTestRoots.pop_back();
-    }
+    gTestRoots.clear();
     gTestCfg->clear();
     if (r != 0)
     {
@@ -396,6 +393,12 @@ runTest(CommandLineArgs const& args)
         saveTestTxMeta(recordTestTxMeta);
     }
     return r;
+}
+
+void
+cleanupTmpDirs()
+{
+    gTestRoots.clear();
 }
 
 void

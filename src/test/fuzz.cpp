@@ -64,6 +64,7 @@ fuzz(std::string const& filename, std::vector<std::string> const& metrics,
     {
         fuzzer->inject(filename);
     }
+    cleanupTmpDirs();
     fuzzer->shutdown();
 }
 }
