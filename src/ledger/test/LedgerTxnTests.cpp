@@ -3055,8 +3055,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
 typedef UnorderedMap<AssetPair, std::vector<LedgerEntry>, AssetPairHash>
     OrderBook;
 typedef UnorderedMap<
-    AssetPair,
-    std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+    AssetPair, std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
     AssetPairHash>
     SortedOrderBook;
 

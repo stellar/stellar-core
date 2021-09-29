@@ -755,10 +755,9 @@ class LedgerTxn : public AbstractLedgerTxn
     bool hasSponsorshipEntry() const override;
 
 #ifdef BUILD_TESTS
-    UnorderedMap<
-        AssetPair,
-        std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
-        AssetPairHash> const&
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash> const&
     getOrderBook();
 
     void resetForFuzzer() override;

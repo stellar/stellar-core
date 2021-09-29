@@ -1941,14 +1941,8 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              std::shared_ptr<InternalLedgerEntry> lePtr,
-                             bool effectiveActive, bool eraseIfNull)
+                             bool effectiveActive, bool eraseIfNull) noexcept
 {
-    // recordEntry has the strong exception safety guarantee because
-    // - UnorderedMap<...>::erase has the strong exception safety
-    //   guarantee
-    // - UnorderedMap<...>::operator[] has the strong exception safety
-    //   guarantee
-    // - std::shared_ptr<...>::operator= does not throw
     auto recordEntry = [&]() {
         if (eraseIfNull)
         {
@@ -1969,17 +1963,17 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         return;
     }
 
-    OrderBook* obOld = nullptr;
-    OrderBook::iterator obIterOld;
     auto iter = mEntry.find(key);
     if (iter != mEntry.end() && iter->second)
     {
         MultiOrderBook::iterator mobIterOld;
+        OrderBook::iterator obIterOld;
         std::tie(mobIterOld, obIterOld) =
             findInOrderBook(iter->second->ledgerEntry());
         if (mobIterOld != mMultiOrderBook.end())
         {
-            obOld = &mobIterOld->second;
+            auto obOld = &mobIterOld->second;
+            obOld->erase(obIterOld);
         }
     }
 
@@ -1990,63 +1984,10 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         auto const& oe = lePtr->ledgerEntry().data.offer();
         AssetPair assetPair{oe.buying, oe.selling};
 
-        auto mobIterNew = mMultiOrderBook.find(assetPair);
-        if (mobIterNew != mMultiOrderBook.end())
-        {
-            auto& obNew = mobIterNew->second;
-            // obNew is a reference to an OrderBook, which is a typedef for
-            // std::multimap<...>. std::multimap<...> does not invalidate any
-            // iterators on insertion, so obIterOld is still valid after this
-            // insertion. From the standard:
-            //
-            //    The insert and emplace members shall not affect the validity
-            //    of iterators and references to the container.
-            auto res = obNew.insert({{oe.price, oe.offerID}, key.ledgerKey()});
-            try
-            {
-                recordEntry();
-            }
-            catch (...)
-            {
-                obNew.erase(res);
-                throw;
-            }
-        }
-        else
-        {
-            // mMultiOrderBook is a MultiOrderBook, which is a typedef for
-            // UnorderedMap<...>. UnorderedMap<...> may invalidate
-            // all iterators on insertion if a rehash is required, but pointers
-            // are guaranteed to remain valid so obOld is still valid after
-            // this insertion. From the standard:
-            //
-            //    The insert and emplace members shall not affect the validity
-            //    of references to container elements, but may invalidate all
-            //    iterators to the container.
-            auto res = mMultiOrderBook.emplace(
-                assetPair,
-                OrderBook{{{oe.price, oe.offerID}, key.ledgerKey()}});
-            try
-            {
-                recordEntry();
-            }
-            catch (...)
-            {
-                mMultiOrderBook.erase(res.first);
-                throw;
-            }
-        }
+        auto& ob = mMultiOrderBook[assetPair];
+        ob.emplace(OfferDescriptor{oe.price, oe.offerID}, key.ledgerKey());
     }
-    else
-    {
-        recordEntry();
-    }
-
-    // This never throws
-    if (obOld && obIterOld != obOld->end())
-    {
-        obOld->erase(obIterOld);
-    }
+    recordEntry();
 }
 
 static bool
@@ -2139,7 +2080,7 @@ LedgerTxn::Impl::prepareNewObjects(size_t s)
 
 #ifdef BUILD_TESTS
 UnorderedMap<AssetPair,
-             std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+             std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
              AssetPairHash> const&
 LedgerTxn::getOrderBook()
 {

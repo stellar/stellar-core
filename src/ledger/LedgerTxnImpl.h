@@ -193,12 +193,7 @@ class LedgerTxn::Impl
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
 
-    // In theory, we only need an std::map<...> per asset pair. Unfortunately
-    // std::map<...> does not provide any remotely exception safe way to update
-    // the keys. So we use std::multimap<...> in order to achieve an exception
-    // safe update. The observable state of the std::multimap<...> should never
-    // have multiple elements with the same key.
-    typedef std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
+    typedef std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
         OrderBook;
     typedef UnorderedMap<AssetPair, OrderBook, AssetPairHash> MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
@@ -415,7 +410,7 @@ class LedgerTxn::Impl
                      bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
-                     bool effectiveActive, bool eraseIfNull);
+                     bool effectiveActive, bool eraseIfNull) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
