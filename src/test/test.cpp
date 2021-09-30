@@ -59,21 +59,10 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
 {
     using TestEventListenerBase::TestEventListenerBase;
     static unsigned int sCommandLineSeed;
-    static void
-    reseed()
-    {
-        PubKeyUtils::clearVerifySigCache();
-        srand(sCommandLineSeed);
-        gRandomEngine.seed(sCommandLineSeed);
-        shortHash::seed(sCommandLineSeed);
-        Catch::rng().seed(sCommandLineSeed);
-        autocheck::rng().seed(sCommandLineSeed);
-        randHash::initialize();
-    }
     virtual void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
     {
-        reseed();
+        reinitializeAllGlobalStateWithSeed(sCommandLineSeed);
     }
 };
 
@@ -357,7 +346,7 @@ runTest(CommandLineArgs const& args)
     }
 
     ReseedPRNGListener::sCommandLineSeed = seed;
-    ReseedPRNGListener::reseed();
+    reinitializeAllGlobalStateWithSeed(seed);
 
     if (gVersionsToTest.empty())
     {
