@@ -195,7 +195,7 @@ class LedgerTxn::Impl
 
     typedef std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
         OrderBook;
-    typedef UnorderedMap<AssetPair, OrderBook, AssetPairHash> MultiOrderBook;
+    typedef UnorderedMap<Asset, UnorderedMap<Asset, OrderBook>> MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
     // contains an entry if and only if it is live, and recorded in this
     // LedgerTxn, and not active. It is grouped by asset pair, and for each
@@ -396,8 +396,12 @@ class LedgerTxn::Impl
         std::function<void(EntryMap const&)> f) noexcept;
 
     // findInOrderBook has the strong exception safety guarantee
-    std::pair<MultiOrderBook::iterator, OrderBook::iterator>
+    // returns:
+    //   the orderbook that the offer le would be in (if found)
+    //   the iterator to le (if found in the order book)
+    std::pair<OrderBook*, OrderBook::iterator>
     findInOrderBook(LedgerEntry const& le);
+    OrderBook* findOrderBook(Asset const& buying, Asset const& selling);
 
     // updateEntryIfRecorded and updateEntry have the strong exception safety
     // guarantee
@@ -610,7 +614,10 @@ class LedgerTxn::Impl
     bool hasSponsorshipEntry() const;
 
 #ifdef BUILD_TESTS
-    MultiOrderBook const& getOrderBook();
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash>
+    getOrderBook() const;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING

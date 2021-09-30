@@ -757,8 +757,8 @@ class LedgerTxn : public AbstractLedgerTxn
 #ifdef BUILD_TESTS
     UnorderedMap<AssetPair,
                  std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
-                 AssetPairHash> const&
-    getOrderBook();
+                 AssetPairHash>
+    getOrderBook() const;
 
     void resetForFuzzer() override;
 #endif // BUILD_TESTS

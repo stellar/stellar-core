@@ -801,10 +801,10 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
     AssetPair const assets{buying, selling};
 
     std::shared_ptr<LedgerEntry const> selfBest;
-    auto mobIter = mMultiOrderBook.find(assets);
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(buying, selling);
+    if (ob)
     {
-        auto const& offers = mobIter->second;
+        auto& offers = *ob;
         if (!offers.empty())
         {
             auto entryIter = mEntry.find(offers.begin()->second);
@@ -911,10 +911,10 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     AssetPair const assets{buying, selling};
 
     std::shared_ptr<LedgerEntry const> selfBest;
-    auto mobIter = mMultiOrderBook.find(assets);
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(buying, selling);
+    if (ob)
     {
-        auto const& offers = mobIter->second;
+        auto const& offers = *ob;
         auto iter = offers.upper_bound(worseThan);
         if (iter != offers.end())
         {
@@ -1893,18 +1893,37 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     }
 }
 
-std::pair<LedgerTxn::Impl::MultiOrderBook::iterator,
-          LedgerTxn::Impl::OrderBook::iterator>
+std::pair<LedgerTxn::Impl::OrderBook*, LedgerTxn::Impl::OrderBook::iterator>
 LedgerTxn::Impl::findInOrderBook(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
-    auto mobIter = mMultiOrderBook.find({oe.buying, oe.selling});
-    OrderBook::iterator obIter;
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(oe.buying, oe.selling);
+    if (ob)
     {
-        obIter = mobIter->second.find({oe.price, oe.offerID});
+        auto obIter = ob->find({oe.price, oe.offerID});
+        if (obIter != ob->end())
+        {
+            return {ob, obIter};
+        }
     }
-    return {mobIter, obIter};
+    return {nullptr, OrderBook::iterator{}};
+}
+
+LedgerTxn::Impl::OrderBook*
+LedgerTxn::Impl::findOrderBook(Asset const& buying, Asset const& selling)
+{
+    auto mobIterBuying = mMultiOrderBook.find(buying);
+    if (mobIterBuying != mMultiOrderBook.end())
+    {
+        auto& mobBuying = mobIterBuying->second;
+        auto mobIterSelling = mobBuying.find(selling);
+        if (mobIterSelling != mobBuying.end())
+        {
+            auto& mobSelling = mobIterSelling->second;
+            return &mobSelling;
+        }
+    }
+    return nullptr;
 }
 
 void
@@ -1966,14 +1985,10 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
     auto iter = mEntry.find(key);
     if (iter != mEntry.end() && iter->second)
     {
-        MultiOrderBook::iterator mobIterOld;
-        OrderBook::iterator obIterOld;
-        std::tie(mobIterOld, obIterOld) =
-            findInOrderBook(iter->second->ledgerEntry());
-        if (mobIterOld != mMultiOrderBook.end())
+        auto obAndOfferIt = findInOrderBook(iter->second->ledgerEntry());
+        if (obAndOfferIt.first)
         {
-            auto obOld = &mobIterOld->second;
-            obOld->erase(obIterOld);
+            obAndOfferIt.first->erase(obAndOfferIt.second);
         }
     }
 
@@ -1982,9 +1997,8 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
     if (lePtr && !effectiveActive)
     {
         auto const& oe = lePtr->ledgerEntry().data.offer();
-        AssetPair assetPair{oe.buying, oe.selling};
 
-        auto& ob = mMultiOrderBook[assetPair];
+        auto& ob = mMultiOrderBook[oe.buying][oe.selling];
         ob.emplace(OfferDescriptor{oe.price, oe.offerID}, key.ledgerKey());
     }
     recordEntry();
@@ -2081,16 +2095,30 @@ LedgerTxn::Impl::prepareNewObjects(size_t s)
 #ifdef BUILD_TESTS
 UnorderedMap<AssetPair,
              std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
-             AssetPairHash> const&
-LedgerTxn::getOrderBook()
+             AssetPairHash>
+LedgerTxn::getOrderBook() const
 {
     return getImpl()->getOrderBook();
 }
 
-LedgerTxn::Impl::MultiOrderBook const&
-LedgerTxn::Impl::getOrderBook()
+UnorderedMap<AssetPair,
+             std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+             AssetPairHash>
+LedgerTxn::Impl::getOrderBook() const
 {
-    return mMultiOrderBook;
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash>
+        res;
+    for (auto& b : mMultiOrderBook)
+    {
+        for (auto& s : b.second)
+        {
+            AssetPair p{b.first, s.first};
+            res[p].insert(s.second.begin(), s.second.end());
+        }
+    }
+    return res;
 }
 #endif
 

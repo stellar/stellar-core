@@ -3088,8 +3088,9 @@ checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
         }
     };
 
-    check(ltx.getOrderBook(), sortedExpected);
-    check(sortedExpected, ltx.getOrderBook());
+    auto ltxOb = ltx.getOrderBook();
+    check(ltxOb, sortedExpected);
+    check(sortedExpected, ltxOb);
 }
 
 static LedgerEntry
