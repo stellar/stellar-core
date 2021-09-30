@@ -1874,6 +1874,5 @@ Config::toString(SCPQuorumSet const& qset)
     return fw.write(json);
 }
 
-std::string const Config::STDIN_SPECIAL_NAME = "/dev/stdin";
-
+std::string const Config::STDIN_SPECIAL_NAME = "stdin";
 }

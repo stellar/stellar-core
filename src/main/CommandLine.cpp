@@ -219,7 +219,7 @@ compactParser(bool& compact)
 clara::Opt
 base64Parser(bool& base64)
 {
-    return clara::Opt{base64}["--base64"]("use base64");
+    return clara::Opt{base64}["--base64"]("batch process base64 encoded input");
 }
 
 clara::Opt
@@ -1119,7 +1119,8 @@ runPrintXdr(CommandLineArgs const& args)
     auto rawMode = false;
 
     auto fileTypeOpt = clara::Opt(fileType, "FILE-TYPE")["--filetype"](
-        "[auto|ledgerheader|meta|result|resultpair|tx|txfee]");
+        "[auto|asset|ledgerentry|ledgerheader|meta|result|resultpair|tx|"
+        "txfee]");
 
     return runWithHelp(args,
                        {fileNameParser(xdr), fileTypeOpt, base64Parser(base64),
