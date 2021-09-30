@@ -45,25 +45,6 @@ class EntryIterator::AbstractImpl
     virtual std::unique_ptr<AbstractImpl> clone() const = 0;
 };
 
-class WorstBestOfferIterator::AbstractImpl
-{
-  public:
-    virtual ~AbstractImpl()
-    {
-    }
-
-    virtual void advance() = 0;
-
-    virtual AssetPair const& assets() const = 0;
-
-    virtual bool atEnd() const = 0;
-
-    virtual std::shared_ptr<OfferDescriptor const> const&
-    offerDescriptor() const = 0;
-
-    virtual std::unique_ptr<AbstractImpl> clone() const = 0;
-};
-
 // Helper struct to accumulate common cases that we can sift out of the
 // commit stream and perform in bulk (as single SQL statements per-type)
 // rather than making each insert/update/delete individually. This uses the
@@ -177,7 +158,6 @@ class BulkLedgerEntryChangeAccumulator
 class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
-    class WorstBestOfferIteratorImpl;
 
     typedef UnorderedMap<InternalLedgerKey,
                          std::shared_ptr<InternalLedgerEntry>>
@@ -472,8 +452,7 @@ class LedgerTxn::Impl
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan);
 
-    // getWorstBestOfferIterator has the strong exception safety guarantee
-    WorstBestOfferIterator getWorstBestOfferIterator();
+    void forAllWorstBestOffers(WorstOfferProcessor proc);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -656,30 +635,6 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     InternalLedgerKey const& key() const override;
 
     std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
-};
-
-class LedgerTxn::Impl::WorstBestOfferIteratorImpl
-    : public WorstBestOfferIterator::AbstractImpl
-{
-    typedef LedgerTxn::Impl::WorstBestOfferMap::const_iterator IteratorType;
-    IteratorType mIter;
-    IteratorType const mEnd;
-
-  public:
-    WorstBestOfferIteratorImpl(IteratorType const& begin,
-                               IteratorType const& end);
-
-    AssetPair const& assets() const override;
-
-    void advance() override;
-
-    bool atEnd() const override;
-
-    std::shared_ptr<OfferDescriptor const> const&
-    offerDescriptor() const override;
-
-    std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
-    clone() const override;
 };
 
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety

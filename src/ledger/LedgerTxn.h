@@ -319,32 +319,6 @@ class EntryIterator
     InternalLedgerKey const& key() const;
 };
 
-class WorstBestOfferIterator
-{
-  public:
-    class AbstractImpl;
-
-  private:
-    std::unique_ptr<AbstractImpl> mImpl;
-
-    std::unique_ptr<AbstractImpl> const& getImpl() const;
-
-  public:
-    WorstBestOfferIterator(std::unique_ptr<AbstractImpl>&& impl);
-
-    WorstBestOfferIterator(WorstBestOfferIterator const& other);
-
-    WorstBestOfferIterator(WorstBestOfferIterator&& other);
-
-    WorstBestOfferIterator& operator++();
-
-    explicit operator bool() const;
-
-    AssetPair const& assets() const;
-
-    std::shared_ptr<OfferDescriptor const> const& offerDescriptor() const;
-};
-
 void validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key);
 
 // An abstraction for an object that can be the parent of an AbstractLedgerTxn
@@ -582,11 +556,14 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
 
-    // getWorstBestOfferIterator allows a parent AbstractLedgerTxn to get the
+    // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
     // in any parent AbstractLedgerTxn has already been loaded). This function
     // is intended for use with commit.
-    virtual WorstBestOfferIterator getWorstBestOfferIterator() = 0;
+    using WorstOfferProcessor =
+        std::function<void(Asset const& buying, Asset const& selling,
+                           std::shared_ptr<OfferDescriptor const>& desc)>;
+    virtual void forAllWorstBestOffers(WorstOfferProcessor proc) = 0;
 
     // loadAllOffers, loadBestOffer, and loadOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers. These functions are built
@@ -679,7 +656,7 @@ class LedgerTxn : public AbstractLedgerTxn
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
 
-    WorstBestOfferIterator getWorstBestOfferIterator() override;
+    void forAllWorstBestOffers(WorstOfferProcessor proc) override;
 
     LedgerEntryChanges getChanges() override;
 

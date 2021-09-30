@@ -170,58 +170,6 @@ EntryIterator::key() const
     return getImpl()->key();
 }
 
-// Implementation of WorstBestOfferIterator -----------------------------------
-WorstBestOfferIterator::WorstBestOfferIterator(
-    std::unique_ptr<AbstractImpl>&& impl)
-    : mImpl(std::move(impl))
-{
-}
-
-WorstBestOfferIterator::WorstBestOfferIterator(WorstBestOfferIterator&& other)
-    : mImpl(std::move(other.mImpl))
-{
-}
-
-WorstBestOfferIterator::WorstBestOfferIterator(
-    WorstBestOfferIterator const& other)
-    : mImpl(other.mImpl->clone())
-{
-}
-
-std::unique_ptr<WorstBestOfferIterator::AbstractImpl> const&
-WorstBestOfferIterator::getImpl() const
-{
-    if (!mImpl)
-    {
-        throw std::runtime_error("Iterator is empty");
-    }
-    return mImpl;
-}
-
-WorstBestOfferIterator&
-WorstBestOfferIterator::operator++()
-{
-    getImpl()->advance();
-    return *this;
-}
-
-WorstBestOfferIterator::operator bool() const
-{
-    return !getImpl()->atEnd();
-}
-
-AssetPair const&
-WorstBestOfferIterator::assets() const
-{
-    return getImpl()->assets();
-}
-
-std::shared_ptr<OfferDescriptor const> const&
-WorstBestOfferIterator::offerDescriptor() const
-{
-    return getImpl()->offerDescriptor();
-}
-
 // Implementation of AbstractLedgerTxn --------------------------------------
 AbstractLedgerTxn::~AbstractLedgerTxn()
 {
@@ -465,15 +413,11 @@ LedgerTxn::Impl::commitChild(EntryIterator iter,
         // about the offers with asset pair P that exist in parent and have been
         // recorded in self both before and after the commit. In either case,
         // there is no need to update the self worst best offer map.
-        auto wboIter = mChild->getWorstBestOfferIterator();
-        for (; (bool)wboIter; ++wboIter)
-        {
-            auto fromChild = wboIter.offerDescriptor();
-            std::shared_ptr<OfferDescriptor const> descPtr =
-                fromChild ? std::make_shared<OfferDescriptor const>(*fromChild)
-                          : nullptr;
-            updateWorstBestOffer(wboIter.assets(), descPtr);
-        }
+        mChild->forAllWorstBestOffers(
+            [&](Asset const& buying, Asset const& selling,
+                std::shared_ptr<OfferDescriptor const>& desc) {
+                updateWorstBestOffer(AssetPair{buying, selling}, desc);
+            });
     }
     catch (std::exception& e)
     {
@@ -2028,18 +1972,20 @@ LedgerTxn::Impl::updateWorstBestOffer(
     }
 }
 
-WorstBestOfferIterator
-LedgerTxn::getWorstBestOfferIterator()
+void
+LedgerTxn::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
-    return getImpl()->getWorstBestOfferIterator();
+    getImpl()->forAllWorstBestOffers(proc);
 }
 
-WorstBestOfferIterator
-LedgerTxn::Impl::getWorstBestOfferIterator()
+void
+LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
-    auto iterImpl = std::make_unique<WorstBestOfferIteratorImpl>(
-        mWorstBestOffer.cbegin(), mWorstBestOffer.cend());
-    return WorstBestOfferIterator(std::move(iterImpl));
+    for (auto& wo : mWorstBestOffer)
+    {
+        auto& ap = wo.first;
+        proc(ap.buying, ap.selling, wo.second);
+    }
 }
 
 bool
@@ -2169,43 +2115,6 @@ std::unique_ptr<EntryIterator::AbstractImpl>
 LedgerTxn::Impl::EntryIteratorImpl::clone() const
 {
     return std::make_unique<EntryIteratorImpl>(mIter, mEnd);
-}
-
-// Implementation of LedgerTxn::Impl::WorstBestOfferIteratorImpl --------------
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::WorstBestOfferIteratorImpl(
-    IteratorType const& begin, IteratorType const& end)
-    : mIter(begin), mEnd(end)
-{
-}
-
-void
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::advance()
-{
-    ++mIter;
-}
-
-AssetPair const&
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::assets() const
-{
-    return mIter->first;
-}
-
-bool
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::atEnd() const
-{
-    return mIter == mEnd;
-}
-
-std::shared_ptr<OfferDescriptor const> const&
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::offerDescriptor() const
-{
-    return mIter->second;
-}
-
-std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
-{
-    return std::make_unique<WorstBestOfferIteratorImpl>(mIter, mEnd);
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------
