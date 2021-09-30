@@ -1078,7 +1078,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "FLOOD_TX_PERIOD_MS")
             {
-                FLOOD_TX_PERIOD_MS = readInt<int>(item, 0);
+                FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
             }
             else if (item.first == "PREFERRED_PEERS")
             {

@@ -343,14 +343,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     }
     mTxQueueLimiter->addTransaction(tx);
 
-    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
-    {
-        broadcast(false);
-    }
-    else
-    {
-        broadcastTx(thisAccountState, *oldTxIter);
-    }
+    broadcast(false);
 
     return res;
 }
@@ -717,18 +710,10 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
     int64_t opsToFloodLedger = static_cast<int64_t>(opsToFloodLedgerDbl);
 
     int64_t opsToFlood;
-    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
-    {
-        opsToFlood = mBroadcastOpCarryover +
-                     bigDivide(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
-                               cfg.getExpectedLedgerCloseTime().count() * 1000,
-                               Rounding::ROUND_UP);
-    }
-    else
-    {
-        // else, flood the target at once
-        opsToFlood = opsToFloodLedger;
-    }
+    opsToFlood = mBroadcastOpCarryover +
+                 bigDivide(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                           cfg.getExpectedLedgerCloseTime().count() * 1000,
+                           Rounding::ROUND_UP);
     releaseAssertOrThrow(opsToFlood >= 0);
     return static_cast<size_t>(opsToFlood);
 }
@@ -873,7 +858,7 @@ TransactionQueue::broadcast(bool fromCallback)
     mWaiting = false;
 
     bool needsMore = false;
-    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && !fromCallback)
+    if (!fromCallback)
     {
         // don't do anything right away, wait for the timer
         needsMore = true;
@@ -883,7 +868,7 @@ TransactionQueue::broadcast(bool fromCallback)
         needsMore = broadcastSome();
     }
 
-    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && needsMore)
+    if (needsMore)
     {
         mWaiting = true;
         mBroadcastTimer.expires_from_now(
