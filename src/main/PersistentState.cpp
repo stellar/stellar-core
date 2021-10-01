@@ -130,13 +130,13 @@ PersistentState::updateDb(std::string const& entry, std::string const& value)
     st.exchange(soci::use(entry));
     st.define_and_bind();
     {
-        auto timer = mApp.getDatabase().getUpdateTimer("state");
+        ZoneNamedN(updateStoreStateZone, "update storestate", true);
         st.execute(true);
     }
 
     if (st.get_affected_rows() != 1 && getFromDb(entry).empty())
     {
-        auto timer = mApp.getDatabase().getInsertTimer("state");
+        ZoneNamedN(insertStoreStateZone, "insert storestate", true);
         auto prep2 = mApp.getDatabase().getPreparedStatement(
             "INSERT INTO storestate (statename, state) VALUES (:n, :v);");
         auto& st2 = prep2.statement();
@@ -165,7 +165,7 @@ PersistentState::getFromDb(std::string const& entry)
     st.exchange(soci::use(entry));
     st.define_and_bind();
     {
-        auto timer = db.getSelectTimer("state");
+        ZoneNamedN(selectStoreStateZone, "select storestate", true);
         st.execute(true);
     }
 

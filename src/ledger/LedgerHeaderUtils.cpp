@@ -73,7 +73,7 @@ storeInDatabase(Database& db, LedgerHeader const& header)
     st.exchange(soci::use(headerEncoded));
     st.define_and_bind();
     {
-        auto timer = db.getInsertTimer("ledger-header");
+        ZoneNamedN(insertLedgerHeadersZone, "insert ledgerheaders", true);
         st.execute(true);
     }
     if (st.get_affected_rows() != 1)
@@ -117,7 +117,7 @@ loadByHash(Database& db, Hash const& hash)
     st.exchange(soci::use(hash_s));
     st.define_and_bind();
     {
-        auto timer = db.getSelectTimer("ledger-header");
+        ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders", true);
         st.execute(true);
     }
     if (st.got_data())
@@ -145,7 +145,7 @@ loadBySequence(Database& db, soci::session& sess, uint32_t seq)
 
     std::string headerEncoded;
     {
-        auto timer = db.getSelectTimer("ledger-header");
+        ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders", true);
         sess << "SELECT data FROM ledgerheaders "
                 "WHERE ledgerseq = :s",
             soci::into(headerEncoded), soci::use(seq);
@@ -187,13 +187,12 @@ size_t
 copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
              uint32_t ledgerCount, XDROutputFileStream& headersOut)
 {
-    ZoneScoped;
+    ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders history", true);
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     releaseAssert(begin <= end);
 
     std::string headerEncoded;
 
-    auto timer = db.getSelectTimer("ledger-header-history");
     soci::statement st =
         (sess.prepare << "SELECT data FROM ledgerheaders "
                          "WHERE ledgerseq >= :begin AND ledgerseq < :end ORDER "

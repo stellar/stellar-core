@@ -226,14 +226,16 @@ HistoryManagerImpl::queueCurrentHistory()
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
 
     auto state = has.toString();
-    auto timer = mApp.getDatabase().getInsertTimer("publishqueue");
     auto prep = mApp.getDatabase().getPreparedStatement(
         "INSERT INTO publishqueue (ledger, state) VALUES (:lg, :st);");
     auto& st = prep.statement();
     st.exchange(soci::use(ledger));
     st.exchange(soci::use(state));
     st.define_and_bind();
-    st.execute(true);
+    {
+        ZoneNamedN(insertPublishQueueZone, "insert publishqueue", true);
+        st.execute(true);
+    }
 
     // We have now written the current HAS to the database, so
     // it's "safe" to crash (at least after the enclosing tx commits);
@@ -412,13 +414,15 @@ HistoryManagerImpl::historyPublished(
         }
 
         this->mPublishSuccess.Mark();
-        auto timer = mApp.getDatabase().getDeleteTimer("publishqueue");
         auto prep = mApp.getDatabase().getPreparedStatement(
             "DELETE FROM publishqueue WHERE ledger = :lg;");
         auto& st = prep.statement();
         st.exchange(soci::use(ledgerSeq));
         st.define_and_bind();
-        st.execute(true);
+        {
+            ZoneNamedN(deletePublishQueueZone, "delete publishqueue", true);
+            st.execute(true);
+        }
 
         mPublishQueueBuckets.removeBuckets(originalBuckets);
     }

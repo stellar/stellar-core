@@ -497,7 +497,7 @@ Upgrades::storeUpgradeHistory(Database& db, uint32_t ledgerSeq,
     st.exchange(soci::use(upgradeChanges64));
     st.define_and_bind();
     {
-        auto timer = db.getInsertTimer("upgradehistory");
+        ZoneNamedN(insertUpgradeZone, "insert upgradehistory", true);
         st.execute(true);
     }
 

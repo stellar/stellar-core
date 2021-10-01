@@ -58,7 +58,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         st.exchange(soci::use(seq));
         st.define_and_bind();
         {
-            auto timer = db.getDeleteTimer("scphistory");
+            ZoneNamedN(deleteSCPHistoryZone, "delete scphistory", true);
             st.execute(true);
         }
     }
@@ -87,7 +87,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         st.exchange(soci::use(envelopeEncoded));
         st.define_and_bind();
         {
-            auto timer = db.getInsertTimer("scphistory");
+            ZoneNamedN(insertSCPHistoryZone, "insert scphistory", true);
             st.execute(true);
         }
         if (st.get_affected_rows() != 1)
@@ -118,7 +118,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         st.exchange(soci::use(nodeIDStrKey));
         st.define_and_bind();
         {
-            auto timer = db.getInsertTimer("quoruminfo");
+            ZoneNamedN(updateQsetZone, "update quoruminfo", true);
             st.execute(true);
         }
         if (st.get_affected_rows() != 1)
@@ -130,7 +130,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             stI.exchange(soci::use(qSetHHex));
             stI.define_and_bind();
             {
-                auto timer = db.getInsertTimer("quoruminfo");
+                ZoneNamedN(insertQsetZone, "insert quoruminfo", true);
                 stI.execute(true);
             }
             if (stI.get_affected_rows() != 1)
@@ -152,7 +152,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         stSel.exchange(soci::use(qSetH));
         stSel.define_and_bind();
         {
-            auto timer = db.getSelectTimer("scpquorums");
+            ZoneNamedN(selectSCPQuorumsZone, "select scpquorums", true);
             stSel.execute(true);
         }
 
@@ -172,7 +172,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             stUp.exchange(soci::use(qSetH));
             stUp.define_and_bind();
             {
-                auto timer = db.getInsertTimer("scpquorums");
+                ZoneNamedN(updateSCPQuorumsZone, "update scpquorums", true);
                 stUp.execute(true);
             }
             if (stUp.get_affected_rows() != 1)
@@ -198,7 +198,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             stIns.exchange(soci::use(qSetEncoded));
             stIns.define_and_bind();
             {
-                auto timer = db.getInsertTimer("scpquorums");
+                ZoneNamedN(insertSCPQuorumsZone, "insert scpquorums", true);
                 stIns.execute(true);
             }
             if (stIns.get_affected_rows() != 1)
@@ -242,7 +242,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
         {
             std::string envB64;
 
-            auto timer = db.getSelectTimer("scphistory");
+            ZoneNamedN(selectSCPHistoryZone, "select scphistory", true);
 
             soci::statement st =
                 (sess.prepare << "SELECT envelope FROM scphistory "
@@ -305,20 +305,22 @@ HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
     std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
     std::string qsethHex;
 
-    auto timer = db.getSelectTimer("quoruminfo");
-    soci::statement st = (sess.prepare << "SELECT qsethash FROM quoruminfo "
-                                          "WHERE nodeid = :id",
-                          soci::into(qsethHex), soci::use(nodeIDStrKey));
-
-    st.execute(true);
-
-    std::optional<Hash> res;
-    if (st.got_data())
     {
-        auto h = hexToBin256(qsethHex);
-        res = std::make_optional<Hash>(std::move(h));
+        ZoneNamedN(selectQsetZone, "select quoruminfo", true);
+        soci::statement st = (sess.prepare << "SELECT qsethash FROM quoruminfo "
+                                              "WHERE nodeid = :id",
+                              soci::into(qsethHex), soci::use(nodeIDStrKey));
+
+        st.execute(true);
+
+        std::optional<Hash> res;
+        if (st.got_data())
+        {
+            auto h = hexToBin256(qsethHex);
+            res = std::make_optional<Hash>(std::move(h));
+        }
+        return res;
     }
-    return res;
 }
 
 SCPQuorumSetPtr
@@ -332,25 +334,26 @@ HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
 
     qSetHashHex = binToHex(qSetHash);
 
-    auto timer = db.getSelectTimer("scpquorums");
-
-    soci::statement st = (sess.prepare << "SELECT qset FROM scpquorums "
-                                          "WHERE qsethash = :h",
-                          soci::into(qset64), soci::use(qSetHashHex));
-
-    st.execute(true);
-
-    if (st.got_data())
     {
-        std::vector<uint8_t> qSetBytes;
-        decoder::decode_b64(qset64, qSetBytes);
+        ZoneNamedN(selectSCPQuorumsZone, "select scpquorums", true);
+        soci::statement st = (sess.prepare << "SELECT qset FROM scpquorums "
+                                              "WHERE qsethash = :h",
+                              soci::into(qset64), soci::use(qSetHashHex));
 
-        xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
-        xdr_argpack_archive(g1, qset);
+        st.execute(true);
 
-        res = std::make_shared<SCPQuorumSet>(std::move(qset));
+        if (st.got_data())
+        {
+            std::vector<uint8_t> qSetBytes;
+            decoder::decode_b64(qset64, qSetBytes);
+
+            xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
+            xdr_argpack_archive(g1, qset);
+
+            res = std::make_shared<SCPQuorumSet>(std::move(qset));
+        }
+        return res;
     }
-    return res;
 }
 
 void
