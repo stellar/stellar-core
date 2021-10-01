@@ -247,6 +247,13 @@ setShortKey(std::array<LedgerKey, NUM_STORED_LEDGER_KEYS> const& storedKeys,
     key = storedKeys[byte % NUM_STORED_LEDGER_KEYS];
 }
 
+void
+setShortKey(FuzzUtils::StoredPoolIDs const& storedPoolIDs, PoolID& key,
+            uint8_t byte)
+{
+    key = storedPoolIDs[byte % NUM_STORED_POOL_IDS];
+}
+
 SequenceNumber
 getSequenceNumber(AbstractLedgerTxn& ltx, PublicKey const& sourceAccountID)
 {
@@ -485,13 +492,16 @@ xdr_to_fuzzer_opaque(Args const&... args)
 struct xdr_fuzzer_unpacker
 {
     stellar::FuzzUtils::StoredLedgerKeys mStoredLedgerKeys;
+    stellar::FuzzUtils::StoredPoolIDs mStoredPoolIDs;
     std::uint8_t const* mCur;
     std::uint8_t const* const mEnd;
 
     xdr_fuzzer_unpacker(
         stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs,
         void const* start, void const* end)
         : mStoredLedgerKeys(storedLedgerKeys)
+        , mStoredPoolIDs(storedPoolIDs)
         , mCur(reinterpret_cast<std::uint8_t const*>(start))
         , mEnd(reinterpret_cast<std::uint8_t const*>(end))
     {
@@ -499,8 +509,10 @@ struct xdr_fuzzer_unpacker
     }
     xdr_fuzzer_unpacker(
         stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
+        stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs,
         msg_ptr const& m)
-        : xdr_fuzzer_unpacker(storedLedgerKeys, m->data(), m->end())
+        : xdr_fuzzer_unpacker(storedLedgerKeys, storedPoolIDs, m->data(),
+                              m->end())
     {
     }
 
@@ -592,6 +604,8 @@ struct xdr_fuzzer_unpacker
          !std::is_same<stellar::Asset, T>::value &&
          !std::is_same<stellar::AssetCode, T>::value &&
          !std::is_same<stellar::ClaimableBalanceID, T>::value &&
+         !std::is_same<stellar::LiquidityPoolDepositOp, T>::value &&
+         !std::is_same<stellar::LiquidityPoolWithdrawOp, T>::value &&
          !std::is_same<stellar::LedgerKey, T>::value) &&
         (xdr_traits<T>::is_class || xdr_traits<T>::is_container)>::type
     operator()(T& t)
@@ -660,6 +674,63 @@ struct xdr_fuzzer_unpacker
         }
     }
 
+    int32_t
+    getInt32()
+    {
+        check(1);
+        return get_byte();
+    }
+
+    int64_t
+    getInt64()
+    {
+        // 2 bytes
+        check(2);
+        // load into a 16 signed
+        int16_t w;
+        get_bytes(&w, 2);
+        return w;
+    }
+
+    // PoolID is just an opaque vector of size 32, so we have to specialize the
+    // deposit and withdraw ops instead
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::LiquidityPoolDepositOp, T>::value>::type
+    operator()(T& depositOp)
+    {
+        check(1);
+        auto v = get_byte();
+        stellar::FuzzUtils::setShortKey(mStoredPoolIDs,
+                                        depositOp.liquidityPoolID, v);
+
+        depositOp.maxAmountA = getInt64();
+        depositOp.maxAmountB = getInt64();
+
+        auto minN = getInt32();
+        auto minD = getInt32();
+        auto maxN = getInt32();
+        auto maxD = getInt32();
+
+        depositOp.minPrice = stellar::Price{minN, minD};
+        depositOp.maxPrice = stellar::Price{maxN, maxD};
+    }
+
+    template <typename T>
+    typename std::enable_if<
+        std::is_same<stellar::LiquidityPoolWithdrawOp, T>::value>::type
+    operator()(T& withdrawOp)
+    {
+        check(1);
+        auto v = get_byte();
+        stellar::FuzzUtils::setShortKey(mStoredPoolIDs,
+                                        withdrawOp.liquidityPoolID, v);
+
+        withdrawOp.amount = getInt64();
+        withdrawOp.minAmountA = getInt64();
+        withdrawOp.minAmountB = getInt64();
+    }
+
     template <typename T>
     typename std::enable_if<std::is_same<stellar::LedgerKey, T>::value>::type
     operator()(T& key)
@@ -683,9 +754,11 @@ template <typename Bytes, typename... Args>
 auto
 xdr_from_fuzzer_opaque(
     stellar::FuzzUtils::StoredLedgerKeys const& storedLedgerKeys,
-    Bytes const& m, Args&... args) -> decltype(detail::bytes_to_void(m))
+    stellar::FuzzUtils::StoredPoolIDs const& storedPoolIDs, Bytes const& m,
+    Args&... args) -> decltype(detail::bytes_to_void(m))
 {
-    xdr_fuzzer_unpacker g(storedLedgerKeys, m.data(), m.data() + m.size());
+    xdr_fuzzer_unpacker g(storedLedgerKeys, storedPoolIDs, m.data(),
+                          m.data() + m.size());
     xdr_argpack_archive(g, args...);
     g.done();
 }
@@ -1259,6 +1332,74 @@ std::array<OfferParameters, 16> constexpr orderBookParameters{{
                   (2 * FuzzUtils::FUZZING_RESERVE) + 1),
      1, 1, false, 2}}};
 
+struct PoolSetupParameters : public SponsoredEntryParameters
+{
+    constexpr PoolSetupParameters(int trustor, AssetID const& assetA,
+                                  AssetID const& assetB, int64_t maxAmountA,
+                                  int64_t maxAmountB, int32_t minPriceNumerator,
+                                  int32_t minPriceDenominator,
+                                  int32_t maxPriceNumerator,
+                                  int32_t maxPriceDenominator, int64_t limit)
+        : SponsoredEntryParameters()
+        , mTrustor(trustor)
+        , mAssetA(assetA)
+        , mAssetB(assetB)
+        , mMaxAmountA(maxAmountA)
+        , mMaxAmountB(maxAmountB)
+        , mMinPriceNumerator(minPriceNumerator)
+        , mMinPriceDenominator(minPriceDenominator)
+        , mMaxPriceNumerator(maxPriceNumerator)
+        , mMaxPriceDenominator(maxPriceDenominator)
+        , mLimit(limit)
+    {
+    }
+
+    constexpr PoolSetupParameters(int trustor, AssetID const& assetA,
+                                  AssetID const& assetB, int64_t maxAmountA,
+                                  int64_t maxAmountB, int32_t minPriceNumerator,
+                                  int32_t minPriceDenominator,
+                                  int32_t maxPriceNumerator,
+                                  int32_t maxPriceDenominator, int64_t limit,
+                                  int sponsorKey)
+        : SponsoredEntryParameters(sponsorKey)
+        , mTrustor(trustor)
+        , mAssetA(assetA)
+        , mAssetB(assetB)
+        , mMaxAmountA(maxAmountA)
+        , mMaxAmountB(maxAmountB)
+        , mMinPriceNumerator(minPriceNumerator)
+        , mMinPriceDenominator(minPriceDenominator)
+        , mMaxPriceNumerator(maxPriceNumerator)
+        , mMaxPriceDenominator(maxPriceDenominator)
+        , mLimit(limit)
+    {
+    }
+
+    int const mTrustor;
+    AssetID const mAssetA;
+    AssetID const mAssetB;
+    int64_t const mMaxAmountA;
+    int64_t const mMaxAmountB;
+    int32_t const mMinPriceNumerator;
+    int32_t const mMinPriceDenominator;
+    int32_t const mMaxPriceNumerator;
+    int32_t const mMaxPriceDenominator;
+    int64_t const mLimit;
+};
+
+// NUM_STORED_POOL_IDS - 1 because we will push in a hash for a pool that
+// doesn't exist into mStoredPoolIDs later
+std::array<PoolSetupParameters,
+           FuzzUtils::NUM_STORED_POOL_IDS - 1> constexpr poolSetupParameters{
+    {// Native 1:1
+     {1, AssetID(), AssetID(1), 1000, 1000, 1, 1, 1, 1, 1000},
+     // Non-native 2:1
+     {2, AssetID(1), AssetID(2), 1000, 500, 2, 1, 2, 1, 1000},
+     // Non-native 1:2 sponsored by account 4
+     {3, AssetID(1), AssetID(4), 500, 1000, 1, 2, 1, 2, 1000, 4},
+     // Native no deposit
+     {3, AssetID(), AssetID(4), 0, 0, 0, 0, 0, 0, 1000}}};
+
 void
 TransactionFuzzer::initialize()
 {
@@ -1279,13 +1420,15 @@ TransactionFuzzer::initialize()
 
     initializeOffers(ltxOuter);
 
+    initializeLiquidityPools(ltxOuter);
+
     reduceNativeBalancesAfterSetup(ltxOuter);
 
     reduceTrustLineBalancesAfterSetup(ltxOuter);
 
     reduceTrustLineLimitsAfterSetup(ltxOuter);
 
-    storeSetupLedgerKeys(ltxOuter);
+    storeSetupLedgerKeysAndPoolIDs(ltxOuter);
 
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
@@ -1297,7 +1440,28 @@ TransactionFuzzer::initialize()
 }
 
 void
-TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
+TransactionFuzzer::storeSetupPoolIDs(AbstractLedgerTxn& ltx,
+                                     std::vector<LedgerEntry> const& entries)
+{
+    std::vector<PoolID> poolIDs;
+    for (auto const& entry : entries)
+    {
+        if (entry.data.type() != LIQUIDITY_POOL)
+        {
+            continue;
+        }
+        poolIDs.emplace_back(entry.data.liquidityPool().liquidityPoolID);
+    }
+
+    assert(poolIDs.size() == FuzzUtils::NUM_STORED_POOL_IDS - 1);
+    auto firstGeneratedPoolID =
+        std::copy(poolIDs.cbegin(), poolIDs.cend(), mStoredPoolIDs.begin());
+    std::generate(firstGeneratedPoolID, mStoredPoolIDs.end(),
+                  []() { return PoolID{}; });
+}
+
+void
+TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
 {
     // Get the list of ledger entries created during setup to place into
     // mStoredLedgerKeys.
@@ -1334,6 +1498,8 @@ TransactionFuzzer::storeSetupLedgerKeys(AbstractLedgerTxn& ltx)
 
     stellar::FuzzUtils::generateStoredLedgerKeys(firstGeneratedLedgerKey,
                                                  mStoredLedgerKeys.end());
+
+    storeSetupPoolIDs(ltx, init);
 }
 
 void
@@ -1478,6 +1644,56 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
         op.sourceAccount.activate() = toMuxedAccount(pkA);
         FuzzUtils::emplaceConditionallySponsored(ops, op, param.mSponsored,
                                                  param.mSponsorKey, pkA);
+    }
+
+    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
+{
+    LedgerTxn ltx(ltxOuter);
+
+    xdr::xvector<Operation> ops;
+
+    for (auto const& param : poolSetupParameters)
+    {
+        auto const trustor = param.mTrustor;
+        PublicKey account;
+        FuzzUtils::setShortKey(account, trustor);
+
+        // First create the pool
+        auto const assetA = param.mAssetA.toAsset();
+        auto const assetB = param.mAssetB.toAsset();
+
+        ChangeTrustAsset poolAsset;
+        poolAsset.type(ASSET_TYPE_POOL_SHARE);
+        poolAsset.liquidityPool().constantProduct().assetA = assetA;
+        poolAsset.liquidityPool().constantProduct().assetB = assetB;
+        poolAsset.liquidityPool().constantProduct().fee =
+            LIQUIDITY_POOL_FEE_V18;
+
+        auto trustOp = txtest::changeTrust(
+            poolAsset, std::max<int64_t>(FuzzUtils::INITIAL_TRUST_LINE_LIMIT,
+                                         param.mLimit));
+        trustOp.sourceAccount.activate() = toMuxedAccount(account);
+        FuzzUtils::emplaceConditionallySponsored(ops, trustOp, param.mSponsored,
+                                                 param.mSponsorKey, account);
+
+        // Then deposit
+        if (param.mMaxAmountA > 0 && param.mMaxAmountB > 0)
+        {
+            auto depositOp = txtest::liquidityPoolDeposit(
+                xdrSha256(poolAsset.liquidityPool()), param.mMaxAmountA,
+                param.mMaxAmountB,
+                Price{param.mMinPriceNumerator, param.mMinPriceDenominator},
+                Price{param.mMaxPriceNumerator, param.mMaxPriceDenominator});
+            depositOp.sourceAccount.activate() = toMuxedAccount(account);
+            FuzzUtils::emplaceConditionallySponsored(
+                ops, depositOp, param.mSponsored, param.mSponsorKey, account);
+        }
     }
 
     applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
@@ -1637,7 +1853,8 @@ TransactionFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, ops);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, mStoredPoolIDs, bins,
+                                    ops);
     }
     catch (std::exception const& e)
     {
@@ -1766,7 +1983,8 @@ OverlayFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, bins, msg);
+        xdr::xdr_from_fuzzer_opaque(mStoredLedgerKeys, mStoredPoolIDs, bins,
+                                    msg);
     }
     catch (...)
     {
