@@ -1481,7 +1481,7 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
 
-    auto deposit = [&](int accNum, int size) {
+    auto deposit = [&](int64_t accNum, int64_t size) {
         auto acc = root.create(fmt::format("account{}", accNum),
                                app.getLedgerManager().getLastMinBalance(10));
         acc.changeTrust(cur1, INT64_MAX);
@@ -1525,9 +1525,9 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
 
     // delete trustlines
     int i = 2;
-    for (auto& deposit : deposits)
+    for (auto& dep : deposits)
     {
-        deposit.acc.changeTrust(share12, 0);
+        dep.acc.changeTrust(share12, 0);
 
         if (--i > 0)
         {

@@ -278,17 +278,21 @@ readArray(ConfigItem const& item)
 }
 
 template <typename T>
-T
+std::enable_if_t<std::is_signed_v<T>, T>
 castInt(int64_t v, std::string const& name, T min, T max)
 {
-    if (std::is_signed_v<T>)
+    if (v < min || v > max)
     {
-        if (v < min || v > max)
-        {
-            throw std::invalid_argument(fmt::format("bad '{}'", name));
-        }
+        throw std::invalid_argument(fmt::format("bad '{}'", name));
     }
-    else if (v < 0)
+    return static_cast<T>(v);
+}
+
+template <typename T>
+std::enable_if_t<std::is_unsigned_v<T>, T>
+castInt(int64_t v, std::string const& name, T min, T max)
+{
+    if (v < 0)
     {
         throw std::invalid_argument(fmt::format("bad '{}'", name));
     }
@@ -785,7 +789,7 @@ Config::verifyLoadGenOpCountForTestingConfigs()
 
     if (std::any_of(LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.begin(),
                     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.end(),
-                    [](unsigned short i) { return i == 0; }))
+                    [](uint32 i) { return i == 0; }))
     {
         throw std::invalid_argument(
             "All elements in LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING must be "
@@ -821,7 +825,7 @@ Config::processOpApplySleepTimeForTestingConfigs()
 
     if (std::any_of(OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end(),
-                    [](unsigned short i) { return i == 0; }))
+                    [](uint32 i) { return i == 0; }))
     {
         throw std::invalid_argument(
             "All elements in OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING must be "
