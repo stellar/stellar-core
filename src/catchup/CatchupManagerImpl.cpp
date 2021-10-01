@@ -8,6 +8,7 @@
 #include "util/asio.h"
 #include "catchup/CatchupManagerImpl.h"
 #include "catchup/CatchupConfiguration.h"
+#include "history/FileTransferInfo.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -21,6 +22,49 @@
 
 namespace stellar
 {
+
+CatchupManagerImpl::CatchupMetrics::CatchupMetrics()
+    : mHistoryArchiveStatesDownloaded{0}
+    , mCheckpointsDownloaded{0}
+    , mLedgersVerified{0}
+    , mLedgerChainsVerificationFailed{0}
+    , mBucketsDownloaded{0}
+    , mBucketsApplied{0}
+    , mTxSetsDownloaded{0}
+    , mTxSetsApplied{0}
+{
+}
+
+CatchupManagerImpl::CatchupMetrics::CatchupMetrics(
+    uint64_t historyArchiveStatesDownloaded, uint64_t checkpointsDownloaded,
+    uint64_t ledgersVerified, uint64_t ledgerChainsVerificationFailed,
+    uint64_t bucketsDownloaded, uint64_t bucketsApplied,
+    uint64_t txSetsDownloaded, uint64_t txSetsApplied)
+    : mHistoryArchiveStatesDownloaded{historyArchiveStatesDownloaded}
+    , mCheckpointsDownloaded{checkpointsDownloaded}
+    , mLedgersVerified{ledgersVerified}
+    , mLedgerChainsVerificationFailed{ledgerChainsVerificationFailed}
+    , mBucketsDownloaded{bucketsDownloaded}
+    , mBucketsApplied{bucketsApplied}
+    , mTxSetsDownloaded{txSetsDownloaded}
+    , mTxSetsApplied{txSetsApplied}
+{
+}
+
+CatchupManagerImpl::CatchupMetrics
+operator-(CatchupManager::CatchupMetrics const& x,
+          CatchupManager::CatchupMetrics const& y)
+{
+    return CatchupManager::CatchupMetrics{
+        x.mHistoryArchiveStatesDownloaded - y.mHistoryArchiveStatesDownloaded,
+        x.mCheckpointsDownloaded - y.mCheckpointsDownloaded,
+        x.mLedgersVerified - y.mLedgersVerified,
+        x.mLedgerChainsVerificationFailed - y.mLedgerChainsVerificationFailed,
+        x.mBucketsDownloaded - y.mBucketsDownloaded,
+        x.mBucketsApplied - y.mBucketsApplied,
+        x.mTxSetsDownloaded - y.mTxSetsDownloaded,
+        x.mTxSetsApplied - y.mTxSetsApplied};
+}
 
 template <typename T>
 T
@@ -391,4 +435,56 @@ CatchupManagerImpl::tryApplySyncingLedgers()
 
     mSyncingLedgers.erase(mSyncingLedgers.cbegin(), it);
 }
+
+void
+CatchupManagerImpl::historyArchiveStatesDownloaded(uint32_t num)
+{
+    mMetrics.mHistoryArchiveStatesDownloaded += num;
+}
+
+void
+CatchupManagerImpl::ledgersVerified(uint32_t num)
+{
+    mMetrics.mLedgersVerified += num;
+}
+
+void
+CatchupManagerImpl::ledgerChainsVerificationFailed(uint32_t num)
+{
+    mMetrics.mLedgerChainsVerificationFailed += num;
+}
+
+void
+CatchupManagerImpl::bucketsApplied(uint32_t num)
+{
+    mMetrics.mBucketsApplied += num;
+}
+void
+CatchupManagerImpl::txSetsApplied(uint32_t num)
+{
+    mMetrics.mTxSetsApplied += num;
+}
+
+void
+CatchupManagerImpl::fileDownloaded(std::string type, uint32_t num)
+{
+    if (type == HISTORY_FILE_TYPE_BUCKET)
+    {
+        mMetrics.mBucketsDownloaded += num;
+    }
+    else if (type == HISTORY_FILE_TYPE_LEDGER)
+    {
+        mMetrics.mCheckpointsDownloaded += num;
+    }
+    else if (type == HISTORY_FILE_TYPE_TRANSACTIONS)
+    {
+        mMetrics.mTxSetsDownloaded += num;
+    }
+    else if (type != HISTORY_FILE_TYPE_RESULTS && type != HISTORY_FILE_TYPE_SCP)
+    {
+        throw std::runtime_error(fmt::format(
+            "CatchupManagerImpl::fileDownloaded unknown file type {}", type));
+    }
+}
+
 }

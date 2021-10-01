@@ -20,10 +20,34 @@ namespace stellar
 {
 
 class Application;
+class CatchupMetrics;
+class FileTransferInfo;
 
 class CatchupManager
 {
   public:
+    struct CatchupMetrics
+    {
+        uint64_t mHistoryArchiveStatesDownloaded;
+        uint64_t mCheckpointsDownloaded;
+        uint64_t mLedgersVerified;
+        uint64_t mLedgerChainsVerificationFailed;
+        uint64_t mBucketsDownloaded;
+        uint64_t mBucketsApplied;
+        uint64_t mTxSetsDownloaded;
+        uint64_t mTxSetsApplied;
+
+        CatchupMetrics();
+
+        CatchupMetrics(uint64_t historyArchiveStatesDownloaded,
+                       uint64_t checkpointsDownloaded, uint64_t ledgersVerified,
+                       uint64_t ledgerChainsVerificationFailed,
+                       uint64_t bucketsDownloaded, uint64_t bucketsApplied,
+                       uint64_t txSetsDownloaded, uint64_t txSetsApplied);
+
+        friend CatchupMetrics operator-(CatchupMetrics const& x,
+                                        CatchupMetrics const& y);
+    };
     static std::unique_ptr<CatchupManager> create(Application& app);
 
     // Process ledgers that could not be applied, and determine if catchup
@@ -72,6 +96,15 @@ class CatchupManager
     // the current reality as best as possible.
     virtual void syncMetrics() = 0;
 
+    virtual CatchupMetrics const& getCatchupMetrics() = 0;
+
     virtual ~CatchupManager(){};
+
+    virtual void historyArchiveStatesDownloaded(uint32_t num = 1) = 0;
+    virtual void ledgersVerified(uint32_t num = 1) = 0;
+    virtual void ledgerChainsVerificationFailed(uint32_t num = 1) = 0;
+    virtual void bucketsApplied(uint32_t num = 1) = 0;
+    virtual void txSetsApplied(uint32_t num = 1) = 0;
+    virtual void fileDownloaded(std::string type, uint32_t num = 1) = 0;
 };
 }

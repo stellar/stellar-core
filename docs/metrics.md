@@ -27,8 +27,6 @@ Metric name                              | Type      | Description
 app.post-on-background-thread.delay      | timer     | time to start task posted to background thread
 app.post-on-main-thread-with-delay.delay | timer     | time to start task posted to next crank of main thread
 app.post-on-main-thread.delay            | timer     | time to start task posted to current crank of main thread
-app.state.current                        | counter   | state (BOOTING=0, JOIN_SCP=1, LEDGER_SYNC=2, CATCHING_UP=3, SYNCED=4, STOPPING=5)
-bucket.available-time.level-<X>          | timer     | available time to merge two buckets on level <X> (always constant)
 bucket.batch.addtime                     | timer     | time to add a batch
 bucket.batch.objectsadded                | meter     | number of objects added per batch
 bucket.memory.shared                     | counter   | number of buckets referenced (excluding publish queue)
@@ -40,17 +38,11 @@ herder.pending-txs.age2                  | counter   | number of gen2 pending tr
 herder.pending-txs.age3                  | counter   | number of gen3 pending transactions
 herder.pending-txs.banned                | counter   | number of transactions that got banned
 herder.pending-txs.delay                 | timer     | time for transactions to be included in a ledger
-history.apply-ledger-chain.failure       | meter     | apply ledger chain failed
-history.apply-ledger-chain.success       | meter     | apply ledger chain completed successfully
-history.download-<X>.failure             | meter     | download of <X> failed
-history.download-<X>.success             | meter     | download of <X> completed successfully
 history.check.failure                    | meter     | history archive status checks failed
 history.check.success                    | meter     | history archive status checks succeeded
 history.publish.failure                  | meter     | published failed
 history.publish.success                  | meter     | published completed successfully
 history.publish.time                     | timer     | time to successfully publish history
-history.verify-<X>.failure               | meter     | verification of file from archive <X> failed
-history.verify-<X>.success               | meter     | verification of file from archive <X> succeeded
 ledger.age.closed                        | bucket    | time between ledgers
 ledger.age.current-seconds               | counter   | gap between last close ledger time and current time
 ledger.catchup.duration                  | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE

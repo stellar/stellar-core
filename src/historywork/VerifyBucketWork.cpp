@@ -28,10 +28,6 @@ VerifyBucketWork::VerifyBucketWork(Application& app,
     , mBucketFile(bucketFile)
     , mHash(hash)
     , mOnFailure(failureCb)
-    , mVerifyBucketSuccess(app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "success"}, "event"))
-    , mVerifyBucketFailure(app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "failure"}, "event"))
 {
 }
 
@@ -43,10 +39,8 @@ VerifyBucketWork::onRun()
     {
         if (mEc)
         {
-            mVerifyBucketFailure.Mark();
             return State::WORK_FAILURE;
         }
-        mVerifyBucketSuccess.Mark();
         return State::WORK_SUCCESS;
     }
 

@@ -22,6 +22,7 @@
 #include "util/TmpDir.h"
 
 #include "bucket/BucketOutputIterator.h"
+#include "catchup/CatchupManager.h"
 #include "ledger/CheckpointRange.h"
 #include "lib/catch.hpp"
 #include <random>
@@ -46,7 +47,6 @@ enum class TestBucketState
 class HistoryConfigurator;
 class TestBucketGenerator;
 class BucketOutputIteratorForTesting;
-struct CatchupMetrics;
 struct CatchupPerformedWork;
 
 class HistoryConfigurator : NonCopyable
@@ -149,29 +149,6 @@ class TestLedgerChainGenerator
                              HistoryManager::VERIFY_STATUS_OK);
 };
 
-struct CatchupMetrics
-{
-    uint64_t mHistoryArchiveStatesDownloaded;
-    uint64_t mCheckpointsDownloaded;
-    uint64_t mLedgersVerified;
-    uint64_t mLedgerChainsVerificationFailed;
-    uint64_t mBucketsDownloaded;
-    uint64_t mBucketsApplied;
-    uint64_t mTxSetsDownloaded;
-    uint64_t mTxSetsApplied;
-
-    CatchupMetrics();
-
-    CatchupMetrics(uint64_t historyArchiveStatesDownloaded,
-                   uint64_t checkpointsDownloaded, uint64_t ledgersVerified,
-                   uint64_t ledgerChainsVerificationFailed,
-                   uint64_t bucketsDownloaded, uint64_t bucketsApplied,
-                   uint64_t txSetsDownloaded, uint64_t txSetsApplied);
-
-    friend CatchupMetrics operator-(CatchupMetrics const& x,
-                                    CatchupMetrics const& y);
-};
-
 struct CatchupPerformedWork
 {
     uint64_t mHistoryArchiveStatesDownloaded;
@@ -183,7 +160,7 @@ struct CatchupPerformedWork
     uint64_t mTxSetsDownloaded;
     uint64_t mTxSetsApplied;
 
-    CatchupPerformedWork(CatchupMetrics const& metrics);
+    CatchupPerformedWork(CatchupManager::CatchupMetrics const& metrics);
 
     CatchupPerformedWork(uint64_t historyArchiveStatesDownloaded,
                          uint64_t checkpointsDownloaded,
@@ -230,7 +207,6 @@ class CatchupSimulation
 
     uint32_t mTestProtocolShadowsRemovedLedgerSeq{0};
 
-    CatchupMetrics getCatchupMetrics(Application::pointer app);
     CatchupPerformedWork computeCatchupPerformedWork(
         uint32_t lastClosedLedger,
         CatchupConfiguration const& catchupConfiguration, Application& app);

@@ -19,8 +19,6 @@
 #include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -64,12 +62,6 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mTotalSize(0)
     , mLevel(BucketList::kNumLevels - 1)
     , mMaxProtocolVersion(maxProtocolVersion)
-    , mBucketApplyStart(app.getMetrics().NewMeter(
-          {"history", "bucket-apply", "start"}, "event"))
-    , mBucketApplySuccess(app.getMetrics().NewMeter(
-          {"history", "bucket-apply", "success"}, "event"))
-    , mBucketApplyFailure(app.getMetrics().NewMeter(
-          {"history", "bucket-apply", "failure"}, "event"))
     , mCounters(app.getClock().now())
 {
 }
@@ -189,7 +181,6 @@ ApplyBucketsWork::startLevel()
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
                    mLevel, i.snap);
         mApplying = true;
-        mBucketApplyStart.Mark();
     }
     if (mApplying || applyCurr)
     {
@@ -199,7 +190,6 @@ ApplyBucketsWork::startLevel()
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
                    mLevel, i.curr);
         mApplying = true;
-        mBucketApplyStart.Mark();
     }
 }
 
@@ -233,7 +223,7 @@ ApplyBucketsWork::onRun()
             mEntryTypeFilter);
         mSnapApplicator.reset();
         mSnapBucket.reset();
-        mBucketApplySuccess.Mark();
+        mApp.getCatchupManager().bucketsApplied();
     }
     if (mCurrApplicator)
     {
@@ -248,7 +238,7 @@ ApplyBucketsWork::onRun()
             mEntryTypeFilter);
         mCurrApplicator.reset();
         mCurrBucket.reset();
-        mBucketApplySuccess.Mark();
+        mApp.getCatchupManager().bucketsApplied();
     }
 
     if (mLevel != 0)
@@ -311,18 +301,6 @@ bool
 ApplyBucketsWork::isLevelComplete()
 {
     return !(mApplying) || !(mSnapApplicator || mCurrApplicator);
-}
-
-void
-ApplyBucketsWork::onFailureRaise()
-{
-    mBucketApplyFailure.Mark();
-}
-
-void
-ApplyBucketsWork::onFailureRetry()
-{
-    mBucketApplyFailure.Mark();
 }
 
 std::string

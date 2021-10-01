@@ -16,7 +16,6 @@
 
 namespace medida
 {
-class Counter;
 class Timer;
 }
 
@@ -200,7 +199,6 @@ class ApplicationImpl : public Application
     VirtualTimer mSelfCheckTimer;
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
-    medida::Counter& mAppStateCurrent;
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     VirtualClock::system_time_point mStartedOn;

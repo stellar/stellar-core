@@ -16,8 +16,6 @@
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <fstream>
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -102,12 +100,6 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mTrustedMaxLedger(trustedMaxLedger)
     , mVerifiedMinLedgerPrevFuture(mVerifiedMinLedgerPrev.get_future().share())
     , mOutputStream(outputStream)
-    , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
-          {"history", "verify-ledger", "success"}, "event"))
-    , mVerifyLedgerChainSuccess(app.getMetrics().NewMeter(
-          {"history", "verify-ledger-chain", "success"}, "event"))
-    , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
-          {"history", "verify-ledger-chain", "failure"}, "event"))
 {
     // LCL should be at-or-after genesis and we should have a hash.
     releaseAssert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
@@ -261,7 +253,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             }
         }
 
-        mVerifyLedgerSuccess.Mark();
+        mApp.getCatchupManager().ledgersVerified();
         prev = curr;
 
         // No need to keep verifying if the range is covered
@@ -407,7 +399,6 @@ VerifyLedgerChainWork::onRun()
     if (mRange.mCount == 0)
     {
         CLOG_INFO(History, "History chain [0,0) trivially verified");
-        mVerifyLedgerChainSuccess.Mark();
         return BasicWork::State::WORK_SUCCESS;
     }
 
@@ -429,7 +420,7 @@ VerifyLedgerChainWork::onRun()
     {
         CLOG_ERROR(History, "Catchup material failed verification");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     }
 
@@ -441,7 +432,6 @@ VerifyLedgerChainWork::onRun()
         {
             CLOG_INFO(History, "History chain [{},{}] verified", mRange.mFirst,
                       mRange.last());
-            mVerifyLedgerChainSuccess.Mark();
             return BasicWork::State::WORK_SUCCESS;
         }
         mCurrCheckpoint -= mApp.getHistoryManager().getCheckpointFrequency();
@@ -451,31 +441,31 @@ VerifyLedgerChainWork::onRun()
                             "unsupported ledger version, propagating "
                             "failure");
         CLOG_ERROR(History, "{}", UPGRADE_STELLAR_CORE);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
         CLOG_ERROR(History, "Catchup material failed verification - hash "
                             "mismatch, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "overshot, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "undershot, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
         CLOG_ERROR(History, "Catchup material failed verification - "
                             "missing entries, propagating failure");
         CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
-        mVerifyLedgerChainFailure.Mark();
+        mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     default:
         releaseAssert(false);

@@ -87,7 +87,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
     , mMetrics(std::make_unique<medida::MetricsRegistry>())
-    , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
@@ -1110,13 +1109,6 @@ ApplicationImpl::getMetrics()
 void
 ApplicationImpl::syncOwnMetrics()
 {
-    int64_t c = mAppStateCurrent.count();
-    int64_t n = static_cast<int64_t>(getState());
-    if (c != n)
-    {
-        mAppStateCurrent.set_count(n);
-    }
-
     // Flush crypto pure-global-cache stats. They don't belong
     // to a single app instance but first one to flush will claim
     // them.

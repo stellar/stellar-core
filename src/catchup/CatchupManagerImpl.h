@@ -35,6 +35,7 @@ class CatchupManagerImpl : public CatchupManager
     void trimAndReset();
     void tryApplySyncingLedgers();
     uint32_t getCatchupCount();
+    CatchupMetrics mMetrics;
 
   public:
     CatchupManagerImpl(Application& app);
@@ -60,5 +61,18 @@ class CatchupManagerImpl : public CatchupManager
     void popBufferedLedger() override;
 
     void syncMetrics() override;
+
+    CatchupMetrics const&
+    getCatchupMetrics() override
+    {
+        return mMetrics;
+    }
+
+    void historyArchiveStatesDownloaded(uint32_t num) override;
+    void ledgersVerified(uint32_t num) override;
+    void ledgerChainsVerificationFailed(uint32_t num) override;
+    void bucketsApplied(uint32_t num) override;
+    void txSetsApplied(uint32_t num) override;
+    void fileDownloaded(std::string type, uint32_t num) override;
 };
 }

@@ -7,11 +7,6 @@
 #include "history/HistoryArchive.h"
 #include "work/Work.h"
 
-namespace medida
-{
-class Meter;
-}
-
 namespace stellar
 {
 
@@ -28,15 +23,14 @@ class GetHistoryArchiveStateWork : public Work
     size_t mRetries;
     std::string const mLocalFilename;
 
-    medida::Meter& mGetHistoryArchiveStateSuccess;
-
     std::string getRemoteName() const;
+    bool mReportMetric{false};
 
   public:
     GetHistoryArchiveStateWork(
         Application& app, uint32_t seq = 0,
-        std::shared_ptr<HistoryArchive> archive = nullptr,
-        std::string mode = "", size_t maxRetries = BasicWork::RETRY_A_FEW);
+        std::shared_ptr<HistoryArchive> archive = nullptr, bool report = false,
+        size_t maxRetries = BasicWork::RETRY_A_FEW);
     ~GetHistoryArchiveStateWork() = default;
 
     HistoryArchiveState const&

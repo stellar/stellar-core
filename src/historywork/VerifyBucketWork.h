@@ -28,9 +28,6 @@ class VerifyBucketWork : public BasicWork
 
     OnFailureCallback mOnFailure;
 
-    medida::Meter& mVerifyBucketSuccess;
-    medida::Meter& mVerifyBucketFailure;
-
   public:
     VerifyBucketWork(Application& app, std::string const& bucketFile,
                      uint256 const& hash, OnFailureCallback failureCb);
