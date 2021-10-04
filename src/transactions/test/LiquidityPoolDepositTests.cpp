@@ -511,4 +511,27 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
             }
         });
     }
+
+    SECTION("bad price in existing pool due to 0 calculated deposit amounts "
+            "for both assets")
+    {
+        for_versions_from(18, *app, [&] {
+            auto a1 = root.create("a1", minBal(10));
+
+            a1.changeTrust(cur1, 10000);
+            a1.changeTrust(cur2, 10000);
+            a1.changeTrust(share12, 1000);
+
+            root.pay(a1, cur1, 10000);
+            root.pay(a1, cur2, 10000);
+
+            a1.liquidityPoolDeposit(pool12, 500, 1000, Price{1, 2},
+                                    Price{1, 2});
+            checkLiquidityPool(*app, pool12, 500, 1000, 707, 1);
+
+            REQUIRE_THROWS_AS(a1.liquidityPoolDeposit(pool12, 100, 1,
+                                                      Price{2, 3}, Price{4, 1}),
+                              ex_LIQUIDITY_POOL_DEPOSIT_BAD_PRICE);
+        });
+    }
 }
