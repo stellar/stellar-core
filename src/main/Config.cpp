@@ -49,7 +49,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
     "LOADGEN_OP_COUNT_FOR_TESTING",
-    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING"};
+    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+    "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -113,6 +114,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_OP_COUNT_FOR_TESTING = {};
     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
 
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -1240,6 +1242,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
                     readIntArray<uint32>(item);
+            }
+            else if (item.first == "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING")
+            {
+                CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
             }
             else
             {
