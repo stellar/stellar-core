@@ -25,7 +25,6 @@ Tracks multiple timers organized into disjoint buckets.
 Metric name                              | Type      | Description
 ---------------------------------------  | --------  | --------------------
 app.post-on-background-thread.delay      | timer     | time to start task posted to background thread
-app.post-on-main-thread-with-delay.delay | timer     | time to start task posted to next crank of main thread
 app.post-on-main-thread.delay            | timer     | time to start task posted to current crank of main thread
 bucket.batch.addtime                     | timer     | time to add a batch
 bucket.batch.objectsadded                | meter     | number of objects added per batch

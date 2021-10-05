@@ -169,8 +169,10 @@ format.
    * `queue` performs deletion of queue data. See `setcursor` for more information.
 
 * **metrics**
+  `metrics?[enable=PARTITION_1,PARTITION_2,...,PARTITION_N]`<br>
   Returns a snapshot of the metrics registry (for monitoring and debugging
   purpose).
+  If `enable` is set, return only specified metric partitions. Partitions are either metric domain names (e.g. `scp`, `overlay`, etc) or individual metric names.
 
 * **clearmetrics**
   `clearmetrics?[domain=DOMAIN]`<br>
