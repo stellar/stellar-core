@@ -23,7 +23,8 @@ int64_t
 operator*(int64_t x, const Price& y)
 {
     bool xNegative = (x < 0);
-    int64_t m = bigDivide(xNegative ? -x : x, y.n, y.d, Rounding::ROUND_DOWN);
+    int64_t m =
+        bigDivideOrThrow(xNegative ? -x : x, y.n, y.d, Rounding::ROUND_DOWN);
     return xNegative ? -m : m;
 }
 

@@ -52,13 +52,13 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
     */
 
     int64_t totalVotes = lh.totalCoins;
-    int64_t minBalance =
-        bigDivide(totalVotes, INFLATION_WIN_MIN_PERCENT, TRILLION, ROUND_DOWN);
+    int64_t minBalance = bigDivideOrThrow(totalVotes, INFLATION_WIN_MIN_PERCENT,
+                                          TRILLION, ROUND_DOWN);
 
     auto winners = ltx.queryInflationWinners(INFLATION_NUM_WINNERS, minBalance);
 
-    auto inflationAmount = bigDivide(lh.totalCoins, INFLATION_RATE_TRILLIONTHS,
-                                     TRILLION, ROUND_DOWN);
+    auto inflationAmount = bigDivideOrThrow(
+        lh.totalCoins, INFLATION_RATE_TRILLIONTHS, TRILLION, ROUND_DOWN);
     auto amountToDole = inflationAmount + lh.feePool;
 
     lh.feePool = 0;
@@ -73,7 +73,7 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
     for (auto const& w : winners)
     {
         int64_t toDoleThisWinner =
-            bigDivide(amountToDole, w.votes, totalVotes, ROUND_DOWN);
+            bigDivideOrThrow(amountToDole, w.votes, totalVotes, ROUND_DOWN);
         if (toDoleThisWinner == 0)
             continue;
 

@@ -41,20 +41,23 @@ isRepresentableAsInt64(double d)
 }
 
 // calculates A*B/C when A*B overflows 64bits
-int64_t bigDivide(int64_t A, int64_t B, int64_t C, Rounding rounding);
+int64_t bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding);
 // no throw version, returns true if result is valid
 bool bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C,
                Rounding rounding);
 
 // no throw version, returns true if result is valid
-bool bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
-               Rounding rounding);
+bool bigDivideUnsigned(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
+                       Rounding rounding);
 
-bool bigDivide(int64_t& result, uint128_t a, int64_t B, Rounding rounding);
-bool bigDivide(uint64_t& result, uint128_t a, uint64_t B, Rounding rounding);
-int64_t bigDivide(uint128_t a, int64_t B, Rounding rounding);
+// same 3 cases as above, but each taking a uint128_t numerator instead of 2
+// 64-bit numerator-factors
+bool bigDivide128(int64_t& result, uint128_t a, int64_t B, Rounding rounding);
+bool bigDivideUnsigned128(uint64_t& result, uint128_t a, uint64_t B,
+                          Rounding rounding);
+int64_t bigDivideOrThrow128(uint128_t a, int64_t B, Rounding rounding);
 
-uint128_t bigMultiply(uint64_t a, uint64_t b);
+uint128_t bigMultiplyUnsigned(uint64_t a, uint64_t b);
 uint128_t bigMultiply(int64_t a, int64_t b);
 
 // This only implements ROUND_DOWN

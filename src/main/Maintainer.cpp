@@ -30,7 +30,7 @@ Maintainer::start()
     {
         // compare number of ledgers deleted per maintenance cycle with actual
         // number
-        int64 ledgersPerMaintenancePeriod = bigDivide(
+        int64 ledgersPerMaintenancePeriod = bigDivideOrThrow(
             c.AUTOMATIC_MAINTENANCE_PERIOD.count(), 1,
             c.getExpectedLedgerCloseTime().count(), Rounding::ROUND_UP);
         if (c.AUTOMATIC_MAINTENANCE_COUNT <= ledgersPerMaintenancePeriod)

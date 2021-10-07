@@ -500,9 +500,9 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
         {
             auto txOps = txPtr->getNumOperations();
             ops += txOps;
-            int64_t txBaseFee =
-                bigDivide(txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps),
-                          Rounding::ROUND_UP);
+            int64_t txBaseFee = bigDivideOrThrow(txPtr->getFeeBid(), 1,
+                                                 static_cast<int64_t>(txOps),
+                                                 Rounding::ROUND_UP);
             lowBaseFee = std::min(lowBaseFee, txBaseFee);
         }
         // if surge pricing was in action, use the lowest base fee bid from the

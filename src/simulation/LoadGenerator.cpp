@@ -130,14 +130,15 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
     auto now = mApp.getClock().now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         now - *mStartTime);
-    auto txs = bigDivide(elapsed.count(), txRate, 1000, Rounding::ROUND_DOWN);
+    auto txs =
+        bigDivideOrThrow(elapsed.count(), txRate, 1000, Rounding::ROUND_DOWN);
     if (spikeInterval.count() > 0)
     {
-        txs +=
-            bigDivide(std::chrono::duration_cast<std::chrono::seconds>(elapsed)
-                          .count(),
-                      1, spikeInterval.count(), Rounding::ROUND_DOWN) *
-            spikeSize;
+        txs += bigDivideOrThrow(
+                   std::chrono::duration_cast<std::chrono::seconds>(elapsed)
+                       .count(),
+                   1, spikeInterval.count(), Rounding::ROUND_DOWN) *
+               spikeSize;
     }
 
     if (txs <= mTotalSubmitted)

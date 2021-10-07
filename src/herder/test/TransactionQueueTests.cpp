@@ -814,9 +814,9 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         };
         auto getBaseFeeRate = [](TxQueueLimiter const& limiter) {
             auto fr = limiter.getMinFeeNeeded();
-            return fr.second == 0
-                       ? 0ll
-                       : bigDivide(fr.first, 1, fr.second, Rounding::ROUND_UP);
+            return fr.second == 0 ? 0ll
+                                  : bigDivideOrThrow(fr.first, 1, fr.second,
+                                                     Rounding::ROUND_UP);
         };
 
         SECTION("evict nothing")
