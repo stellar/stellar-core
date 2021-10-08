@@ -1191,8 +1191,8 @@ std::array<TrustLineParameters, 12> constexpr trustLineParameters{
 
      // these 5 trustlines are required for claimable balances
      {2, AssetID(4), 256, 256},
-     {3, AssetID(4), 256, 256},
-     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+     {3, AssetID(4), INT64_MAX, 0},
+     TrustLineParameters::withAllowTrust(4, AssetID(3), INT64_MAX, 0,
                                          AUTHORIZED_FLAG),
 
      // deauthorize trustline
@@ -1296,7 +1296,7 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-std::array<OfferParameters, 16> constexpr orderBookParameters{{
+std::array<OfferParameters, 17> constexpr orderBookParameters{{
 
     // The first two order books follow this structure
     // +------------+-----+------+--------+------------------------------+
@@ -1328,6 +1328,8 @@ std::array<OfferParameters, 16> constexpr orderBookParameters{{
     {1, AssetID(2), AssetID(1), 10, 10, 9, false},
     {3, AssetID(2), AssetID(1), 50, 10, 9, false},
     {3, AssetID(2), AssetID(1), 100, 22, 7, false},
+
+    {4, AssetID(4), AssetID(3), INT64_MAX - 50, 1, 1, false},
 
     // offer to trade all of one asset to another up to the trustline limit
     {4, AssetID(2), AssetID(), 256, 1, 1, true},
@@ -1402,9 +1404,14 @@ std::array<PoolSetupParameters,
      // Non-native 2:1
      {2, AssetID(1), AssetID(2), 1000, 500, 2, 1, 2, 1, 1000},
      // Non-native 1:2 sponsored by account 4
-     {3, AssetID(1), AssetID(4), 500, 1000, 1, 2, 1, 2, 1000, 4},
+     {3, AssetID(1), AssetID(3), 500, 1000, 1, 2, 1, 2, 1000, 4},
      // Native no deposit
-     {3, AssetID(), AssetID(4), 0, 0, 0, 0, 0, 0, 1000}}};
+     {3, AssetID(), AssetID(4), 0, 0, 0, 0, 0, 0, 1000},
+     // Non-native no deposit
+     {3, AssetID(2), AssetID(4), 0, 0, 0, 0, 0, 0, 1000},
+     // close to max reserves
+     {3, AssetID(3), AssetID(4), INT64_MAX - 50, INT64_MAX - 50, 1, 1, 1, 1,
+      INT64_MAX}}};
 
 void
 TransactionFuzzer::initialize()
