@@ -1,8 +1,13 @@
+#pragma once
+#include <cstdint>
 /*
 uint128_t.h
 An unsigned 128 bit integer type for C++
 
 Copyright (c) 2013 - 2017 Jason Lee @ calccrypto at gmail.com
+
+Minor modifications
+Copyright (c) 2021 Stellar Development Foundation and contributors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -43,9 +48,6 @@ char x = uint128_t(y);
 auto x = 2 * uint128_t(y);
 */
 
-#ifndef __UINT128_T__
-#define __UINT128_T__
-
 #include <cstdint>
 #include <ostream>
 #include <stdexcept>
@@ -81,13 +83,16 @@ auto x = 2 * uint128_t(y);
 // We're not building a shared library, skip dllimport/dllexport stuff.
 #define UINT128_T_EXTERN
 
-class UINT128_T_EXTERN uint128_t;
+namespace libu128
+{
+    class uint128_t;
+}
 
 // Give uint128_t type traits
 namespace std {  // This is probably not a good idea
-    template <> struct is_arithmetic <uint128_t> : std::true_type {};
-    template <> struct is_integral   <uint128_t> : std::true_type {};
-    template <> struct is_unsigned   <uint128_t> : std::true_type {};
+    template <> struct is_arithmetic <libu128::uint128_t> : std::true_type {};
+    template <> struct is_integral   <libu128::uint128_t> : std::true_type {};
+    template <> struct is_unsigned   <libu128::uint128_t> : std::true_type {};
 }
 
 #ifdef UNSAFE_UINT128_OPS
@@ -95,6 +100,9 @@ namespace std {  // This is probably not a good idea
 #else
 #define IMPLICIT_UNSAFE_UINT128_OPS explicit
 #endif
+
+namespace libu128
+{
 
 class uint128_t{
     private:
@@ -549,4 +557,39 @@ T & operator%=(T & lhs, const uint128_t & rhs){
 
 // IO Operator
 UINT128_T_EXTERN std::ostream & operator<<(std::ostream & stream, const uint128_t & rhs);
+}
+
+
+namespace stellar
+{
+#if defined(__SIZEOF_INT128__) || defined(_GLIBCXX_USE_INT128)
+
+typedef __uint128_t uint128_t;
+
+inline uint128_t uint128_max() {
+    return ~uint128_t(0);
+}
+
+inline int uint128_bits(__uint128_t const& x) {
+    uint64_t hi = uint64_t(x >> 64);
+    if (hi) {
+        return 128 - __builtin_clzll(hi);
+    } else {
+        uint64_t lo = uint64_t(x);
+        return 64 - __builtin_clzll(lo);
+    }
+}
+
+#else
+
+using uint128_t = libu128::uint128_t;
+
+inline uint128_t uint128_max() {
+    return ~libu128::uint128_0;
+}
+
+inline int uint128_bits(libu128::uint128_t const& x) {
+    return x.bits();
+}
 #endif
+}

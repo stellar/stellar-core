@@ -1698,7 +1698,8 @@ getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
         throw std::runtime_error("Invalid amountPoolShares");
     }
 
-    return bigDivide(amountPoolShares, reserve, totalPoolShares, ROUND_DOWN);
+    return bigDivideOrThrow(amountPoolShares, reserve, totalPoolShares,
+                            ROUND_DOWN);
 }
 
 namespace detail

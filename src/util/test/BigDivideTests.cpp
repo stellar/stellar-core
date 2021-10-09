@@ -51,7 +51,7 @@ TEST_CASE("big divide", "[bigDivide]")
 {
     auto verifySignedUp = [](int64_t a, int64_t b, int64_t c,
                              int64_t expectedResult) {
-        REQUIRE(bigDivide(a, b, c, ROUND_UP) == expectedResult);
+        REQUIRE(bigDivideOrThrow(a, b, c, ROUND_UP) == expectedResult);
         auto signedResult = int64_t{};
         REQUIRE(bigDivide(signedResult, a, b, c, ROUND_UP));
         REQUIRE(signedResult == expectedResult);
@@ -59,7 +59,7 @@ TEST_CASE("big divide", "[bigDivide]")
 
     auto verifySignedDown = [](int64_t a, int64_t b, int64_t c,
                                int64_t expectedResult) {
-        REQUIRE(bigDivide(a, b, c, ROUND_DOWN) == expectedResult);
+        REQUIRE(bigDivideOrThrow(a, b, c, ROUND_DOWN) == expectedResult);
         auto signedResult = int64_t{};
         REQUIRE(bigDivide(signedResult, a, b, c, ROUND_DOWN));
         REQUIRE(signedResult == expectedResult);
@@ -73,13 +73,15 @@ TEST_CASE("big divide", "[bigDivide]")
     };
 
     auto verifySignedUpOverflow = [](int64_t a, int64_t b, int64_t c) {
-        REQUIRE_THROWS_AS(bigDivide(a, b, c, ROUND_UP), std::overflow_error);
+        REQUIRE_THROWS_AS(bigDivideOrThrow(a, b, c, ROUND_UP),
+                          std::overflow_error);
         auto x = int64_t{};
         REQUIRE(!bigDivide(x, a, b, c, ROUND_UP));
     };
 
     auto verifySignedDownOverflow = [](int64_t a, int64_t b, int64_t c) {
-        REQUIRE_THROWS_AS(bigDivide(a, b, c, ROUND_DOWN), std::overflow_error);
+        REQUIRE_THROWS_AS(bigDivideOrThrow(a, b, c, ROUND_DOWN),
+                          std::overflow_error);
         auto x = int64_t{};
         REQUIRE(!bigDivide(x, a, b, c, ROUND_DOWN));
     };
@@ -92,14 +94,14 @@ TEST_CASE("big divide", "[bigDivide]")
     auto verifyUnsignedUp = [](uint64_t a, uint64_t b, uint64_t c,
                                uint64_t expectedResult) {
         auto unsignedResult = uint64_t{};
-        REQUIRE(bigDivide(unsignedResult, a, b, c, ROUND_UP));
+        REQUIRE(bigDivideUnsigned(unsignedResult, a, b, c, ROUND_UP));
         REQUIRE(unsignedResult == expectedResult);
     };
 
     auto verifyUnsignedDown = [](uint64_t a, uint64_t b, uint64_t c,
                                  uint64_t expectedResult) {
         auto unsignedResult = uint64_t{};
-        REQUIRE(bigDivide(unsignedResult, a, b, c, ROUND_DOWN));
+        REQUIRE(bigDivideUnsigned(unsignedResult, a, b, c, ROUND_DOWN));
         REQUIRE(unsignedResult == expectedResult);
     };
 
@@ -112,12 +114,12 @@ TEST_CASE("big divide", "[bigDivide]")
 
     auto verifyUnsignedUpOverflow = [](uint64_t a, uint64_t b, uint64_t c) {
         auto x = uint64_t{};
-        REQUIRE(!bigDivide(x, a, b, c, ROUND_UP));
+        REQUIRE(!bigDivideUnsigned(x, a, b, c, ROUND_UP));
     };
 
     auto verifyUnsignedDownOverflow = [](uint64_t a, uint64_t b, uint64_t c) {
         auto x = uint64_t{};
-        REQUIRE(!bigDivide(x, a, b, c, ROUND_DOWN));
+        REQUIRE(!bigDivideUnsigned(x, a, b, c, ROUND_DOWN));
     };
 
     auto verifyUnsignedOverflow = [&](uint64_t a, uint64_t b, uint64_t c) {
@@ -189,25 +191,26 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
 {
     auto verifySigned = [](uint128_t a, int64_t b, Rounding rounding) {
         int64_t res;
-        REQUIRE(!bigDivide(res, a, b, rounding));
-        REQUIRE_THROWS_AS(bigDivide(a, b, rounding), std::overflow_error);
+        REQUIRE(!bigDivide128(res, a, b, rounding));
+        REQUIRE_THROWS_AS(bigDivideOrThrow128(a, b, rounding),
+                          std::overflow_error);
     };
     auto verifySignedValue = [](uint128_t a, int64_t b, Rounding rounding,
                                 int64_t expected) {
         int64_t res;
-        REQUIRE(bigDivide(res, a, b, rounding));
+        REQUIRE(bigDivide128(res, a, b, rounding));
         REQUIRE(res == expected);
-        REQUIRE(bigDivide(a, b, rounding) == expected);
+        REQUIRE(bigDivideOrThrow128(a, b, rounding) == expected);
     };
 
     auto verifyUnsigned = [](uint128_t a, uint64_t b, Rounding rounding) {
         uint64_t res;
-        REQUIRE(!bigDivide(res, a, b, rounding));
+        REQUIRE(!bigDivideUnsigned128(res, a, b, rounding));
     };
     auto verifyUnsignedValue = [](uint128_t a, uint64_t b, Rounding rounding,
                                   uint64_t expected) {
         uint64_t res;
-        REQUIRE(bigDivide(res, a, b, rounding));
+        REQUIRE(bigDivideUnsigned128(res, a, b, rounding));
         REQUIRE(res == expected);
     };
 
@@ -306,9 +309,9 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
             {
                 if (val2 > 0)
                 {
-                    verifyUnsignedValue(bigMultiply(val1, val2), val2, ROUND_UP,
-                                        val1);
-                    verifyUnsignedValue(bigMultiply(val1, val2), val2,
+                    verifyUnsignedValue(bigMultiplyUnsigned(val1, val2), val2,
+                                        ROUND_UP, val1);
+                    verifyUnsignedValue(bigMultiplyUnsigned(val1, val2), val2,
                                         ROUND_DOWN, val1);
                 }
             }
@@ -325,7 +328,7 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
         verifySignedValue(twiceSignedMax, 2, ROUND_UP, INT64_MAX);
         verifySignedValue(twiceSignedMax, 2, ROUND_DOWN, INT64_MAX);
 
-        uint128_t const twiceUnsignedMax = bigMultiply(UINT64_MAX, 2);
+        uint128_t const twiceUnsignedMax = bigMultiplyUnsigned(UINT64_MAX, 2);
         verifyUnsigned(twiceUnsignedMax + 2u, 2, ROUND_UP);
         verifyUnsigned(twiceUnsignedMax + 2u, 2, ROUND_DOWN);
         verifyUnsigned(twiceUnsignedMax + 1u, 2, ROUND_UP);
@@ -336,8 +339,9 @@ TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
 
     SECTION("upper limits")
     {
-        uint128_t const unsignedLimit = bigMultiply(UINT64_MAX, UINT64_MAX);
-        uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
+        uint128_t const unsignedLimit =
+            bigMultiplyUnsigned(UINT64_MAX, UINT64_MAX);
+        uint128_t const UINT128_MAX = uint128_max();
         REQUIRE(UINT128_MAX + 1u == 0u);
 
         verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_UP);
@@ -455,7 +459,7 @@ TEST_CASE("huge divide", "[bigdivide]")
 
     SECTION("uint128 values")
     {
-        uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
+        uint128_t const UINT128_MAX = uint128_max();
         uint128_t maxC =
             uint128_t((uint32_t)INT32_MAX) * uint128_t((uint64_t)INT64_MAX);
 

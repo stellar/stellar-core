@@ -192,12 +192,12 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     }
 
     auto const& lh = header.current();
-    auto v1 = bigMultiply(getFeeBid(), mInnerTx->getMinFee(lh));
-    auto v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(lh));
+    uint128_t v1 = bigMultiply(getFeeBid(), mInnerTx->getMinFee(lh));
+    uint128_t v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(lh));
     if (v1 < v2)
     {
-        if (!bigDivide(getResult().feeCharged, v2, mInnerTx->getMinFee(lh),
-                       Rounding::ROUND_UP))
+        if (!bigDivide128(getResult().feeCharged, v2, mInnerTx->getMinFee(lh),
+                          Rounding::ROUND_UP))
         {
             getResult().feeCharged = INT64_MAX;
         }

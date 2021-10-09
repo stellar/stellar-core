@@ -86,13 +86,14 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     //
     // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
     // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
-    auto v1 = bigMultiply(newFee, oldNumOps);
-    auto v2 = bigMultiply(oldFee, newNumOps);
-    auto minFeeN = v2 * TransactionQueue::FEE_MULTIPLIER;
+    uint128_t v1 = bigMultiply(newFee, oldNumOps);
+    uint128_t v2 = bigMultiply(oldFee, newNumOps);
+    uint128_t minFeeN = v2 * TransactionQueue::FEE_MULTIPLIER;
     bool res = v1 >= minFeeN;
     if (!res)
     {
-        if (!bigDivide(minFee, minFeeN, int64_t(oldNumOps), Rounding::ROUND_UP))
+        if (!bigDivide128(minFee, minFeeN, int64_t(oldNumOps),
+                          Rounding::ROUND_UP))
         {
             minFee = INT64_MAX;
         }
@@ -710,10 +711,11 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
     int64_t opsToFloodLedger = static_cast<int64_t>(opsToFloodLedgerDbl);
 
     int64_t opsToFlood;
-    opsToFlood = mBroadcastOpCarryover +
-                 bigDivide(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
-                           cfg.getExpectedLedgerCloseTime().count() * 1000,
-                           Rounding::ROUND_UP);
+    opsToFlood =
+        mBroadcastOpCarryover +
+        bigDivideOrThrow(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                         cfg.getExpectedLedgerCloseTime().count() * 1000,
+                         Rounding::ROUND_UP);
     releaseAssertOrThrow(opsToFlood >= 0);
     return static_cast<size_t>(opsToFlood);
 }

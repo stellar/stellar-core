@@ -3974,7 +3974,8 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
         // -> price.d * X > price.n * oe.amount
         //    X > oe.amount * price.n / price.d
         //    X = ceil(oe.amount * price.n / price.d) + 1
-        int64_t crossAmount = bigDivide(amount, price.n, price.d, ROUND_UP);
+        int64_t crossAmount =
+            bigDivideOrThrow(amount, price.n, price.d, ROUND_UP);
         if (crossAmount < INT64_MAX)
         {
             ++crossAmount;
