@@ -25,6 +25,32 @@
 namespace stellar
 {
 
+class TempLedgerVersionSetter : NonMovableOrCopyable
+{
+    Application& mApp;
+    uint32 mOldVersion;
+
+    void
+    setVersion(uint32 ver)
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto header = ltx.loadHeader();
+        mOldVersion = header.current().ledgerVersion;
+        header.current().ledgerVersion = ver;
+        ltx.commit();
+    }
+
+  public:
+    TempLedgerVersionSetter(Application& app, uint32 newVersion) : mApp(app)
+    {
+        setVersion(newVersion);
+    }
+    ~TempLedgerVersionSetter()
+    {
+        setVersion(mOldVersion);
+    }
+};
+
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
@@ -95,15 +121,18 @@ ApplyBucketsWork::onReset()
         // when applying buckets from genesis the root account already exists.
         if (mEntryTypeFilter(ACCOUNT))
         {
-            SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
-
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto rootAcc = loadAccount(ltx, skey.getPublicKey());
-            if (rootAcc)
+            TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
             {
-                rootAcc.erase();
+                SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
+
+                LedgerTxn ltx(mApp.getLedgerTxnRoot());
+                auto rootAcc = loadAccount(ltx, skey.getPublicKey());
+                if (rootAcc)
+                {
+                    rootAcc.erase();
+                }
+                ltx.commit();
             }
-            ltx.commit();
         }
 
         auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
@@ -193,6 +222,7 @@ ApplyBucketsWork::onRun()
     //    if there is nothing to be applied.
     if (mSnapApplicator)
     {
+        TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
         if (*mSnapApplicator)
         {
             advance("snap", *mSnapApplicator);
@@ -207,6 +237,7 @@ ApplyBucketsWork::onRun()
     }
     if (mCurrApplicator)
     {
+        TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
         if (*mCurrApplicator)
         {
             advance("curr", *mCurrApplicator);
