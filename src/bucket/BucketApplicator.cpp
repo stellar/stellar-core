@@ -9,7 +9,6 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
 #include "util/Logging.h"
-#include "util/finally.h"
 #include "util/types.h"
 #include <fmt/format.h>
 
@@ -68,72 +67,27 @@ shouldApplyEntry(std::function<bool(LedgerEntryType)> const& filter,
     return filter(e.deadEntry().type());
 }
 
-// when running in memory mode, make changes to the in memory ledger
-// directly instead of creating a temporary inner LedgerTxn
-// as "advance" commits changes during each step this does not introduce any
-// new failure mode
-class MaybeChildLedgerTxn
-{
-    AbstractLedgerTxn* mLedgerTxn;
-    std::unique_ptr<LedgerTxn> mInner;
-
-  public:
-    MaybeChildLedgerTxn(Application& app)
-    {
-        auto& root = app.getLedgerTxnRoot();
-        if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-        {
-            mLedgerTxn = static_cast<AbstractLedgerTxn*>(&root);
-        }
-        else
-        {
-            mInner = std::make_unique<LedgerTxn>(root, false);
-            mLedgerTxn = mInner.get();
-        }
-    }
-
-    AbstractLedgerTxn*
-    getLedgerTxn()
-    {
-        return mLedgerTxn;
-    }
-
-    void
-    maybeCommit()
-    {
-        if (mInner)
-        {
-            mLedgerTxn->commit();
-        }
-    }
-};
-
 size_t
 BucketApplicator::advance(BucketApplicator::Counters& counters)
 {
     size_t count = 0;
 
-    LedgerHeader oldHeader;
+    auto& root = mApp.getLedgerTxnRoot();
+    AbstractLedgerTxn* ltx;
+    std::unique_ptr<LedgerTxn> innerLtx;
+
+    // when running in memory mode, make changes to the in memory ledger
+    // directly instead of creating a temporary inner LedgerTxn
+    // as "advance" commits changes during each step this does not introduce any
+    // new failure mode
+    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
-        MaybeChildLedgerTxn mcltx(mApp);
-        AbstractLedgerTxn* ltx = mcltx.getLedgerTxn();
-
-        oldHeader = ltx->loadHeader().current();
-        ltx->loadHeader().current().ledgerVersion =
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-
-        mcltx.maybeCommit();
+        ltx = static_cast<AbstractLedgerTxn*>(&root);
     }
-    auto restoreHeader = gsl::finally([&] {
-        MaybeChildLedgerTxn mcltx(mApp);
-        mcltx.getLedgerTxn()->loadHeader().current() = oldHeader;
-        mcltx.maybeCommit();
-    });
-
-    MaybeChildLedgerTxn mcltx(mApp);
-    AbstractLedgerTxn* ltx = mcltx.getLedgerTxn();
-    if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    else
     {
+        innerLtx = std::make_unique<LedgerTxn>(root, false);
+        ltx = innerLtx.get();
         ltx->prepareNewObjects(LEDGER_ENTRY_BATCH_COMMIT_SIZE);
     }
 
@@ -161,8 +115,10 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
             }
         }
     }
-
-    mcltx.maybeCommit();
+    if (innerLtx)
+    {
+        ltx->commit();
+    }
 
     mCount += count;
     return count;
