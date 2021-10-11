@@ -131,16 +131,21 @@ class XDROutputFileStream
     std::vector<char> mBuf;
     const bool mFsyncOnClose;
 
-    bool mUsingRandomAccessHandle{false};
+#ifdef WIN32
+    // Windows implementation assumes calls can't get interrupted
+    fs::native_handle_t mHandle;
+    FILE* mOut{nullptr};
+#else
+    // buffered stream
     asio::buffered_write_stream<stellar::fs::stream_t> mBufferedWriteStream;
-    stellar::fs::random_access_t mRandomAccessHandle;
-    size_t mRandomAccessNextWriteOffset{0};
+#endif
 
   public:
     XDROutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
         : mFsyncOnClose(fsyncOnClose)
+#ifndef WIN32
         , mBufferedWriteStream(ctx, stellar::fs::bufsz())
-        , mRandomAccessHandle(ctx)
+#endif
     {
     }
 
@@ -155,27 +160,21 @@ class XDROutputFileStream
     bool
     isOpen()
     {
-        if (mUsingRandomAccessHandle)
-        {
-            return mRandomAccessHandle.is_open();
-        }
-        else
-        {
-            return mBufferedWriteStream.next_layer().is_open();
-        }
+#ifdef WIN32
+        return mOut != nullptr;
+#else
+        return mBufferedWriteStream.next_layer().is_open();
+#endif
     }
 
     fs::native_handle_t
     getHandle()
     {
-        if (mUsingRandomAccessHandle)
-        {
-            return mRandomAccessHandle.native_handle();
-        }
-        else
-        {
-            return mBufferedWriteStream.next_layer().native_handle();
-        }
+#ifdef WIN32
+        return mHandle;
+#else
+        return mBufferedWriteStream.next_layer().native_handle();
+#endif
     }
 
     void
@@ -192,20 +191,18 @@ class XDROutputFileStream
         {
             fs::flushFileChanges(getHandle());
         }
-        if (mUsingRandomAccessHandle)
-        {
-            mRandomAccessHandle.close();
-        }
-        else
-        {
-            mBufferedWriteStream.close();
-        }
+#ifdef WIN32
+        fclose(mOut);
+        mOut = nullptr;
+#else
+        mBufferedWriteStream.close();
+#endif
     }
 
     void
     fdopen(int fd)
     {
-#ifdef _WIN32
+#ifdef WIN32
         FileSystemException::failWith(
             "XDROutputFileStream::fdopen() not supported on windows");
 #else
@@ -232,46 +229,47 @@ class XDROutputFileStream
             FileSystemException::failWith(
                 "XDROutputFileStream::flush() on non-open stream");
         }
-        if (mUsingRandomAccessHandle)
+#ifdef WIN32
+        fflush(mOut);
+#else
+        asio::error_code ec;
+        do
         {
-            // There is no flush on random access handles.
-        }
-        else
-        {
-            asio::error_code ec;
-            do
+            mBufferedWriteStream.flush(ec);
+            if (ec && ec != asio::error::interrupted)
             {
-                mBufferedWriteStream.flush(ec);
-                if (ec && ec != asio::error::interrupted)
-                {
-                    FileSystemException::failWith(
-                        std::string("XDROutputFileStream::flush() failed: ") +
-                        ec.message());
-                }
-            } while (ec);
-        }
+                FileSystemException::failWith(
+                    std::string("XDROutputFileStream::flush() failed: ") +
+                    ec.message());
+            }
+        } while (ec);
+#endif
     }
 
     void
     open(std::string const& filename)
     {
         ZoneScoped;
-        mUsingRandomAccessHandle = fs::shouldUseRandomAccessHandle(filename);
         if (isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::open() on already-open stream");
         }
         fs::native_handle_t handle = fs::openFileToWrite(filename);
-        if (mUsingRandomAccessHandle)
+#ifdef WIN32
+        mOut = fs::fdOpen(handle);
+        if (mOut != NULL)
         {
-            mRandomAccessHandle.assign(handle);
-            mRandomAccessNextWriteOffset = 0;
+            mHandle = handle;
         }
         else
         {
-            mBufferedWriteStream.next_layer().assign(handle);
+            FileSystemException::failWith(
+                "XDROutputFileStream::open() could not open file");
         }
+#else
+        mBufferedWriteStream.next_layer().assign(handle);
+#endif
     }
 
     operator bool()
@@ -311,24 +309,18 @@ class XDROutputFileStream
         size_t written = 0;
         while (written < to_write)
         {
+#ifdef WIN32
+            auto w = fwrite(mBuf.data() + written, 1, to_write - written, mOut);
+            if (w == 0)
+            {
+                FileSystemException::failWith(
+                    std::string("XDROutputFileStream::writeOne() failed"));
+            }
+            written += w;
+#else
             asio::error_code ec;
             auto buf = asio::buffer(mBuf.data() + written, to_write - written);
-#ifdef _WIN32
-            // Calling asio::write_at on the asio::posix::stream_descriptor
-            // will not even compile; so this one bit has to also be platform
-            // guarded.
-            if (mUsingRandomAccessHandle)
-            {
-                size_t n = asio::write_at(
-                    mRandomAccessHandle, mRandomAccessNextWriteOffset, buf, ec);
-                written += n;
-                mRandomAccessNextWriteOffset += n;
-            }
-            else
-#endif
-            {
-                written += asio::write(mBufferedWriteStream, buf, ec);
-            }
+            written += asio::write(mBufferedWriteStream, buf, ec);
             if (ec)
             {
                 if (ec == asio::error::interrupted)
@@ -343,6 +335,7 @@ class XDROutputFileStream
                         ec.message());
                 }
             }
+#endif
         }
         if (hasher)
         {

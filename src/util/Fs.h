@@ -47,15 +47,6 @@ void unlockFile(std::string const& path);
 // Call fsync() on POSIX or FlushFileBuffers() on Win32.
 void flushFileChanges(native_handle_t h);
 
-// For completely preposterous reasons, on windows an asio "stream"
-// type wrapping a win32 HANDLE is always written-to using an OVERLAPPED
-// structure with offset zero, meaning that when you write to a
-// file-on-the-disk HANDLE as though it is a stream, you wind up writing all
-// data at offset 0, over and over. Instead -- at least on windows and when
-// dealing with a file-on-disk -- we need to use a "random access" type
-// and track the offset to write next explicitly.
-bool shouldUseRandomAccessHandle(std::string const& path);
-
 // Open a native handle (fd or HANDLE) for writing.
 native_handle_t openFileToWrite(std::string const& path);
 

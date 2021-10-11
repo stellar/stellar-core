@@ -104,25 +104,17 @@ flushFileChanges(native_handle_t fh)
     }
 }
 
-bool
-shouldUseRandomAccessHandle(std::string const& path)
-{
-    // Named pipes use stream mode, everything else uses random access.
-    return path.find("\\\\.\\pipe\\") != 0;
-}
-
 native_handle_t
 openFileToWrite(std::string const& path)
 {
     ZoneScoped;
-    HANDLE h = ::CreateFile(
-        path.c_str(),
-        GENERIC_READ | GENERIC_WRITE,                   // DesiredAccess
-        FILE_SHARE_READ | FILE_SHARE_WRITE,             // ShareMode
-        NULL,                                           // SecurityAttributes
-        CREATE_ALWAYS,                                  // CreationDisposition
-        (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED), // FlagsAndAttributes
-        NULL);                                          // TemplateFile
+    HANDLE h = ::CreateFile(path.c_str(),
+                            GENERIC_READ | GENERIC_WRITE,       // DesiredAccess
+                            FILE_SHARE_READ | FILE_SHARE_WRITE, // ShareMode
+                            NULL,                  // SecurityAttributes
+                            CREATE_ALWAYS,         // CreationDisposition
+                            FILE_ATTRIBUTE_NORMAL, // FlagsAndAttributes
+                            NULL);                 // TemplateFile
 
     if (h == INVALID_HANDLE_VALUE)
     {
@@ -239,12 +231,6 @@ flushFileChanges(native_handle_t fd)
         FileSystemException::failWithErrno(
             "fs::flushFileChanges() failed on fsync(): ");
     }
-}
-
-bool
-shouldUseRandomAccessHandle(std::string const& path)
-{
-    return false;
 }
 
 native_handle_t
