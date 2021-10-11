@@ -231,9 +231,6 @@
     <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\util\uint128_t.cpp">
-      <Filter>lib\util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\TmpDir.cpp">
       <Filter>util</Filter>
     </ClCompile>

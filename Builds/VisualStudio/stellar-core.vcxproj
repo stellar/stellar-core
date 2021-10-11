@@ -448,7 +448,6 @@ exit /b 0
     <ClCompile Include="..\..\lib\json\jsoncpp.cpp" />
     <ClCompile Include="..\..\lib\util\cbitset.c" />
     <ClCompile Include="..\..\lib\util\getopt_long.c" />
-    <ClCompile Include="..\..\lib\util\uint128_t.cpp" />
     <ClCompile Include="..\..\lib\xdrpp\tests\arpc.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>

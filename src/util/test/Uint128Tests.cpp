@@ -17,22 +17,25 @@
 // when applied to random values. It's to help convince us that the class
 // is implemented correctly.
 
-using libu128::uint128_t;
+using large_int::uint128_t;
 
 #if defined(__SIZEOF_INT128__) || defined(_GLIBCXX_USE_INT128)
 
-const uint64_t full = std::numeric_limits<uint64_t>::max();
+constexpr uint64_t full = std::numeric_limits<uint64_t>::max();
 
 uint128_t
-fromNative(unsigned __int128 x)
+fromNative(unsigned __int128 const& x)
 {
-    return uint128_t(uint64_t(x >> 64), uint64_t(x & full));
+    uint128_t high(uint64_t(x >> 64));
+    uint128_t low(uint64_t(x & full));
+
+    return (high << 64) | low;
 }
 
 unsigned __int128
-toNative(uint128_t x)
+toNative(uint128_t const& x)
 {
-    return ((unsigned __int128)x.upper()) << 64 | x.lower();
+    return static_cast<unsigned __int128>(x);
 }
 
 bool
@@ -67,7 +70,7 @@ TEST_CASE("uint128_t bench", "[bench][uint128][!hide]")
 {
     gen128 g;
     size_t const n = 1000000;
-    uint128_t res1{0};
+    uint128_t res1{0ul};
     __uint128_t res2{0};
 
     std::vector<__uint128_t> native;
@@ -135,34 +138,36 @@ TEST_CASE("uint128_t carry tests with positive arg")
     {
         SECTION("carry lower")
         {
-            uint128_t x(0u, 100u);
+            uint128_t x(100u);
             x -= 1u;
-            REQUIRE(x.lower() == 99);
-            REQUIRE(x.upper() == 0);
+            REQUIRE((x & UINT64_MAX) == 99u);
+            REQUIRE((x >> 64) == 0u);
         }
         SECTION("carry upper")
         {
-            uint128_t x(2u, 0u);
+            uint128_t x = uint128_t(2u) << 64;
             x -= 1u;
-            REQUIRE(x.lower() == UINT64_MAX);
-            REQUIRE(x.upper() == 1);
+            REQUIRE((x & UINT64_MAX) == UINT64_MAX);
+            REQUIRE((x >> 64) == 1u);
         }
     }
     SECTION("addition")
     {
         SECTION("carry lower")
         {
-            uint128_t x(0u, 100u);
+            uint128_t x(100u);
             x += 1u;
-            REQUIRE(x.lower() == 101);
-            REQUIRE(x.upper() == 0);
+            REQUIRE((x & UINT64_MAX) == 101u);
+            REQUIRE((x >> 64) == 0u);
         }
         SECTION("carry upper")
         {
-            uint128_t x(1u, UINT64_MAX);
+            uint128_t x = (uint128_t(1u) << 64) + uint128_t(UINT64_MAX);
+            REQUIRE((x & UINT64_MAX) == UINT64_MAX);
+            REQUIRE((x >> 64) == 1u);
             x += 1u;
-            REQUIRE(x.lower() == 0);
-            REQUIRE(x.upper() == 2);
+            REQUIRE((x & UINT64_MAX) == 0u);
+            REQUIRE((x >> 64) == 2u);
         }
     }
 }
