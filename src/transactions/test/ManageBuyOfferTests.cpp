@@ -19,6 +19,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/numeric128.h"
 #include "xdrpp/autocheck.h"
 
 using namespace stellar;

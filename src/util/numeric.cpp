@@ -4,6 +4,7 @@
 
 #include "util/numeric.h"
 #include "util/GlobalChecks.h"
+#include "util/numeric128.h"
 
 #include <stdexcept>
 

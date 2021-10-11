@@ -4,9 +4,9 @@
 
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include "util/numeric128.h"
 
 using namespace stellar;
 

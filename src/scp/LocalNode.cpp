@@ -16,7 +16,6 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <functional>
-#include <uint128_t.h>
 
 namespace stellar
 {

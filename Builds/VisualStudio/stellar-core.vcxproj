@@ -740,6 +740,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
+    <ClInclude Include="..\..\src\util\numeric128.h" />
     <ClInclude Include="..\..\src\util\RandHasher.h" />
     <ClInclude Include="..\..\src\util\Scheduler.h" />
     <ClInclude Include="..\..\src\util\UnorderedMap.h" />

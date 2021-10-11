@@ -15,6 +15,7 @@
 #include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/XDROperators.h"
+#include "util/numeric128.h"
 
 #include <Tracy.hpp>
 #include <algorithm>
