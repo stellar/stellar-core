@@ -55,7 +55,7 @@ bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding)
 }
 
 bool
-bigDivide128(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
+bigDivide128(int64_t& result, uint128_t const& a, int64_t B, Rounding rounding)
 {
     releaseAssertOrThrow(B > 0);
 
@@ -70,7 +70,7 @@ bigDivide128(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
 }
 
 bool
-bigDivideUnsigned128(uint64_t& result, uint128_t a, uint64_t B,
+bigDivideUnsigned128(uint64_t& result, uint128_t const& a, uint64_t B,
                      Rounding rounding)
 {
     releaseAssertOrThrow(B != 0);
@@ -104,7 +104,7 @@ bigDivideUnsigned128(uint64_t& result, uint128_t a, uint64_t B,
 }
 
 int64_t
-bigDivideOrThrow128(uint128_t a, int64_t B, Rounding rounding)
+bigDivideOrThrow128(uint128_t const& a, int64_t B, Rounding rounding)
 {
     int64_t res;
     if (!bigDivide128(res, a, B, rounding))
@@ -282,7 +282,7 @@ bigSquareRoot(uint64_t a, uint64_t b)
 }
 
 bool
-hugeDivide(int64_t& result, int32_t a, uint128_t B, uint128_t C,
+hugeDivide(int64_t& result, int32_t a, uint128_t const& B, uint128_t const& C,
            Rounding rounding)
 {
     uint128_t constexpr i32_max((uint32_t)INT32_MAX);
