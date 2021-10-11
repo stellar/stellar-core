@@ -16,6 +16,16 @@
 #include <sstream>
 
 #ifdef _WIN32
+#include <Windows.h>
+#include <fcntl.h>
+#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys\stat.h>
+#include <sys\types.h>
+
 #include <direct.h>
 
 #include <io.h>
@@ -121,6 +131,28 @@ openFileToWrite(std::string const& path)
             path + std::string("\"): "));
     }
     return h;
+}
+
+FILE*
+fdOpen(native_handle_t h)
+{
+    FILE* res;
+    int const fd =
+        ::_open_osfhandle(reinterpret_cast<::intptr_t>(h), _O_APPEND);
+    if (-1 != fd)
+    {
+        res = ::_fdopen(fd, "wb");
+        if (res == NULL)
+        {
+            ::_close(fd);
+        }
+    }
+    else
+    {
+        ::CloseHandle(h);
+        res = NULL;
+    }
+    return res;
 }
 
 bool

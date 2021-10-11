@@ -59,6 +59,9 @@ bool shouldUseRandomAccessHandle(std::string const& path);
 // Open a native handle (fd or HANDLE) for writing.
 native_handle_t openFileToWrite(std::string const& path);
 
+// creates a FILE* based off h - caller is responsible for closing it
+FILE* fdOpen(native_handle_t h);
+
 // On POSIX, do rename(src, dst) then open dir and fsync() it
 // too: a necessary second step for ensuring durability.
 // On Win32, do MoveFileExA with MOVEFILE_WRITE_THROUGH.
