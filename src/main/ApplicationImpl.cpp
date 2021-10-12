@@ -274,9 +274,10 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
             mConfig.BEST_OFFER_DEBUGGING_ENABLED
 #endif
         );
+
+        BucketListIsConsistentWithDatabase::registerInvariant(*this);
     }
 
-    BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
