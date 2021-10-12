@@ -3133,6 +3133,7 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
                            "and asset from LedgerTxnRoot");
     }
 
+    UnorderedSet<LedgerKey> toPrefetch;
     UnorderedMap<LedgerKey, LedgerEntry> res(offers.size());
     for (auto const& offer : offers)
     {
@@ -3141,7 +3142,19 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
 
         auto le = std::make_shared<LedgerEntry const>(offer);
         putInEntryCache(key, le, LoadType::IMMEDIATE);
+
+        auto const& oe = offer.data.offer();
+        if (oe.buying.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+        }
+        if (oe.selling.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+        }
     }
+    prefetch(toPrefetch);
+
     return res;
 }
 
