@@ -1613,10 +1613,7 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
 void
 TransactionFuzzer::shutdown()
 {
-    mApp->gracefulStop();
-    while (mClock.crank(true))
-    {
-    }
+    exit(1);
 }
 
 void

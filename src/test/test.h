@@ -19,6 +19,8 @@ struct TransactionMeta;
 Config const& getTestConfig(int instanceNumber = 0,
                             Config::TestDbMode mode = Config::TESTDB_DEFAULT);
 
+void cleanupTmpDirs();
+
 // Records or checks a TxMetadata value against a persistent record
 // of metadata hashes. Each unit-test name and section has a separate
 // vector of TxMetadata hashes, containing all the txs in that
