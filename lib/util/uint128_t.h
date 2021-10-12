@@ -1143,7 +1143,14 @@ uint128_bits(__uint128_t const& x)
     else
     {
         uint64_t lo = uint64_t(x);
-        return 64 - __builtin_clzll(lo);
+        if (lo)
+        {
+            return 64 - __builtin_clzll(lo);
+        }
+        else
+        {
+            return 0;
+        }
     }
 }
 
@@ -1160,7 +1167,14 @@ uint128_max()
 inline int
 uint128_bits(uint128_t const& x)
 {
-    return 128-large_int::clz_helper<uint128_t>::clz(x);
+    if (x == 0ul)
+    {
+        return 0;
+    }
+    else
+    {
+        return 128 - large_int::clz_helper<uint128_t>::clz(x);
+    }
 }
 #endif
 }
