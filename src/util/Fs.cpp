@@ -16,6 +16,16 @@
 #include <sstream>
 
 #ifdef _WIN32
+#include <Windows.h>
+#include <fcntl.h>
+#include <io.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys\stat.h>
+#include <sys\types.h>
+
 #include <direct.h>
 
 #include <io.h>
@@ -94,25 +104,17 @@ flushFileChanges(native_handle_t fh)
     }
 }
 
-bool
-shouldUseRandomAccessHandle(std::string const& path)
-{
-    // Named pipes use stream mode, everything else uses random access.
-    return path.find("\\\\.\\pipe\\") != 0;
-}
-
 native_handle_t
 openFileToWrite(std::string const& path)
 {
     ZoneScoped;
-    HANDLE h = ::CreateFile(
-        path.c_str(),
-        GENERIC_READ | GENERIC_WRITE,                   // DesiredAccess
-        FILE_SHARE_READ | FILE_SHARE_WRITE,             // ShareMode
-        NULL,                                           // SecurityAttributes
-        CREATE_ALWAYS,                                  // CreationDisposition
-        (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED), // FlagsAndAttributes
-        NULL);                                          // TemplateFile
+    HANDLE h = ::CreateFile(path.c_str(),
+                            GENERIC_READ | GENERIC_WRITE,       // DesiredAccess
+                            FILE_SHARE_READ | FILE_SHARE_WRITE, // ShareMode
+                            NULL,                  // SecurityAttributes
+                            CREATE_ALWAYS,         // CreationDisposition
+                            FILE_ATTRIBUTE_NORMAL, // FlagsAndAttributes
+                            NULL);                 // TemplateFile
 
     if (h == INVALID_HANDLE_VALUE)
     {
@@ -121,6 +123,28 @@ openFileToWrite(std::string const& path)
             path + std::string("\"): "));
     }
     return h;
+}
+
+FILE*
+fdOpen(native_handle_t h)
+{
+    FILE* res;
+    int const fd =
+        ::_open_osfhandle(reinterpret_cast<::intptr_t>(h), _O_APPEND);
+    if (-1 != fd)
+    {
+        res = ::_fdopen(fd, "wb");
+        if (res == NULL)
+        {
+            ::_close(fd);
+        }
+    }
+    else
+    {
+        ::CloseHandle(h);
+        res = NULL;
+    }
+    return res;
 }
 
 bool
@@ -207,12 +231,6 @@ flushFileChanges(native_handle_t fd)
         FileSystemException::failWithErrno(
             "fs::flushFileChanges() failed on fsync(): ");
     }
-}
-
-bool
-shouldUseRandomAccessHandle(std::string const& path)
-{
-    return false;
 }
 
 native_handle_t

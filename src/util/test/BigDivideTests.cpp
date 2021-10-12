@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
+#include "util/numeric128.h"
 #include "util/types.h"
 #include <functional>
 

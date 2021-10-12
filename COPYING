@@ -129,12 +129,10 @@ lib/libmedida:
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
 
-lib/util/uint128_t.{cpp,h}
+lib/util/uint128_t.h
 
-  The uint128_t library,
-  Copyright 2013 2014 Jason Lee
-  (calccrypto@gmail.com)
-  (https://github.com/calccrypto/uint128_t)
+  large_int implementation from https://github.com/zhanhb/int128
+  Copyright (c) 2018 zhanhb
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 

@@ -4,6 +4,7 @@
 
 #include "util/numeric.h"
 #include "util/GlobalChecks.h"
+#include "util/numeric128.h"
 
 #include <stdexcept>
 
@@ -54,7 +55,7 @@ bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding)
 }
 
 bool
-bigDivide128(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
+bigDivide128(int64_t& result, uint128_t const& a, int64_t B, Rounding rounding)
 {
     releaseAssertOrThrow(B > 0);
 
@@ -69,7 +70,7 @@ bigDivide128(int64_t& result, uint128_t a, int64_t B, Rounding rounding)
 }
 
 bool
-bigDivideUnsigned128(uint64_t& result, uint128_t a, uint64_t B,
+bigDivideUnsigned128(uint64_t& result, uint128_t const& a, uint64_t B,
                      Rounding rounding)
 {
     releaseAssertOrThrow(B != 0);
@@ -103,7 +104,7 @@ bigDivideUnsigned128(uint64_t& result, uint128_t a, uint64_t B,
 }
 
 int64_t
-bigDivideOrThrow128(uint128_t a, int64_t B, Rounding rounding)
+bigDivideOrThrow128(uint128_t const& a, int64_t B, Rounding rounding)
 {
     int64_t res;
     if (!bigDivide128(res, a, B, rounding))
@@ -223,7 +224,7 @@ bigSquareRootCeil(uint64_t a, uint64_t b)
     uint128_t R = bigMultiplyUnsigned(a, b) - 1u;
 
     // Seed the result with a reasonable estimate x >= ceil(sqrt(R+1))
-    uint8_t numBits = uint128_bits(R) / 2 + 1;
+    int numBits = uint128_bits(R) / 2 + 1;
     uint64_t x = numBits >= 64 ? UINT64_MAX : (1ull << numBits);
 
     uint64_t prev = 0;
@@ -281,14 +282,14 @@ bigSquareRoot(uint64_t a, uint64_t b)
 }
 
 bool
-hugeDivide(int64_t& result, int32_t a, uint128_t B, uint128_t C,
+hugeDivide(int64_t& result, int32_t a, uint128_t const& B, uint128_t const& C,
            Rounding rounding)
 {
-    static uint128_t const i32_max((uint32_t)INT32_MAX);
-    static uint128_t const i64_max((uint64_t)INT64_MAX);
+    uint128_t constexpr i32_max((uint32_t)INT32_MAX);
+    uint128_t constexpr i64_max((uint64_t)INT64_MAX);
 
     releaseAssertOrThrow(a >= 0);
-    releaseAssertOrThrow(C != 0);
+    releaseAssertOrThrow(C != 0ul);
     releaseAssertOrThrow(C <= i32_max * i64_max);
 
     // Use the remainder theorem to yield B = QC + R with R < C

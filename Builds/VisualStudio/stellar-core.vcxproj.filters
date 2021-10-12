@@ -231,9 +231,6 @@
     <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\util\uint128_t.cpp">
-      <Filter>lib\util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\TmpDir.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -2101,6 +2098,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\Diagnostics.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\numeric128.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
