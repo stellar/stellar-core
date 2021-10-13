@@ -152,6 +152,12 @@ EntryIterator::entry() const
     return getImpl()->entry();
 }
 
+std::shared_ptr<InternalLedgerEntry>
+EntryIterator::entryPtr() const
+{
+    return getImpl()->entryPtr();
+}
+
 bool
 EntryIterator::entryExists() const
 {
@@ -162,58 +168,6 @@ InternalLedgerKey const&
 EntryIterator::key() const
 {
     return getImpl()->key();
-}
-
-// Implementation of WorstBestOfferIterator -----------------------------------
-WorstBestOfferIterator::WorstBestOfferIterator(
-    std::unique_ptr<AbstractImpl>&& impl)
-    : mImpl(std::move(impl))
-{
-}
-
-WorstBestOfferIterator::WorstBestOfferIterator(WorstBestOfferIterator&& other)
-    : mImpl(std::move(other.mImpl))
-{
-}
-
-WorstBestOfferIterator::WorstBestOfferIterator(
-    WorstBestOfferIterator const& other)
-    : mImpl(other.mImpl->clone())
-{
-}
-
-std::unique_ptr<WorstBestOfferIterator::AbstractImpl> const&
-WorstBestOfferIterator::getImpl() const
-{
-    if (!mImpl)
-    {
-        throw std::runtime_error("Iterator is empty");
-    }
-    return mImpl;
-}
-
-WorstBestOfferIterator&
-WorstBestOfferIterator::operator++()
-{
-    getImpl()->advance();
-    return *this;
-}
-
-WorstBestOfferIterator::operator bool() const
-{
-    return !getImpl()->atEnd();
-}
-
-AssetPair const&
-WorstBestOfferIterator::assets() const
-{
-    return getImpl()->assets();
-}
-
-std::shared_ptr<OfferDescriptor const> const&
-WorstBestOfferIterator::offerDescriptor() const
-{
-    return getImpl()->offerDescriptor();
 }
 
 // Implementation of AbstractLedgerTxn --------------------------------------
@@ -332,14 +286,14 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
 }
 
 void
-LedgerTxn::commit()
+LedgerTxn::commit() noexcept
 {
     getImpl()->commit();
     mImpl.reset();
 }
 
 void
-LedgerTxn::Impl::commit()
+LedgerTxn::Impl::commit() noexcept
 {
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
@@ -349,7 +303,7 @@ LedgerTxn::Impl::commit()
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept
 {
     getImpl()->commitChild(std::move(iter), cons);
 }
@@ -369,7 +323,8 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
 }
 
 void
-LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxn::Impl::commitChild(EntryIterator iter,
+                             LedgerTxnConsistency cons) noexcept
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
@@ -377,21 +332,17 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 
     mConsistency = joinConsistencyLevels(mConsistency, cons);
 
+    if (!mActive.empty())
+    {
+        printErrorAndAbort(
+            "Attempting to commit a child while parent has active entries");
+    }
     try
     {
         for (; (bool)iter; ++iter)
         {
-            auto const& key = iter.key();
-
-            if (iter.entryExists())
-            {
-                updateEntry(
-                    key, std::make_shared<InternalLedgerEntry>(iter.entry()));
-            }
-            else
-            {
-                updateEntry(key, nullptr);
-            }
+            updateEntry(iter.key(), iter.entryPtr(),
+                        /* effectiveActive */ false);
         }
 
         // We will show that the following update procedure leaves the self
@@ -462,15 +413,11 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
         // about the offers with asset pair P that exist in parent and have been
         // recorded in self both before and after the commit. In either case,
         // there is no need to update the self worst best offer map.
-        auto wboIter = mChild->getWorstBestOfferIterator();
-        for (; (bool)wboIter; ++wboIter)
-        {
-            auto fromChild = wboIter.offerDescriptor();
-            std::shared_ptr<OfferDescriptor const> descPtr =
-                fromChild ? std::make_shared<OfferDescriptor const>(*fromChild)
-                          : nullptr;
-            updateWorstBestOffer(wboIter.assets(), descPtr);
-        }
+        mChild->forAllWorstBestOffers(
+            [&](Asset const& buying, Asset const& selling,
+                std::shared_ptr<OfferDescriptor const>& desc) {
+                updateWorstBestOffer(AssetPair{buying, selling}, desc);
+            });
     }
     catch (std::exception& e)
     {
@@ -515,7 +462,7 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    updateEntry(key, current);
+    updateEntry(key, current, /* effectiveActive */ true);
     return ltxe;
 }
 
@@ -539,7 +486,8 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(key, std::make_shared<InternalLedgerEntry>(entry));
+    updateEntry(key, std::make_shared<InternalLedgerEntry>(entry),
+                /* effectiveActive */ false);
 }
 
 void
@@ -797,10 +745,10 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
     AssetPair const assets{buying, selling};
 
     std::shared_ptr<LedgerEntry const> selfBest;
-    auto mobIter = mMultiOrderBook.find(assets);
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(buying, selling);
+    if (ob)
     {
-        auto const& offers = mobIter->second;
+        auto& offers = *ob;
         if (!offers.empty())
         {
             auto entryIter = mEntry.find(offers.begin()->second);
@@ -907,10 +855,10 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     AssetPair const assets{buying, selling};
 
     std::shared_ptr<LedgerEntry const> selfBest;
-    auto mobIter = mMultiOrderBook.find(assets);
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(buying, selling);
+    if (ob)
     {
-        auto const& offers = mobIter->second;
+        auto const& offers = *ob;
         auto iter = offers.upper_bound(worseThan);
         if (iter != offers.end())
         {
@@ -1433,7 +1381,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
     // If this throws, the order book will not be modified because of the strong
     // exception safety guarantee. Furthermore, ltxe will be destructed leading
     // to key being deactivated. This will leave LedgerTxn unmodified.
-    updateEntry(key, current);
+    updateEntry(key, current, /* effectiveActive */ true);
     return ltxe;
 }
 
@@ -1701,14 +1649,14 @@ LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self,
 }
 
 void
-LedgerTxn::rollback()
+LedgerTxn::rollback() noexcept
 {
     getImpl()->rollback();
     mImpl.reset();
 }
 
 void
-LedgerTxn::Impl::rollback()
+LedgerTxn::Impl::rollback() noexcept
 {
     if (mChild)
     {
@@ -1725,13 +1673,13 @@ LedgerTxn::Impl::rollback()
 }
 
 void
-LedgerTxn::rollbackChild()
+LedgerTxn::rollbackChild() noexcept
 {
     getImpl()->rollbackChild();
 }
 
 void
-LedgerTxn::Impl::rollbackChild()
+LedgerTxn::Impl::rollbackChild() noexcept
 {
     mChild = nullptr;
 }
@@ -1848,53 +1796,36 @@ LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     return mParent.prefetch(keys);
 }
 
-LedgerTxn::Impl::EntryMap
-LedgerTxn::Impl::maybeUpdateLastModified() const
+void
+LedgerTxn::Impl::maybeUpdateLastModified() noexcept
 {
     throwIfSealed();
     throwIfChild();
 
-    // Note: We do a deep copy here since a shallow copy would not be exception
-    // safe.
-    EntryMap entries;
-    entries.reserve(mEntry.size());
-    for (auto const& kv : mEntry)
+    for (auto& kv : mEntry)
     {
-        auto const& key = kv.first;
-        std::shared_ptr<InternalLedgerEntry> entry;
+        auto& entry = kv.second;
         if (kv.second)
         {
-            entry = std::make_shared<InternalLedgerEntry>(*kv.second);
             if (mShouldUpdateLastModified &&
                 entry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
             {
                 entry->ledgerEntry().lastModifiedLedgerSeq = mHeader->ledgerSeq;
             }
         }
-        entries.emplace(key, entry);
     }
-    return entries;
 }
 
 void
 LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
-    std::function<void(EntryMap const&)> f)
+    std::function<void(EntryMap const&)> f) noexcept
 {
     if (!mIsSealed)
     {
-        // Invokes throwIfChild and throwIfSealed
-        auto entries = maybeUpdateLastModified();
+        maybeUpdateLastModified();
 
-        f(entries);
+        f(mEntry);
 
-        // For associative containers, swap does not throw unless the exception
-        // is thrown by the swap of the Compare object (which is of type
-        // std::less<LedgerKey>, so this should not throw when swapped)
-        mEntry.swap(entries);
-
-        // std::multiset<...>::clear does not throw
-        // std::set<...>::clear does not throw
-        // std::shared_ptr<...>::reset does not throw
         mMultiOrderBook.clear();
         mActive.clear();
         mActiveHeader.reset();
@@ -1906,18 +1837,37 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     }
 }
 
-std::pair<LedgerTxn::Impl::MultiOrderBook::iterator,
-          LedgerTxn::Impl::OrderBook::iterator>
+std::pair<LedgerTxn::Impl::OrderBook*, LedgerTxn::Impl::OrderBook::iterator>
 LedgerTxn::Impl::findInOrderBook(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
-    auto mobIter = mMultiOrderBook.find({oe.buying, oe.selling});
-    OrderBook::iterator obIter;
-    if (mobIter != mMultiOrderBook.end())
+    auto ob = findOrderBook(oe.buying, oe.selling);
+    if (ob)
     {
-        obIter = mobIter->second.find({oe.price, oe.offerID});
+        auto obIter = ob->find({oe.price, oe.offerID});
+        if (obIter != ob->end())
+        {
+            return {ob, obIter};
+        }
     }
-    return {mobIter, obIter};
+    return {nullptr, OrderBook::iterator{}};
+}
+
+LedgerTxn::Impl::OrderBook*
+LedgerTxn::Impl::findOrderBook(Asset const& buying, Asset const& selling)
+{
+    auto mobIterBuying = mMultiOrderBook.find(buying);
+    if (mobIterBuying != mMultiOrderBook.end())
+    {
+        auto& mobBuying = mobIterBuying->second;
+        auto mobIterSelling = mobBuying.find(selling);
+        if (mobIterSelling != mobBuying.end())
+        {
+            auto& mobSelling = mobIterSelling->second;
+            return &mobSelling;
+        }
+    }
+    return nullptr;
 }
 
 void
@@ -1954,14 +1904,8 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              std::shared_ptr<InternalLedgerEntry> lePtr,
-                             bool effectiveActive, bool eraseIfNull)
+                             bool effectiveActive, bool eraseIfNull) noexcept
 {
-    // recordEntry has the strong exception safety guarantee because
-    // - UnorderedMap<...>::erase has the strong exception safety
-    //   guarantee
-    // - UnorderedMap<...>::operator[] has the strong exception safety
-    //   guarantee
-    // - std::shared_ptr<...>::operator= does not throw
     auto recordEntry = [&]() {
         if (eraseIfNull)
         {
@@ -1982,17 +1926,13 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         return;
     }
 
-    OrderBook* obOld = nullptr;
-    OrderBook::iterator obIterOld;
     auto iter = mEntry.find(key);
     if (iter != mEntry.end() && iter->second)
     {
-        MultiOrderBook::iterator mobIterOld;
-        std::tie(mobIterOld, obIterOld) =
-            findInOrderBook(iter->second->ledgerEntry());
-        if (mobIterOld != mMultiOrderBook.end())
+        auto obAndOfferIt = findInOrderBook(iter->second->ledgerEntry());
+        if (obAndOfferIt.first)
         {
-            obOld = &mobIterOld->second;
+            obAndOfferIt.first->erase(obAndOfferIt.second);
         }
     }
 
@@ -2001,65 +1941,11 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
     if (lePtr && !effectiveActive)
     {
         auto const& oe = lePtr->ledgerEntry().data.offer();
-        AssetPair assetPair{oe.buying, oe.selling};
 
-        auto mobIterNew = mMultiOrderBook.find(assetPair);
-        if (mobIterNew != mMultiOrderBook.end())
-        {
-            auto& obNew = mobIterNew->second;
-            // obNew is a reference to an OrderBook, which is a typedef for
-            // std::multimap<...>. std::multimap<...> does not invalidate any
-            // iterators on insertion, so obIterOld is still valid after this
-            // insertion. From the standard:
-            //
-            //    The insert and emplace members shall not affect the validity
-            //    of iterators and references to the container.
-            auto res = obNew.insert({{oe.price, oe.offerID}, key.ledgerKey()});
-            try
-            {
-                recordEntry();
-            }
-            catch (...)
-            {
-                obNew.erase(res);
-                throw;
-            }
-        }
-        else
-        {
-            // mMultiOrderBook is a MultiOrderBook, which is a typedef for
-            // UnorderedMap<...>. UnorderedMap<...> may invalidate
-            // all iterators on insertion if a rehash is required, but pointers
-            // are guaranteed to remain valid so obOld is still valid after
-            // this insertion. From the standard:
-            //
-            //    The insert and emplace members shall not affect the validity
-            //    of references to container elements, but may invalidate all
-            //    iterators to the container.
-            auto res = mMultiOrderBook.emplace(
-                assetPair,
-                OrderBook{{{oe.price, oe.offerID}, key.ledgerKey()}});
-            try
-            {
-                recordEntry();
-            }
-            catch (...)
-            {
-                mMultiOrderBook.erase(res.first);
-                throw;
-            }
-        }
+        auto& ob = mMultiOrderBook[oe.buying][oe.selling];
+        ob.emplace(OfferDescriptor{oe.price, oe.offerID}, key.ledgerKey());
     }
-    else
-    {
-        recordEntry();
-    }
-
-    // This never throws
-    if (obOld && obIterOld != obOld->end())
-    {
-        obOld->erase(obIterOld);
-    }
+    recordEntry();
 }
 
 static bool
@@ -2086,18 +1972,20 @@ LedgerTxn::Impl::updateWorstBestOffer(
     }
 }
 
-WorstBestOfferIterator
-LedgerTxn::getWorstBestOfferIterator()
+void
+LedgerTxn::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
-    return getImpl()->getWorstBestOfferIterator();
+    getImpl()->forAllWorstBestOffers(proc);
 }
 
-WorstBestOfferIterator
-LedgerTxn::Impl::getWorstBestOfferIterator()
+void
+LedgerTxn::Impl::forAllWorstBestOffers(WorstOfferProcessor proc)
 {
-    auto iterImpl = std::make_unique<WorstBestOfferIteratorImpl>(
-        mWorstBestOffer.cbegin(), mWorstBestOffer.cend());
-    return WorstBestOfferIterator(std::move(iterImpl));
+    for (auto& wo : mWorstBestOffer)
+    {
+        auto& ap = wo.first;
+        proc(ap.buying, ap.selling, wo.second);
+    }
 }
 
 bool
@@ -2152,17 +2040,31 @@ LedgerTxn::Impl::prepareNewObjects(size_t s)
 
 #ifdef BUILD_TESTS
 UnorderedMap<AssetPair,
-             std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
-             AssetPairHash> const&
-LedgerTxn::getOrderBook()
+             std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+             AssetPairHash>
+LedgerTxn::getOrderBook() const
 {
     return getImpl()->getOrderBook();
 }
 
-LedgerTxn::Impl::MultiOrderBook const&
-LedgerTxn::Impl::getOrderBook()
+UnorderedMap<AssetPair,
+             std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+             AssetPairHash>
+LedgerTxn::Impl::getOrderBook() const
 {
-    return mMultiOrderBook;
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash>
+        res;
+    for (auto& b : mMultiOrderBook)
+    {
+        for (auto& s : b.second)
+        {
+            AssetPair p{b.first, s.first};
+            res[p].insert(s.second.begin(), s.second.end());
+        }
+    }
+    return res;
 }
 #endif
 
@@ -2191,6 +2093,12 @@ LedgerTxn::Impl::EntryIteratorImpl::entry() const
     return *(mIter->second);
 }
 
+std::shared_ptr<InternalLedgerEntry>
+LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
+{
+    return mIter->second;
+}
+
 bool
 LedgerTxn::Impl::EntryIteratorImpl::entryExists() const
 {
@@ -2207,43 +2115,6 @@ std::unique_ptr<EntryIterator::AbstractImpl>
 LedgerTxn::Impl::EntryIteratorImpl::clone() const
 {
     return std::make_unique<EntryIteratorImpl>(mIter, mEnd);
-}
-
-// Implementation of LedgerTxn::Impl::WorstBestOfferIteratorImpl --------------
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::WorstBestOfferIteratorImpl(
-    IteratorType const& begin, IteratorType const& end)
-    : mIter(begin), mEnd(end)
-{
-}
-
-void
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::advance()
-{
-    ++mIter;
-}
-
-AssetPair const&
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::assets() const
-{
-    return mIter->first;
-}
-
-bool
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::atEnd() const
-{
-    return mIter == mEnd;
-}
-
-std::shared_ptr<OfferDescriptor const> const&
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::offerDescriptor() const
-{
-    return mIter->second;
-}
-
-std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
-LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
-{
-    return std::make_unique<WorstBestOfferIteratorImpl>(mIter, mEnd);
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------
@@ -2352,7 +2223,8 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxnRoot::commitChild(EntryIterator iter,
+                           LedgerTxnConsistency cons) noexcept
 {
     mImpl->commitChild(std::move(iter), cons);
 }
@@ -2481,7 +2353,8 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
 }
 
 void
-LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
+                                 LedgerTxnConsistency cons) noexcept
 {
     ZoneScoped;
 
@@ -2490,8 +2363,8 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // rollback.
     if (!mTransaction)
     {
-        throw std::runtime_error("Illegal action in LedgerTxnRoot: committing "
-                                 "child in read-only mode");
+        printErrorAndAbort("Illegal action in LedgerTxnRoot: committing "
+                           "child in read-only mode");
     }
 
     // Assignment of xdrpp objects does not have the strong exception safety
@@ -3305,13 +3178,13 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
 }
 
 void
-LedgerTxnRoot::rollbackChild()
+LedgerTxnRoot::rollbackChild() noexcept
 {
     mImpl->rollbackChild();
 }
 
 void
-LedgerTxnRoot::Impl::rollbackChild()
+LedgerTxnRoot::Impl::rollbackChild() noexcept
 {
     if (mTransaction)
     {

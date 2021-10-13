@@ -36,29 +36,11 @@ class EntryIterator::AbstractImpl
     virtual bool atEnd() const = 0;
 
     virtual InternalLedgerEntry const& entry() const = 0;
+    virtual std::shared_ptr<InternalLedgerEntry> entryPtr() const = 0;
 
     virtual bool entryExists() const = 0;
 
     virtual InternalLedgerKey const& key() const = 0;
-
-    virtual std::unique_ptr<AbstractImpl> clone() const = 0;
-};
-
-class WorstBestOfferIterator::AbstractImpl
-{
-  public:
-    virtual ~AbstractImpl()
-    {
-    }
-
-    virtual void advance() = 0;
-
-    virtual AssetPair const& assets() const = 0;
-
-    virtual bool atEnd() const = 0;
-
-    virtual std::shared_ptr<OfferDescriptor const> const&
-    offerDescriptor() const = 0;
 
     virtual std::unique_ptr<AbstractImpl> clone() const = 0;
 };
@@ -176,7 +158,6 @@ class BulkLedgerEntryChangeAccumulator
 class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
-    class WorstBestOfferIteratorImpl;
 
     typedef UnorderedMap<InternalLedgerKey,
                          std::shared_ptr<InternalLedgerEntry>>
@@ -192,14 +173,9 @@ class LedgerTxn::Impl
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
 
-    // In theory, we only need an std::map<...> per asset pair. Unfortunately
-    // std::map<...> does not provide any remotely exception safe way to update
-    // the keys. So we use std::multimap<...> in order to achieve an exception
-    // safe update. The observable state of the std::multimap<...> should never
-    // have multiple elements with the same key.
-    typedef std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
+    typedef std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
         OrderBook;
-    typedef UnorderedMap<AssetPair, OrderBook, AssetPairHash> MultiOrderBook;
+    typedef UnorderedMap<Asset, UnorderedMap<Asset, OrderBook>> MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
     // contains an entry if and only if it is live, and recorded in this
     // LedgerTxn, and not active. It is grouped by asset pair, and for each
@@ -392,17 +368,20 @@ class LedgerTxn::Impl
     // getEntryIterator has the strong exception safety guarantee
     EntryIterator getEntryIterator(EntryMap const& entries) const;
 
-    // maybeUpdateLastModified has the strong exception safety guarantee
-    EntryMap maybeUpdateLastModified() const;
+    void maybeUpdateLastModified() noexcept;
 
-    // maybeUpdateLastModifiedThenInvokeThenSeal has the same exception safety
-    // guarantee as f
+    // f should not throw
+    // C++ doesn't support "std::function<void(EntryMap const&) nothrow>" yet
     void maybeUpdateLastModifiedThenInvokeThenSeal(
-        std::function<void(EntryMap const&)> f);
+        std::function<void(EntryMap const&)> f) noexcept;
 
     // findInOrderBook has the strong exception safety guarantee
-    std::pair<MultiOrderBook::iterator, OrderBook::iterator>
+    // returns:
+    //   the orderbook that the offer le would be in (if found)
+    //   the iterator to le (if found in the order book)
+    std::pair<OrderBook*, OrderBook::iterator>
     findInOrderBook(LedgerEntry const& le);
+    OrderBook* findOrderBook(Asset const& buying, Asset const& selling);
 
     // updateEntryIfRecorded and updateEntry have the strong exception safety
     // guarantee
@@ -415,7 +394,7 @@ class LedgerTxn::Impl
                      bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
-                     bool effectiveActive, bool eraseIfNull);
+                     bool effectiveActive, bool eraseIfNull) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
@@ -429,11 +408,9 @@ class LedgerTxn::Impl
     // addChild has the strong exception safety guarantee
     void addChild(AbstractLedgerTxn& child);
 
-    // commit has the strong exception safety guarantee.
-    void commit();
+    void commit() noexcept;
 
-    // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
     // create has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -475,8 +452,7 @@ class LedgerTxn::Impl
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan);
 
-    // getWorstBestOfferIterator has the strong exception safety guarantee
-    WorstBestOfferIterator getWorstBestOfferIterator();
+    void forAllWorstBestOffers(WorstOfferProcessor proc);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -601,11 +577,8 @@ class LedgerTxn::Impl
     ConstLedgerTxnEntry loadWithoutRecord(LedgerTxn& self,
                                           InternalLedgerKey const& key);
 
-    // rollback does not throw
-    void rollback();
-
-    // rollbackChild does not throw
-    void rollbackChild();
+    void rollback() noexcept;
+    void rollbackChild() noexcept;
 
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
@@ -620,7 +593,10 @@ class LedgerTxn::Impl
     bool hasSponsorshipEntry() const;
 
 #ifdef BUILD_TESTS
-    MultiOrderBook const& getOrderBook();
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash>
+    getOrderBook() const;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -652,36 +628,13 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     bool atEnd() const override;
 
     InternalLedgerEntry const& entry() const override;
+    std::shared_ptr<InternalLedgerEntry> entryPtr() const override;
 
     bool entryExists() const override;
 
     InternalLedgerKey const& key() const override;
 
     std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
-};
-
-class LedgerTxn::Impl::WorstBestOfferIteratorImpl
-    : public WorstBestOfferIterator::AbstractImpl
-{
-    typedef LedgerTxn::Impl::WorstBestOfferMap::const_iterator IteratorType;
-    IteratorType mIter;
-    IteratorType const mEnd;
-
-  public:
-    WorstBestOfferIteratorImpl(IteratorType const& begin,
-                               IteratorType const& end);
-
-    AssetPair const& assets() const override;
-
-    void advance() override;
-
-    bool atEnd() const override;
-
-    std::shared_ptr<OfferDescriptor const> const&
-    offerDescriptor() const override;
-
-    std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
-    clone() const override;
 };
 
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety
@@ -852,8 +805,7 @@ class LedgerTxnRoot::Impl
     // addChild has the strong exception safety guarantee.
     void addChild(AbstractLedgerTxn& child, TransactionMode mode);
 
-    // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
     // countObjects has the strong exception safety guarantee.
     uint64_t countObjects(LedgerEntryType let) const;
@@ -927,8 +879,7 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const;
 
-    // rollbackChild has the strong exception safety guarantee.
-    void rollbackChild();
+    void rollbackChild() noexcept;
 
     // Prefetch some or all of given keys in batches. Note that no prefetching
     // could occur if the cache is at its fill ratio. Returns number of keys

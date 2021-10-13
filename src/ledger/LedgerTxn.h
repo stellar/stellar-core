@@ -312,36 +312,11 @@ class EntryIterator
     explicit operator bool() const;
 
     InternalLedgerEntry const& entry() const;
+    std::shared_ptr<InternalLedgerEntry> entryPtr() const;
 
     bool entryExists() const;
 
     InternalLedgerKey const& key() const;
-};
-
-class WorstBestOfferIterator
-{
-  public:
-    class AbstractImpl;
-
-  private:
-    std::unique_ptr<AbstractImpl> mImpl;
-
-    std::unique_ptr<AbstractImpl> const& getImpl() const;
-
-  public:
-    WorstBestOfferIterator(std::unique_ptr<AbstractImpl>&& impl);
-
-    WorstBestOfferIterator(WorstBestOfferIterator const& other);
-
-    WorstBestOfferIterator(WorstBestOfferIterator&& other);
-
-    WorstBestOfferIterator& operator++();
-
-    explicit operator bool() const;
-
-    AssetPair const& assets() const;
-
-    std::shared_ptr<OfferDescriptor const> const& offerDescriptor() const;
 };
 
 void validateTrustLineKey(uint32_t ledgerVersion, LedgerKey const& key);
@@ -368,8 +343,9 @@ class AbstractLedgerTxnParent
     // commitChild and rollbackChild are called by a child AbstractLedgerTxn
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
-    virtual void commitChild(EntryIterator iter, LedgerTxnConsistency cons) = 0;
-    virtual void rollbackChild() = 0;
+    virtual void commitChild(EntryIterator iter,
+                             LedgerTxnConsistency cons) noexcept = 0;
+    virtual void rollbackChild() noexcept = 0;
 
     // getAllOffers, getBestOffer, and getOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers.
@@ -503,8 +479,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
 
     // commit and rollback trigger an atomic commit into the parent or an atomic
     // rollback of the data stored in the AbstractLedgerTxn.
-    virtual void commit() = 0;
-    virtual void rollback() = 0;
+    virtual void commit() noexcept = 0;
+    virtual void rollback() noexcept = 0;
 
     // loadHeader, create, erase, load, and loadWithoutRecord provide the main
     // interface to interact with data stored in the AbstractLedgerTxn. These
@@ -580,11 +556,14 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
 
-    // getWorstBestOfferIterator allows a parent AbstractLedgerTxn to get the
+    // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
     // in any parent AbstractLedgerTxn has already been loaded). This function
     // is intended for use with commit.
-    virtual WorstBestOfferIterator getWorstBestOfferIterator() = 0;
+    using WorstOfferProcessor =
+        std::function<void(Asset const& buying, Asset const& selling,
+                           std::shared_ptr<OfferDescriptor const>& desc)>;
+    virtual void forAllWorstBestOffers(WorstOfferProcessor proc) = 0;
 
     // loadAllOffers, loadBestOffer, and loadOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers. These functions are built
@@ -660,9 +639,10 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 
-    void commit() override;
+    void commit() noexcept override;
 
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
+    void commitChild(EntryIterator iter,
+                     LedgerTxnConsistency cons) noexcept override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
@@ -676,7 +656,7 @@ class LedgerTxn : public AbstractLedgerTxn
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
 
-    WorstBestOfferIterator getWorstBestOfferIterator() override;
+    void forAllWorstBestOffers(WorstOfferProcessor proc) override;
 
     LedgerEntryChanges getChanges() override;
 
@@ -729,9 +709,9 @@ class LedgerTxn : public AbstractLedgerTxn
     ConstLedgerTxnEntry
     loadWithoutRecord(InternalLedgerKey const& key) override;
 
-    void rollback() override;
+    void rollback() noexcept override;
 
-    void rollbackChild() override;
+    void rollbackChild() noexcept override;
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 
@@ -752,11 +732,10 @@ class LedgerTxn : public AbstractLedgerTxn
     bool hasSponsorshipEntry() const override;
 
 #ifdef BUILD_TESTS
-    UnorderedMap<
-        AssetPair,
-        std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
-        AssetPairHash> const&
-    getOrderBook();
+    UnorderedMap<AssetPair,
+                 std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+                 AssetPairHash>
+    getOrderBook() const;
 
     void resetForFuzzer() override;
 #endif // BUILD_TESTS
@@ -789,7 +768,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
 
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
+    void commitChild(EntryIterator iter,
+                     LedgerTxnConsistency cons) noexcept override;
 
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,
@@ -832,7 +812,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
 
-    void rollbackChild() override;
+    void rollbackChild() noexcept override;
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     double getPrefetchHitRate() const override;

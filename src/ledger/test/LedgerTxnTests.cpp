@@ -3055,8 +3055,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
 typedef UnorderedMap<AssetPair, std::vector<LedgerEntry>, AssetPairHash>
     OrderBook;
 typedef UnorderedMap<
-    AssetPair,
-    std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+    AssetPair, std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
     AssetPairHash>
     SortedOrderBook;
 
@@ -3089,8 +3088,9 @@ checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
         }
     };
 
-    check(ltx.getOrderBook(), sortedExpected);
-    check(sortedExpected, ltx.getOrderBook());
+    auto ltxOb = ltx.getOrderBook();
+    check(ltxOb, sortedExpected);
+    check(sortedExpected, ltxOb);
 }
 
 static LedgerEntry

@@ -35,12 +35,12 @@ InMemoryLedgerTxn::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 }
 
 void
-InMemoryLedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
+InMemoryLedgerTxn::commitChild(EntryIterator iter,
+                               LedgerTxnConsistency cons) noexcept
 {
     if (!mTransaction)
     {
-        throw std::runtime_error(
-            "Committing child to non-open InMemoryLedgerTxn");
+        printErrorAndAbort("Committing child to non-open InMemoryLedgerTxn");
     }
     try
     {
@@ -61,7 +61,7 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 }
 
 void
-InMemoryLedgerTxn::rollbackChild()
+InMemoryLedgerTxn::rollbackChild() noexcept
 {
     try
     {

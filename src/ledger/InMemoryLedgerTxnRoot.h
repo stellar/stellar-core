@@ -38,8 +38,9 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
 #endif
     );
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
-    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
-    void rollbackChild() override;
+    void commitChild(EntryIterator iter,
+                     LedgerTxnConsistency cons) noexcept override;
+    void rollbackChild() noexcept override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
     std::shared_ptr<LedgerEntry const>

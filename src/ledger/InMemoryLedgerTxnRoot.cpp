@@ -33,13 +33,13 @@ InMemoryLedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
 void
 InMemoryLedgerTxnRoot::commitChild(EntryIterator iter,
-                                   LedgerTxnConsistency cons)
+                                   LedgerTxnConsistency cons) noexcept
 {
-    throw std::runtime_error("committing to stub InMemoryLedgerTxnRoot");
+    printErrorAndAbort("committing to stub InMemoryLedgerTxnRoot");
 }
 
 void
-InMemoryLedgerTxnRoot::rollbackChild()
+InMemoryLedgerTxnRoot::rollbackChild() noexcept
 {
 }
 
