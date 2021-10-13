@@ -135,18 +135,18 @@ readFile(const std::string& filename, bool base64,
     if (base64)
     {
         // process line by line until empty line/space
-        while (true)
+        do
         {
             string b64;
             (*in) >> b64;
-            if (b64.empty() || in->eof())
+            if (b64.empty())
             {
                 return;
             }
             string s;
             decoder::decode_b64(b64, s);
             proc(xdr::opaque_vec<>(s.begin(), s.end()));
-        }
+        } while (!in->eof());
     }
     else
     {
