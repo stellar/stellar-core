@@ -400,6 +400,10 @@ class LedgerTxn::Impl
     void updateWorstBestOffer(AssetPair const& assets,
                               std::shared_ptr<OfferDescriptor const> offerDesc);
 
+    // lookup in mEntry or in parents
+    std::pair<std::shared_ptr<InternalLedgerEntry const>, EntryMap::iterator>
+    getNewestVersionEntryMap(InternalLedgerKey const& key);
+
   public:
     // Constructor has the strong exception safety guarantee
     Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,

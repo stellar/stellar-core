@@ -1241,6 +1241,18 @@ LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key) const
     return mParent.getNewestVersion(key);
 }
 
+std::pair<std::shared_ptr<InternalLedgerEntry const>,
+          LedgerTxn::Impl::EntryMap::iterator>
+LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
+{
+    auto iter = mEntry.find(key);
+    if (iter != mEntry.end())
+    {
+        return std::make_pair(iter->second, iter);
+    }
+    return std::make_pair(mParent.getNewestVersion(key), iter);
+}
+
 UnorderedMap<LedgerKey, LedgerEntry>
 LedgerTxn::getOffersByAccountAndAsset(AccountID const& account,
                                       Asset const& asset)
@@ -1362,13 +1374,21 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
         throw std::runtime_error("Key is active");
     }
 
-    auto newest = getNewestVersion(key);
-    if (!newest)
+    auto newest = getNewestVersionEntryMap(key);
+    if (!newest.first)
     {
         return {};
     }
 
-    auto current = std::make_shared<InternalLedgerEntry>(*newest);
+    std::shared_ptr<InternalLedgerEntry> current;
+    if (newest.second != mEntry.end())
+    {
+        current = newest.second->second;
+    }
+    else
+    {
+        current = std::make_shared<InternalLedgerEntry>(*newest.first);
+    }
     auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
 
     // Set the key to active before constructing the LedgerTxnEntry, as this
