@@ -79,19 +79,19 @@ InternalLedgerKey::InternalLedgerKey(InternalLedgerEntryType t) : mType(t)
 InternalLedgerKey::InternalLedgerKey(LedgerKey const& lk)
     : InternalLedgerKey(InternalLedgerEntryType::LEDGER_ENTRY)
 {
-    ledgerKey() = lk;
+    ledgerKeyRef() = lk;
 }
 
 InternalLedgerKey::InternalLedgerKey(SponsorshipKey const& sk)
     : InternalLedgerKey(InternalLedgerEntryType::SPONSORSHIP)
 {
-    sponsorshipKey() = sk;
+    sponsorshipKeyRef() = sk;
 }
 
 InternalLedgerKey::InternalLedgerKey(SponsorshipCounterKey const& sck)
     : InternalLedgerKey(InternalLedgerEntryType::SPONSORSHIP_COUNTER)
 {
-    sponsorshipCounterKey() = sck;
+    sponsorshipCounterKeyRef() = sck;
 }
 
 InternalLedgerKey::InternalLedgerKey(InternalLedgerKey const& glk)
@@ -104,6 +104,22 @@ InternalLedgerKey::InternalLedgerKey(InternalLedgerKey&& glk)
     : InternalLedgerKey(glk.type())
 {
     assign(std::move(glk));
+}
+
+InternalLedgerKey
+InternalLedgerKey::makeSponsorshipKey(AccountID const& sponsoredId)
+{
+    InternalLedgerKey res(InternalLedgerEntryType::SPONSORSHIP);
+    res.sponsorshipKeyRef().sponsoredID = sponsoredId;
+    return res;
+}
+
+InternalLedgerKey
+InternalLedgerKey::makeSponsorshipCounterKey(AccountID const& sponsoringId)
+{
+    InternalLedgerKey res(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
+    res.sponsorshipCounterKeyRef().sponsoringID = sponsoringId;
+    return res;
 }
 
 InternalLedgerKey&
@@ -168,13 +184,13 @@ InternalLedgerKey::assign(InternalLedgerKey const& glk)
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        ledgerKey() = glk.ledgerKey();
+        ledgerKeyRef() = glk.ledgerKey();
         break;
     case InternalLedgerEntryType::SPONSORSHIP:
-        sponsorshipKey() = glk.sponsorshipKey();
+        sponsorshipKeyRef() = glk.sponsorshipKey();
         break;
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        sponsorshipCounterKey() = glk.sponsorshipCounterKey();
+        sponsorshipCounterKeyRef() = glk.sponsorshipCounterKey();
         break;
     default:
         abort();
@@ -189,13 +205,13 @@ InternalLedgerKey::assign(InternalLedgerKey&& glk)
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        ledgerKey() = std::move(glk.ledgerKey());
+        ledgerKeyRef() = std::move(glk.mLedgerKey);
         break;
     case InternalLedgerEntryType::SPONSORSHIP:
-        sponsorshipKey() = std::move(glk.sponsorshipKey());
+        sponsorshipKeyRef() = std::move(glk.mSponsorshipKey);
         break;
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        sponsorshipCounterKey() = std::move(glk.sponsorshipCounterKey());
+        sponsorshipCounterKeyRef() = std::move(glk.mSponsorshipCounterKey);
         break;
     default:
         abort();
@@ -269,7 +285,7 @@ InternalLedgerKey::checkDiscriminant(InternalLedgerEntryType expected) const
 }
 
 LedgerKey&
-InternalLedgerKey::ledgerKey()
+InternalLedgerKey::ledgerKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerKey;
@@ -283,7 +299,7 @@ InternalLedgerKey::ledgerKey() const
 }
 
 SponsorshipKey&
-InternalLedgerKey::sponsorshipKey()
+InternalLedgerKey::sponsorshipKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipKey;
@@ -297,7 +313,7 @@ InternalLedgerKey::sponsorshipKey() const
 }
 
 SponsorshipCounterKey&
-InternalLedgerKey::sponsorshipCounterKey()
+InternalLedgerKey::sponsorshipCounterKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterKey;
@@ -402,6 +418,11 @@ InternalLedgerEntry::InternalLedgerEntry(InternalLedgerEntry&& gle)
 InternalLedgerEntry&
 InternalLedgerEntry::operator=(InternalLedgerEntry const& gle)
 {
+    if (this == &gle)
+    {
+        return *this;
+    }
+
     type(gle.type());
     assign(gle);
     return *this;
