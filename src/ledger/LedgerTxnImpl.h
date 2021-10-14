@@ -387,12 +387,12 @@ class LedgerTxn::Impl
     // guarantee
     void updateEntryIfRecorded(InternalLedgerKey const& key,
                                bool effectiveActive);
-    void updateEntry(InternalLedgerKey const& key,
+    void updateEntry(InternalLedgerKey const& key, EntryMap::iterator* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr);
-    void updateEntry(InternalLedgerKey const& key,
+    void updateEntry(InternalLedgerKey const& key, EntryMap::iterator* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
                      bool effectiveActive);
-    void updateEntry(InternalLedgerKey const& key,
+    void updateEntry(InternalLedgerKey const& key, EntryMap::iterator* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
                      bool effectiveActive, bool eraseIfNull) noexcept;
 
