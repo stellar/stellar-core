@@ -1909,7 +1909,7 @@ LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
 
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator* keyHint,
+                             EntryMap::iterator const* keyHint,
                              std::shared_ptr<InternalLedgerEntry> lePtr)
 {
     bool effectiveActive = mActive.find(key) != mActive.end();
@@ -1918,7 +1918,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator* keyHint,
+                             EntryMap::iterator const* keyHint,
                              std::shared_ptr<InternalLedgerEntry> lePtr,
                              bool effectiveActive)
 {
@@ -1928,7 +1928,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator* keyHint,
+                             EntryMap::iterator const* keyHint,
                              std::shared_ptr<InternalLedgerEntry> lePtr,
                              bool effectiveActive, bool eraseIfNull) noexcept
 {
@@ -1969,13 +1969,14 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         return;
     }
 
-    EntryMap::iterator localIter;
+    // this iterator should not be used directly: use keyHint instead
+    EntryMap::iterator localIterDoNotUse;
     if (!keyHint)
     {
-        localIter = mEntry.find(key);
-        keyHint = &localIter;
+        localIterDoNotUse = mEntry.find(key);
+        keyHint = &localIterDoNotUse;
     }
-    if (keyHint && *keyHint != mEntry.end() && (*keyHint)->second)
+    if (*keyHint != mEntry.end() && (*keyHint)->second)
     {
         auto obAndOfferIt = findInOrderBook((*keyHint)->second->ledgerEntry());
         if (obAndOfferIt.first)
