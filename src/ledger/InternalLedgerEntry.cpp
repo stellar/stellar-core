@@ -288,6 +288,7 @@ LedgerKey&
 InternalLedgerKey::ledgerKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
+    mHash = 0;
     return mLedgerKey;
 }
 
@@ -302,6 +303,7 @@ SponsorshipKey&
 InternalLedgerKey::sponsorshipKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
+    mHash = 0;
     return mSponsorshipKey;
 }
 
@@ -316,6 +318,7 @@ SponsorshipCounterKey&
 InternalLedgerKey::sponsorshipCounterKeyRef()
 {
     checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
+    mHash = 0;
     return mSponsorshipCounterKey;
 }
 
