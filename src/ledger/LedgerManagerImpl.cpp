@@ -35,17 +35,19 @@
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
+#include "work/WorkScheduler.h"
+
 #include <fmt/format.h>
+
+#include "xdrpp/printer.h"
+#include "xdrpp/types.h"
 
 #include "medida/buckets.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "util/XDRStream.h"
-#include "work/WorkScheduler.h"
-#include "xdrpp/printer.h"
-#include "xdrpp/types.h"
 #include <Tracy.hpp>
 
 #include <chrono>
@@ -538,6 +540,9 @@ LedgerManagerImpl::emitNextMeta()
 {
     releaseAssert(mNextMetaToEmit);
     releaseAssert(mMetaStream || mMetaDebugStream);
+    auto timer = LogSlowExecution("MetaStream write",
+                                  LogSlowExecution::Mode::AUTOMATIC_RAII,
+                                  "took", std::chrono::milliseconds(100));
     auto streamWrite = mMetaStreamWriteTime.TimeScope();
     if (mMetaStream)
     {
