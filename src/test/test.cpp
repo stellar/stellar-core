@@ -137,7 +137,8 @@ namespace stdfs = std::filesystem;
 std::optional<Catch::TestCaseInfo> TestContextListener::sTestCtx;
 std::vector<Catch::SectionInfo> TestContextListener::sSectCtx;
 
-static std::map<stdfs::path, std::map<std::string, std::vector<uint64_t>>>
+static std::map<stdfs::path,
+                std::map<std::string, std::pair<bool, std::vector<uint64_t>>>>
     gTestTxMetadata;
 static std::optional<std::ofstream> gDebugTestTxMeta;
 static std::vector<std::string> gTestMetrics;
@@ -547,9 +548,9 @@ for_all_versions_except(std::vector<uint32> const& versions, Application& app,
 }
 
 static void
-logErrAndThrow(std::string const& msg)
+logFatalAndThrow(std::string const& msg)
 {
-    LOG_ERROR(DEFAULT_LOG, "{}", msg);
+    LOG_FATAL(DEFAULT_LOG, "{}", msg);
     throw std::runtime_error(msg);
 }
 
@@ -600,7 +601,11 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     uint64_t gotTxMetaHash = shortHash::xdrComputeHash(txMeta);
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
     {
-        gTestTxMetadata[ctx.first][ctx.second].emplace_back(gotTxMetaHash);
+        auto& pair = gTestTxMetadata[ctx.first][ctx.second];
+        auto& testRan = pair.first;
+        auto& testHashes = pair.second;
+        testRan = false;
+        testHashes.emplace_back(gotTxMetaHash);
     }
     else
     {
@@ -617,7 +622,9 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
         {
             return;
         }
-        std::vector<uint64_t>& vec = j->second;
+        bool& testRan = j->second.first;
+        testRan = true;
+        std::vector<uint64_t>& vec = j->second.second;
         CHECK(!vec.empty());
         if (vec.empty())
         {
@@ -664,7 +671,7 @@ loadTestTxMeta(stdfs::path const& dir)
 {
     if (!stdfs::is_directory(dir))
     {
-        logErrAndThrow(fmt::format("{} is not a directory", dir));
+        logFatalAndThrow(fmt::format("{} is not a directory", dir));
     }
     size_t n = 0;
     for (auto const& dirent : stdfs::directory_iterator{dir})
@@ -677,7 +684,7 @@ loadTestTxMeta(stdfs::path const& dir)
         std::ifstream in(path);
         if (!in)
         {
-            logErrAndThrow(fmt::format("Failed to open {}", path));
+            logFatalAndThrow(fmt::format("Failed to open {}", path));
         }
         in.exceptions(std::ios::failbit | std::ios::badbit);
         Json::Value root;
@@ -733,10 +740,11 @@ loadTestTxMeta(stdfs::path const& dir)
                 hashes.emplace_back(tmp);
             }
             std::reverse(hashes.begin(), hashes.end());
-            auto pair = fileTestCases.emplace(name, hashes);
+            auto pair =
+                fileTestCases.emplace(name, std::make_pair(false, hashes));
             if (!pair.second)
             {
-                logErrAndThrow(
+                logFatalAndThrow(
                     fmt::format("Duplicate test TxMeta found for key: {}:{}",
                                 basename, name));
             }
@@ -766,7 +774,7 @@ saveTestTxMeta(stdfs::path const& dir)
         for (auto const& testCasePair : filePair.second)
         {
             Json::Value& hashes = fileRoot[testCasePair.first];
-            for (auto const& h : testCasePair.second)
+            for (auto const& h : testCasePair.second.second)
             {
                 uint64_t tmp = h;
                 std::vector<uint8_t> buf;
@@ -782,7 +790,7 @@ saveTestTxMeta(stdfs::path const& dir)
         std::ofstream out(path, std::ios_base::trunc);
         if (!out)
         {
-            logErrAndThrow(fmt::format("Failed to open {}", path));
+            logFatalAndThrow(fmt::format("Failed to open {}", path));
         }
         out.exceptions(std::ios::failbit | std::ios::badbit);
         out << fileRoot;
@@ -798,10 +806,17 @@ reportTestTxMeta()
         for (auto const& testCasePair : filePair.second)
         {
             ++contexts;
-            if (!testCasePair.second.empty())
+            auto const& testRan = testCasePair.second.first;
+            auto const& testHashes = testCasePair.second.second;
+            if (testRan && !testHashes.empty())
             {
+                LOG_FATAL(DEFAULT_LOG,
+                          "Tests did not check {} TxMeta hashes in test "
+                          "context '{}' in file '{}'",
+                          testHashes.size(), testCasePair.first,
+                          filePair.first);
                 ++nonempty;
-                hashes += testCasePair.second.size();
+                hashes += testHashes.size();
             }
         }
     }
@@ -812,10 +827,9 @@ reportTestTxMeta()
     }
     else
     {
-        LOG_WARNING(
-            DEFAULT_LOG,
+        logFatalAndThrow(fmt::format(
             "Found {} un-checked TxMeta hashes in {} of {} test contexts.",
-            hashes, nonempty, contexts);
+            hashes, nonempty, contexts));
     }
 }
 }
