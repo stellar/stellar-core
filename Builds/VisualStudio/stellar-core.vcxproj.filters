@@ -1209,6 +1209,9 @@
     <ClCompile Include="..\..\src\main\Diagnostics.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\RandHasher.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2100,6 +2103,9 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\numeric128.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\stdrandom.h">
       <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
