@@ -451,9 +451,9 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
     cm.processLedger(ledgerData);
 
-    // Invariant: if catchup is running or waiting to run, buffered ledgers are
-    // never empty
-    if (!cm.hasBufferedLedger())
+    // We set the state to synced
+    // if we have closed the latest ledger we have heard of.
+    if (cm.getLargestLedgerSeqHeard() == getLastClosedLedgerNum())
     {
         setState(LM_SYNCED_STATE);
         // New ledger(s) got closed, notify Herder

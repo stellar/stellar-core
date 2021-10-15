@@ -380,6 +380,10 @@ CatchupWork::runCatchupStep()
             // Step 4.4: Apply buffered ledgers
             if (mApplyBufferedLedgersWork)
             {
+                // ApplyBufferedLedgersWork will try to apply
+                // as many ledgers in mSyncingLedgers as possible.
+                // Note that it's not always possible to apply
+                // _all_ the ledgers in mSyncingLedgers due to gaps.
                 if (mApplyBufferedLedgersWork->getState() ==
                     State::WORK_SUCCESS)
                 {
@@ -393,7 +397,7 @@ CatchupWork::runCatchupStep()
                 }
             }
             // see if we need to apply buffered ledgers
-            if (mApp.getCatchupManager().hasBufferedLedger())
+            if (mApp.getCatchupManager().maybeGetNextBufferedLedgerToApply())
             {
                 mApplyBufferedLedgersWork = addWork<ApplyBufferedLedgersWork>();
                 mCurrentWork = mApplyBufferedLedgersWork;
@@ -515,7 +519,7 @@ CatchupWork::doWork()
 
     if (nextState == BasicWork::State::WORK_SUCCESS)
     {
-        releaseAssert(!cm.hasBufferedLedger());
+        releaseAssert(!cm.maybeGetNextBufferedLedgerToApply());
     }
 
     cm.logAndUpdateCatchupStatus(true);

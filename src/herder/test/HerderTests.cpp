@@ -1791,7 +1791,7 @@ static void
 checkSynced(Application& app)
 {
     REQUIRE(app.getLedgerManager().isSynced());
-    REQUIRE(!app.getCatchupManager().hasBufferedLedger());
+    REQUIRE(!app.getCatchupManager().maybeGetNextBufferedLedgerToApply());
 }
 
 void
