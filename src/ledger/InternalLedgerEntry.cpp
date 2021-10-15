@@ -172,6 +172,7 @@ InternalLedgerKey::hash() const
     default:
         abort();
     }
+    hashMix(res, static_cast<size_t>(type()));
     mHash = res;
     return res;
 }
