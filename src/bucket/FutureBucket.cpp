@@ -328,9 +328,6 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     BucketManager& bm = app.getBucketManager();
     auto& timer = app.getMetrics().NewTimer(
         {"bucket", "merge-time", "level-" + std::to_string(level)});
-    auto& availableTime = app.getMetrics().NewTimer(
-        {"bucket", "available-time", "level-" + std::to_string(level)});
-    availableTime.Update(getAvailableTimeForMerge(app, level));
 
     // It's possible we're running a merge that's already running, for example
     // due to having been serialized to the publish queue and then immediately

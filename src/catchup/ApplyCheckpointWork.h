@@ -14,11 +14,6 @@
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
 
-namespace medida
-{
-class Meter;
-}
-
 namespace stellar
 {
 
@@ -56,9 +51,6 @@ class ApplyCheckpointWork : public BasicWork
     TransactionHistoryEntry mTxHistoryEntry;
     LedgerHeaderHistoryEntry mHeaderHistoryEntry;
     OnFailureCallback mOnFailure;
-
-    medida::Meter& mApplyLedgerSuccess;
-    medida::Meter& mApplyLedgerFailure;
 
     bool mFilesOpen{false};
 

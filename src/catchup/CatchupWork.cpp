@@ -287,7 +287,7 @@ CatchupWork::runCatchupStep()
                 : mApp.getHistoryManager().checkpointContainingLedger(
                       mCatchupConfiguration.toLedger());
         mGetHistoryArchiveStateWork =
-            addWork<GetHistoryArchiveStateWork>(toCheckpoint, mArchive);
+            addWork<GetHistoryArchiveStateWork>(toCheckpoint, mArchive, true);
         mCurrentWork = mGetHistoryArchiveStateWork;
         return State::WORK_RUNNING;
     }
@@ -352,7 +352,7 @@ CatchupWork::runCatchupStep()
             if (!mGetBucketStateWork)
             {
                 mGetBucketStateWork = addWork<GetHistoryArchiveStateWork>(
-                    applyBucketsAt, mArchive);
+                    applyBucketsAt, mArchive, true);
                 mCurrentWork = mGetBucketStateWork;
             }
             if (mGetBucketStateWork->getState() != State::WORK_SUCCESS)

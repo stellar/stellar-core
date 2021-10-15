@@ -6,8 +6,6 @@
 
 #include "history/FileTransferInfo.h"
 #include "work/Work.h"
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -22,10 +20,6 @@ class GetAndUnzipRemoteFileWork : public Work
 
     FileTransferInfo mFt;
     std::shared_ptr<HistoryArchive> const mArchive;
-
-    medida::Meter& mDownloadStart;
-    medida::Meter& mDownloadSuccess;
-    medida::Meter& mDownloadFailure;
 
     bool validateFile();
 

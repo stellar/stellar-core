@@ -306,13 +306,67 @@ CommandHandler::info(std::string const&, std::string& retStr)
     retStr = mApp.getJsonInfo().toStyledString();
 }
 
+static bool
+shouldEnable(std::set<std::string> const& toEnable,
+             medida::MetricName const& name)
+{
+    // Enable individual metric name or a partition
+    if (toEnable.find(name.domain()) == toEnable.end() &&
+        toEnable.find(name.ToString()) == toEnable.end())
+    {
+        return false;
+    }
+    return true;
+}
+
 void
 CommandHandler::metrics(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
+
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    std::set<std::string> toEnable;
+
+    // Filter which metrics to report based on the parameters
+    auto metricToEnable = retMap.find("enable");
+    if (metricToEnable != retMap.end())
+    {
+        std::stringstream ss(metricToEnable->second);
+        std::string metric;
+
+        while (getline(ss, metric, ','))
+        {
+            toEnable.insert(metric);
+        }
+    }
+
     mApp.syncAllMetrics();
-    medida::reporting::JsonReporter jr(mApp.getMetrics());
-    retStr = jr.Report();
+
+    auto reportMetrics =
+        [&](std::map<medida::MetricName,
+                     std::shared_ptr<medida::MetricInterface>> const& metrics) {
+            medida::reporting::JsonReporter jr(metrics);
+            retStr = jr.Report();
+        };
+
+    if (!toEnable.empty())
+    {
+        std::map<medida::MetricName, std::shared_ptr<medida::MetricInterface>>
+            metricsToReport;
+        for (auto const& m : mApp.getMetrics().GetAllMetrics())
+        {
+            if (shouldEnable(toEnable, m.first))
+            {
+                metricsToReport.emplace(m);
+            }
+        }
+        reportMetrics(metricsToReport);
+    }
+    else
+    {
+        reportMetrics(mApp.getMetrics().GetAllMetrics());
+    }
 }
 
 void

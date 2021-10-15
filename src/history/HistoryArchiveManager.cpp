@@ -175,8 +175,7 @@ HistoryArchiveManager::getHistoryArchiveReportWork() const
     for (auto const& archive : mArchives)
     {
         hasWorks.push_back(std::make_shared<GetHistoryArchiveStateWork>(
-            mApp, 0, archive, "archive-report-" + archive->getName(),
-            BasicWork::RETRY_NEVER));
+            mApp, 0, archive, false, BasicWork::RETRY_NEVER));
     }
     return std::make_shared<HistoryArchiveReportWork>(mApp, hasWorks);
 };

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/GetAndUnzipRemoteFileWork.h"
+#include "catchup/CatchupManager.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
@@ -21,12 +22,6 @@ GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
            retry)
     , mFt(std::move(ft))
     , mArchive(archive)
-    , mDownloadStart(app.getMetrics().NewMeter(
-          {"history", "download-" + mFt.getType(), "start"}, "event"))
-    , mDownloadSuccess(app.getMetrics().NewMeter(
-          {"history", "download-" + mFt.getType(), "success"}, "event"))
-    , mDownloadFailure(app.getMetrics().NewMeter(
-          {"history", "download-" + mFt.getType(), "failure"}, "event"))
 {
 }
 
@@ -64,14 +59,13 @@ GetAndUnzipRemoteFileWork::onFailureRaise()
         CLOG_ERROR(History, "Archive {}: file {} is maybe corrupt",
                    ar->getName(), mFt.remoteName());
     }
-    mDownloadFailure.Mark();
     Work::onFailureRaise();
 }
 
 void
 GetAndUnzipRemoteFileWork::onSuccess()
 {
-    mDownloadSuccess.Mark();
+    mApp.getCatchupManager().fileDownloaded(mFt.getType());
     Work::onSuccess();
 }
 
@@ -115,7 +109,6 @@ GetAndUnzipRemoteFileWork::doWork()
         mGetRemoteFileWork =
             addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp(),
                                        mArchive, BasicWork::RETRY_NEVER);
-        mDownloadStart.Mark();
         return State::WORK_RUNNING;
     }
 }

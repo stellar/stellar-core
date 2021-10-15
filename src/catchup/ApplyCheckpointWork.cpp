@@ -19,8 +19,6 @@
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 #include <optional>
 
 namespace stellar
@@ -39,10 +37,6 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
     , mCheckpoint(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
     , mOnFailure(cb)
-    , mApplyLedgerSuccess(app.getMetrics().NewMeter(
-          {"history", "apply-ledger-chain", "success"}, "event"))
-    , mApplyLedgerFailure(app.getMetrics().NewMeter(
-          {"history", "apply-ledger-chain", "failure"}, "event"))
 {
     // Ledger range check to enforce application of a single checkpoint
     auto const& hm = mApp.getHistoryManager();
@@ -178,7 +172,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     {
         if (mHeaderHistoryEntry.hash != lm.getLastClosedLedgerHeader().hash)
         {
-            mApplyLedgerFailure.Mark();
             throw std::runtime_error(
                 fmt::format("replay of {:s} at LCL {:s} disagreed on hash",
                             LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
@@ -192,7 +185,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     // If we are past current, we can't catch up: fail.
     if (header.ledgerSeq != lclHeader.header.ledgerSeq + 1)
     {
-        mApplyLedgerFailure.Mark();
         throw std::runtime_error(
             fmt::format("replay overshot current ledger: {:d} > {:d}",
                         header.ledgerSeq, lclHeader.header.ledgerSeq + 1));
@@ -201,7 +193,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     // If we do not agree about LCL hash, we can't catch up: fail.
     if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
     {
-        mApplyLedgerFailure.Mark();
         throw std::runtime_error(fmt::format(
             "replay at current ledger {:s} disagreed on LCL hash {:s}",
             LedgerManager::ledgerAbbrev(header.ledgerSeq - 1,
@@ -219,7 +210,6 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     // header.
     if (header.scpValue.txSetHash != txset->getContentsHash())
     {
-        mApplyLedgerFailure.Mark();
         throw std::runtime_error(fmt::format(
             "replay txset hash differs from txset hash in replay ledger: hash "
             "for txset for {:d} is {:s}, expected {:s}",
@@ -266,7 +256,6 @@ ApplyCheckpointWork::onRun()
                        xdr_to_string(mHeaderHistoryEntry, "Replay header"));
             if (lm.getLastClosedLedgerHeader().hash != mHeaderHistoryEntry.hash)
             {
-                mApplyLedgerFailure.Mark();
                 throw std::runtime_error(fmt::format(
                     "replay of {:s} produced mismatched ledger hash {:s}",
                     LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
@@ -274,7 +263,7 @@ ApplyCheckpointWork::onRun()
                         lm.getLastClosedLedgerHeader())));
             }
 
-            mApplyLedgerSuccess.Mark();
+            mApp.getCatchupManager().txSetsApplied();
         }
         else
         {

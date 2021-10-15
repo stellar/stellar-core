@@ -13,24 +13,19 @@
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     Application& app, uint32_t seq, std::shared_ptr<HistoryArchive> archive,
-    std::string mode, size_t maxRetries)
+    bool report, size_t maxRetries)
     : Work(app, "get-archive-state", maxRetries)
     , mSeq(seq)
     , mArchive(archive)
     , mRetries(maxRetries)
     , mLocalFilename(
           HistoryArchiveState::localName(app, binToHex(randomBytes(8))))
-    , mGetHistoryArchiveStateSuccess(app.getMetrics().NewMeter(
-          {"history", "download-history-archive-state" + std::move(mode),
-           "success"},
-          "event"))
+    , mReportMetric(report)
 {
 }
 
@@ -107,7 +102,10 @@ GetHistoryArchiveStateWork::doReset()
 void
 GetHistoryArchiveStateWork::onSuccess()
 {
-    mGetHistoryArchiveStateSuccess.Mark();
+    if (mReportMetric)
+    {
+        mApp.getCatchupManager().historyArchiveStatesDownloaded();
+    }
     Work::onSuccess();
 }
 

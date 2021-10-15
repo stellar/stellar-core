@@ -11,11 +11,6 @@
 #include <iosfwd>
 #include <vector>
 
-namespace medida
-{
-class Meter;
-}
-
 namespace stellar
 {
 
@@ -58,10 +53,6 @@ class VerifyLedgerChainWork : public BasicWork
     // to write them to.
     std::vector<LedgerNumHashPair> mVerifiedLedgers;
     std::shared_ptr<std::ofstream> mOutputStream;
-
-    medida::Meter& mVerifyLedgerSuccess;
-    medida::Meter& mVerifyLedgerChainSuccess;
-    medida::Meter& mVerifyLedgerChainFailure;
 
     HistoryManager::LedgerVerificationStatus verifyHistoryOfSingleCheckpoint();
 

@@ -72,7 +72,7 @@ ExternalQueue::setCursorForResource(std::string const& resid, uint32 cursor)
     std::string old(getCursor(resid));
     if (old.empty())
     {
-        auto timer = mApp.getDatabase().getInsertTimer("pubsub");
+        ZoneNamedN(insertPubsubZone, "insert pubsub", true);
         auto prep = mApp.getDatabase().getPreparedStatement(
             "INSERT INTO pubsub (resid, lastread) VALUES (:n, :v);");
         auto& st = prep.statement();
@@ -95,7 +95,7 @@ ExternalQueue::setCursorForResource(std::string const& resid, uint32 cursor)
         st.exchange(soci::use(resid));
         st.define_and_bind();
         {
-            auto timer = mApp.getDatabase().getUpdateTimer("pubsub");
+            ZoneNamedN(updatePubsubZone, "update pubsub", true);
             st.execute(true);
         }
     }
@@ -120,7 +120,7 @@ ExternalQueue::getCursorForResource(std::string const& resid,
         st.exchange(soci::into(v));
         st.define_and_bind();
         {
-            auto timer = db.getSelectTimer("pubsub");
+            ZoneNamedN(selectPubsubZone, "select pubsub", true);
             st.execute(true);
         }
 
@@ -148,13 +148,15 @@ ExternalQueue::deleteCursor(std::string const& resid)
     ZoneScoped;
     checkID(resid);
 
-    auto timer = mApp.getDatabase().getInsertTimer("pubsub");
-    auto prep = mApp.getDatabase().getPreparedStatement(
-        "DELETE FROM pubsub WHERE resid = :n;");
-    auto& st = prep.statement();
-    st.exchange(soci::use(resid));
-    st.define_and_bind();
-    st.execute(true);
+    {
+        ZoneNamedN(deletePubsubZone, "delete pubsub", true);
+        auto prep = mApp.getDatabase().getPreparedStatement(
+            "DELETE FROM pubsub WHERE resid = :n;");
+        auto& st = prep.statement();
+        st.exchange(soci::use(resid));
+        st.define_and_bind();
+        st.execute(true);
+    }
 }
 
 void
@@ -168,7 +170,7 @@ ExternalQueue::deleteOldEntries(uint32 count)
         (db.getSession().prepare << "SELECT MIN(lastread) FROM pubsub",
          soci::into(m, minIndicator));
     {
-        auto timer = db.getSelectTimer("state");
+        ZoneNamedN(selectPubsubZone, "select pubsub", true);
         st.execute(true);
     }
 
@@ -229,7 +231,7 @@ ExternalQueue::getCursor(std::string const& resid)
     st.exchange(soci::use(resid));
     st.define_and_bind();
     {
-        auto timer = db.getSelectTimer("pubsub");
+        ZoneNamedN(selectPubsubZone, "select pubsub", true);
         st.execute(true);
     }
 
