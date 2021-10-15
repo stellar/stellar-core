@@ -160,19 +160,7 @@ template <> class hash<stellar::InternalLedgerKey>
     size_t
     operator()(stellar::InternalLedgerKey const& glk) const
     {
-        switch (glk.type())
-        {
-        case stellar::InternalLedgerEntryType::LEDGER_ENTRY:
-            return hash<stellar::LedgerKey>()(glk.ledgerKey());
-        case stellar::InternalLedgerEntryType::SPONSORSHIP:
-            return stellar::shortHash::computeHash(stellar::ByteSlice(
-                glk.sponsorshipKey().sponsoredID.ed25519().data(), 8));
-        case stellar::InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-            return stellar::shortHash::computeHash(stellar::ByteSlice(
-                glk.sponsorshipCounterKey().sponsoringID.ed25519().data(), 8));
-        default:
-            abort();
-        }
+        return glk.hash();
     }
 };
 }

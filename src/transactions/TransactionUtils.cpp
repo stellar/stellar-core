@@ -248,17 +248,13 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
-    InternalLedgerKey gkey(InternalLedgerEntryType::SPONSORSHIP);
-    gkey.sponsorshipKey().sponsoredID = sponsoredID;
-    return gkey;
+    return InternalLedgerKey::makeSponsorshipKey(sponsoredID);
 }
 
 InternalLedgerKey
 sponsorshipCounterKey(AccountID const& sponsoringID)
 {
-    InternalLedgerKey gkey(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
-    gkey.sponsorshipCounterKey().sponsoringID = sponsoringID;
-    return gkey;
+    return InternalLedgerKey::makeSponsorshipCounterKey(sponsoringID);
 }
 
 LedgerTxnEntry

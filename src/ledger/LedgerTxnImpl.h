@@ -388,17 +388,24 @@ class LedgerTxn::Impl
     void updateEntryIfRecorded(InternalLedgerKey const& key,
                                bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
+                     EntryMap::iterator const* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr);
     void updateEntry(InternalLedgerKey const& key,
+                     EntryMap::iterator const* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
                      bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
+                     EntryMap::iterator const* keyHint,
                      std::shared_ptr<InternalLedgerEntry> lePtr,
                      bool effectiveActive, bool eraseIfNull) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
                               std::shared_ptr<OfferDescriptor const> offerDesc);
+
+    // lookup in mEntry or in parents
+    std::pair<std::shared_ptr<InternalLedgerEntry const>, EntryMap::iterator>
+    getNewestVersionEntryMap(InternalLedgerKey const& key);
 
   public:
     // Constructor has the strong exception safety guarantee
