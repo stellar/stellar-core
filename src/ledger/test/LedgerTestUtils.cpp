@@ -209,15 +209,6 @@ makeValid(TrustLineEntry& tl)
         break;
     }
 
-    // Pool share trustlines are not valid before V18. This check can be removed
-    // once CURRENT_LEDGER_PROTOCOL_VERSION is set to 18
-    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 18 &&
-        tl.asset.type() == ASSET_TYPE_POOL_SHARE)
-    {
-        tl.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-        strToAssetCode(tl.asset.alphaNum4().assetCode, "USD");
-    }
-
     clampHigh<int64_t>(tl.limit, tl.balance);
     tl.flags = tl.flags & MASK_TRUSTLINE_FLAGS_V17;
 
@@ -273,10 +264,6 @@ makeValid(ClaimableBalanceEntry& c)
     c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");
 
-    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 17)
-    {
-        c.ext.v(0);
-    }
     if (c.ext.v() == 1)
     {
         c.ext.v1().flags = MASK_CLAIMABLE_BALANCE_FLAGS;
