@@ -67,6 +67,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const override;
+    void validateTablesExist() const override;
 
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
 

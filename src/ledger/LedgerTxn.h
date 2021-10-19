@@ -400,6 +400,9 @@ class AbstractLedgerTxnParent
     virtual uint64_t countObjects(LedgerEntryType let,
                                   LedgerRange const& ledgers) const = 0;
 
+    // Queries each LedgerEntry table and will throw if one is missing
+    virtual void validateTablesExist() const = 0;
+
     // Delete all ledger entries modified on-or-after `ledger`. Will throw
     // when called on anything other than a (real or stub) root LedgerTxn.
     virtual void
@@ -718,6 +721,7 @@ class LedgerTxn : public AbstractLedgerTxn
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const override;
+    void validateTablesExist() const override;
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
     void dropAccounts() override;
     void dropData() override;
@@ -774,6 +778,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const override;
+
+    void validateTablesExist() const override;
 
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
 

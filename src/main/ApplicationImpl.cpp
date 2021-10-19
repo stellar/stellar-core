@@ -293,6 +293,13 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
         upgradeToCurrentSchemaAndMaybeRebuildLedger(true, forceRebuild);
     }
 
+    if (!getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        // This verifies that all ledger entry tables exist. It will
+        // throw if a table is missing
+        getLedgerTxnRoot().validateTablesExist();
+    }
+
     // Subtle: process manager should come to existence _after_ BucketManager
     // initialization and newDB run, as it relies on tmp dir created in the
     // constructor

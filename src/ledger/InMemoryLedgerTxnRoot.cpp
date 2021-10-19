@@ -109,6 +109,11 @@ InMemoryLedgerTxnRoot::countObjects(LedgerEntryType let,
 }
 
 void
+InMemoryLedgerTxnRoot::validateTablesExist() const
+{
+}
+
+void
 InMemoryLedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(
     uint32_t ledger) const
 {

@@ -819,6 +819,8 @@ class LedgerTxnRoot::Impl
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const;
 
+    void validateTablesExist() const;
+
     // deleteObjectsModifiedOnOrAfterLedger has no exception safety guarantees.
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
 

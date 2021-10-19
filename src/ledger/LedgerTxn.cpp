@@ -1744,6 +1744,13 @@ LedgerTxn::countObjects(LedgerEntryType let, LedgerRange const& ledgers) const
 }
 
 void
+LedgerTxn::validateTablesExist() const
+{
+    throw std::runtime_error(
+        "called validateTablesExist on non-root LedgerTxn");
+}
+
+void
 LedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     throw std::runtime_error(
@@ -2534,6 +2541,25 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
     int limit = static_cast<int>(ledgers.limit());
     mDatabase.getSession() << query, into(count), use(first), use(limit);
     return count;
+}
+
+void
+LedgerTxnRoot::validateTablesExist() const
+{
+    return mImpl->validateTablesExist();
+}
+
+void
+LedgerTxnRoot::Impl::validateTablesExist() const
+{
+    using namespace soci;
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        std::string query =
+            "SELECT * FROM " + tableFromLedgerEntryType(t) + " LIMIT 0";
+        mDatabase.getSession() << query;
+    }
 }
 
 void
