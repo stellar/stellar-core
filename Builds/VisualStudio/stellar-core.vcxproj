@@ -413,6 +413,7 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp" />
+    <ClCompile Include="..\..\src\invariant\ConstantProductInvariant.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp" />
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
@@ -784,6 +785,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h" />
+    <ClInclude Include="..\..\src\invariant\ConstantProductInvariant.h" />
     <ClInclude Include="..\..\src\invariant\Invariant.h" />
     <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h" />
     <ClInclude Include="..\..\src\util\FileSystemException.h" />

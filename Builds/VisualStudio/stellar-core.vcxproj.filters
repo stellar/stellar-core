@@ -336,6 +336,9 @@
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ConstantProductInvariant.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
@@ -1413,6 +1416,9 @@
       <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\ConstantProductInvariant.h">
       <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\Invariant.h">
