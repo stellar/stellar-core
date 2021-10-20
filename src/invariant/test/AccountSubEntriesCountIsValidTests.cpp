@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -215,14 +216,14 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     ++le.lastModifiedLedgerSeq;
     if (modifySigner)
     {
-        std::uniform_int_distribution<uint32_t> dist(
+        stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
         acc.signers.at(dist(gRandomEngine)) = validSignerGenerator();
         updateAccountSubEntries(app, le, lePrev, 0, {});
     }
     else
     {
-        std::uniform_int_distribution<uint32_t> dist(
+        stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
         auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
@@ -251,7 +252,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     ++le.lastModifiedLedgerSeq;
     if (deleteSigner)
     {
-        std::uniform_int_distribution<uint32_t> dist(
+        stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
 
         auto pos = dist(gRandomEngine);
@@ -266,7 +267,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     }
     else
     {
-        std::uniform_int_distribution<uint32_t> dist(
+        stellar::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
         auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
@@ -296,7 +297,7 @@ TEST_CASE("Create account with no subentries",
 TEST_CASE("Create account then add signers and subentries",
           "[invariant][accountsubentriescount]")
 {
-    std::uniform_int_distribution<int32_t> changesDist(-1, 2);
+    stellar::uniform_int_distribution<int32_t> changesDist(-1, 2);
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid"};
 

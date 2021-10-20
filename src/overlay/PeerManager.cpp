@@ -5,6 +5,7 @@
 #include "overlay/PeerManager.h"
 #include "crypto/Random.h"
 #include "database/Database.h"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
@@ -162,7 +163,7 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     size_t offset = rand_uniform<size_t>(0, maxOffset);
     result = loadPeers(size, offset, where, bindToStatement);
 
-    std::shuffle(std::begin(result), std::end(result), gRandomEngine);
+    stellar::shuffle(std::begin(result), std::end(result), gRandomEngine);
     return result;
 }
 
@@ -367,7 +368,7 @@ computeBackoff(size_t numFailures)
     uint32 backoffCount = static_cast<uint32>(
         std::min<size_t>(MAX_BACKOFF_EXPONENT, numFailures));
     auto nsecs =
-        std::chrono::seconds(static_cast<uint32>(std::rand()) %
+        std::chrono::seconds(static_cast<uint32>(gRandomEngine()) %
                                  ((1u << backoffCount) * SECONDS_PER_BACKOFF) +
                              1);
     return nsecs;

@@ -3,10 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "Math.h"
+#include "crypto/SecretKey.h"
+#include "crypto/ShortHash.h"
 #include "util/GlobalChecks.h"
 #include "util/UnorderedMap.h"
 #include <Tracy.hpp>
 #include <algorithm>
+#include <autocheck/generator.hpp>
+#include <catch.hpp>
 #include <cmath>
 #include <numeric>
 #include <set>
@@ -154,4 +158,19 @@ k_means(std::vector<double> const& points, uint32_t k)
 
     return centroids;
 }
+
+#ifdef BUILD_TESTS
+void
+reinitializeAllGlobalStateWithSeed(unsigned int seed)
+{
+    PubKeyUtils::clearVerifySigCache();
+    srand(seed);
+    gRandomEngine.seed(seed);
+    shortHash::seed(seed);
+    Catch::rng().seed(seed);
+    autocheck::rng().seed(seed);
+    randHash::initialize();
+}
+#endif
+
 }

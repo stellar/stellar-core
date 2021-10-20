@@ -60,6 +60,7 @@ TESTS=test/selftest-pg
 else # !USE_POSTGRES
 TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
+TESTS += test/check-nondet
 
 if USE_CLANG_FORMAT
 format: always

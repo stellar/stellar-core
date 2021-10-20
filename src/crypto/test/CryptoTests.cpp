@@ -322,7 +322,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     auto randomB32 = []() {
         char res;
-        char d = static_cast<char>(std::rand() % 32);
+        char d = static_cast<char>(gRandomEngine() % 32);
         if (d < 6)
         {
             res = d + '2';

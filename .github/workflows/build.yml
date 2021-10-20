@@ -14,6 +14,7 @@ jobs:
       matrix:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
+        scenario: ["", "--check-test-tx-meta"]
     steps:
       - name: Compute cache key
         # this step works around a limitation in actions/cache
@@ -32,9 +33,14 @@ jobs:
         with:
           path: |
             /home/runner/.ccache
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          # we do not include ${{ matrix.protocol }} in this cache key. That flag ultimately causes
+          # an altered -D define, which _does_ cause a ccache direct-mode miss, but only one file
+          # has any difference when preprocessed, so ccache still gets a fallback cpp-mode hit. The
+          # one file that does vary (that compiles-in the protocol version number) is small enough
+          # that we can tolerate a miss and/or hold both versions of it in cache.
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
+            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
@@ -63,4 +69,4 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }}
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}

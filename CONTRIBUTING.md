@@ -232,3 +232,34 @@ Then, running:
 * `stellar-core test [stress]` will run all the stress tests,
 * `stellar-core test [foo-stress]` will run the stress tests for subsystem foo alone, and
 * neither `stellar-core test` nor `stellar-core test [foo]` will run stress tests.
+
+## Running and updating TxMeta checks
+
+The `stellar-core test` unit tests can be run in two special modes that hash the
+TxMeta of each transaction executed. These two modes can increase confidence
+that a change to stellar-core does not alter the semantics of any transactions.
+The two modes are:
+
+  * `--record-test-tx-meta <dirname>` which records TxMeta hashes into `<dirname>`
+  * `--check-test-tx-meta <dirname>` which checks TxMeta hashes against `<dirname>`
+
+Continuous integration tests automatically run the `--check-test-tx-meta` mode
+against a pair of captured baseline directories stored in the repository, called
+`test-tx-meta-baseline-current` (for the current protocol) and
+`text-tx-meta-baseline-next` (for the next protocol). If you make _intentional_
+changes to the semantics of any transactions, or add any new transactions that
+need to have their hashes recorded, you can re-record the baseline using a
+command like:
+
+    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline-current
+
+for a build with only the current protocol enabled, and:
+
+    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline-next
+
+for a build configured with `--enable-next-protocol-version-unsafe-for-production`.
+
+These commands will rewrite the baseline files, which are human-readable JSON
+files. You should then inspect to see that only the transactions you expected to
+see change did so. If so, commit the changes as a new set of baselines for
+future tests.

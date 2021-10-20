@@ -13,6 +13,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "medida/stats/snapshot.h"
 #include "overlay/StellarXDR.h"
@@ -174,7 +175,7 @@ resilienceTest(Simulation::pointer sim)
 
     sim->startAllNodes();
 
-    std::uniform_int_distribution<size_t> gen(0, nbNodes - 1);
+    stellar::uniform_int_distribution<size_t> gen(0, nbNodes - 1);
 
     // bring network to a good place
     uint32 targetLedger = LedgerManager::GENESIS_LEDGER_SEQ + 1;

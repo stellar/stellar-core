@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Copyright 2021 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+# This file just does some simple static checks that certain obvious causes of
+# nondeterminism (between runs, or between compilers / standard libraries) are
+# not present in the code.
+
+if git grep 'std::rand()' '*.h' '*.cpp'
+then
+    echo
+    echo "please use stellar::gRandomEngine instead of std::rand since the latter is not"
+    echo "identical on all platforms and other library code may call it unexpectedly."
+    exit 1
+fi
+
+if git grep 'std::uniform_int_distribution' '*.h' '*.cpp'
+then
+    echo
+    echo "please use stellar::uniform_int_distribution instead of std::uniform_int_distribution"
+    echo "since the latter varies behaviour between different C++ standard libraries."
+    exit 1
+fi
+
+if git grep 'std::shuffle(' '*.h' '*.cpp'
+then
+    echo
+    echo "please use stellar::shuffle instead of std::shuffle since the latter delegates"
+    echo "to std::uniform_int_distribution, which varies between compilers."
+    exit 1
+fi
+
+if git grep 'GENERATE(.*random.*)' '*.h' '*.cpp'
+then
+    echo
+    echo "please do not use Catch2 GENERATE macros with random generators, as they delegate"
+    echo "to calls to std::uniform_int_distribution, which varies between compilers."
+    exit 1
+fi

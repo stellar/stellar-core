@@ -210,3 +210,11 @@ src/ledger/LedgerHashUtils.h
     ( https://github.com/ztanml/fast-hash )
     Licensed under the MIT license
     (http://opensource.org/licenses/MIT)
+
+lib/util/stdrandom.h
+
+  Classes from the `libc++` standard C++ library
+  Part of the LLVM Project
+  (https://libcxx.llvm.org)
+  Licensed under the Apache License v2.0 with LLVM Exceptions
+  (https://llvm.org/LICENSE.txt)

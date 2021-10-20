@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestUtils.h"
@@ -273,7 +274,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     VirtualClock clock;
-    std::uniform_int_distribution<uint64_t> dist;
+    stellar::uniform_int_distribution<uint64_t> dist;
 
     try
     {

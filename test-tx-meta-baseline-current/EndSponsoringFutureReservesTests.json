@@ -1,0 +1,13 @@
+
+{
+	"!cfg protocol version" : 18,
+	"!rng seed" : 12345,
+	"!test all versions" : true,
+	"!versions to test" : [ 18 ],
+	"confirm and clear sponsor|not sponsored|protocol version 14" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|not sponsored|protocol version 15" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|not sponsored|protocol version 16" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|not sponsored|protocol version 17" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|not sponsored|protocol version 18" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|not supported|protocol version 13" : [ "QJDMJ0PvkYA=" ]
+}

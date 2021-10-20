@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "medida/histogram.h"
 #include "medida/stats/sliding_window_sample.h"
 #include "medida/stats/snapshot.h"
@@ -20,7 +21,7 @@ namespace
 
 using uniform_dbl = std::uniform_real_distribution<double>;
 using gamma_dbl = std::gamma_distribution<double>;
-using uniform_u64 = std::uniform_int_distribution<uint64_t>;
+using uniform_u64 = stellar::uniform_int_distribution<uint64_t>;
 
 // how much data to keep in memory when comparing datasets
 static std::chrono::seconds const sampleCutoff(60 * 5);

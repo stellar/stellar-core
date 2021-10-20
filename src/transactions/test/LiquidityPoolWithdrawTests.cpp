@@ -395,7 +395,7 @@ TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
             // between 5 and 25
             for (int i = 1000; i < 1050; ++i)
             {
-                std::uniform_int_distribution<int64_t> dist(5, 25);
+                stellar::uniform_int_distribution<int64_t> dist(5, 25);
 
                 SECTION(fmt::format("deposit amount = {}", i))
                 {

@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
+#include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -60,8 +61,8 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
             int64_t maxDecrease = minBalance - account.balance;
             int64_t maxIncrease = pool;
             REQUIRE(maxIncrease >= maxDecrease);
-            std::uniform_int_distribution<int64_t> dist(maxDecrease,
-                                                        maxIncrease);
+            stellar::uniform_int_distribution<int64_t> dist(maxDecrease,
+                                                            maxIncrease);
             delta = dist(gRandomEngine);
         }
         else
@@ -105,8 +106,8 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app)
         totalCoins = ltx.loadHeader().current().totalCoins;
     }
 
-    std::uniform_int_distribution<int64_t> dist(totalCoins - coinsAboveReserve,
-                                                INT64_MAX);
+    stellar::uniform_int_distribution<int64_t> dist(
+        totalCoins - coinsAboveReserve, INT64_MAX);
     int64_t newTotalCoins = dist(gRandomEngine);
     return updateBalances(entries, app, newTotalCoins - totalCoins, true);
 }
@@ -117,7 +118,7 @@ TEST_CASE("Total coins change without inflation",
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
-    std::uniform_int_distribution<int64_t> dist(0, INT64_MAX);
+    stellar::uniform_int_distribution<int64_t> dist(0, INT64_MAX);
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -136,7 +137,7 @@ TEST_CASE("Fee pool change without inflation",
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
-    std::uniform_int_distribution<int64_t> dist(0, INT64_MAX);
+    stellar::uniform_int_distribution<int64_t> dist(0, INT64_MAX);
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -229,8 +230,8 @@ TEST_CASE("Inflation changes are consistent",
 {
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
-    std::uniform_int_distribution<uint32_t> payoutsDist(1, 100);
-    std::uniform_int_distribution<int64_t> amountDist(1, 100000);
+    stellar::uniform_int_distribution<uint32_t> payoutsDist(1, 100);
+    stellar::uniform_int_distribution<int64_t> amountDist(1, 100000);
 
     uint32_t const N = 10;
     for (uint32_t i = 0; i < 100; ++i)
@@ -260,7 +261,7 @@ TEST_CASE("Inflation changes are consistent",
                             return ip;
                         });
 
-        std::uniform_int_distribution<int64_t> deltaFeePoolDist(
+        stellar::uniform_int_distribution<int64_t> deltaFeePoolDist(
             0, 2 * inflationAmount);
         auto deltaFeePool = deltaFeePoolDist(gRandomEngine);
 
