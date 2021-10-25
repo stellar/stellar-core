@@ -20,6 +20,7 @@ stellar-core generates several types of data that can be used by applications, d
 Full [Ledger](ledger.md) snapshots are available in both:
 * [history archives](history.md) (checkpoints, every 64 ledgers, updated every 5 minutes)
 * core's SQL database (latest only, updated every ledger)
+  * in the case of captive-core (enabled via the `--in-memory` command line option) the ledger is maintained within the stellar-core process and ledger-state need to be tracked as it changes via "meta" updates.
 
 ## Ledger State transition information (transactions, etc)
 
@@ -32,6 +33,9 @@ As part of this transition, stellar-core records:
 * SCP messages recorded by the validator during the consensus round
 * meta-data describing fine grain changes of ledger entries (creation, updates, deletes)
   * NB: the meta-data presents changes to ledger entries in a simple to process format (old value/new value)
+
+In captive-core mode, this entire per-ledger transition dataset is emitted by stellar-core over a (optionally named) pipe, as an xdr encoded `LedgerCloseMeta` object.
+For older style deployments, core stores this data in its [historical SQL tables](#sql-tables).
 
 ## Custom ledger view
 
@@ -135,16 +139,18 @@ Easiest here is to follow the same procedure than for [low resolution custom vie
 
 #### Applying changes in the high resolution custom view
 
-A process (singleton) can import data from the [historical SQL tables](#sql-tables) in stellar-core database as ledgers close and publish this data to processes that need to maintain a custom view.
+A process (singleton) can import data that corresponds to [the ledger state transition](#ledger-state-transition-information-transactions-etc) and publish it to processes that need to maintain a custom view.
 
 The data that needs to be processed as ledger closes is, in order:
-* the ledger header (in `ledgerheaders`)
-* transaction set "meta"
-  * `txfee` - before and after changes related to fee processing (fees are processed before everything else)
-  * transactions in `txhistory`
-    * before and after state at operation granularity
+* the ledger header (ie `ledgerheader`)
+* transaction set "meta" that corresponds to the different phases of applying transactions
+  * before and after changes related to fee processing (fees are processed before everything else)
+  * for each transaction, the before and after state encoded as `TransactionMetaV2` for the different phases of transaction application
+    * changes before operations get applied
+    * changes for each operation
+    * changes after operations get applied
     * also contains associated `TransactionResult`
-* ledger upgrades "meta" (in `upgradehistory`)
+* ledger upgrades "meta"
   * contains ledger entries before/after of ledger entries that potentially get modified by upgrades
   * contains network wide settings upgrade information (protocol version, base fee, etc)
 * other data (SCP messages)
