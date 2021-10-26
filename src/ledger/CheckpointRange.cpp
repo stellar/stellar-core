@@ -56,7 +56,7 @@ CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
 std::string
 CheckpointRange::toString() const
 {
-    return fmt::format("[{},{})", mFirst, limit());
+    return fmt::format(FMT_STRING("[{:d},{:d})"), mFirst, limit());
 }
 
 bool

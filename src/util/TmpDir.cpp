@@ -77,7 +77,7 @@ TmpDirManager::TmpDirManager(std::string const& root) : mRoot(root)
     if (!fs::mkpath(root))
     {
         throw std::runtime_error(
-            fmt::format("Could not create directory {}", mRoot));
+            fmt::format(FMT_STRING("Could not create directory {}"), mRoot));
     }
 }
 

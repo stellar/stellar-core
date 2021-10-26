@@ -134,36 +134,41 @@ ConservationOfLumens::checkOnOperationApply(Operation const& operation,
         if (deltaTotalCoins != inflationPayouts + deltaFeePool)
         {
             return fmt::format(
-                "LedgerHeader totalCoins change ({}) did not match"
-                " feePool change ({}) plus inflation payouts ({})",
+                FMT_STRING(
+                    "LedgerHeader totalCoins change ({:d}) did not match"
+                    " feePool change ({:d}) plus inflation payouts ({:d})"),
                 deltaTotalCoins, deltaFeePool, inflationPayouts);
         }
         if (deltaBalances != inflationPayouts)
         {
-            return fmt::format("LedgerEntry account balances change ({}) "
-                               "did not match inflation payouts ({})",
-                               deltaBalances, inflationPayouts);
+            return fmt::format(
+                FMT_STRING("LedgerEntry account balances change ({:d}) "
+                           "did not match inflation payouts ({:d})"),
+                deltaBalances, inflationPayouts);
         }
     }
     else
     {
         if (deltaTotalCoins != 0)
         {
-            return fmt::format("LedgerHeader totalCoins changed from {} to"
-                               " {} without inflation",
-                               lhPrev.totalCoins, lhCurr.totalCoins);
+            return fmt::format(
+                FMT_STRING("LedgerHeader totalCoins changed from {:d} to"
+                           " {:d} without inflation"),
+                lhPrev.totalCoins, lhCurr.totalCoins);
         }
         if (deltaFeePool != 0)
         {
-            return fmt::format("LedgerHeader feePool changed from {} to"
-                               " {} without inflation",
-                               lhPrev.feePool, lhCurr.feePool);
+            return fmt::format(
+                FMT_STRING("LedgerHeader feePool changed from {:d} to"
+                           " {:d} without inflation"),
+                lhPrev.feePool, lhCurr.feePool);
         }
         if (deltaBalances != 0)
         {
-            return fmt::format("LedgerEntry account balances changed by"
-                               " {} without inflation",
-                               deltaBalances);
+            return fmt::format(
+                FMT_STRING("LedgerEntry account balances changed by"
+                           " {:d} without inflation"),
+                deltaBalances);
         }
     }
     return {};

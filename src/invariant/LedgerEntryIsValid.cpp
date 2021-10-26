@@ -44,8 +44,9 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
     uint32_t currLedgerSeq = ltxDelta.header.current.ledgerSeq;
     if (currLedgerSeq > INT32_MAX)
     {
-        return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
-                           currLedgerSeq, INT32_MAX);
+        return fmt::format(
+            FMT_STRING("LedgerHeader ledgerSeq ({:d}) exceeds limits ({:d})"),
+            currLedgerSeq, INT32_MAX);
     }
 
     auto ver = ltxDelta.header.current.ledgerVersion;
@@ -87,9 +88,10 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
 {
     if (le.lastModifiedLedgerSeq != ledgerSeq)
     {
-        return fmt::format("LedgerEntry lastModifiedLedgerSeq ({}) does not"
-                           " equal LedgerHeader ledgerSeq ({})",
-                           le.lastModifiedLedgerSeq, ledgerSeq);
+        return fmt::format(
+            FMT_STRING("LedgerEntry lastModifiedLedgerSeq ({:d}) does not"
+                       " equal LedgerHeader ledgerSeq ({:d})"),
+            le.lastModifiedLedgerSeq, ledgerSeq);
     }
 
     if (version < 14 && le.ext.v() == 1)
@@ -129,16 +131,19 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
 {
     if (ae.balance < 0)
     {
-        return fmt::format("Account balance ({}) is negative", ae.balance);
+        return fmt::format(FMT_STRING("Account balance ({:d}) is negative"),
+                           ae.balance);
     }
     if (ae.seqNum < 0)
     {
-        return fmt::format("Account seqNum ({}) is negative", ae.seqNum);
+        return fmt::format(FMT_STRING("Account seqNum ({:d}) is negative"),
+                           ae.seqNum);
     }
     if (ae.numSubEntries > INT32_MAX)
     {
-        return fmt::format("Account numSubEntries ({}) exceeds limit ({})",
-                           ae.numSubEntries, INT32_MAX);
+        return fmt::format(
+            FMT_STRING("Account numSubEntries ({:d}) exceeds limit ({:d})"),
+            ae.numSubEntries, INT32_MAX);
     }
 
     if (!accountFlagIsValid(ae.flags, version))
@@ -221,16 +226,19 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     }
     if (tl.balance < 0)
     {
-        return fmt::format("TrustLine balance ({}) is negative", tl.balance);
+        return fmt::format(FMT_STRING("TrustLine balance ({:d}) is negative"),
+                           tl.balance);
     }
     if (tl.limit <= 0)
     {
-        return fmt::format("TrustLine limit ({}) is not positive", tl.limit);
+        return fmt::format(FMT_STRING("TrustLine limit ({:d}) is not positive"),
+                           tl.limit);
     }
     if (tl.balance > tl.limit)
     {
-        return fmt::format("TrustLine balance ({}) exceeds limit ({})",
-                           tl.balance, tl.limit);
+        return fmt::format(
+            FMT_STRING("TrustLine balance ({:d}) exceeds limit ({:d})"),
+            tl.balance, tl.limit);
     }
     if (!trustLineFlagIsValid(tl.flags, version))
     {
@@ -249,7 +257,8 @@ LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
 {
     if (oe.offerID <= 0)
     {
-        return fmt::format("Offer offerID ({}) must be positive", oe.offerID);
+        return fmt::format(FMT_STRING("Offer offerID ({:d}) must be positive"),
+                           oe.offerID);
     }
     if (!isAssetValid(oe.selling, version))
     {
@@ -265,8 +274,8 @@ LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
     }
     if (oe.price.n <= 0 || oe.price.d < 1)
     {
-        return fmt::format("Offer price ({} / {}) is invalid", oe.price.n,
-                           oe.price.d);
+        return fmt::format(FMT_STRING("Offer price ({:d} / {:d}) is invalid"),
+                           oe.price.n, oe.price.d);
     }
     if ((oe.flags & ~MASK_OFFERENTRY_FLAGS) != 0)
     {

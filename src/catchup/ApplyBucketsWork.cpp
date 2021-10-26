@@ -306,7 +306,8 @@ ApplyBucketsWork::isLevelComplete()
 std::string
 ApplyBucketsWork::getStatus() const
 {
-    return fmt::format("Applying buckets {}%. Currently on level {}",
-                       (100 * mAppliedSize / mTotalSize), mLevel);
+    return fmt::format(
+        FMT_STRING("Applying buckets {:d}%. Currently on level {:d}"),
+        (100 * mAppliedSize / mTotalSize), mLevel);
 }
 }

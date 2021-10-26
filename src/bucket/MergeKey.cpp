@@ -49,7 +49,7 @@ operator<<(std::ostream& out, MergeKey const& b)
         first = false;
         out << hexAbbrev(s);
     }
-    out << fmt::format("], keep={}]", b.mKeepDeadEntries);
+    out << fmt::format(FMT_STRING("], keep={}]"), b.mKeepDeadEntries);
     return out;
 }
 }

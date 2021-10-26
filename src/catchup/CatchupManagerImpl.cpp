@@ -177,9 +177,10 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
     if (mApp.getConfig().MODE_DOES_CATCHUP && it != mSyncingLedgers.end() &&
         it->first < lastLedgerInBuffer)
     {
-        message = fmt::format("Starting catchup after ensuring checkpoint "
-                              "ledger {} was closed on network",
-                              lastLedgerInBuffer);
+        message =
+            fmt::format(FMT_STRING("Starting catchup after ensuring checkpoint "
+                                   "ledger {:d} was closed on network"),
+                        lastLedgerInBuffer);
 
         // We only need ledgers starting from the checkpoint. We can
         // remove all ledgers before this
@@ -205,14 +206,15 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
         {
             auto eta = (catchupTriggerLedger - lastLedgerInBuffer) *
                        mApp.getConfig().getExpectedLedgerCloseTime();
-            message = fmt::format("Waiting for trigger ledger: {}/{}, ETA: {}s",
-                                  lastLedgerInBuffer, catchupTriggerLedger,
-                                  eta.count());
+            message = fmt::format(
+                FMT_STRING("Waiting for trigger ledger: {:d}/{:d}, ETA: {:d}s"),
+                lastLedgerInBuffer, catchupTriggerLedger, eta.count());
         }
         else
         {
             message = fmt::format(
-                "Waiting for out-of-order ledger(s). Trigger ledger: {}",
+                FMT_STRING(
+                    "Waiting for out-of-order ledger(s). Trigger ledger: {:d}"),
                 catchupTriggerLedger);
         }
     }
@@ -275,7 +277,7 @@ CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
     {
         auto contiguousString =
             contiguous ? "" : " (discontiguous; will fail and restart): ";
-        auto state = fmt::format("{}{}", contiguousString, message);
+        auto state = fmt::format(FMT_STRING("{}{}"), contiguousString, message);
         auto existing = mApp.getStatusManager().getStatusMessage(
             StatusCategory::HISTORY_CATCHUP);
         if (existing != state)
@@ -483,7 +485,9 @@ CatchupManagerImpl::fileDownloaded(std::string type, uint32_t num)
     else if (type != HISTORY_FILE_TYPE_RESULTS && type != HISTORY_FILE_TYPE_SCP)
     {
         throw std::runtime_error(fmt::format(
-            "CatchupManagerImpl::fileDownloaded unknown file type {}", type));
+            FMT_STRING(
+                "CatchupManagerImpl::fileDownloaded unknown file type {}"),
+            type));
     }
 }
 

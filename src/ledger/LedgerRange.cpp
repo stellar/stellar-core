@@ -19,7 +19,7 @@ LedgerRange::LedgerRange(uint32_t first, uint32_t count)
 std::string
 LedgerRange::toString() const
 {
-    return fmt::format("[{},{})", mFirst, mFirst + mCount);
+    return fmt::format(FMT_STRING("[{:d},{:d})"), mFirst, mFirst + mCount);
 }
 
 bool

@@ -93,7 +93,8 @@ ConditionalWork::onReset()
 std::string
 ConditionalWork::getStatus() const
 {
-    return fmt::format("{}{}", mWorkStarted ? "" : "Waiting before starting ",
+    return fmt::format(FMT_STRING("{}{}"),
+                       mWorkStarted ? "" : "Waiting before starting ",
                        mConditionedWork->getStatus());
 }
 }

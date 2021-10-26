@@ -128,8 +128,8 @@ loadByHash(Database& db, Hash const& hash)
         if (ledgerHash != hash)
         {
             throw std::runtime_error(
-                fmt::format("Wrong hash in ledger header database: "
-                            "loaded ledger {} contains {}",
+                fmt::format(FMT_STRING("Wrong hash in ledger header database: "
+                                       "loaded ledger {} contains {}"),
                             binToHex(ledgerHash), binToHex(hash)));
         }
     }
@@ -157,10 +157,10 @@ loadBySequence(Database& db, soci::session& sess, uint32_t seq)
 
         if (lh.ledgerSeq != seq)
         {
-            throw std::runtime_error(
-                fmt::format("Wrong sequence number in ledger header database: "
-                            "loaded ledger {} contains {}",
-                            seq, lh.ledgerSeq));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Wrong sequence number in ledger header database: "
+                           "loaded ledger {:d} contains {:d}"),
+                seq, lh.ledgerSeq));
         }
     }
 

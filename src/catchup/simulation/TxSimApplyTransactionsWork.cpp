@@ -633,7 +633,8 @@ TxSimApplyTransactionsWork::onRun()
 
     mApplyLedgerWork = std::make_shared<ConditionalWork>(
         mApp,
-        fmt::format("simulation-apply-ledger-{}", closeData.getLedgerSeq()),
+        fmt::format(FMT_STRING("simulation-apply-ledger-{:d}"),
+                    closeData.getLedgerSeq()),
         condition, applyLedger);
 
     mApplyLedgerWork->startWork(wakeSelfUpCallback());

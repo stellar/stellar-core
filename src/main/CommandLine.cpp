@@ -275,10 +275,11 @@ configurationParser(CommandLine::ConfigOption& configOption)
 {
     return logLevelParser(configOption.mLogLevel) |
            metricsParser(configOption.mMetrics) |
-           clara::Opt{configOption.mConfigFile, "FILE-NAME"}["--conf"](
-               fmt::format("specify a config file ('{0}' for STDIN, default "
-                           "'stellar-core.cfg')",
-                           Config::STDIN_SPECIAL_NAME));
+           clara::Opt{configOption.mConfigFile,
+                      "FILE-NAME"}["--conf"](fmt::format(
+               FMT_STRING("specify a config file ('{}' for STDIN, default "
+                          "'stellar-core.cfg')"),
+               Config::STDIN_SPECIAL_NAME));
 }
 
 clara::Opt
@@ -1698,7 +1699,8 @@ handleCommandLine(int argc, char* const* argv)
     bool didDefaultToHelp = command->name() != adjustedCommandLine.first;
 
     auto exeName = "stellar-core";
-    auto commandName = fmt::format("{0} {1}", exeName, command->name());
+    auto commandName =
+        fmt::format(FMT_STRING("{0} {1}"), exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 adjustedCommandLine.second};
     if (command->name() == "run" || command->name() == "fuzz")

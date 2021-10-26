@@ -638,10 +638,10 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             auto version = Bucket::getBucketVersion(snap);
             if (version < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
             {
-                auto msg =
-                    fmt::format("Invalid state: bucketlist level {} has clear "
-                                "future bucket but version {} snap",
-                                i, version);
+                auto msg = fmt::format(
+                    FMT_STRING("Invalid state: bucketlist level {:d} has clear "
+                               "future bucket but version {:d} snap"),
+                    i, version);
                 throw std::runtime_error(msg);
             }
 

@@ -32,8 +32,9 @@ DownloadVerifyTxResultsWork::getStatus() const
 {
     if (!isDone() && !isAborting())
     {
-        auto task = fmt::format("Downloading and verifying {:s} files",
-                                HISTORY_FILE_TYPE_RESULTS);
+        auto task =
+            fmt::format(FMT_STRING("Downloading and verifying {:s} files"),
+                        HISTORY_FILE_TYPE_RESULTS);
         return fmtProgress(mApp, task, mRange.getLedgerRange(),
                            mCurrCheckpoint);
     }
@@ -69,7 +70,8 @@ DownloadVerifyTxResultsWork::yieldMoreWork()
     std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
     auto w3 = std::make_shared<WorkSequence>(
         mApp,
-        fmt::format(FMT_STRING("download-verify-results-{}"), mCurrCheckpoint),
+        fmt::format(FMT_STRING("download-verify-results-{:d}"),
+                    mCurrCheckpoint),
         seq);
 
     mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();

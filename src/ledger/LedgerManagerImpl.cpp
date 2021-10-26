@@ -594,9 +594,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         CLOG_ERROR(Ledger, "Unknown ledger version: {}",
                    header.current().ledgerVersion);
         CLOG_ERROR(Ledger, "{}", UPGRADE_STELLAR_CORE);
-        throw std::runtime_error(
-            fmt::format("cannot apply ledger with not supported version: {}",
-                        header.current().ledgerVersion));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("cannot apply ledger with not supported version: {:d}"),
+            header.current().ledgerVersion));
     }
 
     if (txSet->previousLedgerHash() != getLastClosedLedgerHeader().hash)
@@ -682,10 +682,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             break;
         case Upgrades::UpgradeValidity::XDR_INVALID:
             throw std::runtime_error(
-                fmt::format(FMT_STRING("Unknown upgrade at index {}"), i));
+                fmt::format(FMT_STRING("Unknown upgrade at index {:d}"), i));
         case Upgrades::UpgradeValidity::INVALID:
             throw std::runtime_error(
-                fmt::format(FMT_STRING("Invalid upgrade at index {}: {}"), i,
+                fmt::format(FMT_STRING("Invalid upgrade at index {:d}: {}"), i,
                             xdr_to_string(lupgrade, "LedgerUpgrade")));
         }
 

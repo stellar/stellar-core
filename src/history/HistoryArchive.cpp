@@ -137,7 +137,8 @@ HistoryArchiveState::load(std::string const& inFile)
     std::ifstream in(inFile);
     if (!in)
     {
-        throw std::runtime_error(fmt::format("Error opening file {}", inFile));
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Error opening file {}"), inFile));
     }
     in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);

@@ -28,7 +28,8 @@ BucketApplicator::BucketApplicator(Application& app,
     if (protocolVersion > mMaxProtocolVersion)
     {
         throw std::runtime_error(fmt::format(
-            "bucket protocol version {} exceeds maxProtocolVersion {}",
+            FMT_STRING(
+                "bucket protocol version {:d} exceeds maxProtocolVersion {:d}"),
             protocolVersion, mMaxProtocolVersion));
     }
 }

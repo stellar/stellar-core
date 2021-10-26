@@ -151,9 +151,9 @@ HerderImpl::setState(State st)
     if (initState && (mState == HERDER_TRACKING_NETWORK_STATE ||
                       mState == HERDER_SYNCING_STATE))
     {
-        throw std::runtime_error(
-            fmt::format("Invalid state transition in Herder: {} -> {}",
-                        getStateHuman(mState), getStateHuman(st)));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Invalid state transition in Herder: {} -> {}"),
+            getStateHuman(mState), getStateHuman(st)));
     }
     mState = st;
 }
@@ -1175,7 +1175,8 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 
     if (!desc.empty())
     {
-        auto message = fmt::format("Armed with network upgrades: {}", desc);
+        auto message =
+            fmt::format(FMT_STRING("Armed with network upgrades: {}"), desc);
         auto prev = mApp.getStatusManager().getStatusMessage(
             StatusCategory::REQUIRES_UPGRADES);
         if (prev != message)

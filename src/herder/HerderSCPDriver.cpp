@@ -116,10 +116,10 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
         mQSet = mHerder.getQSet(qSetH);
         if (!mQSet)
         {
-            throw std::runtime_error(
-                fmt::format("SCPHerderEnvelopeWrapper: Wrapping an unknown "
-                            "qset {} from envelope",
-                            hexAbbrev(qSetH)));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("SCPHerderEnvelopeWrapper: Wrapping an unknown "
+                           "qset {} from envelope"),
+                hexAbbrev(qSetH)));
         }
         auto txSets = getTxSetHashes(e);
         for (auto const& txSetH : txSets)
@@ -131,10 +131,10 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
             }
             else
             {
-                throw std::runtime_error(
-                    fmt::format("SCPHerderEnvelopeWrapper: Wrapping an unknown "
-                                "tx set {} from envelope",
-                                hexAbbrev(txSetH)));
+                throw std::runtime_error(fmt::format(
+                    FMT_STRING("SCPHerderEnvelopeWrapper: Wrapping an unknown "
+                               "tx set {} from envelope"),
+                    hexAbbrev(txSetH)));
             }
         }
     }
@@ -968,16 +968,17 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
             recordLogTiming(
                 *timing.mSelfExternalize, now,
                 mSCPMetrics.mSelfToOthersExternalizeLag,
-                fmt::format("self to {} externalize lag", toShortString(id)),
+                fmt::format(FMT_STRING("self to {} externalize lag"),
+                            toShortString(id)),
                 std::chrono::nanoseconds::zero(), slotIndex);
         }
 
         // Record lag for other nodes
         auto& lag = mQSetLag[id];
-        recordLogTiming(
-            *timing.mFirstExternalize, now, lag,
-            fmt::format("first to {} externalize lag", toShortString(id)),
-            std::chrono::nanoseconds::zero(), slotIndex);
+        recordLogTiming(*timing.mFirstExternalize, now, lag,
+                        fmt::format(FMT_STRING("first to {} externalize lag"),
+                                    toShortString(id)),
+                        std::chrono::nanoseconds::zero(), slotIndex);
     }
 }
 
@@ -1076,7 +1077,8 @@ class SCPHerderValueWrapper : public ValueWrapper
         if (!mTxSet)
         {
             throw std::runtime_error(fmt::format(
-                "SCPHerderValueWrapper tried to bind an unknown tx set {}",
+                FMT_STRING(
+                    "SCPHerderValueWrapper tried to bind an unknown tx set {}"),
                 hexAbbrev(sv.txSetHash)));
         }
     }
@@ -1089,8 +1091,9 @@ HerderSCPDriver::wrapValue(Value const& val)
     auto b = mHerder.getHerderSCPDriver().toStellarValue(val, sv);
     if (!b)
     {
-        throw std::runtime_error(fmt::format(
-            "Invalid value in SCPHerderValueWrapper {}", binToHex(val)));
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Invalid value in SCPHerderValueWrapper {}"),
+                        binToHex(val)));
     }
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;

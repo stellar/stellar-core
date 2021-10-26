@@ -24,7 +24,7 @@ PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
     : mType{Type::IPv4}
     , mIP{std::move(ip)}
     , mPort{port}
-    , mStringValue{fmt::format("{}:{}", mIP, mPort)}
+    , mStringValue{fmt::format(FMT_STRING("{}:{:d}"), mIP, mPort)}
 {
     if (mIP.empty())
     {
@@ -35,12 +35,12 @@ PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
 PeerBareAddress::PeerBareAddress(PeerAddress const& pa)
     : mType{Type::IPv4}
     , mIP{pa.ip.type() == IPv4
-              ? fmt::format("{}.{}.{}.{}", (int)pa.ip.ipv4()[0],
-                            (int)pa.ip.ipv4()[1], (int)pa.ip.ipv4()[2],
-                            (int)pa.ip.ipv4()[3])
+              ? fmt::format(FMT_STRING("{:d}.{:d}.{:d}.{:d}"),
+                            (int)pa.ip.ipv4()[0], (int)pa.ip.ipv4()[1],
+                            (int)pa.ip.ipv4()[2], (int)pa.ip.ipv4()[3])
               : throw std::runtime_error("IPv6 addresses not supported")}
     , mPort{static_cast<unsigned short>(pa.port)}
-    , mStringValue{fmt::format("{}:{}", mIP, mPort)}
+    , mStringValue{fmt::format(FMT_STRING("{}:{:d}"), mIP, mPort)}
 {
 }
 
@@ -56,7 +56,7 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     if (!std::regex_search(ipPort, m, re) || m.empty())
     {
         throw std::runtime_error(
-            fmt::format("Cannot parse peer address '{}'", ipPort));
+            fmt::format(FMT_STRING("Cannot parse peer address '{}'"), ipPort));
     }
 
     asio::ip::tcp::resolver::query::flags resolveflags;
@@ -81,8 +81,8 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     {
         LOG_DEBUG(DEFAULT_LOG, "Could not resolve '{}' : {}", ipPort,
                   ec.message());
-        throw std::runtime_error(
-            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Could not resolve '{}': {}"), ipPort, ec.message()));
     }
 
     std::string ip;
@@ -98,8 +98,8 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     }
     if (ip.empty())
     {
-        throw std::runtime_error(
-            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Could not resolve '{}': {}"), ipPort, ec.message()));
     }
 
     unsigned short port = defaultPort;
@@ -108,8 +108,9 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
         int parsedPort = atoi(m[3].str().c_str());
         if (parsedPort <= 0 || parsedPort > UINT16_MAX)
         {
-            throw std::runtime_error(fmt::format("Could not resolve '{}': {}",
-                                                 ipPort, ec.message()));
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("Could not resolve '{}': {}"), ipPort,
+                            ec.message()));
         }
         port = static_cast<unsigned short>(parsedPort);
     }

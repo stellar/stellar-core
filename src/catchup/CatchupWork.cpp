@@ -113,7 +113,7 @@ CatchupWork::getStatus() const
         toLedger = std::to_string(mCatchupConfiguration.toLedger());
     }
 
-    return fmt::format("Catching up to ledger {}: {}", toLedger,
+    return fmt::format(FMT_STRING("Catching up to ledger {}: {}"), toLedger,
                        mCurrentWork ? mCurrentWork->getStatus()
                                     : Work::getStatus());
 }
@@ -247,11 +247,11 @@ CatchupWork::assertBucketState()
     auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     if (mVerifiedLedgerRangeStart.header.ledgerSeq < lcl.header.ledgerSeq)
     {
-        throw std::runtime_error(
-            fmt::format("Catchup MINIMAL applying ledger earlier than local "
-                        "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(mVerifiedLedgerRangeStart),
-                        LedgerManager::ledgerAbbrev(lcl)));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Catchup MINIMAL applying ledger earlier than local "
+                       "LCL: {:s} < {:s}"),
+            LedgerManager::ledgerAbbrev(mVerifiedLedgerRangeStart),
+            LedgerManager::ledgerAbbrev(lcl)));
     }
 }
 

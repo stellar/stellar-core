@@ -201,7 +201,7 @@ Bucket::checkProtocolLegality(BucketEntry const& entry,
         (entry.type() == INITENTRY || entry.type() == METAENTRY))
     {
         throw std::runtime_error(fmt::format(
-            "unsupported entry type {} in protocol {} bucket",
+            FMT_STRING("unsupported entry type {} in protocol {:d} bucket"),
             (entry.type() == INITENTRY ? "INIT" : "META"), protocolVersion));
     }
 }
@@ -383,7 +383,8 @@ calculateMergeProtocolVersion(
     if (protocolVersion > maxProtocolVersion)
     {
         throw std::runtime_error(fmt::format(
-            "bucket protocol version {} exceeds maxProtocolVersion {}",
+            FMT_STRING(
+                "bucket protocol version {:d} exceeds maxProtocolVersion {:d}"),
             protocolVersion, maxProtocolVersion));
     }
 

@@ -312,8 +312,8 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
                 }
                 else
                 {
-                    throw std::invalid_argument(
-                        fmt::format("unknown filetype {}", filetype));
+                    throw std::invalid_argument(fmt::format(
+                        FMT_STRING("unknown filetype {}"), filetype));
                 }
             }
         });
@@ -479,7 +479,8 @@ signtxn(std::string const& filename, std::string netId, bool base64)
                     "Envelope already contains maximum number of signatures");
 
             SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
-                fmt::format("Secret key seed [network id: '{}']: ", netId),
+                fmt::format(FMT_STRING("Secret key seed [network id: '{}']: "),
+                            netId),
                 txn_stdin)));
             TransactionSignaturePayload payload;
             payload.networkId = sha256(netId);

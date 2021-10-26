@@ -36,6 +36,7 @@ ApplyLedgerWork::onAbort()
 std::string
 ApplyLedgerWork::getStatus() const
 {
-    return fmt::format("apply ledger {}", mLedgerCloseData.getLedgerSeq());
+    return fmt::format(FMT_STRING("apply ledger {:d}"),
+                       mLedgerCloseData.getLedgerSeq());
 }
 }

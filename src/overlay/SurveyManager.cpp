@@ -568,7 +568,8 @@ SurveyManager::commandTypeName(SurveyMessageCommandType type)
     case SURVEY_TOPOLOGY:
         return "SURVEY_TOPOLOGY";
     default:
-        throw std::runtime_error(fmt::format("Unknown commandType={}", type));
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Unknown commandType={}"), type));
     }
 }
 }

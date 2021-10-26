@@ -350,7 +350,7 @@ mkpath(const std::string& path)
 std::string
 hexStr(uint32_t checkpointNum)
 {
-    return fmt::format("{:08x}", checkpointNum);
+    return fmt::format(FMT_STRING("{:08x}"), checkpointNum);
 }
 
 std::string

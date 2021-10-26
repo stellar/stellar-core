@@ -340,10 +340,10 @@ InternalLedgerKey::toString() const
 
     case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format(
-            "{{\n  {}\n}}\n",
+            FMT_STRING("{{\n  {}\n}}\n"),
             xdr_to_string(sponsorshipKey().sponsoredID, "sponsoredID"));
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        return fmt::format("{{\n  {}\n}}\n",
+        return fmt::format(FMT_STRING("{{\n  {}\n}}\n"),
                            xdr_to_string(sponsorshipCounterKey().sponsoringID,
                                          "sponsoringID"));
     default:
@@ -623,11 +623,11 @@ InternalLedgerEntry::toString() const
         return xdr_to_string(ledgerEntry(), "LedgerEntry");
     case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format(
-            "{{\n  {},\n  {}\n}}\n",
+            FMT_STRING("{{\n  {},\n  {}\n}}\n"),
             xdr_to_string(sponsorshipEntry().sponsoredID, "sponsoredID"),
             xdr_to_string(sponsorshipEntry().sponsoringID, "sponsoringID"));
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        return fmt::format("{{\n  {},\n  numSponsoring = {}\n}}\n",
+        return fmt::format(FMT_STRING("{{\n  {},\n  numSponsoring = {}\n}}\n"),
                            xdr_to_string(sponsorshipCounterEntry().sponsoringID,
                                          "sponsoringID"),
                            sponsorshipCounterEntry().numSponsoring);

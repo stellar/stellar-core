@@ -186,9 +186,10 @@ DownloadApplyTxsWork::getStatus() const
     auto checkpointsApplied = checkpointsStarted - getNumWorksInBatch();
 
     auto totalCheckpoints = (last - first) / hm.getCheckpointFrequency() + 1;
-    return fmt::format("Download & apply checkpoints: num checkpoints left to "
-                       "apply:{} ({}% done)",
-                       totalCheckpoints - checkpointsApplied,
-                       100 * checkpointsApplied / totalCheckpoints);
+    return fmt::format(
+        FMT_STRING("Download & apply checkpoints: num checkpoints left to "
+                   "apply:{:d} ({:d}% done)"),
+        totalCheckpoints - checkpointsApplied,
+        100 * checkpointsApplied / totalCheckpoints);
 }
 }

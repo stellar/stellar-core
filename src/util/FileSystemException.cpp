@@ -27,7 +27,7 @@ FileSystemException::getLastErrorString()
                                     FORMAT_MESSAGE_IGNORE_INSERTS,
                                 NULL, dw, 0, (LPTSTR)buf, bufSize, NULL);
     buf[sz] = 0;
-    res = fmt::format("Error {:#X} - {}", dw, buf);
+    res = fmt::format(FMT_STRING("Error {:#X} - {}"), dw, buf);
     return res;
 }
 

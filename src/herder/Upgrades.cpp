@@ -147,9 +147,10 @@ Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
     if (params.mProtocolVersion &&
         *params.mProtocolVersion > cfg.LEDGER_PROTOCOL_VERSION)
     {
-        throw std::invalid_argument(fmt::format(
-            "Protocol version error: supported is up to {}, passed is {}",
-            cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
+        throw std::invalid_argument(
+            fmt::format(FMT_STRING("Protocol version error: supported is up to "
+                                   "{:d}, passed is {:d}"),
+                        cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
     }
     mParams = params;
 }
@@ -224,7 +225,8 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx)
         break;
     default:
     {
-        auto s = fmt::format("Unknown upgrade type: {0}", upgrade.type());
+        auto s =
+            fmt::format(FMT_STRING("Unknown upgrade type: {}"), upgrade.type());
         throw std::runtime_error(s);
     }
     }
@@ -236,15 +238,18 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        return fmt::format("protocolversion={0}", upgrade.newLedgerVersion());
+        return fmt::format(FMT_STRING("protocolversion={:d}"),
+                           upgrade.newLedgerVersion());
     case LEDGER_UPGRADE_BASE_FEE:
-        return fmt::format("basefee={0}", upgrade.newBaseFee());
+        return fmt::format(FMT_STRING("basefee={:d}"), upgrade.newBaseFee());
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        return fmt::format("maxtxsetsize={0}", upgrade.newMaxTxSetSize());
+        return fmt::format(FMT_STRING("maxtxsetsize={:d}"),
+                           upgrade.newMaxTxSetSize());
     case LEDGER_UPGRADE_BASE_RESERVE:
-        return fmt::format("basereserve={0}", upgrade.newBaseReserve());
+        return fmt::format(FMT_STRING("basereserve={:d}"),
+                           upgrade.newBaseReserve());
     case LEDGER_UPGRADE_FLAGS:
-        return fmt::format("flags={0}", upgrade.newFlags());
+        return fmt::format(FMT_STRING("flags={:d}"), upgrade.newFlags());
     default:
         return "<unsupported>";
     }
@@ -263,11 +268,11 @@ Upgrades::toString() const
             if (first)
             {
                 r << fmt::format(
-                    "upgradetime={}",
+                    FMT_STRING("upgradetime={}"),
                     VirtualClock::systemPointToISOString(mParams.mUpgradeTime));
                 first = false;
             }
-            r << fmt::format(", {}={}", s, *o);
+            r << fmt::format(FMT_STRING(", {}={:d}"), s, *o);
         }
     };
     appendInfo("protocolversion", mParams.mProtocolVersion);

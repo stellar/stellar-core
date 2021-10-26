@@ -132,7 +132,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                         strong->sendMessage(*smsg, log);
                     }
                 },
-                fmt::format("broadcast to {}", peer.second->toString()));
+                fmt::format(FMT_STRING("broadcast to {}"),
+                            peer.second->toString()));
             broadcasted = true;
         }
     }
