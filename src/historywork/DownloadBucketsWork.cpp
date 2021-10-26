@@ -41,8 +41,9 @@ DownloadBucketsWork::getStatus() const
             auto total = static_cast<uint32_t>(mHashes.size());
             auto pct = (100 * numDone) / total;
             return fmt::format(
-                "downloading and verifying buckets: {:d}/{:d} ({:d}%)", numDone,
-                total, pct);
+                FMT_STRING(
+                    "downloading and verifying buckets: {:d}/{:d} ({:d}%)"),
+                numDone, total, pct);
         }
     }
     return Work::getStatus();

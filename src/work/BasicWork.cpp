@@ -85,24 +85,25 @@ BasicWork::getStatus() const
     switch (state)
     {
     case InternalState::PENDING:
-        return fmt::format("Ready to run: {:s}", getName());
+        return fmt::format(FMT_STRING("Ready to run: {}"), getName());
     case InternalState::RUNNING:
-        return fmt::format("Running: {:s}", getName());
+        return fmt::format(FMT_STRING("Running: {}"), getName());
     case InternalState::WAITING:
-        return fmt::format("Waiting: {:s}", getName());
+        return fmt::format(FMT_STRING("Waiting: {}"), getName());
     case InternalState::SUCCESS:
-        return fmt::format("Succeeded: {:s}", getName());
+        return fmt::format(FMT_STRING("Succeeded: {}"), getName());
     case InternalState::RETRYING:
     {
         auto eta = getRetryETA();
-        return fmt::format("Retrying in {:d} sec: {:s}", eta, getName());
+        return fmt::format(FMT_STRING("Retrying in {:d} sec: {}"), eta,
+                           getName());
     }
     case InternalState::FAILURE:
-        return fmt::format("Failed: {:s}", getName());
+        return fmt::format(FMT_STRING("Failed: {}"), getName());
     case InternalState::ABORTING:
-        return fmt::format("Aborting: {:s}", getName());
+        return fmt::format(FMT_STRING("Aborting: {}"), getName());
     case InternalState::ABORTED:
-        return fmt::format("Aborted: {:s}", getName());
+        return fmt::format(FMT_STRING("Aborted: {}"), getName());
     default:
         abort();
     }
@@ -176,8 +177,8 @@ BasicWork::waitForRetry()
 {
     if (mRetryTimer)
     {
-        throw std::runtime_error(
-            fmt::format("Retry timer for {} already exists!", getName()));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Retry timer for {} already exists!"), getName()));
     }
 
     mRetryTimer = std::make_unique<VirtualTimer>(mApp.getClock());
@@ -418,9 +419,9 @@ BasicWork::assertValidTransition(Transition const& t) const
 {
     if (ALLOWED_TRANSITIONS.find(t) == ALLOWED_TRANSITIONS.end())
     {
-        throw std::runtime_error(
-            fmt::format("BasicWork error: illegal state transition {} -> {}",
-                        stateName(t.first), stateName(t.second)));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("BasicWork error: illegal state transition {} -> {}"),
+            stateName(t.first), stateName(t.second)));
     }
 }
 

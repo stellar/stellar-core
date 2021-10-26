@@ -386,8 +386,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
             catch (std::exception const& e)
             {
                 throw std::runtime_error(fmt::format(
-                    "Error merging bucket curr={} with snap={}: "
-                    "{}. {}",
+                    FMT_STRING("Error merging bucket curr={} with snap={}: "
+                               "{}. {}"),
                     hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
                     e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
             };

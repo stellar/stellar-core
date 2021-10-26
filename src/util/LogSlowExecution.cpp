@@ -54,7 +54,7 @@ LogSlowExecution::checkElapsedTime() const
                              gDroppedLogMessagesSinceLast);
                 gDroppedLogMessagesSinceLast = 0;
             }
-            auto msg = fmt::format("'{}' {} {} s", mName, mMessage,
+            auto msg = fmt::format(FMT_STRING("'{}' {} {} s"), mName, mMessage,
                                    static_cast<float>(elapsed.count()) / 1000);
             // if we're 10 times over the threshold, log with INFO, otherwise
             // use DEBUG

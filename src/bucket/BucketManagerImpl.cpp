@@ -73,10 +73,10 @@ BucketManagerImpl::initialize()
     }
     catch (std::exception const& e)
     {
-        throw std::runtime_error(
-            fmt::format("{}. This can be caused by access rights issues or "
-                        "another stellar-core process already running",
-                        e.what()));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("{}. This can be caused by access rights issues or "
+                       "another stellar-core process already running"),
+            e.what()));
     }
 
     mLockedBucketDir = std::make_unique<std::string>(d);
@@ -898,9 +898,9 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
                 size_t erased = map.erase(e.deadEntry());
                 if (erased != 1)
                 {
-                    std::string err =
-                        fmt::format("DEADENTRY does not exist in ledger: {}",
-                                    xdr::xdr_to_string(e.deadEntry(), "entry"));
+                    std::string err = fmt::format(
+                        FMT_STRING("DEADENTRY does not exist in ledger: {}"),
+                        xdr::xdr_to_string(e.deadEntry(), "entry"));
                     CLOG_ERROR(Bucket, "{}", err);
                     throw std::runtime_error(err);
                 }
@@ -925,9 +925,9 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
-                            fmt::format("snap {}", i - 1));
+                            fmt::format(FMT_STRING("snap {:d}"), i - 1));
         hashes.emplace_back(hexToBin256(hsb.curr),
-                            fmt::format("curr {}", i - 1));
+                            fmt::format(FMT_STRING("curr {:d}"), i - 1));
     }
     for (auto const& pair : hashes)
     {
@@ -980,8 +980,8 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
         auto b = getBucketByHash(h);
         if (!b)
         {
-            throw std::runtime_error(
-                fmt::format("Missing referenced bucket {}", binToHex(h)));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
         }
         seq.emplace_back(std::make_shared<VerifyBucketWork>(
             mApp, b->getFilename(), b->getHash(), nullptr));

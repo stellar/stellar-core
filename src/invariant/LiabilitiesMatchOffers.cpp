@@ -101,9 +101,9 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
 
                 if (sellingLiabilitiesInc || buyingLiabilitiesInc)
                 {
-                    return fmt::format(
-                        "Liabilities increased on unauthorized trust line {}",
-                        xdr_to_string(trust, "TrustLineEntry"));
+                    return fmt::format(FMT_STRING("Liabilities increased on "
+                                                  "unauthorized trust line {}"),
+                                       xdr_to_string(trust, "TrustLineEntry"));
                 }
             }
             else
@@ -112,7 +112,8 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
                     getBuyingLiabilities(*current) > 0)
                 {
                     return fmt::format(
-                        "Unauthorized trust line has liabilities {}",
+                        FMT_STRING(
+                            "Unauthorized trust line has liabilities {}"),
                         xdr_to_string(trust, "TrustLineEntry"));
                 }
             }
@@ -260,7 +261,8 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
                 (INT64_MAX - account.balance < liabilities.buying))
             {
                 return fmt::format(
-                    "Balance not compatible with liabilities for {}",
+                    FMT_STRING(
+                        "Balance not compatible with liabilities for {}"),
                     xdr_to_string(account, "AccountEntry"));
             }
         }
@@ -277,8 +279,9 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
         if ((trust.balance < liabilities.selling) ||
             (trust.limit - trust.balance < liabilities.buying))
         {
-            return fmt::format("Balance not compatible with liabilities for {}",
-                               xdr_to_string(trust, "TrustLineEntry"));
+            return fmt::format(
+                FMT_STRING("Balance not compatible with liabilities for {}"),
+                xdr_to_string(trust, "TrustLineEntry"));
         }
     }
     return {};
@@ -347,9 +350,9 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                 if (assetLiabilities.second.buying != 0)
                 {
                     return fmt::format(
-                        "Change in buying liabilities differed from "
-                        "change in total buying liabilities of "
-                        "offers by {} for {} in {}",
+                        FMT_STRING("Change in buying liabilities differed from "
+                                   "change in total buying liabilities of "
+                                   "offers by {:d} for {} in {}"),
                         assetLiabilities.second.buying,
                         xdr_to_string(accLiabilities.first, "account"),
                         xdr_to_string(assetLiabilities.first, "asset"));
@@ -357,9 +360,10 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                 else if (assetLiabilities.second.selling != 0)
                 {
                     return fmt::format(
-                        "Change in selling liabilities differed from "
-                        "change in total selling liabilities of "
-                        "offers by {} for {} in {}",
+                        FMT_STRING(
+                            "Change in selling liabilities differed from "
+                            "change in total selling liabilities of "
+                            "offers by {:d} for {} in {}"),
                         assetLiabilities.second.selling,
                         xdr_to_string(accLiabilities.first, "account"),
                         xdr_to_string(assetLiabilities.first, "asset"));

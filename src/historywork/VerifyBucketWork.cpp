@@ -70,8 +70,8 @@ VerifyBucketWork::spawnVerifier()
                 std::ifstream in(filename, std::ifstream::binary);
                 if (!in)
                 {
-                    throw std::runtime_error(
-                        fmt::format("Error opening file {}", filename));
+                    throw std::runtime_error(fmt::format(
+                        FMT_STRING("Error opening file {}"), filename));
                 }
                 in.exceptions(std::ios::badbit);
                 char buf[4096];

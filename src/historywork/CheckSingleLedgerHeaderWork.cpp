@@ -19,7 +19,7 @@ CheckSingleLedgerHeaderWork::CheckSingleLedgerHeaderWork(
     Application& app, std::shared_ptr<HistoryArchive> archive,
     LedgerHeaderHistoryEntry const& expected)
     : Work(app,
-           fmt::format("check-single-ledger-header-{}",
+           fmt::format(FMT_STRING("check-single-ledger-header-{:d}"),
                        expected.header.ledgerSeq),
            BasicWork::RETRY_NEVER)
     , mArchive(archive)

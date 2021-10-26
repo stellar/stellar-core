@@ -428,7 +428,7 @@ TCPPeer::scheduleRead()
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     self->getApp().postOnMainThread(
         [self]() { self->startRead(); },
-        fmt::format("TCPPeer::startRead for {}", toString()));
+        fmt::format(FMT_STRING("TCPPeer::startRead for {}"), toString()));
 }
 
 void

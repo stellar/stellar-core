@@ -339,15 +339,16 @@ Peer::msgSummary(StellarMessage const& msg)
     case AUTH:
         return "AUTH";
     case DONT_HAVE:
-        return fmt::format("DONTHAVE {}:{}", msg.dontHave().type,
+        return fmt::format(FMT_STRING("DONTHAVE {}:{}"), msg.dontHave().type,
                            hexAbbrev(msg.dontHave().reqHash));
     case GET_PEERS:
         return "GETPEERS";
     case PEERS:
-        return fmt::format("PEERS {}", msg.peers().size());
+        return fmt::format(FMT_STRING("PEERS {:d}"), msg.peers().size());
 
     case GET_TX_SET:
-        return fmt::format("GETTXSET {}", hexAbbrev(msg.txSetHash()));
+        return fmt::format(FMT_STRING("GETTXSET {}"),
+                           hexAbbrev(msg.txSetHash()));
     case TX_SET:
         return "TXSET";
 
@@ -355,7 +356,8 @@ Peer::msgSummary(StellarMessage const& msg)
         return "TRANSACTION";
 
     case GET_SCP_QUORUMSET:
-        return fmt::format("GET_SCP_QSET {}", hexAbbrev(msg.qSetHash()));
+        return fmt::format(FMT_STRING("GET_SCP_QSET {}"),
+                           hexAbbrev(msg.qSetHash()));
     case SCP_QUORUMSET:
         return "SCP_QSET";
     case SCP_MESSAGE:
@@ -379,11 +381,12 @@ Peer::msgSummary(StellarMessage const& msg)
             t = "unknown";
         }
         return fmt::format(
-            "{} ({})", t,
+            FMT_STRING("{} ({})"), t,
             mApp.getConfig().toShortString(msg.envelope().statement.nodeID));
     }
     case GET_SCP_STATE:
-        return fmt::format("GET_SCP_STATE {}", msg.getSCPLedgerSeq());
+        return fmt::format(FMT_STRING("GET_SCP_STATE {:d}"),
+                           msg.getSCPLedgerSeq());
 
     case SURVEY_REQUEST:
     case SURVEY_RESPONSE:
@@ -633,9 +636,9 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                 }
                 catch (CryptoError const& e)
                 {
-                    std::string err =
-                        fmt::format("Error RecvMessage T:{} cat:{} {} @{}",
-                                    mtype, cat, self->toString(), port);
+                    std::string err = fmt::format(
+                        FMT_STRING("Error RecvMessage T:{} cat:{} {} @{:d}"),
+                        mtype, cat, self->toString(), port);
                     CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err,
                                e.what());
                     self->drop("Bad crypto request",
@@ -649,7 +652,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            cat);
             }
         },
-        fmt::format("{} recvMessage", cat), type);
+        fmt::format(FMT_STRING("{} recvMessage"), cat), type);
 }
 
 void
@@ -667,7 +670,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {
-        drop(fmt::format("received {} before completed handshake",
+        drop(fmt::format(FMT_STRING("received {} before completed handshake"),
                          stellarMsg.type()),
              Peer::DropDirection::WE_DROPPED_REMOTE,
              Peer::DropMode::IGNORE_WRITE_QUEUE);
@@ -1011,7 +1014,7 @@ Peer::recvError(StellarMessage const& msg)
                    std::back_inserter(msgStr),
                    [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
 
-    drop(fmt::format("{} ({})", codeStr, msgStr),
+    drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
          Peer::DropDirection::REMOTE_DROPPED_US,
          Peer::DropMode::IGNORE_WRITE_QUEUE);
 }

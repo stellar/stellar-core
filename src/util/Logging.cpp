@@ -147,7 +147,8 @@ Logging::init(bool truncate)
             if (out.fail())
             {
                 throw std::runtime_error(fmt::format(
-                    "Could not open log file {}, check access rights",
+                    FMT_STRING(
+                        "Could not open log file {}, check access rights"),
                     filename));
             }
             else

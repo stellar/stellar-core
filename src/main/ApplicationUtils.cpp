@@ -662,6 +662,7 @@ publish(Application::pointer app)
 std::string
 minimalDBForInMemoryMode(Config const& cfg)
 {
-    return fmt::format("sqlite3://{}/minimal.db", cfg.BUCKET_DIR_PATH);
+    return fmt::format(FMT_STRING("sqlite3://{}/minimal.db"),
+                       cfg.BUCKET_DIR_PATH);
 }
 }

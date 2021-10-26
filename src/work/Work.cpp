@@ -28,8 +28,8 @@ Work::getStatus() const
     auto status = BasicWork::getStatus();
     if (mTotalChildren)
     {
-        status += fmt::format(" : {:d}/{:d} children completed", mDoneChildren,
-                              mTotalChildren);
+        status += fmt::format(FMT_STRING(" : {:d}/{:d} children completed"),
+                              mDoneChildren, mTotalChildren);
     }
     return status;
 }

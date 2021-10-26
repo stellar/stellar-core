@@ -120,7 +120,7 @@ std::string
 GetHistoryArchiveStateWork::getStatus() const
 {
     std::string ledgerString = mSeq == 0 ? "current" : std::to_string(mSeq);
-    return fmt::format("Downloading state file {} for ledger {}",
+    return fmt::format(FMT_STRING("Downloading state file {} for ledger {}"),
                        getRemoteName(), ledgerString);
 }
 }

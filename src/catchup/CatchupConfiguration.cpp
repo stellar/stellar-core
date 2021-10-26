@@ -46,7 +46,7 @@ parseLedger(std::string const& str)
     if (pos < str.length() || result < 2)
     {
         throw std::runtime_error(
-            fmt::format("{} is not a valid ledger number", str));
+            fmt::format(FMT_STRING("{} is not a valid ledger number"), str));
     }
 
     return result;
@@ -65,7 +65,7 @@ parseLedgerCount(std::string const& str)
     if (pos < str.length())
     {
         throw std::runtime_error(
-            fmt::format("{} is not a valid ledger count", str));
+            fmt::format(FMT_STRING("{} is not a valid ledger count"), str));
     }
 
     return result;

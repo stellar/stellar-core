@@ -89,7 +89,8 @@ InvariantManagerImpl::checkOnBucketApply(
         }
 
         auto message = fmt::format(
-            R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})",
+            FMT_STRING(
+                R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})"),
             invariant->getName(), isCurr ? "Curr" : "Snap", level,
             binToHex(bucket->getHash()), result);
         onInvariantFailure(invariant, message, ledger);
@@ -115,10 +116,10 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
             continue;
         }
 
-        auto message =
-            fmt::format(R"(Invariant "{}" does not hold on operation: {}{}{})",
-                        invariant->getName(), result, "\n",
-                        xdr_to_string(operation, "Operation"));
+        auto message = fmt::format(
+            FMT_STRING(R"(Invariant "{}" does not hold on operation: {}{}{})"),
+            invariant->getName(), result, "\n",
+            xdr_to_string(operation, "Operation"));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
     }
@@ -155,8 +156,9 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
     }
     catch (std::regex_error& e)
     {
-        throw std::invalid_argument(fmt::format(
-            "Invalid invariant pattern '{}': {}", invPattern, e.what()));
+        throw std::invalid_argument(
+            fmt::format(FMT_STRING("Invalid invariant pattern '{}': {}"),
+                        invPattern, e.what()));
     }
 
     bool enabledSome = false;
@@ -182,7 +184,8 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
     if (!enabledSome)
     {
         std::string message = fmt::format(
-            "Invariant pattern '{}' did not match any invariants.", invPattern);
+            FMT_STRING("Invariant pattern '{}' did not match any invariants."),
+            invPattern);
         if (mInvariants.size() > 0)
         {
             using value_type = decltype(mInvariants)::value_type;

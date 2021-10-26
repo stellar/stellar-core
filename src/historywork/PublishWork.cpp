@@ -18,10 +18,10 @@ PublishWork::PublishWork(Application& app,
                          std::shared_ptr<StateSnapshot> snapshot,
                          std::vector<std::shared_ptr<BasicWork>> seq,
                          std::vector<std::string> const& bucketHashes)
-    : WorkSequence(
-          app,
-          fmt::format("publish-{:08x}", snapshot->mLocalState.currentLedger),
-          seq, BasicWork::RETRY_NEVER)
+    : WorkSequence(app,
+                   fmt::format(FMT_STRING("publish-{:08x}"),
+                               snapshot->mLocalState.currentLedger),
+                   seq, BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
     , mOriginalBuckets(bucketHashes)
 {

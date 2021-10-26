@@ -849,13 +849,13 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 throw std::runtime_error(fmt::format(
                     FMT_STRING(
                         "Standalone manual close failed to produce expected "
-                        "sequence number increment (expected {}; got {})"),
+                        "sequence number increment (expected {:d}; got {:d})"),
                     targetLedgerSeq, newLedgerSeq));
             }
 
             return fmt::format(
                 FMT_STRING("Manually closed ledger with sequence "
-                           "number {} and closeTime {}"),
+                           "number {:d} and closeTime {:d}"),
                 targetLedgerSeq,
                 getLedgerManager()
                     .getLastClosedLedgerHeader()
@@ -864,7 +864,7 @@ ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
 
         return fmt::format(
             FMT_STRING("Manually triggered a ledger close with sequence "
-                       "number {}"),
+                       "number {:d}"),
             targetLedgerSeq);
     }
     else if (!mConfig.FORCE_SCP)
@@ -895,7 +895,7 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
     {
         throw std::invalid_argument(
             fmt::format(FMT_STRING("Manually closed ledger sequence number "
-                                   "({}) already at max ({})"),
+                                   "({:d}) already at max ({:d})"),
                         startLedgerSeq, maxLedgerSeq));
     }
 
@@ -906,17 +906,17 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
         if (*explicitlyProvidedSeqNum > maxLedgerSeq)
         {
             // The "scphistory" stores ledger sequence numbers as INTs.
-            throw std::invalid_argument(fmt::format(
-                FMT_STRING(
-                    "Manual close ledger sequence number {} beyond max ({})"),
-                *explicitlyProvidedSeqNum, maxLedgerSeq));
+            throw std::invalid_argument(
+                fmt::format(FMT_STRING("Manual close ledger sequence number "
+                                       "{:d} beyond max ({:d})"),
+                            *explicitlyProvidedSeqNum, maxLedgerSeq));
         }
 
         if (*explicitlyProvidedSeqNum <= startLedgerSeq)
         {
             throw std::invalid_argument(fmt::format(
-                FMT_STRING("Invalid manual close ledger sequence number {} "
-                           "(must exceed current sequence number {})"),
+                FMT_STRING("Invalid manual close ledger sequence number {:d} "
+                           "(must exceed current sequence number {:d})"),
                 *explicitlyProvidedSeqNum, startLedgerSeq));
         }
     }
@@ -955,8 +955,8 @@ ApplicationImpl::setManualCloseVirtualTime(
         if (*explicitlyProvidedCloseTime < nextCloseTime)
         {
             throw std::invalid_argument(
-                fmt::format(FMT_STRING("Manual close time {} too early (last "
-                                       "close time={}, now={})"),
+                fmt::format(FMT_STRING("Manual close time {:d} too early (last "
+                                       "close time={:d}, now={:d})"),
                             *explicitlyProvidedCloseTime, lastCloseTime, now));
         }
         nextCloseTime = *explicitlyProvidedCloseTime;
@@ -973,9 +973,9 @@ ApplicationImpl::setManualCloseVirtualTime(
 
     if (nextCloseTime > maxCloseTime)
     {
-        throw std::invalid_argument(
-            fmt::format(FMT_STRING("New close time {} would exceed max ({})"),
-                        nextCloseTime, maxCloseTime));
+        throw std::invalid_argument(fmt::format(
+            FMT_STRING("New close time {:d} would exceed max ({:d})"),
+            nextCloseTime, maxCloseTime));
     }
 
     getClock().setCurrentVirtualTime(VirtualClock::from_time_t(nextCloseTime));

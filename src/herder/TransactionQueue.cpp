@@ -54,7 +54,7 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     for (uint32 i = 0; i < pendingDepth; i++)
     {
         mSizeByAge.emplace_back(&app.getMetrics().NewCounter(
-            {"herder", "pending-txs", fmt::format("age{}", i)}));
+            {"herder", "pending-txs", fmt::format(FMT_STRING("age{:d}"), i)}));
     }
 
     auto const& filteredTypes =

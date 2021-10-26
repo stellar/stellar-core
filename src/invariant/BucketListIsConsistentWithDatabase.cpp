@@ -123,7 +123,7 @@ struct EntryCounts
             break;
         default:
             throw std::runtime_error(
-                fmt::format("unknown ledger entry type: {}",
+                fmt::format(FMT_STRING("unknown ledger entry type: {:d}"),
                             static_cast<uint32_t>(e.data.type())));
         }
     }
@@ -141,7 +141,8 @@ struct EntryCounts
                 if (numInDb != numInBucket)
                 {
                     msg = fmt::format(
-                        "Incorrect {} count: Bucket = {} Database = {}",
+                        FMT_STRING("Incorrect {} count: Bucket = {:d} Database "
+                                   "= {:d}"),
                         xdr::xdr_traits<LedgerEntryType>::enum_name(let),
                         numInBucket, numInDb);
                     return false;
@@ -238,19 +239,19 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             {
                 if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
                 {
-                    auto s = fmt::format("lastModifiedLedgerSeq beneath lower"
-                                         " bound for this bucket ({} < {}): ",
-                                         e.liveEntry().lastModifiedLedgerSeq,
-                                         oldestLedger);
+                    auto s = fmt::format(
+                        FMT_STRING("lastModifiedLedgerSeq beneath lower"
+                                   " bound for this bucket ({:d} < {:d}): "),
+                        e.liveEntry().lastModifiedLedgerSeq, oldestLedger);
                     s += xdr_to_string(e.liveEntry(), "live");
                     return s;
                 }
                 if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
                 {
-                    auto s = fmt::format("lastModifiedLedgerSeq above upper"
-                                         " bound for this bucket ({} > {}): ",
-                                         e.liveEntry().lastModifiedLedgerSeq,
-                                         newestLedger);
+                    auto s = fmt::format(
+                        FMT_STRING("lastModifiedLedgerSeq above upper"
+                                   " bound for this bucket ({:d} > {:d}): "),
+                        e.liveEntry().lastModifiedLedgerSeq, newestLedger);
                     s += xdr_to_string(e.liveEntry(), "live");
                     return s;
                 }

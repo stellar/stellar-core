@@ -59,7 +59,8 @@ curve25519Encrypt(Curve25519Public const& remotePublic, ByteSlice const& bin)
     if (CIPHERTEXT_LEN > N)
     {
         throw std::runtime_error(fmt::format(
-            "CIPHERTEXT_LEN({}) is greater than N({})", CIPHERTEXT_LEN, N));
+            FMT_STRING("CIPHERTEXT_LEN({:d}) is greater than N({:d})"),
+            CIPHERTEXT_LEN, N));
     }
 
     xdr::opaque_vec<N> ciphertext(CIPHERTEXT_LEN, 0);

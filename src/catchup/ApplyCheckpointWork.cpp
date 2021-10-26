@@ -29,8 +29,8 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                                          LedgerRange const& range,
                                          OnFailureCallback cb)
     : BasicWork(app,
-                "apply-ledgers-" +
-                    fmt::format("{}-{}", range.mFirst, range.limit()),
+                "apply-ledgers-" + fmt::format(FMT_STRING("{}-{}"),
+                                               range.mFirst, range.limit()),
                 BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mLedgerRange(range)
@@ -59,7 +59,7 @@ ApplyCheckpointWork::getStatus() const
     if (getState() == State::WORK_RUNNING)
     {
         auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
-        return fmt::format("Last applied ledger: {}", lcl);
+        return fmt::format(FMT_STRING("Last applied ledger: {:d}"), lcl);
     }
     return BasicWork::getStatus();
 }
@@ -154,13 +154,13 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     {
         if (mHeaderHistoryEntry.hash != lclHeader.header.previousLedgerHash)
         {
-            throw std::runtime_error(
-                fmt::format("replay of {:s} failed to connect on hash of LCL "
-                            "predecessor {:s}",
-                            LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
-                            LedgerManager::ledgerAbbrev(
-                                lclHeader.header.ledgerSeq - 1,
-                                lclHeader.header.previousLedgerHash)));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("replay of {:s} failed to connect on hash of LCL "
+                           "predecessor {:s}"),
+                LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
+                LedgerManager::ledgerAbbrev(
+                    lclHeader.header.ledgerSeq - 1,
+                    lclHeader.header.previousLedgerHash)));
         }
         CLOG_DEBUG(History, "Catchup at 1-before LCL ({}), hash correct",
                    header.ledgerSeq);
@@ -172,10 +172,10 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     {
         if (mHeaderHistoryEntry.hash != lm.getLastClosedLedgerHeader().hash)
         {
-            throw std::runtime_error(
-                fmt::format("replay of {:s} at LCL {:s} disagreed on hash",
-                            LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
-                            LedgerManager::ledgerAbbrev(lclHeader)));
+            throw std::runtime_error(fmt::format(
+                FMT_STRING("replay of {:s} at LCL {:s} disagreed on hash"),
+                LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
+                LedgerManager::ledgerAbbrev(lclHeader)));
         }
         CLOG_DEBUG(History, "Catchup at LCL={}, hash correct",
                    header.ledgerSeq);
@@ -185,16 +185,17 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     // If we are past current, we can't catch up: fail.
     if (header.ledgerSeq != lclHeader.header.ledgerSeq + 1)
     {
-        throw std::runtime_error(
-            fmt::format("replay overshot current ledger: {:d} > {:d}",
-                        header.ledgerSeq, lclHeader.header.ledgerSeq + 1));
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("replay overshot current ledger: {:d} > {:d}"),
+            header.ledgerSeq, lclHeader.header.ledgerSeq + 1));
     }
 
     // If we do not agree about LCL hash, we can't catch up: fail.
     if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
     {
         throw std::runtime_error(fmt::format(
-            "replay at current ledger {:s} disagreed on LCL hash {:s}",
+            FMT_STRING(
+                "replay at current ledger {:s} disagreed on LCL hash {:s}"),
             LedgerManager::ledgerAbbrev(header.ledgerSeq - 1,
                                         header.previousLedgerHash),
             LedgerManager::ledgerAbbrev(lclHeader)));
@@ -210,11 +211,12 @@ ApplyCheckpointWork::getNextLedgerCloseData()
     // header.
     if (header.scpValue.txSetHash != txset->getContentsHash())
     {
-        throw std::runtime_error(fmt::format(
-            "replay txset hash differs from txset hash in replay ledger: hash "
-            "for txset for {:d} is {:s}, expected {:s}",
-            header.ledgerSeq, hexAbbrev(txset->getContentsHash()),
-            hexAbbrev(header.scpValue.txSetHash)));
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("replay txset hash differs from txset hash "
+                                   "in replay ledger: hash "
+                                   "for txset for {:d} is {:s}, expected {:s}"),
+                        header.ledgerSeq, hexAbbrev(txset->getContentsHash()),
+                        hexAbbrev(header.scpValue.txSetHash)));
     }
 
 #ifdef BUILD_TESTS
@@ -257,7 +259,8 @@ ApplyCheckpointWork::onRun()
             if (lm.getLastClosedLedgerHeader().hash != mHeaderHistoryEntry.hash)
             {
                 throw std::runtime_error(fmt::format(
-                    "replay of {:s} produced mismatched ledger hash {:s}",
+                    FMT_STRING(
+                        "replay of {:s} produced mismatched ledger hash {:s}"),
                     LedgerManager::ledgerAbbrev(mHeaderHistoryEntry),
                     LedgerManager::ledgerAbbrev(
                         lm.getLastClosedLedgerHeader())));
@@ -303,7 +306,8 @@ ApplyCheckpointWork::onRun()
 
     mConditionalWork = std::make_shared<ConditionalWork>(
         mApp,
-        fmt::format("apply-ledger-conditional ledger({})", lcd->getLedgerSeq()),
+        fmt::format(FMT_STRING("apply-ledger-conditional ledger({:d})"),
+                    lcd->getLedgerSeq()),
         predicate, applyLedger, std::chrono::milliseconds(500));
 
     mConditionalWork->startWork(wakeSelfUpCallback());

@@ -137,7 +137,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     }
     catch (std::exception const& e)
     {
-        retStr = fmt::format(R"({{"exception": "{}"}})", e.what());
+        retStr = fmt::format(FMT_STRING(R"({{"exception": "{}"}})"), e.what());
     }
     catch (...)
     {
@@ -184,7 +184,7 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
         if (str.fail() || !str.eof())
         {
             std::string errorMsg =
-                fmt::format("Failed to parse '{}' argument", key);
+                fmt::format(FMT_STRING("Failed to parse '{}' argument"), key);
             throw std::runtime_error(errorMsg);
         }
         return std::make_optional<T>(val);
@@ -222,7 +222,8 @@ parseRequiredParam(std::map<std::string, std::string> const& map,
     auto res = parseOptionalParam<T>(map, key);
     if (!res)
     {
-        std::string errorMsg = fmt::format("'{}' argument is required!", key);
+        std::string errorMsg =
+            fmt::format(FMT_STRING("'{}' argument is required!"), key);
         throw std::runtime_error(errorMsg);
     }
     return *res;
@@ -526,8 +527,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         }
         catch (std::exception&)
         {
-            retStr =
-                fmt::format("could not parse upgradetime: '{}'", upgradeTime);
+            retStr = fmt::format(
+                FMT_STRING("could not parse upgradetime: '{}'"), upgradeTime);
             return;
         }
         p.mUpgradeTime = VirtualClock::tmToSystemPoint(tm);
@@ -548,7 +549,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     }
     else
     {
-        retStr = fmt::format("Unknown mode: {}", s);
+        retStr = fmt::format(FMT_STRING("Unknown mode: {}"), s);
     }
 }
 
@@ -812,7 +813,7 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 
     mApp.clearMetrics(domain);
 
-    retStr = fmt::format("Cleared {} metrics!", domain);
+    retStr = fmt::format(FMT_STRING("Cleared {} metrics!"), domain);
 }
 
 void
@@ -905,8 +906,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         mApp.generateLoad(mode, nAccounts, offset, nTxs, txRate, batchSize,
                           spikeInterval, spikeSize);
 
-        retStr += fmt::format(" Generating load: {:d} {:s}, {:d} tx/s",
-                              numItems, itemType, txRate);
+        retStr +=
+            fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
+                        numItems, itemType, txRate);
     }
     else
     {

@@ -78,8 +78,9 @@ ApplyBufferedLedgersWork::onRun()
 
     mConditionalWork = std::make_shared<ConditionalWork>(
         mApp,
-        fmt::format("apply-buffered-ledger-conditional ledger({})",
-                    lcd.getLedgerSeq()),
+        fmt::format(
+            FMT_STRING("apply-buffered-ledger-conditional ledger({:d})"),
+            lcd.getLedgerSeq()),
         predicate, applyLedger, std::chrono::milliseconds(500));
 
     mConditionalWork->startWork(wakeSelfUpCallback());
@@ -90,7 +91,7 @@ ApplyBufferedLedgersWork::onRun()
 std::string
 ApplyBufferedLedgersWork::getStatus() const
 {
-    return fmt::format("Applying buffered ledgers: {}",
+    return fmt::format(FMT_STRING("Applying buffered ledgers: {}"),
                        mConditionalWork ? mConditionalWork->getStatus()
                                         : BasicWork::getStatus());
 }

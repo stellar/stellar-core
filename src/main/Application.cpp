@@ -31,8 +31,8 @@ validateNetworkPassphrase(Application::pointer app)
     else if (networkPassphrase != prevNetworkPassphrase)
     {
         throw std::invalid_argument(
-            fmt::format("NETWORK_PASSPHRASE \"{}\" does not match"
-                        " previous NETWORK_PASSPHRASE \"{}\"",
+            fmt::format(FMT_STRING("NETWORK_PASSPHRASE \"{}\" does not match"
+                                   " previous NETWORK_PASSPHRASE \"{}\""),
                         networkPassphrase, prevNetworkPassphrase));
     }
 }

@@ -21,7 +21,7 @@ namespace stellar
 PutSnapshotFilesWork::PutSnapshotFilesWork(
     Application& app, std::shared_ptr<StateSnapshot> snapshot)
     : Work(app,
-           fmt::format("update-archives-{:08x}",
+           fmt::format(FMT_STRING("update-archives-{:08x}"),
                        snapshot->mLocalState.currentLedger),
            // Each put-snapshot-sequence will retry correctly
            BasicWork::RETRY_NEVER)
@@ -132,17 +132,17 @@ PutSnapshotFilesWork::getStatus() const
 {
     if (!mUploadSeqs.empty())
     {
-        return fmt::format("{}:uploading files", getName());
+        return fmt::format(FMT_STRING("{}:uploading files"), getName());
     }
 
     if (!mGzipFilesWorks.empty())
     {
-        return fmt::format("{}:zipping files", getName());
+        return fmt::format(FMT_STRING("{}:zipping files"), getName());
     }
 
     if (!mGetStateWorks.empty())
     {
-        return fmt::format("{}:getting archives", getName());
+        return fmt::format(FMT_STRING("{}:getting archives"), getName());
     }
 
     return BasicWork::getStatus();
