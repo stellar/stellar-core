@@ -3055,11 +3055,28 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
                            "and asset from LedgerTxnRoot");
     }
 
+    UnorderedSet<LedgerKey> toPrefetch;
     UnorderedMap<LedgerKey, LedgerEntry> res(offers.size());
     for (auto const& offer : offers)
     {
-        res.emplace(LedgerEntryKey(offer), offer);
+        auto key = LedgerEntryKey(offer);
+        res.emplace(key, offer);
+
+        auto le = std::make_shared<LedgerEntry const>(offer);
+        putInEntryCache(key, le, LoadType::IMMEDIATE);
+
+        auto const& oe = offer.data.offer();
+        if (oe.buying.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+        }
+        if (oe.selling.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+        }
     }
+    prefetch(toPrefetch);
+
     return res;
 }
 
@@ -3099,7 +3116,11 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     UnorderedMap<LedgerKey, LedgerEntry> res(trustLines.size());
     for (auto const& tl : trustLines)
     {
-        res.emplace(LedgerEntryKey(tl), tl);
+        auto key = LedgerEntryKey(tl);
+        res.emplace(key, tl);
+
+        auto le = std::make_shared<LedgerEntry const>(tl);
+        putInEntryCache(key, le, LoadType::IMMEDIATE);
     }
     return res;
 }
