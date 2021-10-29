@@ -207,11 +207,6 @@ class CatchupSimulation
 
     uint32_t mTestProtocolShadowsRemovedLedgerSeq{0};
 
-    CatchupPerformedWork computeCatchupPerformedWork(
-        uint32_t lastClosedLedger,
-        CatchupConfiguration const& catchupConfiguration, Application& app);
-    void validateCatchup(Application::pointer app);
-
   public:
     explicit CatchupSimulation(
         VirtualClock::Mode mode = VirtualClock::VIRTUAL_TIME,
@@ -237,6 +232,12 @@ class CatchupSimulation
     {
         return *mHistoryConfigurator.get();
     }
+
+    CatchupMetrics getCatchupMetrics(Application::pointer app);
+    CatchupPerformedWork computeCatchupPerformedWork(
+        uint32_t lastClosedLedger,
+        CatchupConfiguration const& catchupConfiguration, Application& app);
+    void validateCatchup(Application::pointer app);
 
     uint32_t getLastCheckpointLedger(uint32_t checkpointIndex) const;
 

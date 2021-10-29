@@ -26,15 +26,30 @@ class CatchupManagerImpl : public CatchupManager
     std::shared_ptr<CatchupWork> mCatchupWork;
 
     // key is ledgerSeq
+    // mSyncingLedgers has the following invariants:
+    // (1) It is empty, or
+    // (2) It starts with LCL + 1 (the next ledger to apply), or
+    // (3) It contains at most 64 + 1 = 65 ledgers.
+    //
+    // In the third case, it is always a subset of
+    // {L, L + 1, ..., L + 63, L + 64} where L is the first ledger of a
+    // checkpoint. {L, L + 1, ..., L + 63} is meant to be used to apply after
+    // downloading previous checkpoints. L + 64 is buffered so that when we hear
+    // L + 65 (or any ledger after that), we can delete {L, ..., L + 63} as it
+    // indicates that the checkpoint containing L + 64 has been published.
+    //
+    // There are two methods that modify mSyncingLedgers
+    // (trimSyncingLedgers, tryApplySyncingLedgers) and they both
+    // maintain the invariants above.
     std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
 
-    void addToSyncingLedgers(LedgerCloseData const& ledgerData);
+    void addAndTrimSyncingLedgers(LedgerCloseData const& ledgerData);
     void startOnlineCatchup();
     void trimSyncingLedgers();
-    void trimAndReset();
     void tryApplySyncingLedgers();
     uint32_t getCatchupCount();
+    uint32_t mLargestLedgerSeqHeard;
     CatchupMetrics mMetrics;
 
   public:
@@ -55,10 +70,8 @@ class CatchupManagerImpl : public CatchupManager
                                    std::string const& message) override;
     void logAndUpdateCatchupStatus(bool contiguous) override;
 
-    bool hasBufferedLedger() const override;
-    LedgerCloseData const& getFirstBufferedLedger() const override;
-    LedgerCloseData const& getLastBufferedLedger() const override;
-    void popBufferedLedger() override;
+    std::optional<LedgerCloseData> maybeGetNextBufferedLedgerToApply() override;
+    uint32_t getLargestLedgerSeqHeard() const override;
 
     void syncMetrics() override;
 

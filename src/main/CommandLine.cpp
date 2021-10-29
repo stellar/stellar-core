@@ -889,13 +889,6 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
                     auto const& lhe = lm.getLastClosedLedgerHeader();
                     tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
                 }
-                else if (cm.hasBufferedLedger())
-                {
-                    auto const& lcd = cm.getLastBufferedLedger();
-                    uint32_t seq = lcd.getLedgerSeq() - 1;
-                    Hash hash = lcd.getTxSet()->previousLedgerHash();
-                    tryCheckpoint(seq, hash);
-                }
             }
             if (authPair.second)
             {

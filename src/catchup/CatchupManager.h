@@ -86,11 +86,17 @@ class CatchupManager
     // work item.
     virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
 
-    // popBufferedLedger will throw if there are no buffered ledgers
-    virtual bool hasBufferedLedger() const = 0;
-    virtual LedgerCloseData const& getFirstBufferedLedger() const = 0;
-    virtual LedgerCloseData const& getLastBufferedLedger() const = 0;
-    virtual void popBufferedLedger() = 0;
+    // This returns the ledger that comes immediately after the LCL (i.e., LCL +
+    // 1) if CatchupManager has it in its buffer. If not, it doesn’t return any
+    // ledger. This method doesn’t tell if the buffer is empty or if it's ever
+    // heard of LCL + 1. It only tells if CatchupManager has LCL + 1 in its
+    // buffer right now.
+    virtual std::optional<LedgerCloseData>
+    maybeGetNextBufferedLedgerToApply() = 0;
+
+    // This returns the largest ledger sequence that CatchupManager has ever
+    // heard of.
+    virtual uint32_t getLargestLedgerSeqHeard() const = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.

@@ -37,26 +37,15 @@ ApplyBufferedLedgersWork::onRun()
         }
     }
 
-    auto& cm = mApp.getCatchupManager();
-    if (!cm.hasBufferedLedger())
+    std::optional<LedgerCloseData> maybeLcd =
+        mApp.getCatchupManager().maybeGetNextBufferedLedgerToApply();
+
+    if (!maybeLcd)
     {
+        CLOG_INFO(History, "No more buffered ledgers to apply");
         return State::WORK_SUCCESS;
     }
-
-    LedgerCloseData lcd = cm.getFirstBufferedLedger();
-
-    auto& lm = mApp.getLedgerManager();
-    uint32_t expectedLedger = lm.getLastClosedLedgerNum() + 1;
-    // check for a gap
-    if (lcd.getLedgerSeq() != expectedLedger)
-    {
-        cm.logAndUpdateCatchupStatus(false);
-        CLOG_WARNING(History, "Expected buffered ledger={}, actual={}",
-                     expectedLedger, lcd.getLedgerSeq());
-        return State::WORK_FAILURE;
-    }
-
-    cm.popBufferedLedger();
+    auto const& lcd = maybeLcd.value();
 
     CLOG_INFO(History,
               "Scheduling buffered ledger-close: [seq={}, prev={}, txs={}, "

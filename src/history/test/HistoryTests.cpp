@@ -713,6 +713,140 @@ TEST_CASE("History catchup with different modes",
     }
 }
 
+TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
+          "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    // Try to get to ledger 1000 with 200 ledgers buffered
+    // when there are 20 checkpoints available.
+    // In order to prevent mSyncingLedgers from growing indefinitely,
+    // it gets trimmed periodically.
+    // This test makes sure that we are able to catch up to the network
+    // even when some ledgers get trimmed from mSyncingLedgers.
+
+    const auto bufferLedgers = 200;
+    const auto initLedger = 1000;
+    const auto numCheckpointsAvailable = 20;
+
+    auto checkpointLedger =
+        catchupSimulation.getLastCheckpointLedger(numCheckpointsAvailable);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::string("Retriggering catchups after trimming mSyncingLedgers"));
+    auto& lm = app->getLedgerManager();
+
+    auto& hm = app->getHistoryManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto runCatchup = [&](uint32_t expectedDestination) {
+        auto startCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+
+        auto expectedCatchupWork =
+            catchupSimulation.computeCatchupPerformedWork(
+                lm.getLastClosedLedgerNum(),
+                CatchupConfiguration{expectedDestination,
+                                     app->getConfig().CATCHUP_RECENT,
+                                     CatchupConfiguration::Mode::ONLINE},
+                *app);
+
+        catchupSimulation.crankUntil(
+            app, [&]() { return app->getCatchupManager().catchupWorkIsDone(); },
+            std::chrono::seconds{
+                std::max<int64>(expectedCatchupWork.mTxSetsApplied + 15, 60)});
+
+        auto endCatchupMetrics = app->getCatchupManager().getCatchupMetrics();
+        auto catchupPerformedWork =
+            CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
+
+        REQUIRE(catchupPerformedWork == expectedCatchupWork);
+    };
+
+    // Externalize (to the catchup LM) the range of ledgers between initLedger
+    // and as near as we can get to the first ledger of the block after
+    // initLedger (inclusive), so that there's something to knit-up with. Do not
+    // externalize anything we haven't yet published, of course.
+    const uint32_t firstLedgerInCheckpoint =
+        hm.firstLedgerAfterCheckpointContaining(initLedger);
+
+    const uint32_t triggerLedger =
+        hm.ledgerToTriggerCatchup(firstLedgerInCheckpoint);
+
+    // 1. The app hears initLedger, ..., dividingLedger - 1.
+    //    NB: dividingLedger must be chosen such that mSyncingLedgers gets
+    //    trimmed in this step.
+    // 2. We will let Catchup run right after hearing (dividingLedger - 1).
+    // 3. The app hears dividingLedger, ..., triggerLedger + bufferLedgers.
+    // 4. We will let Catchup run again.
+    auto runTest = [&](uint32_t const dividingLedger) {
+        // The app hears initLedger, ..., dividingLedger - 1.
+        for (uint32_t n = initLedger; n < dividingLedger; ++n)
+        {
+            catchupSimulation.externalizeLedger(herder, n);
+        }
+
+        // Let the catchup run.
+        // We expect that it'll land at the checkpoint containing (initLedger -
+        // 1). It can't apply the buffered ledgers because mSyncingLedgers must
+        // have popped some elements in order to prevent it from growing
+        // exponentially, and thus there is a gap between the LCL and
+        // mSyncingLedgers.
+        runCatchup(hm.checkpointContainingLedger(initLedger - 1));
+
+        // As mentioned above, mSyncingLedgers must have been trimmed
+        // after hearing up to (dividingLedger - 1).
+        // And if it has been trimmed, CatchupWork should not be able to catch
+        // up without being re-triggered.
+        REQUIRE(!lm.isSynced());
+
+        // In order to close the gap between the LCL and mSyncingLedgers,
+        // we need to run a CatchupWork again.
+        // processLedger is responsible for that, and thus we call it
+        // by externalizing ledgers.
+        for (uint32_t n = dividingLedger; n <= triggerLedger + bufferLedgers;
+             n++)
+        {
+            catchupSimulation.externalizeLedger(herder, n);
+        }
+
+        runCatchup(hm.lastLedgerBeforeCheckpointContaining(dividingLedger));
+
+        REQUIRE(lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers);
+        catchupSimulation.externalizeLedger(herder,
+                                            triggerLedger + bufferLedgers + 1);
+
+        REQUIRE(lm.isSynced());
+
+        REQUIRE(lm.getLastClosedLedgerNum() ==
+                triggerLedger + bufferLedgers + 1);
+
+        catchupSimulation.validateCatchup(app);
+    };
+
+    SECTION("Catchup runs twice to catch up")
+    {
+        auto dividingLedger = triggerLedger + bufferLedgers;
+        runTest(dividingLedger);
+    }
+
+    SECTION(
+        "mSyncingLedgers gets trimmed between the first and second Catchup run")
+    {
+        // When adding the second ledger in a checkpoint,
+        // we become certain that nodes started publishing the checkpoint.
+        // Thus the ledgers before the checkpoint will be trimmed.
+        // By setting dividingLedger to the second ledger in a checkpoint,
+        // we can make sure that mSyncingLedgers gets trimmed between the first
+        // and second Catchup run.
+        auto dividingLedger = hm.firstLedgerInCheckpointContaining(
+                                  triggerLedger + bufferLedgers) +
+                              1;
+        runTest(dividingLedger);
+    }
+}
+
 TEST_CASE("History prefix catchup", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
@@ -1255,8 +1389,13 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 63);
 
     // Now start a catchup on that catchups as far as it can due to gap
+    // ledger 133 (= init + 60) will be missing.
+    // The app hears up to ledger 189 close. (189 = 129 + 60 where 129
+    // is the trigger ledger and 60 is the number of ledgers to buffer.)
+    // Then mSyncingLedgers = {128, 129, ..., 132, 134, ..., 189}.
+    // We get up to 127 using checkpoint data, and apply {128, ..., 132}.
     LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
-    REQUIRE(!catchupSimulation.catchupOnline(app, init, 115, init + 60));
+    REQUIRE(!catchupSimulation.catchupOnline(app, init, 60, init + 60));
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 132);
 
     // Now generate a little more history
@@ -1264,10 +1403,10 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     // 1. LCL is 132
-    // 2. CatchupManager should still have 192 and 193 buffered after previous
-    //    catchup failed so we don't have to wait for the next checkpoint
-    // 3. Catchup to 191, and then externalize 194 to start catchup
-    CHECK(catchupSimulation.catchupOnline(app, checkpointLedger, 1, 191, 3));
+    // 2. CatchupManager has ledgers up to 189.
+    //    Once it hears ledger 192 close, it removes ledgers <= 191.
+    // 3. Catchup to 191 = initLedger, and then externalize 194 to start catchup
+    CHECK(catchupSimulation.catchupOnline(app, checkpointLedger, 1));
 }
 
 TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
@@ -1333,20 +1472,19 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     catchupSimulation.externalizeLedger(herder, nextLedger + 3);
     catchupSimulation.externalizeLedger(herder, nextLedger + 5);
     REQUIRE(!lm.isSynced());
-    REQUIRE(cm.hasBufferedLedger());
+    REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the first gap. There will still be buffered ledgers left because
     // of the second gap
     catchupSimulation.externalizeLedger(herder, nextLedger + 1);
     REQUIRE(!lm.isSynced());
-    REQUIRE(cm.hasBufferedLedger());
-    REQUIRE(cm.getFirstBufferedLedger().getLedgerSeq() == nextLedger + 5);
+    REQUIRE(cm.getLargestLedgerSeqHeard() > lm.getLastClosedLedgerNum());
 
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
     REQUIRE(lm.isSynced());
-    REQUIRE(!cm.hasBufferedLedger());
+    REQUIRE(cm.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!cm.isCatchupInitialized());
     REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 5);
 }
@@ -1380,7 +1518,7 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     catchupSimulation.externalizeLedger(herder, checkpointLedger + 2);
 
     REQUIRE(lm.isSynced());
-    REQUIRE(!cm.hasBufferedLedger());
+    REQUIRE(cm.getLargestLedgerSeqHeard() == lm.getLastClosedLedgerNum());
     REQUIRE(!cm.isCatchupInitialized());
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
             checkpointLedger + 2);
