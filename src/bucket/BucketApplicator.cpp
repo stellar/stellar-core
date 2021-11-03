@@ -112,6 +112,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
             if ((++count > LEDGER_ENTRY_BATCH_COMMIT_SIZE))
             {
+                ++mBucketIter;
                 break;
             }
         }
