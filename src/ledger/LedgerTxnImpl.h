@@ -375,13 +375,12 @@ class LedgerTxn::Impl
     void maybeUpdateLastModifiedThenInvokeThenSeal(
         std::function<void(EntryMap const&)> f) noexcept;
 
-    // findInOrderBook has the strong exception safety guarantee
-    // returns:
-    //   the orderbook that the offer le would be in (if found)
-    //   the iterator to le (if found in the order book)
-    std::pair<OrderBook*, OrderBook::iterator>
-    findInOrderBook(LedgerEntry const& le);
+    // findOrderBook has the strong exception safety guarantee
+    // returns: the orderbook that the offer le would be in (if found)
     OrderBook* findOrderBook(Asset const& buying, Asset const& selling);
+
+    // removeFromOrderBookIfExists has the strong exception safety guarantee
+    void removeFromOrderBookIfExists(LedgerEntry const& le);
 
     // updateEntryIfRecorded and updateEntry have the strong exception safety
     // guarantee

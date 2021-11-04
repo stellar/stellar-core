@@ -1860,20 +1860,34 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     }
 }
 
-std::pair<LedgerTxn::Impl::OrderBook*, LedgerTxn::Impl::OrderBook::iterator>
-LedgerTxn::Impl::findInOrderBook(LedgerEntry const& le)
+void
+LedgerTxn::Impl::removeFromOrderBookIfExists(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
-    auto ob = findOrderBook(oe.buying, oe.selling);
-    if (ob)
+    auto mobIterBuying = mMultiOrderBook.find(oe.buying);
+    if (mobIterBuying != mMultiOrderBook.end())
     {
-        auto obIter = ob->find({oe.price, oe.offerID});
-        if (obIter != ob->end())
+        auto& mobBuying = mobIterBuying->second;
+        auto mobIterSelling = mobBuying.find(oe.selling);
+        if (mobIterSelling != mobBuying.end())
         {
-            return {ob, obIter};
+            auto& mobSelling = mobIterSelling->second;
+            auto obIter = mobSelling.find({oe.price, oe.offerID});
+            if (obIter != mobSelling.end())
+            {
+                mobSelling.erase(obIter);
+
+                if (mobSelling.empty())
+                {
+                    mobBuying.erase(mobIterSelling);
+                    if (mobBuying.empty())
+                    {
+                        mMultiOrderBook.erase(mobIterBuying);
+                    }
+                }
+            }
         }
     }
-    return {nullptr, OrderBook::iterator{}};
 }
 
 LedgerTxn::Impl::OrderBook*
@@ -1976,13 +1990,13 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         localIterDoNotUse = mEntry.find(key);
         keyHint = &localIterDoNotUse;
     }
+
     if (*keyHint != mEntry.end() && (*keyHint)->second)
     {
-        auto obAndOfferIt = findInOrderBook((*keyHint)->second->ledgerEntry());
-        if (obAndOfferIt.first)
-        {
-            obAndOfferIt.first->erase(obAndOfferIt.second);
-        }
+        // The offer is always removed from mMultiOrderBook even if this is a
+        // modification because the assets on the existing offer can be modified
+        auto const& le = (*keyHint)->second->ledgerEntry();
+        removeFromOrderBookIfExists(le);
     }
 
     // We only insert the new offer into the order book if it exists and is not
