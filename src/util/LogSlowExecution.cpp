@@ -10,8 +10,12 @@
 namespace
 {
 std::mutex gLogSlowExecMutex;
-std::chrono::system_clock::time_point gLastLogMessage;
-size_t gDroppedLogMessagesSinceLast{0};
+
+// For each log level, keep track of when the last message was and
+// the number of skipped messages.
+std::map<stellar::LogLevel,
+         std::pair<std::chrono::system_clock::time_point, size_t>>
+    gLastLogMessage;
 }
 
 namespace stellar
@@ -44,36 +48,48 @@ LogSlowExecution::checkElapsedTime() const
     {
         std::lock_guard<std::mutex> guard(gLogSlowExecMutex);
 
+        // Check whether we're 10 times over the threshold to decide the log
+        // level.
+        LogLevel ll = elapsed > mThreshold * 10 ? LogLevel::LVL_WARNING
+                                                : LogLevel::LVL_DEBUG;
+
+        auto& lastMsgTime = gLastLogMessage[ll].first;
+        auto& skippedCnt = gLastLogMessage[ll].second;
+
         // Only emit a new log message once-per-second (optionally preceded
         // by a summary of how many messages have been dropped since last time).
-        if ((finish - gLastLogMessage) > std::chrono::seconds(1))
+        if ((finish - lastMsgTime) > std::chrono::seconds(1))
         {
-            if (gDroppedLogMessagesSinceLast > 0)
+            std::string skipped;
+            if (skippedCnt > 0)
             {
-                CLOG_WARNING(Perf, "Dropped {} slow-execution warning messages",
-                             gDroppedLogMessagesSinceLast);
-                gDroppedLogMessagesSinceLast = 0;
+                skipped =
+                    fmt::format(FMT_STRING(" [skipped: {:d}]"), skippedCnt);
+                skippedCnt = 0;
             }
-            auto msg = fmt::format(FMT_STRING("'{}' {} {} s"), mName, mMessage,
-                                   static_cast<float>(elapsed.count()) / 1000);
-            // if we're 10 times over the threshold, log with INFO, otherwise
-            // use DEBUG
-            if (elapsed > mThreshold * 10)
+            auto msg = fmt::format(
+                FMT_STRING("'{:s}' {:s} {:f} s{:s}"), mName, mMessage,
+                static_cast<float>(elapsed.count()) / 1000, skipped);
+            switch (ll)
             {
+            case LogLevel::LVL_WARNING:
                 CLOG_WARNING(Perf, "{}", msg);
-            }
-            else
-            {
+                break;
+            case LogLevel::LVL_DEBUG:
                 CLOG_DEBUG(Perf, "{}", msg);
+                break;
+            default:
+                throw std::runtime_error(
+                    "Unexpected log level in LogSlowExecution");
             }
-            gLastLogMessage = finish;
+            lastMsgTime = finish;
         }
 
         // If we've emitted this second already, just bump a counter that
         // will be flushed in a summary message at the next second-boundary.
         else
         {
-            gDroppedLogMessagesSinceLast++;
+            skippedCnt++;
         }
     }
     return elapsed;
