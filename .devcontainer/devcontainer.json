@@ -25,6 +25,15 @@
 		"terminal.integrated.shell.linux": "/bin/bash"
 	},
 
+	// Use 'features.docker-from-docker' to setup docker inside the container
+	// for building the Docker images inside GitHub Codespaces.
+	"features": {
+		"docker-from-docker": {
+			"version": "latest",
+			"moby": true
+		}
+	},
+
 	// Uncomment the next line if you want to publish any ports.
 	// "appPort": [],
 
