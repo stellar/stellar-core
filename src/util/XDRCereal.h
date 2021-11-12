@@ -138,7 +138,16 @@ template <typename T>
 typename std::enable_if<xdr::xdr_traits<T>::is_enum>::type
 cereal_override(cereal::JSONOutputArchive& ar, const T& t, const char* field)
 {
-    std::string name = xdr::xdr_traits<T>::enum_name(t);
+    auto const np = xdr::xdr_traits<T>::enum_name(t);
+    std::string name;
+    if (np != nullptr)
+    {
+        name = np;
+    }
+    else
+    {
+        name = std::to_string(t);
+    }
     xdr::archive(ar, name, field);
 }
 
