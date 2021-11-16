@@ -10,6 +10,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -4018,5 +4019,142 @@ TEST_CASE("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset", "[ledgertxn]")
                 {{{{{a1, cur1, native}, 1}}, {{{cur1, native}, 1}}},
                  {{{{a1, cur1, native}, 0}}, {{{cur1, native}, 0}}}});
         }
+    }
+}
+
+TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto root = TestAccount::createRoot(*app);
+    auto const& lm = app->getLedgerManager();
+    auto const minBalance15 = lm.getLastMinBalance(15);
+
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = txtest::makeAsset(root, "CUR1");
+
+    auto a1 = root.create("a1", minBalance15);
+
+    LedgerEntry offerEntry;
+    offerEntry.data.type(OFFER);
+
+    auto& offer = offerEntry.data.offer();
+    offer.sellerID = a1.getPublicKey();
+    offer.offerID = 1;
+    offer.selling = native;
+    offer.buying = cur1;
+    offer.amount = 1;
+    offer.price = Price{1, 1};
+
+    AbstractLedgerTxn* txnRoot =
+        static_cast<AbstractLedgerTxn*>(&app->getLedgerTxnRoot());
+    txnRoot->createOrUpdateWithoutLoading(offerEntry);
+
+    auto offers = txnRoot->getOffersByAccountAndAsset(a1, cur1);
+    REQUIRE(offers.size() == 1);
+    for (auto const& kv : offers)
+    {
+        REQUIRE(kv.first.offer().sellerID == a1.getPublicKey());
+    }
+
+    txnRoot->eraseWithoutLoading(offerKey(a1, offer.offerID));
+    REQUIRE(txnRoot->getOffersByAccountAndAsset(a1, cur1).size() == 0);
+}
+
+TEST_CASE("InMemoryLedgerTxn getOffersByAccountAndAsset", "[ledgertxn]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto root = TestAccount::createRoot(*app);
+    auto const& lm = app->getLedgerManager();
+    auto const minBalance15 = lm.getLastMinBalance(15);
+
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = txtest::makeAsset(root, "CUR1");
+    auto cur2 = txtest::makeAsset(root, "CUR2");
+
+    auto a1 = root.create("a1", minBalance15);
+    auto a2 = root.create("a2", minBalance15);
+
+    a1.changeTrust(cur1, 100);
+    a1.changeTrust(cur2, 100);
+    a2.changeTrust(cur1, 100);
+    a2.changeTrust(cur2, 100);
+
+    root.pay(a1, cur1, 10);
+    root.pay(a2, cur1, 10);
+
+    a1.manageOffer(0, native, cur1, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+    a1.manageOffer(0, cur1, native, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+    a1.manageOffer(0, cur1, cur2, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+
+    a2.manageOffer(0, native, cur1, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+    a2.manageOffer(0, cur1, native, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+    a2.manageOffer(0, cur1, cur2, Price{2, 1}, 1, MANAGE_OFFER_CREATED);
+
+    auto offers = app->getLedgerTxnRoot().getOffersByAccountAndAsset(a1, cur1);
+
+    REQUIRE(offers.size() == 3);
+    for (auto const& kv : offers)
+    {
+        REQUIRE(kv.first.offer().sellerID == a1.getPublicKey());
+    }
+}
+
+TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
+          "[ledgertxn]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto root = TestAccount::createRoot(*app);
+    auto const& lm = app->getLedgerManager();
+    auto const minBalance15 = lm.getLastMinBalance(15);
+
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = txtest::makeAsset(root, "CUR1");
+    auto cur2 = txtest::makeAsset(root, "CUR2");
+
+    auto share12 = txtest::makeChangeTrustAssetPoolShare(
+        cur1, cur2, LIQUIDITY_POOL_FEE_V18);
+    auto shareNative1 = txtest::makeChangeTrustAssetPoolShare(
+        native, cur1, LIQUIDITY_POOL_FEE_V18);
+    auto shareNative2 = txtest::makeChangeTrustAssetPoolShare(
+        native, cur2, LIQUIDITY_POOL_FEE_V18);
+
+    auto a1 = root.create("a1", minBalance15);
+    auto a2 = root.create("a2", minBalance15);
+
+    a1.changeTrust(cur1, 10);
+    a1.changeTrust(cur2, 10);
+    a2.changeTrust(cur1, 10);
+    a2.changeTrust(cur2, 10);
+
+    a1.changeTrust(share12, 10);
+    a1.changeTrust(shareNative1, 10);
+    a1.changeTrust(shareNative2, 10);
+
+    a2.changeTrust(share12, 10);
+    a2.changeTrust(shareNative1, 10);
+
+    auto poolShareTrustlines =
+        app->getLedgerTxnRoot().getPoolShareTrustLinesByAccountAndAsset(a1,
+                                                                        cur1);
+
+    REQUIRE(poolShareTrustlines.size() == 2);
+    for (auto const& kv : poolShareTrustlines)
+    {
+        REQUIRE(kv.first.trustLine().accountID == a1.getPublicKey());
     }
 }
