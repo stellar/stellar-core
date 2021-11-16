@@ -63,6 +63,12 @@ class InMemoryLedgerTxn : public LedgerTxn
     createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
+    LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
+    void erase(InternalLedgerKey const& key) override;
+    LedgerTxnEntry load(InternalLedgerKey const& key) override;
+    ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) override;
+
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;

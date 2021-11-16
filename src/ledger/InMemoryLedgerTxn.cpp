@@ -152,6 +152,30 @@ InMemoryLedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
     updateLedgerKeyMap(key, false);
 }
 
+LedgerTxnEntry
+InMemoryLedgerTxn::create(InternalLedgerEntry const& entry)
+{
+    throw std::runtime_error("called create on InMemoryLedgerTxn");
+}
+
+void
+InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
+{
+    throw std::runtime_error("called erase on InMemoryLedgerTxn");
+}
+
+LedgerTxnEntry
+InMemoryLedgerTxn::load(InternalLedgerKey const& key)
+{
+    throw std::runtime_error("called load on InMemoryLedgerTxn");
+}
+
+ConstLedgerTxnEntry
+InMemoryLedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
+{
+    throw std::runtime_error("called loadWithoutRecord on InMemoryLedgerTxn");
+}
+
 UnorderedMap<LedgerKey, LedgerEntry>
 InMemoryLedgerTxn::getOffersByAccountAndAsset(AccountID const& account,
                                               Asset const& asset)
