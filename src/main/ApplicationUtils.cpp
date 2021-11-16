@@ -35,6 +35,8 @@
 namespace stellar
 {
 
+const std::string MINIMAL_DB_NAME = "minimal.db";
+
 bool
 canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
 {
@@ -46,6 +48,14 @@ canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl)
     bool isGenesis = lcl == LedgerManager::GENESIS_LEDGER_SEQ;
     return !isGenesis && startAtLedger >= lcl &&
            startAtLedger - lcl <= RESTORE_STATE_LEDGER_WINDOW;
+}
+
+std::filesystem::path
+minimalDbPath(Config const& cfg)
+{
+    std::filesystem::path dpath(cfg.BUCKET_DIR_PATH);
+    dpath /= MINIMAL_DB_NAME;
+    return dpath;
 }
 
 void
@@ -64,12 +74,13 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
 
     auto cfgToCheckDB = cfg;
     cfgToCheckDB.METADATA_OUTPUT_STREAM = "";
-    try
+
+    if (std::filesystem::exists(minimalDbPath(cfg)))
     {
         app = Application::create(clock, cfgToCheckDB, /* newDB */ false);
         found = true;
     }
-    catch (std::runtime_error const&)
+    else
     {
         LOG_INFO(DEFAULT_LOG, "Minimal database not found, creating one...");
         app = Application::create(clock, cfgToCheckDB, /* newDB */ true);
@@ -662,7 +673,7 @@ publish(Application::pointer app)
 std::string
 minimalDBForInMemoryMode(Config const& cfg)
 {
-    return fmt::format(FMT_STRING("sqlite3://{}/minimal.db"),
-                       cfg.BUCKET_DIR_PATH);
+    return fmt::format(FMT_STRING("sqlite3://{}"),
+                       minimalDbPath(cfg).generic_string());
 }
 }
