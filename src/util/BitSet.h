@@ -167,7 +167,7 @@ class BitSet
     void
     set(size_t i)
     {
-        ensureCapacity(i);
+        ensureCapacity(i + 1);
         bitset_set(mPtr, i);
         mCountDirty = true;
     }

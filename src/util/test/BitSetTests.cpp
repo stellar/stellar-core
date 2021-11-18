@@ -193,3 +193,13 @@ TEST_CASE("BitSet symmetric difference", "[bitset]")
         REQUIRE(bs_c.count() == ref.size());
     }
 }
+
+TEST_CASE("BitSet large bitsets", "[bitset]")
+{
+    BitSet bs;
+    for (size_t i = 0; i < 10000; ++i)
+    {
+        bs.set(i);
+    }
+    REQUIRE(bs.count() == 10000);
+}
