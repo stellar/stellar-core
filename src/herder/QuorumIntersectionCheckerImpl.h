@@ -354,8 +354,10 @@
 #include "main/Config.h"
 #include "util/BitSet.h"
 #include "util/RandomEvictionCache.h"
+#include "util/TarjanSCCCalculator.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
+#include <functional>
 
 namespace
 {
@@ -389,27 +391,6 @@ struct QBitSet
     void log(size_t indent = 0) const;
 
     static BitSet getSuccessors(BitSet const& nodes, QGraph const& inner);
-};
-
-// Implementation of Tarjan's algorithm for SCC calculation.
-struct TarjanSCCCalculator
-{
-    struct SCCNode
-    {
-        int mIndex = {-1};
-        int mLowLink = {-1};
-        bool mOnStack = {false};
-    };
-
-    std::vector<SCCNode> mNodes;
-    std::vector<size_t> mStack;
-    int mIndex = {0};
-    std::vector<BitSet> mSCCs;
-    QGraph const& mGraph;
-
-    TarjanSCCCalculator(QGraph const& graph);
-    void calculateSCCs();
-    void scc(size_t i);
 };
 
 // A MinQuorumEnumerator is responsible to scanning the powerset of the SCC
