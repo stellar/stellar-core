@@ -86,6 +86,14 @@ fuzz-findings/
 min-testcases/
 /my-history/
 
+# Rust specific
+src/rust/bin
+src/rust/target
+src/rust/bridge.cpp
+src/rust/bridge.h
+src/rust/.crates.toml
+src/rust/.crates2.json
+
 # Windows specific
 **/Build/*
 **/generated/*

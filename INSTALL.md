@@ -165,3 +165,22 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
     # On MacOS
     $ brew install capstone freetype2 glfw
+
+## Building with Rust
+
+Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
+
+Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.57 or later.
+Currently we recommend using the system packages provided on Ubuntu, and the rust project's `rustup` installer on other systems.
+
+    # On Ubuntu
+    $ sudo apt-get install cargo
+
+    # On MacOS
+    $ brew install rustup-init
+    $ rustup-init
+
+To use an IDE with `rust-analyzer`, additional packages are required on Ubuntu:
+
+    # On Ubuntu
+    $ sudo apt-get install rust-src

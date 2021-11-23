@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Decoder.h"
+#include "util/Math.h"
+#include <lib/util/basen.h>
 
 #include <autocheck/autocheck.hpp>
 #include <lib/catch.hpp>
@@ -151,3 +153,41 @@ TEST_CASE("base64 roundtrip", "[decoder]")
         REQUIRE(in == decoded);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("base64 rust identity", "[decoder]")
+{
+    autocheck::generator<std::vector<uint8_t>> input;
+    autocheck::generator<char> damage;
+    // check round trip
+    for (int s = 0; s < 100; s++)
+    {
+        std::vector<uint8_t> in(input(s));
+
+        std::string rust_encoded = decoder::encode_b64(in);
+        std::string cpp_encoded;
+
+        cpp_encoded.reserve(decoder::encoded_size64(in.size()) + 1);
+        bn::encode_b64(in.begin(), in.end(), std::back_inserter(cpp_encoded));
+
+        REQUIRE(cpp_encoded == rust_encoded);
+
+        if (rand_flip() && rust_encoded.size() > 0)
+        {
+            auto i = rand_uniform<size_t>(0, rust_encoded.size() - 1);
+            char d = damage();
+            rust_encoded.at(i) = d;
+            cpp_encoded.at(i) = d;
+        }
+
+        std::vector<uint8_t> cpp_decoded;
+        std::vector<uint8_t> rust_decoded;
+
+        decoder::decode_b64(rust_encoded, rust_decoded);
+        cpp_decoded.reserve(cpp_encoded.size());
+        bn::decode_b64(cpp_encoded.begin(), cpp_encoded.end(),
+                       std::back_inserter(cpp_decoded));
+        REQUIRE(cpp_decoded == rust_decoded);
+    }
+}
+#endif

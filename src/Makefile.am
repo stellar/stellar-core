@@ -28,9 +28,45 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
-SUFFIXES = .x .h
+SUFFIXES = .x .h .rs
 .x.h:
 	$(XDRC) -hh -pedantic -o $@ $<
+
+
+# This needs to be outside the next-protocol block
+# because, weirdly, RUST_BUILD_DIR winds up embedded
+# in generated Makefile for tracking bridge.Po even
+# when we are not building the bridge. Automake is odd.
+RUST_BUILD_DIR=$(top_builddir)/src/rust
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+RUST_SRC_DIR=$(top_srcdir)/src/rust/src
+RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
+RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
+RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
+RUST_PROFILE=release
+LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
+BUILT_SOURCES += $(RUST_BUILD_DIR)/bridge.h $(RUST_BUILD_DIR)/bridge.cpp
+stellar_core_SOURCES += $(RUST_BUILD_DIR)/bridge.h $(RUST_BUILD_DIR)/bridge.cpp
+stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
+
+$(RUST_CXXBRIDGE):
+	mkdir -p $(RUST_BIN_DIR)
+	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd
+
+$(RUST_BUILD_DIR)/bridge.h: $(RUST_SRC_DIR)/lib.rs $(SRC_RUST_FILES) $(top_srcdir)/src/Makefile.am $(RUST_CXXBRIDGE)
+	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
+	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+
+$(RUST_BUILD_DIR)/bridge.cpp: $(RUST_SRC_DIR)/lib.rs $(SRC_RUST_FILES) $(top_srcdir)/src/Makefile.am $(RUST_CXXBRIDGE)
+	$(RUST_CXXBRIDGE) $< --output $@.tmp
+	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+
+$(LIBRUST_STELLAR_CORE): $(SRC_RUST_FILES) $(top_srcdir)/src/Makefile.am
+	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR))
+	ranlib $@
+endif # ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
