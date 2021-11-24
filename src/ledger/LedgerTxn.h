@@ -206,9 +206,10 @@ class LedgerEntryPtr
 
     // These methods do not throw
     std::shared_ptr<InternalLedgerEntry> get() const;
-    explicit operator bool() const;
     EntryPtrState getState() const;
     bool isInit() const;
+    bool isLive() const;
+    bool isDeleted() const;
 
   private:
     LedgerEntryPtr(std::shared_ptr<InternalLedgerEntry> const& lePtr,
@@ -216,9 +217,6 @@ class LedgerEntryPtr
 
     std::shared_ptr<InternalLedgerEntry> mEntryPtr;
     EntryPtrState mState;
-
-    bool isLive() const;
-    bool isDeleted() const;
 };
 
 // A heuristic number that is used to batch together groups of

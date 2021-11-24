@@ -90,11 +90,6 @@ LedgerEntryPtr::get() const
     return mEntryPtr;
 }
 
-LedgerEntryPtr::operator bool() const
-{
-    return (bool)mEntryPtr;
-}
-
 void
 LedgerEntryPtr::mergeFrom(LedgerEntryPtr const& entryPtr)
 {
@@ -791,7 +786,7 @@ LedgerTxn::Impl::getAllOffers()
         {
             continue;
         }
-        if (!entry)
+        if (entry.isDeleted())
         {
             offers.erase(key.ledgerKey());
             continue;
@@ -935,7 +930,7 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
         if (!offers.empty())
         {
             auto entryIter = mEntry.find(offers.begin()->second);
-            if (entryIter == mEntry.end() || !entryIter->second)
+            if (entryIter == mEntry.end() || entryIter->second.isDeleted())
             {
                 throw std::runtime_error("invalid order book state");
             }
@@ -1046,7 +1041,7 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         if (iter != offers.end())
         {
             auto entryIter = mEntry.find(iter->second);
-            if (entryIter == mEntry.end() || !entryIter->second)
+            if (entryIter == mEntry.end() || entryIter->second.isDeleted())
             {
                 throw std::runtime_error("invalid order book state");
             }
@@ -1126,15 +1121,15 @@ LedgerTxn::Impl::getChanges()
                 changes.emplace_back(LEDGER_ENTRY_STATE);
                 changes.back().state() = previous->ledgerEntry();
 
-                if (entry)
-                {
-                    changes.emplace_back(LEDGER_ENTRY_UPDATED);
-                    changes.back().updated() = entry->ledgerEntry();
-                }
-                else
+                if (entry.isDeleted())
                 {
                     changes.emplace_back(LEDGER_ENTRY_REMOVED);
                     changes.back().removed() = key.ledgerKey();
+                }
+                else
+                {
+                    changes.emplace_back(LEDGER_ENTRY_UPDATED);
+                    changes.back().updated() = entry->ledgerEntry();
                 }
             }
             else
@@ -1142,7 +1137,7 @@ LedgerTxn::Impl::getChanges()
                 // If !entry and !previous.entry then the entry was created and
                 // erased in this LedgerTxn, in which case it should not still
                 // be in this LedgerTxn
-                releaseAssert(entry);
+                releaseAssert(!entry.isDeleted());
                 changes.emplace_back(LEDGER_ENTRY_CREATED);
                 changes.back().created() = entry->ledgerEntry();
             }
@@ -1220,7 +1215,7 @@ LedgerTxn::Impl::getDeltaVotes() const
             continue;
         }
 
-        if (entry)
+        if (!entry.isDeleted())
         {
             auto const& acc = entry->ledgerEntry().data.account();
             if (acc.inflationDest && acc.balance >= MIN_VOTES_TO_INCLUDE)
@@ -1384,7 +1379,7 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
                 continue;
             }
 
-            if (entry)
+            if (entry.get())
             {
                 if (entry.isInit())
                 {
@@ -1456,7 +1451,7 @@ LedgerTxn::Impl::getOffersByAccountAndAsset(AccountID const& account,
         {
             continue;
         }
-        if (!entry)
+        if (entry.isDeleted())
         {
             offers.erase(key.ledgerKey());
             continue;
@@ -1500,7 +1495,7 @@ LedgerTxn::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (key.type() == TRUSTLINE && key.trustLine().accountID == account &&
             key.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
         {
-            if (!kv.second)
+            if (kv.second.isDeleted())
             {
                 // The trust line was in our result set from a parent, but was
                 // deleted in self
@@ -2011,7 +2006,7 @@ LedgerTxn::Impl::maybeUpdateLastModified() noexcept
     for (auto& kv : mEntry)
     {
         auto& entry = kv.second;
-        if (kv.second)
+        if (!kv.second.isDeleted())
         {
             if (mShouldUpdateLastModified &&
                 entry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
@@ -2142,7 +2137,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 
             // An init entry is being deleted, so annihilate the init instead of
             // updating it.
-            if (!lePtr && (*keyHint)->second.isInit())
+            if (lePtr.isDeleted() && (*keyHint)->second.isInit())
             {
                 mEntry.erase(*keyHint);
             }
@@ -2169,8 +2164,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
         localIterDoNotUse = mEntry.find(key);
         keyHint = &localIterDoNotUse;
     }
-
-    if (*keyHint != mEntry.end() && (*keyHint)->second)
+    if (*keyHint != mEntry.end() && !(*keyHint)->second.isDeleted())
     {
         // The offer is always removed from mMultiOrderBook even if this is a
         // modification because the assets on the existing offer can be modified
@@ -2180,7 +2174,7 @@ LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
 
     // We only insert the new offer into the order book if it exists and is not
     // active. Otherwise, we just record the update in mEntry and return.
-    if (lePtr && !effectiveActive)
+    if (!lePtr.isDeleted() && !effectiveActive)
     {
         auto const& oe = lePtr->ledgerEntry().data.offer();
 
@@ -2344,7 +2338,7 @@ LedgerTxn::Impl::EntryIteratorImpl::entryPtr() const
 bool
 LedgerTxn::Impl::EntryIteratorImpl::entryExists() const
 {
-    return (bool)(mIter->second);
+    return !mIter->second.isDeleted();
 }
 
 InternalLedgerKey const&
