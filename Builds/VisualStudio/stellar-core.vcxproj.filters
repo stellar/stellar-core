@@ -765,6 +765,9 @@
     <ClCompile Include="..\..\src\test\TxTests.cpp">
       <Filter>test</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\TarjanSCCCalculator.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\Thread.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -1756,6 +1759,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\TxTests.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\TarjanSCCCalculator.h">
+      <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Thread.h">
       <Filter>util</Filter>

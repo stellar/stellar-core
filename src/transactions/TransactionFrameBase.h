@@ -43,6 +43,7 @@ class TransactionFrameBase
     virtual Hash const& getFullHash() const = 0;
 
     virtual uint32_t getNumOperations() const = 0;
+    virtual std::vector<Operation> const& getRawOperations() const = 0;
 
     virtual TransactionResult& getResult() = 0;
     virtual TransactionResultCode getResultCode() const = 0;
