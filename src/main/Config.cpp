@@ -1099,7 +1099,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "FLOOD_ARB_TX_BASE_ALLOWANCE")
             {
-                FLOOD_ARB_TX_BASE_ALLOWANCE = readInt<int32_t>(item, 0);
+                FLOOD_ARB_TX_BASE_ALLOWANCE = readInt<int32_t>(item, -1);
             }
             else if (item.first == "FLOOD_ARB_TX_DAMPING_FACTOR")
             {
