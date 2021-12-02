@@ -1437,7 +1437,7 @@ TransactionFuzzer::initialize()
 
     reduceNativeBalancesAfterSetup(ltxOuter);
 
-    reduceTrustLineBalancesAfterSetup(ltxOuter);
+    adjustTrustLineBalancesAfterSetup(ltxOuter);
 
     reduceTrustLineLimitsAfterSetup(ltxOuter);
 
@@ -1568,6 +1568,7 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
         auto trustOp = txtest::changeTrust(
             asset, std::max<int64_t>(FuzzUtils::INITIAL_TRUST_LINE_LIMIT,
                                      trustLine.mAssetAvailableForTestActivity));
+
         trustOp.sourceAccount.activate() = toMuxedAccount(account);
         FuzzUtils::emplaceConditionallySponsored(
             ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
@@ -1748,7 +1749,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
 }
 
 void
-TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
+TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
     AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
@@ -1782,6 +1783,8 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
             }
             continue;
         }
+
+        auto const maxRecv = tle.getMaxAmountReceive(ltx.loadHeader());
         auto const availableTLBalance =
             tle.getAvailableBalance(ltx.loadHeader());
         auto const targetAvailableTLBalance =
@@ -1796,6 +1799,18 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
             reduceNonNativeBalanceOp.sourceAccount.activate() =
                 toMuxedAccount(account);
             ops.emplace_back(reduceNonNativeBalanceOp);
+        }
+        else if (availableTLBalance < targetAvailableTLBalance && maxRecv > 0 &&
+                 (!trustLine.mCallAllowTrustOp ||
+                  trustLine.mAllowTrustFlags & AUTHORIZED_FLAG))
+        {
+            auto increaseNonNativeBalanceOp = txtest::payment(
+                account, asset,
+                std::min(targetAvailableTLBalance - availableTLBalance,
+                         maxRecv));
+            increaseNonNativeBalanceOp.sourceAccount.activate() =
+                toMuxedAccount(issuer);
+            ops.emplace_back(increaseNonNativeBalanceOp);
         }
     }
 
@@ -1823,9 +1838,13 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
 
         // Reduce this trustline's limit.
         auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const balancePlusBuyLiabilities =
+            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader());
         auto const targetTrustLineLimit =
-            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader()) +
-            trustLine.mSpareLimitAfterSetup;
+            INT64_MAX - trustLine.mSpareLimitAfterSetup <
+                    balancePlusBuyLiabilities
+                ? INT64_MAX
+                : balancePlusBuyLiabilities + trustLine.mSpareLimitAfterSetup;
 
         auto changeTrustLineLimitOp =
             txtest::changeTrust(asset, targetTrustLineLimit);

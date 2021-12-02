@@ -54,7 +54,7 @@ class TransactionFuzzer : public Fuzzer
     void initializeOffers(AbstractLedgerTxn& ltxOuter);
     void initializeLiquidityPools(AbstractLedgerTxn& ltxOuter);
     void reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
-    void reduceTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
+    void adjustTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
     void reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter);
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
