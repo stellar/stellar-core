@@ -34,7 +34,7 @@ class WorkScheduler : public Work
     {
         auto work = scheduleWork<T>(std::forward<Args>(args)...);
         auto& clock = mApp.getClock();
-        while (!clock.getIOContext().stopped() && !allChildrenDone())
+        while (!clock.getIOContext().stopped() && !work->isDone())
         {
             clock.crank(true);
         }
