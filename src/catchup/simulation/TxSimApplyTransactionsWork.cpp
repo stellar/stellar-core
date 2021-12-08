@@ -13,6 +13,7 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "src/transactions/simulation/TxSimUtils.h"
+#include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionSQL.h"
@@ -276,10 +277,9 @@ hasSig(PublicKey const& account,
 void
 TxSimApplyTransactionsWork::addSignerKeys(
     AccountID const& acc, AbstractLedgerTxn& ltx, std::set<SecretKey>& keys,
-    xdr::xvector<DecoratedSignature, 20> const& sigs, uint32_t partition)
+    xdr::xvector<DecoratedSignature, 20> const& sigs, Hash const& txHash,
+    uint32_t partition)
 {
-    auto const& txHash = mResultIter->transactionHash;
-
     if (hasSig(acc, sigs, txHash))
     {
         keys.emplace(generateScaledSecret(acc, partition));
@@ -304,12 +304,24 @@ TxSimApplyTransactionsWork::addSignerKeys(
     }
 }
 
+Hash const&
+TxSimApplyTransactionsWork::getInnerTxHash()
+{
+    bool isFeeBump =
+        mResultIter->result.result.code() == txFEE_BUMP_INNER_SUCCESS ||
+        mResultIter->result.result.code() == txFEE_BUMP_INNER_FAILED;
+    return isFeeBump
+               ? mResultIter->result.result.innerResultPair().transactionHash
+               : mResultIter->transactionHash;
+}
+
 void
 TxSimApplyTransactionsWork::addSignerKeys(
     MuxedAccount const& acc, AbstractLedgerTxn& ltx, std::set<SecretKey>& keys,
-    xdr::xvector<DecoratedSignature, 20> const& sigs, uint32_t partition)
+    xdr::xvector<DecoratedSignature, 20> const& sigs, Hash const& txHash,
+    uint32_t partition)
 {
-    addSignerKeys(toAccountID(acc), ltx, keys, sigs, partition);
+    addSignerKeys(toAccountID(acc), ltx, keys, sigs, txHash, partition);
 }
 
 void
@@ -320,7 +332,7 @@ TxSimApplyTransactionsWork::mutateTxSourceAccounts(TransactionEnvelope& env,
 {
     auto const& sigs = txbridge::getSignaturesInner(env);
     auto addSignerAndReplaceID = [&](MuxedAccount& acc) {
-        addSignerKeys(acc, ltx, keys, sigs, partition);
+        addSignerKeys(acc, ltx, keys, sigs, getInnerTxHash(), partition);
         mutateScaledAccountID(acc, partition);
     };
 
@@ -332,7 +344,7 @@ TxSimApplyTransactionsWork::mutateTxSourceAccounts(TransactionEnvelope& env,
         // Wrap raw Ed25519 key in an AccountID
         acc.type(PUBLIC_KEY_TYPE_ED25519);
         acc.ed25519() = env.v0().tx.sourceAccountEd25519;
-        addSignerKeys(acc, ltx, keys, sigs, partition);
+        addSignerKeys(acc, ltx, keys, sigs, getInnerTxHash(), partition);
         env.v0().tx.sourceAccountEd25519 =
             generateScaledSecret(acc, partition).getPublicKey().ed25519();
         break;
@@ -364,7 +376,8 @@ TxSimApplyTransactionsWork::mutateOperations(TransactionEnvelope& env,
         // Add signer keys where needed before simulating the operation
         if (op.sourceAccount)
         {
-            addSignerKeys(*op.sourceAccount, ltx, keys, sigs, partition);
+            addSignerKeys(*op.sourceAccount, ltx, keys, sigs, getInnerTxHash(),
+                          partition);
         }
         mutateScaledOperation(op, partition);
     }
@@ -401,10 +414,31 @@ TxSimApplyTransactionsWork::scaleLedger(
     mutateOperations(newEnv, ltx, keys, partition);
 
     auto simulateSigs = [&](xdr::xvector<DecoratedSignature, 20>& sigs,
-                            std::set<SecretKey> const& keys) {
-        auto txFrame = TransactionFrameBase::makeTransactionFromWire(
-            mApp.getNetworkID(), newEnv);
-        auto hash = txFrame->getContentsHash();
+                            std::set<SecretKey> const& keys,
+                            bool useInnerHash) {
+        Hash hash;
+        if (newEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+        {
+            auto txFrame = std::make_shared<FeeBumpTransactionFrame>(
+                mApp.getNetworkID(), newEnv);
+            if (useInnerHash)
+            {
+                auto innerTxFrame = std::make_shared<TransactionFrame>(
+                    mApp.getNetworkID(), txFrame->convertInnerTxToV1(newEnv));
+                hash = innerTxFrame->getContentsHash();
+            }
+            else
+            {
+                hash = txFrame->getContentsHash();
+            }
+        }
+        else
+        {
+            auto txFrame = TransactionFrameBase::makeTransactionFromWire(
+                mApp.getNetworkID(), newEnv);
+            hash = txFrame->getContentsHash();
+        }
+
         sigs.clear();
         std::transform(
             keys.begin(), keys.end(), std::back_inserter(sigs),
@@ -415,17 +449,20 @@ TxSimApplyTransactionsWork::scaleLedger(
     // Handle v0 and v1 tx signatures, or fee-bump inner tx
     // Note: for fee-bump transactions, set inner tx signatures first
     // to ensure the right hash
-    auto newTxHash = simulateSigs(txbridge::getSignaturesInner(newEnv), keys);
+    auto newTxHash =
+        simulateSigs(txbridge::getSignaturesInner(newEnv), keys, true);
 
     // Second, if fee-bump tx, handle outer tx signatures
     if (newEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
     {
         std::set<SecretKey> outerTxKeys;
         auto& outerSigs = newEnv.feeBump().signatures;
-        addSignerKeys(newEnv.feeBump().tx.feeSource, ltx, outerTxKeys,
-                      outerSigs, partition);
+        addSignerKeys(
+            newEnv.feeBump().tx.feeSource, ltx, outerTxKeys, outerSigs,
+            mResultIter->result.result.innerResultPair().transactionHash,
+            partition);
         mutateScaledAccountID(newEnv.feeBump().tx.feeSource, partition);
-        newTxHash = simulateSigs(outerSigs, outerTxKeys);
+        newTxHash = simulateSigs(outerSigs, outerTxKeys, false);
     }
 
     // These are not exactly accurate, but sufficient to check result codes

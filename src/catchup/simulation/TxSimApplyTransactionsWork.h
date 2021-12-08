@@ -50,18 +50,20 @@ class TxSimApplyTransactionsWork : public BasicWork
     void addSignerKeys(AccountID const& acc, AbstractLedgerTxn& ltx,
                        std::set<SecretKey>& keys,
                        xdr::xvector<DecoratedSignature, 20> const& sigs,
-                       uint32_t partition);
+                       Hash const& txHash, uint32_t partition);
 
     void addSignerKeys(MuxedAccount const& acc, AbstractLedgerTxn& ltx,
                        std::set<SecretKey>& keys,
                        xdr::xvector<DecoratedSignature, 20> const& sigs,
-                       uint32_t partition);
+                       Hash const& txHash, uint32_t partition);
 
     void mutateTxSourceAccounts(TransactionEnvelope& env,
                                 AbstractLedgerTxn& ltx,
                                 std::set<SecretKey>& keys, uint32_t partition);
     void mutateOperations(TransactionEnvelope& env, AbstractLedgerTxn& ltx,
                           std::set<SecretKey>& keys, uint32_t partition);
+
+    Hash const& getInnerTxHash();
 
   public:
     TxSimApplyTransactionsWork(Application& app, TmpDir const& downloadDir,
