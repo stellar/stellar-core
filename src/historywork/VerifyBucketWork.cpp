@@ -60,6 +60,14 @@ VerifyBucketWork::spawnVerifier()
         [&app, filename, weak, hash]() {
             SHA256 hasher;
             asio::error_code ec;
+
+            // No point in verifying buckets if things are shutting down
+            auto self = weak.lock();
+            if (!self || self->isAborting())
+            {
+                return;
+            }
+
             try
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);

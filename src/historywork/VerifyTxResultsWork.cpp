@@ -48,7 +48,7 @@ VerifyTxResultsWork::onRun()
         std::static_pointer_cast<VerifyTxResultsWork>(shared_from_this()));
     auto verify = [weak, checkpoint = mCheckpoint]() {
         auto self = weak.lock();
-        if (self)
+        if (self && !self->isAborting())
         {
             ZoneScoped;
             asio::error_code ec;

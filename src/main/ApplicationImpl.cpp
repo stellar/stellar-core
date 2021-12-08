@@ -781,11 +781,6 @@ ApplicationImpl::shutdownWorkScheduler()
     if (mWorkScheduler)
     {
         mWorkScheduler->shutdown();
-
-        while (mWorkScheduler->getState() != BasicWork::State::WORK_ABORTED)
-        {
-            mVirtualClock.crank();
-        }
     }
 }
 

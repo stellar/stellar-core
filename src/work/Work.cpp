@@ -19,7 +19,10 @@ Work::Work(Application& app, std::string name, size_t maxRetries)
 Work::~Work()
 {
     // Work is destroyed only if in terminal state, and is properly reset
-    releaseAssert(!hasChildren());
+    if (isDone())
+    {
+        releaseAssert(!hasChildren());
+    }
 }
 
 std::string

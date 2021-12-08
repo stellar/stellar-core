@@ -110,7 +110,7 @@ FlushAndRotateMetaDebugWork::doWork()
         mApp.postOnBackgroundThread(
             [weak, file]() {
                 auto self = weak.lock();
-                if (!self)
+                if (!self || self->isAborting())
                 {
                     return;
                 }

@@ -291,6 +291,11 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
+    if (mApp.isStopping())
+    {
+        return 0;
+    }
+
 #ifdef BUILD_TESTS
     if (!mPublicationEnabled)
     {

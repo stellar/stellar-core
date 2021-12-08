@@ -36,7 +36,7 @@ WriteSnapshotWork::onRun()
 
     auto work = [weak]() {
         auto self = weak.lock();
-        if (!self)
+        if (!self || self->isAborting())
         {
             return;
         }

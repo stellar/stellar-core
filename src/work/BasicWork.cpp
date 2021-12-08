@@ -44,7 +44,7 @@ BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
 BasicWork::~BasicWork()
 {
     // Work completed or has not started yet
-    releaseAssert(isDone() || mState == InternalState::PENDING);
+    releaseAssert(isDone() || mState == InternalState::PENDING || isAborting());
 }
 
 void
