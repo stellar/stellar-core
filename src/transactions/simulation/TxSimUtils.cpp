@@ -179,12 +179,19 @@ generateScaledClaimableBalanceID(Hash const& balanceID, uint32_t partition)
 }
 
 SignerKey
+generateScaledEd25519Signer(SignerKey const& signer, uint32_t partition)
+{
+    assert(signer.type() == SIGNER_KEY_TYPE_ED25519);
+    auto pubKey = KeyUtils::convertKey<PublicKey>(signer);
+    auto newPubKey = generateScaledSecret(pubKey, partition).getPublicKey();
+    return KeyUtils::convertKey<SignerKey>(newPubKey);
+}
+
+SignerKey
 generateScaledEd25519Signer(Signer const& signer, uint32_t partition)
 {
     assert(signer.key.type() == SIGNER_KEY_TYPE_ED25519);
-    auto pubKey = KeyUtils::convertKey<PublicKey>(signer.key);
-    auto newPubKey = generateScaledSecret(pubKey, partition).getPublicKey();
-    return KeyUtils::convertKey<SignerKey>(newPubKey);
+    return generateScaledEd25519Signer(signer.key, partition);
 }
 
 SecretKey
@@ -290,10 +297,54 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
             }
             break;
         }
+        case LIQUIDITY_POOL:
+        {
+            auto& cp = newEntry.data.liquidityPool().body.constantProduct();
+            replaceIssuer(cp.params.assetA, partition);
+            replaceIssuer(cp.params.assetB, partition);
+
+            newEntry.data.liquidityPool().liquidityPoolID = generateScaledHash(
+                newEntry.data.liquidityPool().liquidityPoolID, partition);
+            break;
+        }
         default:
             abort();
         }
         entries.emplace_back(newEntry);
+    }
+}
+
+void
+scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
+{
+    switch (key.type())
+    {
+    case ACCOUNT:
+        mutateScaledAccountID(key.account().accountID, partition);
+        break;
+    case TRUSTLINE:
+    {
+        mutateScaledAccountID(key.trustLine().accountID, partition);
+        replaceIssuer(key.trustLine().asset, partition);
+        break;
+    }
+    case OFFER:
+        mutateScaledAccountID(key.offer().sellerID, partition);
+        key.offer().offerID =
+            generateScaledOfferID(key.offer().offerID, partition);
+        break;
+    case DATA:
+    {
+        mutateScaledAccountID(key.data().accountID, partition);
+        break;
+    }
+    case CLAIMABLE_BALANCE:
+        key.claimableBalance().balanceID.v0() =
+            generateScaledClaimableBalanceID(
+                key.claimableBalance().balanceID.v0(), partition);
+        break;
+    default:
+        throw std::runtime_error("invalid ledger key type");
     }
 }
 
@@ -428,10 +479,46 @@ mutateScaledOperation(Operation& op, uint32_t partition)
             generateScaledClaimableBalanceID(
                 op.body.claimClaimableBalanceOp().balanceID.v0(), partition);
         break;
+    case BEGIN_SPONSORING_FUTURE_RESERVES:
+        mutateScaledAccountID(
+            op.body.beginSponsoringFutureReservesOp().sponsoredID, partition);
+        break;
+    case REVOKE_SPONSORSHIP:
+        if (op.body.revokeSponsorshipOp().type() ==
+            REVOKE_SPONSORSHIP_LEDGER_ENTRY)
+        {
+            auto& key = op.body.revokeSponsorshipOp().ledgerKey();
+            scaleNonPoolLedgerKey(key, partition);
+        }
+        else
+        {
+            auto& signer = op.body.revokeSponsorshipOp().signer();
+            mutateScaledAccountID(signer.accountID, partition);
+            if (signer.signerKey.type() == SIGNER_KEY_TYPE_ED25519)
+            {
+                signer.signerKey =
+                    generateScaledEd25519Signer(signer.signerKey, partition);
+            }
+        }
+        break;
+    case CLAWBACK:
+        replaceIssuer(op.body.clawbackOp().asset, partition);
+        mutateScaledAccountID(op.body.clawbackOp().from, partition);
+        break;
+    case CLAWBACK_CLAIMABLE_BALANCE:
+        op.body.clawbackClaimableBalanceOp().balanceID.v0() =
+            generateScaledClaimableBalanceID(
+                op.body.clawbackClaimableBalanceOp().balanceID.v0(), partition);
+        break;
+    case SET_TRUST_LINE_FLAGS:
+        mutateScaledAccountID(op.body.setTrustLineFlagsOp().trustor, partition);
+        replaceIssuer(op.body.setTrustLineFlagsOp().asset, partition);
+        break;
+        // Note: don't care about these operations
     case INFLATION:
     case MANAGE_DATA:
     case BUMP_SEQUENCE:
-        // Note: don't care about inflation
+    case END_SPONSORING_FUTURE_RESERVES:
         break;
     default:
         abort();

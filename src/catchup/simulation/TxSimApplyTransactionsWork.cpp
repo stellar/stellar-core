@@ -149,6 +149,49 @@ checkOperationResults(xdr::xvector<OperationResult> const& expected,
             match = check(actualOpRes.bumpSeqResult().code(),
                           expectedOpRes.bumpSeqResult().code());
             break;
+        case CREATE_CLAIMABLE_BALANCE:
+            match = check(actualOpRes.createClaimableBalanceResult().code(),
+                          expectedOpRes.createClaimableBalanceResult().code());
+            break;
+        case CLAIM_CLAIMABLE_BALANCE:
+            match = check(actualOpRes.claimClaimableBalanceResult().code(),
+                          expectedOpRes.claimClaimableBalanceResult().code());
+            break;
+        case BEGIN_SPONSORING_FUTURE_RESERVES:
+            match = check(
+                actualOpRes.beginSponsoringFutureReservesResult().code(),
+                expectedOpRes.beginSponsoringFutureReservesResult().code());
+            break;
+        case END_SPONSORING_FUTURE_RESERVES:
+            match =
+                check(actualOpRes.endSponsoringFutureReservesResult().code(),
+                      expectedOpRes.endSponsoringFutureReservesResult().code());
+            break;
+        case REVOKE_SPONSORSHIP:
+            match = check(actualOpRes.revokeSponsorshipResult().code(),
+                          expectedOpRes.revokeSponsorshipResult().code());
+            break;
+        case CLAWBACK:
+            match = check(actualOpRes.clawbackResult().code(),
+                          expectedOpRes.clawbackResult().code());
+            break;
+        case CLAWBACK_CLAIMABLE_BALANCE:
+            match =
+                check(actualOpRes.clawbackClaimableBalanceResult().code(),
+                      expectedOpRes.clawbackClaimableBalanceResult().code());
+            break;
+        case SET_TRUST_LINE_FLAGS:
+            match = check(actualOpRes.setTrustLineFlagsResult().code(),
+                          expectedOpRes.setTrustLineFlagsResult().code());
+            break;
+        case LIQUIDITY_POOL_DEPOSIT:
+            match = check(actualOpRes.liquidityPoolDepositResult().code(),
+                          expectedOpRes.liquidityPoolDepositResult().code());
+            break;
+        case LIQUIDITY_POOL_WITHDRAW:
+            match = check(actualOpRes.liquidityPoolWithdrawResult().code(),
+                          expectedOpRes.liquidityPoolWithdrawResult().code());
+            break;
         default:
             throw std::runtime_error("Unknown operation type");
         }
