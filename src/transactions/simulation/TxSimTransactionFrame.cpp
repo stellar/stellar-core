@@ -39,6 +39,12 @@ TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
     {
         resultFromArchive = mSimulationResult.result.results()[index];
     }
+    else if (mSimulationResult.result.code() == txFEE_BUMP_INNER_SUCCESS ||
+             mSimulationResult.result.code() == txFEE_BUMP_INNER_FAILED)
+    {
+        resultFromArchive = mSimulationResult.result.innerResultPair()
+                                .result.result.results()[index];
+    }
 
     switch (ops[index].body.type())
     {
