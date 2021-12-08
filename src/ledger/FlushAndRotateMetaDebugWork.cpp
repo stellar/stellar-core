@@ -73,6 +73,10 @@ FlushAndRotateMetaDebugWork::listMetaDebugFiles(
 bool
 FlushAndRotateMetaDebugWork::isDebugSegmentBoundary(uint32_t ledgerSeq)
 {
+    if (META_DEBUG_LEDGER_SEGMENT_SIZE == 1)
+    {
+        return true;
+    }
     return ledgerSeq % (META_DEBUG_LEDGER_SEGMENT_SIZE - 1) == 0;
 }
 
