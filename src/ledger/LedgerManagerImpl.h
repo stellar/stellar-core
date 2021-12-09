@@ -71,7 +71,8 @@ class LedgerManagerImpl : public LedgerManager
     void
     applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
                       AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
-                      std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta);
+                      std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta,
+                      int64 curBaseFee);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 

@@ -658,12 +658,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    processFeesSeqNums(txs, ltx, txSet->getBaseFee(header.current()),
-                       ledgerCloseMeta);
+    auto curBaseFee = txSet->getBaseFee(header.current());
+    processFeesSeqNums(txs, ltx, curBaseFee, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
+    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -1084,7 +1084,7 @@ void
 LedgerManagerImpl::applyTransactions(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
-    std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
+    std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta, int64 curBaseFee)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
     int index = 0;
@@ -1103,8 +1103,9 @@ LedgerManagerImpl::applyTransactions(
                             });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
-        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{})",
-                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps);
+        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{}, base_fee:{})",
+                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps,
+                  curBaseFee);
     }
 
     prefetchTransactionData(txs);

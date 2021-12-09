@@ -198,7 +198,13 @@ class TransactionQueue
     bool broadcastSome();
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
-    bool broadcastTx(AccountState& state, TimestampedTx& tx);
+    enum class BroadcastStatus
+    {
+        BROADCAST_STATUS_ALREADY,
+        BROADCAST_STATUS_SUCCESS,
+        BROADCAST_STATUS_SKIPPED
+    };
+    BroadcastStatus broadcastTx(AccountState& state, TimestampedTx& tx);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
