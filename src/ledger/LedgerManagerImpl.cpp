@@ -40,6 +40,7 @@
 
 #include <fmt/format.h>
 
+#include "xdr/Stellar-transaction.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
@@ -52,6 +53,7 @@
 
 #include <chrono>
 #include <numeric>
+#include <optional>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -663,7 +665,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
+    applyTransactions(txs, ltx, txResultSet, ledgerData.getExpectedResults(),
+                      ledgerCloseMeta, curBaseFee);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -1084,6 +1087,7 @@ void
 LedgerManagerImpl::applyTransactions(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
+    std::optional<TransactionResultSet> const& expectedResults,
     std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta, int64 curBaseFee)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
@@ -1110,19 +1114,49 @@ LedgerManagerImpl::applyTransactions(
 
     prefetchTransactionData(txs);
 
+    std::optional<std::vector<TransactionResultPair>::const_iterator>
+        expected_res = std::nullopt;
+    if (!mApp.getConfig().CATCHUP_REPLAY_ALL_INCLUDING_FAILURES &&
+        expectedResults.has_value())
+    {
+        auto const& resVec = expectedResults.value().results;
+        CLOG_DEBUG(
+            Tx, "Will skip replaying failures in tx replay: {} txs, {} results",
+            txs.size(), resVec.size());
+        releaseAssertOrThrow(resVec.size() == txs.size());
+        expected_res = std::make_optional(resVec.begin());
+    }
+
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
         auto txTime = mTransactionApply.TimeScope();
         TransactionMeta tm(2);
-        CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
-                   hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
-                   tx->getSeqNum(),
-                   mApp.getConfig().toShortString(tx->getSourceID()));
-        tx->apply(mApp, ltx, tm);
 
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
+
+        CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
+                   hexAbbrev(results.transactionHash), tx->getNumOperations(),
+                   tx->getSeqNum(),
+                   mApp.getConfig().toShortString(tx->getSourceID()));
+
+        if (expected_res.has_value())
+        {
+            std::vector<TransactionResultPair>::const_iterator& res_iter =
+                expected_res.value();
+            releaseAssertOrThrow(res_iter->transactionHash ==
+                                 results.transactionHash);
+            if (res_iter->result.result.code() == txFAILED)
+            {
+                CLOG_DEBUG(Tx, "Skipping replay of failed tx#{}", index);
+                tx->setReplayFailingOperationResults(
+                    res_iter->result.result.results());
+            }
+            ++res_iter;
+        }
+
+        tx->apply(mApp, ltx, tm);
         results.result = tx->getResult();
 
         // First gather the TransactionResultPair into the TxResultSet for

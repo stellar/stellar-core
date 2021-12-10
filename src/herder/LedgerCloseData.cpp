@@ -16,11 +16,13 @@ namespace stellar
 
 LedgerCloseData::LedgerCloseData(
     uint32_t ledgerSeq, std::shared_ptr<AbstractTxSetFrameForApply> txSet,
-    StellarValue const& v, std::optional<Hash> const& expectedLedgerHash)
+    StellarValue const& v, std::optional<Hash> const& expectedLedgerHash,
+    std::optional<TransactionResultSet> const& expectedResults)
     : mLedgerSeq(ledgerSeq)
     , mTxSet(txSet)
     , mValue(v)
     , mExpectedLedgerHash(expectedLedgerHash)
+    , mExpectedResults(expectedResults)
 {
     releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
 }

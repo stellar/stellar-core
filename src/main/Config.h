@@ -151,6 +151,10 @@ class Config : public std::enable_shared_from_this<Config>
     // If you want, say, a week of history, set this to 120000.
     uint32_t CATCHUP_RECENT;
 
+    // Whether to replay failed transactions as well as successful transactions
+    // during catchup.
+    bool CATCHUP_REPLAY_ALL_INCLUDING_FAILURES;
+
     // Interval between automatic maintenance executions
     std::chrono::seconds AUTOMATIC_MAINTENANCE_PERIOD;
 

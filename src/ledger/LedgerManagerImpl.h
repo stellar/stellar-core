@@ -68,11 +68,12 @@ class LedgerManagerImpl : public LedgerManager
                        AbstractLedgerTxn& ltxOuter, int64_t baseFee,
                        std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta);
 
-    void
-    applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
-                      AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
-                      std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta,
-                      int64 curBaseFee);
+    void applyTransactions(
+        std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
+        TransactionResultSet& txResultSet,
+        std::optional<TransactionResultSet> const& expectedResults,
+        std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta,
+        int64 curBaseFee);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 

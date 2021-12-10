@@ -52,6 +52,8 @@ class TransactionFrame : public TransactionFrameBase
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
+    std::optional<xdr::xvector<OperationResult>> mReplayFailingOperationResults{
+        std::nullopt};
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);
@@ -103,6 +105,9 @@ class TransactionFrame : public TransactionFrameBase
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
+
+    void setReplayFailingOperationResults(
+        xdr::xvector<OperationResult> const&) override;
 
   public:
     TransactionFrame(Hash const& networkID,

@@ -27,6 +27,13 @@ struct LedgerHeaderHistoryEntry;
  * used to read transactions that will be used and ledger files are used to
  * check if ledger hashes are matching.
  *
+ * It may also require a third set of files -- transaction results -- to use
+ * in accelerated replay, where failed transactions are _not applied_ but their
+ * results taken directly from the results file. This is common when rejoining
+ * the network, when replaying failures is fairly pointless and if the results
+ * are corrupt / a lie we'll know fairly immediately with a consensus hash
+ * mismatch.
+ *
  * In each run it skips or applies transactions from one ledger. Skipping occurs
  * when ledger to be applied is older than LCL from local ledger. At LCL
  * boundary checks are made to confirm that ledgers from files knit up with
@@ -48,7 +55,9 @@ class ApplyCheckpointWork : public BasicWork
 
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
+    XDRInputFileStream mTxResultIn;
     TransactionHistoryEntry mTxHistoryEntry;
+    TransactionHistoryResultEntry mTxHistoryResultEntry;
     LedgerHeaderHistoryEntry mHeaderHistoryEntry;
     OnFailureCallback mOnFailure;
 
@@ -57,6 +66,7 @@ class ApplyCheckpointWork : public BasicWork
     std::shared_ptr<ConditionalWork> mConditionalWork;
 
     TxSetFramePtr getCurrentTxSet();
+    std::optional<TransactionResultSet> getCurrentTxResultSet();
     void openInputFiles();
 
     std::shared_ptr<LedgerCloseData> getNextLedgerCloseData();

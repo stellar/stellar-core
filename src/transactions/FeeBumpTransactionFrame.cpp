@@ -437,4 +437,14 @@ FeeBumpTransactionFrame::toStellarMessage() const
     msg.transaction() = mEnvelope;
     return msg;
 }
+
+void
+FeeBumpTransactionFrame::setReplayFailingOperationResults(
+    xdr::xvector<OperationResult> const&)
+{
+    // Currently we don't support replay-suppression on fee-bump txs.
+    // This could be enhanced in the future but it's harmless to avoid
+    // for now.
+}
+
 }

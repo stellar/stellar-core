@@ -26,7 +26,9 @@ class LedgerCloseData
     LedgerCloseData(
         uint32_t ledgerSeq, std::shared_ptr<AbstractTxSetFrameForApply> txSet,
         StellarValue const& v,
-        std::optional<Hash> const& expectedLedgerHash = std::nullopt);
+        std::optional<Hash> const& expectedLedgerHash = std::nullopt,
+        std::optional<TransactionResultSet> const& expectedResults =
+            std::nullopt);
 
     uint32_t
     getLedgerSeq() const
@@ -48,12 +50,18 @@ class LedgerCloseData
     {
         return mExpectedLedgerHash;
     }
+    std::optional<TransactionResultSet> const&
+    getExpectedResults() const
+    {
+        return mExpectedResults;
+    }
 
   private:
     uint32_t mLedgerSeq;
     std::shared_ptr<AbstractTxSetFrameForApply> mTxSet;
     StellarValue mValue;
     std::optional<Hash> mExpectedLedgerHash;
+    std::optional<TransactionResultSet> mExpectedResults;
 };
 
 std::string stellarValueToString(Config const& c, StellarValue const& sv);

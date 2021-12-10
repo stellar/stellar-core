@@ -57,6 +57,8 @@ class TransactionFrameBase
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
+    virtual void
+    setReplayFailingOperationResults(xdr::xvector<OperationResult> const&) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;
 };

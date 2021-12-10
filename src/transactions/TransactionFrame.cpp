@@ -479,6 +479,13 @@ TransactionFrame::processSignatures(ValidationType cv,
     return maybeValid;
 }
 
+void
+TransactionFrame::setReplayFailingOperationResults(
+    xdr::xvector<OperationResult> const& failing)
+{
+    mReplayFailingOperationResults = std::make_optional(failing);
+}
+
 bool
 TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 {
@@ -740,6 +747,14 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   TransactionMeta& outerMeta)
 {
     ZoneScoped;
+
+    if (mReplayFailingOperationResults.has_value())
+    {
+        markResultFailed();
+        getResult().result.results() = mReplayFailingOperationResults.value();
+        return false;
+    }
+
     try
     {
         bool success = true;

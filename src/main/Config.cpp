@@ -132,6 +132,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
+    CATCHUP_REPLAY_ALL_INCLUDING_FAILURES = false;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -961,6 +962,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "CATCHUP_RECENT")
             {
                 CATCHUP_RECENT = readInt<uint32_t>(item, 0, UINT32_MAX - 1);
+            }
+            else if (item.first == "CATCHUP_REPLAY_ALL_INCLUDING_FAILURES")
+            {
+                CATCHUP_REPLAY_ALL_INCLUDING_FAILURES = readBool(item);
             }
             else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
             {
