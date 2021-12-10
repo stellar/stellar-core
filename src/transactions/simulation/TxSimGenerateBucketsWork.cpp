@@ -27,7 +27,7 @@ TxSimGenerateBucketsWork::TxSimGenerateBucketsWork(
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mMultiplier(multiplier)
-    , mLevel(0)
+    , mLevel(BucketList::kNumLevels - 1)
     , mIsCurr(true)
 {
 }
@@ -35,7 +35,7 @@ TxSimGenerateBucketsWork::TxSimGenerateBucketsWork(
 void
 TxSimGenerateBucketsWork::onReset()
 {
-    mLevel = 0;
+    mLevel = BucketList::kNumLevels - 1;
     mGeneratedApplyState = {};
     mGeneratedApplyState.currentLedger = mApplyState.currentLedger;
     mPrevSnap.reset();
@@ -43,6 +43,7 @@ TxSimGenerateBucketsWork::onReset()
     mIntermediateBuckets.clear();
     mMergesInProgress.clear();
     mIsCurr = true;
+    mPoolIDToParam.clear();
 }
 
 bool
@@ -104,7 +105,6 @@ TxSimGenerateBucketsWork::processGeneratedBucket()
     if (mIsCurr)
     {
         level.curr = binToHex(hash);
-        setFutureBucket(newBucket);
     }
     else
     {
@@ -128,27 +128,24 @@ TxSimGenerateBucketsWork::onRun()
     {
         processGeneratedBucket();
 
-        if (mLevel < BucketList::kNumLevels - 1)
+        if (mLevel >= 0)
         {
-            if (!mIsCurr)
+            if (mIsCurr && --mLevel < 0)
             {
-                ++mLevel;
-            }
-        }
-        else
-        {
-            try
-            {
-                // Persist HAS file to avoid re-generating same buckets
-                getGeneratedHAS().save("simulate-" +
-                                       HistoryArchiveState::baseName());
-                return State::WORK_SUCCESS;
-            }
-            catch (std::exception const& e)
-            {
-                CLOG_ERROR(History, "Error saving HAS file: {}", e.what());
-                CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
-                return State::WORK_FAILURE;
+                setFutureBuckets();
+                try
+                {
+                    // Persist HAS file to avoid re-generating same buckets
+                    getGeneratedHAS().save("simulate-" +
+                                           HistoryArchiveState::baseName());
+                    return State::WORK_SUCCESS;
+                }
+                catch (std::exception const& e)
+                {
+                    CLOG_ERROR(History, "Error saving HAS file: {}", e.what());
+                    CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
+                    return State::WORK_FAILURE;
+                }
             }
         }
 
@@ -175,27 +172,35 @@ TxSimGenerateBucketsWork::onRun()
 }
 
 void
-TxSimGenerateBucketsWork::setFutureBucket(std::shared_ptr<Bucket> const& curr)
+TxSimGenerateBucketsWork::setFutureBuckets()
 {
-    auto currLedger = mApplyState.currentLedger;
-    mGeneratedApplyState.currentBuckets[mLevel].next.clear();
-
-    if (mPrevSnap && mLevel > 0)
+    for (int i = BucketList::kNumLevels - 1; i > 0; --i)
     {
-        auto preparedCurr =
-            BucketList::shouldMergeWithEmptyCurr(currLedger, mLevel)
-                ? std::make_shared<Bucket>()
-                : curr;
+        mGeneratedApplyState.currentBuckets[i].next.clear();
 
-        auto snapVersion = Bucket::getBucketVersion(mPrevSnap);
+        auto const& prevSnapHash =
+            mGeneratedApplyState.currentBuckets[i - 1].snap;
+        auto const& prevSnapBucket = mBuckets[prevSnapHash];
+
+        auto snapVersion = Bucket::getBucketVersion(prevSnapBucket);
         if (snapVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
         {
+            auto const& currHash = mGeneratedApplyState.currentBuckets[i].curr;
+            auto const& currBucket = mBuckets[currHash];
+
+            auto currLedger = mApplyState.currentLedger;
+            auto preparedCurr =
+                BucketList::shouldMergeWithEmptyCurr(currLedger, i)
+                    ? std::make_shared<Bucket>()
+                    : currBucket;
+
             // Note: here we use fake empty shadows, since we can't really
             // reconstruct the exact shadows, plus it should not really matter
             // anyway
             std::vector<std::shared_ptr<Bucket>> shadows;
-            mGeneratedApplyState.currentBuckets[mLevel].next = FutureBucket(
-                mApp, curr, mPrevSnap, shadows, snapVersion, false, mLevel);
+            mGeneratedApplyState.currentBuckets[i].next =
+                FutureBucket(mApp, curr, prevSnapBucket, shadows,
+                             snapVersion, false, i);
         }
     }
 }
@@ -252,9 +257,12 @@ TxSimGenerateBucketsWork::startBucketGeneration(
 
     for (uint32_t count = 1; count < mMultiplier; count++)
     {
-        generateScaledLiveEntries(newInitEntries, initEntries, count);
-        generateScaledLiveEntries(newLiveEntries, liveEntries, count);
-        generateScaledDeadEntries(newDeadEntries, deadEntries, count);
+        generateScaledLiveEntries(newInitEntries, initEntries, mPoolIDToParam,
+                                  count);
+        generateScaledLiveEntries(newLiveEntries, liveEntries, mPoolIDToParam,
+                                  count);
+        generateScaledDeadEntries(newDeadEntries, deadEntries, mPoolIDToParam,
+                                  count);
 
         mIntermediateBuckets.emplace_back(
             Bucket::fresh(mApp.getBucketManager(), ledgerVersion,

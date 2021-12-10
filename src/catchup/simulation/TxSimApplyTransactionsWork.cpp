@@ -368,6 +368,10 @@ TxSimApplyTransactionsWork::mutateOperations(TransactionEnvelope& env,
                                              std::set<SecretKey>& keys,
                                              uint32_t partition)
 {
+    // Maps PoolID from ChangeTrustOp to the LiquidityPoolParameters so we can
+    // scale poolIds for pools created and deposited into in the same ledger
+    UnorderedMap<PoolID, LiquidityPoolParameters> ctPoolIdToParam;
+
     auto& ops = txbridge::getOperations(env);
     auto const& sigs = txbridge::getSignaturesInner(env);
 
@@ -379,7 +383,7 @@ TxSimApplyTransactionsWork::mutateOperations(TransactionEnvelope& env,
             addSignerKeys(*op.sourceAccount, ltx, keys, sigs, getInnerTxHash(),
                           partition);
         }
-        mutateScaledOperation(op, partition);
+        mutateScaledOperation(op, ltx, ctPoolIdToParam, partition);
     }
 }
 
@@ -411,6 +415,7 @@ TxSimApplyTransactionsWork::scaleLedger(
     // First, update transaction source accounts
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     mutateTxSourceAccounts(newEnv, ltx, keys, partition);
+
     mutateOperations(newEnv, ltx, keys, partition);
 
     auto simulateSigs = [&](xdr::xvector<DecoratedSignature, 20>& sigs,

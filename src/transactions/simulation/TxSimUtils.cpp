@@ -8,6 +8,7 @@
 #include "crypto/SignerKey.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/HashOfHash.h"
 
 namespace stellar
 {
@@ -54,12 +55,27 @@ replaceIssuer(T& asset, uint32_t partition)
     }
 }
 
+// returns true if the assets were swapped
+static bool
+replaceIssuerInConstantProductParam(LiquidityPoolConstantProductParameters& cp,
+                                    uint32_t partition)
+{
+    replaceIssuer(cp.assetA, partition);
+    replaceIssuer(cp.assetB, partition);
+
+    if (!(cp.assetA < cp.assetB))
+    {
+        std::swap(cp.assetA, cp.assetB);
+        return true;
+    }
+    return false;
+}
+
 static void
 replaceIssuerInPoolAsset(ChangeTrustAsset& asset, uint32_t partition)
 {
     auto& cp = asset.liquidityPool().constantProduct();
-    replaceIssuer(cp.assetA, partition);
-    replaceIssuer(cp.assetB, partition);
+    replaceIssuerInConstantProductParam(cp, partition);
 }
 
 SecretKey
@@ -210,15 +226,58 @@ mutateScaledAccountID(MuxedAccount& acc, uint32_t partition)
     return key;
 }
 
-void
-generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
-                          std::vector<LedgerEntry> const& oldEntries,
+std::pair<PoolID, bool /*true if assets were swapped*/>
+replaceIssuerAndGetPoolID(LiquidityPoolConstantProductParameters& params,
                           uint32_t partition)
+{
+    bool swapped = replaceIssuerInConstantProductParam(params, partition);
+    LiquidityPoolParameters lpp(LIQUIDITY_POOL_CONSTANT_PRODUCT);
+    lpp.constantProduct() = params;
+    return {xdrSha256(lpp), swapped};
+}
+
+PoolID
+getScaledPoolID(
+    AbstractLedgerTxn& ltx, PoolID const& poolID,
+    UnorderedMap<PoolID, LiquidityPoolParameters> const& ctPoolIdToParam,
+    uint32_t partition)
+{
+    auto pool = stellar::loadLiquidityPool(ltx, poolID);
+    if (!pool)
+    {
+        // This pool may be created in the same ledger
+        auto it = ctPoolIdToParam.find(poolID);
+        if (it != ctPoolIdToParam.end())
+        {
+            auto params = it->second;
+            return replaceIssuerAndGetPoolID(params.constantProduct(),
+                                             partition)
+                .first;
+        }
+
+        // The pool is missing, which means the scaled pool will be missing as
+        // well, so just return the original poolID
+        return poolID;
+    }
+
+    auto& cp = pool.current().data.liquidityPool().body.constantProduct();
+    return replaceIssuerAndGetPoolID(cp.params, partition).first;
+}
+
+void
+generateScaledLiveEntries(
+    std::vector<LedgerEntry>& entries,
+    std::vector<LedgerEntry> const& oldEntries,
+    UnorderedMap<PoolID, LiquidityPoolConstantProductParameters>& poolIDToParam,
+    uint32_t partition)
 {
     entries.clear();
 
-    for (auto const& le : oldEntries)
+    // Iterate in reverse so liquidity pools appear before trustlines. This
+    // allows us to populate poolIDToParam before it's used for trustlines
+    for (auto rit = oldEntries.crbegin(); rit != oldEntries.crend(); ++rit)
     {
+        auto const& le = *rit;
         LedgerEntry newEntry = le;
         if (newEntry.ext.v() == 1 && newEntry.ext.v1().sponsoringID)
         {
@@ -272,6 +331,14 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
             mutateScaledAccountID(newEntry.data.trustLine().accountID,
                                   partition);
             replaceIssuer(newEntry.data.trustLine().asset, partition);
+            if (newEntry.data.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE)
+            {
+                auto lpParams = poolIDToParam.at(
+                    newEntry.data.trustLine().asset.liquidityPoolID());
+
+                newEntry.data.trustLine().asset.liquidityPoolID() =
+                    replaceIssuerAndGetPoolID(lpParams, partition).first;
+            }
             break;
         case DATA:
             mutateScaledAccountID(newEntry.data.data().accountID, partition);
@@ -300,11 +367,19 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
         case LIQUIDITY_POOL:
         {
             auto& cp = newEntry.data.liquidityPool().body.constantProduct();
-            replaceIssuer(cp.params.assetA, partition);
-            replaceIssuer(cp.params.assetB, partition);
 
-            newEntry.data.liquidityPool().liquidityPoolID = generateScaledHash(
-                newEntry.data.liquidityPool().liquidityPoolID, partition);
+            poolIDToParam.emplace(newEntry.data.liquidityPool().liquidityPoolID,
+                                  cp.params);
+
+            auto poolIDSwapPair =
+                replaceIssuerAndGetPoolID(cp.params, partition);
+            if (poolIDSwapPair.second)
+            {
+                std::swap(cp.reserveA, cp.reserveB);
+            }
+            newEntry.data.liquidityPool().liquidityPoolID =
+                poolIDSwapPair.first;
+
             break;
         }
         default:
@@ -349,45 +424,38 @@ scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
 }
 
 void
-generateScaledDeadEntries(std::vector<LedgerKey>& dead,
-                          std::vector<LedgerKey> const& oldKeys,
-                          uint32_t partition)
+generateScaledDeadEntries(
+    std::vector<LedgerKey>& dead, std::vector<LedgerKey> const& oldKeys,
+    UnorderedMap<PoolID, LiquidityPoolConstantProductParameters> const&
+        poolIDToParam,
+    uint32_t partition)
 {
     for (auto const& lk : oldKeys)
     {
         LedgerKey newKey = lk;
 
-        switch (lk.type())
+        if (newKey.type() == LIQUIDITY_POOL)
         {
-        case ACCOUNT:
-            mutateScaledAccountID(newKey.account().accountID, partition);
-            break;
-        case TRUSTLINE:
-            mutateScaledAccountID(newKey.trustLine().accountID, partition);
-            replaceIssuer(newKey.trustLine().asset, partition);
-            break;
-        case DATA:
-            mutateScaledAccountID(newKey.data().accountID, partition);
-            break;
-        case OFFER:
-            mutateScaledAccountID(newKey.offer().sellerID, partition);
-            newKey.offer().offerID =
-                generateScaledOfferID(lk.offer().offerID, partition);
-            break;
-        case CLAIMABLE_BALANCE:
-            newKey.claimableBalance().balanceID.v0() =
-                generateScaledClaimableBalanceID(
-                    newKey.claimableBalance().balanceID.v0(), partition);
-            break;
-        default:
-            abort();
+            auto lpParams =
+                poolIDToParam.at(newKey.liquidityPool().liquidityPoolID);
+
+            newKey.liquidityPool().liquidityPoolID =
+                replaceIssuerAndGetPoolID(lpParams, partition).first;
         }
+        else
+        {
+            scaleNonPoolLedgerKey(newKey, partition);
+        }
+
         dead.emplace_back(newKey);
     }
 }
 
 void
-mutateScaledOperation(Operation& op, uint32_t partition)
+mutateScaledOperation(
+    Operation& op, AbstractLedgerTxn& ltx,
+    UnorderedMap<PoolID, LiquidityPoolParameters>& ctPoolIdToParam,
+    uint32_t partition)
 {
     // Update sourceAccount, if present
     if (op.sourceAccount)
@@ -449,6 +517,13 @@ mutateScaledOperation(Operation& op, uint32_t partition)
         }
         break;
     case CHANGE_TRUST:
+        if (op.body.changeTrustOp().line.type() == ASSET_TYPE_POOL_SHARE)
+        {
+            auto sha = xdrSha256(op.body.changeTrustOp().line.liquidityPool());
+            ctPoolIdToParam.emplace(
+                sha, op.body.changeTrustOp().line.liquidityPool());
+        }
+
         replaceIssuer(op.body.changeTrustOp().line, partition);
         break;
     case ALLOW_TRUST:
@@ -513,6 +588,16 @@ mutateScaledOperation(Operation& op, uint32_t partition)
     case SET_TRUST_LINE_FLAGS:
         mutateScaledAccountID(op.body.setTrustLineFlagsOp().trustor, partition);
         replaceIssuer(op.body.setTrustLineFlagsOp().asset, partition);
+        break;
+    case LIQUIDITY_POOL_DEPOSIT:
+        op.body.liquidityPoolDepositOp().liquidityPoolID = getScaledPoolID(
+            ltx, op.body.liquidityPoolDepositOp().liquidityPoolID,
+            ctPoolIdToParam, partition);
+        break;
+    case LIQUIDITY_POOL_WITHDRAW:
+        op.body.liquidityPoolWithdrawOp().liquidityPoolID = getScaledPoolID(
+            ltx, op.body.liquidityPoolWithdrawOp().liquidityPoolID,
+            ctPoolIdToParam, partition);
         break;
         // Note: don't care about these operations
     case INFLATION:

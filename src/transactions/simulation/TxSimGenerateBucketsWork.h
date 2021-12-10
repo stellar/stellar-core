@@ -5,6 +5,7 @@
 #pragma once
 
 #include "history/HistoryArchive.h"
+#include "util/HashOfHash.h"
 #include "work/BasicWork.h"
 #include <list>
 
@@ -36,7 +37,7 @@ class TxSimGenerateBucketsWork : public BasicWork
     // New HAS is populated incrementally
     HistoryArchiveState mGeneratedApplyState;
     uint32_t const mMultiplier;
-    uint32_t mLevel;
+    int32_t mLevel;
 
     std::shared_ptr<Bucket> mPrevSnap;
 
@@ -44,7 +45,9 @@ class TxSimGenerateBucketsWork : public BasicWork
     std::vector<FutureBucket> mMergesInProgress;
     bool mIsCurr;
 
-    void setFutureBucket(std::shared_ptr<Bucket> const& curr);
+    UnorderedMap<PoolID, LiquidityPoolConstantProductParameters> mPoolIDToParam;
+
+    void setFutureBuckets();
     void startBucketGeneration(std::shared_ptr<Bucket> const& oldBucket);
     bool checkOrStartMerges();
     void processGeneratedBucket();
