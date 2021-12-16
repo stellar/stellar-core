@@ -474,5 +474,7 @@ class Config : public std::enable_shared_from_this<Config>
     static std::string const STDIN_SPECIAL_NAME;
 
     void processOpApplySleepTimeForTestingConfigs();
+
+    std::chrono::seconds HISTOGRAM_WINDOW_SIZE;
 };
 }

@@ -86,7 +86,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStopping(false)
     , mStoppingTimer(*this)
     , mSelfCheckTimer(*this)
-    , mMetrics(std::make_unique<medida::MetricsRegistry>())
+    , mMetrics(
+          std::make_unique<medida::MetricsRegistry>(cfg.HISTOGRAM_WINDOW_SIZE))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
