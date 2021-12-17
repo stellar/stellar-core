@@ -214,6 +214,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
 
+    HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(30);
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -1275,6 +1277,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING")
             {
                 CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
+            }
+            else if (item.first == "HISTOGRAM_WINDOW_SIZE")
+            {
+                auto const s = readInt<uint32_t>(item);
+                // 5 minutes is hardcoded in many places in prometheus.
+                // Thus the window size should divide it evenly.
+                if (300 % s != 0)
+                {
+                    throw std::invalid_argument(
+                        "HISTOGRAM_WINDOW_SIZE must divide 300 evenly");
+                }
+                HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(s);
             }
             else
             {

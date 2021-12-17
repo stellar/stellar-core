@@ -129,6 +129,15 @@ lib/libmedida:
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
 
+lib/libmedida/src/medida/stats/ckms.{cpp,h}
+
+  CKMS implementation from https://github.com/jupp0r/prometheus-cpp
+  Local modifications made by Stellar Development Foundation
+  Copyright 2016-2019 Jupp Mueller
+  Copyright 2017-2019 Gregor Jasny
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
+
 lib/util/uint128_t.h
 
   large_int implementation from https://github.com/zhanhb/int128
