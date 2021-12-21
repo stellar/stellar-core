@@ -1115,9 +1115,18 @@ LedgerTxn::Impl::getChanges()
                 continue;
             }
 
-            auto previous = mParent.getNewestVersion(key);
-            if (previous)
+            if (entry.isInit())
             {
+                changes.emplace_back(LEDGER_ENTRY_CREATED);
+                changes.back().created() = entry->ledgerEntry();
+            }
+            else
+            {
+                auto previous = mParent.getNewestVersion(key);
+                // entry is not init, so previous must exist. If not, then we're
+                // modifying an entry that doesn't exist.
+                releaseAssert(previous);
+
                 changes.emplace_back(LEDGER_ENTRY_STATE);
                 changes.back().state() = previous->ledgerEntry();
 
@@ -1131,15 +1140,6 @@ LedgerTxn::Impl::getChanges()
                     changes.emplace_back(LEDGER_ENTRY_UPDATED);
                     changes.back().updated() = entry->ledgerEntry();
                 }
-            }
-            else
-            {
-                // If !entry and !previous.entry then the entry was created and
-                // erased in this LedgerTxn, in which case it should not still
-                // be in this LedgerTxn
-                releaseAssert(!entry.isDeleted());
-                changes.emplace_back(LEDGER_ENTRY_CREATED);
-                changes.back().created() = entry->ledgerEntry();
             }
         }
     });
