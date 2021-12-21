@@ -138,10 +138,16 @@ InMemoryLedgerTxn::rollbackChild() noexcept
 }
 
 void
-InMemoryLedgerTxn::createOrUpdateWithoutLoading(
-    InternalLedgerEntry const& entry)
+InMemoryLedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
 {
-    LedgerTxn::createOrUpdateWithoutLoading(entry);
+    LedgerTxn::createWithoutLoading(entry);
+    updateLedgerKeyMap(entry.toKey(), true);
+}
+
+void
+InMemoryLedgerTxn::updateWithoutLoading(InternalLedgerEntry const& entry)
+{
+    LedgerTxn::updateWithoutLoading(entry);
     updateLedgerKeyMap(entry.toKey(), true);
 }
 

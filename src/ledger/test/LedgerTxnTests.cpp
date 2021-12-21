@@ -4092,7 +4092,7 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 
     AbstractLedgerTxn* txnRoot =
         static_cast<AbstractLedgerTxn*>(&app->getLedgerTxnRoot());
-    txnRoot->createOrUpdateWithoutLoading(offerEntry);
+    txnRoot->createWithoutLoading(offerEntry);
 
     auto offers = txnRoot->getOffersByAccountAndAsset(a1, cur1);
     REQUIRE(offers.size() == 1);
