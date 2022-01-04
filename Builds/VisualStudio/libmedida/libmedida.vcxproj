@@ -221,6 +221,8 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">4244;4996</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\util.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ckms.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ckms_sample.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ewma.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\sliding_window_sample.cc" />
@@ -245,6 +247,8 @@
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\json_reporter.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\util.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\sampling_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ckms.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ckms_sample.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ewma.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\sample.h" />

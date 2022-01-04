@@ -69,6 +69,12 @@
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\buckets.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ckms.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ckms_sample.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\counter.h">
@@ -145,6 +151,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\buckets.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ckms.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ckms_sample.h">
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
