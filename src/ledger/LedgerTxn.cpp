@@ -843,7 +843,7 @@ LedgerTxn::Impl::getBestOfferSlow(Asset const& buying, Asset const& selling,
             continue;
         }
 
-        if (kv.second)
+        if (!kv.second.isDeleted())
         {
             auto const& le = kv.second->ledgerEntry();
             if (!(le.data.offer().buying == buying &&
@@ -859,7 +859,7 @@ LedgerTxn::Impl::getBestOfferSlow(Asset const& buying, Asset const& selling,
 
             if (!selfBest || isBetterOffer(le, selfBest->ledgerEntry()))
             {
-                selfBest = kv.second;
+                selfBest = kv.second.get();
             }
         }
     }
