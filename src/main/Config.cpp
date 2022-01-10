@@ -51,7 +51,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
     "LOADGEN_OP_COUNT_FOR_TESTING",
     "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
-    "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING"};
+    "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
+    "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -151,6 +152,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = false;
     ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING = false;
+    ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
+        std::chrono::seconds::zero();
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
@@ -986,6 +989,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING =
                     readBool(item);
+            }
+            else if (item.first ==
+                     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING")
+            {
+                ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
+                    std::chrono::seconds(readInt<uint32_t>(item));
             }
             else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
             {
