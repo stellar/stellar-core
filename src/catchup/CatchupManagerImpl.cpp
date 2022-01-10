@@ -221,8 +221,9 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 }
 
 void
-CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                 std::shared_ptr<HistoryArchive> archive)
+CatchupManagerImpl::startCatchup(
+    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
+    std::set<std::shared_ptr<Bucket>> bucketsToRetain)
 {
     ZoneScoped;
     auto lastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
@@ -234,15 +235,24 @@ CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
             configuration.toLedger(), lastClosedLedger));
     }
 
-    auto offlineCatchup = configuration.offline();
+    if (configuration.localBucketsOnly() !=
+        mApp.getLedgerManager().rebuildingInMemoryState())
+    {
+        throw std::invalid_argument(
+            "Local catchup is only valid when rebuilding ledger state");
+    }
+
+    // Offline and local catchup types aren't triggered by buffered ledgers
+    auto offlineCatchup =
+        configuration.offline() || configuration.localBucketsOnly();
     releaseAssert(offlineCatchup == mSyncingLedgers.empty());
 
     releaseAssert(!mCatchupWork);
 
-    // NB: if WorkScheduler is aborting this returns nullptr, but that
+    // NB: if WorkScheduler is aborting this returns nullptr,
     // which means we don't "really" start catchup.
     mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
-        configuration, archive);
+        configuration, bucketsToRetain, archive);
 }
 
 std::string
@@ -354,7 +364,7 @@ CatchupManagerImpl::startOnlineCatchup()
     auto hash = std::make_optional<Hash>(lcd.getTxSet()->previousLedgerHash());
     startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
                   getCatchupCount(), CatchupConfiguration::Mode::ONLINE},
-                 nullptr);
+                 nullptr, {});
 }
 
 void

@@ -155,17 +155,39 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
                           startAtHash, lclHashStr);
                 return nullptr;
             }
-            if (!applyBucketsForLCL(*app))
+
+            auto has = app->getLedgerManager().getLastClosedLedgerHAS();
+
+            // Collect bucket references to pass to catchup _before_ starting
+            // the app, which may trigger garbage collection
+            std::set<std::shared_ptr<Bucket>> retained;
+            for (auto const& b : has.allBuckets())
             {
-                return nullptr;
+                auto bPtr =
+                    app->getBucketManager().getBucketByHash(hexToBin256(b));
+                releaseAssert(bPtr);
+                retained.insert(bPtr);
             }
+
+            // Start the app with LCL set to 0
+            app->getLedgerManager().setupInMemoryStateRebuild();
+            app->start();
+
+            // Set Herder to track the actual LCL
+            app->getHerder().setTrackingSCPState(lcl.header.ledgerSeq,
+                                                 lcl.header.scpValue, true);
+
+            // Schedule the catchup work that will rebuild state
+            auto cc = CatchupConfiguration(has, lcl);
+            app->getLedgerManager().startCatchup(cc, /* archive */ nullptr,
+                                                 retained);
         }
         else
         {
             LedgerNumHashPair pair;
             pair.first = startAtLedger;
             pair.second = std::optional<Hash>(hexToBin256(startAtHash));
-            auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
+            auto mode = CatchupConfiguration::Mode::OFFLINE_BASIC;
             Json::Value catchupInfo;
             int res =
                 catchup(app, CatchupConfiguration{pair, 0, mode}, catchupInfo,
@@ -576,7 +598,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, archive);
+        app->getLedgerManager().startCatchup(cc, archive, {});
     }
     catch (std::invalid_argument const&)
     {

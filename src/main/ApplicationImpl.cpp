@@ -681,14 +681,7 @@ ApplicationImpl::start()
     }
 
     bool done = false;
-    mLedgerManager->loadLastKnownLedger([this,
-                                         &done](asio::error_code const& ec) {
-        if (ec)
-        {
-            throw std::runtime_error(
-                "Unable to restore last-known ledger state");
-        }
-
+    mLedgerManager->loadLastKnownLedger([this, &done]() {
         // restores Herder's state before starting overlay
         mHerder->start();
         // set known cursors before starting maintenance job

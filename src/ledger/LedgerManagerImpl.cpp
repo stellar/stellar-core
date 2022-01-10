@@ -250,9 +250,16 @@ LedgerManagerImpl::startNewLedger()
     startNewLedger(ledger);
 }
 
+static void
+setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    ltx.loadHeader().current() = lh;
+    ltx.commit();
+}
+
 void
-LedgerManagerImpl::loadLastKnownLedger(
-    function<void(asio::error_code const& ec)> handler)
+LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
 {
     ZoneScoped;
     auto ledgerTime = mLedgerClose.TimeScope();
@@ -272,25 +279,35 @@ LedgerManagerImpl::loadLastKnownLedger(
 
         if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
         {
-            auto currentLedger =
-                LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
-            if (!currentLedger)
+            if (mRebuildInMemoryState)
             {
-                throw std::runtime_error("Could not load ledger from database");
+                LedgerHeader lh;
+                CLOG_INFO(Ledger,
+                          "Setting empty ledger while core rebuilds state: {}",
+                          ledgerAbbrev(lh));
+                setLedgerTxnHeader(lh, mApp);
             }
-
-            HistoryArchiveState has = getLastClosedLedgerHAS();
-            if (currentLedger->ledgerSeq != has.currentLedger)
+            else
             {
-                throw std::runtime_error("Invalid database state: last known "
-                                         "ledger does not agree with HAS");
-            }
+                auto currentLedger = LedgerHeaderUtils::loadByHash(
+                    getDatabase(), lastLedgerHash);
+                if (!currentLedger)
+                {
+                    throw std::runtime_error(
+                        "Could not load ledger from database");
+                }
+                HistoryArchiveState has = getLastClosedLedgerHAS();
+                if (currentLedger->ledgerSeq != has.currentLedger)
+                {
+                    throw std::runtime_error(
+                        "Invalid database state: last known "
+                        "ledger does not agree with HAS");
+                }
 
-            CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
-                      ledgerAbbrev(*currentLedger));
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            ltx.loadHeader().current() = *currentLedger;
-            ltx.commit();
+                CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
+                          ledgerAbbrev(*currentLedger));
+                setLedgerTxnHeader(*currentLedger, mApp);
+            }
         }
         else
         {
@@ -306,32 +323,6 @@ LedgerManagerImpl::loadLastKnownLedger(
         if (handler)
         {
             HistoryArchiveState has = getLastClosedLedgerHAS();
-
-            auto continuation = [this, handler,
-                                 has](asio::error_code const& ec) {
-                if (ec)
-                {
-                    handler(ec);
-                }
-                else
-                {
-                    {
-                        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-                        auto header = ltx.loadHeader();
-                        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
-                        {
-                            mApp.getBucketManager().assumeState(
-                                has, header.current().ledgerVersion);
-                            CLOG_INFO(Ledger,
-                                      "Assumed bucket-state for LCL: {}",
-                                      ledgerAbbrev(header.current()));
-                        }
-                        advanceLedgerPointers(header.current());
-                    }
-                    handler(ec);
-                }
-            };
-
             auto missing =
                 mApp.getBucketManager().checkForMissingBucketsFiles(has);
             auto pubmissing = mApp.getHistoryManager()
@@ -346,7 +337,19 @@ LedgerManagerImpl::loadLastKnownLedger(
             }
             else
             {
-                continuation(asio::error_code());
+                {
+                    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+                    auto header = ltx.loadHeader();
+                    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+                    {
+                        mApp.getBucketManager().assumeState(
+                            has, header.current().ledgerVersion);
+                        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                                  ledgerAbbrev(header.current()));
+                    }
+                    advanceLedgerPointers(header.current());
+                }
+                handler();
             }
         }
         else
@@ -354,6 +357,29 @@ LedgerManagerImpl::loadLastKnownLedger(
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
             advanceLedgerPointers(ltx.loadHeader().current());
         }
+    }
+}
+
+bool
+LedgerManagerImpl::rebuildingInMemoryState()
+{
+    return mRebuildInMemoryState;
+}
+
+void
+LedgerManagerImpl::setupInMemoryStateRebuild()
+{
+    if (!mRebuildInMemoryState)
+    {
+        LedgerHeader lh;
+        HistoryArchiveState has;
+        auto& ps = mApp.getPersistentState();
+        ps.setState(PersistentState::kLastClosedLedger,
+                    binToHex(xdrSha256(lh)));
+        ps.setState(PersistentState::kHistoryArchiveState, has.toString());
+        ps.setState(PersistentState::kLastSCPData, "");
+        ps.setState(PersistentState::kLedgerUpgrades, "");
+        mRebuildInMemoryState = true;
     }
 }
 
@@ -512,12 +538,14 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 }
 
 void
-LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                std::shared_ptr<HistoryArchive> archive)
+LedgerManagerImpl::startCatchup(
+    CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
+    std::set<std::shared_ptr<Bucket>> bucketsToRetain)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
-    mApp.getCatchupManager().startCatchup(configuration, archive);
+    mApp.getCatchupManager().startCatchup(configuration, archive,
+                                          bucketsToRetain);
 }
 
 uint64_t
@@ -847,15 +875,16 @@ LedgerManagerImpl::deleteNewerEntries(Database& db, uint32_t ledgerSeq)
 
 void
 LedgerManagerImpl::setLastClosedLedger(
-    LedgerHeaderHistoryEntry const& lastClosed)
+    LedgerHeaderHistoryEntry const& lastClosed, bool storeInDB)
 {
     ZoneScoped;
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
-    storeCurrentLedger(header.current());
+    storeCurrentLedger(header.current(), storeInDB);
     ltx.commit();
 
+    mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
 }
 
@@ -1176,7 +1205,8 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 }
 
 void
-LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
+LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
+                                      bool storeHeader)
 {
     ZoneScoped;
 
@@ -1198,7 +1228,7 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 
-    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS && storeHeader)
     {
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
     }
@@ -1235,7 +1265,7 @@ LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
-        storeCurrentLedger(lh);
+        storeCurrentLedger(lh, /* storeHeader */ true);
         advanceLedgerPointers(lh);
     });
 }
