@@ -196,6 +196,11 @@ class Config : public std::enable_shared_from_this<Config>
     // system.
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
+    // A config parameter that forces a delay in state rebuild via buckets in
+    // captive core. This is useful for testing how stellar-core buffers ledgers
+    // during captive core fast restart.
+    std::chrono::seconds ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
+
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
     // The probability that it sleeps for
