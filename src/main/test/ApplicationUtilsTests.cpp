@@ -12,6 +12,7 @@
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -297,15 +298,89 @@ TEST_CASE("application setup", "[applicationutils]")
                 selectedLedger = lcl.header.ledgerSeq;
                 selectedHash = binToHex(lcl.hash);
 
-                REQUIRE(canRebuildInMemoryLedgerFromBuckets(
-                    selectedLedger, lcl.header.ledgerSeq));
-                auto app = setupApp(cfg2, clock, selectedLedger, selectedHash);
-                REQUIRE(app);
-                REQUIRE(checkState(*app));
-                REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                        selectedLedger);
-                REQUIRE(app->getLedgerManager().getState() ==
-                        LedgerManager::LM_BOOTING_STATE);
+                auto runTest = [&](bool triggerCatchup) {
+                    REQUIRE(canRebuildInMemoryLedgerFromBuckets(
+                        selectedLedger, lcl.header.ledgerSeq));
+                    uint32_t checkpointFrequency = 8;
+
+                    // Depending on how many ledgers we buffer during bucket
+                    // apply, core might trim some and only keep checkpoint
+                    // ledgers. In this case, after bucket application, normal
+                    // catchup will be triggered.
+                    uint32_t delayBuckets = triggerCatchup
+                                                ? (2 * checkpointFrequency)
+                                                : (checkpointFrequency / 2);
+                    cfg2.ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
+                        std::chrono::seconds(delayBuckets);
+                    auto app =
+                        simulation->addNode(vNode2SecretKey, qSet, &cfg2, false,
+                                            selectedLedger, selectedHash);
+                    simulation->addPendingConnection(vNode1NodeID,
+                                                     vNode2NodeID);
+                    REQUIRE(app);
+
+                    simulation->startAllNodes();
+                    // Ensure nodes are connected
+                    if (!app->getConfig().MODE_AUTO_STARTS_OVERLAY)
+                    {
+                        app->getOverlayManager().start();
+                    }
+                    REQUIRE(app->getLedgerManager().getState() ==
+                            LedgerManager::LM_CATCHING_UP_STATE);
+
+                    auto downloaded = app->getCatchupManager()
+                                          .getCatchupMetrics()
+                                          .mCheckpointsDownloaded;
+
+                    // Generate a bit of load, and crank for some time
+                    loadGen.generateLoad(
+                        LoadGenMode::PAY, /* nAccounts */ 10, 0, 10,
+                        /*txRate*/ 1,
+                        /*batchSize*/ 1, std::chrono::seconds(0), 0);
+
+                    auto currLoadGenCount = loadGenDone.count();
+
+                    simulation->crankUntil(
+                        [&]() {
+                            bool loadDone =
+                                loadGenDone.count() > currLoadGenCount;
+                            auto lcl = validator->getLedgerManager()
+                                           .getLastClosedLedgerHeader();
+                            return loadDone &&
+                                   app->getLedgerManager().isSynced();
+                        },
+                        50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+                    // State has been rebuilt and node is properly in sync
+                    REQUIRE(checkState(*app));
+
+                    REQUIRE(
+                        app->getLedgerManager().getLastClosedLedgerNum() ==
+                        validator->getLedgerManager().getLastClosedLedgerNum());
+                    REQUIRE(app->getLedgerManager().isSynced());
+
+                    if (triggerCatchup)
+                    {
+                        REQUIRE(downloaded < app->getCatchupManager()
+                                                 .getCatchupMetrics()
+                                                 .mCheckpointsDownloaded);
+                    }
+                    else
+                    {
+                        REQUIRE(downloaded == app->getCatchupManager()
+                                                  .getCatchupMetrics()
+                                                  .mCheckpointsDownloaded);
+                    }
+                };
+
+                SECTION("replay buffered ledgers")
+                {
+                    runTest(false);
+                }
+                SECTION("trigger catchup")
+                {
+                    runTest(true);
+                }
             }
             SECTION("via catchup")
             {
