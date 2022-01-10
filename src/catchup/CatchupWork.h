@@ -64,6 +64,7 @@ class CatchupWork : public Work
     static uint32_t const PUBLISH_QUEUE_MAX_SIZE;
 
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
+                std::set<std::shared_ptr<Bucket>> bucketsToRetain,
                 std::shared_ptr<HistoryArchive> archive = nullptr);
     virtual ~CatchupWork();
     std::string getStatus() const override;
@@ -98,7 +99,6 @@ class CatchupWork : public Work
 
     std::shared_ptr<BasicWork> mCurrentWork;
 
-    bool hasAnyLedgersToCatchupTo() const;
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     void assertBucketState();
 
@@ -108,5 +108,13 @@ class CatchupWork : public Work
     void downloadApplyTransactions(CatchupRange const& catchupRange);
     void downloadVerifyTxResults(CatchupRange const& catchupRange);
     BasicWork::State runCatchupStep();
+
+    BasicWork::State getAndMaybeSetHistoryArchiveState();
+    BasicWork::State
+    getAndMaybeSetBucketHistoryArchiveState(uint32_t applyBucketsAt);
+
+    std::optional<HistoryArchiveState> mHAS;
+    std::optional<HistoryArchiveState> mBucketHAS;
+    std::set<std::shared_ptr<Bucket>> mRetainedBuckets;
 };
 }

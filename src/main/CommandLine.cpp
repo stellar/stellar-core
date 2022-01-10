@@ -852,7 +852,6 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
             app->start();
             auto const& lm = app->getLedgerManager();
             auto const& hm = app->getHistoryManager();
-            auto const& cm = app->getCatchupManager();
             auto& io = clock.getIOContext();
             asio::io_context::work mainWork(io);
             LedgerNumHashPair authPair;
@@ -1531,7 +1530,7 @@ runSimulateBuckets(CommandLineArgs const& args)
 
                 LOG_INFO(DEFAULT_LOG, "Assuming state for ledger {}",
                          curr.header.ledgerSeq);
-                app->getLedgerManager().setLastClosedLedger(curr);
+                app->getLedgerManager().setLastClosedLedger(curr, true);
                 app->getBucketManager().forgetUnreferencedBuckets();
             }
 

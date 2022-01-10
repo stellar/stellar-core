@@ -57,6 +57,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Counter& mLedgerAge;
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
+    bool mRebuildInMemoryState{false};
 
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
     medida::Timer& mCatchupDuration;
@@ -76,7 +77,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
-    void storeCurrentLedger(LedgerHeader const& header);
+    void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
     void prefetchTransactionData(std::vector<TransactionFrameBasePtr>& txs);
     void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr>& txs);
     void closeLedgerIf(LedgerCloseData const& ledgerData);
@@ -117,8 +118,9 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(
-        std::function<void(asio::error_code const& ec)> handler) override;
+    void loadLastKnownLedger(std::function<void()> handler) override;
+    virtual bool rebuildingInMemoryState() override;
+    virtual void setupInMemoryStateRebuild() override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
@@ -126,8 +128,10 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchup(CatchupConfiguration configuration,
-                      std::shared_ptr<HistoryArchive> archive) override;
+    void
+    startCatchup(CatchupConfiguration configuration,
+                 std::shared_ptr<HistoryArchive> archive,
+                 std::set<std::shared_ptr<Bucket>> bucketsToRetain) override;
 
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
@@ -135,8 +139,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void deleteNewerEntries(Database& db, uint32_t ledgerSeq) override;
 
-    void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
+    void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                             bool storeInDB) override;
 
     void manuallyAdvanceLedgerHeader(LedgerHeader const& header) override;
 

@@ -60,8 +60,10 @@ class CatchupManager
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
     // offline catchups.
-    virtual void startCatchup(CatchupConfiguration configuration,
-                              std::shared_ptr<HistoryArchive> archive) = 0;
+    virtual void
+    startCatchup(CatchupConfiguration configuration,
+                 std::shared_ptr<HistoryArchive> archive,
+                 std::set<std::shared_ptr<Bucket>> bucketsToRetain) = 0;
 
     // Return status of catchup for or empty string, if no catchup in progress
     virtual std::string getStatus() const = 0;

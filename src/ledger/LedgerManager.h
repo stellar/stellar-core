@@ -133,8 +133,12 @@ class LedgerManager
 
     // loads the last ledger information from the database
     // if handler is set, also loads bucket information and invokes handler.
-    virtual void loadLastKnownLedger(
-        std::function<void(asio::error_code const& ec)> handler) = 0;
+    virtual void loadLastKnownLedger(std::function<void()> handler) = 0;
+
+    // Return true if core is currently rebuilding in-memory state via local
+    // catchup
+    virtual bool rebuildingInMemoryState() = 0;
+    virtual void setupInMemoryStateRebuild() = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers
@@ -142,8 +146,10 @@ class LedgerManager
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
     // offline catchups.
-    virtual void startCatchup(CatchupConfiguration configuration,
-                              std::shared_ptr<HistoryArchive> archive) = 0;
+    virtual void
+    startCatchup(CatchupConfiguration configuration,
+                 std::shared_ptr<HistoryArchive> archive,
+                 std::set<std::shared_ptr<Bucket>> bucketsToRetain) = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of
@@ -161,8 +167,8 @@ class LedgerManager
     // everything else > ledgerSeq
     virtual void deleteNewerEntries(Database& db, uint32_t ledgerSeq) = 0;
 
-    virtual void
-    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
+    virtual void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
+                                     bool storeInDB) = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
