@@ -36,7 +36,8 @@ class EntryIterator::AbstractImpl
     virtual bool atEnd() const = 0;
 
     virtual InternalLedgerEntry const& entry() const = 0;
-    virtual std::shared_ptr<InternalLedgerEntry> entryPtr() const = 0;
+
+    virtual LedgerEntryPtr const& entryPtr() const = 0;
 
     virtual bool entryExists() const = 0;
 
@@ -159,9 +160,7 @@ class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
 
-    typedef UnorderedMap<InternalLedgerKey,
-                         std::shared_ptr<InternalLedgerEntry>>
-        EntryMap;
+    typedef UnorderedMap<InternalLedgerKey, LedgerEntryPtr> EntryMap;
 
     AbstractLedgerTxnParent& mParent;
     AbstractLedgerTxn* mChild;
@@ -387,16 +386,10 @@ class LedgerTxn::Impl
     void updateEntryIfRecorded(InternalLedgerKey const& key,
                                bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
-                     EntryMap::iterator const* keyHint,
-                     std::shared_ptr<InternalLedgerEntry> lePtr);
+                     EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr);
     void updateEntry(InternalLedgerKey const& key,
-                     EntryMap::iterator const* keyHint,
-                     std::shared_ptr<InternalLedgerEntry> lePtr,
-                     bool effectiveActive);
-    void updateEntry(InternalLedgerKey const& key,
-                     EntryMap::iterator const* keyHint,
-                     std::shared_ptr<InternalLedgerEntry> lePtr,
-                     bool effectiveActive, bool eraseIfNull) noexcept;
+                     EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr,
+                     bool effectiveActive) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
@@ -527,10 +520,13 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, InternalLedgerKey const& key);
 
-    // createOrUpdateWithoutLoading has the strong exception safety guarantee.
+    // createWithoutLoading has the strong exception safety guarantee.
     // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
-    void createOrUpdateWithoutLoading(LedgerTxn& self,
-                                      InternalLedgerEntry const& entry);
+    void createWithoutLoading(InternalLedgerEntry const& entry);
+
+    // updateWithoutLoading has the strong exception safety guarantee.
+    // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
+    void updateWithoutLoading(InternalLedgerEntry const& entry);
 
     // eraseWithoutLoading has the strong exception safety guarantee. If it
     // throws an exception, then the current LedgerTxn::Impl is unchanged.
@@ -634,7 +630,8 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     bool atEnd() const override;
 
     InternalLedgerEntry const& entry() const override;
-    std::shared_ptr<InternalLedgerEntry> entryPtr() const override;
+
+    LedgerEntryPtr const& entryPtr() const override;
 
     bool entryExists() const override;
 

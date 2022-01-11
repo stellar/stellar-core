@@ -284,6 +284,21 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               changeTrust(usd, 1));
         }
     }
+
+    SECTION("create and delete trustline in same tx")
+    {
+        for_versions_from(13, *app, [&] {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(changeTrust(idr, 100)), root.op(changeTrust(idr, 0))},
+                {});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+        });
+    }
 }
 
 TEST_CASE("change trust pool share trustline",

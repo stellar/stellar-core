@@ -566,7 +566,8 @@ TEST_CASE("LedgerTxn create", "[ledgertxn]")
     }
 }
 
-TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
+TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
+          "[ledgertxn]")
 {
     auto runTest = [&](Config::TestDbMode mode) {
         VirtualClock clock;
@@ -580,7 +581,9 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             LedgerTxn ltx2(ltx1);
-            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+            REQUIRE_THROWS_AS(ltx1.createWithoutLoading(le),
+                              std::runtime_error);
+            REQUIRE_THROWS_AS(ltx1.updateWithoutLoading(le),
                               std::runtime_error);
         }
 
@@ -588,14 +591,16 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             ltx1.getDelta();
-            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+            REQUIRE_THROWS_AS(ltx1.createWithoutLoading(le),
+                              std::runtime_error);
+            REQUIRE_THROWS_AS(ltx1.updateWithoutLoading(le),
                               std::runtime_error);
         }
 
         SECTION("when key does not exist")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+            REQUIRE_NOTHROW(ltx1.createWithoutLoading(le));
             validate(ltx1, {{key,
                              {std::make_shared<InternalLedgerEntry const>(le),
                               nullptr}}});
@@ -605,10 +610,10 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE(ltx1.create(le));
-            REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+            REQUIRE_NOTHROW(ltx1.updateWithoutLoading(le));
 
             LedgerTxn ltx2(ltx1);
-            REQUIRE_NOTHROW(ltx2.createOrUpdateWithoutLoading(le));
+            REQUIRE_NOTHROW(ltx2.updateWithoutLoading(le));
             validate(ltx2,
                      {{key,
                        {std::make_shared<InternalLedgerEntry const>(le),
@@ -620,7 +625,9 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             auto ltxe = ltx1.create(le);
             REQUIRE(ltxe);
-            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+            REQUIRE_THROWS_AS(ltx1.createWithoutLoading(le),
+                              std::runtime_error);
+            REQUIRE_THROWS_AS(ltx1.updateWithoutLoading(le),
                               std::runtime_error);
         }
 
@@ -633,7 +640,7 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
             REQUIRE_NOTHROW(ltx2.erase(key));
 
             LedgerTxn ltx3(ltx2);
-            REQUIRE_NOTHROW(ltx3.createOrUpdateWithoutLoading(le));
+            REQUIRE_NOTHROW(ltx3.createWithoutLoading(le));
             validate(ltx3, {{key,
                              {std::make_shared<InternalLedgerEntry const>(le),
                               nullptr}}});
@@ -1313,6 +1320,28 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
             LedgerTxn ltx3(ltx2);
             REQUIRE(!ltx3.load(key));
             validate(ltx3, {});
+        }
+
+        SECTION("check for init after child commits")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(key));
+            ltx2.commit();
+
+            REQUIRE(ltx1.load(key));
+        }
+
+        SECTION("create, deactivate, and load")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto ltxe = ltx1.create(le);
+            ltxe.deactivate();
+
+            REQUIRE(ltx1.load(key));
+            ltx1.commit();
         }
 
         for_all_versions(*app, [&]() {
@@ -2499,7 +2528,7 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
         LedgerTxn ltx(root);
         for (auto e : entries)
         {
-            ltx.createOrUpdateWithoutLoading(e);
+            ltx.createWithoutLoading(e);
             keysToPrefetch.emplace(LedgerEntryKey(e));
         }
         ltx.commit();
@@ -2559,7 +2588,7 @@ TEST_CASE("Create performance benchmark", "[!hide][createbench]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             for (auto e : entries)
             {
-                ltx.createOrUpdateWithoutLoading(e);
+                ltx.createWithoutLoading(e);
             }
             ltx.commit();
         }
@@ -2579,7 +2608,7 @@ TEST_CASE("Create performance benchmark", "[!hide][createbench]")
                 }
                 else
                 {
-                    ltx.createOrUpdateWithoutLoading(entries.back());
+                    ltx.createWithoutLoading(entries.back());
                 }
                 entries.pop_back();
             }
@@ -2623,7 +2652,7 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             for (auto e : entries)
             {
-                ltx.createOrUpdateWithoutLoading(e);
+                ltx.createWithoutLoading(e);
             }
             ltx.commit();
         }
@@ -2691,7 +2720,7 @@ TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
             LedgerTxn ltx(root);
             for (auto e : entries)
             {
-                ltx.createOrUpdateWithoutLoading(e);
+                ltx.createWithoutLoading(e);
                 keys.insert(LedgerEntryKey(e));
             }
             ltx.commit();
@@ -3296,8 +3325,7 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
             checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b, le4b}}});
         }
 
-        SECTION("createOrUpdateWithoutLoading correctly modifies order book")
-        {
+        auto withoutLoadingTest = [&](bool isCreate) {
             LedgerEntry le1a;
             le1a.data.type(OFFER);
             le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
@@ -3308,10 +3336,22 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
                               le1b.data.offer().selling};
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            ltx.createOrUpdateWithoutLoading(le1a);
+            isCreate ? ltx.createWithoutLoading(le1a)
+                     : ltx.updateWithoutLoading(le1a);
             checkOrderBook(ltx, {{assetsA, {le1a}}});
-            ltx.createOrUpdateWithoutLoading(le1b);
+            isCreate ? ltx.createWithoutLoading(le1b)
+                     : ltx.updateWithoutLoading(le1b);
             checkOrderBook(ltx, {{assetsB, {le1b}}});
+        };
+
+        SECTION("createWithoutLoading correctly modifies order book")
+        {
+            withoutLoadingTest(true);
+        }
+
+        SECTION("updateWithoutLoading correctly modifies order book")
+        {
+            withoutLoadingTest(false);
         }
 
         SECTION("eraseWithoutLoading correctly modifies order book")
@@ -4052,7 +4092,7 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 
     AbstractLedgerTxn* txnRoot =
         static_cast<AbstractLedgerTxn*>(&app->getLedgerTxnRoot());
-    txnRoot->createOrUpdateWithoutLoading(offerEntry);
+    txnRoot->createWithoutLoading(offerEntry);
 
     auto offers = txnRoot->getOffersByAccountAndAsset(a1, cur1);
     REQUIRE(offers.size() == 1);

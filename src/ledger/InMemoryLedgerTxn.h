@@ -59,8 +59,8 @@ class InMemoryLedgerTxn : public LedgerTxn
                      LedgerTxnConsistency cons) noexcept override;
     void rollbackChild() noexcept override;
 
-    void
-    createOrUpdateWithoutLoading(InternalLedgerEntry const& entry) override;
+    void createWithoutLoading(InternalLedgerEntry const& entry) override;
+    void updateWithoutLoading(InternalLedgerEntry const& entry) override;
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
