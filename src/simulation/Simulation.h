@@ -46,8 +46,9 @@ class Simulation
     void setCurrentVirtualTime(VirtualClock::system_time_point t);
 
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                                 Config const* cfg = nullptr,
-                                 bool newDB = true);
+                                 Config const* cfg = nullptr, bool newDB = true,
+                                 uint32_t startAtLedger = 0,
+                                 std::string const& startAtHash = "");
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();

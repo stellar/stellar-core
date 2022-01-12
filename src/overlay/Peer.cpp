@@ -623,6 +623,13 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
+    if (!mApp.getLedgerManager().isSynced() && stellarMsg.type() == TRANSACTION)
+    {
+        // For transactions, exit early during the state rebuild, as we can't
+        // properly verify them
+        return;
+    }
+
     std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
     mApp.postOnMainThread(
         [weak, sm = StellarMessage(stellarMsg), mtype = stellarMsg.type(), cat,

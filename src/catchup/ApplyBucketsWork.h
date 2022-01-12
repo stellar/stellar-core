@@ -45,6 +45,8 @@ class ApplyBucketsWork : public BasicWork
     void startLevel();
     bool isLevelComplete();
 
+    bool mDelayChecked{false};
+
   public:
     ApplyBucketsWork(
         Application& app,

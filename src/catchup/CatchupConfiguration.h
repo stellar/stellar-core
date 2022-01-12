@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
 #include <cstdint>
 #include <optional>
@@ -46,13 +47,19 @@ class CatchupConfiguration
         // Do validity checks on all history archive file types for a given
         // range, regardless of whether files are used or not
         OFFLINE_COMPLETE,
-        ONLINE
+        ONLINE,
+        // Similar to online catchup, except in this mode there is no archive
+        // lookup and validation, rebuild local state present on disk, while
+        // buffering ledgers
+        LOCAL_BUCKETS_ONLY
     };
     static const uint32_t CURRENT = 0;
 
     CatchupConfiguration(uint32_t toLedger, uint32_t count, Mode mode);
     CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count,
                          Mode mode);
+    CatchupConfiguration(HistoryArchiveState has,
+                         LedgerHeaderHistoryEntry lhhe);
 
     /**
      * If toLedger() == CatchupConfiguration::CURRENT it replaces it with
@@ -96,10 +103,31 @@ class CatchupConfiguration
         return mMode == Mode::ONLINE;
     }
 
+    bool
+    localBucketsOnly() const
+    {
+        return mMode == Mode::LOCAL_BUCKETS_ONLY;
+    }
+
+    std::optional<HistoryArchiveState>
+    getHAS() const
+    {
+        return mHAS;
+    }
+
+    std::optional<LedgerHeaderHistoryEntry>
+    getHistoryEntry() const
+    {
+        return mHistoryEntry;
+    }
+
   private:
     uint32_t mCount;
     LedgerNumHashPair mLedgerHashPair;
     Mode mMode;
+    std::optional<HistoryArchiveState> mHAS;
+    std::optional<LedgerHeaderHistoryEntry> mHistoryEntry;
+    void checkInvariants() const;
 };
 
 uint32_t parseLedger(std::string const& str);

@@ -10,9 +10,9 @@
 #include "catchup/CatchupManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
-#include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -153,6 +153,7 @@ ApplyBucketsWork::onReset()
 
     mLevel = BucketList::kNumLevels - 1;
     mApplying = false;
+    mDelayChecked = false;
 
     mSnapBucket.reset();
     mCurrBucket.reset();
@@ -197,6 +198,20 @@ BasicWork::State
 ApplyBucketsWork::onRun()
 {
     ZoneScoped;
+
+    if (mApp.getLedgerManager().rebuildingInMemoryState() && !mDelayChecked)
+    {
+        mDelayChecked = true;
+        auto delay =
+            mApp.getConfig().ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
+        if (delay != std::chrono::seconds::zero())
+        {
+            CLOG_INFO(History, "Delay bucket application by {} seconds",
+                      delay.count());
+            setupWaitingCallback(delay);
+            return State::WORK_WAITING;
+        }
+    }
 
     // Check if we're at the beginning of the new level
     if (isLevelComplete())
@@ -306,8 +321,9 @@ ApplyBucketsWork::isLevelComplete()
 std::string
 ApplyBucketsWork::getStatus() const
 {
+    auto size = mTotalSize == 0 ? 0 : (100 * mAppliedSize / mTotalSize);
     return fmt::format(
-        FMT_STRING("Applying buckets {:d}%. Currently on level {:d}"),
-        (100 * mAppliedSize / mTotalSize), mLevel);
+        FMT_STRING("Applying buckets {:d}%. Currently on level {:d}"), size,
+        mLevel);
 }
 }

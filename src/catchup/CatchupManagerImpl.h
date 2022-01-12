@@ -57,8 +57,10 @@ class CatchupManagerImpl : public CatchupManager
     ~CatchupManagerImpl() override;
 
     void processLedger(LedgerCloseData const& ledgerData) override;
-    void startCatchup(CatchupConfiguration configuration,
-                      std::shared_ptr<HistoryArchive> archive) override;
+    void
+    startCatchup(CatchupConfiguration configuration,
+                 std::shared_ptr<HistoryArchive> archive,
+                 std::set<std::shared_ptr<Bucket>> bucketsToRetain) override;
 
     std::string getStatus() const override;
 
