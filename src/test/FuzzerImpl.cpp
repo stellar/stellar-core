@@ -544,20 +544,28 @@ struct xdr_fuzzer_unpacker
     }
 
     template <typename T>
-    typename std::enable_if<std::is_same<
-        std::uint32_t, typename xdr_traits<T>::uint_type>::value>::type
-    operator()(T& t)
+    T
+    get32()
     {
         // 1 byte --> uint32
         check(1);
         uint32_t w = get_byte();
-        t = xdr_traits<T>::from_uint(w);
+        if (w == UINT8_MAX)
+        {
+            return std::numeric_limits<T>::max();
+        }
+        else if (w == UINT8_MAX - 1)
+        {
+            int64_t maxT = std::numeric_limits<T>::max();
+            return xdr_traits<T>::from_uint(maxT - 1);
+        }
+
+        return xdr_traits<T>::from_uint(w);
     }
 
     template <typename T>
-    typename std::enable_if<std::is_same<
-        std::uint64_t, typename xdr_traits<T>::uint_type>::value>::type
-    operator()(T& t)
+    T
+    get64()
     {
         // 2 bytes --> uint64 **with** "sign extension"
         check(2);
@@ -566,7 +574,32 @@ struct xdr_fuzzer_unpacker
         get_bytes(&w, 2);
         // extend to 64 bit
         int64_t ww = w;
-        t = xdr_traits<T>::from_uint(ww);
+        if (ww == INT16_MAX)
+        {
+            return std::numeric_limits<T>::max();
+        }
+        else if (ww == INT16_MAX - 1)
+        {
+            return std::numeric_limits<T>::max() - 1;
+        }
+
+        return xdr_traits<T>::from_uint(ww);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint32_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T& t)
+    {
+        t = get32<T>();
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint64_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T& t)
+    {
+        t = get64<T>();
     }
 
     template <typename T>
@@ -674,24 +707,6 @@ struct xdr_fuzzer_unpacker
         }
     }
 
-    int32_t
-    getInt32()
-    {
-        check(1);
-        return get_byte();
-    }
-
-    int64_t
-    getInt64()
-    {
-        // 2 bytes
-        check(2);
-        // load into a 16 signed
-        int16_t w;
-        get_bytes(&w, 2);
-        return w;
-    }
-
     // PoolID is just an opaque vector of size 32, so we have to specialize the
     // deposit and withdraw ops instead
     template <typename T>
@@ -704,13 +719,13 @@ struct xdr_fuzzer_unpacker
         stellar::FuzzUtils::setShortKey(mStoredPoolIDs,
                                         depositOp.liquidityPoolID, v);
 
-        depositOp.maxAmountA = getInt64();
-        depositOp.maxAmountB = getInt64();
+        depositOp.maxAmountA = get64<int64_t>();
+        depositOp.maxAmountB = get64<int64_t>();
 
-        auto minN = getInt32();
-        auto minD = getInt32();
-        auto maxN = getInt32();
-        auto maxD = getInt32();
+        auto minN = get32<int32_t>();
+        auto minD = get32<int32_t>();
+        auto maxN = get32<int32_t>();
+        auto maxD = get32<int32_t>();
 
         depositOp.minPrice = stellar::Price{minN, minD};
         depositOp.maxPrice = stellar::Price{maxN, maxD};
@@ -726,9 +741,9 @@ struct xdr_fuzzer_unpacker
         stellar::FuzzUtils::setShortKey(mStoredPoolIDs,
                                         withdrawOp.liquidityPoolID, v);
 
-        withdrawOp.amount = getInt64();
-        withdrawOp.minAmountA = getInt64();
-        withdrawOp.minAmountB = getInt64();
+        withdrawOp.amount = get64<int64_t>();
+        withdrawOp.minAmountA = get64<int64_t>();
+        withdrawOp.minAmountB = get64<int64_t>();
     }
 
     template <typename T>
@@ -1176,8 +1191,8 @@ std::array<TrustLineParameters, 12> constexpr trustLineParameters{
 
      // these 5 trustlines are required for claimable balances
      {2, AssetID(4), 256, 256},
-     {3, AssetID(4), 256, 256},
-     TrustLineParameters::withAllowTrust(4, AssetID(3), 256, 256,
+     {3, AssetID(4), INT64_MAX, 0},
+     TrustLineParameters::withAllowTrust(4, AssetID(3), INT64_MAX, 0,
                                          AUTHORIZED_FLAG),
 
      // deauthorize trustline
@@ -1281,7 +1296,7 @@ struct OfferParameters : public SponsoredEntryParameters
     bool const mPassive;
 };
 
-std::array<OfferParameters, 16> constexpr orderBookParameters{{
+std::array<OfferParameters, 17> constexpr orderBookParameters{{
 
     // The first two order books follow this structure
     // +------------+-----+------+--------+------------------------------+
@@ -1313,6 +1328,8 @@ std::array<OfferParameters, 16> constexpr orderBookParameters{{
     {1, AssetID(2), AssetID(1), 10, 10, 9, false},
     {3, AssetID(2), AssetID(1), 50, 10, 9, false},
     {3, AssetID(2), AssetID(1), 100, 22, 7, false},
+
+    {4, AssetID(4), AssetID(3), INT64_MAX - 50, 1, 1, false},
 
     // offer to trade all of one asset to another up to the trustline limit
     {4, AssetID(2), AssetID(), 256, 1, 1, true},
@@ -1387,9 +1404,14 @@ std::array<PoolSetupParameters,
      // Non-native 2:1
      {2, AssetID(1), AssetID(2), 1000, 500, 2, 1, 2, 1, 1000},
      // Non-native 1:2 sponsored by account 4
-     {3, AssetID(1), AssetID(4), 500, 1000, 1, 2, 1, 2, 1000, 4},
+     {3, AssetID(1), AssetID(3), 500, 1000, 1, 2, 1, 2, 1000, 4},
      // Native no deposit
-     {3, AssetID(), AssetID(4), 0, 0, 0, 0, 0, 0, 1000}}};
+     {3, AssetID(), AssetID(4), 0, 0, 0, 0, 0, 0, 1000},
+     // Non-native no deposit
+     {3, AssetID(2), AssetID(4), 0, 0, 0, 0, 0, 0, 1000},
+     // close to max reserves
+     {3, AssetID(3), AssetID(4), INT64_MAX - 50, INT64_MAX - 50, 1, 1, 1, 1,
+      INT64_MAX}}};
 
 void
 TransactionFuzzer::initialize()
@@ -1415,7 +1437,7 @@ TransactionFuzzer::initialize()
 
     reduceNativeBalancesAfterSetup(ltxOuter);
 
-    reduceTrustLineBalancesAfterSetup(ltxOuter);
+    adjustTrustLineBalancesAfterSetup(ltxOuter);
 
     reduceTrustLineLimitsAfterSetup(ltxOuter);
 
@@ -1546,6 +1568,7 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
         auto trustOp = txtest::changeTrust(
             asset, std::max<int64_t>(FuzzUtils::INITIAL_TRUST_LINE_LIMIT,
                                      trustLine.mAssetAvailableForTestActivity));
+
         trustOp.sourceAccount.activate() = toMuxedAccount(account);
         FuzzUtils::emplaceConditionallySponsored(
             ops, trustOp, trustLine.mSponsored, trustLine.mSponsorKey, account);
@@ -1726,7 +1749,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
 }
 
 void
-TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
+TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
     AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
@@ -1760,6 +1783,8 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
             }
             continue;
         }
+
+        auto const maxRecv = tle.getMaxAmountReceive(ltx.loadHeader());
         auto const availableTLBalance =
             tle.getAvailableBalance(ltx.loadHeader());
         auto const targetAvailableTLBalance =
@@ -1774,6 +1799,18 @@ TransactionFuzzer::reduceTrustLineBalancesAfterSetup(
             reduceNonNativeBalanceOp.sourceAccount.activate() =
                 toMuxedAccount(account);
             ops.emplace_back(reduceNonNativeBalanceOp);
+        }
+        else if (availableTLBalance < targetAvailableTLBalance && maxRecv > 0 &&
+                 (!trustLine.mCallAllowTrustOp ||
+                  trustLine.mAllowTrustFlags & AUTHORIZED_FLAG))
+        {
+            auto increaseNonNativeBalanceOp = txtest::payment(
+                account, asset,
+                std::min(targetAvailableTLBalance - availableTLBalance,
+                         maxRecv));
+            increaseNonNativeBalanceOp.sourceAccount.activate() =
+                toMuxedAccount(issuer);
+            ops.emplace_back(increaseNonNativeBalanceOp);
         }
     }
 
@@ -1801,9 +1838,13 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
 
         // Reduce this trustline's limit.
         auto tle = stellar::loadTrustLine(ltx, account, asset);
+        auto const balancePlusBuyLiabilities =
+            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader());
         auto const targetTrustLineLimit =
-            tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader()) +
-            trustLine.mSpareLimitAfterSetup;
+            INT64_MAX - trustLine.mSpareLimitAfterSetup <
+                    balancePlusBuyLiabilities
+                ? INT64_MAX
+                : balancePlusBuyLiabilities + trustLine.mSpareLimitAfterSetup;
 
         auto changeTrustLineLimitOp =
             txtest::changeTrust(asset, targetTrustLineLimit);

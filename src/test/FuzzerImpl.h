@@ -28,7 +28,7 @@ StoredLedgerKeys::difference_type static constexpr NUM_UNVALIDATED_LEDGER_KEYS =
 size_t static constexpr NUM_VALIDATED_LEDGER_KEYS =
     NUM_STORED_LEDGER_KEYS - NUM_UNVALIDATED_LEDGER_KEYS;
 
-size_t static constexpr NUM_STORED_POOL_IDS = 0x5U;
+size_t static constexpr NUM_STORED_POOL_IDS = 0x7U;
 using StoredPoolIDs = std::array<PoolID, NUM_STORED_POOL_IDS>;
 }
 
@@ -54,7 +54,7 @@ class TransactionFuzzer : public Fuzzer
     void initializeOffers(AbstractLedgerTxn& ltxOuter);
     void initializeLiquidityPools(AbstractLedgerTxn& ltxOuter);
     void reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
-    void reduceTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
+    void adjustTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
     void reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter);
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
