@@ -85,8 +85,8 @@ GetHistoryArchiveStateWork::doWork()
     {
         auto name = getRemoteName();
         CLOG_INFO(History, "Downloading history archive state: {}", name);
-        mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
-                                                    mArchive, mRetries);
+        mGetRemoteFile = addWork<GetRemoteFileWork>(
+            name, mLocalFilename, mArchive, BasicWork::RETRY_NEVER);
         return State::WORK_RUNNING;
     }
 }

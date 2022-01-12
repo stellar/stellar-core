@@ -393,8 +393,9 @@ VirtualClock::duration
 BasicWork::getRetryDelay() const
 {
     // Cap to 512 sec or ~8 minutes
-    uint64_t m = 2ULL << std::min(uint64_t(8), uint64_t(mRetries));
-    return std::chrono::seconds(rand_uniform<uint64_t>(1ULL, m));
+    uint64_t upperBound = 1ULL << std::min(uint64_t(9), uint64_t(mRetries));
+    uint64_t lowerBound = upperBound < 2 ? uint64_t(1) : (upperBound / 2 + 1);
+    return std::chrono::seconds(rand_uniform<uint64_t>(lowerBound, upperBound));
 }
 
 uint64_t

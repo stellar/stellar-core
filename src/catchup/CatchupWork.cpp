@@ -312,8 +312,10 @@ CatchupWork::getAndMaybeSetHistoryArchiveState()
                     ? CatchupConfiguration::CURRENT
                     : mApp.getHistoryManager().checkpointContainingLedger(
                           mCatchupConfiguration.toLedger());
+            // Set retries to 10 to ensure we retry enough in case current
+            // checkpoint isn't published yet
             mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-                toCheckpoint, mArchive, true);
+                toCheckpoint, mArchive, true, 10);
             mCurrentWork = mGetHistoryArchiveStateWork;
             return State::WORK_RUNNING;
         }
