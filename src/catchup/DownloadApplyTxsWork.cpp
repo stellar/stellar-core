@@ -12,6 +12,7 @@
 #include "ledger/LedgerManager.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkSequence.h"
+#include "work/WorkWithCallback.h"
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -136,6 +137,15 @@ DownloadApplyTxsWork::yieldMoreWork()
         seq.push_back(std::make_shared<ConditionalWork>(
             mApp, "wait-merges" + apply->getName(), maybeWaitForMerges, apply));
     }
+
+    seq.push_back(std::make_shared<WorkWithCallback>(
+        mApp, "delete-transactions-" + std::to_string(mCheckpointToQueue),
+        [ft](Application& app) {
+            CLOG_DEBUG(History, "Deleting transactions {}",
+                       ft.localPath_nogz());
+            std::filesystem::remove(std::filesystem::path(ft.localPath_nogz()));
+            return true;
+        }));
 
     auto nextWork = std::make_shared<WorkSequence>(
         mApp, "download-apply-" + std::to_string(mCheckpointToQueue), seq,
