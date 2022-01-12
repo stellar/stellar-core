@@ -678,6 +678,8 @@ LedgerTxnRoot::Impl::dropOffers()
            ");";
     mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
                               "(sellingasset,buyingasset,price,offerid);";
+    mDatabase.getSession() << "CREATE INDEX offerbyseller ON offers "
+                              "(sellerid);";
     if (!mDatabase.isSqlite())
     {
         mDatabase.getSession() << "ALTER TABLE offers "
