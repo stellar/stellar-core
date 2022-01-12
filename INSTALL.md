@@ -24,13 +24,22 @@ Alternatively, branches are organized in the following way:
 For convenience, we also keep a record in the form of release tags of the
  versions that make it to production:
  * pre-releases are versions that get deployed to testnet
- * releases are versions that made it all the way in prod
+ * releases are versions that made it all the way to production
 
 ## Containerized dev environment
 
 We maintain a pre-configured Docker configuration ready for development with VSCode.
 
 See the [dev container's README](.devcontainer/README.md) for more detail.
+
+## Runtime dependencies
+
+`stellar-core` does not have many dependencies.
+
+If core was configured (see below) to work with Postgresql, a local Postgresql server
+ will need to be deployed to the same host.
+
+To install Postgresql, follow instructions from the [Postgresql download page](https://www.postgresql.org/download/).
 
 ## Build Dependencies
 
