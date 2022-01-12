@@ -95,11 +95,23 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
     if (found)
     {
         LOG_INFO(DEFAULT_LOG, "Found the existing minimal database");
-        app->getLedgerManager().loadLastKnownLedger(nullptr);
-        auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        LOG_INFO(DEFAULT_LOG, "Current in-memory state, got LCL: {}", lcl);
 
-        if (!canRebuildInMemoryLedgerFromBuckets(startAtLedger, lcl))
+        // DB state might be set to 0 if core previously exited while rebuilding
+        // state. In this case, we want to rebuild the DB from scratch
+        bool rebuildDB =
+            app->getLedgerManager().getLastClosedLedgerHAS().currentLedger <
+            LedgerManager::GENESIS_LEDGER_SEQ;
+
+        if (!rebuildDB)
+        {
+            app->getLedgerManager().loadLastKnownLedger(nullptr);
+            auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+            LOG_INFO(DEFAULT_LOG, "Current in-memory state, got LCL: {}", lcl);
+            rebuildDB =
+                !canRebuildInMemoryLedgerFromBuckets(startAtLedger, lcl);
+        }
+
+        if (rebuildDB)
         {
             LOG_INFO(DEFAULT_LOG, "Cannot restore the in-memory state, "
                                   "rebuilding the state from scratch");
