@@ -5,6 +5,7 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerHashUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/HashOfHash.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
 
@@ -162,12 +163,12 @@ InternalLedgerKey::hash() const
         res = std::hash<stellar::LedgerKey>()(ledgerKey());
         break;
     case stellar::InternalLedgerEntryType::SPONSORSHIP:
-        res = shortHash::computeHash(stellar::ByteSlice(
-            sponsorshipKey().sponsoredID.ed25519().data(), 8));
+        res = std::hash<stellar::uint256>()(
+            sponsorshipKey().sponsoredID.ed25519());
         break;
     case stellar::InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        res = shortHash::computeHash(stellar::ByteSlice(
-            sponsorshipCounterKey().sponsoringID.ed25519().data(), 8));
+        res = std::hash<stellar::uint256>()(
+            sponsorshipCounterKey().sponsoringID.ed25519());
         break;
     default:
         abort();
