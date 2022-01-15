@@ -208,7 +208,7 @@ The `make check` command runs tests and supports parallelization. This functiona
 * `TEST_SPEC`: Used to run just a subset of the tests (default: "~[.]")
 * `NUM_PARTITIONS`: Partitions the test suite (after applying `TEST_SPEC`) into
 `$NUM_PARTITIONS` disjoint sets (default: 1)
-* `BATCH_SIZE`: The number of tests to be batched together to reduce setup overhead. (default: 5)
+* `BATCHSIZE`: The number of tests to be batched together to reduce setup overhead. (default: 5)
 * `RUN_PARTITIONS`: Run only a subset of the partitions, indexed from 0
 (default: "$(seq 0 $((NUM_PARTITIONS-1)))")
 * `TEMP_POSTGRES`: Automatically generates temporary database clusters instead
