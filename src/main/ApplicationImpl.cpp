@@ -200,23 +200,24 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
         }
 
         tx.commit();
-    }
 
-    // No transaction is needed. ApplyBucketsWork breaks the apply into many
-    // small chunks, each of which has its own transaction. If it fails at some
-    // point in the middle, then rebuildledger will not be cleared so this will
-    // run again on next start up.
-    if (applyBuckets)
-    {
-        LOG_INFO(DEFAULT_LOG, "Rebuilding ledger tables by applying buckets");
-        auto filter = [&toRebuild](LedgerEntryType t) {
-            return toRebuild.find(t) != toRebuild.end();
-        };
-        if (!applyBucketsForLCL(app, filter))
+        // No transaction is needed. ApplyBucketsWork breaks the apply into many
+        // small chunks, each of which has its own transaction. If it fails at
+        // some point in the middle, then rebuildledger will not be cleared so
+        // this will run again on next start up.
+        if (applyBuckets)
         {
-            throw std::runtime_error("Could not rebuild ledger tables");
+            LOG_INFO(DEFAULT_LOG,
+                     "Rebuilding ledger tables by applying buckets");
+            auto filter = [&toRebuild](LedgerEntryType t) {
+                return toRebuild.find(t) != toRebuild.end();
+            };
+            if (!applyBucketsForLCL(app, filter))
+            {
+                throw std::runtime_error("Could not rebuild ledger tables");
+            }
+            LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
         }
-        LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
 
     for (auto let : toRebuild)
