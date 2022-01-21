@@ -199,7 +199,7 @@ TxSimGenerateBucketsWork::setFutureBuckets()
             // anyway
             std::vector<std::shared_ptr<Bucket>> shadows;
             mGeneratedApplyState.currentBuckets[i].next =
-                FutureBucket(mApp, curr, prevSnapBucket, shadows,
+                FutureBucket(mApp, preparedCurr, prevSnapBucket, shadows,
                              snapVersion, false, i);
         }
     }
