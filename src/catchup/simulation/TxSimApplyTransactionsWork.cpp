@@ -615,7 +615,7 @@ TxSimApplyTransactionsWork::onReset()
         auto txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
 
         sv.txSetHash = txSet->getContentsHash();
-        sv.closeTime = header.scpValue.closeTime + 1;
+        sv.closeTime = mHeaderHistory.header.scpValue.closeTime;
 
         LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
         lm.closeLedger(closeData);
@@ -684,7 +684,7 @@ TxSimApplyTransactionsWork::onRun()
 
     StellarValue sv;
     sv.txSetHash = txSet->getContentsHash();
-    sv.closeTime = header.scpValue.closeTime + 1;
+    sv.closeTime = mHeaderHistory.header.scpValue.closeTime;
     sv.upgrades.insert(sv.upgrades.begin(), upgrades.begin(), upgrades.end());
 
     LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
