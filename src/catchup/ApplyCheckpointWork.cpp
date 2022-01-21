@@ -65,12 +65,18 @@ ApplyCheckpointWork::getStatus() const
 }
 
 void
-ApplyCheckpointWork::onReset()
+ApplyCheckpointWork::closeFiles()
 {
     mHdrIn.close();
     mTxIn.close();
-    mConditionalWork.reset();
     mFilesOpen = false;
+}
+
+void
+ApplyCheckpointWork::onReset()
+{
+    mConditionalWork.reset();
+    closeFiles();
 }
 
 void
@@ -280,6 +286,7 @@ ApplyCheckpointWork::onRun()
 
     if (done)
     {
+        closeFiles();
         return State::WORK_SUCCESS;
     }
 

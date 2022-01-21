@@ -61,6 +61,8 @@ class ApplyCheckpointWork : public BasicWork
 
     std::shared_ptr<LedgerCloseData> getNextLedgerCloseData();
 
+    void closeFiles();
+
   public:
     ApplyCheckpointWork(Application& app, TmpDir const& downloadDir,
                         LedgerRange const& range, OnFailureCallback cb);
