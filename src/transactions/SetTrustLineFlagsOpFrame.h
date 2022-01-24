@@ -4,26 +4,44 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/OperationFrame.h"
+#include "transactions/TrustFlagsOpFrameBase.h"
 
 namespace stellar
 {
 class AbstractLedgerTxn;
 
-class SetTrustLineFlagsOpFrame : public OperationFrame
+class SetTrustLineFlagsOpFrame : public TrustFlagsOpFrameBase
 {
-    ThresholdLevel getThresholdLevel() const override;
     SetTrustLineFlagsResult&
     innerResult()
     {
         return mResult.tr().setTrustLineFlagsResult();
     }
 
-    bool isAuthRevocationValid(AbstractLedgerTxn& ltx);
-
     SetTrustLineFlagsOp const& mSetTrustLineFlags;
 
     uint32_t mOpIndex;
+
+    void setResultSelfNotAllowed() override;
+    void setResultNoTrustLine() override;
+    void setResultLowReserve() override;
+    void setResultSuccess() override;
+
+    bool isAuthRevocationValid(AbstractLedgerTxn& ltx,
+                               bool& authRevocable) override;
+    bool isRevocationToMaintainLiabilitiesValid(bool authRevocable,
+                                                LedgerTxnEntry const& trust,
+                                                uint32_t flags) override;
+
+    AccountID const& getOpTrustor() const override;
+    Asset const& getOpAsset() const override;
+    uint32_t getOpIndex() const override;
+
+    bool calcExpectedFlagValue(LedgerTxnEntry const& trust,
+                               uint32_t& expectedVal) override;
+
+    void setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
+                      uint32_t flagVal) override;
 
   public:
     SetTrustLineFlagsOpFrame(Operation const& op, OperationResult& res,
@@ -31,7 +49,6 @@ class SetTrustLineFlagsOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
