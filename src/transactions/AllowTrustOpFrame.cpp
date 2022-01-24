@@ -16,145 +16,133 @@
 namespace stellar
 {
 
-void
-setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-              uint32_t authorized)
-{
-    if (!trustLineFlagIsValid(authorized, header))
-    {
-        throw std::runtime_error("trying to set invalid trust line flag");
-    }
-
-    if ((authorized & ~TRUSTLINE_AUTH_FLAGS) != 0)
-    {
-        throw std::runtime_error(
-            "setAuthorized can only modify authorization flags");
-    }
-
-    auto& tl = entry.current().data.trustLine();
-
-    tl.flags &= ~TRUSTLINE_AUTH_FLAGS;
-    tl.flags |= authorized;
-}
-
 AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx, uint32_t index)
-    : OperationFrame(op, res, parentTx)
+    : TrustFlagsOpFrameBase(op, res, parentTx)
     , mAllowTrust(mOperation.body.allowTrustOp())
     , mAsset(getAsset(getSourceID(), mAllowTrust.asset))
     , mOpIndex(index)
 {
 }
 
-ThresholdLevel
-AllowTrustOpFrame::getThresholdLevel() const
+void
+AllowTrustOpFrame::setResultSelfNotAllowed()
 {
-    return ThresholdLevel::LOW;
+    innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
+}
+
+void
+AllowTrustOpFrame::setResultNoTrustLine()
+{
+    innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
+}
+
+void
+AllowTrustOpFrame::setResultLowReserve()
+{
+    innerResult().code(ALLOW_TRUST_LOW_RESERVE);
+}
+
+void
+AllowTrustOpFrame::setResultSuccess()
+{
+    innerResult().code(ALLOW_TRUST_SUCCESS);
+}
+
+AccountID const&
+AllowTrustOpFrame::getOpTrustor() const
+{
+    return mAllowTrust.trustor;
+}
+
+Asset const&
+AllowTrustOpFrame::getOpAsset() const
+{
+    return mAsset;
+}
+
+uint32_t
+AllowTrustOpFrame::getOpIndex() const
+{
+    return mOpIndex;
 }
 
 bool
-AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
+AllowTrustOpFrame::calcExpectedFlagValue(LedgerTxnEntry const& trust,
+                                         uint32_t& expectedVal)
 {
-    ZoneNamedN(applyZone, "AllowTrustOp apply", true);
-    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    if (ledgerVersion > 2)
+    expectedVal = trust.current().data.trustLine().flags;
+    expectedVal &= ~TRUSTLINE_AUTH_FLAGS;
+    expectedVal |= mAllowTrust.authorize;
+    return true;
+}
+
+void
+AllowTrustOpFrame::setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
+                                uint32_t flagVal)
+{
+    if (!trustLineFlagIsValid(mAllowTrust.authorize, ltx.loadHeader()))
     {
-        if (mAllowTrust.trustor == getSourceID())
-        {
-            // since version 3 it is not allowed to use ALLOW_TRUST on self
-            innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
-            return false;
-        }
+        throw std::runtime_error("trying to set invalid trust line flag");
     }
 
-    bool authNotRevocable;
+    if ((mAllowTrust.authorize & ~TRUSTLINE_AUTH_FLAGS) != 0)
     {
-        LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
-        auto header = ltxSource.loadHeader();
-        auto sourceAccountEntry = loadSourceAccount(ltxSource, header);
-        auto const& sourceAccount = sourceAccountEntry.current().data.account();
-        if (header.current().ledgerVersion < 16 &&
-            !(sourceAccount.flags & AUTH_REQUIRED_FLAG))
-        {
-            innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
-            return false;
-        }
-
-        authNotRevocable = !(sourceAccount.flags & AUTH_REVOCABLE_FLAG);
-        if (authNotRevocable && mAllowTrust.authorize == 0)
-        {
-            innerResult().code(ALLOW_TRUST_CANT_REVOKE);
-            return false;
-        }
+        throw std::runtime_error(
+            "AllowTrustOp can only modify authorization flags");
     }
 
-    // Only possible in ledger version 1 and 2
-    if (mAllowTrust.trustor == getSourceID())
+    auto trust = ltx.load(key);
+    trust.current().data.trustLine().flags = flagVal;
+}
+
+bool
+AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
+                                         bool& authRevocable)
+{
+    // Load the source account
+    LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
+    auto header = ltxSource.loadHeader();
+    auto sourceAccountEntry = loadSourceAccount(ltxSource, header);
+    auto const& sourceAccount = sourceAccountEntry.current().data.account();
+
+    // Check if the source account doesn't require authorization check
+    // Only valid for earlier versions.
+    if (header.current().ledgerVersion < 16 &&
+        !(sourceAccount.flags & AUTH_REQUIRED_FLAG))
     {
-        innerResult().code(ALLOW_TRUST_SUCCESS);
-        return true;
+        innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
+        return false;
     }
 
-    LedgerKey key(TRUSTLINE);
-    key.trustLine().accountID = mAllowTrust.trustor;
-    key.trustLine().asset = assetToTrustLineAsset(mAsset);
-
-    bool shouldRemoveOffers = false;
+    // Check if the source has the authorization to revoke access
+    authRevocable = sourceAccount.flags & AUTH_REVOCABLE_FLAG;
+    if (!authRevocable && mAllowTrust.authorize == 0)
     {
-        auto trust = ltx.load(key);
-        if (!trust)
-        {
-            innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
-            return false;
-        }
-
-        // There are two cases where we set the result to
-        // ALLOW_TRUST_CANT_REVOKE -
-        // 1. We try to revoke authorization when AUTH_REVOCABLE_FLAG is not set
-        // (This is done above when we call loadSourceAccount)
-        // 2. We try to go from AUTHORIZED_FLAG to
-        // AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG when AUTH_REVOCABLE_FLAG is
-        // not set
-        if (authNotRevocable &&
-            (isAuthorized(trust) &&
-             (mAllowTrust.authorize & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)))
-        {
-            innerResult().code(ALLOW_TRUST_CANT_REVOKE);
-            return false;
-        }
-
-        shouldRemoveOffers = isAuthorizedToMaintainLiabilities(trust) &&
-                             mAllowTrust.authorize == 0;
+        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+        return false;
     }
 
-    if (ledgerVersion >= 10 && shouldRemoveOffers)
+    return true;
+}
+
+bool
+AllowTrustOpFrame::isRevocationToMaintainLiabilitiesValid(
+    bool authRevocable, LedgerTxnEntry const& trust, uint32_t flags)
+{
+    // There are two cases where we set the result to
+    // ALLOW_TRUST_CANT_REVOKE -
+    // 1. We try to revoke authorization when AUTH_REVOCABLE_FLAG is not set
+    // (This is handled in isAuthRevocationValid)
+    // 2. We try to go from AUTHORIZED_FLAG to
+    // AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG when AUTH_REVOCABLE_FLAG is
+    // not set. This is handled here.
+    if (!authRevocable && (isAuthorized(trust) &&
+                           (flags & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)))
     {
-        // Delete all offers owned by the trustor that are either buying or
-        // selling the asset which had authorization revoked. Also redeem pool
-        // share trustlines owned by the trustor that use this asset
-        auto res = removeOffersAndPoolShareTrustLines(
-            ltx, mAllowTrust.trustor, mAsset, mParentTx.getSourceID(),
-            mParentTx.getSeqNum(), mOpIndex);
-
-        switch (res)
-        {
-        case RemoveResult::SUCCESS:
-            break;
-        case RemoveResult::LOW_RESERVE:
-            innerResult().code(ALLOW_TRUST_LOW_RESERVE);
-            return false;
-        case RemoveResult::TOO_MANY_SPONSORING:
-            mResult.code(opTOO_MANY_SPONSORING);
-            return false;
-        default:
-            throw std::runtime_error("Unexpected RemoveResult");
-        }
+        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+        return false;
     }
-
-    auto trustLineEntry = ltx.load(key);
-    setAuthorized(ltx.loadHeader(), trustLineEntry, mAllowTrust.authorize);
-
-    innerResult().code(ALLOW_TRUST_SUCCESS);
     return true;
 }
 
