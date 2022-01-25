@@ -16,7 +16,7 @@
 
 using namespace stellar;
 
-auto max = std::numeric_limits<uint32_t>::max();
+auto maxCount = std::numeric_limits<uint32_t>::max();
 namespace stellar
 {
 std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
@@ -24,18 +24,18 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     // catchup to ledger in middle of first checkpoint
     {1, {2, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {2, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {1, {2, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {1, {2, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at the end of first checkpoint
     {1, {63, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {63, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {63, 2, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {1, {63, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {1, {63, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of second checkpoint
     {1, {64, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {64, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {64, 2, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {64, 3, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {1, {64, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {1, {64, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at end of some checkpoint
     {1, {191, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {191, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -43,7 +43,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {1, {191, 65, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {191, 66, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {191, 128, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {1, {191, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {1, {191, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of some checkpoint
     {1, {320, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {320, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -53,18 +53,18 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {1, {320, 67, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {320, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {1, {320, 320, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {1, {320, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {1, {320, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
 
     // almost one checkpoint in database
     // catchup to ledger at the end of first checkpoint
     {62, {63, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {63, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {63, 2, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {62, {63, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {62, {63, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of second checkpoint
     {62, {64, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {64, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {62, {64, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {62, {64, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at end of some checkpoint
     {62, {319, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {319, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -73,7 +73,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {62, {319, 129, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {319, 130, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {319, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {62, {319, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {62, {319, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of some checkpoint
     {62, {320, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {320, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -81,13 +81,13 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {62, {320, 67, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {320, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {62, {320, 320, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {62, {320, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {62, {320, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
 
     // one checkpoint in database
     // catchup to ledger at start of second checkpoint
     {63, {64, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {64, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {63, {64, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {63, {64, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at end of some checkpoint
     {63, {319, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {319, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -96,7 +96,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {63, {319, 129, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {319, 130, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {319, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {63, {319, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {63, {319, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of some checkpoint
     {63, {320, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {320, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -104,7 +104,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {63, {320, 67, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {320, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {63, {320, 320, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {63, {320, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {63, {320, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
 
     // one checkpoint and one ledger in database
     // catchup to ledger at end of some checkpoint
@@ -113,7 +113,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {64, {319, 65, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {64, {319, 66, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {64, {319, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {64, {319, max, CatchupConfiguration::Mode::OFFLINE_BASIC}},
+    {64, {319, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     // catchup to ledger at start of some checkpoint
     {64, {320, 0, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {64, {320, 1, CatchupConfiguration::Mode::OFFLINE_BASIC}},
@@ -121,7 +121,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {64, {320, 67, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {64, {320, 319, CatchupConfiguration::Mode::OFFLINE_BASIC}},
     {64, {320, 320, CatchupConfiguration::Mode::OFFLINE_BASIC}},
-    {64, {320, max, CatchupConfiguration::Mode::OFFLINE_BASIC}}};
+    {64, {320, maxCount, CatchupConfiguration::Mode::OFFLINE_BASIC}}};
 }
 
 TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
