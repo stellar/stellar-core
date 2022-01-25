@@ -597,7 +597,7 @@ testCKMSSample(int const count, Args... args)
 
 TEST_CASE("CKMSSample uniform distribution", "[medida_math]")
 {
-    testCKMSSample<uniform_u64>(10000, 0, 1e9);
+    testCKMSSample<uniform_u64>(10000, 0, 1000000000ull);
 }
 
 TEST_CASE("CKMSSample gamma distribution", "[medida_math]")
