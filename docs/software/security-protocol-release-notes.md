@@ -53,6 +53,14 @@ It then follows that:
 
 # List of releases
 
+## v18.0.1 (2021-10-04)
+
+* `Ledger` - protocol - fixed a rounding issue when initializing a liquidity pool. No impact as this was discovered before the main network upgrade to protocol 18.
+
+## v18.0.0 (2021-09-27)
+
+* `Ledger` - protocol - CAP0038 - Automated Market Makers
+
 ## v17.0.0 (2021-04-26)
 
 * `Ledger` - protocol - CAP0035 - Asset Clawback
