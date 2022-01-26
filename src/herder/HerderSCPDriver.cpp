@@ -1034,6 +1034,23 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     }
 
     // Compute prepare time
+    // The 'threshold' here acts as a filter to coarsely exclude from
+    // metric-recording events that occur "too close together". This
+    // happens when the current node is not actually keeping up with
+    // consensus (i.e. not participating meaningfully): it receives bursts
+    // of SCP messages that traverse all SCP states "instantly". If we
+    // record those events it gives the misleading impression of the node
+    // going "super fast", which is not really accurate: the node is
+    // actually going so slow nobody's even listening to it anymore, it's
+    // just being dragged along with its quorum.
+    //
+    // Unfortunately by excluding these "too fast" events we produce a
+    // different distortion in that case: we record so few events that the
+    // node looks like it's "going fast" from mere _sparsity of data_, the
+    // summary metric only recording a handful of samples. What you want
+    // to look at -- any time you're examining SCP phase-timing data -- is
+    // the combination of this timer _and_ the lag timers that say whether
+    // the node is so lagged that nobody's listening to it.
     if (SCPTiming.mPrepareStart)
     {
         recordLogTiming(*SCPTiming.mPrepareStart, externalizeStart,
