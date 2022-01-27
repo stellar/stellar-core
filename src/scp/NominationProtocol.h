@@ -109,6 +109,9 @@ class NominationProtocol
 
     Json::Value getJsonInfo();
 
+    SCP::QuorumInfoNodeState getState(NodeID const& node,
+                                      bool selfAlreadyMovedOn);
+
     SCPEnvelope const*
     getLastMessageSend() const
     {
@@ -123,5 +126,10 @@ class NominationProtocol
     // returns the latest message from a node
     // or nullptr if not found
     SCPEnvelope const* getLatestMessage(NodeID const& id) const;
+
+  private:
+    // The number of times the timer has expired
+    // Used for the quorum endpoint.
+    int32 mTimerExpCount;
 };
 }

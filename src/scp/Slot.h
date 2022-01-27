@@ -158,6 +158,13 @@ class Slot : public std::enable_shared_from_this<Slot>
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
                                   bool fullKeys = false);
 
+    // Calculate the state of the given node
+    // We decide how aggressive we want to be based on whether
+    // we're checking this slot primarily, or we are checking old slots
+    // since we could not determine the state of this node in a newer slot.
+    SCP::QuorumInfoNodeState getState(NodeID const& node,
+                                      bool selfAlreadyMovedOn);
+
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.
     // note: the companion hash for an EXTERNALIZE statement does
@@ -192,6 +199,10 @@ class Slot : public std::enable_shared_from_this<Slot>
         NOMINATION_TIMER = 0,
         BALLOT_PROTOCOL_TIMER = 1
     };
+
+    // The number of times the timer has to expire before we consider the node
+    // missing. Used for reporting purposes only.
+    static int32 const NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING = 2;
 
   protected:
     std::vector<SCPEnvelope> getEntireCurrentState();

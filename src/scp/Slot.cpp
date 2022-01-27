@@ -371,6 +371,17 @@ Slot::getJsonInfo(bool fullKeys)
     return ret;
 }
 
+SCP::QuorumInfoNodeState
+Slot::getState(NodeID const& node, bool selfAlreadyMovedOn)
+{
+    auto b = mBallotProtocol.getState(node, selfAlreadyMovedOn);
+    if (b != SCP::QuorumInfoNodeState::NO_INFO)
+    {
+        return b;
+    }
+    return mNominationProtocol.getState(node, selfAlreadyMovedOn);
+}
+
 Json::Value
 Slot::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 {
