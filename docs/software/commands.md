@@ -55,7 +55,7 @@ Command options can only by placed after command.
   specified in the stellar-core.cfg. This will write a
   `.well-known/stellar-history.json` file in the archive root.
 * **offline-info**: Returns an output similar to `--c info` for an offline
-  instance
+  instance, but written directly to standard output (ignoring log levels).
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
   object. If FILE-NAME is "stdin", the XDR object is read from standard input.<br>
   Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
