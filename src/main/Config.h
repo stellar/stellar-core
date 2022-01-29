@@ -324,6 +324,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> KNOWN_CURSORS;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
+    // min ledger version for which internal errors are reported with high
+    // severity
+    uint32_t LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
     VirtualClock::system_time_point TESTING_UPGRADE_DATETIME;
 
     // maximum allowed drift for close time when joining the network for the

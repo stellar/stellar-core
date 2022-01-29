@@ -740,6 +740,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   TransactionMeta& outerMeta)
 {
     ZoneScoped;
+    auto& internalErrorCounter = app.getMetrics().NewCounter(
+        {"ledger", "transaction", "internal-error"});
+    bool reportInternalErrOnException = true;
     try
     {
         bool success = true;
@@ -750,7 +753,12 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
         uint32_t ledgerVersion = ltxTx.loadHeader().current().ledgerVersion;
-
+        // We do not want to increase the internal-error metric count for older
+        // ledger versions. The minimum ledger version for which we start
+        // internal-error counting is defined in the app config.
+        reportInternalErrOnException =
+            ledgerVersion >=
+            app.getConfig().LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
         for (auto& op : mOperations)
@@ -826,22 +834,50 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     }
     catch (std::exception& e)
     {
-        CLOG_ERROR(Tx, "Exception while applying operations ({}, {}): {}",
-                   xdr_to_string(getFullHash(), "fullHash"),
-                   xdr_to_string(getContentsHash(), "contentsHash"), e.what());
+        if (reportInternalErrOnException)
+        {
+            CLOG_ERROR(Tx, "Exception while applying operations ({}, {}): {}",
+                       xdr_to_string(getFullHash(), "fullHash"),
+                       xdr_to_string(getContentsHash(), "contentsHash"),
+                       e.what());
+        }
+        else
+        {
+            CLOG_INFO(Tx,
+                      "Exception occurred on outdated protocol version "
+                      "while applying operations ({}, {}): {}",
+                      xdr_to_string(getFullHash(), "fullHash"),
+                      xdr_to_string(getContentsHash(), "contentsHash"),
+                      e.what());
+        }
     }
     catch (...)
     {
-        CLOG_ERROR(Tx, "Unknown exception while applying operations ({}, {})",
-                   xdr_to_string(getFullHash(), "fullHash"),
-                   xdr_to_string(getContentsHash(), "contentsHash"));
+        if (reportInternalErrOnException)
+        {
+            CLOG_ERROR(Tx,
+                       "Unknown exception while applying operations ({}, {})",
+                       xdr_to_string(getFullHash(), "fullHash"),
+                       xdr_to_string(getContentsHash(), "contentsHash"));
+        }
+        else
+        {
+            CLOG_INFO(Tx,
+                      "Unknown exception on outdated protocol version "
+                      "while applying operations ({}, {})",
+                      xdr_to_string(getFullHash(), "fullHash"),
+                      xdr_to_string(getContentsHash(), "contentsHash"));
+        }
     }
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
 
-    auto& internalErrorCounter = app.getMetrics().NewCounter(
-        {"ledger", "transaction", "internal-error"});
-    internalErrorCounter.inc();
+    // We only increase the internal-error metric count if the ledger is a newer
+    // version.
+    if (reportInternalErrOnException)
+    {
+        internalErrorCounter.inc();
+    }
 
     // operations and txChangesAfter should already be empty at this point
     outerMeta.v2().operations.clear();
