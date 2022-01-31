@@ -2089,6 +2089,19 @@ void
 LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
                                        bool effectiveActive)
 {
+    // This early return is just an optimization. updateEntryIfRecorded does not
+    // end up modifying mEntry because it loads the entry here, and then
+    // attempts to update that same entry in updateEntry using the identical one
+    // that was loaded. It just refreshes mMultiOrderBook in updateEntry, so
+    // there's nothing to do if the entry is not an offer. If updateEntry is
+    // updated in the future to maintain additional state outside of mEntry,
+    // this optimization might have to be modified.
+    if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY ||
+        key.ledgerKey().type() != OFFER)
+    {
+        return;
+    }
+
     auto entryIter = mEntry.find(key);
     // If loadWithoutRecord was used, then key may not be in mEntry. But if key
     // is not in mEntry, then there is no reason to have an entry in the order
@@ -2097,15 +2110,6 @@ LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
     {
         updateEntry(key, &entryIter, entryIter->second, effectiveActive);
     }
-}
-
-void
-LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator const* keyHint,
-                             LedgerEntryPtr lePtr)
-{
-    bool effectiveActive = mActive.find(key) != mActive.end();
-    updateEntry(key, keyHint, lePtr, effectiveActive);
 }
 
 void
