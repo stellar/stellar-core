@@ -386,8 +386,6 @@ class LedgerTxn::Impl
     void updateEntryIfRecorded(InternalLedgerKey const& key,
                                bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
-                     EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr);
-    void updateEntry(InternalLedgerKey const& key,
                      EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr,
                      bool effectiveActive) noexcept;
 

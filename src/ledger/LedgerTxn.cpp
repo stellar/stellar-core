@@ -2115,15 +2115,6 @@ LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
 void
 LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
                              EntryMap::iterator const* keyHint,
-                             LedgerEntryPtr lePtr)
-{
-    bool effectiveActive = mActive.find(key) != mActive.end();
-    updateEntry(key, keyHint, lePtr, effectiveActive);
-}
-
-void
-LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
-                             EntryMap::iterator const* keyHint,
                              LedgerEntryPtr lePtr,
                              bool effectiveActive) noexcept
 {
