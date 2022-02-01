@@ -1218,6 +1218,9 @@
     <ClCompile Include="..\..\src\util\RandHasher.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2119,6 +2122,9 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\util\stdrandom.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -371,6 +371,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
@@ -742,6 +743,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
     <ClInclude Include="..\..\src\util\numeric128.h" />
