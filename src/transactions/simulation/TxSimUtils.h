@@ -5,6 +5,7 @@
 #pragma once
 
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerTxn.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
@@ -22,18 +23,28 @@ int64_t generateScaledOfferID(OperationResult const& result,
                               uint32_t partition);
 Hash generateScaledClaimableBalanceID(OperationResult const& result,
                                       uint32_t partition);
+
 Hash generateScaledClaimableBalanceID(Hash const& balanceID,
                                       uint32_t partition);
-void generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
-                               std::vector<LedgerEntry> const& oldEntries,
-                               uint32_t partition);
-void generateScaledDeadEntries(std::vector<LedgerKey>& keys,
-                               std::vector<LedgerKey> const& oldKeys,
-                               uint32_t partition);
+void generateScaledLiveEntries(
+    std::vector<LedgerEntry>& entries,
+    std::vector<LedgerEntry> const& oldEntries,
+    UnorderedMap<PoolID, LiquidityPoolConstantProductParameters>& poolIDToParam,
+    uint32_t partition);
+
+void generateScaledDeadEntries(
+    std::vector<LedgerKey>& keys, std::vector<LedgerKey> const& oldKeys,
+    UnorderedMap<PoolID, LiquidityPoolConstantProductParameters> const&
+        poolIDToParam,
+    uint32_t partition);
+
 SignerKey generateScaledEd25519Signer(Signer const& signer, uint32_t partition);
 
 SecretKey mutateScaledAccountID(AccountID& acc, uint32_t partition);
 SecretKey mutateScaledAccountID(MuxedAccount& acc, uint32_t partition);
-void mutateScaledOperation(Operation& op, uint32_t partition);
+void mutateScaledOperation(
+    Operation& op, AbstractLedgerTxn& ltx,
+    UnorderedMap<PoolID, LiquidityPoolParameters>& ctPoolIdToParam,
+    uint32_t partition);
 }
 }

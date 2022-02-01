@@ -45,6 +45,9 @@ Use `ops-per-ledger` flag when running the command to provide desired number of 
 ##### Mimic network traffic
 Without `ops-per-ledger` flag specified, number of operations per ledger will match scaled public network traffic.
 
+#### Tx result verification
+We recommend passing the `--verify` flag to `generate-transactions` and `simulate-transactions`, which will compare scaled tx results against the original and log the differences. 
+
 #### Application order 
 Transactions are generated and applied such that given a multiplier M, a stream tx_1, tx_2, ..., tx_K is converted to
 tx_1_1, tx_1_2, ... tx_1_M, tx_2_1, tx_2_2, ..., tx_2_M, ..., tx_K_1, tx_K_2, ..., tx_K_M
