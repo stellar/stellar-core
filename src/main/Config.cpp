@@ -196,8 +196,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
 
-    MINIMUM_IDLE_PERCENT = 0;
-
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
     // we're not able to do short high-priority background tasks like merging
@@ -1026,12 +1024,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 LOG_COLOR = readBool(item);
             }
-            else if (item.first == "TMP_DIR_PATH")
-            {
-                throw std::invalid_argument("TMP_DIR_PATH is not supported "
-                                            "anymore - tmp data is now kept in "
-                                            "BUCKET_DIR_PATH/tmp");
-            }
             else if (item.first == "BUCKET_DIR_PATH")
             {
                 BUCKET_DIR_PATH = readString(item);
@@ -1155,10 +1147,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
                 MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
-            }
-            else if (item.first == "MINIMUM_IDLE_PERCENT")
-            {
-                MINIMUM_IDLE_PERCENT = readInt<uint32_t>(item, 0, 100);
             }
             else if (item.first == "QUORUM_INTERSECTION_CHECKER")
             {
