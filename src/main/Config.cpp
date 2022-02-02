@@ -196,8 +196,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
 
-    MINIMUM_IDLE_PERCENT = 0;
-
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
     // we're not able to do short high-priority background tasks like merging
@@ -862,7 +860,8 @@ Config::processOpApplySleepTimeForTestingConfigs()
 void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
 {
-    auto logIfSet = [](auto& item, auto const& message) {
+    auto logIfSet = [](auto& item, auto const& message)
+    {
         if (item.second->template as<bool>())
         {
             if (item.second->template as<bool>()->get())
@@ -1026,12 +1025,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 LOG_COLOR = readBool(item);
             }
-            else if (item.first == "TMP_DIR_PATH")
-            {
-                throw std::invalid_argument("TMP_DIR_PATH is not supported "
-                                            "anymore - tmp data is now kept in "
-                                            "BUCKET_DIR_PATH/tmp");
-            }
             else if (item.first == "BUCKET_DIR_PATH")
             {
                 BUCKET_DIR_PATH = readString(item);
@@ -1156,10 +1149,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
             }
-            else if (item.first == "MINIMUM_IDLE_PERCENT")
-            {
-                MINIMUM_IDLE_PERCENT = readInt<uint32_t>(item, 0, 100);
-            }
             else if (item.first == "QUORUM_INTERSECTION_CHECKER")
             {
                 QUORUM_INTERSECTION_CHECKER = readBool(item);
@@ -1262,11 +1251,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 auto input = readIntArray<uint32>(item);
                 OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(input.size());
                 // Convert uint32 to std::chrono::microseconds
-                std::transform(
-                    input.begin(), input.end(),
-                    std::back_inserter(
-                        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                    [](uint32 x) { return std::chrono::microseconds(x); });
+                std::transform(input.begin(), input.end(),
+                               std::back_inserter(
+                                   OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                               [](uint32 x)
+                               { return std::chrono::microseconds(x); });
             }
             else if (item.first == "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING")
             {
@@ -1429,7 +1418,8 @@ Config::adjust()
         auto outboundPendingRate =
             double(TARGET_PEER_CONNECTIONS) / totalAuthenticatedConnections;
 
-        auto doubleToNonzeroUnsignedShort = [](double v) {
+        auto doubleToNonzeroUnsignedShort = [](double v)
+        {
             auto rounded = static_cast<int>(std::ceil(v));
             auto cappedToUnsignedShort = std::min<int>(
                 std::numeric_limits<unsigned short>::max(), rounded);
@@ -1519,10 +1509,12 @@ void
 Config::validateConfig(ValidationThresholdLevels thresholdLevel)
 {
     std::set<NodeID> nodes;
-    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n) {
-        nodes.insert(n);
-        return true;
-    });
+    LocalNode::forAllNodes(QUORUM_SET,
+                           [&](NodeID const& n)
+                           {
+                               nodes.insert(n);
+                               return true;
+                           });
 
     if (nodes.empty())
     {
@@ -1759,9 +1751,8 @@ Config::expandNodeID(const std::string& s) const
             ? validatorMatcher_t{[&](std::pair<std::string, std::string> const&
                                          p) { return p.second == arg; }}
             : validatorMatcher_t{
-                  [&](std::pair<std::string, std::string> const& p) {
-                      return p.first.compare(0, arg.size(), arg) == 0;
-                  }};
+                  [&](std::pair<std::string, std::string> const& p)
+                  { return p.first.compare(0, arg.size(), arg) == 0; }};
 
     auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
                            validatorMatcher);
@@ -1907,7 +1898,8 @@ Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
     auto todo = validators;
     // first, sort by quality (desc), homedomain (asc)
     std::sort(todo.begin(), todo.end(),
-              [](ValidatorEntry const& l, ValidatorEntry const& r) {
+              [](ValidatorEntry const& l, ValidatorEntry const& r)
+              {
                   if (l.mQuality > r.mQuality)
                   {
                       return true;
@@ -1928,8 +1920,8 @@ Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
 std::string
 Config::toString(SCPQuorumSet const& qset)
 {
-    auto json = LocalNode::toJson(
-        qset, [&](PublicKey const& k) { return toShortString(k); });
+    auto json = LocalNode::toJson(qset, [&](PublicKey const& k)
+                                  { return toShortString(k); });
     Json::StyledWriter fw;
     return fw.write(json);
 }

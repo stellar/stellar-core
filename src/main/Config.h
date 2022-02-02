@@ -379,14 +379,6 @@ class Config : public std::enable_shared_from_this<Config>
     // Whether to exclude peers that are not preferred.
     bool PREFERRED_PEERS_ONLY;
 
-    // Percentage, between 0 and 100, of system activity (measured in terms
-    // of both event-loop cycles and database time) below-which the system
-    // will consider itself "loaded" and attempt to shed load. Set this
-    // number low and the system will be tolerant of overloading. Set it
-    // high and the system will be intolerant. By default it is 0, meaning
-    // totally insensitive to overloading.
-    uint32_t MINIMUM_IDLE_PERCENT;
-
     // thread-management config
     int WORKER_THREADS;
 
