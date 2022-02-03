@@ -217,6 +217,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(30);
 
+    HALT_ON_INTERNAL_TRANSACTION_ERROR = false;
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -1286,6 +1288,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                         "HISTOGRAM_WINDOW_SIZE must divide 300 evenly");
                 }
                 HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(s);
+            }
+            else if (item.first == "HALT_ON_INTERNAL_TRANSACTION_ERROR")
+            {
+                HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
             }
             else
             {
