@@ -57,7 +57,8 @@ enum OperationType
     CLAWBACK_CLAIMABLE_BALANCE = 20,
     SET_TRUST_LINE_FLAGS = 21,
     LIQUIDITY_POOL_DEPOSIT = 22,
-    LIQUIDITY_POOL_WITHDRAW = 23
+    LIQUIDITY_POOL_WITHDRAW = 23,
+    INVOKE_CONTRACT = 24
 };
 
 /* CreateAccount
@@ -465,6 +466,231 @@ struct LiquidityPoolWithdrawOp
     int64 minAmountB;     // minimum amount of second asset to withdraw
 };
 
+
+/*
+* Smart Contracts deal in SCVals. These are a (dynamic) disjoint union between
+* several possible variants, to allow storing generic SCVals in generic data
+* structures and passing them in and out of languages that have simple or
+* dynamic type systems.
+*
+* SCVals are (in WASM's case) stored in a 64-bit word encoding that is
+* compatible with NaN-boxing, so this dictates the encoding space available to
+* use for payload and variants.
+*
+* To be clear, in this version, floating point isn't actually supported and no
+* FP operations are involved; we're just using a bit-pattern assignment within
+* u64 words that's future-proofed against FP showing up and needing bits.
+*
+* NaNs have the top 13 bits set, so you can picture the space of non-NaN
+* doubles, a single canonical NaN, and "the additional space of non-canonoical
+* NaNs" schematically like so:
+*
+* xxxx_xxxx_xxxx_xxxx <-- used by non-NaN doubles
+* FFF7_xxxx_xxxx_xxxx <-- the highest non-NaN double
+* FFF8_0000_0000_0000 <-- used for _one_ canonical NaN double
+* FFF9_xxxx_xxxx_xxxx <-- 48-bit payload for 1st union case
+* FFFA_...
+* FFFB_...
+* FFFC_...
+* FFFD_...
+* FFFE_...
+* FFFF_xxxx_xxxx_xxxx <-- 48-bit payload for 7th union case
+*
+* For convenience and codesize, we use a slightly different encoding of
+* the payload when interacting with a specific contract VM -- adding 7 *
+* 2^48 to the payload to shift the doubles up and use the lower bit-space for
+* tags -- so we wind up with the following:
+*
+* 0000_xxxx_xxxx_xxxx <-- 48-bit payload for union case 0
+* 0001_...
+* 0002_...
+* 0003_...
+* 0004_...
+* 0005_...
+* 0006_xxxx_xxxx_xxxx <-- 48-bit payload for union case 6
+* 0007_0000_0000_0000 <-- the lowest non-NaN double
+* FFFE_FFFF_FFFF_FFFF <-- the highest non-NaN double
+* FFFF_FFFF_FFFF_FFFF <-- used for _one_ canonical NaN double
+*
+* Abstractly we divide up these 7 union cases as follows:
+*
+*   0: "static" values like void, bools, error codes, anything pure / without identity
+*      and with a comparatively-small enumerated set of possible values.
+*
+*   1: General u32 values
+*
+*   2: General i32 values
+*
+*   3: "symbol" values that encode a small 48-bit packed string composed of identifier
+*      characters from the range [a-zA-Z0-9_] -- these can be stored in 6 bits each,
+*      so symbols can be up to 8 characters long.
+*
+*   4: "bitset" values that encode a set of 48 flags with meaning chosen by the user.
+*      larger bitsets can go in literal or handle spaces.
+*
+*   5: "timept" values that encode a 48-bit count of seconds since the unix epoch,
+*      which gives 8 million years before overflowing to literal or handle spaces.
+*
+*   6: "object" values that use integer handles to denote SCObjects by reference.
+* 
+* Up here in XDR we have variable-length tagged disjoint unions but no bit-level
+* packing, so we can be more explicit in their structure, at the cost of spending more
+* than 64 bits to encode many cases, and also having to convert. It's a little
+* non-obvious at the XDR level why there's a split between SCVal and SCObject given
+* that they are both immutable types with value semantics; but the split reflects the
+* split that happens in the implementation, and marks a place where different
+* implementations of immutability (CoW, structural sharing, etc.) will likely occur.
+*
+* (We may also change semantics in the future to have SCObjects be mutable after all)
+*/
+
+// A symbol is up to 8 chars drawn from [a-zA-Z0-9_], which can be packed into
+// 48 bits with a 6-bit-per-character code, usable as a small key type to
+// specify function, argument, tx-local environment and map entries efficiently.
+typedef string SCSymbol<8>;
+
+// SCLedgerValType enumerates all the stellar-ledger-specific types that
+// are likely to be used as single scalar values (namely: map keys) in smart
+// contracts but aren't LedgerKeys themselves.
+enum SCLedgerValType
+{
+    SCLV_MUXEDACCOUNT = 0,
+    SCLV_ASSET = 1,
+    SCLV_AMOUNT = 2,
+    SCLV_ASSET_AMOUNT = 3,
+    SCLV_PRICE = 4,
+    SCLV_TIMEPOINT = 5
+    // TODO: add more
+};
+
+union SCLedgerVal switch (SCLedgerValType type) {
+    case SCLV_MUXEDACCOUNT:
+        MuxedAccount muxedAccountVal;
+    case SCLV_ASSET:
+        Asset assetVal;
+    case SCLV_AMOUNT:
+        int64 amountVal;
+    case SCLV_ASSET_AMOUNT:
+        struct {
+            Asset assetVal;
+            int64 amountVal;
+        } assetAmountVal;
+    case SCLV_PRICE:
+        Price priceVal;
+    case SCLV_TIMEPOINT:
+        TimePoint timeVal;
+};
+
+enum SCValType
+{
+    SCV_VOID = 0,
+    SCV_BOOL = 1,
+    SCV_ERR = 2,
+    SCV_U32 = 3,
+    SCV_I32 = 4,
+    SCV_SYMBOL = 5,
+    SCV_BITSET = 6,
+    SCV_TIMEPT = 7,
+    SCV_OBJECT = 8
+};
+
+% struct SCObject;
+
+union SCVal switch (SCValType type) {
+    case SCV_VOID:
+        void;
+    case SCV_BOOL:
+        bool b;
+    case SCV_ERR:
+        uint32 err;
+    case SCV_U32:
+        uint32 u32;
+    case SCV_I32:
+        int32 i32;
+    case SCV_SYMBOL:
+        SCSymbol sym;
+    case SCV_BITSET:
+        uint64 bits;
+    case SCV_TIMEPT:
+        uint64 time;
+    case SCV_OBJECT:
+        SCObject *obj;
+};
+
+enum SCObjectType {
+    SCO_BOX = 0,
+    SCO_VEC = 1,
+    SCO_MAP = 2,
+    SCO_U64 = 3,
+    SCO_I64 = 4,
+    SCO_STRING = 5,
+    SCO_BINARY = 6,
+    SCO_LEDGERKEY = 7,
+    SCO_LEDGERVAL = 8,
+    SCO_OPERATION = 9,
+    SCO_TRANSACTION = 10
+};
+
+struct SCMapEntry {
+    SCVal key;
+    SCVal val;
+};
+
+
+typedef SCVal SCVec<>;
+typedef SCMapEntry SCMap<>;
+
+% struct Transaction;
+% struct Operation;
+
+union SCObject switch (SCObjectType type) {
+    case SCO_BOX:
+        SCVal box;
+    case SCO_VEC:
+        SCVec vec;
+    case SCO_MAP:
+        SCMap map;
+    case SCO_U64:
+        uint64 u64;
+    case SCO_I64:
+        int64 i64;
+    case SCO_STRING:
+        string str<>;
+    case SCO_BINARY:
+        opaque bin<>;
+    case SCO_LEDGERKEY:
+        LedgerKey lkey;
+    case SCO_LEDGERVAL:
+        SCLedgerVal lval;
+    case SCO_OPERATION:
+        Operation *op;
+    case SCO_TRANSACTION:
+        Transaction *tx;
+};
+
+struct SCEnvEntry {
+    SCSymbol key;
+    SCVal val;
+};
+typedef SCEnvEntry SCEnv<>;
+
+/* Invoke a smart contract
+
+   Threshold: med
+
+   Result: InvokeContractResult
+*/
+struct InvokeContractOp
+{
+    AccountID owner;
+    int64 contractID;
+    SCEnv locals; // Any op-local values to add to environment.
+    SCSymbol function; // Function to invoke in contract.
+    SCSymbol arguments<>; // Args to take from env and pass to function.
+    SCSymbol *definition; // Optional env entry to update with result.
+    SCSymbol *predicate; // Optional env entry to predicate call on non-error value of.
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -523,6 +749,8 @@ struct Operation
         LiquidityPoolDepositOp liquidityPoolDepositOp;
     case LIQUIDITY_POOL_WITHDRAW:
         LiquidityPoolWithdrawOp liquidityPoolWithdrawOp;
+    case INVOKE_CONTRACT:
+        InvokeContractOp invokeContractOp;
     }
     body;
 };
@@ -1415,6 +1643,49 @@ default:
     void;
 };
 
+/******* InvokeContract Result ********/
+
+enum InvokeContractResultCode
+{
+    INVOKE_CONTRACT_SUCCESS = 0,
+    INVOKE_CONTRACT_TRAPPED = -1,
+    INVOKE_CONTRACT_HOST_ERR = -2,
+    INVOKE_CONTRACT_MALFORMED = -3,
+    INVOKE_CONTRACT_OUT_OF_GAS = -4
+};
+
+enum WasmTrapCode {
+    WASM_TRAP_UNSPECIFIED = 0, // For engines that don't differentiate traps.
+    WASM_TRAP_OUT_OF_BOUNDS_MEMORY_ACCESS = -1,
+    WASM_TRAP_DIVISION_BY_ZERO = -2,
+    WASM_TRAP_INTEGER_OVERFLOW = -3,
+    WASM_TRAP_INTEGER_CONVERSION = -4,
+    WASM_TRAP_INDIRECT_CALL_TYPE_MISMATCH = -5,
+    WASM_TRAP_TABLE_INDEX_OUT_OF_RANGE = -6,
+    WASM_TRAP_TABLE_ELEMENT_IS_NULL = -7,
+    WASM_TRAP_EXIT = -8,
+    WASM_TRAP_ABORT = -9,
+    WASM_TRAP_UNREACHABLE = -10,
+    WASM_TRAP_STACK_OVERFLOW = -11
+};
+
+union InvokeContractResult switch (
+    InvokeContractResultCode code)
+{
+case INVOKE_CONTRACT_SUCCESS:
+    SCVal returnVal;
+case INVOKE_CONTRACT_TRAPPED:
+    union switch (ContractCodeType type) {
+        case CONTRACT_CODE_WASM:
+            WasmTrapCode wasmTrap;
+        default:
+            void;
+    } trapCode;
+default:
+    void;
+};
+
+
 /* High level Operation Result */
 enum OperationResultCode
 {
@@ -1481,6 +1752,8 @@ case opINNER:
         LiquidityPoolDepositResult liquidityPoolDepositResult;
     case LIQUIDITY_POOL_WITHDRAW:
         LiquidityPoolWithdrawResult liquidityPoolWithdrawResult;
+    case INVOKE_CONTRACT:
+        InvokeContractResult invokeContractResult;
     }
     tr;
 default:

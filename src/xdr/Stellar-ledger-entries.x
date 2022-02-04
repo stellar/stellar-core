@@ -97,7 +97,9 @@ enum LedgerEntryType
     OFFER = 2,
     DATA = 3,
     CLAIMABLE_BALANCE = 4,
-    LIQUIDITY_POOL = 5
+    LIQUIDITY_POOL = 5,
+    CONTRACT_CODE = 6,
+    CONTRACT_DATA = 7
 };
 
 struct Signer
@@ -473,6 +475,36 @@ struct LiquidityPoolEntry
     body;
 };
 
+enum ContractCodeType {
+    CONTRACT_CODE_WASM = 0
+};
+
+struct ContractCodeEntry {
+    AccountID owner;
+    int64 contractID;
+    union switch (ContractCodeType type)
+    {
+    case CONTRACT_CODE_WASM:
+        struct
+        {
+            opaque code<65536>;
+        } wasm;
+    } body;
+};
+
+struct ContractDataEntry {
+    AccountID owner;
+    int64 contractID;
+    union switch (ContractCodeType type)
+    {
+    case CONTRACT_CODE_WASM:
+        struct
+        {
+            opaque data<65536>;
+        } wasm;
+    } body;
+};
+
 struct LedgerEntryExtensionV1
 {
     SponsorshipDescriptor sponsoringID;
@@ -503,6 +535,10 @@ struct LedgerEntry
         ClaimableBalanceEntry claimableBalance;
     case LIQUIDITY_POOL:
         LiquidityPoolEntry liquidityPool;
+    case CONTRACT_CODE:
+        ContractCodeEntry contractCode;
+    case CONTRACT_DATA:
+        ContractDataEntry contractData;
     }
     data;
 
@@ -557,6 +593,18 @@ case LIQUIDITY_POOL:
     {
         PoolID liquidityPoolID;
     } liquidityPool;
+case CONTRACT_CODE:
+    struct
+    {
+        AccountID owner;
+        int64 contractID;
+    } contractCode;
+case CONTRACT_DATA:
+    struct
+    {
+        AccountID owner;
+        int64 contractID;
+    } contractData;
 };
 
 // list of all envelope types used in the application
