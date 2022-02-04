@@ -239,19 +239,11 @@ runApp(Application::pointer app)
         return 1;
     }
 
-    try
+    auto& io = app->getClock().getIOContext();
+    asio::io_context::work mainWork(io);
+    while (!io.stopped())
     {
-        auto& io = app->getClock().getIOContext();
-        asio::io_context::work mainWork(io);
-        while (!io.stopped())
-        {
-            app->getClock().crank();
-        }
-    }
-    catch (std::exception const& e)
-    {
-        LOG_FATAL(DEFAULT_LOG, "Got an exception: {}", e.what());
-        throw; // propagate exception (core dump, etc)
+        app->getClock().crank();
     }
     return 0;
 }

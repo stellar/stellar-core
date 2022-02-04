@@ -385,10 +385,11 @@ AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
 AC_ARG_ENABLE(libunwind,
     AS_HELP_STRING([--disable-libunwind],
         [Disable backtraces using libunwind]))
-if test x"$enable_libunwind" = xyes; then
+if test x"$enable_libunwind" != xno; then
     case "${host_os}" in
         *darwin*)
             # libunwind comes standard with the command-line tools on macos
+            AC_MSG_NOTICE([using platform-native libunwind])
             AC_DEFINE([HAVE_LIBUNWIND], [1],
                 [Define to 1 if you have the <libunwind.h> header file])
             ;;
@@ -417,6 +418,8 @@ if test x"$enable_libunwind" = xyes; then
             esac
             ;;
     esac
+else
+  AC_MSG_NOTICE([not using libunwind as it was not requested])
 fi
 
 # Need this to pass through ccache for xdrpp, libsodium
