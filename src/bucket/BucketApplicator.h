@@ -49,12 +49,17 @@ class BucketApplicator
         uint64_t mClaimableBalanceDelete;
         uint64_t mLiquidityPoolUpsert;
         uint64_t mLiquidityPoolDelete;
+        uint64_t mContractCodeUpsert;
+        uint64_t mContractCodeDelete;
+        uint64_t mContractDataUpsert;
+        uint64_t mContractDataDelete;
         void getRates(VirtualClock::time_point now, uint64_t& au_sec,
                       uint64_t& ad_sec, uint64_t& tu_sec, uint64_t& td_sec,
                       uint64_t& ou_sec, uint64_t& od_sec, uint64_t& du_sec,
                       uint64_t& dd_sec, uint64_t& cu_sec, uint64_t& cd_sec,
-                      uint64_t& lu_sec, uint64_t& ld_sec, uint64_t& T_sec,
-                      uint64_t& total);
+                      uint64_t& lu_sec, uint64_t& ld_sec, uint64_t& ccu_sec,
+                      uint64_t& ccd_sec, uint64_t& cdu_sec, uint64_t& cdd_sec,
+                      uint64_t& T_sec, uint64_t& total);
 
       public:
         Counters(VirtualClock::time_point now);

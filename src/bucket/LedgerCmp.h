@@ -82,6 +82,14 @@ struct LedgerEntryIdCmp
         case LIQUIDITY_POOL:
             return a.liquidityPool().liquidityPoolID <
                    b.liquidityPool().liquidityPoolID;
+        case CONTRACT_CODE:
+            return lexCompare(a.contractCode().owner, b.contractCode().owner,
+                              a.contractCode().contractID,
+                              b.contractCode().contractID);
+        case CONTRACT_DATA:
+            return lexCompare(a.contractCode().owner, b.contractCode().owner,
+                              a.contractCode().contractID,
+                              b.contractCode().contractID);
         }
         return false;
     }

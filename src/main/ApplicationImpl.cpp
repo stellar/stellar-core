@@ -4,6 +4,7 @@
 
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <limits>
 #define STELLAR_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "ApplicationImpl.h"
@@ -193,6 +194,14 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
             case LIQUIDITY_POOL:
                 LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
                 app.getLedgerTxnRoot().dropLiquidityPools();
+                break;
+            case CONTRACT_CODE:
+                LOG_INFO(DEFAULT_LOG, "Dropping contractcode");
+                app.getLedgerTxnRoot().dropContractCode();
+                break;
+            case CONTRACT_DATA:
+                LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
+                app.getLedgerTxnRoot().dropContractData();
                 break;
             default:
                 abort();

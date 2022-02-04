@@ -1965,6 +1965,18 @@ LedgerTxn::dropLiquidityPools()
     throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
 }
 
+void
+LedgerTxn::dropContractCode()
+{
+    throw std::runtime_error("called dropContractCode on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::dropContractData()
+{
+    throw std::runtime_error("called dropContractData on non-root LedgerTxn");
+}
+
 double
 LedgerTxn::getPrefetchHitRate() const
 {
@@ -2508,6 +2520,12 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case LIQUIDITY_POOL:
         accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
         break;
+    case CONTRACT_CODE:
+        accum(iter, mContractCodeToUpsert, mContractCodeToDelete);
+        break;
+    case CONTRACT_DATA:
+        accum(iter, mContractDataToUpsert, mContractDataToDelete);
+        break;
     default:
         abort();
     }
@@ -2589,6 +2607,30 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
         deleteLiquidityPool.clear();
+    }
+    auto& upsertContractCode = bleca.getContractCodeToUpsert();
+    if (upsertContractCode.size() > bufferThreshold)
+    {
+        bulkUpsertContractCode(upsertContractCode);
+        upsertContractCode.clear();
+    }
+    auto& deleteContractCode = bleca.getContractCodeToDelete();
+    if (deleteContractCode.size() > bufferThreshold)
+    {
+        bulkDeleteContractCode(deleteContractCode, cons);
+        deleteContractCode.clear();
+    }
+    auto& upsertContractData = bleca.getContractDataToUpsert();
+    if (upsertContractData.size() > bufferThreshold)
+    {
+        bulkUpsertContractData(upsertContractData);
+        upsertContractData.clear();
+    }
+    auto& deleteContractData = bleca.getContractDataToDelete();
+    if (deleteContractData.size() > bufferThreshold)
+    {
+        bulkDeleteContractData(deleteContractData, cons);
+        deleteContractData.clear();
     }
 }
 
@@ -2679,6 +2721,10 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "claimablebalance";
     case LIQUIDITY_POOL:
         return "liquiditypool";
+    case CONTRACT_CODE:
+        return "contractcode";
+    case CONTRACT_DATA:
+        return "contractdata";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2786,6 +2832,18 @@ LedgerTxnRoot::dropLiquidityPools()
     mImpl->dropLiquidityPools();
 }
 
+void
+LedgerTxnRoot::dropContractCode()
+{
+    mImpl->dropContractCode();
+}
+
+void
+LedgerTxnRoot::dropContractData()
+{
+    mImpl->dropContractData();
+}
+
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
@@ -2804,6 +2862,8 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     UnorderedSet<LedgerKey> data;
     UnorderedSet<LedgerKey> claimablebalance;
     UnorderedSet<LedgerKey> liquiditypool;
+    UnorderedSet<LedgerKey> contractcode;
+    UnorderedSet<LedgerKey> contractdata;
 
     auto cacheResult =
         [&](UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> const&
@@ -2875,6 +2935,22 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                 liquiditypool.clear();
             }
             break;
+        case CONTRACT_CODE:
+            insertIfNotLoaded(contractcode, key);
+            if (contractcode.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadContractCode(contractcode));
+                contractcode.clear();
+            }
+            break;
+        case CONTRACT_DATA:
+            insertIfNotLoaded(contractdata, key);
+            if (contractdata.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadContractData(contractdata));
+                contractdata.clear();
+            }
+            break;
         }
     }
 
@@ -2885,6 +2961,8 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     cacheResult(bulkLoadData(data));
     cacheResult(bulkLoadClaimableBalance(claimablebalance));
     cacheResult(bulkLoadLiquidityPool(liquiditypool));
+    cacheResult(bulkLoadContractCode(contractcode));
+    cacheResult(bulkLoadContractData(contractdata));
 
     return total;
 }
@@ -3406,6 +3484,12 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             break;
         case LIQUIDITY_POOL:
             entry = loadLiquidityPool(key);
+            break;
+        case CONTRACT_CODE:
+            entry = loadContractCode(key);
+            break;
+        case CONTRACT_DATA:
+            entry = loadContractData(key);
             break;
         default:
             throw std::runtime_error("Unknown key type");
