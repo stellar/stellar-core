@@ -37,6 +37,7 @@ class XDROutputFileStream;
 class SHA256;
 
 class TransactionFrame;
+class HostContext;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
 class TransactionFrame : public TransactionFrameBase
@@ -52,6 +53,7 @@ class TransactionFrame : public TransactionFrameBase
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
+    std::unique_ptr<HostContext> mHostContext;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);
@@ -110,9 +112,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
-    virtual ~TransactionFrame()
-    {
-    }
+    virtual ~TransactionFrame();
 
     // clear pre-computed hashes
     void clearCached();
@@ -205,5 +205,7 @@ class TransactionFrame : public TransactionFrameBase
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
                                AccountID const& accountID);
+
+    HostContext& getHostContext();
 };
 }

@@ -246,6 +246,24 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
     return key;
 }
 
+LedgerKey
+contractCodeKey(AccountID const& owner, uint64_t contractID)
+{
+    LedgerKey key(CONTRACT_CODE);
+    key.contractCode().owner = owner;
+    key.contractCode().contractID = contractID;
+    return key;
+}
+
+LedgerKey
+contractDataKey(AccountID const& owner, uint64_t contractID)
+{
+    LedgerKey key(CONTRACT_DATA);
+    key.contractData().owner = owner;
+    key.contractData().contractID = contractID;
+    return key;
+}
+
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
@@ -360,6 +378,22 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 {
     ZoneScoped;
     return ltx.load(liquidityPoolKey(poolID));
+}
+
+LedgerTxnEntry
+loadContractCode(AbstractLedgerTxn& ltx, AccountID const& owner,
+                 int64_t contractID)
+{
+    ZoneScoped;
+    return ltx.load(contractCodeKey(owner, contractID));
+}
+
+LedgerTxnEntry
+loadContractData(AbstractLedgerTxn& ltx, AccountID const& owner,
+                 int64_t contractID)
+{
+    ZoneScoped;
+    return ltx.load(contractDataKey(owner, contractID));
 }
 
 static void

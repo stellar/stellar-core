@@ -12,7 +12,8 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/tracy"                  \
 	-isystem "$(top_srcdir)/lib/spdlog/include"         \
 	-isystem "$(top_srcdir)/lib/fizzy/include"          \
-	-isystem "$(top_srcdir)/lib/fizzy/lib"
+	-isystem "$(top_srcdir)/lib/fizzy/lib"              \
+	-isystem "$(top_srcdir)/lib/immer"
 
 if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)

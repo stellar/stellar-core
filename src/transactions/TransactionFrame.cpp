@@ -19,6 +19,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
+#include "transactions/ContractHostTypes.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
@@ -984,4 +985,18 @@ TransactionFrame::toStellarMessage() const
     msg.transaction() = mEnvelope;
     return msg;
 }
+
+HostContext&
+TransactionFrame::getHostContext()
+{
+    if (!mHostContext)
+    {
+        mHostContext = std::make_unique<HostContext>();
+    }
+    return *mHostContext;
+}
+
+// This has to be out-of-line allow HostContext to be incomplete in
+// TransactionFrame.h
+TransactionFrame::~TransactionFrame() = default;
 }

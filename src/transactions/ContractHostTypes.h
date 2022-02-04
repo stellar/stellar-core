@@ -1,0 +1,474 @@
+// Copyright 2022 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "util/GlobalChecks.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
+
+#include <fizzy/execute.hpp>
+#include <immer/box.hpp>
+#include <immer/flex_vector.hpp>
+#include <immer/map.hpp>
+#include <xdrpp/xdrpp/types.h>
+
+#include <cstdint>
+#include <map>
+#include <stdexcept>
+#include <variant>
+
+namespace stellar
+{
+
+// We have two representations of values: one XDR-based that users compose when
+// submitting transactions and view when browsing ledger entries; and one "host"
+// representation based on immutable objects (HostObject) with structural
+// sharing -- identified by integer handles -- and a NaN-box-compatible 64-bit
+// small tagged value type (HostVal) exported to WASM, one variant of which
+// contains such a handle. The host and XDR representations are interchangeable
+// / isomorphic, but we need to convert from one to the other anytime we receive
+// data from users or load/save from the ledger.
+
+class HostVal
+{
+    uint64_t mPayload{0};
+    HostVal(uint64_t payload) : mPayload(payload)
+    {
+    }
+
+    static const uint64_t BODY_MASK = 0x0000ffffffffffffULL;
+    static const uint64_t BOOL_TRUE_BODY = 1;
+    static const uint64_t BOOL_FALSE_BODY = 2;
+    static const uint64_t SUBTAG_MASK = 0x0000ffff00000000ULL;
+    static const uint64_t ERR_SUBTAG = 0x0000ffff00000000ULL;
+
+    static HostVal
+    fromTagAndBody(uint8_t tag3, uint64_t body48)
+    {
+        releaseAssert(tag3 < 0x8);
+        releaseAssert((body48 & BODY_MASK) == body48);
+        return HostVal{(uint64_t(tag3) << 48) | body48};
+    }
+
+  public:
+    static const uint8_t TAG_STATIC = 0;
+    static const uint8_t TAG_U32 = 1;
+    static const uint8_t TAG_I32 = 2;
+    static const uint8_t TAG_SYMBOL = 3;
+    static const uint8_t TAG_BITSET = 4;
+    static const uint8_t TAG_TIMEPT = 5;
+    static const uint8_t TAG_OBJECT = 6;
+
+    bool
+    operator==(HostVal const& other) const
+    {
+        return other.payload() == mPayload;
+    }
+
+    bool
+    operator<(HostVal const& other) const
+    {
+        return other.payload() < mPayload;
+    }
+
+    uint8_t
+    getTag() const
+    {
+        return uint8_t((mPayload >> 48));
+    }
+
+    uint64_t
+    getBody() const
+    {
+        return mPayload & BODY_MASK;
+    }
+
+    bool
+    hasTag(uint8_t tag) const
+    {
+        return getTag() == tag;
+    }
+
+    bool
+    isVoid() const
+    {
+        return hasTag(TAG_STATIC) && (getBody() == 0);
+    }
+
+    bool
+    isBool() const
+    {
+        auto body = getBody();
+        return hasTag(TAG_STATIC) &&
+               (body == BOOL_TRUE_BODY || body == BOOL_FALSE_BODY);
+    }
+
+    bool
+    asBool() const
+    {
+        releaseAssert(isBool());
+        return getBody() == BOOL_TRUE_BODY;
+    }
+
+    bool
+    isErr() const
+    {
+        return hasTag(TAG_STATIC) && ((getBody() & SUBTAG_MASK) == ERR_SUBTAG);
+    }
+
+    uint32_t
+    asErr() const
+    {
+        releaseAssert(isErr());
+        return uint32_t(getBody());
+    }
+
+    bool
+    isU32() const
+    {
+        return hasTag(TAG_U32);
+    }
+
+    uint32_t
+    asU32() const
+    {
+        releaseAssert(isU32());
+        return uint32_t(getBody());
+    }
+
+    bool
+    isI32() const
+    {
+        return hasTag(TAG_I32);
+    }
+
+    int32_t
+    asI32() const
+    {
+        releaseAssert(isI32());
+        return int32_t(getBody());
+    }
+
+    bool
+    isSymbol() const
+    {
+        return hasTag(TAG_SYMBOL);
+    }
+
+    std::string asSymbol() const;
+
+    bool
+    isBitSet() const
+    {
+        return hasTag(TAG_BITSET);
+    }
+
+    uint64_t
+    asBitSet() const
+    {
+        releaseAssert(isBitSet());
+        return getBody();
+    }
+
+    bool
+    isTimePt() const
+    {
+        return hasTag(TAG_TIMEPT);
+    }
+
+    uint64_t
+    asTimePt() const
+    {
+        releaseAssert(isTimePt());
+        return getBody();
+    }
+
+    bool
+    isObject() const
+    {
+        return hasTag(TAG_OBJECT);
+    }
+
+    size_t
+    asObject() const
+    {
+        releaseAssert(isObject());
+        return size_t(getBody());
+    }
+
+    uint64_t
+    payload() const
+    {
+        return mPayload;
+    }
+    static HostVal
+    fromPayload(uint64_t u)
+    {
+        return HostVal(u);
+    }
+    static HostVal
+    fromVoid()
+    {
+        return fromTagAndBody(TAG_STATIC, 0);
+    }
+    static HostVal
+    fromBool(bool b)
+    {
+        return fromTagAndBody(TAG_STATIC, b ? BOOL_TRUE_BODY : BOOL_FALSE_BODY);
+    }
+    static HostVal
+    fromErr(uint32_t err)
+    {
+        return fromTagAndBody(TAG_STATIC, (ERR_SUBTAG | uint64_t(err)));
+    }
+    static HostVal
+    fromU32(uint32_t u32)
+    {
+        return fromTagAndBody(TAG_U32, uint64_t(u32));
+    }
+    static HostVal
+    fromI32(int32_t i32)
+    {
+        return fromTagAndBody(TAG_I32, uint64_t(i32) & 0xffffffffULL);
+    }
+    static HostVal fromSymbol(std::string const& s);
+
+    static HostVal
+    fromTimePt(uint64_t time)
+    {
+        if ((time & BODY_MASK) != time)
+        {
+            throw std::runtime_error("bad time");
+        }
+        return fromTagAndBody(TAG_TIMEPT, time);
+    }
+    static HostVal
+    fromBitSet(uint64_t bits)
+    {
+        if ((bits & BODY_MASK) != bits)
+        {
+            throw std::runtime_error("bad bitset");
+        }
+        return fromTagAndBody(TAG_BITSET, bits);
+    }
+    static HostVal
+    fromObject(size_t idx)
+    {
+        uint64_t idx64 = idx;
+        if ((idx64 & BODY_MASK) != idx64)
+        {
+            throw std::runtime_error("bad object index");
+        }
+        return fromTagAndBody(TAG_OBJECT, idx64);
+    }
+
+    operator fizzy::ExecutionResult() const
+    {
+        return fizzy::Value{payload()};
+    }
+};
+
+std::ostream& operator<<(std::ostream& out, HostVal const& v);
+
+using HostBox = immer::box<HostVal>;
+using HostVec = immer::flex_vector<HostVal>;
+using HostMap = immer::map<HostVal, HostVal>;
+using HostObject = std::variant<HostBox, HostVec, HostMap, uint64_t, int64_t,
+                                xdr::xstring<>, xdr::xvector<uint8_t>,
+                                LedgerKey, SCLedgerVal, Operation, Transaction>;
+
+// All of our host functions take N i64 inputs and return 1 i64 output. The
+// values being passed are (statically) either full/wide i64s or i64s carrying
+// smaller values embedded into a HostVal structure. Because of this, host
+// function signatures only vary by a single arity number.
+using HostClosure0 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&)>;
+using HostClosure1 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t)>;
+using HostClosure2 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t)>;
+using HostClosure3 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t)>;
+using HostClosure4 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t)>;
+
+class HostContext;
+
+using HostMemFun0 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&);
+using HostMemFun1 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t);
+using HostMemFun2 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t);
+using HostMemFun3 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t);
+using HostMemFun4 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t);
+
+class InvokeContractOpFrame;
+struct HostOpContext
+{
+    HostContext& mHostContext;
+    InvokeContractOpFrame& mInvokeOp;
+    AbstractLedgerTxn& mLedgerTxn;
+};
+class HostContextTxn
+{
+    bool mRollback{true};
+    size_t mRollbackPoint;
+    HostContext& mHostCtx;
+    HostContextTxn(HostContext& hc);
+    friend class HostContext;
+
+  public:
+    ~HostContextTxn();
+    void
+    commit()
+    {
+        mRollback = false;
+    }
+};
+
+class HostContext
+{
+    std::vector<std::unique_ptr<HostObject const>> mObjects;
+    std::vector<fizzy::ImportedFunction> mHostFunctions;
+    std::map<std::string, HostVal> mEnv;
+    std::optional<HostOpContext> mHostOpCtx;
+
+    friend class HostContextTxn;
+
+    template <typename HObj, typename... Args>
+    HostVal
+    newObject(Args&&... args)
+    {
+        size_t idx = mObjects.size();
+        HObj obj(std::forward<Args>(args)...);
+        mObjects.emplace_back(
+            std::make_unique<HostObject const>(std::move(obj)));
+        return HostVal::fromObject(idx);
+    }
+
+    std::unique_ptr<HostObject const> const&
+    getObject(HostVal const& hv)
+    {
+        if (hv.isObject() && hv.asObject() < mObjects.size())
+        {
+            return mObjects.at(hv.asObject());
+        }
+        else
+        {
+            return mObjects.at(0);
+        }
+    }
+
+    template <typename Closure>
+    void
+    registerHostFunction(size_t arity, Closure clo,
+                         fizzy::HostFunctionPtr dispatcher,
+                         std::string const& module, std::string const& name)
+    {
+        std::vector<fizzy::ValType> inTypes{arity, fizzy::ValType::i64};
+        std::optional<fizzy::ValType> outType{fizzy::ValType::i64};
+        fizzy::ExecuteFunction func{dispatcher, std::move(clo)};
+        fizzy::ImportedFunction ifunc{std::string(module), std::string(name),
+                                      std::move(inTypes), std::move(outType),
+                                      std::move(func)};
+        mHostFunctions.emplace_back(std::move(ifunc));
+    }
+
+    void registerHostFunction(HostClosure0 clo, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostClosure1 clo, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostClosure2 clo, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostClosure3 clo, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostClosure4 clo, std::string const& module,
+                              std::string const& name);
+
+    void registerHostFunction(HostMemFun0 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun1 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun2 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun3 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun4 mf, std::string const& module,
+                              std::string const& name);
+
+  public:
+    HostContext();
+
+    HostContextTxn
+    beginOpTxn(InvokeContractOpFrame& op, AbstractLedgerTxn& ltx)
+    {
+        releaseAssert(!mHostOpCtx);
+        mHostOpCtx.emplace(HostOpContext{*this, op, ltx});
+        return HostContextTxn(*this);
+    }
+
+    AbstractLedgerTxn&
+    getLedgerTxn()
+    {
+        releaseAssert(mHostOpCtx);
+        return mHostOpCtx->mLedgerTxn;
+    }
+
+    InvokeContractOpFrame&
+    getOpFrame()
+    {
+        releaseAssert(mHostOpCtx);
+        return mHostOpCtx->mInvokeOp;
+    }
+
+    void extendEnvironment(SCEnv const& locals);
+    std::optional<HostVal> getEnv(std::string const& name) const;
+
+    std::vector<fizzy::ImportedFunction> const&
+    getHostFunctions() const
+    {
+        return mHostFunctions;
+    }
+
+    HostVal xdrToHost(SCVal const& v);
+
+    SCVal hostToXdr(HostVal const& hv);
+
+    xdr::pointer<SCObject>
+    hostToXdr(std::unique_ptr<HostObject const> const& obj);
+
+    size_t xdrToHost(std::unique_ptr<SCObject> const& obj);
+
+    // Host functions follow -- plumbing above currently supports 0..4 uint64_t
+    // arguments.
+    fizzy::ExecutionResult mapNew(fizzy::Instance&, fizzy::ExecutionContext&);
+    fizzy::ExecutionResult mapPut(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t map, uint64_t key, uint64_t val);
+    fizzy::ExecutionResult mapGet(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t map, uint64_t key);
+    fizzy::ExecutionResult logValue(fizzy::Instance&, fizzy::ExecutionContext&,
+                                    uint64_t);
+    fizzy::ExecutionResult getCurrentLedgerNum(fizzy::Instance&,
+                                               fizzy::ExecutionContext&);
+};
+
+}
+
+namespace std
+{
+template <> struct hash<stellar::HostVal>
+{
+    size_t
+    operator()(stellar::HostVal const& hv) const noexcept
+    {
+        return std::hash<uint64_t>()(hv.payload());
+    }
+};
+}

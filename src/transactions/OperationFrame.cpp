@@ -15,6 +15,7 @@
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/InvokeContractOpFrame.h"
 #include "transactions/LiquidityPoolDepositOpFrame.h"
 #include "transactions/LiquidityPoolWithdrawOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
@@ -113,6 +114,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     case LIQUIDITY_POOL_WITHDRAW:
         return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
+    case INVOKE_CONTRACT:
+        return std::make_shared<InvokeContractOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
