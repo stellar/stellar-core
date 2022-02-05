@@ -9,6 +9,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
 #include <fmt/format.h>
 
@@ -123,6 +124,10 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
             return "LiquidityPool is sponsored";
         }
         return checkIsValid(le.data.liquidityPool(), previous, version);
+    case CONTRACT_CODE:
+        return checkIsValid(le.data.contractCode(), previous, version);
+    case CONTRACT_DATA:
+        return checkIsValid(le.data.contractData(), previous, version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -479,6 +484,21 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
         }
     }
 
+    return {};
+}
+
+std::string
+LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& lp,
+                                 LedgerEntry const* previous,
+                                 uint32 version) const
+{
+    return {};
+}
+std::string
+LedgerEntryIsValid::checkIsValid(ContractDataEntry const& lp,
+                                 LedgerEntry const* previous,
+                                 uint32 version) const
+{
     return {};
 }
 }

@@ -100,6 +100,20 @@ updateChangedSubEntriesCount(
         // claimable balance and liquidity pools are not subentries
         break;
     }
+    case CONTRACT_CODE:
+    {
+        auto accountID = valid->data.contractCode().owner;
+        subEntriesChange[accountID].calculatedSubEntries +=
+            calculateDelta(current, previous);
+        break;
+    }
+    case CONTRACT_DATA:
+    {
+        auto accountID = valid->data.contractData().owner;
+        subEntriesChange[accountID].calculatedSubEntries +=
+            calculateDelta(current, previous);
+        break;
+    }
     default:
         abort();
     }

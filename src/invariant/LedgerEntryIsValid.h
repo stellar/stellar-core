@@ -48,6 +48,10 @@ class LedgerEntryIsValid : public Invariant
                              LedgerEntry const* previous, uint32 version) const;
     std::string checkIsValid(LiquidityPoolEntry const& lp,
                              LedgerEntry const* previous, uint32 version) const;
+    std::string checkIsValid(ContractCodeEntry const& lp,
+                             LedgerEntry const* previous, uint32 version) const;
+    std::string checkIsValid(ContractDataEntry const& lp,
+                             LedgerEntry const* previous, uint32 version) const;
 
     bool validatePredicate(ClaimPredicate const& pred, uint32_t depth) const;
 };
