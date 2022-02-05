@@ -4,6 +4,7 @@
 
 #include "test/TestAccount.h"
 #include "crypto/SHA.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -13,7 +14,10 @@
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionUtils.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 
+#include <iterator>
 #include <lib/catch.hpp>
 
 namespace stellar
@@ -583,6 +587,48 @@ TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
     applyTx(tx({txtest::liquidityPoolWithdraw(poolID, amount, minAmountA,
                                               minAmountB)}),
             mApp);
+}
+
+void
+TestAccount::addWasmContract(int64_t contractID,
+                             std::filesystem::path const& wasmCode)
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
+    // by advancing the ledgerSeq.
+    ++ltx.loadHeader().current().ledgerSeq;
+    InternalLedgerEntry ile;
+    ile.ledgerEntry().data.type(CONTRACT_CODE);
+    auto& cc = ile.ledgerEntry().data.contractCode();
+    cc.owner = getPublicKey();
+    cc.contractID = contractID;
+    cc.body.type(CONTRACT_CODE_WASM);
+    std::ifstream in(wasmCode);
+    cc.body.wasm().code.assign(std::istreambuf_iterator<char>{in}, {});
+    ltx.create(ile);
+    ltx.commit();
+}
+
+SCVal
+TestAccount::invokeWasmContract(AccountID const& owner, int64_t contractID,
+                                std::string const& funcName, SCVal const& arg)
+{
+    TransactionFramePtr txn =
+        tx({txtest::invokeWasmContract(owner, contractID, funcName, arg)});
+    applyTx(txn, mApp);
+    auto const& contractRes =
+        txn->getResult().result.results().at(0).tr().invokeContractResult();
+    if (contractRes.code() == INVOKE_CONTRACT_SUCCESS)
+    {
+        return contractRes.returnVal();
+    }
+    else
+    {
+        SCVal err;
+        err.type(SCV_ERR);
+        err.err() = 0;
+        return err;
+    }
 }
 
 };

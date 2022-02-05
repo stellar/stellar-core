@@ -25,6 +25,8 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 
 #include <lib/catch.hpp>
 
@@ -1365,6 +1367,21 @@ liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
     op.body.liquidityPoolWithdrawOp().amount = amount;
     op.body.liquidityPoolWithdrawOp().minAmountA = minAmountA;
     op.body.liquidityPoolWithdrawOp().minAmountB = minAmountB;
+    return op;
+}
+
+Operation
+invokeWasmContract(AccountID const& owner, int64_t contractID,
+                   std::string const& funcName, SCVal const& arg)
+{
+    Operation op;
+    op.body.type(INVOKE_CONTRACT);
+    op.body.invokeContractOp().contractID = contractID;
+    op.body.invokeContractOp().owner = owner;
+    op.body.invokeContractOp().function = funcName;
+    SCSymbol argName("arg");
+    op.body.invokeContractOp().locals.emplace_back(argName, arg);
+    op.body.invokeContractOp().arguments.emplace_back(argName);
     return op;
 }
 

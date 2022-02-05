@@ -8,6 +8,7 @@
 #include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
+#include <filesystem>
 
 namespace stellar
 {
@@ -117,6 +118,12 @@ class TestAccount
                               Price const& maxPrice);
     void liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
                                int64_t minAmountA, int64_t minAmountB);
+
+    void addWasmContract(int64_t contractID,
+                         std::filesystem::path const& wasmCode);
+
+    SCVal invokeWasmContract(AccountID const& owner, int64_t contractID,
+                             std::string const& funcName, SCVal const& arg);
 
     operator SecretKey() const
     {
