@@ -10,8 +10,8 @@ RUN apt-get update && \
 
 COPY . stellar-core/
 WORKDIR stellar-core
-RUN git clean -dxf
-RUN git submodule foreach --recursive git clean -dxf
+RUN git clean -dXf
+RUN git submodule foreach --recursive git clean -dXf
 
 ARG CC=clang-10
 ARG CXX=clang++-10
