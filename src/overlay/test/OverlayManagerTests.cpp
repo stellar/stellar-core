@@ -50,9 +50,18 @@ class PeerStub : public Peer
     {
     }
     virtual void
-    sendMessage(xdr::msg_ptr&& xdrBytes) override
+    sendMessage(xdr::msg_ptr&& xdrBytes, bool trigger) override
     {
         sent++;
+    }
+    virtual bool
+    writeQueueHasSpace() const override
+    {
+        return true;
+    }
+    virtual void
+    scheduleRead() override
+    {
     }
 };
 

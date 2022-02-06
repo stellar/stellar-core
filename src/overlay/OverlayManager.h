@@ -126,6 +126,8 @@ class OverlayManager
 
     virtual bool isPreferred(Peer* peer) const = 0;
 
+    virtual bool isFloodMessage(StellarMessage const& msg) = 0;
+
     // Return the current in-memory set of inbound pending peers.
     virtual std::vector<Peer::pointer> const&
     getInboundPendingPeers() const = 0;

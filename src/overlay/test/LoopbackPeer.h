@@ -52,7 +52,7 @@ class LoopbackPeer : public Peer
 
     Stats mStats;
 
-    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+    void sendMessage(xdr::msg_ptr&& xdrBytes, bool triggerWrite) override;
     AuthCert getAuthCert() override;
 
     void processInQueue();
@@ -72,6 +72,8 @@ class LoopbackPeer : public Peer
     void dropAll();
     size_t getBytesQueued() const;
     size_t getMessagesQueued() const;
+
+    virtual void scheduleRead() override;
 
     Stats const& getStats() const;
 
@@ -115,6 +117,12 @@ class LoopbackPeer : public Peer
     using Peer::sendAuth;
 
     friend class LoopbackPeerConnection;
+
+    bool
+    writeQueueHasSpace() const override
+    {
+        return true;
+    }
 };
 
 /**

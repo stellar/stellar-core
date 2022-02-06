@@ -230,6 +230,12 @@ class Config : public std::enable_shared_from_this<Config>
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
 
+    // A config parameter that controls how many messages from a particular peer
+    // core can process simultaneously. If core is at capacity, it temporarily
+    // stops reading from a peer until it completes processing of at least one
+    // in-flight message.
+    uint32_t PEER_READING_CAPACITY;
+
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;

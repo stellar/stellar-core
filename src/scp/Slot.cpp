@@ -106,6 +106,35 @@ Slot::getLatestMessage(NodeID const& id) const
     return m;
 }
 
+bool
+Slot::isLatestStatement(SCPStatement const& st)
+{
+    bool isLatest = true;
+
+    auto node = st.nodeID;
+    if (st.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
+    {
+        auto m = mNominationProtocol.getLatestMessage(node);
+        if (m && !(m->statement == st))
+        {
+            isLatest = false;
+        }
+    }
+    else
+    {
+        auto m = mBallotProtocol.getLatestMessage(node);
+        if (m && !(m->statement == st))
+        {
+            isLatest = false;
+            CLOG_TRACE(SCP, "state {} is older than {}",
+                       mSCP.envToStr(st, false),
+                       mSCP.envToStr(m->statement, false));
+        }
+    }
+
+    return isLatest;
+}
+
 std::vector<SCPEnvelope>
 Slot::getExternalizingState() const
 {

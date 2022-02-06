@@ -127,6 +127,9 @@ class HerderImpl : public Herder
     void processSCPQueue();
 
     uint32 getMinLedgerSeqToAskPeers() const override;
+    uint32_t getMinLedgerSeqToRemember() const override;
+
+    bool isLatestSCPMessage(StellarMessage const& msg) override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
@@ -291,8 +294,6 @@ class HerderImpl : public Herder
         }
     };
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
-
-    uint32_t getMinLedgerSeqToRemember() const;
 
     State mState;
     void setState(State st);

@@ -127,7 +127,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 18;
-    OVERLAY_PROTOCOL_VERSION = 19;
+    OVERLAY_PROTOCOL_VERSION = 20;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -198,6 +198,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
+
+    PEER_READING_CAPACITY = 200;
 
     MINIMUM_IDLE_PERCENT = 0;
 
@@ -906,7 +908,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "node may not function properly with most networks");
             }
 
-            if (item.first == "PEER_PORT")
+            if (item.first == "PEER_READING_CAPACITY")
+            {
+                PEER_READING_CAPACITY = readInt<uint32_t>(item, 2);
+            }
+            else if (item.first == "PEER_PORT")
             {
                 PEER_PORT = readInt<unsigned short>(item, 1);
             }

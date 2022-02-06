@@ -122,6 +122,8 @@ class SCP
     // or nullptr if not found
     SCPEnvelope const* getLatestMessage(NodeID const& id);
 
+    bool SCPHasNewerStatement(SCPEnvelope const& msg);
+
     // returns messages that contributed to externalizing the slot
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);

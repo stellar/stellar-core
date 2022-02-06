@@ -97,6 +97,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns the latest message from a node
     // or nullptr if not found
     SCPEnvelope const* getLatestMessage(NodeID const& id) const;
+    bool isLatestStatement(SCPStatement const& st);
 
     // returns messages that helped this slot externalize
     std::vector<SCPEnvelope> getExternalizingState() const;

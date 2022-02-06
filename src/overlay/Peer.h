@@ -53,7 +53,54 @@ class Peer : public std::enable_shared_from_this<Peer>,
 {
 
   public:
+    struct QueuedOutboundMessage
+    {
+        StellarMessage mMessage;
+        VirtualClock::time_point mTimeEmplaced;
+    };
+
+    struct MsgCompare
+    {
+        bool
+        operator()(Peer::QueuedOutboundMessage const& a,
+                   Peer::QueuedOutboundMessage const& b) const
+        {
+            // SCP message always goes in front of txs
+            if (a.mMessage.type() == SCP_MESSAGE &&
+                b.mMessage.type() == TRANSACTION)
+            {
+                return true;
+            }
+            else if (a.mMessage.type() == TRANSACTION &&
+                     b.mMessage.type() == SCP_MESSAGE)
+            {
+                return false;
+            }
+
+            // Everything else is subject to first-come-first-serve policy
+            return a.mTimeEmplaced < b.mTimeEmplaced;
+        }
+    };
+
+    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL = 20;
     typedef std::shared_ptr<Peer> pointer;
+
+    // Data structure that records the time it takes to process a message and
+    // sends the signal back to the peer. Callers must manually call
+    // `completedOneUnit`.
+    struct MessageTracker
+    {
+        Application& mApp;
+        StellarMessage const mMsg;
+        std::weak_ptr<Peer> mWeakPeer;
+        std::chrono::system_clock::time_point mStart;
+        void done();
+
+        MessageTracker(StellarMessage const& msg, Application& app,
+                       std::weak_ptr<Peer> peer = std::weak_ptr<Peer>());
+    };
+
+    using MessageTrackerPtr = std::shared_ptr<MessageTracker>;
 
     enum PeerState
     {
@@ -63,6 +110,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         GOT_AUTH = 3,
         CLOSING = 4
     };
+
+    bool hasReadingCapacity() const;
 
     enum PeerRole
     {
@@ -81,6 +130,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
         REMOTE_DROPPED_US,
         WE_DROPPED_REMOTE
     };
+
+    virtual void scheduleRead() = 0;
+    bool mShouldScheduleRead{true};
 
     struct PeerMetrics
     {
@@ -120,6 +172,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
+
+    uint64_t mTotalCapacity;
+    std::set<QueuedOutboundMessage, MsgCompare> mOutboundMessages;
+
+    // This methods evaluates the state of outbound flood queues, and sheds load
+    // based on the supplied condition
+    void maybeTrimQueue(std::function<bool(QueuedOutboundMessage const&)> cond,
+                        VirtualClock::time_point now);
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -187,7 +247,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // put in a reused/non-owned buffer without having to buffer/queue
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             bool triggerWrite = true) = 0;
     virtual void
     connected()
     {
@@ -206,6 +267,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
+
+    void sendAuthenticatedMessage(StellarMessage const& msg, bool trigger);
+
+    void messageProcessed(StellarMessage const& msg);
+
+    void maybeShedLoadAndSendNextBatch();
 
   public:
     Peer(Application& app, PeerRole role);
@@ -232,6 +299,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mRole;
     }
 
+    virtual bool writeQueueHasSpace() const = 0;
     bool isConnected() const;
     bool isAuthenticated() const;
 
@@ -316,5 +384,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     friend class LoopbackPeer;
+
+    virtual void maybeTriggerShutdown(){};
 };
 }

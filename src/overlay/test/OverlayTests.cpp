@@ -1139,6 +1139,65 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
     simulation->crankForAtLeast(std::chrono::seconds{3}, true);
 }
 
+TEST_CASE("overlay version with flow control", "[overlay][flowcontrol]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+    SIMULATION_CREATE_NODE(Node3);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 3;
+    qSet.validators.push_back(vNode1NodeID);
+    qSet.validators.push_back(vNode2NodeID);
+    qSet.validators.push_back(vNode3NodeID);
+
+    auto configs = std::vector<Config>{};
+
+    for (auto i = 0; i < 3; i++)
+    {
+        auto cfg = getTestConfig(i + 1);
+
+        // Set flow control parameters to something very small
+        cfg.PEER_READING_CAPACITY = 2;
+        cfg.MAX_BATCH_WRITE_COUNT = 2;
+        configs.push_back(cfg);
+    }
+
+    auto node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
+    simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
+    simulation->addNode(vNode3SecretKey, qSet, &configs[2]);
+
+    simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+    simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
+    simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
+
+    simulation->startAllNodes();
+
+    // Crank for a few ledgers so nodes get connected and become "synced"
+    simulation->crankUntil(
+        [&] { return simulation->haveAllExternalized(2, 1); },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Generate a bit of load to flood transactions, make sure nodes can
+    // close ledgers properly
+    auto& loadGen = node->getLoadGenerator();
+    loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
+                         /*txRate*/ 1,
+                         /*batchSize*/ 1, std::chrono::seconds(0), 0);
+
+    auto& loadGenDone =
+        node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
+
 PeerBareAddress
 localhost(unsigned short port)
 {

@@ -134,25 +134,39 @@ TCPPeer::getIP() const
 }
 
 void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
+TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, bool forceWrite)
 {
-    if (shouldAbort())
-    {
-        return;
-    }
+    releaseAssert(writeQueueHasSpace());
+
+    // TODO: should do something about this
+    // if (shouldAbort())
+    // {
+    //     return;
+    // }
 
     assertThreadIsMain();
 
     TimestampedMessage msg;
     msg.mEnqueuedTime = mApp.getClock().now();
     msg.mMessage = std::move(xdrBytes);
+    mSizeInBytes += msg.mMessage->raw_size();
     mWriteQueue.emplace_back(std::move(msg));
 
-    if (!mWriting)
+    // Writing a batch now
+    if (forceWrite ||
+        mWriteQueue.size() >= mApp.getConfig().MAX_BATCH_WRITE_COUNT ||
+        mSizeInBytes >= mApp.getConfig().MAX_BATCH_WRITE_BYTES)
     {
         mWriting = true;
         messageSender();
     }
+}
+
+bool
+TCPPeer::writeQueueHasSpace() const
+{
+    return mWriteQueue.size() < mApp.getConfig().MAX_BATCH_WRITE_COUNT &&
+           mSizeInBytes < mApp.getConfig().MAX_BATCH_WRITE_BYTES && !mWriting;
 }
 
 void
@@ -225,19 +239,6 @@ TCPPeer::messageSender()
     ZoneScoped;
     assertThreadIsMain();
 
-    // if nothing to do, mark progress and return.
-    if (mWriteQueue.empty())
-    {
-        mWriting = false;
-        // there is nothing to send and delayed shutdown was
-        // requested - time to perform it
-        if (mDelayedShutdown)
-        {
-            shutdown();
-        }
-        return;
-    }
-
     // Take a snapshot of the contents of mWriteQueue into mWriteBuffers, in
     // terms of asio::const_buffers pointing into the elements of mWriteQueue,
     // and then issue a single multi-buffer ("scatter-gather") async_write that
@@ -245,42 +246,33 @@ TCPPeer::messageSender()
     // completed, at which point we'll clear mWriteBuffers and remove the entire
     // snapshot worth of corresponding messages from mWriteQueue (though it may
     // have grown a bit in the meantime -- we remove only a prefix).
-    releaseAssert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
-    size_t expected_length = 0;
-    size_t maxQueueSize = mApp.getConfig().MAX_BATCH_WRITE_COUNT;
-    releaseAssert(maxQueueSize > 0);
-    size_t const maxTotalBytes = mApp.getConfig().MAX_BATCH_WRITE_BYTES;
+    std::vector<asio::const_buffer> buffers;
+
     for (auto& tsm : mWriteQueue)
     {
         tsm.mIssuedTime = now;
         size_t sz = tsm.mMessage->raw_size();
-        mWriteBuffers.emplace_back(tsm.mMessage->raw_data(), sz);
-        expected_length += sz;
+        buffers.emplace_back(tsm.mMessage->raw_data(), sz);
         mEnqueueTimeOfLastWrite = tsm.mEnqueuedTime;
-        // check if we reached any limit
-        if (expected_length >= maxTotalBytes)
-            break;
-        if (--maxQueueSize == 0)
-            break;
     }
 
-    CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", toString(),
-               expected_length, mWriteBuffers.size(), mWriteQueue.size());
+    CLOG_TRACE(Overlay, "messageSender {} - b:{} n:{}", toString(),
+               mSizeInBytes, mWriteQueue.size());
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    asio::async_write(*(mSocket.get()), mWriteBuffers,
-                      [self, expected_length](asio::error_code const& ec,
-                                              std::size_t length) {
-                          if (expected_length != length)
+    asio::async_write(*(mSocket.get()), buffers,
+                      [self, expectedLength = mSizeInBytes,
+                       numItems = buffers.size()](asio::error_code const& ec,
+                                                  std::size_t length) {
+                          if (expectedLength != length)
                           {
                               self->drop("error during async_write",
                                          Peer::DropDirection::WE_DROPPED_REMOTE,
                                          Peer::DropMode::IGNORE_WRITE_QUEUE);
                               return;
                           }
-                          self->writeHandler(ec, length,
-                                             self->mWriteBuffers.size());
+                          self->writeHandler(ec, length, numItems);
 
                           // Walk through a _prefix_ of the write queue
                           // _corresponding_ to the write buffers we just sent.
@@ -289,23 +281,22 @@ TCPPeer::messageSender()
                           // iterator range to erase from the front of the write
                           // queue.
                           auto now = self->mApp.getClock().now();
-                          auto i = self->mWriteQueue.begin();
-                          while (!self->mWriteBuffers.empty())
+                          for (auto& msg : self->mWriteQueue)
                           {
-                              i->mCompletedTime = now;
-                              i->recordWriteTiming(self->getOverlayMetrics());
-                              ++i;
-                              self->mWriteBuffers.pop_back();
+                              msg.mCompletedTime = now;
+                              msg.recordWriteTiming(self->getOverlayMetrics());
                           }
 
                           // Erase the messages from the write queue that we
                           // just forgot about the buffers for.
-                          self->mWriteQueue.erase(self->mWriteQueue.begin(), i);
+                          self->mWriteQueue.clear();
+                          self->mSizeInBytes = 0;
+                          self->mWriting = false;
 
                           // continue processing the queue
                           if (!ec)
                           {
-                              self->messageSender();
+                              self->maybeShedLoadAndSendNextBatch();
                           }
                       });
 }
@@ -420,6 +411,14 @@ TCPPeer::scheduleRead()
     // Post to the peer-specific Scheduler a call to ::startRead below;
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
+
+    if (!mShouldScheduleRead)
+    {
+        return;
+    }
+
+    releaseAssert(hasReadingCapacity());
+
     assertThreadIsMain();
     if (shouldAbort())
     {
@@ -432,10 +431,20 @@ TCPPeer::scheduleRead()
 }
 
 void
+TCPPeer::maybeTriggerShutdown()
+{
+    if (mDelayedShutdown)
+    {
+        shutdown();
+    }
+}
+
+void
 TCPPeer::startRead()
 {
     ZoneScoped;
     assertThreadIsMain();
+    releaseAssert(hasReadingCapacity());
     if (shouldAbort())
     {
         return;
@@ -466,6 +475,8 @@ TCPPeer::startRead()
             return;
         }
         size_t length = getIncomingMsgLength();
+
+        // in_avail = amount of unread data
         if (mSocket->in_avail() >= length)
         {
             // We can finish reading a full message here synchronously,
@@ -487,6 +498,14 @@ TCPPeer::startRead()
                 }
                 noteFullyReadBody(length);
                 recvMessage();
+                if (!hasReadingCapacity())
+                {
+                    // Break and wait until more capacity frees up
+                    CLOG_TRACE(Overlay, "Throttle reading for peer {}!",
+                               mApp.getConfig().toShortString(getPeerID()));
+                    mShouldScheduleRead = false;
+                    return;
+                }
                 if (mApp.getClock().shouldYield())
                 {
                     break;
@@ -495,6 +514,9 @@ TCPPeer::startRead()
         }
         else
         {
+            // No throttling - we just read a header, so we must have capacity
+            releaseAssert(hasReadingCapacity());
+
             // We read a header synchronously, but don't have enough data in the
             // buffered_stream to read the body synchronously. Pretend we just
             // finished reading the header asynchronously, and punt to
@@ -614,12 +636,22 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     else
     {
         noteFullyReadBody(bytes_transferred);
+        releaseAssert(hasReadingCapacity());
         recvMessage();
         mIncomingHeader.clear();
         // Completing a startRead => readHeaderHandler => readBodyHandler
         // sequence happens after the first read of a single large input-buffer
         // worth of input. Even when we weren't preempted, we still bounce off
         // the per-peer scheduler queue here, to balance input across peers.
+        if (!hasReadingCapacity())
+        {
+            // No more capacity after processing this message
+            CLOG_TRACE(Overlay,
+                       "TCPPeer::readBodyHandler: throttle reading from {}",
+                       mApp.getConfig().toShortString(getPeerID()));
+            mShouldScheduleRead = false;
+        }
+
         scheduleRead();
     }
 }

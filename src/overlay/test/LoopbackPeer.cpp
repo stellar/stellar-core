@@ -45,7 +45,13 @@ LoopbackPeer::getAuthCert()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
+LoopbackPeer::scheduleRead()
+{
+    processInQueue();
+}
+
+void
+LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, bool trigger)
 {
     if (mRemote.expired())
     {
@@ -164,6 +170,12 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
 void
 LoopbackPeer::processInQueue()
 {
+    if (!hasReadingCapacity())
+    {
+        mShouldScheduleRead = false;
+        return;
+    }
+
     if (!mInQueue.empty() && mState != CLOSING)
     {
         auto const& m = mInQueue.front();

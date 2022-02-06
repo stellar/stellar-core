@@ -280,6 +280,19 @@ SCP::getLatestMessage(NodeID const& id)
     return nullptr;
 }
 
+bool
+SCP::SCPHasNewerStatement(SCPEnvelope const& env)
+{
+    auto slotIndex = env.statement.slotIndex;
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->isLatestStatement(env.statement);
+    }
+
+    return false;
+}
+
 std::vector<SCPEnvelope>
 SCP::getExternalizingState(uint64 slotIndex)
 {

@@ -31,20 +31,21 @@ class TCPPeer : public Peer
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
-    std::vector<asio::const_buffer> mWriteBuffers;
     std::deque<TimestampedMessage> mWriteQueue;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
 
+    size_t mSizeInBytes{0};
+
     void recvMessage();
-    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+    void sendMessage(xdr::msg_ptr&& xdrBytes, bool triggerWrite) override;
 
     void messageSender();
 
     size_t getIncomingMsgLength();
     virtual void connected() override;
-    void scheduleRead();
+    void scheduleRead() override;
     virtual bool sendQueueIsOverloaded() const override;
     void startRead();
 
@@ -84,5 +85,9 @@ class TCPPeer : public Peer
                       DropMode dropMode) override;
 
     std::string getIP() const override;
+
+    bool writeQueueHasSpace() const override;
+
+    void maybeTriggerShutdown() override;
 };
 }

@@ -1891,4 +1891,11 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                                   sv.txSetHash, sv.closeTime));
     return sv;
 }
+
+bool
+HerderImpl::isLatestSCPMessage(StellarMessage const& msg)
+{
+    return getSCP().SCPHasNewerStatement(msg.envelope());
+}
+
 }

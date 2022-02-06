@@ -40,7 +40,6 @@ class NominationProtocol
     // the value from the previous slot
     Value mPreviousValue;
 
-    bool isNewerStatement(NodeID const& nodeID, SCPNomination const& st);
     static bool isNewerStatement(SCPNomination const& oldst,
                                  SCPNomination const& st);
 
@@ -93,6 +92,8 @@ class NominationProtocol
     // attempts to nominate a value for consensus
     bool nominate(ValueWrapperPtr value, Value const& previousValue,
                   bool timedout);
+
+    bool isNewerStatement(NodeID const& nodeID, SCPNomination const& st);
 
     // stops the nomination protocol
     void stopNomination();
