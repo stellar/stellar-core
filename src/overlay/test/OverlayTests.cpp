@@ -1233,6 +1233,64 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     REQUIRE(!peerManager.load(localhost(5)).second);
 }
 
+TEST_CASE("msg compare", "[overlay]")
+{
+    std::set<Peer::QueuedOutboundMessage, Peer::MsgCompare> testSet;
+
+    StellarMessage scpMsg1;
+
+    StellarMessage scpMsg2;
+    scpMsg1.type(SCP_MESSAGE);
+    scpMsg2 = scpMsg1;
+
+    auto time = VirtualClock::time_point();
+    auto time1 = time + std::chrono::seconds(1);
+    auto time2 = time1 + std::chrono::seconds(1);
+    auto time3 = time2 + std::chrono::seconds(1);
+    auto time4 = time3 + std::chrono::seconds(1);
+
+    StellarMessage tx1;
+    tx1.type(TRANSACTION);
+    StellarMessage tx2;
+    tx2 = tx1;
+
+    StellarMessage txSet;
+    txSet.type(TX_SET);
+
+    testSet.insert(Peer::QueuedOutboundMessage{tx1, time});
+    testSet.insert(Peer::QueuedOutboundMessage{tx2, time1});
+    testSet.insert(Peer::QueuedOutboundMessage{scpMsg1, time2});
+    testSet.insert(Peer::QueuedOutboundMessage{txSet, time3});
+    testSet.insert(Peer::QueuedOutboundMessage{scpMsg2, time4});
+
+    auto it = testSet.begin();
+    REQUIRE(it->mMessage == txSet);
+    REQUIRE(it->mTimeEmplaced == time3);
+
+    ++it;
+
+    REQUIRE(it->mMessage == scpMsg1);
+    REQUIRE(it->mTimeEmplaced == time2);
+
+    ++it;
+
+    REQUIRE(it->mMessage == scpMsg2);
+    REQUIRE(it->mTimeEmplaced == time4);
+
+    ++it;
+
+    REQUIRE(it->mMessage == tx1);
+    REQUIRE(it->mTimeEmplaced == time);
+
+    ++it;
+
+    REQUIRE(it->mMessage == tx2);
+    REQUIRE(it->mTimeEmplaced == time1);
+
+    ++it;
+    REQUIRE(it == testSet.end());
+}
+
 TEST_CASE("peer numfailures resets after good connection",
           "[overlay][acceptance]")
 {

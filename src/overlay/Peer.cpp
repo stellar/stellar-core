@@ -871,7 +871,7 @@ Peer::maybeTrimQueue(std::function<bool(QueuedOutboundMessage const&)> cond,
     if (dropped)
     {
         CLOG_INFO(Overlay, "Dropped {} messages to peer {}", dropped,
-                   mApp.getConfig().toShortString(getPeerID()));
+                  mApp.getConfig().toShortString(getPeerID()));
     }
 }
 

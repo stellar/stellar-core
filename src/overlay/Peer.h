@@ -65,9 +65,24 @@ class Peer : public std::enable_shared_from_this<Peer>,
         operator()(Peer::QueuedOutboundMessage const& a,
                    Peer::QueuedOutboundMessage const& b) const
         {
-            // SCP message always goes in front of txs
-            if (a.mMessage.type() == SCP_MESSAGE &&
-                b.mMessage.type() == TRANSACTION)
+            // Prioritize fetch responses first
+            auto isValue = [](Peer::QueuedOutboundMessage const& msg) {
+                return msg.mMessage.type() == TX_SET ||
+                       msg.mMessage.type() == SCP_QUORUMSET;
+            };
+
+            // Prioritize control traffic first
+            if (isValue(a) && !isValue(b))
+            {
+                return true;
+            }
+            else if (!isValue(a) && isValue(b))
+            {
+                return false;
+            }
+            // SCP always in front of txs
+            else if (a.mMessage.type() == SCP_MESSAGE &&
+                     b.mMessage.type() == TRANSACTION)
             {
                 return true;
             }
