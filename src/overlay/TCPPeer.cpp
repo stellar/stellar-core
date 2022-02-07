@@ -157,7 +157,6 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, bool forceWrite)
         mWriteQueue.size() >= mApp.getConfig().MAX_BATCH_WRITE_COUNT ||
         mSizeInBytes >= mApp.getConfig().MAX_BATCH_WRITE_BYTES)
     {
-        mWriting = true;
         messageSender();
     }
 }
@@ -238,6 +237,8 @@ TCPPeer::messageSender()
 {
     ZoneScoped;
     assertThreadIsMain();
+    releaseAssert(!mWriting);
+    mWriting = true;
 
     // Take a snapshot of the contents of mWriteQueue into mWriteBuffers, in
     // terms of asio::const_buffers pointing into the elements of mWriteQueue,
@@ -261,6 +262,8 @@ TCPPeer::messageSender()
                mSizeInBytes, mWriteQueue.size());
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+
+    // async_write doesn't return until the buffer is done writing
     asio::async_write(*(mSocket.get()), buffers,
                       [self, expectedLength = mSizeInBytes,
                        numItems = buffers.size()](asio::error_code const& ec,

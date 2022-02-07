@@ -1162,8 +1162,8 @@ TEST_CASE("overlay version with flow control", "[overlay][flowcontrol]")
         auto cfg = getTestConfig(i + 1);
 
         // Set flow control parameters to something very small
-        cfg.PEER_READING_CAPACITY = 2;
-        cfg.MAX_BATCH_WRITE_COUNT = 2;
+        cfg.PEER_READING_CAPACITY = 1;
+        cfg.MAX_BATCH_WRITE_COUNT = 1;
         configs.push_back(cfg);
     }
 

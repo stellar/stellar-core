@@ -838,31 +838,39 @@ Peer::maybeTrimQueue(std::function<bool(QueuedOutboundMessage const&)> cond,
 {
     int dropped = 0;
     auto it = mOutboundMessages.cbegin();
-    while (it != mOutboundMessages.cend() && cond(*it))
+    while (it != mOutboundMessages.cend())
     {
-        std::string type;
-        switch (it->mMessage.type())
+        if (cond(*it))
         {
-        case SCP_MESSAGE:
-            type = "scp";
-            break;
-        case TRANSACTION:
-            type = "tx";
-            break;
-        default:
-            type = "ctrl";
-        };
+            std::string type;
+            switch (it->mMessage.type())
+            {
+            case SCP_MESSAGE:
+                type = "scp";
+                break;
+            case TRANSACTION:
+                type = "tx";
+                break;
+            default:
+                type = "ctrl";
+            };
 
-        CLOG_TRACE(Overlay, "Dropping {}", msgSummary(it->mMessage));
+            CLOG_INFO(Overlay, "Dropping {}", msgSummary(it->mMessage));
 
-        auto& timer = mApp.getMetrics().NewTimer({"overlay", "outbound", type});
-        timer.Update(now - it->mTimeEmplaced);
-        it = mOutboundMessages.erase(it);
-        dropped++;
+            auto& timer =
+                mApp.getMetrics().NewTimer({"overlay", "outbound", type});
+            timer.Update(now - it->mTimeEmplaced);
+            it = mOutboundMessages.erase(it);
+            dropped++;
+        }
+        else
+        {
+            ++it;
+        }
     }
     if (dropped)
     {
-        CLOG_TRACE(Overlay, "Dropped {} messages to peer {}", dropped,
+        CLOG_INFO(Overlay, "Dropped {} messages to peer {}", dropped,
                    mApp.getConfig().toShortString(getPeerID()));
     }
 }
