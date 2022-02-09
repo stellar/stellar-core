@@ -113,7 +113,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
             Upgrades::UpgradeParameters upgrades;
             setUpgrade(upgrades.mBaseFee, du.baseFee);
             setUpgrade(upgrades.mBaseReserve, du.baseReserve);
-            setUpgrade(upgrades.mMaxTxSize, du.maxTxSetSize);
+            setUpgrade(upgrades.mMaxTxSetSize, du.maxTxSetSize);
             setUpgrade(upgrades.mProtocolVersion, du.ledgerVersion);
             upgrades.mUpgradeTime = upgradeTime;
             app->getHerder().setUpgrades(upgrades);
@@ -2296,7 +2296,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(updated);
         REQUIRE(!upgrades.mProtocolVersion);
         REQUIRE(!upgrades.mBaseFee);
-        REQUIRE(!upgrades.mMaxTxSize);
+        REQUIRE(!upgrades.mMaxTxSetSize);
         REQUIRE(!upgrades.mBaseReserve);
         REQUIRE(!upgrades.mFlags);
     }
@@ -2315,7 +2315,7 @@ TEST_CASE("validate upgrade expiration logic", "[upgrades]")
         REQUIRE(!updated);
         REQUIRE(upgrades.mProtocolVersion);
         REQUIRE(upgrades.mBaseFee);
-        REQUIRE(upgrades.mMaxTxSize);
+        REQUIRE(upgrades.mMaxTxSetSize);
         REQUIRE(upgrades.mBaseReserve);
         REQUIRE(upgrades.mFlags);
     }
@@ -2349,8 +2349,8 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(up.mProtocolVersion.has_value());
     REQUIRE(up.mProtocolVersion.value() == 17);
     REQUIRE(!up.mBaseFee.has_value());
-    REQUIRE(up.mMaxTxSize.has_value());
-    REQUIRE(up.mMaxTxSize.value() == 10000);
+    REQUIRE(up.mMaxTxSetSize.has_value());
+    REQUIRE(up.mMaxTxSetSize.value() == 10000);
     REQUIRE(!up.mBaseReserve.has_value());
 }
 

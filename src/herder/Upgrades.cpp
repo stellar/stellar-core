@@ -41,7 +41,7 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
     ar(make_nvp("version", p.mProtocolVersion));
     ar(make_nvp("fee", p.mBaseFee));
-    ar(make_nvp("maxtxsize", p.mMaxTxSize));
+    ar(make_nvp("maxtxsize", p.mMaxTxSetSize));
     ar(make_nvp("reserve", p.mBaseReserve));
     ar(make_nvp("flags", p.mFlags));
 }
@@ -55,7 +55,7 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
     o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
     ar(make_nvp("version", o.mProtocolVersion));
     ar(make_nvp("fee", o.mBaseFee));
-    ar(make_nvp("maxtxsize", o.mMaxTxSize));
+    ar(make_nvp("maxtxsize", o.mMaxTxSetSize));
     ar(make_nvp("reserve", o.mBaseReserve));
 
     // the flags upgrade was added after the fields above, so it's possible for
@@ -181,10 +181,11 @@ Upgrades::createUpgradesFor(LedgerHeader const& header) const
         result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
         result.back().newBaseFee() = *mParams.mBaseFee;
     }
-    if (mParams.mMaxTxSize && (header.maxTxSetSize != *mParams.mMaxTxSize))
+    if (mParams.mMaxTxSetSize &&
+        (header.maxTxSetSize != *mParams.mMaxTxSetSize))
     {
         result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        result.back().newMaxTxSetSize() = *mParams.mMaxTxSize;
+        result.back().newMaxTxSetSize() = *mParams.mMaxTxSetSize;
     }
     if (mParams.mBaseReserve && (header.baseReserve != *mParams.mBaseReserve))
     {
@@ -278,7 +279,7 @@ Upgrades::toString() const
     appendInfo("protocolversion", mParams.mProtocolVersion);
     appendInfo("basefee", mParams.mBaseFee);
     appendInfo("basereserve", mParams.mBaseReserve);
-    appendInfo("maxtxsize", mParams.mMaxTxSize);
+    appendInfo("maxtxsetsize", mParams.mMaxTxSetSize);
     appendInfo("flags", mParams.mFlags);
 
     return r.str();
@@ -308,7 +309,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 
         resetParamIfSet(res.mProtocolVersion);
         resetParamIfSet(res.mBaseFee);
-        resetParamIfSet(res.mMaxTxSize);
+        resetParamIfSet(res.mMaxTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
 
@@ -344,7 +345,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
             resetParam(res.mBaseFee, lu.newBaseFee());
             break;
         case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-            resetParam(res.mMaxTxSize, lu.newMaxTxSetSize());
+            resetParam(res.mMaxTxSetSize, lu.newMaxTxSetSize());
             break;
         case LEDGER_UPGRADE_BASE_RESERVE:
             resetParam(res.mBaseReserve, lu.newBaseReserve());
@@ -423,8 +424,8 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
     case LEDGER_UPGRADE_BASE_FEE:
         return mParams.mBaseFee && (upgrade.newBaseFee() == *mParams.mBaseFee);
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        return mParams.mMaxTxSize &&
-               (upgrade.newMaxTxSetSize() == *mParams.mMaxTxSize);
+        return mParams.mMaxTxSetSize &&
+               (upgrade.newMaxTxSetSize() == *mParams.mMaxTxSetSize);
     case LEDGER_UPGRADE_BASE_RESERVE:
         return mParams.mBaseReserve &&
                (upgrade.newBaseReserve() == *mParams.mBaseReserve);

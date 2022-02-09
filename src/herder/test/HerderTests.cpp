@@ -655,8 +655,8 @@ TEST_CASE("txset", "[herder][txset]")
 TEST_CASE("txset base fee", "[herder][txset]")
 {
     Config cfg(getTestConfig());
-    uint32_t const maxTxSize = 112;
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
+    uint32_t const maxTxSetSize = 112;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
 
     auto testBaseFee = [&](uint32_t protocolVersion, uint32 nbTransactions,
                            uint32 extraAccounts, size_t lim, int64_t expLowFee,
@@ -760,7 +760,8 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 // low = base tx
                 // high = last extra tx
-                testBaseFee(10, baseCount, v10ExtraTx, maxTxSize, 1000, 20104);
+                testBaseFee(10, baseCount, v10ExtraTx, maxTxSetSize, 1000,
+                            20104);
             }
             SECTION("protocol current")
             {
@@ -769,13 +770,14 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 SECTION("maxed out surged")
                 {
                     testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                baseCount, v11ExtraTx, maxTxSize, 1000, 2000);
+                                baseCount, v11ExtraTx, maxTxSetSize, 1000,
+                                2000);
                 }
                 SECTION("smallest surged")
                 {
                     testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                                 baseCount + 1, v11ExtraTx - 50,
-                                maxTxSize - 100 + 1, 1000, 2000);
+                                maxTxSetSize - 100 + 1, 1000, 2000);
                 }
             }
         }
@@ -785,14 +787,14 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 // low = 20000+1
                 // high = 20000+112
-                testBaseFee(10, 0, v10NewCount, maxTxSize, 20001, 20112);
+                testBaseFee(10, 0, v10NewCount, maxTxSetSize, 20001, 20112);
             }
             SECTION("protocol current")
             {
                 // low = 20000+1 -> baseFee = 20001/2+ = 10001
                 // high = 10001*2
                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                            v11NewCount, maxTxSize, 20001, 20002);
+                            v11NewCount, maxTxSetSize, 20001, 20002);
             }
         }
     }
@@ -812,7 +814,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 // high = 2*minFee
                 // highest number of ops not surged is max-100
                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, baseCount,
-                            v11ExtraTx - 50, maxTxSize - 100, 100, 200);
+                            v11ExtraTx - 50, maxTxSetSize - 100, 100, 200);
             }
         }
         SECTION("newOnly")
@@ -829,7 +831,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 // high = 2*minFee
                 // highest number of ops not surged is max-100
                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                            v11NewCount - 50, maxTxSize - 100, 200, 200);
+                            v11NewCount - 50, maxTxSetSize - 100, 200, 200);
             }
         }
     }
@@ -1062,7 +1064,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 }
 
 static void
-testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
+testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 {
     using SVUpgrades = decltype(StellarValue::upgrades);
 
@@ -1070,7 +1072,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 
     cfg.MANUAL_CLOSE = false;
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
 
     VirtualClock clock;
     auto s = SecretKey::pseudoRandomForTesting();
@@ -1256,9 +1258,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
             std::max_element(txSetSizes.begin(), txSetSizes.end()));
         REQUIRE(txSetOpSizes[bestTxSetIndex] == expectedOps);
 
-        TxSetFramePtr txSetL = makeTransactions(lcl.hash, maxTxSize, 1, 101);
+        TxSetFramePtr txSetL = makeTransactions(lcl.hash, maxTxSetSize, 1, 101);
         addToCandidates(makeTxPair(herder, txSetL, 20));
-        TxSetFramePtr txSetL2 = makeTransactions(lcl.hash, maxTxSize, 1, 1000);
+        TxSetFramePtr txSetL2 =
+            makeTransactions(lcl.hash, maxTxSetSize, 1, 1000);
         addToCandidates(makeTxPair(herder, txSetL2, 20));
         auto v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         StellarValue sv;
