@@ -22,6 +22,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -1472,7 +1473,8 @@ TEST_CASE("payment", "[tx][payment]")
                         ledgerVersion =
                             ltx.loadHeader().current().ledgerVersion;
                     }
-                    if (ledgerVersion < 13)
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13))
                     {
                         // cannot send to an account that is not the issuer
                         REQUIRE_THROWS_AS(a1.pay(b1, idr, 40),
@@ -1620,7 +1622,7 @@ TEST_CASE("payment", "[tx][payment]")
             }
             // in ledger versions 1 and 2 each of these payment succeeds
 
-            if (ledgerVersion < 3)
+            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_3))
             {
                 payNoTrust = payOk;
                 payLineFull = payOk;
@@ -1634,7 +1636,7 @@ TEST_CASE("payment", "[tx][payment]")
             };
 
             // issuer checks were removed starting from v13
-            if (ledgerVersion < 13)
+            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
             {
                 withoutTrustLine.push_back(
                     Data{"non existing asset with non existing issuer",

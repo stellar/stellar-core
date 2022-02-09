@@ -17,6 +17,7 @@
 #include "scp/Slot.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
@@ -556,7 +557,7 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     {
         return false;
     }
-    if (header.ledgerVersion >= 11)
+    if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
         auto lFee = l->getTotalFees(header);
         auto rFee = r->getTotalFees(header);

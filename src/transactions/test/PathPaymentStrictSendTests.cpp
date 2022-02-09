@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -582,7 +583,8 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
 
             auto pathPaymentStrictSend = [&](std::vector<Asset> const& path,
                                              Asset& noIssuer) {
-                if (ledgerVersion < 13)
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_13))
                 {
                     REQUIRE_THROWS_AS(
                         source.pathPaymentStrictSend(destination, idr, 10, usd,
@@ -2485,7 +2487,8 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
-            if (issuerToDelete && ledgerVersion >= 13)
+            if (issuerToDelete &&
+                protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {
                 closeLedgerOn(*app, 2, 1, 1, 2016);
                 // remove issuer

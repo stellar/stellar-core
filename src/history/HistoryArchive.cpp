@@ -19,6 +19,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -357,7 +358,8 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             // No real buckets seen yet, move on
             continue;
         }
-        else if (prevSnapVersion >= Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        else if (protocolVersionStartsFrom(
+                     prevSnapVersion, Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             if (!level.next.isClear())
             {
@@ -390,8 +392,9 @@ HistoryArchiveState::prepareForPublish(Application& app)
 
         auto snap =
             app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
-        if (!level.next.isClear() && Bucket::getBucketVersion(snap) >=
-                                         Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (!level.next.isClear() &&
+            protocolVersionStartsFrom(Bucket::getBucketVersion(snap),
+                                      Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             level.next.clear();
         }

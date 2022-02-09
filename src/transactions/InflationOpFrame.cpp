@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 
 const uint32_t INFLATION_FREQUENCY = (60 * 60 * 24 * 7); // every 7 days
 // inflation is .000190721 per 7 days, or 1% a year
@@ -77,7 +78,7 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (toDoleThisWinner == 0)
             continue;
 
-        if (lh.ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_10))
         {
             auto winner = stellar::loadAccountWithoutRecord(ltx, w.accountID);
             if (winner)
@@ -93,7 +94,7 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (winner)
         {
             leftAfterDole -= toDoleThisWinner;
-            if (lh.ledgerVersion <= 7)
+            if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_8))
             {
                 lh.totalCoins += toDoleThisWinner;
             }
@@ -108,7 +109,7 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     // put back in fee pool as unclaimed funds
     lh.feePool += leftAfterDole;
-    if (lh.ledgerVersion > 7)
+    if (protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_8))
     {
         lh.totalCoins += inflationAmount;
     }
@@ -125,7 +126,7 @@ InflationOpFrame::doCheckValid(uint32_t ledgerVersion)
 bool
 InflationOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion < 12;
+    return protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_12);
 }
 
 ThresholdLevel

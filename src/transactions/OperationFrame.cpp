@@ -30,6 +30,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
 
@@ -223,7 +224,8 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker,
     }
 
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    if (!forApply || ledgerVersion < 10)
+    if (!forApply ||
+        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
     {
         if (!checkSignature(signatureChecker, ltx, forApply))
         {

@@ -11,6 +11,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
@@ -51,7 +52,8 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 
-    if (ltx.loadHeader().current().ledgerVersion < 16)
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_16))
     {
         return doApplyBeforeV16(ltx);
     }
@@ -75,8 +77,10 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
     }
 
     int64_t sourceBalance = 0;
-    if (header.current().ledgerVersion > 4 &&
-        header.current().ledgerVersion < 8)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_5) &&
+        protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_8))
     {
         // in versions < 8, merge account could be called with a stale account
         LedgerKey key(ACCOUNT);
@@ -88,7 +92,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        if (header.current().ledgerVersion > 5)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_6))
         {
             sourceBalance = thisAccount.current().data.account().balance;
         }
@@ -97,8 +102,10 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
     auto sourceAccountEntry = loadSourceAccount(ltx, header);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
     // Only set sourceBalance here if it wasn't set in the previous block
-    if (header.current().ledgerVersion <= 5 ||
-        header.current().ledgerVersion >= 8)
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_6) ||
+        protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_8))
     {
         sourceBalance = sourceAccount.balance;
     }
@@ -115,7 +122,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (header.current().ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_10))
     {
         if (isSeqnumTooFar(header, sourceAccount))
         {
@@ -124,7 +132,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
         }
     }
 
-    if (header.current().ledgerVersion >= 14)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_14))
     {
         if (loadSponsorshipCounter(ltx, getSourceID()))
         {

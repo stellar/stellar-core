@@ -30,6 +30,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
@@ -151,7 +152,9 @@ TEST_CASE("standalone", "[herder][acceptance]")
                 bool hasC = false;
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    hasC = ltx.loadHeader().current().ledgerVersion >= 10;
+                    hasC = protocolVersionStartsFrom(
+                        ltx.loadHeader().current().ledgerVersion,
+                        ProtocolVersion::V_10);
                 }
                 if (hasC)
                 {

@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include <string>
 
@@ -58,9 +59,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.
-    static constexpr uint32_t
-        FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY = 11;
-    static constexpr uint32_t FIRST_PROTOCOL_SHADOWS_REMOVED = 12;
+    static constexpr ProtocolVersion
+        FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY =
+            ProtocolVersion::V_11;
+    static constexpr ProtocolVersion FIRST_PROTOCOL_SHADOWS_REMOVED =
+        ProtocolVersion::V_12;
 
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);

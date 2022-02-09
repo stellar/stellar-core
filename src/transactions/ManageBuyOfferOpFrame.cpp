@@ -9,6 +9,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 
 namespace stellar
 {
@@ -33,7 +34,8 @@ ManageBuyOfferOpFrame::ManageBuyOfferOpFrame(Operation const& op,
 bool
 ManageBuyOfferOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 11;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_11);
 }
 
 bool

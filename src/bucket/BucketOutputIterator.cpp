@@ -53,8 +53,9 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
     // Will throw if unable to open the file
     mOut.open(mFilename);
 
-    if (meta.ledgerVersion >=
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+    if (protocolVersionStartsFrom(
+            meta.ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
         BucketEntry bme;
         bme.type(METAENTRY);

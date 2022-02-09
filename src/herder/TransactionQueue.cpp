@@ -19,6 +19,7 @@
 #include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "util/TarjanSCCCalculator.h"
 #include "util/XDROperators.h"
 #include "util/numeric128.h"
@@ -815,7 +816,9 @@ void
 TransactionQueue::maybeVersionUpgraded()
 {
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mLedgerVersion < 13 && lcl.header.ledgerVersion >= 13)
+    if (protocolVersionIsBefore(mLedgerVersion, ProtocolVersion::V_13) &&
+        protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  ProtocolVersion::V_13))
     {
         clearAll();
     }

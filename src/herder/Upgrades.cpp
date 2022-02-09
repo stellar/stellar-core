@@ -18,6 +18,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -396,7 +397,9 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (upgrade.newBaseReserve() != 0);
         break;
     case LEDGER_UPGRADE_FLAGS:
-        res = res && header.ledgerVersion >= 18 &&
+        res = res &&
+              protocolVersionStartsFrom(header.ledgerVersion,
+                                        ProtocolVersion::V_18) &&
               (upgrade.newFlags() & ~MASK_LEDGER_HEADER_FLAGS) == 0;
         break;
     default:
@@ -905,9 +908,12 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
                     ++nChangedTrustLines;
                 }
 
-                // the deltas should only be positive when liabilities were
-                // introduced in ledgerVersion 10
-                if (header.current().ledgerVersion > 10 &&
+                // The deltas could be negative when liabilities were
+                // introduced in ledgerVersion 10. This was fixed and
+                // ledgerVersion 11 and starting from it deltas should be
+                // positive.
+                if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                              ProtocolVersion::V_11) &&
                     (deltaSelling > 0 || deltaBuying > 0))
                 {
                     throw std::runtime_error("invalid liabilities delta");
@@ -994,11 +1000,15 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
     uint32_t prevVersion = header.current().ledgerVersion;
 
     header.current().ledgerVersion = newVersion;
-    if (header.current().ledgerVersion >= 10 && prevVersion < 10)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_10) &&
+        protocolVersionIsBefore(prevVersion, ProtocolVersion::V_10))
     {
         prepareLiabilities(ltx, header);
     }
-    else if (header.current().ledgerVersion == 16 && prevVersion == 15)
+    else if (protocolVersionEquals(header.current().ledgerVersion,
+                                   ProtocolVersion::V_16) &&
+             protocolVersionEquals(prevVersion, ProtocolVersion::V_15))
     {
         upgradeFromProtocol15To16(ltx);
     }
@@ -1011,7 +1021,9 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
     bool didReserveIncrease = newReserve > header.current().baseReserve;
 
     header.current().baseReserve = newReserve;
-    if (header.current().ledgerVersion >= 10 && didReserveIncrease)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_10) &&
+        didReserveIncrease)
     {
         prepareLiabilities(ltx, header);
     }

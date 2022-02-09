@@ -12,6 +12,7 @@
 #include "main/Application.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -149,7 +150,8 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         throw std::runtime_error("native asset is not valid in ChangeTrustOp");
     }
 
-    if (ltx.loadHeader().current().ledgerVersion > 2)
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_3))
     {
         // Note: No longer checking if issuer exists here, because if
         //     issuerID == getSourceID()
@@ -316,7 +318,7 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
-    if (ledgerVersion > 9)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
     {
         if (mChangeTrust.line.type() == ASSET_TYPE_NATIVE)
         {
@@ -325,7 +327,8 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         }
     }
 
-    if (ledgerVersion > 15 && isIssuer(getSourceID(), mChangeTrust.line))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_16) &&
+        isIssuer(getSourceID(), mChangeTrust.line))
     {
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;

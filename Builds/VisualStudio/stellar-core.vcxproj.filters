@@ -1221,6 +1221,9 @@
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2125,6 +2128,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\ProtocolVersion.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

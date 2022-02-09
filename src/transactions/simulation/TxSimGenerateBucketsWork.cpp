@@ -183,7 +183,8 @@ TxSimGenerateBucketsWork::setFutureBuckets()
         auto const& prevSnapBucket = mBuckets[prevSnapHash];
 
         auto snapVersion = Bucket::getBucketVersion(prevSnapBucket);
-        if (snapVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (protocolVersionIsBefore(snapVersion,
+                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             auto const& currHash = mGeneratedApplyState.currentBuckets[i].curr;
             auto const& currBucket = mBuckets[currHash];

@@ -19,6 +19,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
 #include "xdrpp/autocheck.h"
 
@@ -163,7 +164,8 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
 
                 SECTION("sell no issuer")
                 {
-                    if (ledgerVersion < 13)
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13))
                     {
                         REQUIRE_THROWS_AS(
                             a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1),
@@ -177,7 +179,8 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
 
                 SECTION("buy no issuer")
                 {
-                    if (ledgerVersion < 13)
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13))
                     {
                         REQUIRE_THROWS_AS(
                             a1.manageBuyOffer(0, native, cur1, Price{1, 1}, 1),

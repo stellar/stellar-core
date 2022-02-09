@@ -12,6 +12,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -163,7 +164,7 @@ getLedgerEntryExtensionV1(LedgerEntry& le)
 static bool
 checkAuthorization(LedgerHeader const& header, LedgerEntry const& entry)
 {
-    if (header.ledgerVersion < 10)
+    if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_10))
     {
         if (!isAuthorized(entry))
         {
@@ -451,7 +452,8 @@ addBalanceSkipAuthorization(LedgerTxnHeader const& header,
     {
         return false;
     }
-    if (header.current().ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_10))
     {
         if (newBalance < getSellingLiabilities(header, entry))
         {
@@ -483,7 +485,8 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
         {
             return false;
         }
-        if (header.current().ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_10))
         {
             auto minBalance = getMinBalance(header.current(), acc);
             if (delta < 0 &&
@@ -648,7 +651,7 @@ getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le)
         throw std::runtime_error("Unknown LedgerEntry type");
     }
 
-    if (header.ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_10))
     {
         avail -= getSellingLiabilities(header, le);
     }
@@ -671,7 +674,8 @@ getAvailableBalance(LedgerTxnHeader const& header,
 int64_t
 getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
-    if (header.current().ledgerVersion < 10)
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_10))
     {
         throw std::runtime_error("Liabilities accessed before version 10");
     }
@@ -701,7 +705,8 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
     if (le.data.type() == ACCOUNT)
     {
         int64_t maxReceive = INT64_MAX;
-        if (header.current().ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_10))
         {
             auto const& acc = le.data.account();
             maxReceive -= acc.balance + getBuyingLiabilities(header, le);
@@ -717,7 +722,8 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
 
         auto const& tl = le.data.trustLine();
         int64_t amount = tl.limit - tl.balance;
-        if (header.current().ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_10))
         {
             amount -= getBuyingLiabilities(header, le);
         }
@@ -747,7 +753,9 @@ getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
 {
     uint32_t numSponsoring = 0;
     uint32_t numSponsored = 0;
-    if (header.ledgerVersion >= 14 && hasAccountEntryExtV2(acc))
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  ProtocolVersion::V_14) &&
+        hasAccountEntryExtV2(acc))
     {
         numSponsoring = acc.ext.v1().ext.v2().numSponsoring;
         numSponsored = acc.ext.v1().ext.v2().numSponsored;
@@ -760,12 +768,13 @@ int64_t
 getMinBalance(LedgerHeader const& lh, uint32_t numSubentries,
               uint32_t numSponsoring, uint32_t numSponsored)
 {
-    if (lh.ledgerVersion < 14 && (numSponsored != 0 || numSponsoring != 0))
+    if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_14) &&
+        (numSponsored != 0 || numSponsoring != 0))
     {
         throw std::runtime_error("unexpected sponsorship state");
     }
 
-    if (lh.ledgerVersion <= 8)
+    if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
     {
         return (2 + numSubentries) * lh.baseReserve;
     }
@@ -788,7 +797,8 @@ getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     auto const& tl = le.data.trustLine();
     int64_t minLimit = tl.balance;
-    if (header.current().ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_10))
     {
         minLimit += getBuyingLiabilities(header, le);
     }
@@ -811,7 +821,8 @@ int64_t
 getOfferBuyingLiabilities(LedgerTxnHeader const& header,
                           LedgerEntry const& entry)
 {
-    if (header.current().ledgerVersion < 10)
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_10))
     {
         throw std::runtime_error(
             "Offer liabilities calculated before version 10");
@@ -834,7 +845,8 @@ int64_t
 getOfferSellingLiabilities(LedgerTxnHeader const& header,
                            LedgerEntry const& entry)
 {
-    if (header.current().ledgerVersion < 10)
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_10))
     {
         throw std::runtime_error(
             "Offer liabilities calculated before version 10");
@@ -856,7 +868,7 @@ getOfferSellingLiabilities(LedgerTxnHeader const& header,
 int64_t
 getSellingLiabilities(LedgerHeader const& header, LedgerEntry const& le)
 {
-    if (header.ledgerVersion < 10)
+    if (protocolVersionIsBefore(header.ledgerVersion, ProtocolVersion::V_10))
     {
         throw std::runtime_error("Liabilities accessed before version 10");
     }
@@ -1047,7 +1059,8 @@ bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
     return trustLineFlagMaskCheckIsValid(flag, ledgerVersion) &&
-           (ledgerVersion < 13 || trustLineFlagAuthIsValid(flag));
+           (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) ||
+            trustLineFlagAuthIsValid(flag));
 }
 
 bool
@@ -1067,11 +1080,11 @@ trustLineFlagAuthIsValid(uint32_t flag)
 bool
 trustLineFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    if (ledgerVersion < 13)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
     }
-    else if (ledgerVersion < 17)
+    else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
     {
         return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
     }
@@ -1091,7 +1104,8 @@ accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 bool
 accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    if (ledgerVersion >= 17 && (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17) &&
+        (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
         ((flag & AUTH_REVOCABLE_FLAG) == 0))
     {
         return false;
@@ -1103,7 +1117,7 @@ accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
 bool
 accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    if (ledgerVersion < 17)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_17))
     {
         return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
     }
@@ -1385,7 +1399,8 @@ removeOffersAndPoolShareTrustLines(AbstractLedgerTxn& ltx,
 
     LedgerTxn ltxInner(ltx);
 
-    if (ltxInner.loadHeader().current().ledgerVersion < 18)
+    if (protocolVersionIsBefore(ltxInner.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_18))
     {
         return RemoveResult::SUCCESS;
     }
@@ -1749,7 +1764,7 @@ makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
               Asset const& sheep, int64_t numSheepSend)
 {
     ClaimAtom atom;
-    if (ledgerVersion <= 17)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
     {
         atom.type(CLAIM_ATOM_TYPE_V0);
         atom.v0() = ClaimOfferAtomV0(accountID.ed25519(), offerID, wheat,

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/NonCopyable.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
@@ -61,7 +62,8 @@ LedgerKey poolShareTrustLineKey(AccountID const& accountID,
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
-uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
+ProtocolVersion const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS =
+    ProtocolVersion::V_11;
 
 uint32_t getAccountSubEntryLimit();
 size_t getMaxOffersToCross();

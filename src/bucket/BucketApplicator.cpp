@@ -103,8 +103,10 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                if (mBucketIter.getMetadata().ledgerVersion <
-                    Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+                if (protocolVersionIsBefore(
+                        mBucketIter.getMetadata().ledgerVersion,
+                        Bucket::
+                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
                 {
                     // Prior to protocol 11, INITENTRY didn't exist, so we need
                     // to check ltx to see if this is an update or a create

@@ -18,6 +18,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -223,7 +224,8 @@ TxSetFrame::surgePricingFilter(Application& app)
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
 
-    bool maxIsOps = header.current().ledgerVersion >= 11;
+    bool maxIsOps = protocolVersionStartsFrom(header.current().ledgerVersion,
+                                              ProtocolVersion::V_11);
 
     size_t opsLeft = app.getLedgerManager().getLastMaxTxSetSizeOps();
 
@@ -474,7 +476,9 @@ TxSetFrame::previousLedgerHash() const
 size_t
 TxSetFrame::size(LedgerHeader const& lh) const
 {
-    return lh.ledgerVersion >= 11 ? sizeOp() : sizeTx();
+    return protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11)
+               ? sizeOp()
+               : sizeTx();
 }
 
 size_t
@@ -492,7 +496,7 @@ int64_t
 TxSetFrame::getBaseFee(LedgerHeader const& lh) const
 {
     int64_t baseFee = lh.baseFee;
-    if (lh.ledgerVersion >= 11)
+    if (protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11))
     {
         size_t ops = 0;
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();

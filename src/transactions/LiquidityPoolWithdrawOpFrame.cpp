@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 
 namespace stellar
 {
@@ -21,7 +22,9 @@ LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
 bool
 LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 18 && !isPoolWithdrawalDisabled(header);
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_18) &&
+           !isPoolWithdrawalDisabled(header);
 }
 
 bool

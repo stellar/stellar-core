@@ -61,19 +61,27 @@ void
 for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
-    for_versions({Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-                  Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
-                  Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED},
-                 cfg, f);
+    for_versions(
+        {static_cast<uint32_t>(
+             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+             1,
+         static_cast<uint32_t>(
+             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+         static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
+        cfg, f);
 }
 
 void
 for_versions_with_differing_initentry_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
-    for_versions({Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-                  Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY},
-                 cfg, f);
+    for_versions(
+        {static_cast<uint32_t>(
+             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+             1,
+         static_cast<uint32_t>(
+             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)},
+        cfg, f);
 }
 
 EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
@@ -377,7 +385,7 @@ TEST_CASE("merges proceed old-style despite newer shadows",
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
     auto& bm = app->getBucketManager();
-    auto v12 = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED;
+    auto v12 = static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
     auto v11 = v12 - 1;
     auto v10 = v11 - 1;
 
@@ -482,7 +490,8 @@ TEST_CASE("bucket output iterator rejects wrong-version entries",
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    auto vers_new = Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
+    auto vers_new = static_cast<uint32_t>(
+        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
     BucketMetadata meta;
     meta.ledgerVersion = vers_new - 1;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -510,8 +519,8 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
         auto vers = getAppLedgerVersion(app);
 
         // Whether we're in the era of supporting or not-supporting INITENTRY.
-        bool initEra =
-            (vers >= Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+        bool initEra = protocolVersionStartsFrom(
+            vers, Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
         CLOG_INFO(Bucket, "=== finished buckets for initial account == ");
 
@@ -699,8 +708,8 @@ TEST_CASE("merging bucket entries with initentry with shadows",
         auto vers = getAppLedgerVersion(app);
 
         // Whether we're in the era of supporting or not-supporting INITENTRY.
-        bool initEra =
-            (vers >= Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+        bool initEra = protocolVersionStartsFrom(
+            vers, Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
         CLOG_INFO(Bucket, "=== finished buckets for initial account == ");
 

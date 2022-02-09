@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -26,7 +27,8 @@ SetTrustLineFlagsOpFrame::SetTrustLineFlagsOpFrame(Operation const& op,
 bool
 SetTrustLineFlagsOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 17;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_17);
 }
 
 void

@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
 
@@ -102,7 +103,8 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& opres,
                                             LedgerTxnDelta const& ltxDelta)
 {
-    if (ltxDelta.header.current.ledgerVersion < 8)
+    if (protocolVersionIsBefore(ltxDelta.header.current.ledgerVersion,
+                                ProtocolVersion::V_8))
     {
         return;
     }

@@ -5,6 +5,7 @@
 #include "transactions/TrustFlagsOpFrameBase.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -55,7 +56,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx)
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    if (ledgerVersion > 2)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_3))
     {
         // Only relevant for AllowTrust, since version 3 it is not allowed
         // to use AllowTrust on self.
@@ -117,7 +118,8 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx)
     }
 
     // Remove offers, the ledgerVersion check is only relevant for AllowTrust
-    if (ledgerVersion >= 10 && shouldRemoveOffers)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10) &&
+        shouldRemoveOffers)
     {
         if (!removeOffers(ltx))
         {

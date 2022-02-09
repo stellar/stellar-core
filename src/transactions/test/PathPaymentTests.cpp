@@ -14,6 +14,7 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 #include <deque>
@@ -682,7 +683,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
             auto pathPayment = [&](std::vector<Asset> const& path,
                                    Asset& noIssuer) {
-                if (ledgerVersion < 13)
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_13))
                 {
                     REQUIRE_THROWS_AS(source.pay(destination, idr, 11, usd, 11,
                                                  path, &noIssuer),
@@ -1555,7 +1557,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     ledgerVersion = ltx.loadHeader().current().ledgerVersion;
                 }
 
-                if (ledgerVersion < 13)
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_13))
                 {
                     return;
                 }
@@ -4942,7 +4945,8 @@ TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
-            if (issuerToDelete && ledgerVersion >= 13)
+            if (issuerToDelete &&
+                protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {
                 closeLedgerOn(*app, 2, 1, 1, 2016);
                 // remove issuer

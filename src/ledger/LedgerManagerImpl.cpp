@@ -33,6 +33,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
@@ -399,15 +400,17 @@ uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
     auto n = mLastClosedLedger.header.maxTxSetSize;
-    return mLastClosedLedger.header.ledgerVersion >= 11 ? n
-                                                        : (n * MAX_OPS_PER_TX);
+    return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
+                                     ProtocolVersion::V_11)
+               ? n
+               : (n * MAX_OPS_PER_TX);
 }
 
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
     auto& lh = mLastClosedLedger.header;
-    if (lh.ledgerVersion <= 8)
+    if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
     else
         return (2LL + ownerCount) * int64_t(lh.baseReserve);

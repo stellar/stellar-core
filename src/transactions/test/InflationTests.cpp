@@ -19,6 +19,7 @@
 #include "transactions/InflationOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
 #include <functional>
@@ -136,7 +137,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
         // computes the share of this guy
         int64 toDoleToThis =
             bigDivideOrThrow(coinsToDole, votes.at(w), totVotes, ROUND_DOWN);
-        if (ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
         {
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto header = ltx.loadHeader();
@@ -148,7 +149,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
         if (balances[w] >= 0)
         {
             balances[w] += toDoleToThis;
-            if (ledgerVersion <= 7)
+            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_8))
             {
                 totCoins += toDoleToThis;
             }
@@ -156,7 +157,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
         }
     }
 
-    if (ledgerVersion > 7)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_8))
     {
         totCoins += inflation;
     }

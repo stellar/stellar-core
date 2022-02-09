@@ -150,8 +150,8 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     // When building fresh buckets after protocol version 10 (i.e. version
     // 11-or-after) we differentiate INITENTRY from LIVEENTRY. In older
     // protocols, for compatibility sake, we mark both cases as LIVEENTRY.
-    bool useInit =
-        (protocolVersion >= FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+    bool useInit = protocolVersionStartsFrom(
+        protocolVersion, FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
@@ -197,7 +197,9 @@ void
 Bucket::checkProtocolLegality(BucketEntry const& entry,
                               uint32_t protocolVersion)
 {
-    if (protocolVersion < FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY &&
+    if (protocolVersionIsBefore(
+            protocolVersion,
+            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) &&
         (entry.type() == INITENTRY || entry.type() == METAENTRY))
     {
         throw std::runtime_error(fmt::format(
@@ -371,7 +373,8 @@ calculateMergeProtocolVersion(
     for (auto const& si : shadowIterators)
     {
         auto version = si.getMetadata().ledgerVersion;
-        if (version < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (protocolVersionIsBefore(version,
+                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             protocolVersion = std::max(version, protocolVersion);
         }
@@ -393,8 +396,9 @@ calculateMergeProtocolVersion(
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
     keepShadowedLifecycleEntries = true;
-    if (protocolVersion <
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+    if (protocolVersionIsBefore(
+            protocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
         ++mc.mPreInitEntryProtocolMerges;
         keepShadowedLifecycleEntries = false;
@@ -404,7 +408,8 @@ calculateMergeProtocolVersion(
         ++mc.mPostInitEntryProtocolMerges;
     }
 
-    if (protocolVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+    if (protocolVersionIsBefore(protocolVersion,
+                                Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
     {
         ++mc.mPreShadowRemovalProtocolMerges;
     }

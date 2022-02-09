@@ -11,6 +11,7 @@
 #include "main/Application.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
@@ -287,12 +288,15 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
                       KeyUtils::convertKey<SignerKey>(getSourceID());
         auto isPublicKey =
             KeyUtils::canConvert<PublicKey>(mSetOptions.signer->key);
-        if (isSelf || (!isPublicKey && ledgerVersion < 3))
+        if (isSelf ||
+            (!isPublicKey &&
+             protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_3)))
         {
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
-        if (mSetOptions.signer->weight > UINT8_MAX && ledgerVersion > 9)
+        if (mSetOptions.signer->weight > UINT8_MAX &&
+            protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
         {
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;

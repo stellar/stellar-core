@@ -22,6 +22,7 @@
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 
@@ -174,7 +175,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             tx->processFeeSeqNum(ltxFeeProc, baseFee);
             // check that the recommended fee is correct, ignore the difference
             // for later
-            if (ledgerVersion >= 11)
+            if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_11))
             {
                 REQUIRE(checkResult.feeCharged >= tx->getResult().feeCharged);
             }
@@ -197,7 +198,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             REQUIRE(currAcc.accountID == tx->getSourceID());
             REQUIRE(currAcc.balance < prevAcc.balance);
             currAcc.balance = prevAcc.balance;
-            if (ledgerVersion <= 9)
+            if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
             {
                 // v9 and below, we also need to verify that the sequence number
                 // also got processed at this time
@@ -276,7 +277,10 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
                 auto header = ltxTx.loadHeader();
-                if (checkSeqNum && ledgerVersion >= 10 && !earlyFailure)
+                if (checkSeqNum &&
+                    protocolVersionStartsFrom(ledgerVersion,
+                                              ProtocolVersion::V_10) &&
+                    !earlyFailure)
                 {
                     REQUIRE(srcAccountAfter.current().data.account().seqNum ==
                             (srcAccountBefore.seqNum + 1));
@@ -285,8 +289,12 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 if (!res)
                 {
                     bool noChangeOnEarlyFailure =
-                        earlyFailure && ledgerVersion < 13;
-                    if (noChangeOnEarlyFailure || ledgerVersion <= 9)
+                        earlyFailure &&
+                        protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13);
+                    if (noChangeOnEarlyFailure ||
+                        protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_10))
                     {
                         // no changes during an early failure
                         REQUIRE(ltxTx.getDelta().entry.empty());
@@ -307,7 +315,9 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
                             // From V13, it's possible to remove one-time
                             // signers on early failures
-                            if (ledgerVersion >= 13 && earlyFailure)
+                            if (protocolVersionStartsFrom(
+                                    ledgerVersion, ProtocolVersion::V_13) &&
+                                earlyFailure)
                             {
                                 auto currAcc =
                                     current->ledgerEntry().data.account();
@@ -579,7 +589,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     }
-    if (ledgerVersion < 13)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13))
     {
         return transactionFromOperationsV0(app, from, seq, ops, fee);
     }

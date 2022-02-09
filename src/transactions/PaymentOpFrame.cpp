@@ -10,6 +10,7 @@
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -35,10 +36,11 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
     // in ledger version 2 it would work for any asset type
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     auto destID = toAccountID(mPayment.destination);
-    auto instantSuccess = ledgerVersion > 2
-                              ? destID == getSourceID() &&
-                                    mPayment.asset.type() == ASSET_TYPE_NATIVE
-                              : destID == getSourceID();
+    auto instantSuccess =
+        protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_3)
+            ? destID == getSourceID() &&
+                  mPayment.asset.type() == ASSET_TYPE_NATIVE
+            : destID == getSourceID();
     if (instantSuccess)
     {
         innerResult().code(PAYMENT_SUCCESS);
