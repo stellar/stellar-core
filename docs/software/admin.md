@@ -877,12 +877,12 @@ This output has two main sections: `qset` and `transitive`. The former describes
 
 Entries to watch for in the `qset` section -- describing the node and its quorum set -- are:
 
-  * `agree` : the number of nodes in the quorum set that agree with this instance.
-  * `delayed` : the nodes that are participating to consensus but seem to be behind.
-  * `disagree`: the nodes that were participating but disagreed with this instance.
+  * `agree` : the number of nodes in the quorum set that seem to be up and running as expected. The local node has no reason to believe that this node is `delayed`, `disagree` or `missing`. Note that `agree` has nothing to do with SCP terms such as "accept" or "confirming".
+  * `delayed` : the nodes that seem up but behind.
+  * `disagree`: the nodes that seem up but disagree with this instance.
   * `fail_at` : the number of failed nodes that *would* cause this instance to halt.
   * `fail_with`: an example of such potential failure.
-  * `missing` : the nodes that were missing during this consensus round.
+  * `missing` : the nodes that seem down.
   * `value` : the quorum set used by this node (`t` is the threshold expressed as a number of nodes).
 
 In the example above, 6 nodes are functioning properly, one is down (`stronghold1`), and

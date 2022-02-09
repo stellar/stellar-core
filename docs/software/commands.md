@@ -194,6 +194,11 @@ format.
   If `compact` is set, only returns a summary version.
 
   If `fullkeys` is set, outputs unshortened public keys.
+  The quorum endpoint categorizes each node as following:
+  * `missing`: didn't participate in the latest consensus rounds.
+  * `disagree`: participating in the latest consensus rounds, but working on different values.
+  * `delayed`: participating in the latest consensus rounds, but slower than others.
+  * `agree`: running just fine.
 
 * **setcursor**
   `setcursor?id=ID&cursor=N`<br>
