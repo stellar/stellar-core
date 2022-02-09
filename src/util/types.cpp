@@ -87,7 +87,7 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
 }
 
 bool
-isString32Valid(std::string const& str)
+isStringValid(std::string const& str)
 {
     auto& loc = std::locale::classic();
     for (auto c : str)

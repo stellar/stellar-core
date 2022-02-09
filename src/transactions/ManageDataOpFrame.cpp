@@ -108,7 +108,7 @@ ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion)
     }
 
     if ((mManageData.dataName.size() < 1) ||
-        (!isString32Valid(mManageData.dataName)))
+        (!isStringValid(mManageData.dataName)))
     {
         innerResult().code(MANAGE_DATA_INVALID_NAME);
         return false;

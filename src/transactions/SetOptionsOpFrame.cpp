@@ -301,7 +301,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
 
     if (mSetOptions.homeDomain)
     {
-        if (!isString32Valid(*mSetOptions.homeDomain))
+        if (!isStringValid(*mSetOptions.homeDomain))
         {
             innerResult().code(SET_OPTIONS_INVALID_HOME_DOMAIN);
             return false;

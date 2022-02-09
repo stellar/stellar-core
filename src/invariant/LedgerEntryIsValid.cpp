@@ -151,7 +151,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
         return "Account flags are invalid";
     }
 
-    if (!isString32Valid(ae.homeDomain))
+    if (!isStringValid(ae.homeDomain))
     {
         return "Account homeDomain is invalid";
     }
@@ -291,7 +291,7 @@ LedgerEntryIsValid::checkIsValid(DataEntry const& de, uint32 version) const
     {
         return "Data dataName is empty";
     }
-    if (!isString32Valid(de.dataName))
+    if (!isStringValid(de.dataName))
     {
         return "Data dataName is invalid";
     }
