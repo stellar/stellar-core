@@ -1440,7 +1440,14 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
+        auto& bl = bm.getBucketList();
+        while (!bl.futuresAllResolved())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            bl.resolveAnyReadyFutures();
+        }
         auto mc = bm.readMergeCounters();
+
         CLOG_INFO(Bucket,
                   "Ledger {} did {} old-protocol merges, {} new-protocol "
                   "merges, {} new INITENTRYs, {} old INITENTRYs",
@@ -1559,6 +1566,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         auto& bl = bm.getBucketList();
         while (!bl.futuresAllResolved())
         {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
             bl.resolveAnyReadyFutures();
         }
         auto mc = bm.readMergeCounters();
