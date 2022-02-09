@@ -23,8 +23,8 @@ Hash& operator^=(Hash& l, Hash const& r);
 // returns true if ( l ^ x ) < ( r ^ x)
 bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 
-// returns true if the passed string32 is valid
-bool isString32Valid(std::string const& str);
+// returns true if the passed string is valid
+bool isStringValid(std::string const& str);
 
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);

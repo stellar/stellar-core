@@ -419,7 +419,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case DATA:
         {
             auto const& name = lk.data().dataName;
-            if ((name.size() < 1) || !isString32Valid(name))
+            if ((name.size() < 1) || !isStringValid(name))
             {
                 innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
                 return false;
