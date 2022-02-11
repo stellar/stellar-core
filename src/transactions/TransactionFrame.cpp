@@ -460,6 +460,8 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
             throw std::runtime_error("unexpected sequence number");
         }
         sourceAccount.current().data.account().seqNum = getSeqNum();
+
+        maybeUpdateAccountOnLedgerSeqUpdate(header, sourceAccount);
     }
 }
 

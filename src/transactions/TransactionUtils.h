@@ -40,6 +40,7 @@ findSignerByKey(IterType begin, IterType end, SignerKey const& key)
 
 AccountEntryExtensionV1& prepareAccountEntryExtensionV1(AccountEntry& ae);
 AccountEntryExtensionV2& prepareAccountEntryExtensionV2(AccountEntry& ae);
+AccountEntryExtensionV3& prepareAccountEntryExtensionV3(AccountEntry& ae);
 TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
 TrustLineEntryExtensionV2& prepareTrustLineEntryExtensionV2(TrustLineEntry& tl);
@@ -271,4 +272,7 @@ ChangeTrustAsset assetToChangeTrustAsset(Asset const& asset);
 
 int64_t getPoolWithdrawalAmount(int64_t amountPoolShares,
                                 int64_t totalPoolShares, int64_t reserve);
+
+void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
+                                         LedgerTxnEntry& account);
 }

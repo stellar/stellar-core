@@ -83,6 +83,20 @@ prepareAccountEntryExtensionV2(AccountEntry& ae)
     return extV1.ext.v2();
 }
 
+AccountEntryExtensionV3&
+prepareAccountEntryExtensionV3(AccountEntry& ae)
+{
+    auto& extV2 = prepareAccountEntryExtensionV2(ae);
+    if (extV2.ext.v() == 0)
+    {
+        extV2.ext.v(3);
+        auto& extV3 = extV2.ext.v3();
+        extV3.seqLedger = 0;
+        extV3.seqTime = 0;
+    }
+    return extV2.ext.v3();
+}
+
 TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
 {
@@ -1711,6 +1725,20 @@ getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
 
     return bigDivideOrThrow(amountPoolShares, reserve, totalPoolShares,
                             ROUND_DOWN);
+}
+
+void
+maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
+                                    LedgerTxnEntry& account)
+{
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto& v3 =
+            prepareAccountEntryExtensionV3(account.current().data.account());
+        v3.seqLedger = header.current().ledgerSeq;
+        v3.seqTime = header.current().scpValue.closeTime;
+    }
 }
 
 namespace detail
