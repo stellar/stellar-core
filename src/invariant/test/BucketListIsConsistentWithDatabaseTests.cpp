@@ -149,6 +149,11 @@ struct BucketListGenerator
             auto index = dist(gRandomEngine);
             auto iter = live.begin();
             std::advance(iter, index);
+            if (iter->type() == SPEEDEX_CONFIGURATION)
+            {
+                // Speedex configuration can not be deleted.
+                continue;
+            }
             dead.push_back(*iter);
             live.erase(iter);
         }
@@ -447,6 +452,14 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         entry.data.liquidityPool().liquidityPoolID = lp.liquidityPoolID;
     }
 
+    void
+    modifySpeedexConfiguration(LedgerEntry& entry)
+    {
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
+        entry.data.speedexConfiguration() =
+            LedgerTestUtils::generateValidSpeedexConfigurationEntry();
+    }
+
   public:
     ApplyBucketsWorkModifyEntry(
         Application& app,
@@ -488,6 +501,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                     break;
                 case LIQUIDITY_POOL:
                     modifyLiquidityPoolEntry(entry.current());
+                    break;
+                case SPEEDEX_CONFIGURATION:
+                    modifySpeedexConfiguration(entry.current());
                     break;
                 default:
                     REQUIRE(false);
@@ -602,14 +618,25 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
             stellar::uniform_int_distribution<uint32_t> addAtLedgerDist(
                 2, blg.mLedgerSeq);
             auto le = LedgerTestUtils::generateValidLedgerEntry(5);
+
             le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
 
             if (!withFilter)
             {
                 auto filter = [](auto) { return true; };
-                REQUIRE_THROWS_AS(
-                    blg.applyBuckets<ApplyBucketsWorkAddEntry>(filter, le),
-                    InvariantDoesNotHold);
+                if (le.data.type() != SPEEDEX_CONFIGURATION)
+                {
+                    REQUIRE_THROWS_AS(
+                        blg.applyBuckets<ApplyBucketsWorkAddEntry>(filter, le),
+                        InvariantDoesNotHold);
+                }
+                else
+                {
+                    // Can not add duplicate speedex configuration.
+                    REQUIRE_THROWS_AS(
+                        blg.applyBuckets<ApplyBucketsWorkAddEntry>(filter, le),
+                        std::runtime_error);
+                }
             }
             else
             {
@@ -644,9 +671,19 @@ TEST_CASE("BucketListIsConsistentWithDatabase deleted entries",
             {
                 continue;
             }
-            REQUIRE_THROWS_AS(
-                blg.applyBuckets<ApplyBucketsWorkDeleteEntry>(*blg.mSelected),
-                InvariantDoesNotHold);
+            if (t != SPEEDEX_CONFIGURATION)
+            {
+                REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkDeleteEntry>(
+                                      *blg.mSelected),
+                                  InvariantDoesNotHold);
+            }
+            else
+            {
+                // Speedex configuration can not be deleted.
+                REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkDeleteEntry>(
+                                      *blg.mSelected),
+                                  std::runtime_error);
+            }
             ++nTests;
         }
     }
@@ -796,6 +833,11 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
     testutil::BucketListDepthModifier bldm(3);
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
+        if (t == SPEEDEX_CONFIGURATION)
+        {
+            // Merge logic is not applicable to speedex configuration.
+            continue;
+        }
         uint32_t nTests = 0;
         while (nTests < 5)
         {

@@ -33,7 +33,17 @@ void makeValid(LedgerHeaderHistoryEntry& lh,
                HistoryManager::LedgerVerificationStatus state);
 
 LedgerEntry generateValidLedgerEntry(size_t b = 3);
+LedgerEntry generateValidLedgerEntryOfType(LedgerEntryType type);
 std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
+std::vector<LedgerEntry> generateValidUniqueLedgerEntries(size_t n);
+
+std::vector<LedgerKey> generateValidLedgerEntryKeysWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n);
+
+LedgerEntry generateValidLedgerEntryWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t b = 3);
+std::vector<LedgerEntry> generateValidLedgerEntriesWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n);
 
 AccountEntry generateValidAccountEntry(size_t b = 3);
 std::vector<AccountEntry> generateValidAccountEntries(size_t n);
@@ -54,6 +64,8 @@ generateValidClaimableBalanceEntries(size_t n);
 
 LiquidityPoolEntry generateValidLiquidityPoolEntry(size_t b = 3);
 std::vector<LiquidityPoolEntry> generateValidLiquidityPoolEntries(size_t n);
+
+SpeedexConfigurationEntry generateValidSpeedexConfigurationEntry(size_t b = 3);
 
 std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
     LedgerHeaderHistoryEntry firstLedger, uint32_t size,

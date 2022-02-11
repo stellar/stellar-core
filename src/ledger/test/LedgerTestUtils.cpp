@@ -5,9 +5,11 @@
 #include "LedgerTestUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerHashUtils.h"
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/UnorderedSet.h"
 #include "util/types.h"
 #include <locale>
 #include <string>
@@ -288,6 +290,12 @@ makeValid(LiquidityPoolEntry& lp)
 }
 
 void
+makeValid(SpeedexConfigurationEntry& sc)
+{
+    // Currently the is no speedex configuration entry content is not defined.
+}
+
+void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
           LedgerHeaderHistoryEntry firstLedger,
           HistoryManager::LedgerVerificationStatus state)
@@ -371,6 +379,9 @@ static auto validLedgerEntryGenerator = autocheck::map(
         case LIQUIDITY_POOL:
             makeValid(led.liquidityPool());
             break;
+        case SPEEDEX_CONFIGURATION:
+            makeValid(led.speedexConfiguration());
+            break;
         }
 
         return std::move(le);
@@ -419,10 +430,28 @@ static auto validLiquidityPoolEntryGenerator = autocheck::map(
     },
     autocheck::generator<LiquidityPoolEntry>());
 
+static auto validSpeedexEntryGenerator = autocheck::map(
+    [](SpeedexConfigurationEntry&& c, size_t s) {
+        makeValid(c);
+        return std::move(c);
+    },
+    autocheck::generator<SpeedexConfigurationEntry>());
+
 LedgerEntry
 generateValidLedgerEntry(size_t b)
 {
     return validLedgerEntryGenerator(b);
+}
+
+LedgerEntry
+generateValidLedgerEntryOfType(LedgerEntryType type)
+{
+    auto entry = generateValidLedgerEntry();
+    while (entry.data.type() != type)
+    {
+        entry = generateValidLedgerEntry();
+    }
+    return entry;
 }
 
 std::vector<LedgerEntry>
@@ -430,6 +459,66 @@ generateValidLedgerEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validLedgerEntryGenerator);
     return vecgen(n);
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntries(size_t n)
+{
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerEntry> entries;
+    while (entries.size() < n)
+    {
+        auto entry = generateValidLedgerEntry();
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+        keys.insert(key);
+        entries.push_back(entry);
+    }
+    return entries;
+}
+
+LedgerEntry
+generateValidLedgerEntryWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t b)
+{
+    while (true)
+    {
+        auto entry = generateValidLedgerEntry(b);
+        if (excluded_types.find(entry.data.type()) == excluded_types.end())
+        {
+            return entry;
+        }
+    }
+}
+
+std::vector<LedgerEntry>
+generateValidLedgerEntriesWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n)
+{
+    std::vector<LedgerEntry> res(n);
+    for (int i = 0; i < n; ++i)
+    {
+        res[i] = generateValidLedgerEntryWithExclusions(excluded_types);
+    }
+    return res;
+}
+
+std::vector<LedgerKey>
+generateValidLedgerEntryKeysWithExclusions(
+    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n)
+{
+    auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+        excluded_types, n);
+    std::vector<LedgerKey> keys;
+    keys.reserve(entries.size());
+    for (const auto& entry : entries)
+    {
+        keys.push_back(LedgerEntryKey(entry));
+    }
+    return keys;
 }
 
 AccountEntry
@@ -522,6 +611,12 @@ generateValidLiquidityPoolEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validLiquidityPoolEntryGenerator);
     return vecgen(n);
+}
+
+SpeedexConfigurationEntry
+generateValidSpeedexConfigurationEntry(size_t b)
+{
+    return validSpeedexEntryGenerator(b);
 }
 
 std::vector<LedgerHeaderHistoryEntry>

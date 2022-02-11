@@ -194,6 +194,10 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                 LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
                 app.getLedgerTxnRoot().dropLiquidityPools();
                 break;
+            case SPEEDEX_CONFIGURATION:
+                LOG_INFO(DEFAULT_LOG, "Dropping speedexconfiguration");
+                app.getLedgerTxnRoot().dropSpeedexConfiguration();
+                break;
             default:
                 abort();
             }

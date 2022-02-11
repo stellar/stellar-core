@@ -58,8 +58,8 @@ generateRandomSubEntry(LedgerEntry const& acc)
     do
     {
         le = LedgerTestUtils::generateValidLedgerEntry(5);
-    } while (le.data.type() == ACCOUNT || le.data.type() == CLAIMABLE_BALANCE ||
-             le.data.type() == LIQUIDITY_POOL);
+    } while (le.data.type() != OFFER && le.data.type() != TRUSTLINE &&
+             le.data.type() != DATA);
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
 
     switch (le.data.type())
@@ -87,9 +87,6 @@ generateRandomSubEntry(LedgerEntry const& acc)
         le.data.data().accountID = acc.data.account().accountID;
         le.data.data().dataName = validDataNameGenerator(64);
         break;
-    case CLAIMABLE_BALANCE:
-    case ACCOUNT:
-    case LIQUIDITY_POOL:
     default:
         abort();
     }

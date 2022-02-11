@@ -49,7 +49,10 @@ LedgerEntryKey(LedgerEntry const& e)
     case LIQUIDITY_POOL:
         k.liquidityPool().liquidityPoolID = d.liquidityPool().liquidityPoolID;
         break;
-
+    case SPEEDEX_CONFIGURATION:
+        // Speedex configuration key contains no payload as there exists is
+        // only a single configuration.
+        break;
     default:
         abort();
     }

@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <libpq-fe.h>
 #include <limits>
+#include <optional>
 #include <sstream>
 #endif
 
@@ -69,6 +70,7 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mTrustLinesToDelete;
     std::vector<EntryIterator> mLiquidityPoolToUpsert;
     std::vector<EntryIterator> mLiquidityPoolToDelete;
+    std::optional<EntryIterator> mSpeedexConfigurationToUpsert;
 
   public:
     std::vector<EntryIterator>&
@@ -141,6 +143,12 @@ class BulkLedgerEntryChangeAccumulator
     getLiquidityPoolToDelete()
     {
         return mLiquidityPoolToDelete;
+    }
+
+    std::optional<EntryIterator>&
+    getSpeedexConfigurationToUpsert()
+    {
+        return mSpeedexConfigurationToUpsert;
     }
 
     void accumulate(EntryIterator const& iter);
@@ -724,6 +732,7 @@ class LedgerTxnRoot::Impl
     loadClaimableBalance(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadLiquidityPool(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const> loadSpeedexConfiguration() const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -745,6 +754,7 @@ class LedgerTxnRoot::Impl
     void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
     void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
                                  LedgerTxnConsistency cons);
+    void upsertSpeedexConfiguration(EntryIterator const& entry);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -824,6 +834,7 @@ class LedgerTxnRoot::Impl
     void dropTrustLines();
     void dropClaimableBalances();
     void dropLiquidityPools();
+    void dropSpeedexConfiguration();
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

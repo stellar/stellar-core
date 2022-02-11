@@ -100,6 +100,10 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
             le.data.liquidityPool().liquidityPoolID =
                 leBase.data.liquidityPool().liquidityPoolID;
             break;
+        case SPEEDEX_CONFIGURATION:
+            le.data.speedexConfiguration() =
+                LedgerTestUtils::generateValidSpeedexConfigurationEntry();
+            break;
         default:
             REQUIRE(false);
         }
@@ -145,7 +149,8 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
+    LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+        {SPEEDEX_CONFIGURATION});
     le1.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le1);
 
@@ -216,7 +221,9 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
+        LedgerEntry le1 =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
         le1.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le1);
 
@@ -355,6 +362,10 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         {
             auto iter = entries.begin();
             std::advance(iter, dist(gRandomEngine));
+            if (iter->first.type() == SPEEDEX_CONFIGURATION)
+            {
+                continue;
+            }
             eraseBatch.insert(iter->first);
         }
 
@@ -573,7 +584,9 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        LedgerEntry le =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -666,7 +679,9 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        LedgerEntry le =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -685,6 +700,17 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
             REQUIRE(ltx1.create(le));
             ltx1.getDelta();
             REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        }
+
+        SECTION("fails for speedex configuration")
+        {
+            auto speedexLe = LedgerTestUtils::generateValidLedgerEntryOfType(
+                SPEEDEX_CONFIGURATION);
+            speedexLe.lastModifiedLedgerSeq = 1;
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(speedexLe));
+            REQUIRE_THROWS_AS(ltx1.erase(LedgerEntryKey(speedexLe)),
+                              std::runtime_error);
         }
 
         SECTION("when key does not exist")
@@ -739,7 +765,9 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        LedgerEntry le =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -1271,7 +1299,9 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        LedgerEntry le =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -2523,8 +2553,9 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
 
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(
-            cfg.ENTRY_CACHE_SIZE + 1);
+        auto entries =
+            LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                {SPEEDEX_CONFIGURATION}, cfg.ENTRY_CACHE_SIZE + 1);
         LedgerTxn ltx(root);
         for (auto e : entries)
         {
@@ -2554,6 +2585,13 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             LedgerTxn ltx2(root);
             REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
             ltx2.commit();
+        }
+        SECTION("prefetch is not supported for SPEEDEX_CONFIGURATION")
+        {
+            LedgerTxn ltx2(root);
+            UnorderedSet<LedgerKey> keys;
+            keys.emplace(SPEEDEX_CONFIGURATION);
+            REQUIRE_THROWS_AS(root.prefetch(keys), std::runtime_error);
         }
     };
 

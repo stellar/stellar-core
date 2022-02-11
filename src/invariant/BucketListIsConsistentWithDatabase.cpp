@@ -90,12 +90,13 @@ struct EntryCounts
     uint64_t mData{0};
     uint64_t mClaimableBalance{0};
     uint64_t mLiquidityPool{0};
+    uint64_t mSpeedexConfiguration{0};
 
     uint64_t
     totalEntries() const
     {
         return mAccounts + mTrustLines + mOffers + mData + mClaimableBalance +
-               mLiquidityPool;
+               mLiquidityPool + mSpeedexConfiguration;
     }
 
     void
@@ -120,6 +121,9 @@ struct EntryCounts
             break;
         case LIQUIDITY_POOL:
             ++mLiquidityPool;
+            break;
+        case SPEEDEX_CONFIGURATION:
+            ++mSpeedexConfiguration;
             break;
         default:
             throw std::runtime_error(

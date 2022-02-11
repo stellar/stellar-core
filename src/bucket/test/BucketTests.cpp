@@ -132,12 +132,10 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
 
         autocheck::generator<LedgerKey> deadGen;
         CLOG_DEBUG(Bucket, "Generating 10000 random ledger entries");
-        std::vector<LedgerEntry> live(9000);
-        std::vector<LedgerKey> dead(1000);
-        for (auto& e : live)
-            e = LedgerTestUtils::generateValidLedgerEntry(3);
-        for (auto& e : dead)
-            e = deadGen(3);
+        auto live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
+        auto dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+            {SPEEDEX_CONFIGURATION}, 1000);
+
         CLOG_DEBUG(Bucket, "Hashing entries");
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
@@ -148,10 +146,10 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
             CLOG_DEBUG(Bucket,
                        "Merging 10000 new ledger entries into {} entry bucket",
                        (i * 10000));
-            for (auto& e : live)
-                e = LedgerTestUtils::generateValidLedgerEntry(3);
-            for (auto& e : dead)
-                e = deadGen(3);
+            live = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                {SPEEDEX_CONFIGURATION}, 9000);
+            dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                {SPEEDEX_CONFIGURATION}, 1000);
             {
                 b1 = Bucket::merge(
                     app->getBucketManager(),
@@ -248,7 +246,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
             std::vector<LedgerKey> dead;
             for (auto& e : live)
             {
-                e = LedgerTestUtils::generateValidLedgerEntry(10);
+                e = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                    {SPEEDEX_CONFIGURATION});
                 if (rand_flip())
                 {
                     dead.push_back(LedgerEntryKey(e));
@@ -276,12 +275,10 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
         SECTION("random live entries overwrite live entries in any order")
         {
-            std::vector<LedgerEntry> live(100);
+            std::vector<LedgerEntry> live =
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {SPEEDEX_CONFIGURATION}, 100);
             std::vector<LedgerKey> dead;
-            for (auto& e : live)
-            {
-                e = LedgerTestUtils::generateValidLedgerEntry(10);
-            }
             std::shared_ptr<Bucket> b1 = Bucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
@@ -309,7 +306,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
             {
                 if (rand_flip())
                 {
-                    e = LedgerTestUtils::generateValidLedgerEntry(10);
+                    e = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                        {SPEEDEX_CONFIGURATION}, 100);
                     ++liveCount;
                 }
             }

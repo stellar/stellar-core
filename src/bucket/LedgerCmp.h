@@ -82,6 +82,8 @@ struct LedgerEntryIdCmp
         case LIQUIDITY_POOL:
             return a.liquidityPool().liquidityPoolID <
                    b.liquidityPool().liquidityPoolID;
+        case SPEEDEX_CONFIGURATION:
+            return false;
         }
         return false;
     }

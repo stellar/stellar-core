@@ -140,6 +140,12 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(res, std::hash<stellar::uint256>()(
                                       lk.liquidityPool().liquidityPoolID));
             break;
+        case stellar::SPEEDEX_CONFIGURATION:
+            // As there is only a single speedex configuration entry, just
+            // add the hash of the key type itself.
+            stellar::hashMix(res, stellar::shortHash::computeHash(
+                                      stellar::ByteSlice(&res, sizeof(res))));
+            break;
         default:
             abort();
         }

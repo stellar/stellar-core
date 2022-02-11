@@ -723,6 +723,11 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     {
         throw std::runtime_error("Key does not exist");
     }
+    if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+        key.ledgerKey().type() == SPEEDEX_CONFIGURATION)
+    {
+        throw std::runtime_error("Speedex configuration cannot be erased.");
+    }
 
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
@@ -1965,6 +1970,13 @@ LedgerTxn::dropLiquidityPools()
     throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
 }
 
+void
+LedgerTxn::dropSpeedexConfiguration()
+{
+    throw std::runtime_error(
+        "called dropSpeedexConfiguration on non-root LedgerTxn");
+}
+
 double
 LedgerTxn::getPrefetchHitRate() const
 {
@@ -2508,6 +2520,11 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case LIQUIDITY_POOL:
         accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
         break;
+    case SPEEDEX_CONFIGURATION:
+        // Speedex configuration can not be deleted.
+        releaseAssert(iter.entryExists());
+        mSpeedexConfigurationToUpsert.emplace(iter);
+        break;
     default:
         abort();
     }
@@ -2589,6 +2606,17 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
         deleteLiquidityPool.clear();
+    }
+    // Only upload speedex configuration once, as it's update 'queue' always
+    // contains at most a single entry.
+    if (bufferThreshold == 0)
+    {
+        auto& speedexConfiguration = bleca.getSpeedexConfigurationToUpsert();
+        if (speedexConfiguration)
+        {
+            upsertSpeedexConfiguration(*speedexConfiguration);
+            speedexConfiguration.reset();
+        }
     }
 }
 
@@ -2679,6 +2707,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "claimablebalance";
     case LIQUIDITY_POOL:
         return "liquiditypool";
+    case SPEEDEX_CONFIGURATION:
+        return "speedexconfiguration";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2786,6 +2816,12 @@ LedgerTxnRoot::dropLiquidityPools()
     mImpl->dropLiquidityPools();
 }
 
+void
+LedgerTxnRoot::dropSpeedexConfiguration()
+{
+    mImpl->dropSpeedexConfiguration();
+}
+
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
@@ -2875,6 +2911,8 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                 liquiditypool.clear();
             }
             break;
+        case SPEEDEX_CONFIGURATION:
+            throw std::runtime_error("Can not prefetch speedex configuration.");
         }
     }
 
@@ -3406,6 +3444,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             break;
         case LIQUIDITY_POOL:
             entry = loadLiquidityPool(key);
+            break;
+        case SPEEDEX_CONFIGURATION:
+            entry = loadSpeedexConfiguration();
             break;
         default:
             throw std::runtime_error("Unknown key type");
