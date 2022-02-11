@@ -869,6 +869,11 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                       xdr_to_string(getContentsHash(), "contentsHash"));
         }
     }
+    if (app.getConfig().HALT_ON_INTERNAL_TRANSACTION_ERROR)
+    {
+        printErrorAndAbort("Encountered an exception while applying "
+                           "operations, see logs for details.");
+    }
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
 

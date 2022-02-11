@@ -423,6 +423,14 @@ class Config : public std::enable_shared_from_this<Config>
     // the entry cache
     size_t PREFETCH_BATCH_SIZE;
 
+    // If set to true, the application will halt when an internal error is
+    // encountered during applying a transaction. Otherwise, the
+    // txINTERNAL_ERROR transaction is created but not applied.
+    // Enabling this is useful for debugging the transaction errors caused by
+    // the core's internal errors via catching them early.
+    // The default value is false.
+    bool HALT_ON_INTERNAL_TRANSACTION_ERROR;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of
