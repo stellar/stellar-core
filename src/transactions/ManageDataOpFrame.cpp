@@ -12,6 +12,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -33,7 +34,8 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
-    if (header.current().ledgerVersion == 3)
+    if (protocolVersionEquals(header.current().ledgerVersion,
+                              ProtocolVersion::V_3))
     {
         throw std::runtime_error(
             "MANAGE_DATA not supported on ledger version 3");
@@ -101,7 +103,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 bool
 ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    if (ledgerVersion < 2)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_2))
     {
         innerResult().code(MANAGE_DATA_NOT_SUPPORTED_YET);
         return false;

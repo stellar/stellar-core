@@ -16,6 +16,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
 #include "xdrpp/marshal.h"
 
@@ -180,7 +181,8 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     //    (stay true regardless of other side effects)
 
     auto header = ltx.loadHeader();
-    if (header.current().ledgerVersion < 13)
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_13))
     {
         getResult().result.code(txNOT_SUPPORTED);
         return false;

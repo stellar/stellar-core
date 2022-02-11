@@ -21,6 +21,7 @@
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "util/ProtocolVersion.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -707,7 +708,8 @@ TEST_CASE("create offer", "[tx][offers]")
                             ltx.loadHeader().current().ledgerVersion;
                     }
 
-                    if (ledgerVersion < 13)
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_13))
                     {
                         return;
                     }

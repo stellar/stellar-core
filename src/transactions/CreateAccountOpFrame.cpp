@@ -13,6 +13,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 #include <algorithm>
@@ -44,7 +45,8 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
     }
 
     bool doesAccountExist =
-        (header.current().ledgerVersion >= 8) ||
+        protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_8) ||
         (bool)ltx.loadWithoutRecord(accountKey(getSourceID()));
 
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -143,7 +145,8 @@ CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (ltx.loadHeader().current().ledgerVersion < 14)
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_14))
     {
         return doApplyBeforeV14(ltx);
     }
@@ -156,7 +159,8 @@ CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
 bool
 CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    int64_t minStartingBalance = ledgerVersion >= 14 ? 0 : 1;
+    int64_t minStartingBalance =
+        protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_14) ? 0 : 1;
     if (mCreateAccount.startingBalance < minStartingBalance)
     {
         innerResult().code(CREATE_ACCOUNT_MALFORMED);

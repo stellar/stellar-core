@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
@@ -220,7 +221,7 @@ shouldCheckAccount(LedgerEntry const* current, LedgerEntry const* previous,
     auto const& prevAcc = previous->data.account();
 
     bool didBalanceDecrease = currAcc.balance < prevAcc.balance;
-    if (ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
     {
         bool sellingLiabilitiesInc =
             getSellingLiabilities(*current) > getSellingLiabilities(*previous);
@@ -251,7 +252,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
         {
             auto const& account = current->data.account();
             Liabilities liabilities;
-            if (ledgerVersion >= 10)
+            if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
             {
                 liabilities.selling = getSellingLiabilities(*current);
                 liabilities.buying = getBuyingLiabilities(*current);
@@ -271,7 +272,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
     {
         auto const& trust = current->data.trustLine();
         Liabilities liabilities;
-        if (ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
         {
             liabilities.selling = getSellingLiabilities(*current);
             liabilities.buying = getBuyingLiabilities(*current);
@@ -328,7 +329,7 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                                               LedgerTxnDelta const& ltxDelta)
 {
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
-    if (ledgerVersion >= 10)
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
     {
         LiabilitiesMap deltaLiabilities;
         for (auto const& entryDelta : ltxDelta.entry)

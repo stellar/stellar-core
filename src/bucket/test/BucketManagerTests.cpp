@@ -535,7 +535,9 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.LEDGER_PROTOCOL_VERSION =
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1;
+        static_cast<uint32_t>(
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+        1;
 
     auto app = createTestApplication<BucketManagerTestApplication>(clock, cfg);
 
@@ -640,7 +642,8 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         }
 
         auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-        if (vers < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (protocolVersionIsBefore(vers,
+                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
             // finished merges
@@ -791,7 +794,8 @@ class StopAndRestartBucketMergesTest
         checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges != 0);
-            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            if (protocolVersionIsBefore(protocol,
+                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges == 0);
             }
@@ -817,7 +821,8 @@ class StopAndRestartBucketMergesTest
             CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
             CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
-            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            if (protocolVersionIsBefore(protocol,
+                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mShadowScanSteps != 0);
                 CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
@@ -1319,8 +1324,9 @@ class StopAndRestartBucketMergesTest
         calculateDesignatedLedgers();
         collectControlSurveys();
         assert(!mControlSurveys.empty());
-        if (mProtocol >=
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+        if (protocolVersionStartsFrom(
+                mProtocol,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
         {
             mControlSurveys.rbegin()->second.dumpMergeCounters(
                 "control, Post-INITENTRY", mDesignatedLevel);
@@ -1343,9 +1349,12 @@ TEST_CASE("bucket persistence over app restart with initentry",
           "[bucket][bucketmanager][bp-initentry][!hide]")
 {
     for (uint32_t protocol :
-         {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
-          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
+         {static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              1,
+          static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1360,9 +1369,12 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
           "[bucket][bucketmanager][bp-initentry-ext][!hide]")
 {
     for (uint32_t protocol :
-         {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
-          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
+         {static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              1,
+          static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {

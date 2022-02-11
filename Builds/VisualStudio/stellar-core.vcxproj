@@ -374,6 +374,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
+    <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
     <ClCompile Include="..\..\src\util\RandHasher.cpp" />
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
@@ -746,6 +747,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
+    <ClInclude Include="..\..\src\util\ProtocolVersion.h" />
     <ClInclude Include="..\..\src\util\numeric128.h" />
     <ClInclude Include="..\..\src\util\RandHasher.h" />
     <ClInclude Include="..\..\src\util\Scheduler.h" />

@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
 
@@ -24,7 +25,8 @@ PathPaymentStrictSendOpFrame::PathPaymentStrictSendOpFrame(
 bool
 PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 12;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_12);
 }
 
 bool

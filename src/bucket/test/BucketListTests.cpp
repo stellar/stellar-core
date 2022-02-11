@@ -24,6 +24,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
 
@@ -242,8 +243,9 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
                     bool hasBob =
                         (curr->containsBucketIdentity(BucketEntryBob) ||
                          snap->containsBucketIdentity(BucketEntryBob));
-                    if (app->getConfig().LEDGER_PROTOCOL_VERSION <
-                            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED ||
+                    if (protocolVersionIsBefore(
+                            app->getConfig().LEDGER_PROTOCOL_VERSION,
+                            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED) ||
                         j > 5)
                     {
                         CHECK(!hasAlice);
@@ -388,8 +390,9 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
             auto const& lev = bl.getLevel(k);
             auto currSz = countEntries(lev.getCurr());
             auto snapSz = countEntries(lev.getSnap());
-            if (cfg.LEDGER_PROTOCOL_VERSION >=
-                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+            if (protocolVersionStartsFrom(
+                    cfg.LEDGER_PROTOCOL_VERSION,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
             {
                 // init/dead pairs should mutually-annihilate pretty readily as
                 // they go, empirically this test peaks at buckets around 400

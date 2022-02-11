@@ -29,6 +29,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -693,8 +694,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             // However, if the transaction source account is
                             // missing, then signatures can only be removed if
                             // V13 or greater.
-                            if (ledgerVersion < 13 &&
-                                (txAccountMissing || ledgerVersion < 10))
+                            if (protocolVersionIsBefore(
+                                    ledgerVersion, ProtocolVersion::V_13) &&
+                                (txAccountMissing ||
+                                 protocolVersionIsBefore(
+                                     ledgerVersion, ProtocolVersion::V_10)))
                             {
                                 REQUIRE(getAccountSigners(a1, *app).size() ==
                                         1);

@@ -11,6 +11,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 
 namespace stellar
 {
@@ -134,7 +135,8 @@ CreateClaimableBalanceOpFrame::CreateClaimableBalanceOpFrame(
 bool
 CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 14;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_14);
 }
 
 bool
@@ -186,7 +188,8 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        if (header.current().ledgerVersion >= 17)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_17))
         {
             bool enableClawback;
             if (getSourceID() == getIssuer(asset))

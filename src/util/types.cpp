@@ -5,6 +5,7 @@
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <fmt/format.h>
 
@@ -109,13 +110,13 @@ isPoolShareAssetValid(Asset const& asset, uint32_t ledgerVersion)
 bool
 isPoolShareAssetValid(TrustLineAsset const& asset, uint32_t ledgerVersion)
 {
-    return ledgerVersion >= 18;
+    return protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_18);
 }
 
 bool
 isPoolShareAssetValid(ChangeTrustAsset const& asset, uint32_t ledgerVersion)
 {
-    if (ledgerVersion < 18)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_18))
     {
         return false;
     }

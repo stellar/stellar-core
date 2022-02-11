@@ -521,7 +521,8 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
         if (lcl + 1 == mTestProtocolShadowsRemovedLedgerSeq)
         {
             // Force proto 12 upgrade
-            generateRandomLedger(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
+            generateRandomLedger(
+                static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED));
         }
         else
         {

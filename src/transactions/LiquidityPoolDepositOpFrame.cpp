@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
 
 namespace stellar
@@ -22,7 +23,9 @@ LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
 bool
 LiquidityPoolDepositOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 18 && !isPoolDepositDisabled(header);
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_18) &&
+           !isPoolDepositDisabled(header);
 }
 
 static bool

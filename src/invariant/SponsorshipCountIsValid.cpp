@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/UnorderedMap.h"
 #include <fmt/format.h>
 
@@ -158,7 +159,7 @@ SponsorshipCountIsValid::checkOnOperationApply(Operation const& operation,
 {
     // No sponsorships prior to protocol 14
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
-    if (ledgerVersion < 14)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_14))
     {
         return {};
     }

@@ -20,6 +20,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -720,7 +721,8 @@ TEST_CASE("merge", "[tx][merge]")
                 }
                 SECTION("into sponsoring account")
                 {
-                    if (ledgerVersion < 16)
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_16))
                     {
                         REQUIRE_THROWS(a1.merge(sponsoringAcc));
                         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -766,7 +768,8 @@ TEST_CASE("merge", "[tx][merge]")
                             acc1, 0, &sponsoringAcc.getPublicKey(), 0, 2, 3, 0);
                     }
 
-                    if (ledgerVersion < 16 &&
+                    if (protocolVersionIsBefore(ledgerVersion,
+                                                ProtocolVersion::V_16) &&
                         dest == sponsoringAcc.getPublicKey())
                     {
                         REQUIRE_THROWS(acc1.merge(dest));

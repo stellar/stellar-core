@@ -11,6 +11,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -108,7 +109,8 @@ AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
 
     // Check if the source account doesn't require authorization check
     // Only valid for earlier versions.
-    if (header.current().ledgerVersion < 16 &&
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_16) &&
         !(sourceAccount.flags & AUTH_REQUIRED_FLAG))
     {
         innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
@@ -173,7 +175,8 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if (ledgerVersion > 15 && mAllowTrust.trustor == getSourceID())
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_16) &&
+        mAllowTrust.trustor == getSourceID())
     {
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;

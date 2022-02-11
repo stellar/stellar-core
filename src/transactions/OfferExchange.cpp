@@ -14,6 +14,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
 #include <Tracy.hpp>
 
@@ -948,11 +949,13 @@ performExchange(LedgerTxnHeader const& header,
     releaseAssertOrThrow(numWheatReceived >= 0);
 
     newAmount = numWheatReceived;
-    auto exchangeResult = header.current().ledgerVersion < 3
-                              ? exchangeV2(numWheatReceived, price,
-                                           maxWheatReceived, maxSheepSend)
-                              : exchangeV3(numWheatReceived, price,
-                                           maxWheatReceived, maxSheepSend);
+    auto exchangeResult =
+        protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_3)
+            ? exchangeV2(numWheatReceived, price, maxWheatReceived,
+                         maxSheepSend)
+            : exchangeV3(numWheatReceived, price, maxWheatReceived,
+                         maxSheepSend);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
@@ -1384,7 +1387,8 @@ exchangeWithPool(AbstractLedgerTxn& ltxOuter, Asset const& toPoolAsset,
 {
     LedgerTxn ltx(ltxOuter);
 
-    if (ltx.loadHeader().current().ledgerVersion < 18)
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_18))
     {
         // Only exchange with pools starting at protocol version 18
         return false;
@@ -1498,7 +1502,8 @@ convertWithOffers(
 
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
     if (needMore && maxOffersToCross == 0 &&
-        ltxOuter.loadHeader().current().ledgerVersion >= 18)
+        protocolVersionStartsFrom(ltxOuter.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_18))
     {
         // offerTrail is going to be too long, fast fail
         // note that this condition can only happen in path payment when
@@ -1553,7 +1558,8 @@ convertWithOffers(
         int64_t numWheatReceived;
         int64_t numSheepSend;
         CrossOfferResult cor;
-        if (ltx.loadHeader().current().ledgerVersion >= 10)
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      ProtocolVersion::V_10))
         {
             bool wheatStays;
             cor = crossOfferV10(ltx, wheatOffer, maxWheatReceive,
@@ -1595,7 +1601,9 @@ convertWithOffers(
             return ConvertResult::ePartial;
         }
     }
-    if ((ltxOuter.loadHeader().current().ledgerVersion < 10) || !needMore)
+    if (protocolVersionIsBefore(ltxOuter.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_10) ||
+        !needMore)
     {
         return ConvertResult::eOK;
     }

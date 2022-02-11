@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "xdrpp/printer.h"
 #include <fmt/format.h>
 
@@ -94,7 +95,8 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
             le.lastModifiedLedgerSeq, ledgerSeq);
     }
 
-    if (version < 14 && le.ext.v() == 1)
+    if (protocolVersionIsBefore(version, ProtocolVersion::V_14) &&
+        le.ext.v() == 1)
     {
         return "LedgerEntry has v1 extension before protocol version 14";
     }
@@ -162,7 +164,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
     {
         return "Account signers are not strictly increasing";
     }
-    if (version > 9)
+    if (protocolVersionStartsFrom(version, ProtocolVersion::V_10))
     {
         if (!std::all_of(ae.signers.begin(), ae.signers.end(),
                          [](Signer const& s) {
@@ -175,7 +177,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
 
     if (hasAccountEntryExtV2(ae))
     {
-        if (version < 14)
+        if (protocolVersionIsBefore(version, ProtocolVersion::V_14))
         {
             return "Account has v2 extension before protocol version 14";
         }
@@ -185,7 +187,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
             return "Account signers not paired with signerSponsoringIDs";
         }
 
-        if (version >= 18 &&
+        if (protocolVersionStartsFrom(version, ProtocolVersion::V_18) &&
             ae.numSubEntries > UINT32_MAX - extV2.numSponsoring)
         {
             return "Account numSubEntries + numSponsoring is > UINT32_MAX";
@@ -215,7 +217,7 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl,
     }
     if (hasTrustLineEntryExtV2(tl))
     {
-        if (version < 18)
+        if (protocolVersionIsBefore(version, ProtocolVersion::V_18))
         {
             return "TrustLine has v2 extension before protocol version 18";
         }
@@ -355,7 +357,8 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-    if (version < 17 && cbe.ext.v() == 1)
+    if (protocolVersionIsBefore(version, ProtocolVersion::V_17) &&
+        cbe.ext.v() == 1)
     {
         return "ClaimableBalance has v1 extension before protocol version 17";
     }
@@ -411,7 +414,7 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-    if (version < 18)
+    if (protocolVersionIsBefore(version, ProtocolVersion::V_18))
     {
         return "LiquidityPools are only valid from V18";
     }

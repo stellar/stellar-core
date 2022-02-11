@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -21,7 +22,8 @@ ClawbackClaimableBalanceOpFrame::ClawbackClaimableBalanceOpFrame(
 bool
 ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 17;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_17);
 }
 
 bool

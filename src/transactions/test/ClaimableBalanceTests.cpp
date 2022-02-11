@@ -14,6 +14,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include <fmt/format.h>
 
 using namespace stellar;
@@ -1304,7 +1305,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
 
-            if (ledgerVersion >= 17)
+            if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17))
             {
                 SECTION("clawback")
                 {

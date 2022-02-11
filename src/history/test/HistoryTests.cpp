@@ -504,7 +504,8 @@ TEST_CASE("Publish works correctly post shadow removal", "[history]")
     CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
                                         configurator};
 
-    uint32_t oldProto = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED - 1;
+    uint32_t oldProto =
+        static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED) - 1;
     catchupSimulation.generateRandomLedger(oldProto);
 
     // The next sections reflect how future buckets in HAS change, depending on
@@ -884,7 +885,8 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
 
 TEST_CASE("Catchup post-shadow-removal works", "[history]")
 {
-    uint32_t newProto = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED;
+    uint32_t newProto =
+        static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
     uint32_t oldProto = newProto - 1;
 
     auto configurator =
@@ -959,8 +961,8 @@ TEST_CASE("Catchup post-shadow-removal works", "[history]")
 TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
           "[history][bucket][acceptance]")
 {
-    uint32_t newProto =
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
+    uint32_t newProto = static_cast<uint32_t>(
+        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
     uint32_t oldProto = newProto - 1;
     auto configurator =
         std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
