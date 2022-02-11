@@ -30,9 +30,14 @@ convertForV13(TransactionEnvelope const& input)
     txV1.sourceAccount.ed25519() = txV0.sourceAccountEd25519;
     txV1.fee = txV0.fee;
     txV1.seqNum = txV0.seqNum;
-    txV1.timeBounds = txV0.timeBounds;
     txV1.memo = txV0.memo;
     txV1.operations = txV0.operations;
+
+    if (txV0.timeBounds)
+    {
+        txV1.cond.type(PRECOND_TIME);
+        txV1.cond.timeBounds() = *txV0.timeBounds;
+    }
 
     return res;
 }
@@ -124,18 +129,50 @@ void
 setMinTime(TransactionFramePtr tx, TimePoint minTime)
 {
     auto& env = tx->getEnvelope();
-    auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
-                                                 : env.v1().tx.timeBounds;
-    tb.activate().minTime = minTime;
+    if (env.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        env.v0().tx.timeBounds.activate().minTime = minTime;
+    }
+    else if (env.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = env.v1().tx.cond;
+        switch (cond.type())
+        {
+        case PRECOND_NONE:
+            cond.type(PRECOND_TIME);
+        case PRECOND_TIME:
+            cond.timeBounds().minTime = minTime;
+            break;
+        case PRECOND_V2:
+            cond.v2().timeBounds.activate().minTime = minTime;
+            break;
+        }
+    }
 }
 
 void
 setMaxTime(TransactionFramePtr tx, TimePoint maxTime)
 {
     auto& env = tx->getEnvelope();
-    auto& tb = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.timeBounds
-                                                 : env.v1().tx.timeBounds;
-    tb.activate().maxTime = maxTime;
+    if (env.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        env.v0().tx.timeBounds.activate().maxTime = maxTime;
+    }
+    else if (env.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = env.v1().tx.cond;
+        switch (cond.type())
+        {
+        case PRECOND_NONE:
+            cond.type(PRECOND_TIME);
+        case PRECOND_TIME:
+            cond.timeBounds().maxTime = maxTime;
+            break;
+        case PRECOND_V2:
+            cond.v2().timeBounds.activate().maxTime = maxTime;
+            break;
+        }
+    }
 }
 #endif
 }

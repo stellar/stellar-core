@@ -324,13 +324,45 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
     getResult().feeCharged = getFee(header, baseFee, applying);
 }
 
+std::optional<TimeBounds const> const
+TransactionFrame::getTimeBounds() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        return mEnvelope.v0().tx.timeBounds ? std::optional<TimeBounds const>(
+                                                  *mEnvelope.v0().tx.timeBounds)
+                                            : std::optional<TimeBounds const>();
+    }
+    else
+    {
+        auto const& cond = mEnvelope.v1().tx.cond;
+        switch (cond.type())
+        {
+        case PRECOND_NONE:
+        {
+            return std::optional<TimeBounds const>();
+        }
+        case PRECOND_TIME:
+        {
+            return std::optional<TimeBounds const>(cond.timeBounds());
+        }
+        case PRECOND_V2:
+        {
+            return cond.v2().timeBounds
+                       ? std::optional<TimeBounds const>(*cond.v2().timeBounds)
+                       : std::optional<TimeBounds const>();
+        }
+        default:
+            throw std::runtime_error("unknown condition type");
+        }
+    }
+}
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const tb = getTimeBounds();
     if (tb)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
@@ -344,9 +376,7 @@ bool
 TransactionFrame::isTooLate(LedgerTxnHeader const& header,
                             uint64_t upperBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const tb = getTimeBounds();
     if (tb)
     {
         // Prior to consensus, we can pass in an upper bound estimate on when we

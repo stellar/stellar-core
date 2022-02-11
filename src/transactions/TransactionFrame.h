@@ -104,6 +104,8 @@ class TransactionFrame : public TransactionFrameBase
                            SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
 
+    std::optional<TimeBounds const> const getTimeBounds() const;
+
   public:
     TransactionFrame(Hash const& networkID,
                      TransactionEnvelope const& envelope);
