@@ -105,6 +105,7 @@ class TransactionFrame : public TransactionFrameBase
                            AbstractLedgerTxn& ltxOuter);
 
     std::optional<TimeBounds const> const getTimeBounds() const;
+    std::optional<LedgerBounds const> const getLedgerBounds() const;
 
   public:
     TransactionFrame(Hash const& networkID,

@@ -358,6 +358,21 @@ TransactionFrame::getTimeBounds() const
     }
 }
 
+std::optional<LedgerBounds const> const
+TransactionFrame::getLedgerBounds() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto const& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_V2 && cond.v2().ledgerBounds)
+        {
+            return std::optional<LedgerBounds const>(*cond.v2().ledgerBounds);
+        }
+    }
+
+    return std::optional<LedgerBounds const>();
+}
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
@@ -366,9 +381,20 @@ TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
     if (tb)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
-        return tb->minTime &&
-               (tb->minTime > (closeTime + lowerBoundCloseTimeOffset));
+        if (tb->minTime &&
+            (tb->minTime > (closeTime + lowerBoundCloseTimeOffset)))
+        {
+            return true;
+        }
     }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto const lb = getLedgerBounds();
+        return lb && lb->minLedger > header.current().ledgerSeq;
+    }
+
     return false;
 }
 
@@ -383,8 +409,19 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
         // expect the ledger to close so we don't accept transactions that will
         // expire by the time they are applied
         uint64 closeTime = header.current().scpValue.closeTime;
-        return tb->maxTime &&
-               (tb->maxTime < (closeTime + upperBoundCloseTimeOffset));
+        if (tb->maxTime &&
+            (tb->maxTime < (closeTime + upperBoundCloseTimeOffset)))
+        {
+            return true;
+        }
+    }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto const lb = getLedgerBounds();
+        return lb && lb->maxLedger != 0 &&
+               lb->maxLedger <= header.current().ledgerSeq;
     }
     return false;
 }
