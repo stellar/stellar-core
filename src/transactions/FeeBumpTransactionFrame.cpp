@@ -358,6 +358,12 @@ FeeBumpTransactionFrame::getSourceID() const
     return mInnerTx->getSourceID();
 }
 
+std::optional<SequenceNumber const> const
+FeeBumpTransactionFrame::getMinSeqNum() const
+{
+    return mInnerTx->getMinSeqNum();
+}
+
 void
 FeeBumpTransactionFrame::insertKeysForFeeProcessing(
     UnorderedSet<LedgerKey>& keys) const

@@ -208,5 +208,7 @@ class TransactionFrame : public TransactionFrameBase
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
                                AccountID const& accountID);
+
+    std::optional<SequenceNumber const> const getMinSeqNum() const override;
 };
 }

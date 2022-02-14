@@ -373,6 +373,22 @@ TransactionFrame::getLedgerBounds() const
     return std::optional<LedgerBounds const>();
 }
 
+
+std::optional<SequenceNumber const> const
+TransactionFrame::getMinSeqNum() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_V2 && cond.v2().minSeqNum)
+        {
+            return std::optional<SequenceNumber const>(*cond.v2().minSeqNum);
+        }
+    }
+
+    return std::optional<SequenceNumber const>();
+}
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
@@ -562,8 +578,27 @@ TransactionFrame::processSignatures(ValidationType cv,
 bool
 TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 {
-    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum() ||
-           getSeqNum() == getStartingSequenceNumber(header);
+    if (getSeqNum() == getStartingSequenceNumber(header))
+    {
+        return true;
+    }
+
+    // If seqNum == INT64_MAX, seqNum >= getSeqNum() is guaranteed to be true
+    // because SequenceNumber is int64, so isBadSeq will always return true in
+    // that case.
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        // Check if we need to relax sequence number checking
+        auto minSeqNum = getMinSeqNum();
+        if (minSeqNum)
+        {
+            return seqNum < *minSeqNum || seqNum >= getSeqNum();
+        }
+    }
+
+    // If we get here, we need to do the strict seqnum check
+    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
 }
 
 TransactionFrame::ValidationType
