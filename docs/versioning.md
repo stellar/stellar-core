@@ -43,7 +43,7 @@ Upgrades are specified with:
   nominate upgrades
 * basefee - upgrades value of baseFee in ledger header, uses upgrade
   type LEDGER_UPGRADE_BASE_FEE
-* maxtxsize - upgrades value of maxTxSetSize in ledger header,
+* maxtxsetsize - upgrades value of maxTxSetSize in ledger header,
   uses upgrade type LEDGER_UPGRADE_MAX_TX_SET_SIZE
 * basereserve - upgrades value of baseReserve in ledger header, uses
   upgrade type LEDGER_UPGRADE_BASE_RESERVE

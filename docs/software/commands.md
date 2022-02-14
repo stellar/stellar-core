@@ -234,22 +234,24 @@ format.
     Retrieves the currently configured upgrade settings.<br>
   * `upgrades?mode=clear`<br>
     Clears any upgrade settings.<br>
-  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
-    * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
+  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]`<br>
+    * `upgradetime` is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past
         by less than 12 hours, the upgrade will occur immediately. If it's more
         than 12 hours, then the upgrade will be ignored<br>
-    * fee (uint32) This is what you would prefer the base fee to be. It is in
+    * `fee` (uint32) This is what you would prefer the base fee to be. It is in
         stroops<br>
-    * basereserve (uint32) This is what you would prefer the base reserve to
+    * `basereserve` (uint32) This is what you would prefer the base reserve to
         be. It is in stroops.<br>
-    * maxtxsize (uint32) This defines the maximum number of transactions to
-        include in a ledger. When too many transactions are pending, surge
-        pricing is applied. The instance picks the top maxtxsize transactions
-        locally to be considered in the next ledger. Where transactions are
-        ordered by transaction fee(lower fee transactions are held for later).
+    * `maxtxsetsize` (uint32) This defines the maximum number of operations in 
+        the transaction set to include in a ledger. When too many transactions 
+        are pending, surge pricing is applied. The instance picks the 
+        transactions from the transaction queue locally to be considered in the 
+        next ledger until at most `maxtxsetsize` operations are accumulated.
+        Transactions are ordered by fee per operation (transactions with lower 
+        operation fees are held for later)
         <br>
-    * protocolversion (uint32) defines the protocol version to upgrade to.
+    * `protocolversion` (uint32) defines the protocol version to upgrade to.
         When specified it must match one of the protocol versions supported
         by the node and should be greater than ledgerVersion from the current
         ledger<br>
