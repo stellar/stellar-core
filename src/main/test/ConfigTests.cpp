@@ -213,7 +213,8 @@ TEST_CASE("load validators config", "[config]")
 )";
 
     REQUIRE(actualS == expected);
-    REQUIRE(c.KNOWN_PEERS.size() == 15);
+    REQUIRE(c.KNOWN_PEERS.size() == 13);
+    REQUIRE(c.PREFERRED_PEERS.size() == 2); // 2 other "domainA" validators
     REQUIRE(c.HISTORY.size() == 20);
 }
 

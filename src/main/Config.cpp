@@ -528,6 +528,7 @@ Config::parseValidators(
         ValidatorEntry ve;
         std::string pubKey, hist;
         bool qualitySet = false;
+        std::string address;
         for (auto const& f : *validator)
         {
             if (f.first == "NAME")
@@ -550,8 +551,7 @@ Config::parseValidators(
             }
             else if (f.first == "ADDRESS")
             {
-                auto address = readString(f);
-                KNOWN_PEERS.emplace_back(address);
+                address = readString(f);
             }
             else if (f.first == "HISTORY")
             {
@@ -612,6 +612,17 @@ Config::parseValidators(
                 FMT_STRING("malformed VALIDATORS entry '{}' (critical and "
                            "high quality must have an archive)"),
                 ve.mName));
+        }
+        if (!address.empty())
+        {
+            if (NODE_HOME_DOMAIN == ve.mHomeDomain)
+            {
+                PREFERRED_PEERS.emplace_back(address);
+            }
+            else
+            {
+                KNOWN_PEERS.emplace_back(address);
+            }
         }
         res.emplace_back(ve);
     }
