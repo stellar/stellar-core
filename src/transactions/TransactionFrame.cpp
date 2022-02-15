@@ -24,7 +24,6 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Algorithm.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -235,6 +234,32 @@ TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, 0);
 }
 
+bool
+TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker)
+{
+    ZoneScoped;
+    if (extraSignersExist())
+    {
+        auto const& extraSigners = mEnvelope.v1().tx.cond.v2().extraSigners;
+        std::vector<Signer> signers;
+
+        std::transform(extraSigners.begin(), extraSigners.end(),
+                       std::back_inserter(signers),
+                       [](SignerKey const& k) { return Signer(k, 1); });
+
+        // Sanity check for the int32 cast below
+        static_assert(decltype(PreconditionsV2::extraSigners)::max_size() <=
+                      INT32_MAX);
+
+        // We want to verify that there is a signature for each extraSigner, so
+        // we assign a weight of 1 to each key, and set the neededWeight to the
+        // number of extraSigners
+        return signatureChecker.checkSignature(
+            signers, static_cast<int32_t>(signers.size()));
+    }
+    return true;
+}
+
 LedgerTxnEntry
 TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                     LedgerTxnHeader const& header)
@@ -387,6 +412,14 @@ TransactionFrame::getMinSeqNum() const
     }
 
     return std::optional<SequenceNumber const>();
+}
+
+bool
+TransactionFrame::extraSignersExist() const
+{
+    return mEnvelope.type() == ENVELOPE_TYPE_TX &&
+           mEnvelope.v1().tx.cond.type() == PRECOND_V2 &&
+           !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
 bool
@@ -651,6 +684,14 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     if (!checkSignature(
             signatureChecker, sourceAccount,
             sourceAccount.current().data.account().thresholds[THRESHOLD_LOW]))
+    {
+        getResult().result.code(txBAD_AUTH);
+        return res;
+    }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19) &&
+        !checkExtraSigners(signatureChecker))
     {
         getResult().result.code(txBAD_AUTH);
         return res;

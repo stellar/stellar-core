@@ -106,6 +106,7 @@ class TransactionFrame : public TransactionFrameBase
 
     std::optional<TimeBounds const> const getTimeBounds() const;
     std::optional<LedgerBounds const> const getLedgerBounds() const;
+    bool extraSignersExist() const;
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -178,6 +179,8 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
+
+    bool checkExtraSigners(SignatureChecker& signatureChecker);
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
