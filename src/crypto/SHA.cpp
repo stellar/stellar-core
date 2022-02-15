@@ -69,6 +69,7 @@ SHA256::finish()
     {
         throw CryptoError("error from crypto_hash_sha256_final");
     }
+    mFinished = true;
     return out;
 }
 
