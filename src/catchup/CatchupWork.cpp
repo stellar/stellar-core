@@ -22,6 +22,7 @@
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "main/PersistentState.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "work/WorkWithCallback.h"
@@ -199,6 +200,15 @@ WorkSeqPtr
 CatchupWork::downloadApplyBuckets()
 {
     ZoneScoped;
+
+    // If stellar-core aborts while applying buckets, it can leave state in
+    // the database. This guarantees that we clear that state the next time
+    // the application starts.
+    auto& ps = mApp.getPersistentState();
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        ps.setRebuildForType(static_cast<LedgerEntryType>(let));
+    }
 
     std::vector<std::shared_ptr<BasicWork>> seq;
     auto version = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -480,6 +490,9 @@ CatchupWork::runCatchupStep()
             if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
                 !mBucketsAppliedEmitted)
             {
+                // If we crash before this call to setLastClosedLedger, then
+                // the node will have to catch up again and it will clear the
+                // ledger because clearRebuildForType has not been called yet.
                 mApp.getLedgerManager().setLastClosedLedger(
                     mVerifiedLedgerRangeStart,
                     !mCatchupConfiguration.localBucketsOnly());
@@ -487,6 +500,21 @@ CatchupWork::runCatchupStep()
                 mBuckets.clear();
                 mLastApplied =
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
+
+                // We've applied buckets successfully, so we don't need to
+                // rebuild on startup.
+                //
+                // If we crash after the call to setLastClosedLedger but before
+                // clearRebuildForType, then the new HAS will have already been
+                // written in the call to setLastClosedLedger. In this case, we
+                // will unnecessarily rebuild the ledger but the buckets are
+                // persistently available locally so it will return us to the
+                // correct state.
+                auto& ps = mApp.getPersistentState();
+                for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+                {
+                    ps.clearRebuildForType(static_cast<LedgerEntryType>(let));
+                }
             }
         }
         else if (mTransactionsVerifyApplySeq)
