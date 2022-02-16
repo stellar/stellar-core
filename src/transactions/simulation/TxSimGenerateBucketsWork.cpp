@@ -79,7 +79,7 @@ TxSimGenerateBucketsWork::checkOrStartMerges()
         mIntermediateBuckets.pop_front();
         std::vector<std::shared_ptr<Bucket>> shadows;
         mMergesInProgress.emplace_back(mApp, b1, b2, shadows,
-                                       Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                       mApp.getConfig().LEDGER_PROTOCOL_VERSION,
                                        false, mLevel);
     }
 

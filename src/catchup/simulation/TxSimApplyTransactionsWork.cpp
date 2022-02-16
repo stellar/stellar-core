@@ -51,8 +51,8 @@ TxSimApplyTransactionsWork::TxSimApplyTransactionsWork(
     }
 
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mUpgradeProtocol &&
-        lcl.header.ledgerVersion + 1 != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+    if (mUpgradeProtocol && lcl.header.ledgerVersion + 1 !=
+                                mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
         throw std::runtime_error("Invalid ledger version: can only force "
                                  "upgrade for consecutive versions");
@@ -604,7 +604,7 @@ TxSimApplyTransactionsWork::onReset()
         {
             LedgerUpgrade upgrade(LEDGER_UPGRADE_VERSION);
             upgrade.newLedgerVersion() =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+                mApp.getConfig().LEDGER_PROTOCOL_VERSION;
             auto opaqueUpgrade = xdr::xdr_to_opaque(upgrade);
             sv.upgrades.emplace_back(opaqueUpgrade.begin(),
                                      opaqueUpgrade.end());

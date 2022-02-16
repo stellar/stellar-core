@@ -46,7 +46,7 @@ TxSimScaleBucketlistWork::doWork()
         auto const& has =
             mHAS ? *mHAS : mGenerateBucketsWork->getGeneratedHAS();
         mApplyBuckets = addWork<ApplyBucketsWork>(
-            mGeneratedBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+            mGeneratedBuckets, has, mApp.getConfig().LEDGER_PROTOCOL_VERSION);
         return State::WORK_RUNNING;
     }
     else if (mDownloadGenerateBuckets)

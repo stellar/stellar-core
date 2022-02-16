@@ -211,7 +211,7 @@ CatchupWork::downloadApplyBuckets()
     }
 
     std::vector<std::shared_ptr<BasicWork>> seq;
-    auto version = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto version = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
 
     // Download buckets, or skip if catchup is local
     if (!mCatchupConfiguration.localBucketsOnly())

@@ -256,7 +256,7 @@ applyBucketsForLCL(Application& app,
     auto lclHash =
         app.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
-    auto maxProtocolVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto maxProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     auto currentLedger =
         LedgerHeaderUtils::loadByHash(app.getDatabase(), hexToBin256(lclHash));
     if (currentLedger)
