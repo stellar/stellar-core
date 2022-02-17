@@ -534,7 +534,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
-    cfg.LEDGER_PROTOCOL_VERSION =
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(
             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
         1;
@@ -1102,7 +1102,7 @@ class StopAndRestartBucketMergesTest
         Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
-        cfg.LEDGER_PROTOCOL_VERSION = mProtocol;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = mProtocol;
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         CLOG_INFO(Bucket,
@@ -1213,7 +1213,7 @@ class StopAndRestartBucketMergesTest
         Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
-        cfg.LEDGER_PROTOCOL_VERSION = firstProtocol;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = firstProtocol;
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         uint32_t currProtocol = firstProtocol;
@@ -1280,7 +1280,8 @@ class StopAndRestartBucketMergesTest
                         "Switching protocol at ledger {} from protocol {} "
                         "to protocol {}",
                         i, firstProtocol, secondProtocol);
-                    cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                        secondProtocol;
                 }
 
                 // Restart the application.
@@ -1395,7 +1396,8 @@ TEST_CASE("bucket persistence over app restart",
 
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
         Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
-        cfg1.LEDGER_PROTOCOL_VERSION = cfg0.LEDGER_PROTOCOL_VERSION;
+        cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            cfg0.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
         std::vector<std::vector<LedgerEntry>> batches;

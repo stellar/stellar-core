@@ -529,6 +529,7 @@ for_versions(std::vector<uint32> const& versions, Config const& cfg,
         {
             Config vcfg = cfg;
             vcfg.LEDGER_PROTOCOL_VERSION = v;
+            vcfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = v;
             f(vcfg);
         }
     }

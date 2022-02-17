@@ -35,8 +35,8 @@ class Upgrades
         UpgradeParameters(Config const& cfg)
         {
             mUpgradeTime = cfg.TESTING_UPGRADE_DATETIME;
-            mProtocolVersion =
-                std::make_optional<uint32>(cfg.LEDGER_PROTOCOL_VERSION);
+            mProtocolVersion = std::make_optional<uint32>(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             mBaseFee =
                 std::make_optional<uint32>(cfg.TESTING_UPGRADE_DESIRED_FEE);
             mMaxTxSetSize =
