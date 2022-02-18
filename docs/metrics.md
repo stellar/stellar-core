@@ -83,6 +83,8 @@ overlay.inbound.attempt                  | meter     | inbound connection attemp
 overlay.inbound.drop                     | meter     | inbound connection dropped
 overlay.inbound.establish                | meter     | inbound connection established (added to pending)
 overlay.inbound.reject                   | meter     | inbound connection rejected
+overlay.outbound-queue.scp               | timer     | time SCP traffic sits in flow-controlled queues
+overlay.outbound-queue.tx                | timer     | time tx traffic sits in flow-controlled queues
 overlay.item-fetcher.next-peer           | meter     | ask for item past the first one
 overlay.memory.flood-known               | counter   | number of known flooded entries
 overlay.message.broadcast                | meter     | message broadcasted
