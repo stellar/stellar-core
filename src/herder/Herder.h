@@ -147,6 +147,10 @@ class Herder
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;
+    virtual uint32 getMinLedgerSeqToRemember() const = 0;
+
+    virtual bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                             SCPStatement const& newSt) = 0;
 
     // Return the maximum sequence number for any tx (or 0 if none) from a given
     // sender in the pending or recent tx sets.

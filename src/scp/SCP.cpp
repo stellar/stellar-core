@@ -280,6 +280,24 @@ SCP::getLatestMessage(NodeID const& id)
     return nullptr;
 }
 
+bool
+SCP::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                 SCPStatement const& newSt)
+{
+    if (oldSt.slotIndex != newSt.slotIndex || !(oldSt.nodeID == newSt.nodeID))
+    {
+        return false;
+    }
+
+    auto slot = getSlot(oldSt.slotIndex, false);
+    if (slot)
+    {
+        return slot->isNewerNominationOrBallotSt(oldSt, newSt);
+    }
+
+    return false;
+}
+
 std::vector<SCPEnvelope>
 SCP::getExternalizingState(uint64 slotIndex)
 {

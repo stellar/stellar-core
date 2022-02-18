@@ -1891,4 +1891,12 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                                   sv.txSetHash, sv.closeTime));
     return sv;
 }
+
+bool
+HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                        SCPStatement const& newSt)
+{
+    return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
+}
+
 }

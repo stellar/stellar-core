@@ -128,6 +128,11 @@ class HerderImpl : public Herder
 
     uint32 getMinLedgerSeqToAskPeers() const override;
 
+    uint32_t getMinLedgerSeqToRemember() const override;
+
+    bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                     SCPStatement const& newSt) override;
+
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger,
@@ -291,8 +296,6 @@ class HerderImpl : public Herder
         }
     };
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
-
-    uint32_t getMinLedgerSeqToRemember() const;
 
     State mState;
     void setState(State st);

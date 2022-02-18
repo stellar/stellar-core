@@ -155,6 +155,10 @@ class BallotProtocol
     // returns all values referenced by a statement
     static std::set<Value> getStatementValues(SCPStatement const& st);
 
+    // returns true if st is newer than oldst
+    static bool isNewerStatement(SCPStatement const& oldst,
+                                 SCPStatement const& st);
+
   private:
     // attempts to make progress using the latest statement as a hint
     // calls into the various attempt* methods, emits message
@@ -260,10 +264,6 @@ class BallotProtocol
     // returns true if the statement is newer than the one we know about
     // for a given node.
     bool isNewerStatement(NodeID const& nodeID, SCPStatement const& st);
-
-    // returns true if st is newer than oldst
-    static bool isNewerStatement(SCPStatement const& oldst,
-                                 SCPStatement const& st);
 
     // basic sanity check on statement
     bool isStatementSane(SCPStatement const& st, bool self);
