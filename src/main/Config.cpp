@@ -128,7 +128,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 18;
-    OVERLAY_PROTOCOL_VERSION = 19;
+    OVERLAY_PROTOCOL_VERSION = 20;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -199,6 +199,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
+
+    PEER_READING_CAPACITY = 600;
+    PEER_FLOOD_READING_CAPACITY = 500;
+    ENABLE_OVERLAY_FLOW_CONTROL = false;
+    FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 100;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -918,7 +923,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "node may not function properly with most networks");
             }
 
-            if (item.first == "PEER_PORT")
+            if (item.first == "PEER_READING_CAPACITY")
+            {
+                PEER_READING_CAPACITY = readInt<uint32_t>(item, 2);
+            }
+            else if (item.first == "PEER_FLOOD_READING_CAPACITY")
+            {
+                PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "ENABLE_OVERLAY_FLOW_CONTROL")
+            {
+                ENABLE_OVERLAY_FLOW_CONTROL = readBool(item);
+            }
+            else if (item.first == "PEER_PORT")
             {
                 PEER_PORT = readInt<unsigned short>(item, 1);
             }
@@ -1313,6 +1330,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                     std::chrono::microseconds(readInt<uint32_t>(item));
             }
+            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
+            {
+                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -1326,6 +1347,22 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             !OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
         {
             processOpApplySleepTimeForTestingConfigs();
+        }
+
+        if (PEER_FLOOD_READING_CAPACITY >= PEER_READING_CAPACITY)
+        {
+            std::string msg =
+                "Invalid configuration: PEER_READING_CAPACITY must be strictly "
+                "greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE > PEER_FLOOD_READING_CAPACITY)
+        {
+            std::string msg =
+                "Invalid configuration: FLOW_CONTROL_SEND_MORE_BATCH_SIZE "
+                "can't be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
         }
 
         verifyLoadGenOpCountForTestingConfigs();
