@@ -763,13 +763,7 @@ ApplicationImpl::gracefulStop()
 void
 ApplicationImpl::shutdownMainIOContext()
 {
-    if (!mVirtualClock.getIOContext().stopped())
-    {
-        // Drain all events; things are shutting down.
-        while (mVirtualClock.cancelAllEvents())
-            ;
-        mVirtualClock.getIOContext().stop();
-    }
+    mVirtualClock.shutdown();
 }
 
 void

@@ -256,6 +256,30 @@ VirtualClock::cancelAllEvents()
 }
 
 void
+VirtualClock::shutdown()
+{
+    if (!isStopped())
+    {
+        // Drain all events; things are shutting down.
+        while (cancelAllEvents())
+            ;
+
+        getIOContext().stop();
+
+        // Clear pending queue for the scheduler
+        {
+            std::lock_guard<std::mutex> guard(mPendingActionQueueMutex);
+            mPendingActionQueue =
+                std::queue<std::tuple<std::function<void()>, std::string,
+                                      Scheduler::ActionType>>();
+        }
+
+        // Clear scheduler queues
+        mActionScheduler->shutdown();
+    }
+}
+
+void
 VirtualClock::setCurrentVirtualTime(time_point t)
 {
     releaseAssert(mMode == VIRTUAL_TIME);
@@ -298,6 +322,12 @@ VirtualClock::shouldYield() const
         auto dur = now() - mLastDispatchStart;
         return duration_cast<milliseconds>(dur) > CRANK_TIME_SLICE;
     }
+}
+
+bool
+VirtualClock::isStopped()
+{
+    return getIOContext().stopped();
 }
 
 static size_t
@@ -401,6 +431,11 @@ void
 VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
                          Scheduler::ActionType type)
 {
+    if (isStopped())
+    {
+        return;
+    }
+
     bool queueWasEmpty = false;
     {
         std::lock_guard<std::mutex> lock(mPendingActionQueueMutex);
@@ -633,6 +668,11 @@ VirtualTimer::expires_from_now(VirtualClock::duration d)
 void
 VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
 {
+    if (mClock.isStopped())
+    {
+        return;
+    }
+
     if (!mCancelled)
     {
         releaseAssert(!mDeleting);
@@ -646,6 +686,10 @@ void
 VirtualTimer::async_wait(std::function<void()> const& onSuccess,
                          std::function<void(asio::error_code)> const& onFailure)
 {
+    if (mClock.isStopped())
+    {
+        return;
+    }
     if (!mCancelled)
     {
         releaseAssert(!mDeleting);
