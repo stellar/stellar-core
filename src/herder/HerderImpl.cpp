@@ -730,7 +730,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
                 StellarMessage m;
                 m.type(SCP_MESSAGE);
                 m.envelope() = e;
-                peer->sendMessage(m, log);
+                auto mPtr = std::make_shared<StellarMessage const>(m);
+                peer->sendMessage(mPtr, log);
                 log = false;
                 slotHadData = true;
                 return true;
@@ -1891,4 +1892,12 @@ HerderImpl::makeStellarValue(Hash const& txSetHash, uint64_t closeTime,
                                   sv.txSetHash, sv.closeTime));
     return sv;
 }
+
+bool
+HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                        SCPStatement const& newSt)
+{
+    return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
+}
+
 }

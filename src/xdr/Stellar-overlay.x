@@ -22,6 +22,11 @@ struct Error
     string msg<100>;
 };
 
+struct SendMore
+{
+    uint32 numMessages;
+};
+
 struct AuthCert
 {
     Curve25519Public pubkey;
@@ -93,7 +98,9 @@ enum MessageType
     HELLO = 13,
 
     SURVEY_REQUEST = 14,
-    SURVEY_RESPONSE = 15
+    SURVEY_RESPONSE = 15,
+
+    SEND_MORE = 16
 };
 
 struct DontHave
@@ -214,6 +221,8 @@ case SCP_MESSAGE:
     SCPEnvelope envelope;
 case GET_SCP_STATE:
     uint32 getSCPLedgerSeq; // ledger seq requested ; if 0, requests the latest
+case SEND_MORE:
+    SendMore sendMoreMessage;
 };
 
 union AuthenticatedMessage switch (uint32 v)

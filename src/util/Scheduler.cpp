@@ -196,6 +196,20 @@ Scheduler::trimIdleActionQueues(VirtualClock::time_point now)
 }
 
 void
+Scheduler::shutdown()
+{
+    if (!mIsShutdown)
+    {
+        mIsShutdown = true;
+        mAllActionQueues.clear();
+        mRunnableActionQueues =
+            std::priority_queue<Qptr, std::vector<Qptr>,
+                                std::function<bool(Qptr, Qptr)>>();
+        mIdleActionQueues.clear();
+    }
+}
+
+void
 Scheduler::setOverloaded(bool overloaded)
 {
     if (overloaded)
@@ -211,6 +225,11 @@ Scheduler::setOverloaded(bool overloaded)
 void
 Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
 {
+    if (mIsShutdown)
+    {
+        return;
+    }
+
     auto key = std::make_pair(name, type);
     auto qi = mAllActionQueues.find(key);
     if (qi == mAllActionQueues.end())

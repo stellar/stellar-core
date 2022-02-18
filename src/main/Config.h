@@ -201,6 +201,11 @@ class Config : public std::enable_shared_from_this<Config>
     // during captive core fast restart.
     std::chrono::seconds ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
 
+    // A config parameter that forces stellar-core to sleep every time a task is
+    // picked up from the scheduler. This is useful to imitate a "slow" node.
+    // This config should only be enabled when testing.
+    std::chrono::microseconds ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
+
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
     // The probability that it sleeps for
@@ -224,6 +229,27 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
+
+    // A config parameter that controls how many messages from a particular peer
+    // core can process simultaneously. If core is at capacity, it temporarily
+    // stops reading from a peer until it completes processing of at least one
+    // in-flight message. This config only takes effect if
+    // ENABLE_OVERLAY_FLOW_CONTROL=true.
+    uint32_t PEER_READING_CAPACITY;
+
+    // A config parameter that controls how many flood messages (tx or SCP) from
+    // a particular peer core can process simultaneously. This config only takes
+    // effect if ENABLE_OVERLAY_FLOW_CONTROL=true. Must be strictly less than
+    // PEER_READING_CAPACITY
+    uint32_t PEER_FLOOD_READING_CAPACITY;
+
+    // A config parameter that allows core to enable or disable flow control
+    // when communicating with peers.
+    bool ENABLE_OVERLAY_FLOW_CONTROL;
+
+    // When flow control is enabled, peer asks for more data every time it
+    // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE` messages
+    uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
 
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.

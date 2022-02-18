@@ -871,6 +871,12 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
     return false;
 }
 
+bool
+OverlayManagerImpl::isFloodMessage(StellarMessage const& msg)
+{
+    return msg.type() == SCP_MESSAGE || msg.type() == TRANSACTION;
+}
+
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
@@ -1022,8 +1028,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     };
 
     bool flood = false;
-    if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE ||
-        stellarMsg.type() == SURVEY_REQUEST ||
+    if (isFloodMessage(stellarMsg) || stellarMsg.type() == SURVEY_REQUEST ||
         stellarMsg.type() == SURVEY_RESPONSE)
     {
         flood = true;

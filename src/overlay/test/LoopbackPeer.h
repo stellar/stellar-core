@@ -73,6 +73,8 @@ class LoopbackPeer : public Peer
     size_t getBytesQueued() const;
     size_t getMessagesQueued() const;
 
+    virtual void scheduleRead() override;
+
     Stats const& getStats() const;
 
     bool getCorked() const;
@@ -110,9 +112,27 @@ class LoopbackPeer : public Peer
         return mDropReason;
     }
 
+    std::array<std::deque<QueuedOutboundMessage>, 2>&
+    getQueues()
+    {
+        return mOutboundQueues;
+    }
+
+    uint64_t&
+    getOutboundCapacity()
+    {
+        return mOutboundCapacity;
+    }
+
+    bool checkCapacity(uint64_t expectedOutboundCapacity) const;
+
     std::string getIP() const override;
 
+    using Peer::addMsgAndMaybeTrimQueue;
+    using Peer::flowControlEnabled;
     using Peer::sendAuth;
+    using Peer::sendAuthenticatedMessage;
+    using Peer::sendSendMore;
 
     friend class LoopbackPeerConnection;
 };

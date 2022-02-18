@@ -183,6 +183,8 @@ class Scheduler
     // or run.
     size_t mSize{0};
 
+    bool mIsShutdown{false};
+
     void trimSingleActionQueue(Qptr q,
                                std::chrono::steady_clock::time_point now);
     void trimIdleActionQueues(std::chrono::steady_clock::time_point now);
@@ -239,6 +241,8 @@ class Scheduler
     {
         return mStats;
     }
+
+    void shutdown();
 
 #ifdef BUILD_TESTS
     // Testing interface

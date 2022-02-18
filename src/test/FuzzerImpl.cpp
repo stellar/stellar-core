@@ -2039,8 +2039,11 @@ OverlayFuzzer::inject(std::string const& filename)
     auto acceptor = loopbackPeerConnection->getAcceptor();
 
     initiator->getApp().getClock().postAction(
-        [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "main",
-        Scheduler::ActionType::NORMAL_ACTION);
+        [initiator, msg]() {
+            initiator->Peer::sendMessage(
+                std::make_shared<StellarMessage const>(msg));
+        },
+        "main", Scheduler::ActionType::NORMAL_ACTION);
 
     mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 

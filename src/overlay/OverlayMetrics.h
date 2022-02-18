@@ -50,6 +50,7 @@ struct OverlayMetrics
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
     medida::Timer& mRecvGetSCPStateTimer;
+    medida::Timer& mRecvSendMoreTimer;
 
     medida::Timer& mRecvSCPPrepareTimer;
     medida::Timer& mRecvSCPConfirmTimer;
@@ -61,6 +62,9 @@ struct OverlayMetrics
 
     medida::Timer& mMessageDelayInWriteQueueTimer;
     medida::Timer& mMessageDelayInAsyncWriteTimer;
+
+    medida::Timer& mOutboundQueueDelaySCP;
+    medida::Timer& mOutboundQueueDelayTxs;
 
     medida::Meter& mSendErrorMeter;
     medida::Meter& mSendHelloMeter;
@@ -75,6 +79,7 @@ struct OverlayMetrics
     medida::Meter& mSendSCPQuorumSetMeter;
     medida::Meter& mSendSCPMessageSetMeter;
     medida::Meter& mSendGetSCPStateMeter;
+    medida::Meter& mSendSendMoreMeter;
 
     medida::Meter& mSendSurveyRequestMeter;
     medida::Meter& mSendSurveyResponseMeter;

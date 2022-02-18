@@ -38,6 +38,8 @@ class PeerStub : public Peer
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
+        mOutboundCapacity = std::numeric_limits<uint32>::max();
+        mFlowControlState = Peer::FlowControlState::ENABLED;
     }
     virtual std::string
     getIP() const override
@@ -53,6 +55,10 @@ class PeerStub : public Peer
     sendMessage(xdr::msg_ptr&& xdrBytes) override
     {
         sent++;
+    }
+    virtual void
+    scheduleRead() override
+    {
     }
 };
 

@@ -57,6 +57,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
     , mRecvGetSCPStateTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-state"}))
+    , mRecvSendMoreTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "send-more"}))
 
     , mRecvSCPPrepareTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-prepare"}))
@@ -71,11 +73,14 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "survey-request"}))
     , mRecvSurveyResponseTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "survey-response"}))
-
     , mMessageDelayInWriteQueueTimer(
           app.getMetrics().NewTimer({"overlay", "delay", "write-queue"}))
     , mMessageDelayInAsyncWriteTimer(
           app.getMetrics().NewTimer({"overlay", "delay", "async-write"}))
+    , mOutboundQueueDelaySCP(
+          app.getMetrics().NewTimer({"overlay", "outbound-queue", "scp"}))
+    , mOutboundQueueDelayTxs(
+          app.getMetrics().NewTimer({"overlay", "outbound-queue", "tx"}))
 
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
@@ -103,6 +108,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "scp-message"}, "message"))
     , mSendGetSCPStateMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-state"}, "message"))
+    , mSendSendMoreMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "send-more"}, "message"))
     , mSendSurveyRequestMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "survey-request"}, "message"))
     , mSendSurveyResponseMeter(app.getMetrics().NewMeter(

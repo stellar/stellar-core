@@ -124,6 +124,9 @@ class VirtualClock
     // make progress. Use a do-while loop or break mid-loop or something.
     bool shouldYield() const;
 
+    void shutdown();
+    bool isStopped();
+
   private:
     asio::io_context mIOContext;
     Mode mMode;
