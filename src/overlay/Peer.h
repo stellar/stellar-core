@@ -53,6 +53,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 {
 
   public:
+    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL = 20;
+
     typedef std::shared_ptr<Peer> pointer;
 
     enum PeerState
@@ -112,6 +114,22 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
+    struct QueuedOutboundMessage
+    {
+        std::shared_ptr<StellarMessage const> mMessage;
+        VirtualClock::time_point mTimeEmplaced;
+    };
+
+    // Does this peer want flow control enabled
+    enum class FlowControlState
+    {
+        ENABLED,
+        DISABLED,
+        DONT_KNOW
+    };
+
+    Peer::FlowControlState flowControlEnabled() const;
+
   protected:
     Application& mApp;
 
@@ -120,6 +138,47 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
+
+    class MsgCapacityTracker : private NonMovableOrCopyable
+    {
+        std::weak_ptr<Peer> mWeakPeer;
+        StellarMessage mMsg;
+
+      public:
+        MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
+        ~MsgCapacityTracker();
+        StellarMessage const& getMessage();
+        std::weak_ptr<Peer> getPeer();
+    };
+
+    struct ReadingCapacity
+    {
+        uint64_t mFloodCapacity;
+        uint64_t mTotalCapacity;
+    };
+
+    // Outbound queues indexes by priority
+    // Priority 0 - SCP messages
+    // Priority 1 - transactions
+    std::array<std::deque<QueuedOutboundMessage>, 2> mOutboundQueues;
+
+    // This methods drops obsolete load from the outbound queue
+    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
+
+    // How many flood messages have we received and processed since sending
+    // SEND_MORE to this peer
+    uint64_t mFloodMsgsProcessed{0};
+
+    // How many flood messages can we send to this peer
+    uint64_t mOutboundCapacity{0};
+
+    FlowControlState mFlowControlState;
+
+    // Is this peer currently throttled due to lack of capacity
+    bool mIsPeerThrottled{false};
+
+    // Does local node have capacity to read from this peer
+    bool hasReadingCapacity() const;
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -145,6 +204,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
+    ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
 
@@ -164,6 +224,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvPeers(StellarMessage const& msg);
     void recvSurveyRequestMessage(StellarMessage const& msg);
     void recvSurveyResponseMessage(StellarMessage const& msg);
+    void recvSendMore(StellarMessage const& msg);
 
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
@@ -179,6 +240,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
+    void sendSendMore(uint32_t numMessages);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -188,6 +250,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
     virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void scheduleRead() = 0;
     virtual void
     connected()
     {
@@ -207,6 +270,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
 
+    void sendAuthenticatedMessage(StellarMessage const& msg);
+
+    void beginMesssageProcessing(StellarMessage const& msg);
+    void endMessageProcessing(StellarMessage const& msg);
+
+    void maybeSendNextBatch();
+
   public:
     Peer(Application& app, PeerRole role);
 
@@ -224,7 +294,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
 
-    void sendMessage(StellarMessage const& msg, bool log = true);
+    void sendMessage(std::shared_ptr<StellarMessage const> msg,
+                     bool log = true);
 
     PeerRole
     getRole() const
