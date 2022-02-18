@@ -523,7 +523,8 @@ TEST_CASE("LedgerTxn create", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+        {SPEEDEX_CONFIGURATION});
     le.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le);
 
@@ -1452,7 +1453,8 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+        {SPEEDEX_CONFIGURATION});
     le.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le);
 

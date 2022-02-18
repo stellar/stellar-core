@@ -491,7 +491,6 @@ struct LedgerEntryExtensionV1
 struct SpeedexConfigurationEntry
 {
     Asset asset<>;
-    uint32 dummyParam;
     union switch (int v)
     {
     case 0:
