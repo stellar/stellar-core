@@ -911,7 +911,6 @@ void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    maybeProcessPingResponse(msg.qSetHash());
 
     SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
 
@@ -931,6 +930,7 @@ Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
     Hash hash = xdrSha256(msg.qSet());
+    maybeProcessPingResponse(hash);
     mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
 }
 
