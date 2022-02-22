@@ -172,8 +172,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // How many flood messages can we send to this peer
     uint64_t mOutboundCapacity{0};
 
-    FlowControlState mFlowControlState;
-
     // Is this peer currently throttled due to lack of capacity
     bool mIsPeerThrottled{false};
 
@@ -204,6 +202,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
+    FlowControlState mFlowControlState;
     ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
