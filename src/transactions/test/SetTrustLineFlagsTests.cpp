@@ -961,9 +961,12 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     // make sure this account isn't sponsoring any claimable
                     // balances
-                    auto account = loadAccount(ltx, acc1.getPublicKey(), true);
-                    REQUIRE(!hasAccountEntryExtV2(
-                        account.current().data.account()));
+                    auto account = ltx.load(accountKey(acc1.getPublicKey()));
+
+                    auto& ae = account.current().data.account();
+                    REQUIRE(
+                        (!hasAccountEntryExtV2(ae) ||
+                         getAccountEntryExtensionV2(ae).numSponsoring == 0));
                 }
             }
 

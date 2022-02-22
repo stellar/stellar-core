@@ -326,8 +326,26 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                                     previous->ledgerEntry().data.account();
                                 REQUIRE(currAcc.signers.size() + 1 ==
                                         prevAcc.signers.size());
+                                REQUIRE(hasAccountEntryExtV2(currAcc) ==
+                                        hasAccountEntryExtV2(prevAcc));
+
                                 // signers should be the only change so this
                                 // should make the accounts equivalent
+                                if (hasAccountEntryExtV2(currAcc))
+                                {
+                                    auto& currSignerSponsoringIDs =
+                                        getAccountEntryExtensionV2(currAcc)
+                                            .signerSponsoringIDs;
+                                    auto const& prevSignerSponsoringIDs =
+                                        getAccountEntryExtensionV2(prevAcc)
+                                            .signerSponsoringIDs;
+
+                                    REQUIRE(currSignerSponsoringIDs.size() +
+                                                1 ==
+                                            prevSignerSponsoringIDs.size());
+                                    currSignerSponsoringIDs =
+                                        prevSignerSponsoringIDs;
+                                }
                                 currAcc.signers = prevAcc.signers;
                                 currAcc.numSubEntries = prevAcc.numSubEntries;
                                 REQUIRE(currAcc == prevAcc);
