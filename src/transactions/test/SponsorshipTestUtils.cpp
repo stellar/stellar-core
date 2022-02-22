@@ -26,6 +26,21 @@ getOperationResult(TransactionFrameBasePtr& tx, size_t i)
 namespace stellar
 {
 
+static void
+validateExpectedAccountV0Ext(uint32_t ledgerVersion, AccountEntry const& ae)
+{
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19) &&
+        hasAccountEntryExtV3(ae))
+    {
+        REQUIRE(ae.ext.v1().ext.v2().numSponsoring == 0);
+        REQUIRE(ae.ext.v1().ext.v2().numSponsored == 0);
+    }
+    else
+    {
+        REQUIRE(ae.ext.v() == 0);
+    }
+}
+
 void
 checkSponsorship(AbstractLedgerTxn& ltx, LedgerKey const& lk, int leExt,
                  AccountID const* sponsoringID)
@@ -66,7 +81,8 @@ checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& accountID,
     switch (aeExt)
     {
     case 0:
-        REQUIRE(ae.ext.v() == 0);
+        validateExpectedAccountV0Ext(ltx.loadHeader().current().ledgerVersion,
+                                     ae);
         break;
     case 1:
         REQUIRE(ae.ext.v() == 1);
@@ -102,11 +118,11 @@ checkSponsorship(AbstractLedgerTxn& ltx, AccountID const& acc, int leExt,
     switch (aeExt)
     {
     case 0:
-        REQUIRE(ae.ext.v() == 0);
+        validateExpectedAccountV0Ext(ltx.loadHeader().current().ledgerVersion,
+                                     ae);
         break;
     case 1:
         REQUIRE(ae.ext.v() == 1);
-        REQUIRE(ae.ext.v1().ext.v() == 0);
         break;
     case 2:
         REQUIRE(ae.ext.v() == 1);
