@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 #include "database/Database.h"
+#include "lib/json/json.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
@@ -129,6 +130,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     };
 
     Peer::FlowControlState flowControlEnabled() const;
+
+    Json::Value getFlowControlJsonInfo() const;
 
   protected:
     Application& mApp;

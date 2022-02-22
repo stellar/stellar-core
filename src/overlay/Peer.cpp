@@ -253,6 +253,38 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
     }
 }
 
+Json::Value
+Peer::getFlowControlJsonInfo() const
+{
+    Json::Value res;
+    std::string stateStr;
+    bool reportCapacity = false;
+    switch (flowControlEnabled())
+    {
+    case Peer::FlowControlState::ENABLED:
+        stateStr = "enabled";
+        reportCapacity = true;
+        break;
+    case Peer::FlowControlState::DISABLED:
+        stateStr = "disabled";
+        break;
+    case Peer::FlowControlState::DONT_KNOW:
+        stateStr = "don't know";
+        break;
+    };
+
+    res["state"] = stateStr;
+    if (reportCapacity)
+    {
+        res["local_capacity"]["reading"] =
+            (Json::UInt64)mCapacity.mTotalCapacity;
+        res["local_capacity"]["flood"] = (Json::UInt64)mCapacity.mFloodCapacity;
+        res["peer_capacity"] = (Json::UInt64)mOutboundCapacity;
+    }
+
+    return res;
+}
+
 void
 Peer::sendAuth()
 {

@@ -291,6 +291,8 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
                 peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
                 peerNode["id"] =
                     mApp.getConfig().toStrKey(peer.first, fullKeys);
+                peerNode["flow_control"] =
+                    peer.second->getFlowControlJsonInfo();
             }
         };
     addAuthenticatedPeers(
