@@ -474,8 +474,6 @@ struct LiquidityPoolEntry
     body;
 };
 
-
-
 struct LedgerEntryExtensionV1
 {
     SponsorshipDescriptor sponsoringID;

@@ -96,8 +96,10 @@ updateChangedSubEntriesCount(
     }
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
+    case SPEEDEX_CONFIGURATION:
     {
-        // claimable balance and liquidity pools are not subentries
+        // claimable balance, liquidity pools and speedex configuration are not
+        // subentries.
         break;
     }
     default:

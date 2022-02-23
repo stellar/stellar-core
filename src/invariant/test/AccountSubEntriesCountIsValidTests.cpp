@@ -107,6 +107,7 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     case ACCOUNT:
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
+    case SPEEDEX_CONFIGURATION:
         break;
     case OFFER:
         res.data.offer().offerID = se.data.offer().offerID;

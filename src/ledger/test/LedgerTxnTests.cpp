@@ -149,8 +149,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-        {SPEEDEX_CONFIGURATION});
+    LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
     le1.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le1);
 
@@ -203,6 +202,11 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 
         SECTION("erased in child")
         {
+            le1 = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
+            key = LedgerEntryKey(le1);
+            le2 = generateLedgerEntryWithSameKey(le1);
+
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE(ltx1.create(le1));
 
@@ -221,9 +225,7 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le1 =
-            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {SPEEDEX_CONFIGURATION});
+        LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
         le1.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le1);
 
@@ -276,6 +278,12 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
 
             SECTION("erased in child")
             {
+                le1 = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                    {SPEEDEX_CONFIGURATION});
+                le1.lastModifiedLedgerSeq = 1;
+                key = LedgerEntryKey(le1);
+                le2 = generateLedgerEntryWithSameKey(le1);
+
                 LedgerTxn ltx1(app->getLedgerTxnRoot());
                 REQUIRE(ltx1.create(le1));
 
@@ -523,8 +531,7 @@ TEST_CASE("LedgerTxn create", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-        {SPEEDEX_CONFIGURATION});
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
     le.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le);
 
@@ -564,6 +571,11 @@ TEST_CASE("LedgerTxn create", "[ledgertxn]")
 
     SECTION("when key exists in grandparent, erased in parent")
     {
+        le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+            {SPEEDEX_CONFIGURATION});
+        le.lastModifiedLedgerSeq = 1;
+        key = LedgerEntryKey(le);
+
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         REQUIRE(ltx1.create(le));
 
@@ -585,9 +597,7 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le =
-            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {SPEEDEX_CONFIGURATION});
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -647,6 +657,11 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
 
         SECTION("when key exists in grandparent, erased in parent")
         {
+            le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
+            le.lastModifiedLedgerSeq = 1;
+            key = LedgerEntryKey(le);
+
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE(ltx1.create(le));
 
@@ -791,6 +806,18 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             ltx1.getAllEntries(init, live, dead);
             REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key),
                               std::runtime_error);
+        }
+
+        SECTION("fails for speedex configuration")
+        {
+            auto speedexLe = LedgerTestUtils::generateValidLedgerEntryOfType(
+                SPEEDEX_CONFIGURATION);
+            speedexLe.lastModifiedLedgerSeq = 1;
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(speedexLe));
+            REQUIRE_THROWS_AS(
+                ltx1.eraseWithoutLoading(LedgerEntryKey(speedexLe)),
+                std::runtime_error);
         }
 
         SECTION("when key does not exist")
@@ -1300,9 +1327,7 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le =
-            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {SPEEDEX_CONFIGURATION});
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
         le.lastModifiedLedgerSeq = 1;
         LedgerKey key = LedgerEntryKey(le);
 
@@ -1342,6 +1367,11 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
 
         SECTION("when key exists in grandparent, erased in parent")
         {
+            le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {SPEEDEX_CONFIGURATION});
+            le.lastModifiedLedgerSeq = 1;
+            key = LedgerEntryKey(le);
+
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE(ltx1.create(le));
 
@@ -1453,8 +1483,7 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-        {SPEEDEX_CONFIGURATION});
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
     le.lastModifiedLedgerSeq = 1;
     LedgerKey key = LedgerEntryKey(le);
 
@@ -1491,6 +1520,11 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
 
     SECTION("when key exists in grandparent, erased in parent")
     {
+        le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+            {SPEEDEX_CONFIGURATION});
+        le.lastModifiedLedgerSeq = 1;
+        key = LedgerEntryKey(le);
+
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         REQUIRE(ltx1.create(le));
 

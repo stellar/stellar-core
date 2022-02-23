@@ -202,8 +202,9 @@ computeMultiplier(LedgerEntry const& le)
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
     case LIQUIDITY_POOL:
+    case SPEEDEX_CONFIGURATION:
         throw std::runtime_error(
-            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
+            "Invalid ledger entry type in SponsorshipUtils");
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }
@@ -222,8 +223,9 @@ isSubentry(LedgerEntry const& le)
     case DATA:
         return true;
     case LIQUIDITY_POOL:
+    case SPEEDEX_CONFIGURATION:
         throw std::runtime_error(
-            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
+            "Invalid ledger entry type in SponsorshipUtils");
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }

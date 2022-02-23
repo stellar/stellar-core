@@ -159,7 +159,8 @@ struct EntryCounts
         check(ACCOUNT, mAccounts) && check(TRUSTLINE, mTrustLines) &&
             check(OFFER, mOffers) && check(DATA, mData) &&
             check(CLAIMABLE_BALANCE, mClaimableBalance) &&
-            check(LIQUIDITY_POOL, mLiquidityPool);
+            check(LIQUIDITY_POOL, mLiquidityPool) &&
+            check(SPEEDEX_CONFIGURATION, mSpeedexConfiguration);
         return msg;
     }
 };

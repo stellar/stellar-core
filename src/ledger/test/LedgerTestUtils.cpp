@@ -107,6 +107,10 @@ randomlyModifyEntry(LedgerEntry& e)
             autocheck::generator<int64>{}();
         makeValid(e.data.liquidityPool());
         break;
+    case SPEEDEX_CONFIGURATION:
+        e.data.speedexConfiguration() =
+            generateValidSpeedexConfigurationEntry();
+        break;
     }
 }
 
@@ -292,7 +296,7 @@ makeValid(LiquidityPoolEntry& lp)
 void
 makeValid(SpeedexConfigurationEntry& sc)
 {
-    // Currently the is no speedex configuration entry content is not defined.
+    // Currently there is no speedex configuration entry content to be defined.
 }
 
 void
@@ -482,7 +486,7 @@ generateValidUniqueLedgerEntries(size_t n)
 
 LedgerEntry
 generateValidLedgerEntryWithExclusions(
-    const std::unordered_set<LedgerEntryType>& excluded_types, size_t b)
+    std::unordered_set<LedgerEntryType> const& excluded_types, size_t b)
 {
     while (true)
     {
@@ -496,25 +500,26 @@ generateValidLedgerEntryWithExclusions(
 
 std::vector<LedgerEntry>
 generateValidLedgerEntriesWithExclusions(
-    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n)
+    std::unordered_set<LedgerEntryType> const& excluded_types, size_t n)
 {
-    std::vector<LedgerEntry> res(n);
+    std::vector<LedgerEntry> res;
+    res.reserve(n);
     for (int i = 0; i < n; ++i)
     {
-        res[i] = generateValidLedgerEntryWithExclusions(excluded_types);
+        res.push_back(generateValidLedgerEntryWithExclusions(excluded_types));
     }
     return res;
 }
 
 std::vector<LedgerKey>
 generateValidLedgerEntryKeysWithExclusions(
-    const std::unordered_set<LedgerEntryType>& excluded_types, size_t n)
+    std::unordered_set<LedgerEntryType> const& excluded_types, size_t n)
 {
     auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
         excluded_types, n);
     std::vector<LedgerKey> keys;
     keys.reserve(entries.size());
-    for (const auto& entry : entries)
+    for (auto const& entry : entries)
     {
         keys.push_back(LedgerEntryKey(entry));
     }

@@ -1408,7 +1408,7 @@ TEST_CASE("bucket persistence over app restart",
         auto batch_entries =
             LedgerTestUtils::generateValidUniqueLedgerEntries(110);
         std::vector<std::vector<LedgerEntry>> batches;
-        for (const auto& batch_entry : batch_entries)
+        for (auto const& batch_entry : batch_entries)
         {
             batches.emplace_back().push_back(batch_entry);
         }

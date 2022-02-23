@@ -346,16 +346,21 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
     Config const& cfg = getTestConfig();
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        int const BatchCount = 512;
+        int const BatchSize = 8;
         Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl;
         auto vers = getAppLedgerVersion(app);
         autocheck::generator<bool> flip;
         std::deque<LedgerEntry> entriesToModify;
-        for (uint32_t i = 1; i < 512; ++i)
+        std::vector<LedgerEntry> allEntries =
+            LedgerTestUtils::generateValidUniqueLedgerEntries(BatchCount *
+                                                              BatchSize);
+        for (uint32_t i = 1; i <= BatchCount; ++i)
         {
-            std::vector<LedgerEntry> initEntries =
-                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {SPEEDEX_CONFIGURATION}, 8);
+            std::vector<LedgerEntry> initEntries(
+                allEntries.begin() + (i - 1) * BatchSize,
+                allEntries.begin() + i * BatchSize);
             std::vector<LedgerEntry> liveEntries;
             std::vector<LedgerKey> deadEntries;
             for (auto const& e : initEntries)

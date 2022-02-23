@@ -159,6 +159,8 @@ getShortKey(LedgerKey const& key)
         return getShortKey(key.claimableBalance().balanceID);
     case LIQUIDITY_POOL:
         return getShortKey(key.liquidityPool().liquidityPoolID);
+    case SPEEDEX_CONFIGURATION:
+        return SPEEDEX_CONFIGURATION;
     }
     throw std::runtime_error("Unknown key type");
 }

@@ -755,6 +755,11 @@ LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
+    if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+        key.ledgerKey().type() == SPEEDEX_CONFIGURATION)
+    {
+        throw std::runtime_error("Speedex configuration cannot be erased.");
+    }
 
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
@@ -2523,6 +2528,7 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case SPEEDEX_CONFIGURATION:
         // Speedex configuration can not be deleted.
         releaseAssert(iter.entryExists());
+        releaseAssert(!mSpeedexConfigurationToUpsert);
         mSpeedexConfigurationToUpsert.emplace(iter);
         break;
     default:

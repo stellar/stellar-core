@@ -48,6 +48,7 @@ getMult(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return le.data.claimableBalance().claimants.size();
     case LIQUIDITY_POOL:
+    case SPEEDEX_CONFIGURATION:
         throw std::runtime_error("invalid LedgerEntry type");
     default:
         abort();

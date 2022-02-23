@@ -43,6 +43,7 @@ getAccountID(LedgerEntry const& le)
         return le.data.data().accountID;
     case CLAIMABLE_BALANCE:
         return *le.ext.v1().sponsoringID;
+    case SPEEDEX_CONFIGURATION:
     default:
         abort();
     }
@@ -431,6 +432,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case CLAIMABLE_BALANCE:
             break;
         case LIQUIDITY_POOL:
+        case SPEEDEX_CONFIGURATION:
             innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
             return false;
         default:

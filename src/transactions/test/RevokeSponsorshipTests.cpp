@@ -1335,5 +1335,10 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 revoke(poolShareTrustLineKey(a1, PoolID{}));
             });
         }
+        SECTION("speedex configuration")
+        {
+            for_versions_from(
+                19, *app, [&]() { revoke(LedgerKey(SPEEDEX_CONFIGURATION)); });
+        }
     }
 }

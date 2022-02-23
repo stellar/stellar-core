@@ -123,6 +123,9 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
             return "LiquidityPool is sponsored";
         }
         return checkIsValid(le.data.liquidityPool(), previous, version);
+    case SPEEDEX_CONFIGURATION:
+        // Speedex configuration doesn't have content to be validated yet.
+        return "";
     default:
         return "LedgerEntry has invalid type";
     }

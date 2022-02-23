@@ -141,10 +141,8 @@ template <> class hash<stellar::LedgerKey>
                                       lk.liquidityPool().liquidityPoolID));
             break;
         case stellar::SPEEDEX_CONFIGURATION:
-            // As there is only a single speedex configuration entry, just
-            // add the hash of the key type itself.
-            stellar::hashMix(res, stellar::shortHash::computeHash(
-                                      stellar::ByteSlice(&res, sizeof(res))));
+            // As there is only a single speedex configuration entry, don't add
+            // anything else.
             break;
         default:
             abort();

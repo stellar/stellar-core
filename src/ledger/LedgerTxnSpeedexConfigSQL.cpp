@@ -10,26 +10,24 @@ namespace stellar
 namespace
 {
 
-const std::string CREATE_SPEEDEX_CONFIGURATION_TABLE_SQL = R"(
+std::string const CREATE_SPEEDEX_CONFIGURATION_TABLE_SQL = R"(
     CREATE TABLE speedexconfiguration (
         dummykey     INT PRIMARY KEY,
         ledgerentry  TEXT NOT NULL,
         lastmodified INT NOT NULL);
 )";
 
-const std::string DROP_SPEEDEX_CONFIGURATION_TABLE_SQL =
+std::string const DROP_SPEEDEX_CONFIGURATION_TABLE_SQL =
     "DROP TABLE IF EXISTS speedexconfiguration;";
 
-const std::string LOAD_SPEEDEX_CONFIGURATION_SQL = R"(
+std::string const LOAD_SPEEDEX_CONFIGURATION_SQL = R"(
     SELECT ledgerentry
     FROM speedexconfiguration
     LIMIT 1;)";
 
-const std::string INSERT_SPEEDEX_CONFIGURATION_SQL = R"(
-    INSERT INTO speedexconfiguration
-    VALUES ( 
-        1, :ledgerentry, :lastmodified 
-    )
+std::string const INSERT_SPEEDEX_CONFIGURATION_SQL = R"(
+    INSERT INTO speedexconfiguration (dummykey, ledgerentry, lastmodified)
+    VALUES (1, :ledgerentry, :lastmodified)
     ON CONFLICT (dummykey) DO UPDATE SET
         ledgerentry = excluded.ledgerentry,
         lastmodified = excluded.lastmodified;
