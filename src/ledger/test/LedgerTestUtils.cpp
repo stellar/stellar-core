@@ -486,12 +486,12 @@ generateValidUniqueLedgerEntries(size_t n)
 
 LedgerEntry
 generateValidLedgerEntryWithExclusions(
-    std::unordered_set<LedgerEntryType> const& excluded_types, size_t b)
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b)
 {
     while (true)
     {
         auto entry = generateValidLedgerEntry(b);
-        if (excluded_types.find(entry.data.type()) == excluded_types.end())
+        if (excludedTypes.find(entry.data.type()) == excludedTypes.end())
         {
             return entry;
         }
@@ -500,23 +500,23 @@ generateValidLedgerEntryWithExclusions(
 
 std::vector<LedgerEntry>
 generateValidLedgerEntriesWithExclusions(
-    std::unordered_set<LedgerEntryType> const& excluded_types, size_t n)
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
     std::vector<LedgerEntry> res;
     res.reserve(n);
     for (int i = 0; i < n; ++i)
     {
-        res.push_back(generateValidLedgerEntryWithExclusions(excluded_types));
+        res.push_back(generateValidLedgerEntryWithExclusions(excludedTypes));
     }
     return res;
 }
 
 std::vector<LedgerKey>
 generateValidLedgerEntryKeysWithExclusions(
-    std::unordered_set<LedgerEntryType> const& excluded_types, size_t n)
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
     auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-        excluded_types, n);
+        excludedTypes, n);
     std::vector<LedgerKey> keys;
     keys.reserve(entries.size());
     for (auto const& entry : entries)
