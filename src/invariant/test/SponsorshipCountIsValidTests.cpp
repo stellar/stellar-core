@@ -72,6 +72,7 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
             le.data.claimableBalance() =
                 LedgerTestUtils::generateValidClaimableBalanceEntry();
             break;
+        case LIQUIDITY_POOL:
         case SPEEDEX_CONFIGURATION:
         default:
             abort();

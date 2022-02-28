@@ -388,6 +388,8 @@ generateScaledLiveEntries(
             break;
         }
         case SPEEDEX_CONFIGURATION:
+            // Currently there is no actual configuration to modify.
+            break;
         default:
             abort();
         }
@@ -424,6 +426,7 @@ scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
             generateScaledClaimableBalanceID(
                 key.claimableBalance().balanceID.v0(), partition);
         break;
+    case LIQUIDITY_POOL:
     case SPEEDEX_CONFIGURATION:
     default:
         throw std::runtime_error("invalid ledger key type");

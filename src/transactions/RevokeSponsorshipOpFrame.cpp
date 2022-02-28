@@ -44,6 +44,8 @@ getAccountID(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return *le.ext.v1().sponsoringID;
     case SPEEDEX_CONFIGURATION:
+        throw std::runtime_error(
+            "Speedex configuration doesn't have accountId.");
     default:
         abort();
     }

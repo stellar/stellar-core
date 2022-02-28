@@ -117,6 +117,7 @@ computeMultiplier(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
+    case LIQUIDITY_POOL:
     case SPEEDEX_CONFIGURATION:
     default:
         throw std::runtime_error("Unexpected LedgerEntry type");
