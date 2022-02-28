@@ -96,13 +96,21 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 ### OS X
 When building on OSX, here's some dependencies you'll need:
 - Install xcode
-- Install homebrew
-- brew install libsodium
-- brew install libtool
-- brew install automake
-- brew install pkg-config
-- brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
-- brew install parallel (required for running tests)
+- Install [homebrew](https://brew.sh)
+- `brew install libsodium`
+- `brew install libtool`
+- `brew install autoconf`
+- `brew install automake`
+- `brew install pkg-config`
+- `brew install libpq` (required for postgres)
+- `brew install openssl` (required for postgres)
+- `brew install parallel` (required for running tests)
+
+You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
+```zsh
+export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
+export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+```
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
