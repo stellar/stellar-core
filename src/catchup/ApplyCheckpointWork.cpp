@@ -232,10 +232,10 @@ ApplyCheckpointWork::getNextLedgerCloseData()
         auto& bm = mApp.getBucketManager();
         CLOG_INFO(History,
                   "Forcing bucket manager to use version {} with hash {}",
-                  Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                  mApp.getConfig().LEDGER_PROTOCOL_VERSION,
                   hexAbbrev(header.bucketListHash));
         bm.setNextCloseVersionAndHashForTesting(
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION, header.bucketListHash);
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION, header.bucketListHash);
     }
 #endif
 

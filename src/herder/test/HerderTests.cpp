@@ -256,7 +256,7 @@ testTxSet(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
-    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
@@ -433,7 +433,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
-    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
@@ -664,7 +664,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
     auto testBaseFee = [&](uint32_t protocolVersion, uint32 nbTransactions,
                            uint32 extraAccounts, size_t lim, int64_t expLowFee,
                            int64_t expHighFee) {
-        cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
@@ -850,7 +850,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
-    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -1074,7 +1074,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
 
     cfg.MANUAL_CLOSE = false;
-    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
 
     VirtualClock clock;

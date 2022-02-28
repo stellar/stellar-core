@@ -175,7 +175,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
 
-        if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        if (curr.header.ledgerVersion >
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION)
         {
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }

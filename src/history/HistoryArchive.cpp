@@ -411,7 +411,7 @@ HistoryArchiveState::prepareForPublish(Application& app)
             // that it'd be somewhat convoluted _to_ materialize the true value
             // here, we're going to live with the approximate value for now.
             uint32_t maxProtocolVersion =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+                app.getConfig().LEDGER_PROTOCOL_VERSION;
             level.next.makeLive(app, maxProtocolVersion, i);
         }
     }

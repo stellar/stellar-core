@@ -349,6 +349,8 @@ class Config : public std::enable_shared_from_this<Config>
     // Set of cursors added at each startup with value '1'.
     std::vector<std::string> KNOWN_CURSORS;
 
+    // maximum protocol version supported by the application, can be overridden
+    // in tests
     uint32_t LEDGER_PROTOCOL_VERSION;
     // min ledger version for which internal errors are reported with high
     // severity
@@ -367,6 +369,12 @@ class Config : public std::enable_shared_from_this<Config>
     std::string LOG_FILE_PATH;
     bool LOG_COLOR;
     std::string BUCKET_DIR_PATH;
+
+    // Ledger protocol version for testing purposes. Defaulted to
+    // LEDGER_PROTOCOL_VERSION. Used in the following scenarios: 1. to specify
+    // the genesis ledger version (only when USE_CONFIG_FOR_GENESIS is true) 2.
+    // as the protocol version for Upgrades.
+    uint32_t TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
     uint32_t TESTING_UPGRADE_DESIRED_FEE; // in stroops
     uint32_t TESTING_UPGRADE_RESERVE;     // in stroops
     uint32_t TESTING_UPGRADE_MAX_TX_SET_SIZE;
