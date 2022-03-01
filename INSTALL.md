@@ -105,6 +105,7 @@ When building on OSX, here's some dependencies you'll need:
 - `brew install libpq` (required for postgres)
 - `brew install openssl` (required for postgres)
 - `brew install parallel` (required for running tests)
+- `brew install ccache` (required for enabling ccache)
 
 You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
 ```zsh
