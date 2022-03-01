@@ -176,6 +176,9 @@ AC_ARG_ENABLE([ccache],
               AS_HELP_STRING([--enable-ccache], [build with ccache]))
 AS_IF([test "x$enable_ccache" = "xyes"], [
   AC_CHECK_PROGS([CCACHE], [ccache])
+  AS_IF([test -z "$CCACHE"], [
+    AC_MSG_ERROR([ccache enabled but not found])
+  ])
   case "$CC" in
   *ccache\ *)
       ;;
