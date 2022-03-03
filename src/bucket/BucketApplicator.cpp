@@ -17,10 +17,12 @@ namespace stellar
 
 BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t maxProtocolVersion,
-                                   std::shared_ptr<const Bucket> bucket,
+                                   uint32_t minProtocolVersionSeen,
+                                   std::shared_ptr<Bucket const> bucket,
                                    std::function<bool(LedgerEntryType)> filter)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
+    , mMinProtocolVersionSeen(minProtocolVersionSeen)
     , mBucketIter(bucket)
     , mEntryTypeFilter(filter)
 {
@@ -134,7 +136,22 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
             }
             else
             {
-                ltx->eraseWithoutLoading(e.deadEntry());
+                if (protocolVersionIsBefore(
+                        mMinProtocolVersionSeen,
+                        Bucket::
+                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+                {
+                    // Prior to protocol 11, DEAD entries could exist
+                    // without LIVE entries in between
+                    if (ltx->getNewestVersion(e.deadEntry()))
+                    {
+                        ltx->eraseWithoutLoading(e.deadEntry());
+                    }
+                }
+                else
+                {
+                    ltx->eraseWithoutLoading(e.deadEntry());
+                }
             }
 
             if ((++count > LEDGER_ENTRY_BATCH_COMMIT_SIZE))

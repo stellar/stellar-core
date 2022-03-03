@@ -112,5 +112,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           bool doFsync);
 
     static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
+    static uint32_t
+    getBucketVersion(std::shared_ptr<Bucket const> const& bucket);
 };
 }
