@@ -466,34 +466,34 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
     SECTION("not time")
     {
         for_versions_to(11, *app, [&] {
-            closeLedgerOn(*app, 2, 30, 6, 2014);
+            closeLedgerOn(*app, 30, 6, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
 
             REQUIRE(getInflationSeq() == 0);
 
-            closeLedgerOn(*app, 3, 1, 7, 2014);
+            closeLedgerOn(*app, 1, 7, 2014);
 
             auto txFrame = root.tx({inflation()});
 
-            closeLedgerOn(*app, 4, 7, 7, 2014, {txFrame});
+            closeLedgerOn(*app, 7, 7, 2014, {txFrame});
             REQUIRE(getInflationSeq() == 1);
 
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 1);
 
-            closeLedgerOn(*app, 5, 8, 7, 2014);
+            closeLedgerOn(*app, 8, 7, 2014);
             root.inflation();
             REQUIRE(getInflationSeq() == 2);
 
-            closeLedgerOn(*app, 6, 14, 7, 2014);
+            closeLedgerOn(*app, 14, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 2);
 
-            closeLedgerOn(*app, 7, 15, 7, 2014);
+            closeLedgerOn(*app, 15, 7, 2014);
             root.inflation();
             REQUIRE(getInflationSeq() == 3);
 
-            closeLedgerOn(*app, 8, 21, 7, 2014);
+            closeLedgerOn(*app, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 3);
         });
@@ -517,7 +517,8 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
                 if (nbAccounts != 0)
                 {
                     createTestAccounts(*app, nbAccounts, balanceFunc, voteFunc);
-                    closeLedgerOn(*app, 2, 21, 7, 2014);
+
+                    closeLedgerOn(*app, 21, 7, 2014);
 
                     doInflation(*app, getLedgerVersion(), nbAccounts,
                                 balanceFunc, voteFunc, expectedWinners);
@@ -634,7 +635,7 @@ TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
             });
             root.pay(a0, txfee);
 
-            closeLedgerOn(*app, 2, 21, 7, 2014);
+            closeLedgerOn(*app, 21, 7, 2014);
 
             size_t expectedWinners = (expectedPayout > 0);
             doInflation(*app, getLedgerVersion(), 2, balanceFunc, voteFunc,

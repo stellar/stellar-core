@@ -86,6 +86,16 @@ void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t poolSharesTrustLineCount);
 
 TxSetResultMeta
+closeLedger(Application& app,
+            std::vector<TransactionFrameBasePtr> const& txs = {},
+            bool strictOrder = false);
+
+TxSetResultMeta
+closeLedgerOn(Application& app, int day, int month, int year,
+              std::vector<TransactionFrameBasePtr> const& txs = {},
+              bool strictOrder = false);
+
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);

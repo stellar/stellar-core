@@ -55,9 +55,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     auto b1 = root.create("B", minBalance);
     auto gateway = root.create("gate", minBalance);
 
-    // close ledger to allow a1, b1 and gateway to be merged in the next ledger
-    closeLedgerOn(*app, 2, 1, 1, 2016);
-
     SECTION("merge into self")
     {
         for_all_versions(*app, [&] {
@@ -167,7 +164,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             REQUIRE(!doesAccountExist(*app, b1));
             // a1 gets recreated with a sequence number based on the current
             // ledger
-            REQUIRE(a1.loadSequenceNumber() == 0x300000000ull);
+            REQUIRE(a1.loadSequenceNumber() == 0x500000000ull);
         });
     }
 
@@ -494,7 +491,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 auto tx2 = a1.tx({payment(root, 100)});
                 auto a1Balance = a1.getBalance();
                 auto b1Balance = b1.getBalance();
-                auto r = closeLedgerOn(*app, 3, 1, 1, 2017, {tx1, tx2},
+                auto r = closeLedgerOn(*app, 1, 1, 2017, {tx1, tx2},
                                        /* strictOrder */ true);
                 checkTx(0, r, txSUCCESS);
                 checkTx(1, r, txNO_ACCOUNT);
@@ -544,7 +541,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     {
         auto mergeFrom = root.create(
             "merge-from", app->getLedgerManager().getLastMinBalance(0) + txfee);
-        closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -557,7 +553,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         auto mergeFrom = root.create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + txfee + 1);
-        closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -570,7 +565,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         auto mergeFrom = root.create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + 2 * txfee - 1);
-        closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -583,7 +577,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         auto mergeFrom = root.create(
             "merge-from",
             app->getLedgerManager().getLastMinBalance(0) + 2 * txfee);
-        closeLedgerOn(*app, 3, 1, 1, 2017);
         for_all_versions(*app, [&] { mergeFrom.merge(root); });
     }
 
@@ -593,7 +586,10 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             SequenceNumber curStartSeqNum;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                ++ltx.loadHeader().current().ledgerSeq;
+
+                // every operation will result in a ledger close, so take the
+                // next bumpSequence into account
+                ltx.loadHeader().current().ledgerSeq += 2;
                 curStartSeqNum = getStartingSequenceNumber(ltx.loadHeader());
             }
             auto maxSeqNum = curStartSeqNum - 1;
@@ -648,7 +644,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 return market.addOffer(
                     acc1, {cur1, native, Price{1, 1}, INT64_MAX - 2 * minBal});
             });
-            closeLedgerOn(*app, 3, 1, 1, 2017);
+
             REQUIRE_THROWS_AS(acc2.merge(acc1), ex_ACCOUNT_MERGE_DEST_FULL);
             root.pay(acc2, txfee - 1);
             acc2.merge(acc1);
@@ -809,10 +805,6 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
             SECTION("is sponsor error")
             {
-                // close ledger to increase ledger seq num so we don't hit
-                // ACCOUNT_MERGE_SEQNUM_TOO_FAR
-                closeLedgerOn(*app, 3, 1, 1, 2016);
-
                 SECTION("is sponsoring future reserves")
                 {
                     auto tx = transactionFrameFromOps(

@@ -120,8 +120,6 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
     auto cur3 = makeAsset(gateway2, "CUR3");
     auto cur4 = makeAsset(gateway2, "CUR4");
 
-    closeLedgerOn(*app, 2, 1, 1, 2016);
-
     SECTION("transact more than INT64_MAX in a path payment")
     {
         auto a1 = root.create("A1", minBalance4);
@@ -4944,7 +4942,6 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
             if (issuerToDelete &&
                 protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {
-                closeLedgerOn(*app, 2, 1, 1, 2016);
                 // remove issuer
                 issuerToDelete->merge(root);
             }

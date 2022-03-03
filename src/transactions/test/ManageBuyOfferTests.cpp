@@ -157,7 +157,6 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
                 auto a1 = root.create("a1", minBalance3PlusFees);
                 a1.changeTrust(cur1, INT64_MAX);
                 issuer1.pay(a1, cur1, 1);
-                closeLedgerOn(*app, 2, 1, 1, 2016);
 
                 // remove issuer
                 issuer1.merge(root);

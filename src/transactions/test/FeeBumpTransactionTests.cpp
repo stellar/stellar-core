@@ -268,7 +268,6 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
         SECTION("fee source does not exist")
         {
             auto acc = root.create("A", 2 * reserve + 3 * fee);
-            closeLedgerOn(*app, 2, 1, 2, 2016);
             for_versions_from(13, *app, [&] {
                 auto fb = feeBump(app->getNetworkID(), acc, root, root, 2 * fee,
                                   fee, 1);

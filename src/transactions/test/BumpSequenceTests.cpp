@@ -86,12 +86,10 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
     SECTION("seqnum equals starting sequence")
     {
         for_versions_from(10, *app, [&]() {
-            closeLedgerOn(*app, 2, 1, 1, 2020);
-
             int64_t newSeq = 0;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ledgerSeq = ltx.loadHeader().current().ledgerSeq + 1;
+                auto ledgerSeq = ltx.loadHeader().current().ledgerSeq + 2;
                 newSeq = getStartingSequenceNumber(ledgerSeq) - 1;
             }
 

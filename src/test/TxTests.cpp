@@ -114,10 +114,11 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 bool
 applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 {
+    // Close the ledger here to advance ledgerSeq
+    closeLedger(app);
+
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
-    // by advancing the ledgerSeq.
-    ++ltx.loadHeader().current().ledgerSeq;
+
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
     bool check = false;
@@ -341,11 +342,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         recordOrCheckGlobalTestTxMetadata(tm);
     }
 
-    // Undo the increment from the beginning of this function. Note that if this
-    // function exits without reaching this point, then ltx will not be
-    // committed and the increment will be rolled back anyway.
-    --ltx.loadHeader().current().ledgerSeq;
     ltx.commit();
+
     return res;
 }
 
@@ -427,6 +425,15 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
                          strictOrder);
 }
 
+TxSetResultMeta
+closeLedgerOn(Application& app, int day, int month, int year,
+              std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
+{
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    return closeLedgerOn(app, nextLedgerSeq, getTestDate(day, month, year), txs,
+                         strictOrder);
+}
+
 class TxSetFrameStrictOrderForTesting : public TxSetFrame
 {
   public:
@@ -443,9 +450,30 @@ class TxSetFrameStrictOrderForTesting : public TxSetFrame
 };
 
 TxSetResultMeta
+closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
+            bool strictOrder)
+{
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, strictOrder);
+}
+
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+    if (closeTime < lastCloseTime)
+    {
+        closeTime = lastCloseTime;
+    }
+
     std::shared_ptr<TxSetFrame> txSet;
     auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
     if (strictOrder)
@@ -1459,8 +1487,9 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
-                                     upgrades);
+    auto lastCloseTime = lcl.header.scpValue.closeTime;
+    app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
+                                     lastCloseTime, upgrades);
     return lm.getLastClosedLedgerHeader().header;
 };
 

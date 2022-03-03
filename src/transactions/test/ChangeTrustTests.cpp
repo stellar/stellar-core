@@ -79,7 +79,6 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
         }
         SECTION("edit existing")
         {
-            closeLedgerOn(*app, 2, 1, 1, 2016);
             for_all_versions(*app, [&] {
                 root.changeTrust(idr, 100);
                 // Merge gateway back into root (the trustline still exists)

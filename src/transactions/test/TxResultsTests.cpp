@@ -66,15 +66,11 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
     const int64_t baseFee = lm.getLastTxFee();
     const int64_t startAmount = baseReserve * 100;
 
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        ltx.loadHeader().current().scpValue.closeTime = 10;
-        ltx.commit();
-    }
+    closeLedgerOn(*app, 1, 1, 2016);
 
     auto getCloseTime = [&] {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        return ltx.loadHeader().current().scpValue.closeTime;
+        return lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
     };
 
     // set up world
@@ -308,7 +304,6 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
 
     SECTION("merge account")
     {
-        closeLedgerOn(*app, 2, 1, 1, 2016);
         SECTION("normal")
         {
             auto applyResult = expectedResult(
