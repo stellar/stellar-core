@@ -58,7 +58,7 @@ printCurrentException()
                     "current exception: std::filesystem::filesystem_error(%d, "
                     "\"%s\", \"%s\", \"%s\", \"%s\")\n",
                     e.code().value(), e.code().message().c_str(), e.what(),
-                    e.path1().c_str(), e.path2().c_str());
+                    e.path1().string().c_str(), e.path2().string().c_str());
         }
         catch (std::system_error const& e)
         {
@@ -66,11 +66,6 @@ printCurrentException()
                 stderr,
                 "current exception: std::system_error(%d, \"%s\", \"%s\")\n",
                 e.code().value(), e.code().message().c_str(), e.what());
-        }
-        catch (std::logic_error const& e)
-        {
-            fprintf(stderr, "current exception: std::logic_error(\"%s\")\n",
-                    e.what());
         }
         catch (std::domain_error const& e)
         {
@@ -93,11 +88,6 @@ printCurrentException()
             fprintf(stderr, "current exception: std::out_of_range(\"%s\")\n",
                     e.what());
         }
-        catch (std::runtime_error const& e)
-        {
-            fprintf(stderr, "current exception: std::runtime_error(\"%s\")\n",
-                    e.what());
-        }
         catch (std::range_error const& e)
         {
             fprintf(stderr, "current exception: std::range_error(\"%s\")\n",
@@ -111,6 +101,16 @@ printCurrentException()
         catch (std::underflow_error const& e)
         {
             fprintf(stderr, "current exception: std::underflow_error(\"%s\")\n",
+                    e.what());
+        }
+        catch (std::logic_error const& e)
+        {
+            fprintf(stderr, "current exception: std::logic_error(\"%s\")\n",
+                    e.what());
+        }
+        catch (std::runtime_error const& e)
+        {
+            fprintf(stderr, "current exception: std::runtime_error(\"%s\")\n",
                     e.what());
         }
         catch (std::exception const& e)
