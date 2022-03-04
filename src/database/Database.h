@@ -99,6 +99,7 @@ class Database : NonMovableOrCopyable
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
+    void open();
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
