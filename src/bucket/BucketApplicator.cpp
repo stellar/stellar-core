@@ -106,7 +106,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
                 if (protocolVersionIsBefore(
-                        mBucketIter.getMetadata().ledgerVersion,
+                        mMinProtocolVersionSeen,
                         Bucket::
                             FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
                 {
