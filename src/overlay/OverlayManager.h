@@ -156,6 +156,9 @@ class OverlayManager
     // Return number of authenticated peers
     virtual int getAuthenticatedPeersCount() const = 0;
 
+    // Return the number of flow-contolled peers
+    virtual int64_t getFlowControlPercentage() const = 0;
+
     // Attempt to connect to a peer identified by peer address.
     virtual void connectTo(PeerBareAddress const& address) = 0;
 

@@ -674,6 +674,7 @@ OverlayManagerImpl::updateSizeCounters()
     mOverlayMetrics.mPendingPeersSize.set_count(getPendingPeersCount());
     mOverlayMetrics.mAuthenticatedPeersSize.set_count(
         getAuthenticatedPeersCount());
+    mOverlayMetrics.mFlowControlPercent.set_count(getFlowControlPercentage());
 }
 
 void
@@ -836,6 +837,24 @@ OverlayManagerImpl::getPendingPeersCount() const
 {
     return static_cast<int>(mInboundPeers.mPending.size() +
                             mOutboundPeers.mPending.size());
+}
+
+int64_t
+OverlayManagerImpl::getFlowControlPercentage() const
+{
+    auto allPeers = getAuthenticatedPeers();
+    if (allPeers.empty())
+    {
+        return 0;
+    }
+
+    int fcCount =
+        std::count_if(allPeers.begin(), allPeers.end(), [&](auto const& item) {
+            return item.second->isFlowControlled();
+        });
+
+    auto pct = static_cast<double>(fcCount) / allPeers.size() * 100;
+    return std::llround(pct);
 }
 
 int

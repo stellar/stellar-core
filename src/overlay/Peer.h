@@ -358,6 +358,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mPeerMetrics;
     }
 
+    bool
+    isFlowControlled() const
+    {
+        return mFlowControlState == Peer::FlowControlState::ENABLED;
+    }
+
     std::string const& toString();
     virtual std::string getIP() const = 0;
 
