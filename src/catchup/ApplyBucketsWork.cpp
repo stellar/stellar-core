@@ -181,8 +181,8 @@ ApplyBucketsWork::startLevel()
         mMinProtocolVersionSeen = std::min(
             mMinProtocolVersionSeen, Bucket::getBucketVersion(mSnapBucket));
         mSnapApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mSnapBucket,
-            mEntryTypeFilter);
+            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
+            mSnapBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
                    mLevel, i.snap);
         mApplying = true;
@@ -193,8 +193,8 @@ ApplyBucketsWork::startLevel()
         mMinProtocolVersionSeen = std::min(
             mMinProtocolVersionSeen, Bucket::getBucketVersion(mCurrBucket));
         mCurrApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mCurrBucket,
-            mEntryTypeFilter);
+            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
+            mCurrBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
                    mLevel, i.curr);
         mApplying = true;

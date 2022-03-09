@@ -24,6 +24,7 @@ class BucketApplicator
     Application& mApp;
     uint32_t mMaxProtocolVersion;
     uint32_t mMinProtocolVersionSeen;
+    uint32_t mLevel;
     BucketInputIterator mBucketIter;
     size_t mCount{0};
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
@@ -66,7 +67,7 @@ class BucketApplicator
     };
 
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
-                     uint32_t minProtocolVersionSeen,
+                     uint32_t minProtocolVersionSeen, uint32_t level,
                      std::shared_ptr<Bucket const> bucket,
                      std::function<bool(LedgerEntryType)> filter);
     operator bool() const;

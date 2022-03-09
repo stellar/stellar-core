@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
@@ -18,11 +19,13 @@ namespace stellar
 BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t maxProtocolVersion,
                                    uint32_t minProtocolVersionSeen,
+                                   uint32_t level,
                                    std::shared_ptr<Bucket const> bucket,
                                    std::function<bool(LedgerEntryType)> filter)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
     , mMinProtocolVersionSeen(minProtocolVersionSeen)
+    , mLevel(level)
     , mBucketIter(bucket)
     , mEntryTypeFilter(filter)
 {
@@ -105,7 +108,16 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                if (protocolVersionIsBefore(
+                // The last level can have live entries, but at that point we
+                // know that they are actually init entries because the earliest
+                // state of all entries is init, so we mark them as such here
+                if (mLevel == BucketList::kNumLevels - 1 &&
+                    e.type() == LIVEENTRY)
+                {
+                    ltx->createWithoutLoading(e.liveEntry());
+                }
+                else if (
+                    protocolVersionIsBefore(
                         mMinProtocolVersionSeen,
                         Bucket::
                             FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
