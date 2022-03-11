@@ -556,7 +556,7 @@ struct xdr_fuzzer_unpacker
         }
         else if (w == UINT8_MAX - 1)
         {
-            int64_t maxT = std::numeric_limits<T>::max();
+            auto maxT = std::numeric_limits<T>::max();
             return xdr_traits<T>::from_uint(maxT - 1);
         }
 

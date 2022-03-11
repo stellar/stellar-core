@@ -930,7 +930,7 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     auto& queue = type == SCP_MESSAGE ? mOutboundQueues[0] : mOutboundQueues[1];
     queue.emplace_back(QueuedOutboundMessage{msg, mApp.getClock().now()});
 
-    int dropped = 0;
+    size_t dropped = 0;
 
     if (type == TRANSACTION)
     {

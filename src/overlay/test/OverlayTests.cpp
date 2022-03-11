@@ -472,7 +472,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     SECTION("txs, limit reached")
     {
         uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
-        for (int i = 0; i < limit + 10; ++i)
+        for (uint32_t i = 0; i < limit + 10; ++i)
         {
             StellarMessage msg;
             msg.type(TRANSACTION);
