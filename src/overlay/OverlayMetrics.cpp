@@ -120,7 +120,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewCounter({"overlay", "connection", "pending"}))
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
-
+    , mFlowControlPercent(app.getMetrics().NewCounter(
+          {"overlay", "flow-control", "percentage"}))
     , mUniqueFloodBytesRecv(app.getMetrics().NewMeter(
           {"overlay", "flood", "unique-recv"}, "byte"))
     , mDuplicateFloodBytesRecv(app.getMetrics().NewMeter(

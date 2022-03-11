@@ -22,7 +22,6 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     : Work(app, "get-archive-state", maxRetries)
     , mSeq(seq)
     , mArchive(archive)
-    , mRetries(maxRetries)
     , mLocalFilename(
           HistoryArchiveState::localName(app, binToHex(randomBytes(8))))
     , mReportMetric(report)

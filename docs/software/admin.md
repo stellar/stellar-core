@@ -707,6 +707,14 @@ This list is the result of both inbound connections from other peers and outboun
         {
            "address" : "54.161.82.181:11625",
            "elapsed" : 6,
+           "flow_control" : {
+               "local_capacity" : {
+                  "flood" : 500,
+                  "reading" : 600
+               },
+               "peer_capacity" : 100,
+               "state" : "enabled"
+            },
            "id" : "sdf1",
            "olver" : 5,
            "ver" : "v9.1.0"
@@ -716,6 +724,14 @@ This list is the result of both inbound connections from other peers and outboun
        {
           "address" : "54.211.174.177:11625",
           "elapsed" : 2303,
+          "flow_control" : {
+             "local_capacity" : {
+                "flood" : 500,
+                "reading" : 600
+             },
+             "peer_capacity" : 100,
+             "state" : "enabled"
+          },
           "id" : "sdf2",
           "olver" : 5,
           "ver" : "v9.1.0"
@@ -723,6 +739,14 @@ This list is the result of both inbound connections from other peers and outboun
        {
           "address" : "54.160.175.7:11625",
           "elapsed" : 14082,
+          "flow_control" : {
+             "local_capacity" : {
+                "flood" : 500,
+                "reading" : 600
+             },
+             "peer_capacity" : 100,
+             "state" : "enabled"
+          },
           "id" : "sdf3",
           "olver" : 5,
           "ver" : "v9.1.0"

@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 #include "database/Database.h"
+#include "lib/json/json.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
@@ -132,6 +133,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     Peer::FlowControlState flowControlEnabled() const;
 
+    Json::Value getFlowControlJsonInfo() const;
+
   protected:
     Application& mApp;
 
@@ -174,8 +177,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // How many flood messages can we send to this peer
     uint64_t mOutboundCapacity{0};
 
-    FlowControlState mFlowControlState;
-
     // Is this peer currently throttled due to lack of capacity
     bool mIsPeerThrottled{false};
 
@@ -207,6 +208,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
+    FlowControlState mFlowControlState;
     ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
@@ -357,6 +359,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     getPeerMetrics()
     {
         return mPeerMetrics;
+    }
+
+    bool
+    isFlowControlled() const
+    {
+        return mFlowControlState == Peer::FlowControlState::ENABLED;
     }
 
     std::string const& toString();
