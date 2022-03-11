@@ -289,6 +289,51 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flow control]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+TEST_CASE("drop idle flow-controlled peers", "[overlay][flow control]")
+{
+    VirtualClock clock;
+    Config cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
+    cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
+    cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+    // Incorrectly set batch size, so that the node does not send flood requests
+    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 2;
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+    REQUIRE(conn.getInitiator()->isAuthenticated());
+    REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
+            Peer::FlowControlState::ENABLED);
+    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
+            Peer::FlowControlState::ENABLED);
+
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    REQUIRE(conn.getAcceptor()->getOutboundCapacity() == 1);
+    // Send outbound message and start the timer
+    conn.getAcceptor()->sendMessage(std::make_shared<StellarMessage>(msg),
+                                    false);
+    REQUIRE(conn.getAcceptor()->getOutboundCapacity() == 0);
+
+    testutil::crankFor(clock, Peer::PEER_SEND_MODE_IDLE_TIMEOUT +
+                                  std::chrono::seconds(5));
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(conn.getAcceptor()->getDropReason() ==
+            "idle timeout (no new flood requests)");
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
 TEST_CASE("drop peers that overflow capacity", "[overlay][flow control]")
 {
     VirtualClock clock;

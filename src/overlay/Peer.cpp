@@ -58,6 +58,8 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecurringTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
+    , mNoOutboundCapacity(
+          std::make_optional<VirtualClock::time_point>(app.getClock().now()))
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
     , mFlowControlState(Peer::FlowControlState::DONT_KNOW)
@@ -237,6 +239,15 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
         {
             getOverlayMetrics().mTimeoutIdle.Mark();
             drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+        }
+        else if (flowControlEnabled() == Peer::FlowControlState::ENABLED &&
+                 mNoOutboundCapacity &&
+                 (now - *mNoOutboundCapacity) >=
+                     Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
+        {
+            drop("idle timeout (no new flood requests)",
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
         else if (((now - mEnqueueTimeOfLastWrite) >= stragglerTimeout))
@@ -735,7 +746,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
-
+        mNoOutboundCapacity.reset();
         mOutboundCapacity += stellarMsg.sendMoreMessage().numMessages;
         break;
     }
@@ -962,6 +973,12 @@ Peer::maybeSendNextBatch()
                               : om.mOutboundQueueDelayTxs;
             timer.Update(mApp.getClock().now() - front.mTimeEmplaced);
             mOutboundCapacity--;
+            if (mOutboundCapacity == 0)
+            {
+                mNoOutboundCapacity =
+                    std::make_optional<VirtualClock::time_point>(
+                        mApp.getClock().now());
+            }
             queue.pop_front();
         }
     }
