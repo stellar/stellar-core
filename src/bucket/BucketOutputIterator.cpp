@@ -15,13 +15,18 @@ namespace stellar
 namespace
 {
 std::string
-randomBucketName(std::string const& tmpDir)
+randomBucketName(std::string const& tmpDir, bool isExperimental)
 {
     ZoneScoped;
     for (;;)
     {
         std::string name =
             tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
+        if (isExperimental)
+        {
+            name = Bucket::getExperimentalFilename(name);
+        }
+
         std::ifstream ifile(name);
         if (!ifile)
         {
@@ -31,21 +36,35 @@ randomBucketName(std::string const& tmpDir)
 }
 }
 
+// There's probably a nice C++ way to do this with class inheritance or
+// templates or something. In the mean time though, here's this.
+bool
+BucketOutputIterator::cmp(BucketEntry const& a, BucketEntry const& b) const
+{
+    if (mIsExperimental)
+    {
+        return BucketEntryIdCmpExp{}(a, b);
+    }
+    else
+    {
+        return BucketEntryIdCmp{}(a, b);
+    }
+}
+
 /**
  * Helper class that points to an output tempfile. Absorbs BucketEntries and
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
-BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
-                                           bool keepDeadEntries,
-                                           BucketMetadata const& meta,
-                                           MergeCounters& mc,
-                                           asio::io_context& ctx, bool doFsync)
-    : mFilename(randomBucketName(tmpDir))
+BucketOutputIterator::BucketOutputIterator(
+    std::string const& tmpDir, bool keepDeadEntries, BucketMetadata const& meta,
+    MergeCounters& mc, asio::io_context& ctx, bool doFsync, bool isExperimental)
+    : mFilename(randomBucketName(tmpDir, isExperimental))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
+    , mIsExperimental(isExperimental)
 {
     ZoneScoped;
     CLOG_TRACE(Bucket, "BucketOutputIterator opening file to write: {}",
@@ -88,13 +107,13 @@ BucketOutputIterator::put(BucketEntry const& e)
     // Check to see if there's an existing buffered entry.
     if (mBuf)
     {
-        // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
+        // cmp(e, *mBuf) means e < *mBuf; this should never be true since
         // it would mean that we're getting entries out of order.
-        releaseAssert(!mCmp(e, *mBuf));
+        releaseAssert(!cmp(e, *mBuf));
 
         // Check to see if the new entry should flush (greater identity), or
         // merely replace (same identity), the buffered entry.
-        if (mCmp(*mBuf, e))
+        if (cmp(*mBuf, e))
         {
             ++mMergeCounters.mOutputIteratorActualWrites;
             mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
@@ -113,9 +132,41 @@ BucketOutputIterator::put(BucketEntry const& e)
 
 std::shared_ptr<Bucket>
 BucketOutputIterator::getBucket(BucketManager& bucketManager,
-                                MergeKey* mergeKey)
+                                MergeKey* mergeKey,
+                                BucketOutputIterator* expFileIter)
 {
     ZoneScoped;
+    this->close();
+    if (expFileIter)
+    {
+        expFileIter->close();
+    }
+
+    if (mObjectsPut == 0 || mBytesPut == 0)
+    {
+        if (mergeKey)
+        {
+            bucketManager.noteEmptyMergeOutput(*mergeKey);
+        }
+        return std::make_shared<Bucket>();
+    }
+
+    if (expFileIter)
+    {
+        return bucketManager.adoptFileAsBucket(mFilename, mHasher.finish(),
+                                               mObjectsPut, mBytesPut, mergeKey,
+                                               expFileIter->getFilename());
+    }
+    else
+    {
+        return bucketManager.adoptFileAsBucket(
+            mFilename, mHasher.finish(), mObjectsPut, mBytesPut, mergeKey);
+    }
+}
+
+void
+BucketOutputIterator::close()
+{
     if (mBuf)
     {
         mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
@@ -130,13 +181,18 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         releaseAssert(mBytesPut == 0);
         CLOG_DEBUG(Bucket, "Deleting empty bucket file {}", mFilename);
         std::remove(mFilename.c_str());
-        if (mergeKey)
-        {
-            bucketManager.noteEmptyMergeOutput(*mergeKey);
-        }
-        return std::make_shared<Bucket>();
     }
-    return bucketManager.adoptFileAsBucket(mFilename, mHasher.finish(),
-                                           mObjectsPut, mBytesPut, mergeKey);
+}
+
+std::string const&
+BucketOutputIterator::getFilename() const
+{
+    return mFilename;
+}
+
+bool
+BucketOutputIterator::empty() const
+{
+    return mObjectsPut == 0 || mBytesPut == 0;
 }
 }

@@ -127,6 +127,134 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
     }
     return ubound;
 }
+
+// Returns true if given file is sorted using BucketEntryIdCmpExp
+bool
+isExpFileSorted(std::shared_ptr<Bucket> bucket, std::string const& filename)
+{
+    BucketInputIterator in(bucket, filename);
+
+    // Edge case if file is empty
+    if (!in)
+    {
+        return true;
+    }
+
+    auto prev = *in;
+    while (++in)
+    {
+        if (!BucketEntryIdCmpExp{}(prev, *in))
+        {
+            return false;
+        }
+
+        prev = *in;
+    }
+
+    return true;
+}
+
+// Returns true if the traditional file and experimental file for a given bucket
+// have consistent bucket entries
+bool
+areFilesConsistent(std::shared_ptr<Bucket> bucket, std::string const& filename,
+                   std::string const& expFilename)
+{
+    if (filename.empty() || expFilename.empty())
+    {
+        return filename.empty() && expFilename.empty();
+    }
+
+    if (!fs::exists(filename) || !fs::exists(expFilename))
+    {
+        return false;
+    }
+
+    std::set<BucketEntry> fileEntries;
+    for (BucketInputIterator in(bucket, filename); in; ++in)
+    {
+        // Check for duplicate entries in file
+        if (fileEntries.find(*in) != fileEntries.end())
+        {
+            return false;
+        }
+    }
+
+    std::set<BucketEntry> expFileEntries;
+    for (BucketInputIterator in(bucket, expFilename); in; ++in)
+    {
+        // Check for duplicate entries in file
+        if (expFileEntries.find(*in) != expFileEntries.end())
+        {
+            return false;
+        }
+    }
+
+    // Check if sets are identical
+    if (fileEntries.size() != expFileEntries.size())
+    {
+        return false;
+    }
+
+    for (auto const& e : fileEntries)
+    {
+        if (expFileEntries.find(e) == expFileEntries.end())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Checks if bucket is in valid state with respect to EXPERIMENTAL_BUCKET_STORE
+// flag
+void
+checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
+{
+    auto expFilename = Bucket::getExperimentalFilename(bucket->getFilename());
+    if (cfg.EXPERIMENTAL_BUCKET_STORE)
+    {
+        // Check that experimental file exists iff non-experimental file exists
+        if (bucket->getFilename().empty())
+        {
+            CHECK(!bucket->isExperimental());
+            CHECK(expFilename.empty());
+        }
+        else
+        {
+            // If non-experimental file exists, check that the bucket is in
+            // experimental mode, that the experimental file exists, and that it
+            // is valid and consistent with the non-experimental file
+            CHECK(bucket->isExperimental());
+            CHECK(!expFilename.empty());
+            CHECK(fs::exists(expFilename));
+            CHECK(isExpFileSorted(bucket, expFilename));
+            CHECK(
+                areFilesConsistent(bucket, bucket->getFilename(), expFilename));
+        }
+    }
+    else
+    {
+        // If experimental buckets not enabled, ensure bucket is in the correct
+        // mode and that no experimental files have been created
+        CHECK(!bucket->isExperimental());
+        CHECK(!fs::exists(expFilename));
+    }
+}
+
+// Checks if BucketList is in valid state with respect to
+// EXPERIMENTAL_BUCKET_STORE flag
+void
+checkValidBucketList(BucketList const& bl, Config const& cfg)
+{
+    for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
+    {
+        auto const& lev = bl.getLevel(j);
+        checkValidBucket(lev.getCurr(), cfg);
+        checkValidBucket(lev.getSnap(), cfg);
+    }
+}
 }
 
 using namespace BucketListTests;
@@ -134,175 +262,304 @@ using namespace BucketListTests;
 TEST_CASE("bucket list", "[bucket][bucketlist]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    try
-    {
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
-            BucketList bl;
-            autocheck::generator<std::vector<LedgerKey>> deadGen;
-            CLOG_DEBUG(Bucket, "Adding batches to bucket list");
-            for (uint32_t i = 1;
-                 !app->getClock().getIOContext().stopped() && i < 130; ++i)
-            {
-                app->getClock().crank(false);
-                bl.addBatch(*app, i, getAppLedgerVersion(app), {},
+    auto f = [&clock](Config const& cfg) {
+        try
+        {
+            for_versions_with_differing_bucket_logic(
+                cfg, [&](Config const& cfg) {
+                    Application::pointer app =
+                        createTestApplication(clock, cfg);
+                    BucketList bl;
+                    autocheck::generator<std::vector<LedgerKey>> deadGen;
+                    CLOG_DEBUG(Bucket, "Adding batches to bucket list");
+                    for (uint32_t i = 1;
+                         !app->getClock().getIOContext().stopped() && i < 130;
+                         ++i)
+                    {
+                        app->getClock().crank(false);
+                        bl.addBatch(
+                            *app, i, getAppLedgerVersion(app), {},
                             LedgerTestUtils::generateValidLedgerEntries(8),
                             deadGen(5));
-                if (i % 10 == 0)
-                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                               binToHex(bl.getHash()));
-                for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
-                {
-                    auto const& lev = bl.getLevel(j);
-                    auto currSz = countEntries(lev.getCurr());
-                    auto snapSz = countEntries(lev.getSnap());
-                    CHECK(currSz <= BucketList::levelHalf(j) * 100);
-                    CHECK(snapSz <= BucketList::levelHalf(j) * 100);
-                }
-            }
-        });
-    }
-    catch (std::future_error& e)
+                        if (i % 10 == 0)
+                            CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                                       binToHex(bl.getHash()));
+                        for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
+                        {
+                            auto const& lev = bl.getLevel(j);
+                            auto curr = lev.getCurr();
+                            auto snap = lev.getSnap();
+                            auto currSz = countEntries(curr);
+                            auto snapSz = countEntries(snap);
+                            CHECK(currSz <= BucketList::levelHalf(j) * 100);
+                            CHECK(snapSz <= BucketList::levelHalf(j) * 100);
+                            checkValidBucket(curr, cfg);
+                            checkValidBucket(snap, cfg);
+                        }
+                    }
+                });
+        }
+        catch (std::future_error& e)
+        {
+            CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
+                       e.what());
+            REQUIRE(false);
+        }
+    };
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
     {
-        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
-                   e.what());
-        REQUIRE(false);
+        Config cfg(getTestConfig());
+        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        f(cfg);
+    }
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    {
+        Config const& cfg = getTestConfig();
+        f(cfg);
     }
 }
 
 TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-        Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
+    auto f = [&clock](Config const& cfg) {
+        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+            Application::pointer app = createTestApplication(clock, cfg);
+            BucketList bl;
 
-        // Alice and Bob change in every iteration.
-        auto alice = LedgerTestUtils::generateValidAccountEntry(5);
-        auto bob = LedgerTestUtils::generateValidAccountEntry(5);
+            // Alice and Bob change in every iteration.
+            auto alice = LedgerTestUtils::generateValidAccountEntry(5);
+            auto bob = LedgerTestUtils::generateValidAccountEntry(5);
 
-        autocheck::generator<std::vector<LedgerKey>> deadGen;
-        CLOG_DEBUG(Bucket, "Adding batches to bucket list");
+            autocheck::generator<std::vector<LedgerKey>> deadGen;
+            CLOG_DEBUG(Bucket, "Adding batches to bucket list");
 
-        uint32_t const totalNumEntries = 1200;
-        for (uint32_t i = 1;
-             !app->getClock().getIOContext().stopped() && i <= totalNumEntries;
-             ++i)
-        {
-            app->getClock().crank(false);
-            auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(5);
-
-            BucketEntry BucketEntryAlice, BucketEntryBob;
-            alice.balance++;
-            BucketEntryAlice.type(LIVEENTRY);
-            BucketEntryAlice.liveEntry().data.type(ACCOUNT);
-            BucketEntryAlice.liveEntry().data.account() = alice;
-            liveBatch.push_back(BucketEntryAlice.liveEntry());
-
-            bob.balance++;
-            BucketEntryBob.type(LIVEENTRY);
-            BucketEntryBob.liveEntry().data.type(ACCOUNT);
-            BucketEntryBob.liveEntry().data.account() = bob;
-            liveBatch.push_back(BucketEntryBob.liveEntry());
-
-            bl.addBatch(*app, i, getAppLedgerVersion(app), {}, liveBatch,
-                        deadGen(5));
-            if (i % 100 == 0)
+            uint32_t const totalNumEntries = 1200;
+            for (uint32_t i = 1; !app->getClock().getIOContext().stopped() &&
+                                 i <= totalNumEntries;
+                 ++i)
             {
-                CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                           binToHex(bl.getHash()));
-                // Alice and bob should be in either curr or snap of level 0 and
-                // 1
-                for (uint32_t j = 0; j < 2; ++j)
-                {
-                    auto const& lev = bl.getLevel(j);
-                    auto curr = lev.getCurr();
-                    auto snap = lev.getSnap();
-                    bool hasAlice =
-                        (curr->containsBucketIdentity(BucketEntryAlice) ||
-                         snap->containsBucketIdentity(BucketEntryAlice));
-                    bool hasBob =
-                        (curr->containsBucketIdentity(BucketEntryBob) ||
-                         snap->containsBucketIdentity(BucketEntryBob));
-                    CHECK(hasAlice);
-                    CHECK(hasBob);
-                }
+                app->getClock().crank(false);
+                auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(5);
 
-                // Alice and Bob should never occur in level 2 .. N because they
-                // were shadowed in level 0 continuously.
-                for (uint32_t j = 2; j < BucketList::kNumLevels; ++j)
+                BucketEntry BucketEntryAlice, BucketEntryBob;
+                alice.balance++;
+                BucketEntryAlice.type(LIVEENTRY);
+                BucketEntryAlice.liveEntry().data.type(ACCOUNT);
+                BucketEntryAlice.liveEntry().data.account() = alice;
+                liveBatch.push_back(BucketEntryAlice.liveEntry());
+
+                bob.balance++;
+                BucketEntryBob.type(LIVEENTRY);
+                BucketEntryBob.liveEntry().data.type(ACCOUNT);
+                BucketEntryBob.liveEntry().data.account() = bob;
+                liveBatch.push_back(BucketEntryBob.liveEntry());
+
+                bl.addBatch(*app, i, getAppLedgerVersion(app), {}, liveBatch,
+                            deadGen(5));
+                if (i % 100 == 0)
                 {
-                    auto const& lev = bl.getLevel(j);
-                    auto curr = lev.getCurr();
-                    auto snap = lev.getSnap();
-                    bool hasAlice =
-                        (curr->containsBucketIdentity(BucketEntryAlice) ||
-                         snap->containsBucketIdentity(BucketEntryAlice));
-                    bool hasBob =
-                        (curr->containsBucketIdentity(BucketEntryBob) ||
-                         snap->containsBucketIdentity(BucketEntryBob));
-                    if (protocolVersionIsBefore(
-                            app->getConfig().LEDGER_PROTOCOL_VERSION,
-                            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED) ||
-                        j > 5)
+                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                               binToHex(bl.getHash()));
+                    // Alice and bob should be in either curr or snap of
+                    // level 0 and
+                    // 1
+                    for (uint32_t j = 0; j < 2; ++j)
                     {
-                        CHECK(!hasAlice);
-                        CHECK(!hasBob);
-                    }
-                    // On the last iteration, when bucket list population is
-                    // complete, ensure that post-FIRST_PROTOCOL_SHADOWS_REMOVED
-                    // Alice and Bob appear on lower levels unshadowed.
-                    else if (i == totalNumEntries)
-                    {
+                        auto const& lev = bl.getLevel(j);
+                        auto curr = lev.getCurr();
+                        auto snap = lev.getSnap();
+                        bool hasAlice =
+                            (curr->containsBucketIdentity(BucketEntryAlice) ||
+                             snap->containsBucketIdentity(BucketEntryAlice));
+                        bool hasBob =
+                            (curr->containsBucketIdentity(BucketEntryBob) ||
+                             snap->containsBucketIdentity(BucketEntryBob));
                         CHECK(hasAlice);
                         CHECK(hasBob);
                     }
+
+                    // Alice and Bob should never occur in level 2 .. N
+                    // because they were shadowed in level 0 continuously.
+                    for (uint32_t j = 2; j < BucketList::kNumLevels; ++j)
+                    {
+                        auto const& lev = bl.getLevel(j);
+                        auto curr = lev.getCurr();
+                        auto snap = lev.getSnap();
+                        bool hasAlice =
+                            (curr->containsBucketIdentity(BucketEntryAlice) ||
+                             snap->containsBucketIdentity(BucketEntryAlice));
+                        bool hasBob =
+                            (curr->containsBucketIdentity(BucketEntryBob) ||
+                             snap->containsBucketIdentity(BucketEntryBob));
+                        if (protocolVersionIsBefore(
+                                app->getConfig().LEDGER_PROTOCOL_VERSION,
+                                Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED) ||
+                            j > 5)
+                        {
+                            CHECK(!hasAlice);
+                            CHECK(!hasBob);
+                        }
+                        // On the last iteration, when bucket list
+                        // population is complete, ensure that
+                        // post-FIRST_PROTOCOL_SHADOWS_REMOVED Alice and Bob
+                        // appear on lower levels unshadowed.
+                        else if (i == totalNumEntries)
+                        {
+                            CHECK(hasAlice);
+                            CHECK(hasBob);
+                        }
+                    }
+
+                    checkValidBucketList(bl, cfg);
                 }
             }
-        }
-    });
+        });
+    };
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    {
+        Config cfg(getTestConfig());
+        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        f(cfg);
+    }
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    {
+        Config const& cfg = getTestConfig();
+        f(cfg);
+    }
 }
 
 TEST_CASE("bucket tombstones expire at bottom level",
           "[bucket][bucketlist][tombstones]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
 
-    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-        Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
-        BucketManager& bm = app->getBucketManager();
-        autocheck::generator<std::vector<LedgerKey>> deadGen;
-        auto& mergeTimer = bm.getMergeTimer();
-        CLOG_INFO(Bucket, "Establishing random bucketlist");
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-        {
-            auto& level = bl.getLevel(i);
-            level.setCurr(Bucket::fresh(
-                bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true));
-            level.setSnap(Bucket::fresh(
-                bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true));
-        }
-
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-        {
-            std::vector<uint32_t> ledgers = {BucketList::levelHalf(i),
-                                             BucketList::levelSize(i)};
-            for (auto j : ledgers)
+    auto f = [&clock](Config const& cfg) {
+        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+            Application::pointer app = createTestApplication(clock, cfg);
+            BucketList bl;
+            BucketManager& bm = app->getBucketManager();
+            autocheck::generator<std::vector<LedgerKey>> deadGen;
+            auto& mergeTimer = bm.getMergeTimer();
+            CLOG_INFO(Bucket, "Establishing random bucketlist");
+            for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
             {
-                auto n = mergeTimer.count();
-                bl.addBatch(*app, j, getAppLedgerVersion(app), {},
-                            LedgerTestUtils::generateValidLedgerEntries(8),
-                            deadGen(8));
+                auto& level = bl.getLevel(i);
+                level.setCurr(Bucket::fresh(
+                    bm, getAppLedgerVersion(app), {},
+                    LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
+                    /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true));
+                level.setSnap(Bucket::fresh(
+                    bm, getAppLedgerVersion(app), {},
+                    LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
+                    /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true));
+            }
+
+            for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+            {
+                std::vector<uint32_t> ledgers = {BucketList::levelHalf(i),
+                                                 BucketList::levelSize(i)};
+                for (auto j : ledgers)
+                {
+                    auto n = mergeTimer.count();
+                    bl.addBatch(*app, j, getAppLedgerVersion(app), {},
+                                LedgerTestUtils::generateValidLedgerEntries(8),
+                                deadGen(8));
+                    app->getClock().crank(false);
+                    for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+                    {
+                        auto& next = bl.getLevel(k).getNext();
+                        if (next.isLive())
+                        {
+                            next.resolve();
+                        }
+                    }
+                    n = mergeTimer.count() - n;
+                    CLOG_INFO(Bucket,
+                              "Added batch at ledger {}, merges provoked: {}",
+                              j, n);
+                    REQUIRE(n > 0);
+                    REQUIRE(n < 2 * BucketList::kNumLevels);
+                }
+            }
+
+            EntryCounts e0(bl.getLevel(BucketList::kNumLevels - 3).getCurr());
+            EntryCounts e1(bl.getLevel(BucketList::kNumLevels - 2).getCurr());
+            EntryCounts e2(bl.getLevel(BucketList::kNumLevels - 1).getCurr());
+            REQUIRE(e0.nDead != 0);
+            REQUIRE(e1.nDead != 0);
+            REQUIRE(e2.nDead == 0);
+
+            checkValidBucketList(bl, cfg);
+        });
+    };
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    {
+        Config cfg(getTestConfig());
+        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        f(cfg);
+    }
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    {
+        Config const& cfg = getTestConfig();
+        f(cfg);
+    }
+}
+
+TEST_CASE("bucket tombstones mutually-annihilate init entries",
+          "[bucket][bucketlist][bl-initentry]")
+{
+    VirtualClock clock;
+
+    auto f = [&clock](Config const& cfg) {
+        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+            Application::pointer app = createTestApplication(clock, cfg);
+            BucketList bl;
+            auto vers = getAppLedgerVersion(app);
+            autocheck::generator<bool> flip;
+            std::deque<LedgerEntry> entriesToModify;
+            for (uint32_t i = 1; i < 512; ++i)
+            {
+                std::vector<LedgerEntry> initEntries =
+                    LedgerTestUtils::generateValidLedgerEntries(8);
+                std::vector<LedgerEntry> liveEntries;
+                std::vector<LedgerKey> deadEntries;
+                for (auto const& e : initEntries)
+                {
+                    entriesToModify.push_back(e);
+                }
+                while (entriesToModify.size() > 100)
+                {
+                    LedgerEntry e = entriesToModify.front();
+                    entriesToModify.pop_front();
+                    if (flip())
+                    {
+                        // Entry will survive another round of the
+                        // queue.
+                        if (flip())
+                        {
+                            // Entry will be changed before re-enqueueing.
+                            LedgerTestUtils::randomlyModifyEntry(e);
+                            liveEntries.push_back(e);
+                        }
+                        entriesToModify.push_back(e);
+                    }
+                    else
+                    {
+                        // Entry will die.
+                        deadEntries.push_back(LedgerEntryKey(e));
+                    }
+                }
+                bl.addBatch(*app, i, vers, initEntries, liveEntries,
+                            deadEntries);
                 app->getClock().crank(false);
                 for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
                 {
@@ -312,157 +569,125 @@ TEST_CASE("bucket tombstones expire at bottom level",
                         next.resolve();
                     }
                 }
-                n = mergeTimer.count() - n;
-                CLOG_INFO(Bucket,
-                          "Added batch at ledger {}, merges provoked: {}", j,
-                          n);
-                REQUIRE(n > 0);
-                REQUIRE(n < 2 * BucketList::kNumLevels);
             }
-        }
-
-        EntryCounts e0(bl.getLevel(BucketList::kNumLevels - 3).getCurr());
-        EntryCounts e1(bl.getLevel(BucketList::kNumLevels - 2).getCurr());
-        EntryCounts e2(bl.getLevel(BucketList::kNumLevels - 1).getCurr());
-        REQUIRE(e0.nDead != 0);
-        REQUIRE(e1.nDead != 0);
-        REQUIRE(e2.nDead == 0);
-    });
-}
-
-TEST_CASE("bucket tombstones mutually-annihilate init entries",
-          "[bucket][bucketlist][bl-initentry]")
-{
-    VirtualClock clock;
-    Config const& cfg = getTestConfig();
-
-    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-        Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
-        auto vers = getAppLedgerVersion(app);
-        autocheck::generator<bool> flip;
-        std::deque<LedgerEntry> entriesToModify;
-        for (uint32_t i = 1; i < 512; ++i)
-        {
-            std::vector<LedgerEntry> initEntries =
-                LedgerTestUtils::generateValidLedgerEntries(8);
-            std::vector<LedgerEntry> liveEntries;
-            std::vector<LedgerKey> deadEntries;
-            for (auto const& e : initEntries)
-            {
-                entriesToModify.push_back(e);
-            }
-            while (entriesToModify.size() > 100)
-            {
-                LedgerEntry e = entriesToModify.front();
-                entriesToModify.pop_front();
-                if (flip())
-                {
-                    // Entry will survive another round of the
-                    // queue.
-                    if (flip())
-                    {
-                        // Entry will be changed before re-enqueueing.
-                        LedgerTestUtils::randomlyModifyEntry(e);
-                        liveEntries.push_back(e);
-                    }
-                    entriesToModify.push_back(e);
-                }
-                else
-                {
-                    // Entry will die.
-                    deadEntries.push_back(LedgerEntryKey(e));
-                }
-            }
-            bl.addBatch(*app, i, vers, initEntries, liveEntries, deadEntries);
-            app->getClock().crank(false);
             for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
             {
-                auto& next = bl.getLevel(k).getNext();
-                if (next.isLive())
+                auto const& lev = bl.getLevel(k);
+                auto curr = lev.getCurr();
+                auto snap = lev.getSnap();
+                auto currSz = countEntries(curr);
+                auto snapSz = countEntries(snap);
+                if (protocolVersionStartsFrom(
+                        cfg.LEDGER_PROTOCOL_VERSION,
+                        Bucket::
+                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
                 {
-                    next.resolve();
+                    // init/dead pairs should mutually-annihilate pretty
+                    // readily as they go, empirically this test peaks at
+                    // buckets around 400 entries.
+                    REQUIRE((currSz + snapSz) < 500);
                 }
+                CLOG_INFO(Bucket, "Level {} size: {}", k, (currSz + snapSz));
+                checkValidBucket(curr, cfg);
+                checkValidBucket(snap, cfg);
             }
-        }
-        for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
-        {
-            auto const& lev = bl.getLevel(k);
-            auto currSz = countEntries(lev.getCurr());
-            auto snapSz = countEntries(lev.getSnap());
-            if (protocolVersionStartsFrom(
-                    cfg.LEDGER_PROTOCOL_VERSION,
-                    Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
-            {
-                // init/dead pairs should mutually-annihilate pretty readily as
-                // they go, empirically this test peaks at buckets around 400
-                // entries.
-                REQUIRE((currSz + snapSz) < 500);
-            }
-            CLOG_INFO(Bucket, "Level {} size: {}", k, (currSz + snapSz));
-        }
-    });
+        });
+    };
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    {
+        Config cfg(getTestConfig());
+        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        f(cfg);
+    }
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    {
+        Config const& cfg = getTestConfig();
+        f(cfg);
+    }
 }
 
 TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    try
+    auto f = [&clock](Config const& cfg) {
+        try
+        {
+            for_versions_with_differing_bucket_logic(
+                cfg, [&](Config const& cfg) {
+                    Application::pointer app =
+                        createTestApplication(clock, cfg);
+                    BucketList bl;
+                    std::vector<stellar::LedgerKey> emptySet;
+                    std::vector<stellar::LedgerEntry> emptySetEntry;
+
+                    CLOG_DEBUG(Bucket, "Adding single entry in lowest level");
+                    bl.addBatch(*app, 1, getAppLedgerVersion(app), {},
+                                LedgerTestUtils::generateValidLedgerEntries(1),
+                                emptySet);
+
+                    CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
+                    for (uint32_t i = 2;
+                         !app->getClock().getIOContext().stopped() && i < 300;
+                         ++i)
+                    {
+                        app->getClock().crank(false);
+                        bl.addBatch(*app, i, getAppLedgerVersion(app), {},
+                                    emptySetEntry, emptySet);
+                        if (i % 10 == 0)
+                            CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                                       binToHex(bl.getHash()));
+
+                        CLOG_DEBUG(Bucket, "------- ledger {}", i);
+
+                        for (uint32_t j = 0; j <= BucketList::kNumLevels - 1;
+                             ++j)
+                        {
+                            uint32_t lb = lowBoundExclusive(j, i);
+                            uint32_t hb = highBoundInclusive(j, i);
+
+                            auto const& lev = bl.getLevel(j);
+                            auto currSz = countEntries(lev.getCurr());
+                            auto snapSz = countEntries(lev.getSnap());
+                            CLOG_DEBUG(Bucket,
+                                       "ledger {}, level {} curr={} snap={}", i,
+                                       j, currSz, snapSz);
+
+                            if (1 > lb && 1 <= hb)
+                            {
+                                REQUIRE((currSz + snapSz) == 1);
+                            }
+                            else
+                            {
+                                REQUIRE(currSz == 0);
+                                REQUIRE(snapSz == 0);
+                            }
+                        }
+                    }
+
+                    checkValidBucketList(bl, cfg);
+                });
+        }
+        catch (std::future_error& e)
+        {
+            CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
+                       e.what());
+            REQUIRE(false);
+        }
+    };
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
     {
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
-            BucketList bl;
-            std::vector<stellar::LedgerKey> emptySet;
-            std::vector<stellar::LedgerEntry> emptySetEntry;
-
-            CLOG_DEBUG(Bucket, "Adding single entry in lowest level");
-            bl.addBatch(*app, 1, getAppLedgerVersion(app), {},
-                        LedgerTestUtils::generateValidLedgerEntries(1),
-                        emptySet);
-
-            CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
-            for (uint32_t i = 2;
-                 !app->getClock().getIOContext().stopped() && i < 300; ++i)
-            {
-                app->getClock().crank(false);
-                bl.addBatch(*app, i, getAppLedgerVersion(app), {},
-                            emptySetEntry, emptySet);
-                if (i % 10 == 0)
-                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                               binToHex(bl.getHash()));
-
-                CLOG_DEBUG(Bucket, "------- ledger {}", i);
-
-                for (uint32_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
-                {
-                    uint32_t lb = lowBoundExclusive(j, i);
-                    uint32_t hb = highBoundInclusive(j, i);
-
-                    auto const& lev = bl.getLevel(j);
-                    auto currSz = countEntries(lev.getCurr());
-                    auto snapSz = countEntries(lev.getSnap());
-                    CLOG_DEBUG(Bucket, "ledger {}, level {} curr={} snap={}", i,
-                               j, currSz, snapSz);
-
-                    if (1 > lb && 1 <= hb)
-                    {
-                        REQUIRE((currSz + snapSz) == 1);
-                    }
-                    else
-                    {
-                        REQUIRE(currSz == 0);
-                        REQUIRE(snapSz == 0);
-                    }
-                }
-            }
-        });
+        Config cfg(getTestConfig());
+        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        f(cfg);
     }
-    catch (std::future_error& e)
+
+    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
     {
-        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
-                   e.what());
-        REQUIRE(false);
+        Config const& cfg = getTestConfig();
+        f(cfg);
     }
 }
 
@@ -732,10 +957,11 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
         uint32_t snapSz = BucketList::sizeOfSnap(probe, level);
         uint32_t currNew = currOld + currSz - 1;
         uint32_t snapNew = snapOld + snapSz - 1;
-        CLOG_INFO(
-            Bucket,
-            "level[{:x}] curr (size:{}) = [{}, {}] snap (size:{}) = [{}, {}]",
-            level, formatX32(currSz), formatX32(currOld), formatX32(currNew),
-            formatX32(snapSz), formatX32(snapOld), formatX32(snapNew));
+        CLOG_INFO(Bucket,
+                  "level[{:x}] curr (size:{}) = [{}, {}] snap (size:{}) = "
+                  "[{}, {}]",
+                  level, formatX32(currSz), formatX32(currOld),
+                  formatX32(currNew), formatX32(snapSz), formatX32(snapOld),
+                  formatX32(snapNew));
     }
 }

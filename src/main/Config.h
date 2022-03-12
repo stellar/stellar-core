@@ -265,6 +265,10 @@ class Config : public std::enable_shared_from_this<Config>
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
 
+    // A config parameter that when set enables building and managing (as-in:
+    // merges, garbage collects them, etc) buckets with an alternate sort order.
+    bool EXPERIMENTAL_BUCKET_STORE;
+
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY_MISC;

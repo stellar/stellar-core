@@ -25,7 +25,6 @@ class BucketOutputIterator
   protected:
     std::string mFilename;
     XDROutputFileStream mOut;
-    BucketEntryIdCmp mCmp;
     std::unique_ptr<BucketEntry> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};
@@ -34,6 +33,10 @@ class BucketOutputIterator
     BucketMetadata mMeta;
     bool mPutMeta{false};
     MergeCounters& mMergeCounters;
+    bool mIsExperimental;
+
+    // Either uses BucketEntryIdCmp or BucketEntryIdCmpExp depending on file
+    bool cmp(BucketEntry const& a, BucketEntry const& b) const;
 
   public:
     // BucketOutputIterators must _always_ be constructed with BucketMetadata,
@@ -45,11 +48,24 @@ class BucketOutputIterator
     // (or forget to do), it's handled automatically.
     BucketOutputIterator(std::string const& tmpDir, bool keepDeadEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
-                         asio::io_context& ctx, bool doFsync);
+                         asio::io_context& ctx, bool doFsync,
+                         bool isExperimental = false);
 
     void put(BucketEntry const& e);
 
-    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
-                                      MergeKey* mergeKey = nullptr);
+    // Publishes constructed bucket to BucketManager and returns constructed
+    // bucket. If expFileIter is given, the file associated with expFileIter
+    // will be added to the bucket as the experimental file.
+    std::shared_ptr<Bucket>
+    getBucket(BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
+              BucketOutputIterator* expFileIter = nullptr);
+
+    std::string const& getFilename() const;
+
+    // Returns true if no objects have been written, false otherwise
+    bool empty() const;
+
+    // Flushes changes to file and closes file.
+    void close();
 };
 }

@@ -34,8 +34,11 @@ class Database;
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable
 {
+    // File extension for bucket files sorted with experimental cmp function
+    inline static std::string const EXPERIMENTAL_FILE_EXT = ".v2";
 
     std::string const mFilename;
+    bool mIsExperimental;
     Hash const mHash;
     size_t mSize{0};
 
@@ -44,10 +47,19 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // filename is the empty string.
     Bucket();
 
+    // Associates a file sorted using the experimental sort order with this
+    // bucket. Caller must make sure file exists and is properly sorted.
+    void addExperimentalFile();
+
+    // Returns true if Bucket has an experimental file backing it, false
+    // otherwise.
+    bool isExperimental() const;
+
     // Construct a bucket with a given filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
-    Bucket(std::string const& filename, Hash const& hash);
+    Bucket(std::string const& filename, Hash const& hash,
+           bool useExperimental = false);
 
     Hash const& getHash() const;
     std::string const& getFilename() const;
@@ -74,6 +86,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
+    // Get experimental filename for bucket backed by the given file.
+    static std::string getExperimentalFilename(std::string const& filename);
+
+    // Returns true is filename ends in experimental file extension
+    static bool isExperimentalFile(std::string const& filename);
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
@@ -111,6 +128,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
           bool doFsync);
 
-    static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
+    static uint32_t getBucketVersion(std::shared_ptr<Bucket const> bucket);
 };
 }

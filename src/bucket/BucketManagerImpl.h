@@ -70,7 +70,7 @@ class BucketManagerImpl : public BucketManager
     void cleanupStaleFiles();
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
-    bool renameBucket(std::string const& src, std::string const& dst);
+    void renameBucket(std::string const& src, std::string const& dst);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
@@ -91,6 +91,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
+    Config const& getConfig() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
@@ -98,7 +99,8 @@ class BucketManagerImpl : public BucketManager
     std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr) override;
+                      MergeKey* mergeKey = nullptr,
+                      std::string const& expFilename = {}) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 

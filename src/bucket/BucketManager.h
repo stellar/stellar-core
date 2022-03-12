@@ -18,6 +18,7 @@ namespace stellar
 {
 
 class Application;
+class Config;
 class BucketList;
 class TmpDirManager;
 struct LedgerHeader;
@@ -105,6 +106,7 @@ class BucketManager : NonMovableOrCopyable
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
     virtual BucketList& getBucketList() = 0;
+    virtual Config const& getConfig() const = 0;
 
     virtual medida::Timer& getMergeTimer() = 0;
 
@@ -127,7 +129,8 @@ class BucketManager : NonMovableOrCopyable
     virtual std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr) = 0;
+                      MergeKey* mergeKey = nullptr,
+                      std::string const& expFilename = {}) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

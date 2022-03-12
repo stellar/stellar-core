@@ -643,6 +643,12 @@ ApplicationImpl::validateAndLogConfig()
             "requires --in-memory");
     }
 
+    if (!mConfig.MODE_ENABLES_BUCKETLIST && mConfig.EXPERIMENTAL_BUCKET_STORE)
+    {
+        throw std::invalid_argument(
+            "Bucket list disabled but EXPERIMENTAL_BUCKET_STORE set to true");
+    }
+
     if (isNetworkedValidator && mConfig.isInMemoryMode())
     {
         throw std::invalid_argument(

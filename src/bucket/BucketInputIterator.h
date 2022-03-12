@@ -46,7 +46,10 @@ class BucketInputIterator
 
     BucketEntry const& operator*();
 
-    BucketInputIterator(std::shared_ptr<Bucket const> bucket);
+    // If no filename given, creates iterator for mFilename associated with
+    // the bucket (i.e. the non-experimental file).
+    BucketInputIterator(std::shared_ptr<Bucket const> bucket,
+                        std::string const& filename = {});
 
     ~BucketInputIterator();
 

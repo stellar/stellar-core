@@ -24,6 +24,7 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -31,21 +32,49 @@
 
 namespace stellar
 {
-
-Bucket::Bucket(std::string const& filename, Hash const& hash)
-    : mFilename(filename), mHash(hash)
+Bucket::Bucket(std::string const& filename, Hash const& hash,
+               bool useExperimental)
+    : mFilename(filename), mIsExperimental(useExperimental), mHash(hash)
 {
     releaseAssert(filename.empty() || fs::exists(filename));
-    if (!filename.empty())
+    if (filename.empty())
     {
-        CLOG_TRACE(Bucket, "Bucket::Bucket() created, file exists : {}",
-                   mFilename);
+        releaseAssert(!useExperimental);
+    }
+    else
+    {
+        if (useExperimental)
+        {
+            releaseAssert(fs::exists(getExperimentalFilename(filename)));
+            CLOG_TRACE(Bucket,
+                       "Bucket::Bucket() created with experimental "
+                       "file, file exists : {}",
+                       filename);
+        }
+        else
+        {
+            CLOG_TRACE(Bucket, "Bucket::Bucket() created, file exists : {}",
+                       filename);
+        }
         mSize = fs::size(filename);
     }
 }
 
 Bucket::Bucket()
 {
+}
+
+void
+Bucket::addExperimentalFile()
+{
+    releaseAssert(fs::exists(getExperimentalFilename(mFilename)));
+    mIsExperimental = true;
+}
+
+bool
+Bucket::isExperimental() const
+{
+    return mIsExperimental;
 }
 
 Hash const&
@@ -170,7 +199,27 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
-    return out.getBucket(bucketManager);
+
+    if (bucketManager.getConfig().EXPERIMENTAL_BUCKET_STORE)
+    {
+        // Re-sort the bucket in memory. This function is only called to create
+        // new buckets at level 0, so bucket should be small enough that an in
+        // memory sort using a vector should be fine.
+        BucketEntryIdCmpExp cmp;
+        std::sort(entries.begin(), entries.end(), cmp);
+        BucketOutputIterator outExp(bucketManager.getTmpDir(), true, meta, mc,
+                                    ctx, doFsync, /*isExperimental=*/true);
+        for (auto const& e : entries)
+        {
+            outExp.put(e);
+        }
+
+        return out.getBucket(bucketManager, /*mergeKey=*/nullptr, &outExp);
+    }
+    else
+    {
+        return out.getBucket(bucketManager, /*mergeKey=*/nullptr);
+    }
 }
 
 static void
@@ -614,8 +663,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    BucketInputIterator oi(oldBucket);
-    BucketInputIterator ni(newBucket);
+    BucketInputIterator oi(oldBucket, oldBucket->getFilename());
+    BucketInputIterator ni(newBucket, newBucket->getFilename());
     std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
                                                      shadows.end());
 
@@ -659,19 +708,82 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
                                     keepShadowedLifecycleEntries);
         }
     }
+
+    // Don't want to double count merge events, don't incriment after 2nd loop
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters(mc);
     }
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
-    return out.getBucket(bucketManager, &mk);
+
+    if (bucketManager.getConfig().EXPERIMENTAL_BUCKET_STORE)
+    {
+        BucketInputIterator oiExp(
+            oldBucket, getExperimentalFilename(oldBucket->getFilename()));
+        BucketInputIterator viExp(
+            newBucket, getExperimentalFilename(newBucket->getFilename()));
+        BucketOutputIterator outExp(bucketManager.getTmpDir(), keepDeadEntries,
+                                    meta, mc, ctx, doFsync,
+                                    /*isExperimental=*/true);
+
+        BucketEntryIdCmpExp cmpExp;
+        while (oiExp || viExp)
+        {
+            // Check if the merge should be stopped every few entries
+            if (++iter >= 1000)
+            {
+                iter = 0;
+                if (bucketManager.isShutdown())
+                {
+                    // Stop merging, as BucketManager is now shutdown
+                    // This is safe as temp file has not been adopted yet,
+                    // so it will be removed with the tmp dir
+                    throw std::runtime_error("Incomplete bucket merge due to "
+                                             "BucketManager shutdown");
+                }
+            }
+
+            if (!mergeCasesWithDefaultAcceptance(
+                    cmpExp, mc, oiExp, viExp, outExp, shadowIterators,
+                    protocolVersion, keepShadowedLifecycleEntries))
+            {
+                mergeCasesWithEqualKeys(mc, oiExp, viExp, outExp,
+                                        shadowIterators, protocolVersion,
+                                        keepShadowedLifecycleEntries);
+            }
+        }
+
+        return out.getBucket(bucketManager, &mk, &outExp);
+    }
+    else
+    {
+        return out.getBucket(bucketManager, &mk);
+    }
 }
 
 uint32_t
-Bucket::getBucketVersion(std::shared_ptr<Bucket> const& bucket)
+Bucket::getBucketVersion(std::shared_ptr<Bucket const> bucket)
 {
     releaseAssert(bucket);
     BucketInputIterator it(bucket);
     return it.getMetadata().ledgerVersion;
+}
+
+std::string
+Bucket::getExperimentalFilename(std::string const& filename)
+{
+    // If primary filename is empty, so should the experimental filename
+    return filename.empty() ? std::string()
+                            : filename + Bucket::EXPERIMENTAL_FILE_EXT;
+}
+
+bool
+Bucket::isExperimentalFile(std::string const& filename)
+{
+    auto expExtSize = EXPERIMENTAL_FILE_EXT.size();
+    return filename.size() > expExtSize &&
+           std::equal(filename.rbegin(), filename.rbegin() + expExtSize,
+                      EXPERIMENTAL_FILE_EXT.rbegin(),
+                      EXPERIMENTAL_FILE_EXT.rend());
 }
 }

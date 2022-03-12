@@ -242,6 +242,12 @@ BucketManagerImpl::getBucketList()
     return *mBucketList;
 }
 
+Config const&
+BucketManagerImpl::getConfig() const
+{
+    return mApp.getConfig();
+}
+
 medida::Timer&
 BucketManagerImpl::getMergeTimer()
 {
@@ -345,24 +351,47 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
     mMergeCounters += delta;
 }
 
-bool
+void
 BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
 {
     ZoneScoped;
     if (mApp.getConfig().DISABLE_XDR_FSYNC)
     {
-        return rename(src.c_str(), dst.c_str()) == 0;
+        if (rename(src.c_str(), dst.c_str()) != 0)
+        {
+            std::string err("Failed to rename bucket :");
+            err += strerror(errno);
+            // it seems there is a race condition with external systems
+            // retry after sleeping for a second works around the problem
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (rename(src.c_str(), dst.c_str()) != 0)
+            {
+                throw std::runtime_error(err);
+            }
+        }
     }
     else
     {
-        return fs::durableRename(src, dst, getBucketDir());
+        if (!fs::durableRename(src, dst, getBucketDir()))
+        {
+            std::string err("Failed to rename bucket :");
+            err += strerror(errno);
+            // it seems there is a race condition with external systems
+            // retry after sleeping for a second works around the problem
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (!fs::durableRename(src, dst, getBucketDir()))
+            {
+                throw std::runtime_error(err);
+            }
+        }
     }
 }
 
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,
-                                     size_t nBytes, MergeKey* mergeKey)
+                                     size_t nBytes, MergeKey* mergeKey,
+                                     std::string const& expFilename)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -395,6 +424,15 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         {
             auto timer = LogSlowExecution("Delete redundant bucket");
             std::remove(filename.c_str());
+            if (!expFilename.empty())
+            {
+                releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+                CLOG_DEBUG(Bucket,
+                           "Deleting bucket file {} that is redundant with "
+                           "existing bucket",
+                           expFilename);
+                std::remove(expFilename.c_str());
+            }
         }
     }
     else
@@ -402,21 +440,25 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         std::string canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
-        if (!renameBucket(filename, canonicalName))
+        renameBucket(filename, canonicalName);
+
+        if (!expFilename.empty())
         {
-            std::string err("Failed to rename bucket :");
-            err += strerror(errno);
-            // it seems there is a race condition with external systems
-            // retry after sleeping for a second works around the problem
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (!renameBucket(filename, canonicalName))
-            {
-                // if rename fails again, surface the original error
-                throw std::runtime_error(err);
-            }
+            releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+            auto expCanonicalName =
+                Bucket::getExperimentalFilename(canonicalName);
+            CLOG_INFO(Bucket, "Adopting experimental bucket file {} as {}",
+                      expFilename, expCanonicalName);
+
+            renameBucket(expFilename, expCanonicalName);
+            b = std::make_shared<Bucket>(canonicalName, hash,
+                                         /*isExperimental=*/true);
+        }
+        else
+        {
+            b = std::make_shared<Bucket>(canonicalName, hash);
         }
 
-        b = std::make_shared<Bucket>(canonicalName, hash);
         {
             mSharedBuckets.emplace(hash, b);
             mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -474,7 +516,16 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                    "BucketManager::getBucketByHash({}) found no bucket, making "
                    "new one",
                    binToHex(hash));
-        auto p = std::make_shared<Bucket>(canonicalName, hash);
+
+        bool isExperimental =
+            fs::exists(Bucket::getExperimentalFilename(canonicalName));
+
+        if (isExperimental)
+        {
+            releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+        }
+
+        auto p = std::make_shared<Bucket>(canonicalName, hash, isExperimental);
         mSharedBuckets.emplace(hash, p);
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
@@ -647,6 +698,13 @@ BucketManagerImpl::cleanupStaleFiles()
             // called again
             auto fullName = getBucketDir() + "/" + f;
             std::remove(fullName.c_str());
+
+            auto expFilename = Bucket::getExperimentalFilename(fullName);
+            if (fs::exists(expFilename))
+            {
+                releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+                std::remove(expFilename.c_str());
+            }
         }
     }
 }
@@ -838,6 +896,46 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+
+    // Checks if bucket has been resorted with experimental cmp function. If
+    // not, creates a new file in the new sort order and adds it to the bucket
+    auto sortFile = [&](std::shared_ptr<Bucket> b, uint32_t i) {
+        if (!b->isExperimental() && !b->getFilename().empty())
+        {
+            auto expFilename =
+                Bucket::getExperimentalFilename(b->getFilename());
+            std::vector<BucketEntry> sortedEntries;
+            for (BucketInputIterator in(b, b->getFilename()); in; ++in)
+            {
+                sortedEntries.insert(std::upper_bound(sortedEntries.begin(),
+                                                      sortedEntries.end(), *in,
+                                                      BucketEntryIdCmpExp{}),
+                                     *in);
+            }
+
+            BucketMetadata meta;
+            meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+            MergeCounters mc;
+            BucketOutputIterator out(getTmpDir(),
+                                     BucketList::keepDeadEntries(i), meta, mc,
+                                     mApp.getClock().getIOContext(),
+                                     !mApp.getConfig().DISABLE_XDR_FSYNC,
+                                     /*isExperimental=*/true);
+
+            for (auto const& e : sortedEntries)
+            {
+                out.put(e);
+            }
+
+            out.close();
+            if (!out.empty())
+            {
+                renameBucket(out.getFilename(), expFilename);
+                b->addExperimentalFile();
+            }
+        }
+    };
+
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
@@ -847,6 +945,13 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
             throw std::runtime_error(
                 "Missing bucket files while assuming saved BucketList state");
         }
+
+        if (mApp.getConfig().EXPERIMENTAL_BUCKET_STORE)
+        {
+            sortFile(curr, i);
+            sortFile(snap, i);
+        }
+
         mBucketList->getLevel(i).setCurr(curr);
         mBucketList->getLevel(i).setSnap(snap);
         mBucketList->getLevel(i).setNext(has.currentBuckets.at(i).next);
@@ -950,20 +1055,48 @@ std::shared_ptr<Bucket>
 BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 {
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
+
+    std::vector<BucketEntry> expSortedEntries;
     BucketMetadata meta;
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
-                             ctx, /*doFsync=*/true);
+                             ctx, /*doFsync=*/true, /*isExperimental=*/false);
+    auto isExperimental = mApp.getConfig().EXPERIMENTAL_BUCKET_STORE;
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;
         be.type(LIVEENTRY);
         be.liveEntry() = pair.second;
+
+        if (isExperimental)
+        {
+            // Sort in new order simultaneously in memory
+            expSortedEntries.insert(std::upper_bound(expSortedEntries.begin(),
+                                                     expSortedEntries.end(), be,
+                                                     BucketEntryIdCmpExp{}),
+                                    be);
+        }
+
         out.put(be);
     }
-    return out.getBucket(*this);
+
+    if (isExperimental)
+    {
+        BucketOutputIterator outExp(getTmpDir(),
+                                    /*keepDeadEntries=*/false, meta, mc, ctx,
+                                    /*doFsync=*/true, /*isExperimental=*/true);
+        for (auto const& e : expSortedEntries)
+        {
+            outExp.put(e);
+        }
+        return out.getBucket(*this, /*mergeKey=*/nullptr, &outExp);
+    }
+    else
+    {
+        return out.getBucket(*this, /*mergeKey=*/nullptr);
+    }
 }
 
 std::shared_ptr<BasicWork>
