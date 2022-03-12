@@ -498,7 +498,8 @@ void
 ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
-    LOG_INFO(DEFAULT_LOG, "info -> {}", getJsonInfo().toStyledString());
+    LOG_INFO(DEFAULT_LOG, "Reporting application info");
+    std::cout << getJsonInfo().toStyledString() << std::endl;
 }
 
 std::shared_ptr<BasicWork>

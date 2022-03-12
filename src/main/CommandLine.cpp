@@ -477,10 +477,9 @@ CommandLine::ConfigOption::getConfig(bool logToFile) const
     auto configFile =
         mConfigFile.empty() ? std::string{"stellar-core.cfg"} : mConfigFile;
 
-    LOG_INFO(DEFAULT_LOG, "Config from {}", configFile);
-
     // yes you really have to do this 3 times
     Logging::setLogLevel(mLogLevel, nullptr);
+    LOG_INFO(DEFAULT_LOG, "Config from {}", configFile);
     config.load(configFile);
 
     Logging::setFmt(KeyUtils::toShortString(config.NODE_SEED.getPublicKey()));

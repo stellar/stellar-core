@@ -225,9 +225,12 @@ consistent.
 #### Offline info
 
 The command `offline-info` fetches information similar to what `info` returns but
-without starting the node.
+without starting the node, writing it directly to standard output.
 
 This allows to quickly see information about the last loaded ledger, supported protocol version etc.
+
+Combine this with logging control flags like `--ll fatal` to suppress informational
+logging output and retrieve a plain JSON object representing the node's state.
 
 #### Testing around a snapshot
 If you want to replay transactions in a specific ledger, you can run a command

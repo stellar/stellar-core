@@ -596,14 +596,14 @@ When the node is done catching up, its state will change to
 ```
 
 ## Logging
-Stellar-core sends logs to standard output and `stellar-core.log` by default, 
+Stellar-core sends logs to standard error and `stellar-core.log` by default,
 configurable as `LOG_FILE_PATH`.
 
  Log messages are classified by progressive _priority levels_:
   `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`.
    The logging system only emits those messages at or above its configured logging level.
 
-Log messages at different priority levels can be color-coded on standard output
+Log messages at different priority levels can be color-coded on standard error
 by setting `LOG_COLOR=true` in the config file. By default they are not color-coded.
 
 The log level can be controlled by configuration, the `-ll` command-line flag 
