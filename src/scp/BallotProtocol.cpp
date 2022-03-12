@@ -30,6 +30,7 @@ BallotProtocol::BallotProtocol(Slot& slot)
     , mHeardFromQuorum(false)
     , mPhase(SCP_PHASE_PREPARE)
     , mCurrentMessageLevel(0)
+    , mTimerExpCount(0)
 {
 }
 
@@ -515,6 +516,7 @@ BallotProtocol::stopBallotProtocolTimer()
 void
 BallotProtocol::ballotProtocolTimerExpired()
 {
+    mTimerExpCount++;
     abandonBallot(0);
 }
 
@@ -2009,6 +2011,67 @@ BallotProtocol::getJsonInfo()
     return ret;
 }
 
+SCP::QuorumInfoNodeState
+BallotProtocol::getState(NodeID const& n, bool selfAlreadyMovedOn)
+{
+    auto state = SCP::QuorumInfoNodeState::AGREE;
+    if (n == mSlot.getLocalNode()->getNodeID())
+    {
+        // always mark myself as AGREE.
+        return state;
+    }
+
+    auto it = mLatestEnvelopes.find(n);
+    if (it == mLatestEnvelopes.end())
+    {
+        if (mTimerExpCount >= Slot::NUM_TIMEOUTS_THRESHOLD_FOR_REPORTING ||
+            selfAlreadyMovedOn)
+        {
+            state = SCP::QuorumInfoNodeState::MISSING;
+        }
+        else
+        {
+            // It's too soon to start calling this node
+            // MISSING.
+            state = SCP::QuorumInfoNodeState::NO_INFO;
+        }
+    }
+    else if (mLastEnvelopeEmit)
+    {
+        auto& st = it->second->getStatement();
+        auto t = st.pledges.type();
+        bool externalized = t == SCPStatementType::SCP_ST_EXTERNALIZE;
+        bool confirmedCommit =
+            t == SCPStatementType::SCP_ST_CONFIRM &&
+            st.pledges.confirm().ballot.counter == UINT32_MAX;
+        if (mPhase == SCP_PHASE_EXTERNALIZE &&
+            (!externalized || !confirmedCommit) && selfAlreadyMovedOn)
+        {
+            // We have already externalized and moved onto the next slot.
+            // However, this node hasn't externalized yet.
+            state = SCP::QuorumInfoNodeState::DELAYED;
+        }
+
+        auto selfAcceptedConfirm =
+            mPhase == SCP_PHASE_CONFIRM || mPhase == SCP_PHASE_EXTERNALIZE;
+        auto otherAcceptedConfirm = t == SCPStatementType::SCP_ST_CONFIRM ||
+                                    t == SCPStatementType::SCP_ST_EXTERNALIZE;
+
+        auto const& selfSt = mLastEnvelopeEmit->getStatement();
+
+        if (selfAcceptedConfirm && otherAcceptedConfirm &&
+            !areBallotsCompatible(getWorkingBallot(st),
+                                  getWorkingBallot(selfSt)))
+        {
+            // n has accepted to commit a different value than mine!
+            // Even if this node has been marked something else,
+            // we will overwrite it since this is bad.
+            state = SCP::QuorumInfoNodeState::DISAGREE;
+        }
+    }
+    return state;
+}
+
 Json::Value
 BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 {
@@ -2054,64 +2117,11 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
         qSetHash = mSlot.getCompanionQuorumSetHashFromStatement(st);
     }
 
-    Json::Value& disagree = ret["disagree"];
-    Json::Value& missing = ret["missing"];
-    Json::Value& delayed = ret["delayed"];
-
-    int n_missing = 0, n_disagree = 0, n_delayed = 0;
-
-    int agree = 0;
     auto qSet = mSlot.getSCPDriver().getQSet(qSetHash);
     if (!qSet)
     {
         phase = "expired";
         return ret;
-    }
-    LocalNode::forAllNodes(*qSet, [&](NodeID const& n) {
-        auto it = mLatestEnvelopes.find(n);
-        if (it == mLatestEnvelopes.end())
-        {
-            if (!summary)
-            {
-                missing.append(mSlot.getSCPDriver().toStrKey(n, fullKeys));
-            }
-            n_missing++;
-        }
-        else
-        {
-            auto& st = it->second->getStatement();
-            if (areBallotsCompatible(getWorkingBallot(st), b))
-            {
-                agree++;
-                auto t = st.pledges.type();
-                if (!(t == SCPStatementType::SCP_ST_EXTERNALIZE ||
-                      (t == SCPStatementType::SCP_ST_CONFIRM &&
-                       st.pledges.confirm().ballot.counter == UINT32_MAX)))
-                {
-                    if (!summary)
-                    {
-                        delayed.append(
-                            mSlot.getSCPDriver().toStrKey(n, fullKeys));
-                    }
-                    n_delayed++;
-                }
-            }
-            else
-            {
-                if (!summary)
-                {
-                    disagree.append(mSlot.getSCPDriver().toStrKey(n, fullKeys));
-                }
-                n_disagree++;
-            }
-        }
-        return true;
-    });
-    if (summary)
-    {
-        missing = n_missing;
-        disagree = n_disagree;
-        delayed = n_delayed;
     }
 
     auto f = LocalNode::findClosestVBlocking(
@@ -2133,7 +2143,6 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
     }
 
     ret["hash"] = hexAbbrev(qSetHash);
-    ret["agree"] = agree;
 
     return ret;
 }

@@ -120,28 +120,113 @@ SCP::getJsonInfo(size_t limit, bool fullKeys)
     return ret;
 }
 
+SCP::QuorumInfoNodeState
+SCP::getState(NodeID const& node, uint64 slotIndex)
+{
+    for (int k = 0; k < NUM_SLOTS_TO_CHECK_FOR_REPORTING; k++)
+    {
+        if (slotIndex <= k)
+        {
+            break;
+        }
+        auto slot = getSlot(slotIndex - k, false);
+        if (slot)
+        {
+            bool selfAlreadyMovedOn = k > 0;
+            auto s = slot->getState(node, selfAlreadyMovedOn);
+            if (s != SCP::QuorumInfoNodeState::NO_INFO)
+            {
+                return s;
+            }
+        }
+    }
+    // We have no messages from this node in N slots.
+    // At this point, we'll consider this node MISSING.
+    return SCP::QuorumInfoNodeState::MISSING;
+}
+
 Json::Value
 SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                        uint64 index)
 {
     Json::Value ret;
+    if (mKnownSlots.empty())
+    {
+        return ret;
+    }
     if (index == 0)
     {
-        for (auto& item : mKnownSlots)
-        {
-            auto& slot = *item.second;
-            ret = slot.getJsonQuorumInfo(id, summary, fullKeys);
-            ret["ledger"] = static_cast<Json::UInt64>(slot.getSlotIndex());
-        }
+        index = mKnownSlots.rbegin()->first;
     }
-    else
+    auto s = getSlot(index, false);
+    if (s)
     {
-        auto s = getSlot(index, false);
-        if (s)
+        ret = s->getJsonQuorumInfo(id, summary, fullKeys);
+        auto qSet = getLocalNode()->getQuorumSet();
+
+        Json::Value& disagree = ret["disagree"];
+        Json::Value& missing = ret["missing"];
+        Json::Value& delayed = ret["delayed"];
+        Json::Value& agree = ret["agree"];
+        int n_disagree = 0, n_missing = 0, n_delayed = 0, n_agree = 0;
+
+        // Categorize each node's state.
+        LocalNode::forAllNodes(qSet, [&](NodeID const& n) {
+            auto state = getState(n, index);
+            auto k = s->getSCPDriver().toStrKey(n, fullKeys);
+            if (summary)
+            {
+                switch (state)
+                {
+                case SCP::QuorumInfoNodeState::DISAGREE:
+                    n_disagree++;
+                    break;
+                case SCP::QuorumInfoNodeState::DELAYED:
+                    n_delayed++;
+                    break;
+                case SCP::QuorumInfoNodeState::MISSING:
+                    n_missing++;
+                    break;
+                case SCP::QuorumInfoNodeState::AGREE:
+                    n_agree++;
+                    break;
+                case SCP::QuorumInfoNodeState::NO_INFO:
+                    CLOG_ERROR(SCP, "getState should never return NO_INFO");
+                    return false;
+                }
+            }
+            else
+            {
+                switch (state)
+                {
+                case SCP::QuorumInfoNodeState::DISAGREE:
+                    disagree.append(k);
+                    break;
+                case SCP::QuorumInfoNodeState::DELAYED:
+                    delayed.append(k);
+                    break;
+                case SCP::QuorumInfoNodeState::MISSING:
+                    missing.append(k);
+                    break;
+                case SCP::QuorumInfoNodeState::AGREE:
+                    agree.append(k);
+                    break;
+                case SCP::QuorumInfoNodeState::NO_INFO:
+                    CLOG_ERROR(SCP, "getState should never return NO_INFO");
+                    return false;
+                }
+            }
+            return true;
+        });
+        if (summary)
         {
-            ret = s->getJsonQuorumInfo(id, summary, fullKeys);
-            ret["ledger"] = static_cast<Json::UInt64>(index);
+            disagree = n_disagree;
+            missing = n_missing;
+            delayed = n_delayed;
+            agree = n_agree;
         }
+
+        ret["ledger"] = static_cast<Json::UInt64>(index);
     }
     return ret;
 }
