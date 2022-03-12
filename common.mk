@@ -10,7 +10,9 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/fmt/include"            \
 	-isystem "$(top_srcdir)/lib/soci/src/core"          \
 	-isystem "$(top_srcdir)/lib/tracy"                  \
-	-isystem "$(top_srcdir)/lib/spdlog/include"
+	-isystem "$(top_srcdir)/lib/spdlog/include"         \
+	-isystem "$(top_srcdir)/lib/fizzy/include"          \
+	-isystem "$(top_srcdir)/lib/fizzy/lib"
 
 if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
@@ -32,6 +34,10 @@ endif # BUILD_TESTS
 if USE_SPDLOG
 AM_CPPFLAGS += -DUSE_SPDLOG
 endif # USE_SPDLOG
+
+if USE_FIZZY
+AM_CPPFLAGS += -DUSE_FIZZY
+endif # USE_FIZZY
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 AM_CPPFLAGS += -DENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

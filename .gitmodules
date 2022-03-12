@@ -23,3 +23,6 @@
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog
 	ignore = dirty
+[submodule "lib/fizzy"]
+	path = lib/fizzy
+	url = https://github.com/stellar/fizzy

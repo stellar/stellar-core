@@ -379,6 +379,11 @@ AC_ARG_ENABLE(spdlog,
         [Disable spdlog]))
 AM_CONDITIONAL(USE_SPDLOG, [test x$enable_spdlog != xno])
 
+AC_ARG_ENABLE(fizzy,
+    AS_HELP_STRING([--disable-fizzy],
+        [Disable fizzy]))
+AM_CONDITIONAL(USE_FIZZY, [test x$enable_fizzy != xno])
+
 AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
     AS_HELP_STRING([--enable-next-protocol-version-unsafe-for-production],
         [Enable next protocol version UNSAFE FOR PRODUCTION]))

@@ -227,3 +227,11 @@ lib/util/stdrandom.h
   (https://libcxx.llvm.org)
   Licensed under the Apache License v2.0 with LLVM Exceptions
   (https://llvm.org/LICENSE.txt)
+
+lib/fizzy
+
+  Fizzy WebAssembly interpreter
+  Copyright (c) 2019-2020 The Fizzy Authors
+  https://github.com/wasmx/fizzy
+  Licensed under the Apache License, Version 2.0
+  (https://www.apache.org/licenses/LICENSE-2.0)
