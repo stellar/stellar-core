@@ -32,6 +32,10 @@ lib3rdparty_a_SOURCES += $(TRACY_CXX_FILES)
 endif # USE_TRACY
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
+if USE_FIZZY
+lib3rdparty_a_SOURCES += $(FIZZY_FILES)
+endif # USE_FIZZY
+
 # Suppress any installation of SUBDIRS, which may be distributed separately
 install-data:
 	@:
