@@ -116,20 +116,45 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     return res;
 }
 
+// This method will update iter to point to the tx with seqNum == seq if it is
+// found. It also returns a bool that will be false if it determines seq cannot
+// be added to the current queue, allowing the user of this function to make a
+// decision early if desired.
 static bool
-findBySeq(int64_t seq, TransactionQueue::TimestampedTransactions& transactions,
+findBySeq(int64_t seq, std::optional<SequenceNumber const> minSeqNum,
+          TransactionQueue::TimestampedTransactions& transactions,
           TransactionQueue::TimestampedTransactions::iterator& iter)
 {
     int64_t firstSeq = transactions.front().mTx->getSeqNum();
     int64_t lastSeq = transactions.back().mTx->getSeqNum();
-    if (seq < firstSeq || seq > lastSeq + 1)
+
+    // check if seq is too low
+    if (seq < firstSeq)
     {
+        iter = transactions.end();
         return false;
     }
 
-    releaseAssert(seq - firstSeq <= static_cast<int64_t>(transactions.size()));
-    iter = transactions.begin() + (seq - firstSeq);
-    releaseAssert(iter == transactions.end() || iter->mTx->getSeqNum() == seq);
+    // check if seq is new, and if it is, if minSeqNum would make it valid
+    if (seq > lastSeq)
+    {
+        iter = transactions.end();
+        return minSeqNum ? *minSeqNum <= lastSeq : seq == lastSeq + 1;
+    }
+
+    // by this point we're expecting to find an existing transaction, and if we
+    // don't it's a gap that can't get filled
+    iter = std::lower_bound(transactions.begin(), transactions.end(), seq,
+                            [](TransactionQueue::TimestampedTx const& a,
+                               int64_t b) { return a.mTx->getSeqNum() < b; });
+
+    releaseAssert(iter == transactions.end() || iter->mTx->getSeqNum() >= seq);
+    if (iter != transactions.end() && iter->mTx->getSeqNum() != seq)
+    {
+        // found a gap
+        iter = transactions.end();
+        return false;
+    }
     return true;
 }
 
@@ -138,7 +163,7 @@ findBySeq(TransactionFrameBasePtr tx,
           TransactionQueue::TimestampedTransactions& transactions,
           TransactionQueue::TimestampedTransactions::iterator& iter)
 {
-    return findBySeq(tx->getSeqNum(), transactions, iter);
+    return findBySeq(tx->getSeqNum(), tx->getMinSeqNum(), transactions, iter);
 }
 
 static bool
@@ -196,6 +221,15 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
                 }
 
+                // By this point, there's already a tx in the queue for this
+                // account, and only the tx with the lowest seqnum for an
+                // account can have non-zero values for these fields.
+                if (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0)
+                {
+                    return TransactionQueue::AddResult::
+                        ADD_STATUS_TRY_AGAIN_LATER;
+                }
+
                 seqNum = transactions.back().mTx->getSeqNum();
             }
             else
@@ -231,7 +265,26 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     }
                 }
 
-                seqNum = tx->getSeqNum() - 1;
+                if (oldTxIter != transactions.begin() &&
+                    (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0))
+                {
+                    return TransactionQueue::AddResult::
+                        ADD_STATUS_TRY_AGAIN_LATER;
+                }
+
+                // If this is a new tx, use the last seq in queue. If it's an
+                // existing transaction, use the previous one in the queue (if
+                // the tx is first, leave seqNum == 0 so the seqNum will be
+                // loaded from the account)
+                if (oldTxIter == transactions.end())
+                {
+                    seqNum = transactions.back().mTx->getSeqNum();
+                }
+                else if (oldTxIter != transactions.begin())
+                {
+                    auto copyIt = oldTxIter - 1;
+                    seqNum = copyIt->mTx->getSeqNum();
+                }
             }
         }
     }
@@ -258,6 +311,14 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     // statements into one transaction here.
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        // This is done so minSeqLedgerGap is validated against the next
+        // ledgerSeq, which is what will be used at apply time
+        ltx.loadHeader().current().ledgerSeq =
+            mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
+    }
     if (!tx->checkValid(ltx, seqNum, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {
@@ -545,15 +606,16 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                     // less-than-or-equal to the highest applied sequence number
                     // for this source account has either (1) been applied, or
                     // (2) become invalid.
-                    auto txIter = transactions.end();
-                    findBySeq(kv.second, transactions, txIter);
 
-                    // Iterators define half-open ranges, but we need to include
-                    // the transaction with the highest applied sequence number
-                    if (txIter != transactions.end())
-                    {
-                        ++txIter;
-                    }
+                    // std::upper_bound returns an iterator to the first element
+                    // in the range that is greater than kv.second, so we will
+                    // erase up to that element in dropTransactions
+                    auto txIter = std::upper_bound(
+                        transactions.begin(), transactions.end(), kv.second,
+                        [](int64_t a,
+                           TransactionQueue::TimestampedTx const& b) {
+                            return a < b.mTx->getSeqNum();
+                        });
 
                     // The age is going to be reset because at least one
                     // transaction was applied for this account. This means that

@@ -217,7 +217,7 @@ class TransactionFrame : public TransactionFrameBase
                                AccountID const& accountID);
 
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
-    Duration getMinSeqAge() const;
-    uint32 getMinSeqLedgerGap() const;
+    Duration getMinSeqAge() const override;
+    uint32 getMinSeqLedgerGap() const override;
 };
 }

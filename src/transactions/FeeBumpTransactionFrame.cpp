@@ -364,6 +364,18 @@ FeeBumpTransactionFrame::getMinSeqNum() const
     return mInnerTx->getMinSeqNum();
 }
 
+Duration
+FeeBumpTransactionFrame::getMinSeqAge() const
+{
+    return mInnerTx->getMinSeqAge();
+}
+
+uint32
+FeeBumpTransactionFrame::getMinSeqLedgerGap() const
+{
+    return mInnerTx->getMinSeqLedgerGap();
+}
+
 void
 FeeBumpTransactionFrame::insertKeysForFeeProcessing(
     UnorderedSet<LedgerKey>& keys) const

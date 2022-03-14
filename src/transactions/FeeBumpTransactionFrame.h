@@ -84,6 +84,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     AccountID getFeeSourceID() const override;
     AccountID getSourceID() const override;
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
+    Duration getMinSeqAge() const override;
+    uint32 getMinSeqLedgerGap() const override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;

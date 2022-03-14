@@ -53,6 +53,8 @@ class TransactionFrameBase
     virtual AccountID getFeeSourceID() const = 0;
     virtual AccountID getSourceID() const = 0;
     virtual std::optional<SequenceNumber const> const getMinSeqNum() const = 0;
+    virtual Duration getMinSeqAge() const = 0;
+    virtual uint32 getMinSeqLedgerGap() const = 0;
 
     virtual void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
