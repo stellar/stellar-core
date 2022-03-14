@@ -126,12 +126,18 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            std::vector<Operation> const& ops, int fee = 0);
+                            std::vector<Operation> const& ops, int fee,
+                            std::optional<PreconditionsV2> cond = std::nullopt);
 TransactionFramePtr transactionFromOperations(Application& app,
                                               SecretKey const& from,
                                               SequenceNumber seq,
                                               std::vector<Operation> const& ops,
                                               int fee = 0);
+TransactionFramePtr transactionWithV2Precondition(Application& app,
+                                                  TestAccount& account,
+                                                  int64_t sequenceDelta,
+                                                  uint32_t fee,
+                                                  PreconditionsV2 const& cond);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
 Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit);
@@ -260,7 +266,8 @@ void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
-                        std::vector<SecretKey> const& opKeys);
+                        std::vector<SecretKey> const& opKeys,
+                        std::optional<PreconditionsV2> cond = std::nullopt);
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 

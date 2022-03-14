@@ -273,7 +273,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 bool earlyFailure =
                     (code == txMISSING_OPERATION || code == txTOO_EARLY ||
                      code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
-                     code == txBAD_SEQ);
+                     code == txBAD_SEQ || code == txMALFORMED);
                 // verify that the sequence number changed (v10+)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
@@ -380,6 +380,18 @@ applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
     applyCheck(tx, app, checkSeqNum);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
+
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto account = stellar::loadAccount(ltx, tx->getSourceID());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_19) &&
+        account)
+    {
+        auto const& v3 =
+            getAccountEntryExtensionV3(account.current().data.account());
+        REQUIRE(v3.seqLedger == ltx.loadHeader().current().ledgerSeq);
+        REQUIRE(v3.seqTime == ltx.loadHeader().current().scpValue.closeTime);
+    }
 }
 
 void
@@ -606,7 +618,8 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, int fee)
+                            const std::vector<Operation>& ops, int fee,
+                            std::optional<PreconditionsV2> cond)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
     e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey());
@@ -618,6 +631,12 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     e.v1().tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v1().tx.operations));
+
+    if (cond)
+    {
+        e.v1().tx.cond.type(PRECOND_V2);
+        e.v1().tx.cond.v2() = *cond;
+    }
 
     auto res = std::static_pointer_cast<TransactionFrame>(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
@@ -640,6 +659,16 @@ transactionFromOperations(Application& app, SecretKey const& from,
         return transactionFromOperationsV0(app, from, seq, ops, fee);
     }
     return transactionFromOperationsV1(app, from, seq, ops, fee);
+}
+
+TransactionFramePtr
+transactionWithV2Precondition(Application& app, TestAccount& account,
+                              int64_t sequenceDelta, uint32_t fee,
+                              PreconditionsV2 const& cond)
+{
+    return transactionFromOperationsV1(
+        app, account, account.getLastSequenceNumber() + sequenceDelta,
+        {payment(account.getPublicKey(), 1)}, fee, cond);
 }
 
 Operation
@@ -1456,7 +1485,8 @@ sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
 static TransactionEnvelope
 envelopeFromOps(Hash const& networkID, TestAccount& source,
                 std::vector<Operation> const& ops,
-                std::vector<SecretKey> const& opKeys)
+                std::vector<SecretKey> const& opKeys,
+                std::optional<PreconditionsV2> cond = std::nullopt)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
@@ -1464,6 +1494,12 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     tx.v1().tx.seqNum = source.nextSequenceNumber();
     std::copy(ops.begin(), ops.end(),
               std::back_inserter(tx.v1().tx.operations));
+
+    if (cond)
+    {
+        tx.v1().tx.cond.type(PRECOND_V2);
+        tx.v1().tx.cond.v2() = *cond;
+    }
 
     sign(networkID, source, tx.v1());
     for (auto const& opKey : opKeys)
@@ -1476,10 +1512,11 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
-                        std::vector<SecretKey> const& opKeys)
+                        std::vector<SecretKey> const& opKeys,
+                        std::optional<PreconditionsV2> cond)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, envelopeFromOps(networkID, source, ops, opKeys));
+        networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
 
 LedgerUpgrade

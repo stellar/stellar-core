@@ -1522,7 +1522,11 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             txSet->add(txFrame);
 
             // Close this ledger
-            app->getHerder().externalizeValue(txSet, 3, 1, emptyUpgradeSteps);
+            auto lastCloseTime = app->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header.scpValue.closeTime;
+            app->getHerder().externalizeValue(txSet, 3, lastCloseTime,
+                                              emptyUpgradeSteps);
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 3);
         };

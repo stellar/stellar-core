@@ -229,4 +229,53 @@ TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
                              &root.getPublicKey());
         });
     }
+
+    SECTION("sponsorships with precondition that uses v3 extension")
+    {
+        auto a1 = root.create("a1", minBalance + 301);
+        for_versions_from(19, *app, [&] {
+            {
+                auto cur1 = makeAsset(root, "CUR1");
+
+                // creating the sponsored trustline first will make sure the
+                // account is using a V2 extension
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a1.op(changeTrust(cur1, 1000)),
+                     a1.op(endSponsoringFutureReserves())},
+                    {a1});
+
+                closeLedger(*app, {tx});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
+                                 &root.getPublicKey());
+            }
+
+            // set seqLedger
+            a1.bumpSequence(0);
+
+            {
+                PreconditionsV2 cond;
+                cond.minSeqLedgerGap = 1;
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txBAD_MIN_SEQ_AGE_OR_GAP);
+                }
+
+                {
+                    // this increments ledgerSeq
+                    closeLedger(*app);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                }
+            }
+        });
+    }
 }
