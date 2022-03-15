@@ -45,6 +45,21 @@ verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
     return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
 }
 
+bool
+verifyEd25519SignedPayload(DecoratedSignature const& sig,
+                           SignerKey const& signer)
+{
+    auto const& signedPayload = signer.ed25519SignedPayload();
+
+    if (!doesHintMatch(getSignedPayloadHint(signedPayload), sig.hint))
+        return false;
+
+    PublicKey pubKey;
+    pubKey.ed25519() = signedPayload.ed25519;
+
+    return PubKeyUtils::verifySig(pubKey, sig.signature, signedPayload.payload);
+}
+
 DecoratedSignature
 signHashX(const ByteSlice& x)
 {
@@ -76,10 +91,36 @@ verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
 }
 
 SignatureHint
+getSignedPayloadHint(SignerKey::_ed25519SignedPayload_t const& signedPayload)
+{
+    auto pubKeyHint = getHint(signedPayload.ed25519);
+    auto payloadHint = getHint(signedPayload.payload);
+    SignatureHint hint;
+    hint[0] = pubKeyHint[0] ^ payloadHint[0];
+    hint[1] = pubKeyHint[1] ^ payloadHint[1];
+    hint[2] = pubKeyHint[2] ^ payloadHint[2];
+    hint[3] = pubKeyHint[3] ^ payloadHint[3];
+
+    return hint;
+}
+
+SignatureHint
 getHint(ByteSlice const& bs)
 {
+    if (bs.empty())
+    {
+        return SignatureHint();
+    }
+
     SignatureHint res;
-    memcpy(res.data(), bs.end() - res.size(), res.size());
+    if (res.size() > bs.size())
+    {
+        memcpy(res.data(), bs.begin(), bs.size());
+    }
+    else
+    {
+        memcpy(res.data(), bs.end() - res.size(), res.size());
+    }
     return res;
 }
 

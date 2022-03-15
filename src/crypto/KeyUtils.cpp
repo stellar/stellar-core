@@ -20,6 +20,8 @@ KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
     case strKey::STRKEY_PRE_AUTH_TX:
     case strKey::STRKEY_HASH_X:
         return 32U;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return 96U; // 32 bytes for the key and 64 bytes for the payload
     default:
         throw std::invalid_argument("invalid key version: " +
                                     std::to_string(keyVersion));

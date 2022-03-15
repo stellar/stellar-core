@@ -30,6 +30,8 @@ KeyFunctions<SignerKey>::getKeyVersionIsSupported(
         return true;
     case strKey::STRKEY_HASH_X:
         return true;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return true;
     default:
         return false;
     }
@@ -46,6 +48,8 @@ KeyFunctions<SignerKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
         return SignerKeyType::SIGNER_KEY_TYPE_PRE_AUTH_TX;
     case strKey::STRKEY_HASH_X:
         return SignerKeyType::SIGNER_KEY_TYPE_HASH_X;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return SignerKeyType::SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD;
     default:
         throw std::invalid_argument("invalid signer key type");
     }
@@ -62,6 +66,8 @@ KeyFunctions<SignerKey>::toKeyVersion(SignerKeyType keyType)
         return strKey::STRKEY_PRE_AUTH_TX;
     case SignerKeyType::SIGNER_KEY_TYPE_HASH_X:
         return strKey::STRKEY_HASH_X;
+    case SignerKeyType::SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
+        return strKey::STRKEY_ED25519_SIGNED_PAYLOAD;
     default:
         throw std::invalid_argument("invalid signer key type");
     }

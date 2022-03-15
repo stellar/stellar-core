@@ -301,6 +301,15 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
+
+        if (mSetOptions.signer->key.type() ==
+                SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD &&
+            (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19) ||
+             mSetOptions.signer->key.ed25519SignedPayload().payload.empty()))
+        {
+            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            return false;
+        }
     }
 
     if (mSetOptions.homeDomain)

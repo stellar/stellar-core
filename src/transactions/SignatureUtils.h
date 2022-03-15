@@ -22,10 +22,14 @@ bool verify(DecoratedSignature const& sig, SignerKey const& signerKey,
             Hash const& hash);
 bool verify(DecoratedSignature const& sig, PublicKey const& signerKey,
             Hash const& hash);
+bool verifyEd25519SignedPayload(DecoratedSignature const& sig,
+                                SignerKey const& signer);
 
 DecoratedSignature signHashX(const ByteSlice& x);
 bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey);
 
+SignatureHint
+getSignedPayloadHint(SignerKey::_ed25519SignedPayload_t const& signedPayload);
 SignatureHint getHint(ByteSlice const& bs);
 bool doesHintMatch(ByteSlice const& bs, SignatureHint const& hint);
 }
