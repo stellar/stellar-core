@@ -87,6 +87,164 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
     const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
+    SECTION("ed25519 payload signer")
+    {
+        auto a1 = root.create("a1", paymentAmount);
+
+        auto tx = a1.tx({payment(root, 100)});
+        auto tx2 = root.tx({payment(a1, 10)});
+
+        getSignatures(tx).clear();
+        getSignatures(tx2).clear();
+        setSeqNum(tx, tx->getSeqNum() + 1);
+        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
+
+        SignerKey signerKey;
+        signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        // payload may or may not be populated depending on the test below
+        signerKey.ed25519SignedPayload().ed25519 =
+            root.getPublicKey().ed25519();
+
+        for_versions_to(18, *app, [&] {
+            REQUIRE_THROWS_AS(a1.setOptions(setSigner(Signer{signerKey, 1})),
+                              ex_SET_OPTIONS_BAD_SIGNER);
+        });
+
+        for_versions_from(19, *app, [&] {
+            auto testPayloadSignerOnAccount = [&](xdr::opaque_vec<64> payload,
+                                                  bool signTx2) {
+                signerKey.ed25519SignedPayload().payload = payload;
+
+                Signer sk1(signerKey, 1);
+                a1.setOptions(setSigner(sk1));
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                tx->addSignature(sig);
+
+                REQUIRE(applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+                REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        PAYMENT_SUCCESS);
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                if (signTx2)
+                {
+                    // Now use the signature of the first tx on the second tx
+                    sig.hint =
+                        SignatureUtils::getHint(root.getPublicKey().ed25519());
+                    tx2->addSignature(sig);
+
+                    applyCheck(tx2, *app);
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(
+                                getFirstResult(*tx2)) == PAYMENT_SUCCESS);
+                    REQUIRE(getAccountSigners(root, *app).size() == 0);
+                }
+            };
+            SECTION("3 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2'}, false);
+            }
+            SECTION("4 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2', '3'}, false);
+            }
+            SECTION("5 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2', '3', '4'}, false);
+            }
+            SECTION("payload is tx")
+            {
+                xdr::opaque_vec<64> payload;
+                auto hash = tx2->getContentsHash();
+                for (auto const& b : hash)
+                {
+                    payload.emplace_back(b);
+                }
+
+                testPayloadSignerOnAccount(payload, true);
+            }
+            SECTION("payload signer in extra signers")
+            {
+                signerKey.ed25519SignedPayload().payload = {'a', 'a', 'a'};
+                PreconditionsV2 cond;
+                cond.extraSigners.emplace_back(signerKey);
+
+                auto extraSignerTx =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                SECTION("success")
+                {
+                    extraSignerTx->addSignature(sig);
+                    REQUIRE(applyCheck(extraSignerTx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(extraSignerTx, *app));
+                }
+            }
+            SECTION("payload signer with zeroed out ed25519")
+            {
+                SignerKey zeroKey;
+                zeroKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+                zeroKey.ed25519SignedPayload().ed25519 =
+                    xdr::opaque_array<32>{};
+                zeroKey.ed25519SignedPayload().payload = {'a', 'a', 'a'};
+
+                // set the threshold high enough so we will go over every signer
+                // in the SignatureChecker
+                Signer sk1(zeroKey, 1);
+                a1.setOptions(setSigner(sk1) | setLowThreshold(255));
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                // Add the wrong signature, with a hint that matches zeroKeys
+                // hint
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    zeroKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    zeroKey.ed25519SignedPayload());
+
+                tx->addSignature(sig);
+                tx->addSignature(a1);
+                REQUIRE(!applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txBAD_AUTH);
+            }
+            SECTION("empty payload in payload signer in extra signers")
+            {
+                PreconditionsV2 cond;
+                cond.extraSigners.emplace_back(signerKey);
+
+                auto extraSignerTx =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+                REQUIRE(signerKey.ed25519SignedPayload().payload.empty());
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                extraSignerTx->addSignature(sig);
+                REQUIRE(!applyCheck(extraSignerTx, *app));
+                REQUIRE(extraSignerTx->getResultCode() == txMALFORMED);
+            }
+        });
+    }
+
     SECTION("outer envelope")
     {
         auto a1 = TestAccount{*app, getAccount("A")};
