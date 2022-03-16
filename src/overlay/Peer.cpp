@@ -94,9 +94,7 @@ Peer::beginMesssageProcessing(StellarMessage const& msg)
             mCapacity.mFloodCapacity--;
             if (mCapacity.mFloodCapacity == 0)
             {
-                CLOG_TRACE(Overlay, "{}: no capacity for peer {}",
-                           mApp.getConfig().toShortString(
-                               mApp.getConfig().NODE_SEED.getPublicKey()),
+                CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
                            mApp.getConfig().toShortString(getPeerID()));
             }
         }
@@ -779,6 +777,12 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
             return;
         }
         mNoOutboundCapacity.reset();
+        if (mOutboundCapacity == 0 &&
+            stellarMsg.sendMoreMessage().numMessages != 0)
+        {
+            CLOG_DEBUG(Overlay, "Got outbound capacity for peer {}",
+                       mApp.getConfig().toShortString(getPeerID()));
+        }
         mOutboundCapacity += stellarMsg.sendMoreMessage().numMessages;
         break;
     }
@@ -1007,6 +1011,8 @@ Peer::maybeSendNextBatch()
             mOutboundCapacity--;
             if (mOutboundCapacity == 0)
             {
+                CLOG_DEBUG(Overlay, "No outbound capacity for peer {}",
+                           mApp.getConfig().toShortString(getPeerID()));
                 mNoOutboundCapacity =
                     std::make_optional<VirtualClock::time_point>(
                         mApp.getClock().now());
@@ -1032,12 +1038,12 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     mCapacity.mTotalCapacity++;
     if (mApp.getOverlayManager().isFloodMessage(msg))
     {
+        if (mCapacity.mFloodCapacity == 0)
+        {
+            CLOG_DEBUG(Overlay, "Got flood capacity for peer {}",
+                       mApp.getConfig().toShortString(getPeerID()));
+        }
         mCapacity.mFloodCapacity++;
-        CLOG_TRACE(Overlay, "{}: got capacity {} for peer {}",
-                   mApp.getConfig().toShortString(
-                       mApp.getConfig().NODE_SEED.getPublicKey()),
-                   mCapacity.mFloodCapacity,
-                   mApp.getConfig().toShortString(getPeerID()));
         mFloodMsgsProcessed++;
 
         if (mFloodMsgsProcessed ==
@@ -1051,6 +1057,8 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     // Got some capacity back, can schedule more reads now
     if (mIsPeerThrottled)
     {
+        CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
+                   mApp.getConfig().toShortString(getPeerID()));
         mIsPeerThrottled = false;
         scheduleRead();
     }
