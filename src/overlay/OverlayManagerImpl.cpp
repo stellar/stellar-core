@@ -848,7 +848,7 @@ OverlayManagerImpl::getFlowControlPercentage() const
         return 0;
     }
 
-    int fcCount =
+    auto fcCount =
         std::count_if(allPeers.begin(), allPeers.end(), [&](auto const& item) {
             return item.second->isFlowControlled();
         });
