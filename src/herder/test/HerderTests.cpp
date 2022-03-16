@@ -313,6 +313,7 @@ testTxSet(uint32 protocolVersion)
 
             txSet->trimInvalid(*app, 0, 0);
             REQUIRE(txSet->checkValid(*app, 0, 0));
+            REQUIRE(txSet->mTransactions.size() == (2 * nbTransactions));
         }
         SECTION("out of order")
         {
@@ -321,6 +322,7 @@ testTxSet(uint32 protocolVersion)
 
             txSet->trimInvalid(*app, 0, 0);
             REQUIRE(txSet->checkValid(*app, 0, 0));
+            REQUIRE(txSet->mTransactions.size() == (2 * nbTransactions));
         }
     }
     SECTION("invalid tx")
@@ -334,6 +336,7 @@ testTxSet(uint32 protocolVersion)
 
             txSet->trimInvalid(*app, 0, 0);
             REQUIRE(txSet->checkValid(*app, 0, 0));
+            REQUIRE(txSet->mTransactions.size() == (2 * nbTransactions));
         }
         SECTION("sequence gap")
         {
@@ -347,6 +350,7 @@ testTxSet(uint32 protocolVersion)
 
                 txSet->trimInvalid(*app, 0, 0);
                 REQUIRE(txSet->checkValid(*app, 0, 0));
+                REQUIRE(txSet->mTransactions.size() == (2 * nbTransactions));
             }
             SECTION("gap begin")
             {
@@ -363,18 +367,20 @@ testTxSet(uint32 protocolVersion)
             SECTION("gap middle")
             {
                 int remIdx = 2; // 3rd transaction
-                txSet->sortForApply();
+                // erase it from first account
                 txSet->mTransactions.erase(txSet->mTransactions.begin() +
-                                           (remIdx * 2));
+                                           remIdx);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app, 0, 0));
 
                 auto removed = txSet->trimInvalid(*app, 0, 0);
                 REQUIRE(txSet->checkValid(*app, 0, 0));
                 // one account has all its transactions,
-                // other, we removed all its tx
-                REQUIRE(removed.size() == (nbTransactions - 1));
-                REQUIRE(txSet->mTransactions.size() == nbTransactions);
+                // the other, we removed transactions after remIdx
+                auto expectedRemoved = nbTransactions - remIdx - 1;
+                REQUIRE(removed.size() == expectedRemoved);
+                REQUIRE(txSet->mTransactions.size() ==
+                        (nbTransactions * 2 - expectedRemoved - 1));
             }
         }
         SECTION("insufficient balance")
