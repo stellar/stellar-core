@@ -248,7 +248,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
     }
 }
 
-TEST_CASE("drop peers that dont respect capacity", "[overlay][flow control]")
+TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     Config cfg1 = getTestConfig(0);
@@ -258,6 +258,10 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flow control]")
     cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
     // initiator can only accept 1 flood message at a time
     cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+    // Set PEER_READING_CAPACITY to something higher so that the initiator will
+    // read both messages right away and detect capacity violation
+    cfg1.PEER_READING_CAPACITY = 2;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
@@ -289,7 +293,7 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flow control]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
-TEST_CASE("drop idle flow-controlled peers", "[overlay][flow control]")
+TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     Config cfg1 = getTestConfig(0);
@@ -298,6 +302,7 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flow control]")
     cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
     cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
     cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+    cfg1.PEER_READING_CAPACITY = 1;
     // Incorrectly set batch size, so that the node does not send flood requests
     cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 2;
 
@@ -334,7 +339,7 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flow control]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
-TEST_CASE("drop peers that overflow capacity", "[overlay][flow control]")
+TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     Config cfg1 = getTestConfig(0);
@@ -1558,7 +1563,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
 
         // Set flow control parameters to something very small
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
-        cfg.PEER_READING_CAPACITY = 2;
+        cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         configs.push_back(cfg);
     }
