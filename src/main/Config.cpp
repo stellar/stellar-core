@@ -1350,14 +1350,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             processOpApplySleepTimeForTestingConfigs();
         }
 
-        if (PEER_FLOOD_READING_CAPACITY >= PEER_READING_CAPACITY)
-        {
-            std::string msg =
-                "Invalid configuration: PEER_READING_CAPACITY must be strictly "
-                "greater than PEER_FLOOD_READING_CAPACITY";
-            throw std::runtime_error(msg);
-        }
-
         if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE > PEER_FLOOD_READING_CAPACITY)
         {
             std::string msg =
