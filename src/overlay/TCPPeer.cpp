@@ -501,7 +501,7 @@ TCPPeer::startRead()
                 if (!hasReadingCapacity())
                 {
                     // Break and wait until more capacity frees up
-                    CLOG_TRACE(Overlay, "Throttle reading for peer {}!",
+                    CLOG_DEBUG(Overlay, "Throttle reading from peer {}!",
                                mApp.getConfig().toShortString(getPeerID()));
                     mIsPeerThrottled = true;
                     return;
@@ -645,7 +645,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         if (!hasReadingCapacity())
         {
             // No more capacity after processing this message
-            CLOG_TRACE(Overlay,
+            CLOG_DEBUG(Overlay,
                        "TCPPeer::readBodyHandler: throttle reading from {}",
                        mApp.getConfig().toShortString(getPeerID()));
             mIsPeerThrottled = true;
