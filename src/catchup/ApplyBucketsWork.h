@@ -32,6 +32,7 @@ class ApplyBucketsWork : public BasicWork
     size_t mLastPos{0};
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
+    uint32_t mMinProtocolVersionSeen{UINT32_MAX};
     std::shared_ptr<Bucket const> mSnapBucket;
     std::shared_ptr<Bucket const> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;

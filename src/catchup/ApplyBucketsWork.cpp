@@ -105,6 +105,7 @@ ApplyBucketsWork::onReset()
     mAppliedSize = 0;
     mLastAppliedSizeMb = 0;
     mLastPos = 0;
+    mMinProtocolVersionSeen = UINT32_MAX;
 
     if (!isAborting())
     {
@@ -177,8 +178,11 @@ ApplyBucketsWork::startLevel()
     if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
+        mMinProtocolVersionSeen = std::min(
+            mMinProtocolVersionSeen, Bucket::getBucketVersion(mSnapBucket));
         mSnapApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mSnapBucket, mEntryTypeFilter);
+            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
+            mSnapBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
                    mLevel, i.snap);
         mApplying = true;
@@ -186,8 +190,11 @@ ApplyBucketsWork::startLevel()
     if (mApplying || applyCurr)
     {
         mCurrBucket = getBucket(i.curr);
+        mMinProtocolVersionSeen = std::min(
+            mMinProtocolVersionSeen, Bucket::getBucketVersion(mCurrBucket));
         mCurrApplicator = std::make_unique<BucketApplicator>(
-            mApp, mMaxProtocolVersion, mCurrBucket, mEntryTypeFilter);
+            mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
+            mCurrBucket, mEntryTypeFilter);
         CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
                    mLevel, i.curr);
         mApplying = true;
