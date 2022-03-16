@@ -201,10 +201,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
 
-    PEER_READING_CAPACITY = 600;
-    PEER_FLOOD_READING_CAPACITY = 500;
-    ENABLE_OVERLAY_FLOW_CONTROL = false;
-    FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 100;
+    PEER_READING_CAPACITY = 200;
+    PEER_FLOOD_READING_CAPACITY = 200;
+    ENABLE_OVERLAY_FLOW_CONTROL = true;
+    FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
