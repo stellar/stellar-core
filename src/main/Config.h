@@ -239,8 +239,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // A config parameter that controls how many flood messages (tx or SCP) from
     // a particular peer core can process simultaneously. This config only takes
-    // effect if ENABLE_OVERLAY_FLOW_CONTROL=true. Must be strictly less than
-    // PEER_READING_CAPACITY
+    // effect if ENABLE_OVERLAY_FLOW_CONTROL=true.
     uint32_t PEER_FLOOD_READING_CAPACITY;
 
     // A config parameter that allows core to enable or disable flow control
