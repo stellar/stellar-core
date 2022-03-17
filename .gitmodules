@@ -26,3 +26,6 @@
 [submodule "lib/fizzy"]
 	path = lib/fizzy
 	url = https://github.com/stellar/fizzy
+[submodule "lib/immer"]
+	path = lib/immer
+	url = https://github.com/arximboldi/immer

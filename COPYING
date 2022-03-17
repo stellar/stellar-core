@@ -235,3 +235,11 @@ lib/fizzy
   https://github.com/wasmx/fizzy
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
+
+lib/immer
+
+  Immer library of persistent and immutable data structures
+  Copyright (c) 2016-2018 Juan Pedro Bolivar Puente (juanpe@sinusoid.es)
+  https://github.com/arximboldi/immer
+  Licensed under the Boost Software License, Version 1.0
+  (https://www.boost.org/LICENSE_1_0.txt)
