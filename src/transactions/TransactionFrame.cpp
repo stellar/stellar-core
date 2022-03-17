@@ -398,6 +398,29 @@ TransactionFrame::getLedgerBounds() const
     return std::optional<LedgerBounds const>();
 }
 
+Duration
+TransactionFrame::getMinSeqAge() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        return cond.type() == PRECOND_V2 ? cond.v2().minSeqAge : 0;
+    }
+
+    return 0;
+}
+
+uint32
+TransactionFrame::getMinSeqLedgerGap() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        return cond.type() == PRECOND_V2 ? cond.v2().minSeqLedgerGap : 0;
+    }
+
+    return 0;
+}
 
 std::optional<SequenceNumber const> const
 TransactionFrame::getMinSeqNum() const
@@ -476,6 +499,50 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header,
 }
 
 bool
+TransactionFrame::isTooEarlyForAccount(LedgerTxnHeader const& header,
+                                       LedgerTxnEntry const& sourceAccount,
+                                       uint64_t lowerBoundCloseTimeOffset) const
+{
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_19))
+    {
+        return false;
+    }
+
+    auto accountEntry = [&]() -> AccountEntry const& {
+        return sourceAccount.current().data.account();
+    };
+
+    auto accSeqTime = hasAccountEntryExtV3(accountEntry())
+                          ? getAccountEntryExtensionV3(accountEntry()).seqTime
+                          : 0;
+    auto minSeqAge = getMinSeqAge();
+
+    auto lowerBoundCloseTime =
+        header.current().scpValue.closeTime + lowerBoundCloseTimeOffset;
+    if (minSeqAge > lowerBoundCloseTime ||
+        lowerBoundCloseTime - minSeqAge < accSeqTime)
+    {
+        return true;
+    }
+
+    auto accSeqLedger =
+        hasAccountEntryExtV3(accountEntry())
+            ? getAccountEntryExtensionV3(accountEntry()).seqLedger
+            : 0;
+    auto minSeqLedgerGap = getMinSeqLedgerGap();
+
+    auto ledgerSeq = header.current().ledgerSeq;
+    if (minSeqLedgerGap > ledgerSeq ||
+        ledgerSeq - minSeqLedgerGap < accSeqLedger)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool
 TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                                        uint64_t lowerBoundCloseTimeOffset,
                                        uint64_t upperBoundCloseTimeOffset)
@@ -493,6 +560,36 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
     {
         getResult().result.code(txNOT_SUPPORTED);
         return false;
+    }
+
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19) &&
+        mEnvelope.type() == ENVELOPE_TYPE_TX &&
+        mEnvelope.v1().tx.cond.type() == PRECOND_V2)
+    {
+        getResult().result.code(txNOT_SUPPORTED);
+        return false;
+    }
+
+    if (extraSignersExist())
+    {
+        auto const& extraSigners = mEnvelope.v1().tx.cond.v2().extraSigners;
+
+        static_assert(decltype(PreconditionsV2::extraSigners)::max_size() == 2);
+        if (extraSigners.size() == 2 && extraSigners[0] == extraSigners[1])
+        {
+            getResult().result.code(txMALFORMED);
+            return false;
+        }
+
+        for (auto const& signer : extraSigners)
+        {
+            if (signer.type() == SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD &&
+                signer.ed25519SignedPayload().payload.empty())
+            {
+                getResult().result.code(txMALFORMED);
+                return false;
+            }
+        }
     }
 
     if (getNumOperations() == 0)
@@ -680,6 +777,12 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     }
 
     res = ValidationType::kInvalidUpdateSeqNum;
+
+    if (isTooEarlyForAccount(header, sourceAccount, lowerBoundCloseTimeOffset))
+    {
+        getResult().result.code(txBAD_MIN_SEQ_AGE_OR_GAP);
+        return res;
+    }
 
     if (!checkSignature(
             signatureChecker, sourceAccount,

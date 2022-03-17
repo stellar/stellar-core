@@ -153,6 +153,17 @@ getAccountEntryExtensionV2(AccountEntry& ae)
     return ae.ext.v1().ext.v2();
 }
 
+AccountEntryExtensionV3 const&
+getAccountEntryExtensionV3(AccountEntry const& ae)
+{
+    if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2 ||
+        ae.ext.v1().ext.v2().ext.v() != 3)
+    {
+        throw std::runtime_error("expected AccountEntry extension V3");
+    }
+    return ae.ext.v1().ext.v2().ext.v3();
+}
+
 TrustLineEntryExtensionV2&
 getTrustLineEntryExtensionV2(TrustLineEntry& tl)
 {
@@ -1198,6 +1209,13 @@ bool
 hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
+}
+
+bool
+hasAccountEntryExtV3(AccountEntry const& ae)
+{
+    return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2 &&
+           ae.ext.v1().ext.v2().ext.v() == 3;
 }
 
 bool

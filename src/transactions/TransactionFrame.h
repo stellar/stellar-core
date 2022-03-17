@@ -71,6 +71,10 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
 
+    bool isTooEarlyForAccount(LedgerTxnHeader const& header,
+                              LedgerTxnEntry const& sourceAccount,
+                              uint64_t lowerBoundCloseTimeOffset) const;
+
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
@@ -213,5 +217,7 @@ class TransactionFrame : public TransactionFrameBase
                                AccountID const& accountID);
 
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
+    Duration getMinSeqAge() const;
+    uint32 getMinSeqLedgerGap() const;
 };
 }
