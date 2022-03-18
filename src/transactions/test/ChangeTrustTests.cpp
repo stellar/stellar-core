@@ -21,7 +21,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("change trust", "[tx][changetrust]")
+TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
 {
     Config const& cfg = getTestConfig();
 
@@ -301,8 +301,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
     }
 }
 
-TEST_CASE("change trust pool share trustline",
-          "[tx][changetrust][liquiditypool]")
+TEST_CASE_VERSIONS("change trust pool share trustline",
+                   "[tx][changetrust][liquiditypool]")
 {
     Config const& cfg = getTestConfig();
 

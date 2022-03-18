@@ -76,13 +76,9 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     REQUIRE(txs[0]->getFullHash() == tx2->getFullHash());
 }
 
-TEST_CASE("txenvelope", "[tx][envelope]")
+TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 {
     Config cfg = getTestConfig();
-
-    // Do our setup in version 1 so that for_all_versions below does not
-    // try to downgrade us from >1 to 1.
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

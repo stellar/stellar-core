@@ -131,7 +131,7 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
 
 using namespace BucketListTests;
 
-TEST_CASE("bucket list", "[bucket][bucketlist]")
+TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -171,7 +171,8 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
     }
 }
 
-TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
+TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
+                   "[bucket][bucketlist]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -265,8 +266,8 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
     });
 }
 
-TEST_CASE("bucket tombstones expire at bottom level",
-          "[bucket][bucketlist][tombstones]")
+TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
+                   "[bucket][bucketlist][tombstones]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -330,8 +331,8 @@ TEST_CASE("bucket tombstones expire at bottom level",
     });
 }
 
-TEST_CASE("bucket tombstones mutually-annihilate init entries",
-          "[bucket][bucketlist][bl-initentry]")
+TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
+                   "[bucket][bucketlist][bl-initentry]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -404,7 +405,8 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
     });
 }
 
-TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
+TEST_CASE_VERSIONS("single entry bubbling up",
+                   "[bucket][bucketlist][bucketbubble]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();

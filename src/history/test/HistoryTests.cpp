@@ -1111,8 +1111,8 @@ TEST_CASE("Publish catchup via s3", "[!hide][s3]")
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 }
 
-TEST_CASE("HAS in publishqueue remains in pristine state until publish",
-          "[history]")
+TEST_CASE_VERSIONS(
+    "HAS in publishqueue remains in pristine state until publish", "[history]")
 {
     // In this test we generate some buckets and cause a checkpoint to be
     // published, checking that the (cached) set of buckets referenced by the

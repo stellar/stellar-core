@@ -32,13 +32,9 @@ using namespace stellar::txtest;
 // Merging with outstanding 0 balance trust lines
 // Merging with outstanding offers
 // Merge when you have outstanding data entries
-TEST_CASE("merge", "[tx][merge]")
+TEST_CASE_VERSIONS("merge", "[tx][merge]")
 {
     Config cfg(getTestConfig());
-
-    // Do our setup in version 1 so that for_all_versions below does not
-    // try to downgrade us from >1 to 1.
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

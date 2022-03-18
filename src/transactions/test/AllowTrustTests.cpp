@@ -736,7 +736,7 @@ template <int V> struct TestStub
 };
 }
 
-TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
+TEST_CASE_VERSIONS("authorized to maintain liabilities", "[tx][allowtrust]")
 {
     SECTION("allow trust")
     {
@@ -748,7 +748,7 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
     }
 }
 
-TEST_CASE("allow trust", "[tx][allowtrust]")
+TEST_CASE_VERSIONS("allow trust", "[tx][allowtrust]")
 {
     SECTION("allow trust")
     {

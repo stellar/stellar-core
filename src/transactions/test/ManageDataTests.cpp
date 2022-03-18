@@ -24,7 +24,7 @@ using namespace stellar::txtest;
 // remove data
 // remove data that isn't there
 // add too much data
-TEST_CASE("manage data", "[tx][managedata]")
+TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
 {
     Config const& cfg = getTestConfig();
 

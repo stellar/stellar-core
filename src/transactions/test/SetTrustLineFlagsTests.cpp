@@ -103,7 +103,7 @@ getNumOffers(Application& app, TestAccount const& account, Asset const& asset)
     return static_cast<uint32_t>(s);
 }
 
-TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
+TEST_CASE_VERSIONS("set trustline flags", "[tx][settrustlineflags]")
 {
     auto const& cfg = getTestConfig();
 
@@ -375,8 +375,8 @@ TEST_CASE("set trustline flags", "[tx][settrustlineflags]")
     });
 }
 
-TEST_CASE("revoke from pool",
-          "[tx][settrustlineflags][allowtrust][liquiditypool]")
+TEST_CASE_VERSIONS("revoke from pool",
+                   "[tx][settrustlineflags][allowtrust][liquiditypool]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

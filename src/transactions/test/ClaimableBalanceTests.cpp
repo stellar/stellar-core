@@ -296,10 +296,9 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             claimAccBalanceAfterClaim);
 }
 
-TEST_CASE("claimableBalance", "[tx][claimablebalance]")
+TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 {
     Config cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

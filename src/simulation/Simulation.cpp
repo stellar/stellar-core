@@ -663,6 +663,8 @@ Simulation::newConfig()
     {
         Config res = getTestConfig(mConfigCount++);
         res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        res.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
         return res;
     }
 }

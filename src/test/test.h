@@ -32,6 +32,20 @@ int runTest(CommandLineArgs const& args);
 extern int gBaseInstance;
 extern bool force_sqlite;
 
+void test_versions_wrapper(std::function<void(void)> f);
+
+#define TEST_BODY_NAME_INT2(line) testInternalBody##line
+#define TEST_BODY_NAME_INT(line) TEST_BODY_NAME_INT2(line)
+#define TEST_BODY_NAME TEST_BODY_NAME_INT(__LINE__)
+
+#define TEST_CASE_VERSIONS(testname, filters) \
+    static void TEST_BODY_NAME(); \
+    TEST_CASE(testname, filters) \
+    { \
+        test_versions_wrapper([]() { TEST_BODY_NAME(); }); \
+    } \
+    static void TEST_BODY_NAME()
+
 void for_versions_to(uint32 to, Application& app,
                      std::function<void(void)> const& f);
 

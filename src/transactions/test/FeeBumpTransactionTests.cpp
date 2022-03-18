@@ -61,7 +61,7 @@ feeBump(Hash const& networkID, TestAccount& feeSource, TestAccount& source,
     return TransactionFrameBase::makeTransactionFromWire(networkID, fb);
 }
 
-TEST_CASE("fee bump transactions", "[tx][feebump]")
+TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

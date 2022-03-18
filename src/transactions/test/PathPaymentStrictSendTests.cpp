@@ -174,7 +174,7 @@ checkClaimedOffers(std::vector<ClaimAtom> const& actual,
 }
 }
 
-TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
+TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -2408,15 +2408,10 @@ TEST_CASE("pathpayment strict send", "[tx][pathpayment]")
     }
 }
 
-TEST_CASE("pathpayment strict send uses all offers in a loop",
-          "[tx][pathpayment]")
+TEST_CASE_VERSIONS("pathpayment strict send uses all offers in a loop",
+                   "[tx][pathpayment]")
 {
-    // This test would downgrade the bucket protocol from >12 to 12
-    // with USE_CONFIG_FOR_GENESIS.  Some other tests in this module,
-    // however, rely on that being set, so we separate this one
-    // out into a test case with its own Application object.
     Config cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 

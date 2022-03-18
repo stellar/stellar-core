@@ -36,14 +36,9 @@ using namespace stellar::txtest;
 // Credit -> Credit -> Credit -> Credit Payment
 // path payment where there isn't enough in the path
 // path payment with a transfer rate
-TEST_CASE("payment", "[tx][payment]")
+TEST_CASE_VERSIONS("payment", "[tx][payment]")
 {
     Config cfg = getTestConfig();
-
-    // Do our setup in version 1 so that for_all_versions below does not
-    // try to downgrade us from >1 to 1.
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -1928,7 +1923,7 @@ TEST_CASE("payment", "[tx][payment]")
     }
 }
 
-TEST_CASE("payment fees", "[tx][payment]")
+TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
 {
     int amount = 1;
 

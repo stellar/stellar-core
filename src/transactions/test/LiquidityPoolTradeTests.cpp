@@ -979,7 +979,7 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
     }
 }
 
-TEST_CASE("liquidity pool trade", "[tx][liquiditypool]")
+TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

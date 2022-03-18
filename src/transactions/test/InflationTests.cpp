@@ -283,13 +283,156 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     REQUIRE(expectedWinnerCount == payouts.size());
 }
 
-TEST_CASE("inflation", "[tx][inflation]")
+TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
 {
     Config cfg = getTestConfig(0);
+    if (protocolVersionStartsFrom(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                  ProtocolVersion::V_12))
+    {
+        return;
+    }
 
-    // Do our setup in version 1 so that for_all_versions below does not
-    // try to downgrade us from >1 to 1.
+    // The math in this test assumes that every tx will be charged the fee it
+    // specifies, but this isn't true for v11, so start from V0 and update the
+    // version in the header
     cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    VirtualClock::system_time_point inflationStart;
+    // inflation starts on 1-jul-2014
+    time_t start = getTestDate(1, 7, 2014);
+    inflationStart = VirtualClock::from_time_t(start);
+
+    VirtualClock clock;
+    clock.setCurrentVirtualTime(inflationStart);
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto root = TestAccount::createRoot(*app);
+
+    auto getFeePool = [&] {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().feePool;
+    };
+    auto getTotalCoins = [&] {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().totalCoins;
+    };
+
+    auto updateVersion = [&] {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().ledgerVersion =
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
+        ltx.commit();
+    };
+
+    REQUIRE(getFeePool() == 0);
+    REQUIRE(getTotalCoins() == 1000000000000000000);
+
+    auto voter1 = TestAccount{*app, getAccount("voter1"), 0};
+    auto voter2 = TestAccount{*app, getAccount("voter2"), 0};
+    auto target1 = TestAccount{*app, getAccount("target1"), 0};
+    auto target2 = TestAccount{*app, getAccount("target2"), 0};
+
+    auto minBalance = app->getLedgerManager().getLastMinBalance(0);
+    auto rootBalance = root.getBalance();
+
+    auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
+    voter1tx->getEnvelope().v0().tx.fee = 999999999;
+    voter1tx->getEnvelope().v0().signatures.clear();
+    voter1tx->addSignature(root.getSecretKey());
+    auto voter2tx = root.tx({createAccount(voter2, rootBalance / 3)});
+    auto target1tx = root.tx({createAccount(target1, minBalance)});
+    auto target2tx = root.tx({createAccount(target2, minBalance)});
+
+    closeLedgerOn(*app, 21, 7, 2014,
+                  {voter1tx, voter2tx, target1tx, target2tx});
+
+    REQUIRE(getFeePool() == 1000000299);
+    REQUIRE(getTotalCoins() == 1000000000000000000);
+
+    auto setInflationDestination1 = voter1.tx(
+        {setOptions(setInflationDestination(target1.getPublicKey()))});
+    auto setInflationDestination2 = voter2.tx(
+        {setOptions(setInflationDestination(target2.getPublicKey()))});
+
+    closeLedgerOn(*app, 21, 7, 2014,
+                  {setInflationDestination1, setInflationDestination2});
+
+    REQUIRE(getFeePool() == 1000000499);
+    REQUIRE(getTotalCoins() == 1000000000000000000);
+
+    auto beforeInflationRoot = root.getBalance();
+    auto beforeInflationVoter1 = voter1.getBalance();
+    auto beforeInflationVoter2 = voter2.getBalance();
+    auto beforeInflationTarget1 = target1.getBalance();
+    auto beforeInflationTarget2 = target2.getBalance();
+
+    REQUIRE(beforeInflationRoot + beforeInflationVoter1 +
+                beforeInflationVoter2 + beforeInflationTarget1 +
+                beforeInflationTarget2 + getFeePool() ==
+            getTotalCoins());
+
+    auto inflationTx = root.tx({inflation()});
+
+    updateVersion();
+
+    for_versions_to(7, *app, [&] {
+        closeLedgerOn(*app, 21, 7, 2014, {inflationTx});
+
+        REQUIRE(getFeePool() == 95361000000301);
+        REQUIRE(getTotalCoins() == 1000095361000000298);
+
+        auto afterInflationRoot = root.getBalance();
+        auto afterInflationVoter1 = voter1.getBalance();
+        auto afterInflationVoter2 = voter2.getBalance();
+        auto afterInflationTarget1 = target1.getBalance();
+        auto afterInflationTarget2 = target2.getBalance();
+        auto inflationError = 95359999999702;
+
+        REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
+        REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
+        REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
+        REQUIRE(beforeInflationTarget1 ==
+                afterInflationTarget1 - 31787000000099);
+        REQUIRE(beforeInflationTarget2 ==
+                afterInflationTarget2 - 63574000000199);
+
+        REQUIRE(afterInflationRoot + afterInflationVoter1 +
+                    afterInflationVoter2 + afterInflationTarget1 +
+                    afterInflationTarget2 + getFeePool() ==
+                getTotalCoins() + inflationError);
+    });
+
+    for_versions(8, 11, *app, [&] {
+        closeLedgerOn(*app, 21, 7, 2014, {inflationTx});
+
+        REQUIRE(getFeePool() == 95361000000301);
+        REQUIRE(getTotalCoins() == 1000190721000000000);
+
+        auto afterInflationRoot = root.getBalance();
+        auto afterInflationVoter1 = voter1.getBalance();
+        auto afterInflationVoter2 = voter2.getBalance();
+        auto afterInflationTarget1 = target1.getBalance();
+        auto afterInflationTarget2 = target2.getBalance();
+
+        REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
+        REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
+        REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
+        REQUIRE(beforeInflationTarget1 ==
+                afterInflationTarget1 - 31787000000099);
+        REQUIRE(beforeInflationTarget2 ==
+                afterInflationTarget2 - 63574000000199);
+
+        REQUIRE(afterInflationRoot + afterInflationVoter1 +
+                    afterInflationVoter2 + afterInflationTarget1 +
+                    afterInflationTarget2 + getFeePool() ==
+                getTotalCoins());
+    });
+}
+
+TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
+{
+    Config cfg = getTestConfig(0);
 
     VirtualClock::system_time_point inflationStart;
     // inflation starts on 1-jul-2014
@@ -353,111 +496,6 @@ TEST_CASE("inflation", "[tx][inflation]")
             closeLedgerOn(*app, 8, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 3);
-        });
-    }
-
-    SECTION("total coins")
-    {
-        REQUIRE(getFeePool() == 0);
-        REQUIRE(getTotalCoins() == 1000000000000000000);
-
-        auto voter1 = TestAccount{*app, getAccount("voter1"), 0};
-        auto voter2 = TestAccount{*app, getAccount("voter2"), 0};
-        auto target1 = TestAccount{*app, getAccount("target1"), 0};
-        auto target2 = TestAccount{*app, getAccount("target2"), 0};
-
-        auto minBalance = app->getLedgerManager().getLastMinBalance(0);
-        auto rootBalance = root.getBalance();
-
-        auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
-        voter1tx->getEnvelope().v0().tx.fee = 999999999;
-        voter1tx->getEnvelope().v0().signatures.clear();
-        voter1tx->addSignature(root.getSecretKey());
-        auto voter2tx = root.tx({createAccount(voter2, rootBalance / 3)});
-        auto target1tx = root.tx({createAccount(target1, minBalance)});
-        auto target2tx = root.tx({createAccount(target2, minBalance)});
-
-        closeLedgerOn(*app, 2, 21, 7, 2014,
-                      {voter1tx, voter2tx, target1tx, target2tx});
-
-        REQUIRE(getFeePool() == 1000000299);
-        REQUIRE(getTotalCoins() == 1000000000000000000);
-
-        auto setInflationDestination1 = voter1.tx(
-            {setOptions(setInflationDestination(target1.getPublicKey()))});
-        auto setInflationDestination2 = voter2.tx(
-            {setOptions(setInflationDestination(target2.getPublicKey()))});
-
-        closeLedgerOn(*app, 3, 21, 7, 2014,
-                      {setInflationDestination1, setInflationDestination2});
-
-        REQUIRE(getFeePool() == 1000000499);
-        REQUIRE(getTotalCoins() == 1000000000000000000);
-
-        auto beforeInflationRoot = root.getBalance();
-        auto beforeInflationVoter1 = voter1.getBalance();
-        auto beforeInflationVoter2 = voter2.getBalance();
-        auto beforeInflationTarget1 = target1.getBalance();
-        auto beforeInflationTarget2 = target2.getBalance();
-
-        REQUIRE(beforeInflationRoot + beforeInflationVoter1 +
-                    beforeInflationVoter2 + beforeInflationTarget1 +
-                    beforeInflationTarget2 + getFeePool() ==
-                getTotalCoins());
-
-        auto inflationTx = root.tx({inflation()});
-
-        for_versions_to(7, *app, [&] {
-            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
-
-            REQUIRE(getFeePool() == 95361000000301);
-            REQUIRE(getTotalCoins() == 1000095361000000298);
-
-            auto afterInflationRoot = root.getBalance();
-            auto afterInflationVoter1 = voter1.getBalance();
-            auto afterInflationVoter2 = voter2.getBalance();
-            auto afterInflationTarget1 = target1.getBalance();
-            auto afterInflationTarget2 = target2.getBalance();
-            auto inflationError = 95359999999702;
-
-            REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
-            REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
-            REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
-            REQUIRE(beforeInflationTarget1 ==
-                    afterInflationTarget1 - 31787000000099);
-            REQUIRE(beforeInflationTarget2 ==
-                    afterInflationTarget2 - 63574000000199);
-
-            REQUIRE(afterInflationRoot + afterInflationVoter1 +
-                        afterInflationVoter2 + afterInflationTarget1 +
-                        afterInflationTarget2 + getFeePool() ==
-                    getTotalCoins() + inflationError);
-        });
-
-        for_versions(8, 11, *app, [&] {
-            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
-
-            REQUIRE(getFeePool() == 95361000000301);
-            REQUIRE(getTotalCoins() == 1000190721000000000);
-
-            auto afterInflationRoot = root.getBalance();
-            auto afterInflationVoter1 = voter1.getBalance();
-            auto afterInflationVoter2 = voter2.getBalance();
-            auto afterInflationTarget1 = target1.getBalance();
-            auto afterInflationTarget2 = target2.getBalance();
-
-            REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
-            REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
-            REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
-            REQUIRE(beforeInflationTarget1 ==
-                    afterInflationTarget1 - 31787000000099);
-            REQUIRE(beforeInflationTarget2 ==
-                    afterInflationTarget2 - 63574000000199);
-
-            REQUIRE(afterInflationRoot + afterInflationVoter1 +
-                        afterInflationVoter2 + afterInflationTarget1 +
-                        afterInflationTarget2 + getFeePool() ==
-                    getTotalCoins());
         });
     }
 

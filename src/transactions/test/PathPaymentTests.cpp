@@ -68,7 +68,7 @@ assetPathToString(const std::deque<Asset>& assets)
 };
 }
 
-TEST_CASE("pathpayment", "[tx][pathpayment]")
+TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 {
     auto const& cfg = getTestConfig();
 
@@ -4852,14 +4852,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     }
 }
 
-TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
+TEST_CASE_VERSIONS("path payment uses all offers in a loop",
+                   "[tx][pathpayment]")
 {
-    // This test would downgrade the bucket protocol from >12 to 12
-    // with USE_CONFIG_FOR_GENESIS.  Some other tests in this module,
-    // however, rely on that being set, so we separate this one
-    // out into a test case with its own Application object.
     Config cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

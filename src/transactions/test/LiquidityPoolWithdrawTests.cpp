@@ -15,7 +15,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("liquidity pool withdraw", "[tx][liquiditypool]")
+TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
 {
     Config cfg = getTestConfig();
 

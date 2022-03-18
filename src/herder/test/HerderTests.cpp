@@ -42,7 +42,7 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
-TEST_CASE("standalone", "[herder][acceptance]")
+TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 

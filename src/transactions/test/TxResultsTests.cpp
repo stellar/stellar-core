@@ -54,7 +54,7 @@ enum class PaymentValidity
 };
 }
 
-TEST_CASE("txresults", "[tx][txresults]")
+TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
 {
     auto const& cfg = getTestConfig();
 

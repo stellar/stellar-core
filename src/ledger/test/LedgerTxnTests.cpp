@@ -1265,143 +1265,152 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
 #endif
 }
 
-TEST_CASE("LedgerTxn load", "[ledgertxn]")
+TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
 {
     auto runTest = [&](Config::TestDbMode mode) {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
-        le.lastModifiedLedgerSeq = 1;
-        LedgerKey key = LedgerEntryKey(le);
-
-        SECTION("fails with children")
+        SECTION("use generated entry")
         {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            LedgerTxn ltx2(ltx1);
-            REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
-        }
+            LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+            le.lastModifiedLedgerSeq = 1;
+            LedgerKey key = LedgerEntryKey(le);
 
-        SECTION("fails if sealed")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            ltx1.getDelta();
-            REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
-        }
-
-        SECTION("when key does not exist")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(!ltx1.load(key));
-            validate(ltx1, {});
-        }
-
-        SECTION("when key exists in parent")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le));
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE(ltx2.load(key));
-            validate(ltx2,
-                     {{key,
-                       {std::make_shared<InternalLedgerEntry const>(le),
-                        std::make_shared<InternalLedgerEntry const>(le)}}});
-        }
-
-        SECTION("when key exists in grandparent, erased in parent")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le));
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE_NOTHROW(ltx2.erase(key));
-
-            LedgerTxn ltx3(ltx2);
-            REQUIRE(!ltx3.load(key));
-            validate(ltx3, {});
-        }
-
-        SECTION("check for init after child commits")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le));
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE(ltx2.load(key));
-            ltx2.commit();
-
-            REQUIRE(ltx1.load(key));
-        }
-
-        SECTION("create, deactivate, and load")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            auto ltxe = ltx1.create(le);
-            ltxe.deactivate();
-
-            REQUIRE(ltx1.load(key));
-            ltx1.commit();
-        }
-
-        for_all_versions(*app, [&]() {
-            SECTION("invalid keys")
-            {
-                LedgerTxn ltx1(app->getLedgerTxnRoot());
-
-                auto acc = txtest::getAccount("acc");
-                auto acc2 = txtest::getAccount("acc2");
-
+            for_versions_from(18, *app, [&] {
+                SECTION("fails with children")
                 {
-                    auto native = txtest::makeNativeAsset();
-                    UNSCOPED_INFO("native asset on trustline key");
-                    REQUIRE_THROWS_AS(
-                        ltx1.load(trustlineKey(acc.getPublicKey(), native)),
-                        NonSociRelatedException);
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    LedgerTxn ltx2(ltx1);
+                    REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
                 }
 
+                SECTION("fails if sealed")
                 {
-                    auto usd = txtest::makeAsset(acc, "usd");
-                    UNSCOPED_INFO("issuer on trustline key");
-                    REQUIRE_THROWS_AS(
-                        ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
-                        NonSociRelatedException);
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    ltx1.getDelta();
+                    REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
                 }
 
+                SECTION("when key does not exist")
                 {
-                    std::string accountIDStr, issuerStr, assetCodeStr;
-                    auto invalidAssets = testutil::getInvalidAssets(acc);
-                    for (auto const& asset : invalidAssets)
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    REQUIRE(!ltx1.load(key));
+                    validate(ltx1, {});
+                }
+
+                SECTION("when key exists in parent")
+                {
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    REQUIRE(ltx1.create(le));
+
+                    LedgerTxn ltx2(ltx1);
+                    REQUIRE(ltx2.load(key));
+                    validate(
+                        ltx2,
+                        {{key,
+                          {std::make_shared<InternalLedgerEntry const>(le),
+                           std::make_shared<InternalLedgerEntry const>(le)}}});
+                }
+
+                SECTION("when key exists in grandparent, erased in parent")
+                {
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    REQUIRE(ltx1.create(le));
+
+                    LedgerTxn ltx2(ltx1);
+                    REQUIRE_NOTHROW(ltx2.erase(key));
+
+                    LedgerTxn ltx3(ltx2);
+                    REQUIRE(!ltx3.load(key));
+                    validate(ltx3, {});
+                }
+
+                SECTION("check for init after child commits")
+                {
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    REQUIRE(ltx1.create(le));
+
+                    LedgerTxn ltx2(ltx1);
+                    REQUIRE(ltx2.load(key));
+                    ltx2.commit();
+
+                    REQUIRE(ltx1.load(key));
+                }
+
+                SECTION("create, deactivate, and load")
+                {
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+                    auto ltxe = ltx1.create(le);
+                    ltxe.deactivate();
+
+                    REQUIRE(ltx1.load(key));
+                    ltx1.commit();
+                }
+            });
+        }
+
+        SECTION("load tests for all versions")
+        {
+            for_all_versions(*app, [&]() {
+                SECTION("invalid keys")
+                {
+                    LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+                    auto acc = txtest::getAccount("acc");
+                    auto acc2 = txtest::getAccount("acc2");
+
                     {
-                        auto key = trustlineKey(acc2.getPublicKey(), asset);
-
-                        REQUIRE_THROWS_AS(ltx1.load(key),
-                                          NonSociRelatedException);
+                        auto native = txtest::makeNativeAsset();
+                        UNSCOPED_INFO("native asset on trustline key");
+                        REQUIRE_THROWS_AS(
+                            ltx1.load(trustlineKey(acc.getPublicKey(), native)),
+                            NonSociRelatedException);
                     }
-                }
 
-                SECTION("load generated keys")
-                {
-                    for (int i = 0; i < 1000; ++i)
                     {
-                        LedgerKey lk = autocheck::generator<LedgerKey>()(5);
+                        auto usd = txtest::makeAsset(acc, "usd");
+                        UNSCOPED_INFO("issuer on trustline key");
+                        REQUIRE_THROWS_AS(
+                            ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
+                            NonSociRelatedException);
+                    }
 
-                        try
+                    {
+                        std::string accountIDStr, issuerStr, assetCodeStr;
+                        auto invalidAssets = testutil::getInvalidAssets(acc);
+                        for (auto const& asset : invalidAssets)
                         {
-                            ltx1.load(lk);
-                        }
-                        catch (NonSociRelatedException&)
-                        {
-                            // this is fine
-                        }
-                        catch (std::exception&)
-                        {
-                            REQUIRE(false);
+                            auto key = trustlineKey(acc2.getPublicKey(), asset);
+
+                            REQUIRE_THROWS_AS(ltx1.load(key),
+                                              NonSociRelatedException);
                         }
                     }
+
+                    SECTION("load generated keys")
+                    {
+                        for (int i = 0; i < 1000; ++i)
+                        {
+                            LedgerKey lk = autocheck::generator<LedgerKey>()(5);
+
+                            try
+                            {
+                                ltx1.load(lk);
+                            }
+                            catch (NonSociRelatedException&)
+                            {
+                                // this is fine
+                            }
+                            catch (std::exception&)
+                            {
+                                REQUIRE(false);
+                            }
+                        }
+                    }
                 }
-            }
-        });
+            });
+        }
     };
 
     SECTION("default")
@@ -3498,7 +3507,7 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
 #endif
 }
 
-TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
+TEST_CASE_VERSIONS("LedgerTxn bulk-load offers", "[ledgertxn]")
 {
     auto runTest = [&](Config::TestDbMode mode) {
         VirtualClock clock;
@@ -3966,7 +3975,8 @@ testPoolShareTrustLinesByAccountAndAsset(
     }
 }
 
-TEST_CASE("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset", "[ledgertxn]")
+TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
+                   "[ledgertxn]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;

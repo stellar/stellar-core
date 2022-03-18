@@ -27,7 +27,7 @@ getCreateAccountResultCode(TransactionFrameBasePtr& tx, size_t i)
     return opRes.tr().createAccountResult().code();
 }
 
-TEST_CASE("create account", "[tx][createaccount]")
+TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
