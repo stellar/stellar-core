@@ -820,7 +820,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end());
         std::chrono::microseconds sleepFor{0};
-        for (size_t i = 0; i < txSet->sizeOp(); i++)
+        auto txSetSizeOp = txSet->sizeOp();
+        for (size_t i = 0; i < txSetSizeOp; i++)
         {
             sleepFor +=
                 mApp.getConfig()
