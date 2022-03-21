@@ -22,14 +22,128 @@
 namespace stellar
 {
 
-// We have two representations of values: one XDR-based that users compose when
-// submitting transactions and view when browsing ledger entries; and one "host"
-// representation based on immutable objects (HostObject) with structural
-// sharing -- identified by integer handles -- and a NaN-box-compatible 64-bit
-// small tagged value type (HostVal) exported to WASM, one variant of which
-// contains such a handle. The host and XDR representations are interchangeable
-// / isomorphic, but we need to convert from one to the other anytime we receive
-// data from users or load/save from the ledger.
+// We have two representations of values:
+//
+//  1. Fully XDR-backed representations, which have two more sub-cases:
+//    1.1. Stellar "classic" ledger types: LedgerKey, LedgerEntry, etc.
+//    1.2. Smart-contract specific types, with yet two _more_ sub-cases:
+//      1.2.1. SCObject(...), which directly contains classic types
+//      1.2.2. SCVal(...), which may directly contain SCObject(...)
+//             (but may also contain other small value types like u32)
+//
+//  2. "Host" representations of the smart-contract types, with two sub-cases:
+//    2.1. HostObject(...), mirrors SCObject & directly contains classic types
+//    2.2. HostVal(...), mirrors SCVal & may _indirectly reference_ HostObjects
+//
+// The reason for having separate "host" and "SC" representations is that
+// the "host" forms have specific characteristics that let them be used by
+// smart contracts in ways "SC" forms don't support:
+//
+//   (a) HostVals don't contain HostObjects, they reference them by handle,
+//       whereas SCVals directly contain SCObjects. Handles are ephemeral.
+//
+//   (b) HostVals are bit-packed into exactly 64 bits, whereas SCVals may be
+//       multiple words (but have meaningful XDR union-based access).
+//
+//   (c) HostMaps allow hashed lookup by key, whereas SCMaps can only support
+//       linear search (since they're just XDR key-val arrays).
+//
+//   (d) HostObject maps and vecs allow shallow copies with structural sharing,
+//       whereas SCObjects can only support full deep copies.
+//
+// The reason for having separate Object vs. Val types, in either
+// representation, is to support point (a) above: splitting HostVal from
+// HostObject apart via indirection through integer handles.
+//
+// There are two reasons for using integer handles:
+//
+//   - To reduce code size and the amount of in-WASM execution that happens,
+//     keeping the majority of code in common host functions that WASM code just
+//     calls, rather than bundling code to serialize, deserialize, copy,
+//     allocate, or manipulate in WASM code itself.
+//
+//   - WASM only supports primitive types like u32 or u64 in function
+//     interfaces, so we have to pass or return those in any case, not large
+//     structures. HostObjects never actually traverse the interface, only
+//     HostVals that hold handles pointing to HostObjects on the C++ side.
+//
+// Besides these "implementation differences", from the user's perspective, the
+// HostVal and SCVal types are semantically the same thing, the implementations
+// are direct mirrors of one another, as are the HostObject and SCObject types.
+// There's no particular reason to reveal the difference to users, and while the
+// "raw" form of host function interfaces will take and return simple u64 values
+// (the payload of a HostVal), we expect language bindings to provide a "cooked"
+// or strongly-typed convenience layer for actual use by contract code, and that
+// layer may just want to call the `HostVal` wrapper `Val` and the
+// `HostObject`-handle wrapper `Object`.
+//
+// Diagram follows:
+//
+//  ┌─────────────────────────────────┐
+//  │Transaction (XDR)                │
+//  │                                 │
+//  │Env                              │
+//  │---                              │
+//  │"k" = SCVal(SCObject(AccountID)) │
+//  │"v" = SCVal(SCObject(Amount))    │
+//  │                                 │
+//  │invoke: "deposit(k, v)"          │
+//  └─────────────────────────────────┘
+//                   │
+//                   │
+//            Extend host env
+//            with converted
+//              values and
+//            invoke contract
+//            with named args
+//                   │
+//                   │
+//                   ▼
+//        ┌─────────────────────┐
+//        │HostContext          │
+//        │                     │
+//        │HostEnv              │           ┌─────────────────────────────────┐
+//        │-------              │           │WASM VM                          │
+//        │"k" = HostVal(Obj #0)│           │┌───────────────────────────────┐│
+//        │"v" = HostVal(Obj #1)│           ││WASM contract                  ││
+//        │...                  │           ││                               ││
+//        │                     │           ││raw                            ││
+//        │                     │           ││---                            ││
+//        │HostObjects          │           ││                               ││
+//        │-----------          │           ││fn deposit(k: u64, v: u64)     ││
+//        │[0] = AccountID      │ Handle to ││{                              ││
+//        │[1] = Amount         │ HostObject││   let m: u64 = restore();     ││
+//        │[2] = HostMap    ◀───┼───────────┼┼── let m: u64 = map_put(m,k,v);││
+//        │...                  │           ││   persist(m);                 ││
+//        └─────────────────────┘           ││}                              ││
+//                   ▲                      ││                               ││
+//                   │                      ││                               ││
+//                   │                      ││cooked                         ││
+//                   │                      ││------                         ││
+//               Load/save                  ││                               ││
+//              content of                  ││fn deposit(k: Val, v: Val)     ││
+//              HostObjects                 ││{                              ││
+//                   │                      ││   let m: Map = restore<Map>();││
+//                   ▼                      ││   m.put(k,v);                 ││
+//              ┌─────────┐                 ││   m.persist();                ││
+//              │LedgerTxn│                 ││}                              ││
+//              └─────────┘                 ││                               ││
+//                   ▲                      ││                               ││
+//                   │                      │└───────────────────────────────┘│
+//                   ▼                      └─────────────────────────────────┘
+//      ┌─────────────────────────┐
+//      │Ledger (XDR)             │
+//      │                         │
+//      │                         │
+//      │LedgerKey(AccountID)     │
+//      │LedgerKey(TrustLine)     │
+//      │...                      │
+//      │LedgerEntry(Account)     │
+//      │...                      │
+//      │LedgerEntry(TrustLine)   │
+//      │...                      │
+//      │LedgerEntry(ContractData)│
+//      └─────────────────────────┘
 
 class HostVal
 {
