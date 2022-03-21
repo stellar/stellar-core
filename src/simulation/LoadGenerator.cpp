@@ -493,11 +493,7 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
 
-    // Mod with total number of accounts to ensure account exists
-    uint64_t destAccountId =
-        (sourceAccountId + sourceAccount->getLastSequenceNumber()) %
-            numAccounts +
-        offset;
+    auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
 
     auto destAccount = findAccount(destAccountId, ledgerNum);
 
