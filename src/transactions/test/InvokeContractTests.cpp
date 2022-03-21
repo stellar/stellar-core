@@ -14,14 +14,35 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("invoke contract", "[tx][contract]")
+TEST_CASE("invoke contract zig", "[tx][contract]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
     int64_t contract = 1;
     root.addWasmContract(
-        contract, "src/transactions/test/wasm/test_invoke_contract.wasm");
+        contract, "src/transactions/test/wasm-zig/test_invoke_contract.wasm");
+    SCVal arg;
+    arg.type(SCV_I32);
+    arg.i32() = 5;
+    SCVal exp = arg;
+    exp.i32() += 1;
+    for (int i = 0; i < 3; ++i)
+    {
+        SCVal res = root.invokeWasmContract(root.getPublicKey(), contract,
+                                            "invoke", arg);
+        REQUIRE(res == exp);
+    }
+}
+
+TEST_CASE("invoke contract go", "[tx][contract]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto root = TestAccount::createRoot(*app);
+    int64_t contract = 1;
+    root.addWasmContract(
+        contract, "src/transactions/test/wasm-go/test_invoke_contract.wasm");
     SCVal arg;
     arg.type(SCV_I32);
     arg.i32() = 5;
