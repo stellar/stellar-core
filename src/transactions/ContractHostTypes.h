@@ -571,6 +571,8 @@ class HostContext
                                     uint64_t);
     fizzy::ExecutionResult getCurrentLedgerNum(fizzy::Instance&,
                                                fizzy::ExecutionContext&);
+    fizzy::ExecutionResult getCurrentLedgerCloseTime(fizzy::Instance&,
+                                                     fizzy::ExecutionContext&);
 };
 
 }
