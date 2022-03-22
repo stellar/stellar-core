@@ -137,7 +137,7 @@ class BulkUpsertContractDataOperation
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
         std::string sql = "WITH r AS (SELECT "
                           "unnest(:owners::TEXT[]), "
-                          "unnest(:contractids::INT[]), "
+                          "unnest(:contractids::BIGINT[]), "
                           "unnest(:contractbodies::TEXT[]), "
                           "unnest(:lastmodifieds::INT[]) "
                           ")"
@@ -230,7 +230,7 @@ class BulkDeleteContractDataOperation
         std::string sql =
             "WITH r AS ( SELECT "
             "unnest(:owners::TEXT[]),"
-            "unnest(:contractids::TEXT[])"
+            "unnest(:contractids::BIGINT[])"
             " ) "
             "DELETE FROM contractdata WHERE (owner, contractid) IN "
             "(SELECT * FROM r)";
@@ -382,7 +382,7 @@ class BulkLoadContractDataOperation
 
         std::string sql =
             "WITH r AS (SELECT unnest(:owners::TEXT[]), "
-            "unnest(:contractids::INT[])) "
+            "unnest(:contractids::BIGINT[])) "
             "SELECT owner, contractid, body, lastmodified "
             "FROM contractdata WHERE (owner, contractid) IN (SELECT * FROM r)";
 
@@ -425,7 +425,7 @@ LedgerTxnRoot::Impl::dropContractData()
     mDatabase.getSession() << "CREATE TABLE contractdata"
                            << "("
                            << "owner    VARCHAR(56) " << coll << " NOT NULL,"
-                           << "contractid   INT          NOT NULL,"
+                           << "contractid   BIGINT       NOT NULL,"
                            << "body         TEXT         NOT NULL,"
                               "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (owner, contractid)"
