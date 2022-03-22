@@ -23,9 +23,14 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/SignatureUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
+#include "xdr/Stellar-types.h"
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
@@ -481,6 +486,192 @@ loadXdr(Config cfg, std::string const& bucketFile)
     uint256 zero;
     Bucket bucket(bucketFile, zero);
     bucket.apply(*app);
+}
+
+void
+invokeContract(Config cfg, std::string const& wasmFile,
+               std::string const& function,
+               std::vector<std::string> const& args)
+{
+    std::filesystem::path wasmPath(wasmFile);
+    if (wasmPath.extension() != ".wasm")
+    {
+        throw std::runtime_error(
+            fmt::format("contract file {} is not a .wasm file", wasmPath));
+    }
+    std::ifstream wasmInStream(wasmPath);
+    if (!wasmInStream)
+    {
+        throw std::runtime_error(fmt::format("failed to open {}", wasmPath));
+    }
+
+    int64_t contractID = 1;
+
+    // Compose a contract-invocation transaction.
+    TransactionEnvelope txe;
+    txe.type(ENVELOPE_TYPE_TX);
+    Transaction& tx = txe.v1().tx;
+    tx.operations.emplace_back();
+    Operation& op = tx.operations.back();
+    op.body.type(INVOKE_CONTRACT);
+    auto& invoke = op.body.invokeContractOp();
+    invoke.contractID = contractID;
+    invoke.function = function;
+    size_t i = 0;
+    std::string argStr;
+    for (auto const& a : args)
+    {
+        SCVal arg;
+        auto sepIdx = a.find(':');
+        if (sepIdx == std::string::npos)
+        {
+            throw std::runtime_error(
+                fmt::format("arg string '{}' does not contain ':'", a));
+        }
+        std::string ty = a.substr(0, sepIdx);
+        std::string val = a.substr(sepIdx + 1);
+        if (ty == "bool")
+        {
+            arg.type(SCV_BOOL);
+            if (val == "true")
+            {
+                arg.b() = true;
+            }
+            else if (val == "false")
+            {
+                arg.b() = false;
+            }
+            else
+            {
+                throw std::runtime_error(
+                    fmt::format("unrecognized bool value {}", val));
+            }
+        }
+        else if (ty == "i32")
+        {
+            arg.type(SCV_I32);
+            arg.i32() = int32_t(std::stol(val));
+        }
+        else if (ty == "u32")
+        {
+            arg.type(SCV_U32);
+            arg.u32() = uint32_t(std::stoul(val));
+        }
+        else if (ty == "symbol")
+        {
+            arg.type(SCV_SYMBOL);
+            arg.sym() = val;
+        }
+        else if (ty == "account")
+        {
+            arg.type(SCV_OBJECT);
+            arg.obj().activate();
+            arg.obj()->type(SCO_LEDGERKEY);
+            arg.obj()->lkey().type(ACCOUNT);
+            arg.obj()->lkey().account().accountID =
+                KeyUtils::fromStrKey<PublicKey>(val);
+        }
+        else
+        {
+            LOG_ERROR(DEFAULT_LOG, "Unrecognized arg type {}", ty);
+            LOG_ERROR(
+                DEFAULT_LOG,
+                "Supported arg types are: bool, i32, u32, symbol, account");
+            throw std::runtime_error("Unknown arg type: " + ty);
+        }
+        if (i != 0)
+        {
+            argStr += ", ";
+        }
+        argStr += val;
+        SCSymbol argName(fmt::format("arg{}", i++));
+        invoke.locals.emplace_back(argName, arg);
+        invoke.arguments.emplace_back(argName);
+    }
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg, false);
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ++ltx.loadHeader().current().ledgerSeq;
+        ltx.loadHeader().current().ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
+
+        // Create a ledger entry holding the contract owner.
+        SecretKey ownerSec = SecretKey::pseudoRandomForTesting();
+        PublicKey ownerPub = ownerSec.getPublicKey();
+
+        InternalLedgerEntry ownerIle;
+        ownerIle.ledgerEntry().data.type(ACCOUNT);
+        auto& acc = ownerIle.ledgerEntry().data.account();
+        acc.accountID = ownerPub;
+        acc.balance = 10'000'000'000;
+        acc.seqNum = 0;
+        acc.thresholds[THRESHOLD_MASTER_WEIGHT] = 1;
+        ltx.create(ownerIle);
+
+        // Create a ledger entry holding the contract.
+        InternalLedgerEntry contractIle;
+        contractIle.ledgerEntry().data.type(CONTRACT_CODE);
+        auto& cc = contractIle.ledgerEntry().data.contractCode();
+        cc.contractID = contractID;
+        cc.body.type(CONTRACT_CODE_WASM);
+        cc.body.wasm().code.assign(std::istreambuf_iterator<char>{wasmInStream},
+                                   {});
+        ltx.create(contractIle);
+        LOG_INFO(DEFAULT_LOG, "loaded contract {} from {}", contractID,
+                 wasmFile);
+
+        // Run the transaction composed above
+        tx.sourceAccount.type(KEY_TYPE_ED25519);
+        tx.sourceAccount.ed25519() = ownerPub.ed25519();
+        tx.fee = 100'000'000;
+        tx.seqNum = ltx.loadHeader().current().ledgerSeq;
+        TransactionFramePtr txp =
+            std::make_shared<TransactionFrame>(app->getNetworkID(), txe);
+        txp->addSignature(ownerSec);
+        TransactionMeta txmeta;
+        txmeta.v(2);
+        LOG_INFO(DEFAULT_LOG, "invoking contract {} function {}({})",
+                 contractID, function, argStr);
+        txp->processFeeSeqNum(ltx, 0);
+        if (!txp->apply(*app, ltx, txmeta))
+        {
+            LOG_INFO(DEFAULT_LOG, "tx apply failed");
+        }
+
+        if (txp->getResult().result.code() == txSUCCESS)
+        {
+            if (txp->getResult().result.results().size() > 0)
+            {
+                auto const& contractRes = txp->getResult()
+                                              .result.results()
+                                              .at(0)
+                                              .tr()
+                                              .invokeContractResult();
+                if (contractRes.code() == INVOKE_CONTRACT_SUCCESS)
+                {
+                    LOG_INFO(
+                        DEFAULT_LOG, "contract success: {}",
+                        xdr_to_string(contractRes.returnVal(), "returnVal"));
+                }
+                else
+                {
+                    LOG_INFO(DEFAULT_LOG, "contract failed: {}",
+                             xdr_to_string(contractRes.code(), "code"));
+                }
+            }
+            else
+            {
+                LOG_INFO(DEFAULT_LOG, "contract success with empty results");
+            }
+        }
+        else
+        {
+            LOG_INFO(DEFAULT_LOG, "transaction failed: {}",
+                     xdr_to_string(txp->getResult().result.code(), "code"));
+        }
+        ltx.rollback();
+    }
 }
 
 int

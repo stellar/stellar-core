@@ -27,6 +27,9 @@ void showOfflineInfo(Config cfg);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 #ifdef BUILD_TESTS
 void loadXdr(Config cfg, std::string const& bucketFile);
+void invokeContract(Config cfg, std::string const& wasmFile,
+                    std::string const& function,
+                    std::vector<std::string> const& args);
 int rebuildLedgerFromBuckets(Config cfg);
 #endif
 void genSeed();

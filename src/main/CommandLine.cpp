@@ -373,6 +373,19 @@ startAtHashParser(std::string& startAtHash)
         "start in-memory run with replay from historical ledger hash");
 };
 
+ParserWithValidation
+contractFuncParser(std::string& string)
+{
+    return requiredArgParser(string, "FUNCTION");
+}
+
+clara::Opt
+contractArgParser(std::vector<std::string>& arg)
+{
+    return clara::Opt{arg,
+                      "TYPE:VALUE"}["--arg"]("pass TYPE:VALUE to contract");
+}
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -1616,6 +1629,24 @@ runGenFuzz(CommandLineArgs const& args)
             return 0;
         });
 }
+
+int
+runInvokeContract(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string contract;
+    std::string function;
+    std::vector<std::string> cArgs;
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), fileNameParser(contract),
+         contractFuncParser(function), contractArgParser(cArgs)},
+        [&] {
+            invokeContract(configOption.getConfig(), contract, function, cArgs);
+            return 0;
+        });
+}
 #endif
 
 int
@@ -1681,6 +1712,7 @@ handleCommandLine(int argc, char* const* argv)
           "caught up)",
           runSimulateTxs},
          {"simulate-bucketlist", "simulate bucketlist", runSimulateBuckets},
+         {"invoke-contract", "invoke contract", runInvokeContract},
          {"test", "execute test suite", runTest},
 #endif
          {"version", "print version information", runVersion}}};
