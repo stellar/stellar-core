@@ -593,6 +593,15 @@ HostContext::getCurrentLedgerNum(fizzy::Instance& instance,
     return HostVal::fromU32(num);
 }
 
+fizzy::ExecutionResult
+HostContext::getCurrentLedgerCloseTime(fizzy::Instance& instance,
+                                       fizzy::ExecutionContext& exec)
+{
+    TimePoint closeTime =
+        getLedgerTxn().loadHeader().current().scpValue.closeTime;
+    return HostVal::fromTimePt(closeTime);
+}
+
 HostContext::HostContext()
 {
     // Object 0 is predefined to always be a null unique_ptr, so we can return
@@ -604,6 +613,8 @@ HostContext::HostContext()
     registerHostFunction(&HostContext::logValue, "env", "log_value");
     registerHostFunction(&HostContext::getCurrentLedgerNum, "env",
                          "get_current_ledger_num");
+    registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
+                         "get_current_ledger_close_time");
 }
 
 }
