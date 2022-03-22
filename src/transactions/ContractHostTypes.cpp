@@ -62,7 +62,7 @@ HostVal::fromSymbol(std::string const& s)
         else if ('a' <= c && c <= 'z')
         {
             // 38-63 inclusive are lowercase
-            accum |= 38 + ('c' - 'a');
+            accum |= 38 + (c - 'a');
         }
         else
         {
