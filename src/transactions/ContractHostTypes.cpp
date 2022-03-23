@@ -119,6 +119,11 @@ operator<<(std::ostream& out, HostVal const& v)
     {
         out << "obj(" << v.asObject() << ')';
     }
+    else
+    {
+        auto payload = v.payload();
+        out << "unknown(" << payload << ",0x" << std::hex << payload << ')';
+    }
     return out;
 }
 
