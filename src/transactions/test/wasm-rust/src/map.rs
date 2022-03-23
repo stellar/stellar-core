@@ -31,12 +31,7 @@ impl<K: ValType, V: ValType> Map<K, V> {
 
     #[inline(always)]
     pub fn get(&self, k: K) -> V {
-        unsafe {
-            let k: Val = k.into();
-            let r: u64 = host_fns::map_get(self.0.payload(), k.payload());
-            let v: Val = Val::from_payload(r);
-            V::try_from(v).or_abort()
-        }
+        self.try_get(k).or_abort()
     }
 
     #[inline(always)]
