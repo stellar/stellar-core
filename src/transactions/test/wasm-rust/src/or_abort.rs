@@ -1,3 +1,5 @@
+use super::rt::trap;
+
 pub trait OrAbort {
     type Output;
     fn or_abort(self) -> Self::Output;
@@ -10,7 +12,7 @@ impl<T> OrAbort for Option<T> {
     fn or_abort(self) -> Self::Output {
         match self {
             Some(v) => v,
-            None => std::process::abort(),
+            None => trap(),
         }
     }
 }
@@ -22,20 +24,19 @@ impl<T, E> OrAbort for Result<T, E> {
     fn or_abort(self) -> Self::Output {
         match self {
             Ok(v) => v,
-            Err(_) => std::process::abort(),
+            Err(_) => trap(),
         }
     }
 }
 
 impl OrAbort for bool {
     type Output = bool;
-
     #[inline(always)]
     fn or_abort(self) -> Self::Output {
         if self {
             true
         } else {
-            std::process::abort()
+            trap()
         }
     }
 }

@@ -1,8 +1,10 @@
+#![no_std]
 #![allow(dead_code)]
 
 mod host_fns;
 mod map;
 mod or_abort;
+mod rt;
 mod symbol;
 mod val;
 

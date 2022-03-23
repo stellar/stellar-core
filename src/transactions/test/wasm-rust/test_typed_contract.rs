@@ -1,3 +1,5 @@
+#![no_std]
+
 #[path="src/lib.rs"]
 mod stellar;
 use stellar::{Map,Val,Symbol};
