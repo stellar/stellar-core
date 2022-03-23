@@ -1,0 +1,25 @@
+[package]
+name = "stellar-contract"
+version = "0.0.1"
+authors = ["Stellar Development Foundation <info@stellar.org>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = "z"
+overflow-checks = false
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = false
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
