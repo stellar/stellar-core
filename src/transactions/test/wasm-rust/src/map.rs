@@ -10,21 +10,14 @@ pub struct Map<K, V>(Val, PhantomData<K>, PhantomData<V>);
 impl<K: ValType, V: ValType> Map<K, V> {
     #[inline(always)]
     pub fn new() -> Map<K, V> {
-        unsafe {
-            Map(
-                Val::from_payload(host_fns::map_new()),
-                PhantomData,
-                PhantomData,
-            )
-        }
+        unsafe { Map(host_fns::map_new(), PhantomData, PhantomData) }
     }
 
     #[inline(always)]
     pub fn try_get(&self, k: K) -> Result<V, <V as TryFrom<Val>>::Error> {
         unsafe {
             let k: Val = k.into();
-            let r: u64 = host_fns::map_get(self.0.payload(), k.payload());
-            let v: Val = Val::from_payload(r);
+            let v: Val = host_fns::map_get(self.0, k);
             V::try_from(v)
         }
     }
@@ -39,8 +32,8 @@ impl<K: ValType, V: ValType> Map<K, V> {
         unsafe {
             let k: Val = k.into();
             let v: Val = v.into();
-            let r: u64 = host_fns::map_put(self.0.payload(), k.payload(), v.payload());
-            Map(Val::from_payload(r), PhantomData, PhantomData)
+            let m: Val = host_fns::map_put(self.0, k, v);
+            Map(m, PhantomData, PhantomData)
         }
     }
 }

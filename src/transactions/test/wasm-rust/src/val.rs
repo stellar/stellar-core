@@ -314,16 +314,6 @@ impl Val {
     }
 
     #[inline(always)]
-    pub(crate) fn payload(&self) -> u64 {
-        self.0
-    }
-
-    #[inline(always)]
-    pub(crate) fn from_payload(payload: u64) -> Val {
-        Val(payload)
-    }
-
-    #[inline(always)]
     fn from_tag_and_body(tag: u8, body: u64) -> Val {
         (tag < 0x8).or_abort();
         (body & BODY_MASK == body).or_abort();
