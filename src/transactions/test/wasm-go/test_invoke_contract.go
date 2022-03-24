@@ -6,7 +6,10 @@ func main() {}
 
 //export invoke
 func invoke(arg stellar.Val) stellar.Val {
-	i := arg.Int32()
+	i, err := arg.Int32()
+	if err != stellar.ErrorNone {
+		return stellar.ErrorVal(err)
+	}
 	i /= 2
 	i += 4
 	return stellar.Int32Val(i)
