@@ -84,9 +84,9 @@ operator<<(std::ostream& out, HostVal const& v)
     {
         out << "bool(" << v.asBool() << ')';
     }
-    else if (v.isErr())
+    else if (v.isStatus())
     {
-        out << "err(" << v.asErr();
+        out << "status(" << v.asStatus();
     }
     else if (v.isU32())
     {
@@ -174,8 +174,8 @@ HostContext::xdrToHost(SCVal const& v)
         return HostVal::fromVoid();
     case SCV_BOOL:
         return HostVal::fromBool(v.b());
-    case SCV_ERR:
-        return HostVal::fromErr(v.err());
+    case SCV_OBJECT:
+        return HostVal::fromObject(xdrToHost(v.obj()));
     case SCV_U32:
         return HostVal::fromU32(v.u32());
     case SCV_I32:
@@ -186,8 +186,8 @@ HostContext::xdrToHost(SCVal const& v)
         return HostVal::fromBitSet(v.bits());
     case SCV_TIMEPT:
         return HostVal::fromTimePt(v.time());
-    case SCV_OBJECT:
-        return HostVal::fromObject(xdrToHost(v.obj()));
+    case SCV_STATUS:
+        return HostVal::fromStatus(v.status());
     }
 }
 
@@ -204,10 +204,15 @@ HostContext::hostToXdr(HostVal const& hv)
         out.type(SCV_BOOL);
         out.b() = hv.asBool();
     }
-    else if (hv.isErr())
+    else if (hv.isObject())
     {
-        out.type(SCV_ERR);
-        out.err() = hv.asErr();
+        out.type(SCV_OBJECT);
+        auto idx = hv.asObject();
+        if (idx < mObjects.size())
+        {
+            auto const& obj = mObjects.at(idx);
+            out.obj() = hostToXdr(obj);
+        }
     }
     else if (hv.isU32())
     {
@@ -234,15 +239,10 @@ HostContext::hostToXdr(HostVal const& hv)
         out.type(SCV_TIMEPT);
         out.time() = hv.asTimePt();
     }
-    else if (hv.isObject())
+    else if (hv.isStatus())
     {
-        out.type(SCV_OBJECT);
-        auto idx = hv.asObject();
-        if (idx < mObjects.size())
-        {
-            auto const& obj = mObjects.at(idx);
-            out.obj() = hostToXdr(obj);
-        }
+        out.type(SCV_STATUS);
+        out.status() = hv.asStatus();
     }
     return out;
 }
@@ -558,7 +558,7 @@ HostContext::mapPut(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
     }
     else
     {
-        return HostVal::fromErr(0);
+        return HostVal::fromStatus(0);
     }
 }
 
@@ -579,7 +579,7 @@ HostContext::mapGet(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
             return *valPtr;
         }
     }
-    return HostVal::fromErr(0);
+    return HostVal::fromStatus(0);
 }
 
 fizzy::ExecutionResult

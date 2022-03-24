@@ -7,6 +7,7 @@
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
+#include "xdr/Stellar-types.h"
 
 #include <fizzy/execute.hpp>
 #include <immer/box.hpp>
@@ -152,28 +153,42 @@ class HostVal
     {
     }
 
-    static const uint64_t BODY_MASK = 0x0000ffffffffffffULL;
-    static const uint64_t BOOL_TRUE_BODY = 1;
-    static const uint64_t BOOL_FALSE_BODY = 2;
-    static const uint64_t SUBTAG_MASK = 0x0000ffff00000000ULL;
-    static const uint64_t ERR_SUBTAG = 0x0000ffff00000000ULL;
+    static const uint64_t OBJ_VOID = 0;
+    static const uint64_t OBJ_BOOL_TRUE = 1;
+    static const uint64_t OBJ_BOOL_FALSE = 2;
+    static const uint64_t OBJ_DYNAMIC_BASE = 0x10000;
+
+    static inline uint64_t
+    rotate_right(uint64_t x, size_t s)
+    {
+        uint64_t r = s & 63;
+        return (x >> r) | (x << (64 - r));
+    }
+
+    static inline uint64_t
+    rotate_left(uint64_t x, size_t s)
+    {
+        uint64_t r = s & 63;
+        return (x << r) | (x >> (64 - r));
+    }
 
     static HostVal
-    fromTagAndBody(uint8_t tag3, uint64_t body48)
+    fromTagAndBody(uint16_t tag3, uint64_t body48)
     {
-        releaseAssert(tag3 < 0x8);
-        releaseAssert((body48 & BODY_MASK) == body48);
-        return HostVal{(uint64_t(tag3) << 48) | body48};
+        releaseAssert(tag3 < 7);
+        body48 = rotate_left(body48, 16);
+        releaseAssert((body48 & 0xffff) == 0);
+        return HostVal{body48 | tag3};
     }
 
   public:
-    static const uint8_t TAG_STATIC = 0;
-    static const uint8_t TAG_U32 = 1;
-    static const uint8_t TAG_I32 = 2;
-    static const uint8_t TAG_SYMBOL = 3;
-    static const uint8_t TAG_BITSET = 4;
-    static const uint8_t TAG_TIMEPT = 5;
-    static const uint8_t TAG_OBJECT = 6;
+    static const uint16_t TAG_OBJECT = 0;
+    static const uint16_t TAG_U32 = 1;
+    static const uint16_t TAG_I32 = 2;
+    static const uint16_t TAG_SYMBOL = 3;
+    static const uint16_t TAG_BITSET = 4;
+    static const uint16_t TAG_TIMEPT = 5;
+    static const uint16_t TAG_STATUS = 6;
 
     bool
     operator==(HostVal const& other) const
@@ -187,16 +202,16 @@ class HostVal
         return other.payload() < mPayload;
     }
 
-    uint8_t
+    uint16_t
     getTag() const
     {
-        return uint8_t((mPayload >> 48));
+        return uint16_t(mPayload);
     }
 
     uint64_t
     getBody() const
     {
-        return mPayload & BODY_MASK;
+        return (mPayload >> 16);
     }
 
     bool
@@ -208,34 +223,34 @@ class HostVal
     bool
     isVoid() const
     {
-        return hasTag(TAG_STATIC) && (getBody() == 0);
+        return hasTag(TAG_OBJECT) && (getBody() == OBJ_VOID);
     }
 
     bool
     isBool() const
     {
         auto body = getBody();
-        return hasTag(TAG_STATIC) &&
-               (body == BOOL_TRUE_BODY || body == BOOL_FALSE_BODY);
+        return hasTag(TAG_OBJECT) &&
+               (body == OBJ_BOOL_TRUE || body == OBJ_BOOL_FALSE);
     }
 
     bool
     asBool() const
     {
         releaseAssert(isBool());
-        return getBody() == BOOL_TRUE_BODY;
+        return getBody() == OBJ_BOOL_TRUE;
     }
 
     bool
-    isErr() const
+    isStatus() const
     {
-        return hasTag(TAG_STATIC) && ((getBody() & SUBTAG_MASK) == ERR_SUBTAG);
+        return hasTag(TAG_STATUS);
     }
 
     uint32_t
-    asErr() const
+    asStatus() const
     {
-        releaseAssert(isErr());
+        releaseAssert(isStatus());
         return uint32_t(getBody());
     }
 
@@ -302,14 +317,14 @@ class HostVal
     bool
     isObject() const
     {
-        return hasTag(TAG_OBJECT);
+        return hasTag(TAG_OBJECT) && getBody() >= OBJ_DYNAMIC_BASE;
     }
 
     size_t
     asObject() const
     {
         releaseAssert(isObject());
-        return size_t(getBody());
+        return size_t(getBody() - OBJ_DYNAMIC_BASE);
     }
 
     uint64_t
@@ -325,17 +340,17 @@ class HostVal
     static HostVal
     fromVoid()
     {
-        return fromTagAndBody(TAG_STATIC, 0);
+        return fromTagAndBody(TAG_OBJECT, OBJ_VOID);
     }
     static HostVal
     fromBool(bool b)
     {
-        return fromTagAndBody(TAG_STATIC, b ? BOOL_TRUE_BODY : BOOL_FALSE_BODY);
+        return fromTagAndBody(TAG_OBJECT, b ? OBJ_BOOL_TRUE : OBJ_BOOL_FALSE);
     }
     static HostVal
-    fromErr(uint32_t err)
+    fromStatus(uint32_t status)
     {
-        return fromTagAndBody(TAG_STATIC, (ERR_SUBTAG | uint64_t(err)));
+        return fromTagAndBody(TAG_STATUS, uint64_t(status));
     }
     static HostVal
     fromU32(uint32_t u32)
@@ -352,30 +367,17 @@ class HostVal
     static HostVal
     fromTimePt(uint64_t time)
     {
-        if ((time & BODY_MASK) != time)
-        {
-            throw std::runtime_error("bad time");
-        }
         return fromTagAndBody(TAG_TIMEPT, time);
     }
     static HostVal
     fromBitSet(uint64_t bits)
     {
-        if ((bits & BODY_MASK) != bits)
-        {
-            throw std::runtime_error("bad bitset");
-        }
         return fromTagAndBody(TAG_BITSET, bits);
     }
     static HostVal
     fromObject(size_t idx)
     {
-        uint64_t idx64 = idx;
-        if ((idx64 & BODY_MASK) != idx64)
-        {
-            throw std::runtime_error("bad object index");
-        }
-        return fromTagAndBody(TAG_OBJECT, idx64);
+        return fromTagAndBody(TAG_OBJECT, uint64_t(idx) + OBJ_DYNAMIC_BASE);
     }
 
     operator fizzy::ExecutionResult() const

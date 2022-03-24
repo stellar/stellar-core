@@ -497,9 +497,9 @@ struct LiquidityPoolWithdrawOp
 * FFFF_xxxx_xxxx_xxxx <-- 48-bit payload for 7th union case
 *
 * For convenience and codesize, we use a slightly different encoding of
-* the payload when interacting with a specific contract VM -- adding 7 *
+* the payload when interacting with a specific contract VM. We start by adding 7 *
 * 2^48 to the payload to shift the doubles up and use the lower bit-space for
-* tags -- so we wind up with the following:
+* tags, producing this assignment:
 *
 * 0000_xxxx_xxxx_xxxx <-- 48-bit payload for union case 0
 * 0001_...
@@ -512,10 +512,26 @@ struct LiquidityPoolWithdrawOp
 * FFFE_FFFF_FFFF_FFFF <-- the highest non-NaN double
 * FFFF_FFFF_FFFF_FFFF <-- used for _one_ canonical NaN double
 *
+* And then since we're targeting WASM -- which means we want an encoding that
+* mostly uses small (7-bit) LEB128 values for tag checking and masking -- we do
+* a subsequent left-rotation by 16 bits, producing this assignment:
+*
+* xxxx_xxxx_xxxx_0000 <-- 48-bit payload for union case 0
+*            ..._0001
+*            ..._0003
+*            ..._0004
+*            ..._0005
+* xxxx_xxxx_xxxx_0006  <-- 48-bit payload for union case 6
+* 0000_0000_0000_0007 <-- the lowest non-NaN double
+* FFFF_FFFF_FFFF_FFFE <-- the highest non-NaN double
+* FFFF_FFFF_FFFF_FFFF <-- used for _one_ canonical NaN double
+*
 * Abstractly we divide up these 7 union cases as follows:
 *
-*   0: "static" values like void, bools, error codes, anything pure / without identity
-*      and with a comparatively-small enumerated set of possible values.
+*   0: "object" values that are integer handles to denote SCObjects by reference.
+*      The first 65536 of these are reserved for special "static" / pre-defined
+*      objects with known identities: void, bool true, bool false, etc. The rest
+*      are for "dynamic" objects allocated during contract execution.
 *
 *   1: General u32 values
 *
@@ -531,7 +547,8 @@ struct LiquidityPoolWithdrawOp
 *   5: "timept" values that encode a 48-bit count of seconds since the unix epoch,
 *      which gives 8 million years before overflowing to literal or handle spaces.
 *
-*   6: "object" values that use integer handles to denote SCObjects by reference.
+*   6: "status" values carrying a 16-bit status code, 8-bit file and 16-bit line number.
+*      these can be used for tracing/debugging or error reporting.
 * 
 * Up here in XDR we have variable-length tagged disjoint unions but no bit-level
 * packing, so we can be more explicit in their structure, at the cost of spending more
@@ -585,13 +602,13 @@ enum SCValType
 {
     SCV_VOID = 0,
     SCV_BOOL = 1,
-    SCV_ERR = 2,
+    SCV_OBJECT = 2,
     SCV_U32 = 3,
     SCV_I32 = 4,
     SCV_SYMBOL = 5,
     SCV_BITSET = 6,
     SCV_TIMEPT = 7,
-    SCV_OBJECT = 8
+    SCV_STATUS = 8
 };
 
 % struct SCObject;
@@ -601,8 +618,8 @@ union SCVal switch (SCValType type) {
         void;
     case SCV_BOOL:
         bool b;
-    case SCV_ERR:
-        uint32 err;
+    case SCV_OBJECT:
+        SCObject *obj;
     case SCV_U32:
         uint32 u32;
     case SCV_I32:
@@ -613,8 +630,8 @@ union SCVal switch (SCValType type) {
         uint64 bits;
     case SCV_TIMEPT:
         uint64 time;
-    case SCV_OBJECT:
-        SCObject *obj;
+    case SCV_STATUS:
+        uint64 status;
 };
 
 enum SCObjectType {

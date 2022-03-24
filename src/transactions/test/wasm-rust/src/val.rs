@@ -1,19 +1,16 @@
 use super::OrAbort;
 
-const BODY_MASK: u64 = 0x0000_ffff_ffff_ffff;
-const VOID_BODY: u64 = 0;
-const BOOL_TRUE_BODY: u64 = 1;
-const BOOL_FALSE_BODY: u64 = 2;
-const SUBTAG_MASK: u64 = 0x0000_ffff_0000_0000;
-const ERR_SUBTAG: u64 = 0x0000_ffff_0000_0000;
+const OBJ_VOID: u64 = 0;
+const OBJ_BOOL_TRUE: u64 = 1;
+const OBJ_BOOL_FALSE: u64 = 2;
 
-const TAG_STATIC: u8 = 0;
-const TAG_U32: u8 = 1;
-const TAG_I32: u8 = 2;
-const TAG_SYMBOL: u8 = 3;
-const TAG_BITSET: u8 = 4;
-const TAG_TIMEPT: u8 = 5;
-const TAG_OBJECT: u8 = 6;
+const TAG_OBJECT: u16 = 0;
+const TAG_U32: u16 = 1;
+const TAG_I32: u16 = 2;
+const TAG_SYMBOL: u16 = 3;
+const TAG_BITSET: u16 = 4;
+const TAG_TIMEPT: u16 = 5;
+const TAG_STATUS: u16 = 6;
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -205,45 +202,45 @@ impl TryFrom<Val> for Object {
 
 impl Val {
     #[inline(always)]
-    fn get_tag(&self) -> u8 {
-        (self.0 >> 48) as u8
+    fn get_tag(&self) -> u16 {
+        self.0 as u16
     }
 
     #[inline(always)]
     fn get_body(&self) -> u64 {
-        self.0 & BODY_MASK
+        self.0 >> 16
     }
 
     #[inline(always)]
-    fn has_tag(&self, tag: u8) -> bool {
+    fn has_tag(&self, tag: u16) -> bool {
         self.get_tag() == tag
     }
 
     #[inline(always)]
     pub fn is_void(&self) -> bool {
-        self.has_tag(TAG_STATIC) && self.get_body() == VOID_BODY
+        self.has_tag(TAG_OBJECT) && self.get_body() == OBJ_VOID
     }
 
     #[inline(always)]
     pub fn is_bool(&self) -> bool {
-        self.has_tag(TAG_STATIC)
-            && (self.get_body() == BOOL_TRUE_BODY || self.get_body() == BOOL_FALSE_BODY)
+        self.has_tag(TAG_OBJECT)
+            && (self.get_body() == OBJ_BOOL_TRUE || self.get_body() == OBJ_BOOL_FALSE)
     }
 
     #[inline(always)]
     pub fn as_bool(&self) -> bool {
         self.is_bool().or_abort();
-        self.get_body() == BOOL_TRUE_BODY
+        self.get_body() == OBJ_BOOL_TRUE
     }
 
     #[inline(always)]
-    pub fn is_err(&self) -> bool {
-        self.has_tag(TAG_STATIC) && ((self.get_body() & SUBTAG_MASK) == SUBTAG_MASK)
+    pub fn is_status(&self) -> bool {
+        self.has_tag(TAG_STATUS)
     }
 
     #[inline(always)]
-    pub fn as_err(&self) -> u32 {
-        self.is_err().or_abort();
+    pub fn as_status(&self) -> u32 {
+        self.is_status().or_abort();
         self.get_body() as u32
     }
 
@@ -314,25 +311,26 @@ impl Val {
     }
 
     #[inline(always)]
-    fn from_tag_and_body(tag: u8, body: u64) -> Val {
-        (tag < 0x8).or_abort();
-        (body & BODY_MASK == body).or_abort();
-        Val((tag as u64) << 48 | body)
+    fn from_tag_and_body(tag: u16, body: u64) -> Val {
+        (tag < 7).or_abort();
+        let body = body.rotate_left(16);
+        ((body & 0xffffu64) == 0).or_abort();
+        Val(body | (tag as u64))
     }
 
     #[inline(always)]
     pub fn from_void() -> Val {
-        Val::from_tag_and_body(TAG_STATIC, VOID_BODY)
+        Val::from_tag_and_body(TAG_OBJECT, OBJ_VOID)
     }
 
     #[inline(always)]
     pub fn from_bool(b: bool) -> Val {
-        Val::from_tag_and_body(TAG_STATIC, if b { BOOL_TRUE_BODY } else { BOOL_FALSE_BODY })
+        Val::from_tag_and_body(TAG_OBJECT, if b { OBJ_BOOL_TRUE } else { OBJ_BOOL_FALSE })
     }
 
     #[inline(always)]
-    pub fn from_err(e: u32) -> Val {
-        Val::from_tag_and_body(TAG_STATIC, ERR_SUBTAG | e as u64)
+    pub fn from_status(e: u32) -> Val {
+        Val::from_tag_and_body(TAG_STATUS, e as u64)
     }
 
     #[inline(always)]
@@ -342,7 +340,7 @@ impl Val {
 
     #[inline(always)]
     pub fn from_i32(i: i32) -> Val {
-        Val::from_tag_and_body(TAG_I32, (i as u64) & 0xffff_ffffu64)
+        Val::from_tag_and_body(TAG_I32, (i as u32) as u64)
     }
 
     #[inline(always)]

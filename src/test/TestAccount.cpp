@@ -625,8 +625,8 @@ TestAccount::invokeWasmContract(AccountID const& owner, int64_t contractID,
     else
     {
         SCVal err;
-        err.type(SCV_ERR);
-        err.err() = 0;
+        err.type(SCV_STATUS);
+        err.status() = 0;
         return err;
     }
 }
