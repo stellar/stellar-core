@@ -8,7 +8,7 @@ func main() {}
 func invoke(arg stellar.Val) stellar.Val {
 	i, err := arg.Int32()
 	if err != stellar.ErrorNone {
-		return stellar.ErrorVal(err)
+		return stellar.StatusVal(uint32(err))
 	}
 	i /= 2
 	i += 4
