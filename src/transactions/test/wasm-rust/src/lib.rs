@@ -1,10 +1,15 @@
 #![no_std]
 #![allow(dead_code)]
 
+// This requires running on unstable.
+//#![feature(alloc)]
+//mod alloc;
+
 mod host_fns;
 mod map;
 mod or_abort;
 mod rt;
+
 mod symbol;
 mod val;
 
