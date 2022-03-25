@@ -387,7 +387,22 @@ class HostVal
 };
 
 std::ostream& operator<<(std::ostream& out, HostVal const& v);
+}
 
+namespace std
+{
+template <> struct hash<stellar::HostVal>
+{
+    size_t
+    operator()(stellar::HostVal const& hv) const noexcept
+    {
+        return std::hash<uint64_t>()(hv.payload());
+    }
+};
+}
+
+namespace stellar
+{
 using HostBox = immer::box<HostVal>;
 using HostVec = immer::flex_vector<HostVal>;
 using HostMap = immer::map<HostVal, HostVal>;
@@ -482,6 +497,23 @@ class HostContext
         }
     }
 
+    template <typename ObjType>
+    fizzy::ExecutionResult
+    objMethod(uint64_t objID,
+              std::function<fizzy::ExecutionResult(ObjType const&)> fn)
+    {
+        auto v = HostVal::fromPayload(objID);
+        auto const& objPtr = getObject(v);
+        if (objPtr && std::holds_alternative<ObjType>(*objPtr))
+        {
+            return fn(std::get<ObjType>(*objPtr));
+        }
+        else
+        {
+            return HostVal::fromStatus(0);
+        }
+    }
+
     template <typename Closure>
     void
     registerHostFunction(size_t arity, Closure clo,
@@ -564,11 +596,45 @@ class HostContext
 
     // Host functions follow -- plumbing above currently supports 0..4 uint64_t
     // arguments.
+
     fizzy::ExecutionResult mapNew(fizzy::Instance&, fizzy::ExecutionContext&);
     fizzy::ExecutionResult mapPut(fizzy::Instance&, fizzy::ExecutionContext&,
                                   uint64_t map, uint64_t key, uint64_t val);
     fizzy::ExecutionResult mapGet(fizzy::Instance&, fizzy::ExecutionContext&,
                                   uint64_t map, uint64_t key);
+    fizzy::ExecutionResult mapDel(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t map, uint64_t key);
+    fizzy::ExecutionResult mapLen(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t map);
+    fizzy::ExecutionResult mapKeys(fizzy::Instance&, fizzy::ExecutionContext&,
+                                   uint64_t map);
+
+    fizzy::ExecutionResult vecNew(fizzy::Instance&, fizzy::ExecutionContext&);
+    fizzy::ExecutionResult vecGet(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t vec, uint64_t idx);
+    fizzy::ExecutionResult vecPut(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t vec, uint64_t idx, uint64_t val);
+    fizzy::ExecutionResult vecDel(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t vec, uint64_t idx);
+    fizzy::ExecutionResult vecLen(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t vec);
+    fizzy::ExecutionResult vecPush(fizzy::Instance&, fizzy::ExecutionContext&,
+                                   uint64_t vec, uint64_t val);
+    fizzy::ExecutionResult vecTake(fizzy::Instance&, fizzy::ExecutionContext&,
+                                   uint64_t vec, uint64_t num);
+    fizzy::ExecutionResult vecDrop(fizzy::Instance&, fizzy::ExecutionContext&,
+                                   uint64_t vec, uint64_t num);
+    fizzy::ExecutionResult vecFront(fizzy::Instance&, fizzy::ExecutionContext&,
+                                    uint64_t vec);
+    fizzy::ExecutionResult vecBack(fizzy::Instance&, fizzy::ExecutionContext&,
+                                   uint64_t vec);
+    fizzy::ExecutionResult vecPop(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t vec);
+    fizzy::ExecutionResult vecInsert(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t vec, uint64_t idx, uint64_t val);
+    fizzy::ExecutionResult vecAppend(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t vecA, uint64_t vecB);
+
     fizzy::ExecutionResult logValue(fizzy::Instance&, fizzy::ExecutionContext&,
                                     uint64_t);
     fizzy::ExecutionResult getCurrentLedgerNum(fizzy::Instance&,
@@ -577,16 +643,4 @@ class HostContext
                                                      fizzy::ExecutionContext&);
 };
 
-}
-
-namespace std
-{
-template <> struct hash<stellar::HostVal>
-{
-    size_t
-    operator()(stellar::HostVal const& hv) const noexcept
-    {
-        return std::hash<uint64_t>()(hv.payload());
-    }
-};
 }

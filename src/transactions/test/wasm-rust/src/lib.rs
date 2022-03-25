@@ -9,11 +9,13 @@ mod host_fns;
 mod map;
 mod or_abort;
 mod rt;
+mod vec;
 
 mod symbol;
 mod val;
 
 pub use map::Map;
+pub use vec::Vec;
 pub use or_abort::OrAbort;
 pub use val::{BitSet, Object, Symbol, TimePt, Val};
 

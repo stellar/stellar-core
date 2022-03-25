@@ -6,10 +6,12 @@
 #include "ledger/LedgerTxn.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include <cstdint>
 #include <fizzy/execute.hpp>
 #include <fizzy/instantiate.hpp>
 #include <fizzy/value.hpp>
 #include <iostream>
+#include <variant>
 
 namespace stellar
 {
@@ -546,40 +548,219 @@ fizzy::ExecutionResult
 HostContext::mapPut(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
                     uint64_t map, uint64_t key, uint64_t val)
 {
-    auto mapV = HostVal::fromPayload(map);
     auto keyV = HostVal::fromPayload(key);
     auto valV = HostVal::fromPayload(val);
-
-    auto const& mapObj = getObject(mapV);
-
-    if (mapObj && std::holds_alternative<HostMap>(*mapObj))
-    {
-        return newObject<HostMap>(std::get<HostMap>(*mapObj).set(keyV, valV));
-    }
-    else
-    {
-        return HostVal::fromStatus(0);
-    }
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        return newObject<HostMap>(map.set(keyV, valV));
+    });
 }
 
 fizzy::ExecutionResult
 HostContext::mapGet(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
                     uint64_t map, uint64_t key)
 {
-    auto mapV = HostVal::fromPayload(map);
     auto keyV = HostVal::fromPayload(key);
-
-    auto const& mapObj = getObject(mapV);
-
-    if (mapObj && std::holds_alternative<HostMap>(*mapObj))
-    {
-        auto* valPtr = std::get<HostMap>(*mapObj).find(keyV);
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        auto* valPtr = map.find(keyV);
         if (valPtr)
         {
             return *valPtr;
         }
-    }
-    return HostVal::fromStatus(0);
+        return HostVal::fromStatus(0);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::mapDel(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t map,
+                    uint64_t key)
+{
+    auto keyV = HostVal::fromPayload(key);
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        return newObject<HostMap>(map.erase(keyV));
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::mapLen(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t map)
+{
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        size_t sz = map.size();
+        if (sz <= UINT32_MAX)
+        {
+            return HostVal::fromU32(uint32_t(sz));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::mapKeys(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t map)
+{
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        std::vector<HostVal> vec;
+        for (auto const& i : map)
+        {
+            vec.emplace_back(i.first);
+        }
+        // FIXME: do we want a deep
+        // structural-comparison sort?
+        std::sort(vec.begin(), vec.end());
+        return newObject<HostVec>(vec.begin(), vec.end());
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::vecNew(fizzy::Instance&, fizzy::ExecutionContext&)
+{
+    return newObject<HostVec>();
+}
+
+fizzy::ExecutionResult
+HostContext::vecGet(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                    uint64_t idx)
+{
+    auto idxV = HostVal::fromPayload(idx);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (idxV.isU32() && idxV.asU32() < vec.size())
+        {
+            return vec.at(idxV.asU32());
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecPut(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                    uint64_t idx, uint64_t val)
+{
+    auto idxV = HostVal::fromPayload(idx);
+    auto valV = HostVal::fromPayload(val);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (idxV.isU32() && idxV.asU32() < vec.size())
+        {
+            return newObject<HostVec>(vec.set(idxV.asU32(), valV));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecDel(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                    uint64_t idx)
+{
+    auto idxV = HostVal::fromPayload(idx);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (idxV.isU32() && idxV.asU32() < vec.size())
+        {
+            return newObject<HostVec>(vec.erase(idxV.asU32()));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecLen(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
+{
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        size_t sz = vec.size();
+        if (sz <= UINT32_MAX)
+        {
+            return HostVal::fromU32(sz);
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecPush(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                     uint64_t val)
+{
+    auto valV = HostVal::fromPayload(val);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        return newObject<HostVec>(vec.push_back(valV));
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecTake(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                     uint64_t num)
+{
+    auto numV = HostVal::fromPayload(num);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (numV.isU32())
+        {
+            return newObject<HostVec>(vec.take(numV.asU32()));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecDrop(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                     uint64_t num)
+{
+    auto numV = HostVal::fromPayload(num);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (numV.isU32())
+        {
+            return newObject<HostVec>(vec.drop(numV.asU32()));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecPop(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
+{
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (!vec.empty())
+        {
+            return newObject<HostVec>(vec.erase(vec.size() - 1));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::vecFront(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
+{
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (!vec.empty())
+        {
+            return vec.front();
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::vecBack(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
+{
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (!vec.empty())
+        {
+            return vec.back();
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::vecInsert(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
+                       uint64_t idx, uint64_t val)
+{
+    auto idxV = HostVal::fromPayload(idx);
+    auto valV = HostVal::fromPayload(val);
+    return objMethod<HostVec>(vec, [&](HostVec const& vec) {
+        if (idxV.isU32() && idxV.asU32() < vec.size())
+        {
+            return newObject<HostVec>(vec.insert(idxV.asU32(), valV));
+        }
+        return HostVal::fromStatus(0);
+    });
+}
+fizzy::ExecutionResult
+HostContext::vecAppend(fizzy::Instance&, fizzy::ExecutionContext&,
+                       uint64_t vecA, uint64_t vecB)
+{
+    return objMethod<HostVec>(vecA, [&](HostVec const& vecA) {
+        return objMethod<HostVec>(vecB, [&](HostVec const& vecB) {
+            return newObject<HostVec>(vecA + vecB);
+        });
+    });
 }
 
 fizzy::ExecutionResult
@@ -615,6 +796,25 @@ HostContext::HostContext()
     registerHostFunction(&HostContext::mapNew, "env", "map_new");
     registerHostFunction(&HostContext::mapPut, "env", "map_put");
     registerHostFunction(&HostContext::mapGet, "env", "map_get");
+    registerHostFunction(&HostContext::mapDel, "env", "map_del");
+    registerHostFunction(&HostContext::mapLen, "env", "map_len");
+    registerHostFunction(&HostContext::mapKeys, "env", "map_keys");
+
+    registerHostFunction(&HostContext::vecNew, "env", "vec_new");
+    registerHostFunction(&HostContext::vecPut, "env", "vec_put");
+    registerHostFunction(&HostContext::vecGet, "env", "vec_get");
+    registerHostFunction(&HostContext::vecDel, "env", "vec_del");
+    registerHostFunction(&HostContext::vecLen, "env", "vec_len");
+
+    registerHostFunction(&HostContext::vecPush, "env", "vec_push");
+    registerHostFunction(&HostContext::vecPop, "env", "vec_pop");
+    registerHostFunction(&HostContext::vecTake, "env", "vec_take");
+    registerHostFunction(&HostContext::vecDrop, "env", "vec_drop");
+    registerHostFunction(&HostContext::vecFront, "env", "vec_front");
+    registerHostFunction(&HostContext::vecBack, "env", "vec_back");
+    registerHostFunction(&HostContext::vecInsert, "env", "vec_insert");
+    registerHostFunction(&HostContext::vecAppend, "env", "vec_append");
+
     registerHostFunction(&HostContext::logValue, "env", "log_value");
     registerHostFunction(&HostContext::getCurrentLedgerNum, "env",
                          "get_current_ledger_num");
