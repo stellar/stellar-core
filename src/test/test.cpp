@@ -147,6 +147,35 @@ static std::vector<TmpDir> gTestRoots;
 static bool gTestAllVersions{false};
 static std::vector<uint32> gVersionsToTest;
 int gBaseInstance{0};
+static bool gMustUseTestVersionsWrapper{false};
+static uint32_t gTestingVersion{Config::CURRENT_LEDGER_PROTOCOL_VERSION};
+
+static void
+clearConfigs()
+{
+    for (auto& a : gTestCfg)
+    {
+        a.clear();
+    }
+}
+
+void
+test_versions_wrapper(std::function<void(void)> f)
+{
+    gMustUseTestVersionsWrapper = true;
+    for (auto v : gVersionsToTest)
+    {
+        clearConfigs();
+        gTestingVersion = v;
+        SECTION("protocol version " + std::to_string(v))
+        {
+            f();
+        }
+        clearConfigs();
+    }
+    gMustUseTestVersionsWrapper = false;
+    gTestingVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+}
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
@@ -193,6 +222,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         cfgs[instanceNumber] = std::make_unique<Config>();
         Config& thisConfig = *cfgs[instanceNumber];
         thisConfig.USE_CONFIG_FOR_GENESIS = true;
+        thisConfig.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = gTestingVersion;
+        LOG_INFO(DEFAULT_LOG, "Making config for {}",
+                 thisConfig.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
 
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
@@ -349,7 +381,12 @@ runTest(CommandLineArgs const& args)
     ReseedPRNGListener::sCommandLineSeed = seed;
     reinitializeAllGlobalStateWithSeed(seed);
 
-    if (gVersionsToTest.empty())
+    if (gTestAllVersions)
+    {
+        gVersionsToTest.resize(Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1);
+        std::iota(std::begin(gVersionsToTest), std::end(gVersionsToTest), 0);
+    }
+    else if (gVersionsToTest.empty())
     {
         gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     }
@@ -392,7 +429,8 @@ runTest(CommandLineArgs const& args)
 
     auto r = session.run();
     gTestRoots.clear();
-    gTestCfg->clear();
+    clearConfigs();
+
     if (r != 0)
     {
         LOG_ERROR(DEFAULT_LOG, "Nonzero test result with --rng-seed {}", seed);
@@ -481,35 +519,17 @@ void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
-    uint32_t previousVersion = 0;
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        previousVersion = ltx.loadHeader().current().ledgerVersion;
-    }
+    REQUIRE(gMustUseTestVersionsWrapper);
 
-    for (auto v : versions)
+    if (std::find(versions.begin(), versions.end(), gTestingVersion) !=
+        versions.end())
     {
-        if (!gTestAllVersions &&
-            std::find(gVersionsToTest.begin(), gVersionsToTest.end(), v) ==
-                gVersionsToTest.end())
         {
-            continue;
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            REQUIRE(ltx.loadHeader().current().ledgerVersion ==
+                    gTestingVersion);
         }
-        SECTION("protocol version " + std::to_string(v))
-        {
-            {
-                LedgerTxn ltx(app.getLedgerTxnRoot());
-                ltx.loadHeader().current().ledgerVersion = v;
-                ltx.commit();
-            }
-            f();
-        }
-    }
-
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        ltx.loadHeader().current().ledgerVersion = previousVersion;
-        ltx.commit();
+        f();
     }
 }
 
@@ -517,21 +537,15 @@ void
 for_versions(std::vector<uint32> const& versions, Config const& cfg,
              std::function<void(Config const&)> const& f)
 {
-    for (auto v : versions)
+    REQUIRE(gMustUseTestVersionsWrapper);
+
+    if (std::find(versions.begin(), versions.end(), gTestingVersion) !=
+        versions.end())
     {
-        if (!gTestAllVersions &&
-            std::find(gVersionsToTest.begin(), gVersionsToTest.end(), v) ==
-                gVersionsToTest.end())
-        {
-            continue;
-        }
-        SECTION("protocol version " + std::to_string(v))
-        {
-            Config vcfg = cfg;
-            vcfg.LEDGER_PROTOCOL_VERSION = v;
-            vcfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = v;
-            f(vcfg);
-        }
+        REQUIRE(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION == gTestingVersion);
+        Config vcfg = cfg;
+        vcfg.LEDGER_PROTOCOL_VERSION = gTestingVersion;
+        f(vcfg);
     }
 }
 

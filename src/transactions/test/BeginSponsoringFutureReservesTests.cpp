@@ -32,7 +32,7 @@ getBeginSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx,
     return opRes.tr().beginSponsoringFutureReservesResult().code();
 }
 
-TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
+TEST_CASE_VERSIONS("sponsor future reserves", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -190,39 +190,43 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
     SECTION("add sponsored entry before adding first sponsored signer")
     {
-        auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
-        auto a1 = root.create("a1", minBalance0);
-        auto cur1 = makeAsset(root, "CUR1");
-        auto signer = makeSigner(getAccount("S1"), 1);
+        for_versions_from(14, *app, [&] {
+            auto const minBalance0 =
+                app->getLedgerManager().getLastMinBalance(0);
+            auto a1 = root.create("a1", minBalance0);
+            auto cur1 = makeAsset(root, "CUR1");
+            auto signer = makeSigner(getAccount("S1"), 1);
 
-        // creating the sponsored trustline first will make sure the account is
-        // using a V2 extension before the first signer is added
-        auto tx1 =
-            transactionFrameFromOps(app->getNetworkID(), root,
-                                    {root.op(beginSponsoringFutureReserves(a1)),
-                                     a1.op(changeTrust(cur1, 1000)),
-                                     a1.op(endSponsoringFutureReserves())},
-                                    {a1});
+            // creating the sponsored trustline first will make sure the account
+            // is using a V2 extension before the first signer is added
+            auto tx1 = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(beginSponsoringFutureReserves(a1)),
+                 a1.op(changeTrust(cur1, 1000)),
+                 a1.op(endSponsoringFutureReserves())},
+                {a1});
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMeta txm1(2);
-        REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
-        REQUIRE(tx1->apply(*app, ltx, txm1));
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm1(2);
+            REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx1->apply(*app, ltx, txm1));
 
-        checkSponsorship(ltx, trustlineKey(a1, cur1), 1, &root.getPublicKey());
+            checkSponsorship(ltx, trustlineKey(a1, cur1), 1,
+                             &root.getPublicKey());
 
-        auto tx2 =
-            transactionFrameFromOps(app->getNetworkID(), root,
-                                    {root.op(beginSponsoringFutureReserves(a1)),
-                                     a1.op(setOptions(setSigner(signer))),
-                                     a1.op(endSponsoringFutureReserves())},
-                                    {a1});
+            auto tx2 = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(beginSponsoringFutureReserves(a1)),
+                 a1.op(setOptions(setSigner(signer))),
+                 a1.op(endSponsoringFutureReserves())},
+                {a1});
 
-        TransactionMeta txm2(2);
-        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
-        REQUIRE(tx2->apply(*app, ltx, txm2));
+            TransactionMeta txm2(2);
+            REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx2->apply(*app, ltx, txm2));
 
-        checkSponsorship(ltx, a1.getPublicKey(), signer.key, 2,
-                         &root.getPublicKey());
+            checkSponsorship(ltx, a1.getPublicKey(), signer.key, 2,
+                             &root.getPublicKey());
+        });
     }
 }

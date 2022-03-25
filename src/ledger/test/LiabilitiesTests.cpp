@@ -20,7 +20,7 @@
 
 using namespace stellar;
 
-TEST_CASE("liabilities", "[ledger][liabilities]")
+TEST_CASE_VERSIONS("liabilities", "[ledger][liabilities]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -826,7 +826,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
     }
 }
 
-TEST_CASE("balance with liabilities", "[ledger][liabilities]")
+TEST_CASE_VERSIONS("balance with liabilities", "[ledger][liabilities]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1227,7 +1227,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
     }
 }
 
-TEST_CASE("available balance and limit", "[ledger][liabilities]")
+TEST_CASE_VERSIONS("available balance and limit", "[ledger][liabilities]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

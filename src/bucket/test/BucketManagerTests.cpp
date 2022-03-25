@@ -276,7 +276,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     btest.test();
 }
 
-TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
@@ -389,7 +389,8 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
     }
 }
 
-TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
+                   "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
@@ -449,7 +450,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
     });
 }
 
-TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
+                   "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
@@ -591,8 +593,9 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
 }
 
-TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
-          "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS(
+    "bucketmanager reattach HAS from publish queue to finished merge",
+    "[bucket][bucketmanager]")
 {
     Config cfg(getTestConfig());
     cfg.MANUAL_CLOSE = false;
@@ -1385,8 +1388,8 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
     }
 }
 
-TEST_CASE("bucket persistence over app restart",
-          "[bucket][bucketmanager][bucketpersist]")
+TEST_CASE_VERSIONS("bucket persistence over app restart",
+                   "[bucket][bucketmanager][bucketpersist]")
 {
     std::vector<stellar::LedgerKey> emptySet;
     std::vector<stellar::LedgerEntry> emptySetEntry;

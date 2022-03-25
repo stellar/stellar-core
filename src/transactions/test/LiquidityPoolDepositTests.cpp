@@ -14,7 +14,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
+TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -324,113 +324,118 @@ TEST_CASE("liquidity pool deposit", "[tx][liquiditypool]")
     // when depositing into a non empty pool
     SECTION("pool share calculation overflows for one asset")
     {
-        auto a1 = root.create("a1", minBal(10));
-        auto a2 = root.create("a2", minBal(10));
+        for_versions_from(18, *app, [&] {
+            auto a1 = root.create("a1", minBal(10));
+            auto a2 = root.create("a2", minBal(10));
 
-        a1.changeTrust(cur1, INT64_MAX);
-        a1.changeTrust(cur2, INT64_MAX);
-        a1.changeTrust(share12, INT64_MAX);
+            a1.changeTrust(cur1, INT64_MAX);
+            a1.changeTrust(cur2, INT64_MAX);
+            a1.changeTrust(share12, INT64_MAX);
 
-        a2.changeTrust(cur1, INT64_MAX);
-        a2.changeTrust(cur2, INT64_MAX);
-        a2.changeTrust(share12, INT64_MAX);
+            a2.changeTrust(cur1, INT64_MAX);
+            a2.changeTrust(cur2, INT64_MAX);
+            a2.changeTrust(share12, INT64_MAX);
 
-        root.pay(a1, cur1, 1000);
-        root.pay(a1, cur2, 1000);
+            root.pay(a1, cur1, 1000);
+            root.pay(a1, cur2, 1000);
 
-        root.pay(a2, cur1, INT64_MAX);
-        root.pay(a2, cur2, INT64_MAX);
+            root.pay(a2, cur1, INT64_MAX);
+            root.pay(a2, cur2, INT64_MAX);
 
-        // verify that the pool share calculation overflows. In both sections
-        // below there are 600 pool shares in the pool after the first deposit,
-        // and the asset that overflows has a reserve of 400.
-        int64_t sharesA = 0;
-        REQUIRE(!bigDivide(sharesA, 600, INT64_MAX, 400, ROUND_DOWN));
+            // verify that the pool share calculation overflows. In both
+            // sections below there are 600 pool shares in the pool after the
+            // first deposit, and the asset that overflows has a reserve of 400.
+            int64_t sharesA = 0;
+            REQUIRE(!bigDivide(sharesA, 600, INT64_MAX, 400, ROUND_DOWN));
 
-        int64_t secondDepositAmount = INT64_MAX - 1000;
+            int64_t secondDepositAmount = INT64_MAX - 1000;
 
-        SECTION(
-            "deposit then withdraw - rounding results in extra asset in pool - "
-            "assetB fail")
-        {
-            a1.liquidityPoolDeposit(pool12, 900, 400, Price{9, 4}, Price{9, 4});
-            checkLiquidityPool(*app, pool12, 900, 400, 600, 2);
+            SECTION("deposit then withdraw - rounding results in extra asset "
+                    "in pool - assetB fail")
+            {
+                a1.liquidityPoolDeposit(pool12, 900, 400, Price{9, 4},
+                                        Price{9, 4});
+                checkLiquidityPool(*app, pool12, 900, 400, 600, 2);
 
-            a2.liquidityPoolDeposit(pool12, secondDepositAmount,
-                                    secondDepositAmount, Price{1, INT32_MAX},
-                                    Price{INT32_MAX, 1});
+                a2.liquidityPoolDeposit(
+                    pool12, secondDepositAmount, secondDepositAmount,
+                    Price{1, INT32_MAX}, Price{INT32_MAX, 1});
 
-            // a2's pool shares = 600 * (9223372036854775807 - 1000)/900 =
-            // 6148914691236516538
-            // totalPoolShares = 6148914691236516538 + 600
-            // reserveA = ceil(6148914691236516538 * 900 / 600) + 900
-            // reserveB = ceil(6148914691236516538 * 400 / 600) + 400
-            REQUIRE(a2.getTrustlineBalance(pool12) == 6148914691236516538);
-            REQUIRE(a2.getTrustlineBalance(cur1) ==
-                    INT64_MAX - 9223372036854774807);
-            REQUIRE(a2.getTrustlineBalance(cur2) ==
-                    INT64_MAX - 4099276460824344359);
-            checkLiquidityPool(*app, pool12, 9223372036854775707,
-                               4099276460824344759, 6148914691236517138, 2);
+                // a2's pool shares = 600 * (9223372036854775807 - 1000)/900 =
+                // 6148914691236516538
+                // totalPoolShares = 6148914691236516538 + 600
+                // reserveA = ceil(6148914691236516538 * 900 / 600) + 900
+                // reserveB = ceil(6148914691236516538 * 400 / 600) + 400
+                REQUIRE(a2.getTrustlineBalance(pool12) == 6148914691236516538);
+                REQUIRE(a2.getTrustlineBalance(cur1) ==
+                        INT64_MAX - 9223372036854774807);
+                REQUIRE(a2.getTrustlineBalance(cur2) ==
+                        INT64_MAX - 4099276460824344359);
+                checkLiquidityPool(*app, pool12, 9223372036854775707,
+                                   4099276460824344759, 6148914691236517138, 2);
 
-            // a2 withdraws all. One less cur 1 is withdrawn due to rounding,
-            // and it is left in the pool for a1
-            a2.liquidityPoolWithdraw(pool12, 6148914691236516538,
-                                     9223372036854774807, 4099276460824344358);
-            REQUIRE(a2.getTrustlineBalance(pool12) == 0);
-            REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX);
-            REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX - 1);
+                // a2 withdraws all. One less cur 1 is withdrawn due to
+                // rounding, and it is left in the pool for a1
+                a2.liquidityPoolWithdraw(pool12, 6148914691236516538,
+                                         9223372036854774807,
+                                         4099276460824344358);
+                REQUIRE(a2.getTrustlineBalance(pool12) == 0);
+                REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX);
+                REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX - 1);
 
-            checkLiquidityPool(*app, pool12, 900, 401, 600, 2);
+                checkLiquidityPool(*app, pool12, 900, 401, 600, 2);
 
-            // a1 withdraws all
-            a1.liquidityPoolWithdraw(pool12, 600, 900, 401);
-            REQUIRE(a1.getTrustlineBalance(pool12) == 0);
-            REQUIRE(a1.getTrustlineBalance(cur1) == 1000);
-            REQUIRE(a1.getTrustlineBalance(cur2) == 1001);
-            checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
-        }
-        SECTION(
-            "deposit then withdraw - rounding results in extra asset in pool - "
-            "assetA fail")
-        {
-            a1.liquidityPoolDeposit(pool12, 400, 900, Price{4, 9}, Price{4, 9});
-            checkLiquidityPool(*app, pool12, 400, 900, 600, 2);
+                // a1 withdraws all
+                a1.liquidityPoolWithdraw(pool12, 600, 900, 401);
+                REQUIRE(a1.getTrustlineBalance(pool12) == 0);
+                REQUIRE(a1.getTrustlineBalance(cur1) == 1000);
+                REQUIRE(a1.getTrustlineBalance(cur2) == 1001);
+                checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
+            }
+            SECTION("deposit then withdraw - rounding results in extra asset "
+                    "in pool - "
+                    "assetA fail")
+            {
+                a1.liquidityPoolDeposit(pool12, 400, 900, Price{4, 9},
+                                        Price{4, 9});
+                checkLiquidityPool(*app, pool12, 400, 900, 600, 2);
 
-            a2.liquidityPoolDeposit(pool12, secondDepositAmount,
-                                    secondDepositAmount, Price{1, INT32_MAX},
-                                    Price{INT32_MAX, 1});
+                a2.liquidityPoolDeposit(
+                    pool12, secondDepositAmount, secondDepositAmount,
+                    Price{1, INT32_MAX}, Price{INT32_MAX, 1});
 
-            // a2's pool shares = 600 * (9223372036854775807 - 1000)/900 =
-            // 6148914691236516538
-            // totalPoolShares = 6148914691236516538 + 600
-            // reserveA = ceil(6148914691236516538 * 400 / 600) + 400
-            // reserveB = ceil(6148914691236516538 * 900 / 600) + 900
-            REQUIRE(a2.getTrustlineBalance(pool12) == 6148914691236516538);
-            REQUIRE(a2.getTrustlineBalance(cur1) ==
-                    INT64_MAX - 4099276460824344359);
-            REQUIRE(a2.getTrustlineBalance(cur2) ==
-                    INT64_MAX - 9223372036854774807);
-            checkLiquidityPool(*app, pool12, 4099276460824344759,
-                               9223372036854775707, 6148914691236517138, 2);
+                // a2's pool shares = 600 * (9223372036854775807 - 1000)/900 =
+                // 6148914691236516538
+                // totalPoolShares = 6148914691236516538 + 600
+                // reserveA = ceil(6148914691236516538 * 400 / 600) + 400
+                // reserveB = ceil(6148914691236516538 * 900 / 600) + 900
+                REQUIRE(a2.getTrustlineBalance(pool12) == 6148914691236516538);
+                REQUIRE(a2.getTrustlineBalance(cur1) ==
+                        INT64_MAX - 4099276460824344359);
+                REQUIRE(a2.getTrustlineBalance(cur2) ==
+                        INT64_MAX - 9223372036854774807);
+                checkLiquidityPool(*app, pool12, 4099276460824344759,
+                                   9223372036854775707, 6148914691236517138, 2);
 
-            // a2 withdraws all. One less cur 1 is withdrawn due to rounding,
-            // and it is left in the pool for a1
-            a2.liquidityPoolWithdraw(pool12, 6148914691236516538,
-                                     4099276460824344358, 9223372036854774807);
-            REQUIRE(a2.getTrustlineBalance(pool12) == 0);
-            REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX - 1);
-            REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX);
+                // a2 withdraws all. One less cur 1 is withdrawn due to
+                // rounding, and it is left in the pool for a1
+                a2.liquidityPoolWithdraw(pool12, 6148914691236516538,
+                                         4099276460824344358,
+                                         9223372036854774807);
+                REQUIRE(a2.getTrustlineBalance(pool12) == 0);
+                REQUIRE(a2.getTrustlineBalance(cur1) == INT64_MAX - 1);
+                REQUIRE(a2.getTrustlineBalance(cur2) == INT64_MAX);
 
-            checkLiquidityPool(*app, pool12, 401, 900, 600, 2);
+                checkLiquidityPool(*app, pool12, 401, 900, 600, 2);
 
-            // a1 withdraws all
-            a1.liquidityPoolWithdraw(pool12, 600, 401, 900);
-            REQUIRE(a1.getTrustlineBalance(pool12) == 0);
-            REQUIRE(a1.getTrustlineBalance(cur1) == 1001);
-            REQUIRE(a1.getTrustlineBalance(cur2) == 1000);
-            checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
-        }
+                // a1 withdraws all
+                a1.liquidityPoolWithdraw(pool12, 600, 401, 900);
+                REQUIRE(a1.getTrustlineBalance(pool12) == 0);
+                REQUIRE(a1.getTrustlineBalance(cur1) == 1001);
+                REQUIRE(a1.getTrustlineBalance(cur2) == 1000);
+                checkLiquidityPool(*app, pool12, 0, 0, 0, 2);
+            }
+        });
     }
 
     SECTION("underfunded due to liabilities")

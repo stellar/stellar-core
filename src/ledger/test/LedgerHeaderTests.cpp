@@ -95,7 +95,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     }
 }
 
-TEST_CASE("base reserve", "[ledger]")
+TEST_CASE_VERSIONS("base reserve", "[ledger]")
 {
     Config const& cfg = getTestConfig();
 

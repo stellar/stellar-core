@@ -1673,14 +1673,10 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     }
 }
 
-TEST_CASE("upgrade base reserve", "[upgrades]")
+TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
-
-    // Do our setup in version 0 so that for_versions_* below do not
-    // try to downgrade us from >0 to 0.
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
 
@@ -2224,11 +2220,9 @@ TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
     }
 }
 
-TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
+TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
 {
     VirtualClock clock;
-    // Do our setup in version 0 so that for_versions_* below do not
-    // try to downgrade us from >0 to 0.
     auto cfg = getTestConfig();
     cfg.USE_CONFIG_FOR_GENESIS = false;
 
@@ -2249,27 +2243,36 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
             *app, makeProtocolVersionUpgrade(
                       Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1)));
     }
+    SECTION("Invalid flags")
+    {
+        // Base Fee / Base Reserve to 0
+        REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
+        REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
 
-    // Base Fee / Base Reserve to 0
-    REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
-    REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
+        if (cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION > 0)
+        {
+            executeUpgrade(*app,
+                           makeProtocolVersionUpgrade(
+                               cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION));
+        }
 
-    for_versions_to(17, *app, [&] {
-        REQUIRE_THROWS(executeUpgrade(*app, makeFlagsUpgrade(1)));
-    });
+        for_versions_to(17, *app, [&] {
+            REQUIRE_THROWS(executeUpgrade(*app, makeFlagsUpgrade(1)));
+        });
 
-    for_versions_from(18, *app, [&] {
-        auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
-                        DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
-                        DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
-        REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
+        for_versions_from(18, *app, [&] {
+            auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
+                            DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
+                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
+            REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
 
-        REQUIRE_THROWS(executeUpgrade(
-            *app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1)));
+            REQUIRE_THROWS(executeUpgrade(
+                *app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1)));
 
-        // success
-        executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS));
-    });
+            // success
+            executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS));
+        });
+    }
 }
 
 TEST_CASE("validate upgrade expiration logic", "[upgrades]")
@@ -2362,13 +2365,10 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(!up.mBaseReserve.has_value());
 }
 
-TEST_CASE("upgrade flags", "[upgrades][liquiditypool]")
+TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {
     VirtualClock clock;
-    // Do our setup in version 0 so that for_versions_* below do not
-    // try to downgrade us from >0 to 0.
     auto cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     auto app = createTestApplication(clock, cfg);
 

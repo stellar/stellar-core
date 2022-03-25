@@ -30,7 +30,7 @@ getEndSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx, size_t i)
     return opRes.tr().endSponsoringFutureReservesResult().code();
 }
 
-TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
+TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

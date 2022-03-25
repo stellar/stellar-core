@@ -123,7 +123,7 @@ countEntries(std::shared_ptr<Bucket> bucket)
 
 using namespace BucketTests;
 
-TEST_CASE("file backed buckets", "[bucket][bucketbench]")
+TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -172,7 +172,7 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
     });
 }
 
-TEST_CASE("merging bucket entries", "[bucket]")
+TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -508,7 +508,8 @@ TEST_CASE("bucket output iterator rejects wrong-version entries",
     REQUIRE_THROWS_AS(out.put(metaEntry), std::runtime_error);
 }
 
-TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
+TEST_CASE_VERSIONS("merging bucket entries with initentry",
+                   "[bucket][initentry]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -696,8 +697,8 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
     });
 }
 
-TEST_CASE("merging bucket entries with initentry with shadows",
-          "[bucket][initentry]")
+TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
+                   "[bucket][initentry]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -965,7 +966,7 @@ TEST_CASE("merging bucket entries with initentry with shadows",
     });
 }
 
-TEST_CASE("bucket apply", "[bucket]")
+TEST_CASE_VERSIONS("bucket apply", "[bucket]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig());

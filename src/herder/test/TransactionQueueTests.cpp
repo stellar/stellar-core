@@ -893,12 +893,14 @@ TEST_CASE("transaction queue starting sequence boundary",
     auto root = TestAccount::createRoot(*app);
     auto acc1 = root.create("a1", minBalance2);
 
-    closeLedgerOn(*app, 2, 1, 1, 2020);
-    closeLedgerOn(*app, 3, 1, 1, 2020);
+    closeLedger(*app);
+    closeLedger(*app);
+
+    auto nextLedgerSeq = app->getLedgerManager().getLastClosedLedgerNum();
 
     SECTION("check a single transaction")
     {
-        int64_t startingSeq = static_cast<int64_t>(4) << 32;
+        int64_t startingSeq = static_cast<int64_t>(nextLedgerSeq) << 32;
         REQUIRE(acc1.loadSequenceNumber() < startingSeq);
         acc1.bumpSequence(startingSeq - 1);
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
@@ -921,7 +923,7 @@ TEST_CASE("transaction queue starting sequence boundary",
 
     SECTION("check a chain of transactions")
     {
-        int64_t startingSeq = static_cast<int64_t>(4) << 32;
+        int64_t startingSeq = static_cast<int64_t>(nextLedgerSeq) << 32;
         REQUIRE(acc1.loadSequenceNumber() < startingSeq);
         acc1.bumpSequence(startingSeq - 3);
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
@@ -1435,9 +1437,10 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 
-        StellarValue sv = herder.makeStellarValue(txSet->getContentsHash(), 2,
-                                                  emptyUpgradeSteps,
-                                                  app->getConfig().NODE_SEED);
+        auto lastCloseTime = lcl.header.scpValue.closeTime;
+        StellarValue sv = herder.makeStellarValue(
+            txSet->getContentsHash(), lastCloseTime, emptyUpgradeSteps,
+            app->getConfig().NODE_SEED);
         herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                       xdr::xdr_to_opaque(sv));
     }

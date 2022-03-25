@@ -16,7 +16,8 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("clawbackClaimableBalance", "[tx][clawback][claimablebalance]")
+TEST_CASE_VERSIONS("clawbackClaimableBalance",
+                   "[tx][clawback][claimablebalance]")
 {
     Config const& cfg = getTestConfig();
 

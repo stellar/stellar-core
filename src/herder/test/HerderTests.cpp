@@ -42,7 +42,7 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
-TEST_CASE("standalone", "[herder][acceptance]")
+TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 
@@ -274,8 +274,7 @@ testTxSet(uint32 protocolVersion)
     int64_t amountPop =
         nbTransactions * app->getLedgerManager().getLastTxFee() + minBalance0;
 
-    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(Hash{});
 
     auto genTx = [&](int nbTxs) {
         std::string accountName = fmt::format("A{}", accounts.size());
@@ -293,6 +292,9 @@ testTxSet(uint32 protocolVersion)
         genTx(nbTransactions);
     }
 
+    txSet->previousLedgerHash() =
+        app->getLedgerManager().getLastClosedLedgerHeader().hash;
+
     SECTION("too many txs")
     {
         while (txSet->mTransactions.size() <=
@@ -300,6 +302,8 @@ testTxSet(uint32 protocolVersion)
         {
             genTx(1);
         }
+        txSet->previousLedgerHash() =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
     }
@@ -446,13 +450,13 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
-    auto txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
-
     auto root = TestAccount::createRoot(*app);
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
     auto account3 = root.create("a3", minBalance2);
+
+    auto txSet = std::make_shared<TxSetFrame>(
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
     auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
         txSet->sortForHash();
@@ -688,8 +692,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
 
         auto accounts = std::vector<TestAccount>{};
 
-        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(Hash{});
 
         for (uint32 i = 0; i < nbTransactions; i++)
         {
@@ -713,6 +716,9 @@ TEST_CASE("txset base fee", "[herder][txset]")
 
         REQUIRE(txSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
+
+        txSet->previousLedgerHash() =
+            app->getLedgerManager().getLastClosedLedgerHeader().hash;
         txSet->sortForHash();
         REQUIRE(txSet->checkValid(*app, 0, 0));
 
@@ -727,7 +733,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         auto balancesBefore = getBalances();
 
         // apply this
-        closeLedgerOn(*app, 2, 1, 1, 2020, txSet->mTransactions);
+        closeLedger(*app, txSet->mTransactions);
 
         auto balancesAfter = getBalances();
         int64_t lowFee = INT64_MAX, highFee = 0;
@@ -2490,8 +2496,11 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
-    StellarValue sv = herder.makeStellarValue(
-        txSet->getContentsHash(), 2, xdr::xvector<UpgradeType, 6>{}, sk);
+    auto lastCloseTime = lcl.header.scpValue.closeTime;
+
+    StellarValue sv =
+        herder.makeStellarValue(txSet->getContentsHash(), lastCloseTime,
+                                xdr::xvector<UpgradeType, 6>{}, sk);
     herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                   xdr::xdr_to_opaque(sv));
 }

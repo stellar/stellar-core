@@ -27,7 +27,7 @@ using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
-TEST_CASE("transaction envelope bridge", "[commandhandler]")
+TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

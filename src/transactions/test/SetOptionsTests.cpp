@@ -34,7 +34,7 @@ using namespace stellar::txtest;
 // try setting high threshold ones without the correct sigs
 // make sure it doesn't allow us to add signers when we don't have the
 // minbalance
-TEST_CASE("set options", "[tx][setoptions]")
+TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 {
     Config const& cfg = getTestConfig();
 

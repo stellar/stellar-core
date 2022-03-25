@@ -36,7 +36,7 @@ getClaimant(TestAccount const& account)
     return c;
 }
 
-TEST_CASE("update sponsorship", "[tx][sponsorship]")
+TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1203,12 +1203,17 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
         }
         SECTION("claimable balance")
         {
-            auto id1 = a1.createClaimableBalance(native, 1, {getClaimant(a1)});
-            auto id2 = a1.createClaimableBalance(native, 1, {getClaimant(a1)});
+            for_versions_from(14, *app, [&]() {
+                auto id1 =
+                    a1.createClaimableBalance(native, 1, {getClaimant(a1)});
+                auto id2 =
+                    a1.createClaimableBalance(native, 1, {getClaimant(a1)});
 
-            tooManySponsoring(
-                *app, a1, a1.op(revokeSponsorship(claimableBalanceKey(id1))),
-                a1.op(revokeSponsorship(claimableBalanceKey(id2))), 1);
+                tooManySponsoring(
+                    *app, a1,
+                    a1.op(revokeSponsorship(claimableBalanceKey(id1))),
+                    a1.op(revokeSponsorship(claimableBalanceKey(id2))), 1);
+            });
         }
         SECTION("pool share trustline")
         {
