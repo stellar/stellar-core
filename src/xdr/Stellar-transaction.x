@@ -479,17 +479,17 @@ struct LiquidityPoolWithdrawOp
 * with 1-bit tagging and store them as "u63", separate from everything else.
 *
 * We actually reserve the first _four_ bits, leaving 3 bits for 8 cases of
-* "non i63 values", some of which has some substructure of their own.
+* "non u63 values", some of which has some substructure of their own.
 *
-*    .... nnnn_nnnn_nnnn_nnnX  - u63 for any even X
-*    .... 0000_000n_nnnn_nnn1  - u32
-*    .... 0000_000n_nnnn_nnn3  - i32
-*    .... nnnn_nnnn_nnnn_nnn5  - static values: void, true, false, ...
-*    .... IIII_IIII_IIII_SST7  - object: with 16 object types, 256 subtypes each, and 48-bit index
-*    .... nnnn_nnnn_nnnn_nnn9  - symbol: up to 10 6-bit identifier characters
-*    .... nnnn_nnnn_nnnn_nnnb  - small bitset (up to 60 bits) 
-*    .... nnnn_nnnn_nnnn_nnnd  - status code (error or other)
-*    .... nnnn_nnnn_nnnn_nnnf  - reserved
+*    0x_nnnn_nnnn_nnnn_nnnX  - u63 for any even X
+*    0x_0000_000n_nnnn_nnn1  - u32
+*    0x_0000_000n_nnnn_nnn3  - i32
+*    0x_nnnn_nnnn_nnnn_nnn5  - static values: void, true, false, ...
+*    0x_IIII_IIII_IIII_SST7  - object: with 16 object types, 256 subtypes each, and 48-bit index
+*    0x_nnnn_nnnn_nnnn_nnn9  - symbol: up to 10 6-bit identifier characters
+*    0x_nnnn_nnnn_nnnn_nnnb  - small bitset (up to 60 bits)
+*    0x_nnnn_nnnn_nnnn_nnnd  - status code (error or other)
+*    0x_nnnn_nnnn_nnnn_nnnf  - reserved
 *
 * Up here in XDR we have variable-length tagged disjoint unions but no bit-level
 * packing, so we can be more explicit in their structure, at the cost of spending more
