@@ -17,7 +17,7 @@ mod val;
 pub use map::Map;
 pub use vec::Vec;
 pub use or_abort::OrAbort;
-pub use val::{BitSet, Object, Symbol, TimePt, Val};
+pub use val::{BitSet, Object, Symbol, Val};
 
 #[inline(always)]
 pub fn require(b: bool) {

@@ -20,6 +20,7 @@ pub fn trap() -> ! {
     }
 }
 
+#[cfg(not(test))]
 #[panic_handler]
 fn handle_panic(_: &core::panic::PanicInfo) -> ! {
     trap();

@@ -1,16 +1,28 @@
 use super::OrAbort;
 
-const OBJ_VOID: u64 = 0;
-const OBJ_BOOL_TRUE: u64 = 1;
-const OBJ_BOOL_FALSE: u64 = 2;
+const TAG_U32: u8 = 0;
+const TAG_I32: u8 = 1;
+const TAG_STATIC: u8 = 2;
+const TAG_OBJECT: u8 = 3;
+const TAG_SYMBOL: u8 = 4;
+const TAG_BITSET: u8 = 5;
+const TAG_STATUS: u8 = 6;
 
-const TAG_OBJECT: u16 = 0;
-const TAG_U32: u16 = 1;
-const TAG_I32: u16 = 2;
-const TAG_SYMBOL: u16 = 3;
-const TAG_BITSET: u16 = 4;
-const TAG_TIMEPT: u16 = 5;
-const TAG_STATUS: u16 = 6;
+const STATIC_VOID: u32 = 0;
+const STATIC_TRUE: u32 = 1;
+const STATIC_FALSE: u32 = 2;
+
+const OBJ_BOX: u16 = 0;
+const OBJ_VEC: u16 = 1;
+const OBJ_MAP: u16 = 2;
+const OBJ_U64: u16 = 3;
+const OBJ_I64: u16 = 4;
+const OBJ_STRING: u16 = 5;
+const OBJ_BINARY: u16 = 6;
+const OBJ_LEDGERKEY: u16 = 7;
+const OBJ_LEDGERVAL: u16 = 8;
+const OBJ_OPERATION: u16 = 9;
+const OBJ_TRANSACTION: u16 = 10;
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -23,10 +35,6 @@ pub struct Symbol(pub(crate) u64);
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct BitSet(u64);
-
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct TimePt(u64);
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -43,7 +51,6 @@ impl ValType for u32 {}
 impl ValType for i32 {}
 impl ValType for Symbol {}
 impl ValType for BitSet {}
-impl ValType for TimePt {}
 impl ValType for Object {}
 
 impl From<Symbol> for Val {
@@ -163,25 +170,6 @@ impl TryFrom<Val> for BitSet {
     }
 }
 
-impl From<TimePt> for Val {
-    #[inline(always)]
-    fn from(t: TimePt) -> Self {
-        Val::from_time_pt(t)
-    }
-}
-
-impl TryFrom<Val> for TimePt {
-    type Error = Error;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_time_pt() {
-            Ok(value.as_time_pt())
-        } else {
-            Err(Error(0))
-        }
-    }
-}
-
 impl From<Object> for Val {
     #[inline(always)]
     fn from(obj: Object) -> Self {
@@ -201,36 +189,55 @@ impl TryFrom<Val> for Object {
 }
 
 impl Val {
+
     #[inline(always)]
-    fn get_tag(&self) -> u16 {
-        self.0 as u16
+    fn is_u63(&self) -> bool {
+        let is = (self.0 & 1) == 0;
+        /*
+        if is {
+            super::log_value(Symbol::from_str("is_u63").into());
+        } else {
+            super::log_value(Symbol::from_str("is_not_u63").into());
+        }
+        */
+        is
+    }
+
+    #[inline(always)]
+    fn get_tag(&self) -> u8 {
+        //(!self.is_u63()).or_abort();
+        //super::log_value(Symbol::from_str("get_tag").into());
+        ((self.0 >> 1) & 7) as u8
     }
 
     #[inline(always)]
     fn get_body(&self) -> u64 {
-        self.0 >> 16
+        //(!self.is_u63()).or_abort();
+        //super::log_value(Symbol::from_str("get_body").into());
+        self.0 >> 4
     }
 
     #[inline(always)]
-    fn has_tag(&self, tag: u16) -> bool {
-        self.get_tag() == tag
+    fn has_tag(&self, tag: u8) -> bool {
+        //super::log_value(Symbol::from_str("has_tag").into());
+        !self.is_u63() && self.get_tag() == tag
     }
 
     #[inline(always)]
     pub fn is_void(&self) -> bool {
-        self.has_tag(TAG_OBJECT) && self.get_body() == OBJ_VOID
+        self.has_tag(TAG_STATIC) && self.get_body() == STATIC_VOID as u64
     }
 
     #[inline(always)]
     pub fn is_bool(&self) -> bool {
-        self.has_tag(TAG_OBJECT)
-            && (self.get_body() == OBJ_BOOL_TRUE || self.get_body() == OBJ_BOOL_FALSE)
+        self.has_tag(TAG_STATIC)
+            && (self.get_body() == STATIC_TRUE as u64 || self.get_body() == STATIC_FALSE as u64)
     }
 
     #[inline(always)]
     pub fn as_bool(&self) -> bool {
         self.is_bool().or_abort();
-        self.get_body() == OBJ_BOOL_TRUE
+        self.get_body() == STATIC_TRUE as u64
     }
 
     #[inline(always)]
@@ -246,12 +253,15 @@ impl Val {
 
     #[inline(always)]
     pub fn is_u32(&self) -> bool {
+        //super::log_value(Symbol::from_str("is_u32").into());
         self.has_tag(TAG_U32)
     }
 
     #[inline(always)]
     pub fn as_u32(&self) -> u32 {
+        //super::log_value(Symbol::from_str("as_u32_a").into());
         self.is_u32().or_abort();
+        //super::log_value(Symbol::from_str("as_u32_b").into());
         self.get_body() as u32
     }
 
@@ -289,19 +299,19 @@ impl Val {
     }
 
     #[inline(always)]
-    pub fn is_time_pt(&self) -> bool {
-        self.has_tag(TAG_TIMEPT)
-    }
-
-    #[inline(always)]
-    pub fn as_time_pt(&self) -> TimePt {
-        self.is_time_pt().or_abort();
-        TimePt(self.get_body())
-    }
-
-    #[inline(always)]
     pub fn is_object(&self) -> bool {
         self.has_tag(TAG_OBJECT)
+    }
+
+    #[inline(always)]
+    pub fn get_object_type(&self) -> u8 {
+        self.is_object().or_abort();
+        (self.get_body() & 0xf) as u8
+    }
+
+    #[inline(always)]
+    pub fn is_object_type(&self, ty: u8) -> bool {
+        self.has_tag(TAG_OBJECT) && self.get_object_type() == ty
     }
 
     #[inline(always)]
@@ -311,55 +321,56 @@ impl Val {
     }
 
     #[inline(always)]
-    fn from_tag_and_body(tag: u16, body: u64) -> Val {
-        (tag < 7).or_abort();
-        let body = body.rotate_left(16);
-        ((body & 0xffffu64) == 0).or_abort();
-        Val(body | (tag as u64))
+    pub fn as_object_type(&self, ty: u8) -> Object {
+        self.is_object_type(ty).or_abort();
+        Object(self.get_body())
+    }
+
+    #[inline(always)]
+    fn from_body_and_tag(body: u64, tag: u8) -> Val {
+        (body < (1 << 60)).or_abort();
+        (tag < 8).or_abort();
+        Val(body << 4 | ((tag << 1) as u64) | 1)
     }
 
     #[inline(always)]
     pub fn from_void() -> Val {
-        Val::from_tag_and_body(TAG_OBJECT, OBJ_VOID)
+        Val::from_body_and_tag(STATIC_VOID as u64, TAG_STATIC)
     }
 
     #[inline(always)]
     pub fn from_bool(b: bool) -> Val {
-        Val::from_tag_and_body(TAG_OBJECT, if b { OBJ_BOOL_TRUE } else { OBJ_BOOL_FALSE })
+        let body = if b { STATIC_TRUE } else { STATIC_FALSE };
+        Val::from_body_and_tag(body as u64, TAG_STATIC)
     }
 
     #[inline(always)]
     pub fn from_status(e: u32) -> Val {
-        Val::from_tag_and_body(TAG_STATUS, e as u64)
+        Val::from_body_and_tag(e as u64, TAG_STATUS)
     }
 
     #[inline(always)]
     pub fn from_u32(u: u32) -> Val {
-        Val::from_tag_and_body(TAG_U32, u as u64)
+        Val::from_body_and_tag(u as u64, TAG_U32)
     }
 
     #[inline(always)]
     pub fn from_i32(i: i32) -> Val {
-        Val::from_tag_and_body(TAG_I32, (i as u32) as u64)
+        Val::from_body_and_tag((i as u32) as u64, TAG_I32)
     }
 
     #[inline(always)]
     pub fn from_symbol(s: Symbol) -> Val {
-        Val::from_tag_and_body(TAG_SYMBOL, s.0)
+        Val::from_body_and_tag(s.0, TAG_SYMBOL)
     }
 
     #[inline(always)]
     pub fn from_bit_set(bits: BitSet) -> Val {
-        Val::from_tag_and_body(TAG_BITSET, bits.0)
-    }
-
-    #[inline(always)]
-    pub fn from_time_pt(time: TimePt) -> Val {
-        Val::from_tag_and_body(TAG_TIMEPT, time.0)
+        Val::from_body_and_tag(bits.0, TAG_BITSET)
     }
 
     #[inline(always)]
     pub fn from_object(obj: Object) -> Val {
-        Val::from_tag_and_body(TAG_OBJECT, obj.0)
+        Val::from_body_and_tag(obj.0, TAG_OBJECT)
     }
 }

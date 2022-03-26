@@ -27,14 +27,14 @@ impl<K: ValType, V: ValType> Map<K, V> {
     #[inline(always)]
     pub fn put(&self, k: K, v: V) -> Map<K, V> {
         let m: Val = unsafe { host_fns::map_put(self.0, k.into(), v.into()) };
-        m.is_object().or_abort();
+        //m.is_object().or_abort();
         Map(m, PhantomData, PhantomData)
     }
 
     #[inline(always)]
     pub fn del(&self, k: K) -> Map<K, V> {
         let m: Val = unsafe { host_fns::map_del(self.0, k.into()) };
-        m.is_object().or_abort();
+        //m.is_object().or_abort();
         Map(m, PhantomData, PhantomData)
     }
 
@@ -47,7 +47,7 @@ impl<K: ValType, V: ValType> Map<K, V> {
     #[inline(always)]
     pub fn keys(&self) -> Vec<K> {
         let v: Val = unsafe { host_fns::map_keys(self.0) };
-        v.is_object().or_abort();
+        //v.is_object().or_abort();
         Vec(v, PhantomData)
     }
 }

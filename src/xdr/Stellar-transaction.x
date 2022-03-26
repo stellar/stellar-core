@@ -473,83 +473,24 @@ struct LiquidityPoolWithdrawOp
 * structures and passing them in and out of languages that have simple or
 * dynamic type systems.
 *
-* SCVals are (in WASM's case) stored in a 64-bit word encoding that is
-* compatible with NaN-boxing, so this dictates the encoding space available to
-* use for payload and variants.
+* SCVals are (in WASM's case) stored in a tagged 64-bit word encoding. Most
+* signed 64-bit values in Stellar are actually signed positive values (sequence
+* numbers, timestamps, amounts), so we don't need the high bit and can get away
+* with 1-bit tagging and store them as "u63", separate from everything else.
 *
-* To be clear, in this version, floating point isn't actually supported and no
-* FP operations are involved; we're just using a bit-pattern assignment within
-* u64 words that's future-proofed against FP showing up and needing bits.
+* We actually reserve the first _four_ bits, leaving 3 bits for 8 cases of
+* "non i63 values", some of which has some substructure of their own.
 *
-* NaNs have the top 13 bits set, so you can picture the space of non-NaN
-* doubles, a single canonical NaN, and "the additional space of non-canonoical
-* NaNs" schematically like so:
+*    .... nnnn_nnnn_nnnn_nnnX  - u63 for any even X
+*    .... 0000_000n_nnnn_nnn1  - u32
+*    .... 0000_000n_nnnn_nnn3  - i32
+*    .... nnnn_nnnn_nnnn_nnn5  - static values: void, true, false, ...
+*    .... IIII_IIII_IIII_SST7  - object: with 16 object types, 256 subtypes each, and 48-bit index
+*    .... nnnn_nnnn_nnnn_nnn9  - symbol: up to 10 6-bit identifier characters
+*    .... nnnn_nnnn_nnnn_nnnb  - small bitset (up to 60 bits) 
+*    .... nnnn_nnnn_nnnn_nnnd  - status code (error or other)
+*    .... nnnn_nnnn_nnnn_nnnf  - reserved
 *
-* xxxx_xxxx_xxxx_xxxx <-- used by non-NaN doubles
-* FFF7_xxxx_xxxx_xxxx <-- the highest non-NaN double
-* FFF8_0000_0000_0000 <-- used for _one_ canonical NaN double
-* FFF9_xxxx_xxxx_xxxx <-- 48-bit payload for 1st union case
-* FFFA_...
-* FFFB_...
-* FFFC_...
-* FFFD_...
-* FFFE_...
-* FFFF_xxxx_xxxx_xxxx <-- 48-bit payload for 7th union case
-*
-* For convenience and codesize, we use a slightly different encoding of
-* the payload when interacting with a specific contract VM. We start by adding 7 *
-* 2^48 to the payload to shift the doubles up and use the lower bit-space for
-* tags, producing this assignment:
-*
-* 0000_xxxx_xxxx_xxxx <-- 48-bit payload for union case 0
-* 0001_...
-* 0002_...
-* 0003_...
-* 0004_...
-* 0005_...
-* 0006_xxxx_xxxx_xxxx <-- 48-bit payload for union case 6
-* 0007_0000_0000_0000 <-- the lowest non-NaN double
-* FFFE_FFFF_FFFF_FFFF <-- the highest non-NaN double
-* FFFF_FFFF_FFFF_FFFF <-- used for _one_ canonical NaN double
-*
-* And then since we're targeting WASM -- which means we want an encoding that
-* mostly uses small (7-bit) LEB128 values for tag checking and masking -- we do
-* a subsequent left-rotation by 16 bits, producing this assignment:
-*
-* xxxx_xxxx_xxxx_0000 <-- 48-bit payload for union case 0
-*            ..._0001
-*            ..._0003
-*            ..._0004
-*            ..._0005
-* xxxx_xxxx_xxxx_0006  <-- 48-bit payload for union case 6
-* 0000_0000_0000_0007 <-- the lowest non-NaN double
-* FFFF_FFFF_FFFF_FFFE <-- the highest non-NaN double
-* FFFF_FFFF_FFFF_FFFF <-- used for _one_ canonical NaN double
-*
-* Abstractly we divide up these 7 union cases as follows:
-*
-*   0: "object" values that are integer handles to denote SCObjects by reference.
-*      The first 65536 of these are reserved for special "static" / pre-defined
-*      objects with known identities: void, bool true, bool false, etc. The rest
-*      are for "dynamic" objects allocated during contract execution.
-*
-*   1: General u32 values
-*
-*   2: General i32 values
-*
-*   3: "symbol" values that encode a small 48-bit packed string composed of identifier
-*      characters from the range [a-zA-Z0-9_] -- these can be stored in 6 bits each,
-*      so symbols can be up to 8 characters long.
-*
-*   4: "bitset" values that encode a set of 48 flags with meaning chosen by the user.
-*      larger bitsets can go in literal or handle spaces.
-*
-*   5: "timept" values that encode a 48-bit count of seconds since the unix epoch,
-*      which gives 8 million years before overflowing to literal or handle spaces.
-*
-*   6: "status" values carrying a 16-bit status code, 8-bit file and 16-bit line number.
-*      these can be used for tracing/debugging or error reporting.
-* 
 * Up here in XDR we have variable-length tagged disjoint unions but no bit-level
 * packing, so we can be more explicit in their structure, at the cost of spending more
 * than 64 bits to encode many cases, and also having to convert. It's a little
@@ -561,10 +502,10 @@ struct LiquidityPoolWithdrawOp
 * (We may also change semantics in the future to have SCObjects be mutable after all)
 */
 
-// A symbol is up to 8 chars drawn from [a-zA-Z0-9_], which can be packed into
-// 48 bits with a 6-bit-per-character code, usable as a small key type to
+// A symbol is up to 10 chars drawn from [a-zA-Z0-9_], which can be packed into
+// 60 bits with a 6-bit-per-character code, usable as a small key type to
 // specify function, argument, tx-local environment and map entries efficiently.
-typedef string SCSymbol<8>;
+typedef string SCSymbol<10>;
 
 // SCLedgerValType enumerates all the stellar-ledger-specific types that
 // are likely to be used as single scalar values (namely: map keys) in smart
@@ -600,36 +541,40 @@ union SCLedgerVal switch (SCLedgerValType type) {
 
 enum SCValType
 {
-    SCV_VOID = 0,
-    SCV_BOOL = 1,
-    SCV_OBJECT = 2,
-    SCV_U32 = 3,
-    SCV_I32 = 4,
+    SCV_U63 = 0,
+    SCV_U32 = 1,
+    SCV_I32 = 2,
+    SCV_STATIC = 3,
+    SCV_OBJECT = 4,
     SCV_SYMBOL = 5,
     SCV_BITSET = 6,
-    SCV_TIMEPT = 7,
-    SCV_STATUS = 8
-};
+    SCV_STATUS = 7
+ };
 
 % struct SCObject;
 
+enum SCStatic
+{
+    SCS_VOID = 0,
+    SCS_TRUE = 1,
+    SCS_FALSE = 2
+};
+
 union SCVal switch (SCValType type) {
-    case SCV_VOID:
-        void;
-    case SCV_BOOL:
-        bool b;
-    case SCV_OBJECT:
-        SCObject *obj;
+    case SCV_U63:
+        uint64 u63;
     case SCV_U32:
         uint32 u32;
     case SCV_I32:
         int32 i32;
+    case SCV_STATIC:
+        SCStatic ic;
+    case SCV_OBJECT:
+        SCObject *obj;
     case SCV_SYMBOL:
         SCSymbol sym;
     case SCV_BITSET:
         uint64 bits;
-    case SCV_TIMEPT:
-        uint64 time;
     case SCV_STATUS:
         uint64 status;
 };

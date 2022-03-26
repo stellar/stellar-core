@@ -153,43 +153,52 @@ class HostVal
     {
     }
 
-    static const uint64_t OBJ_VOID = 0;
-    static const uint64_t OBJ_BOOL_TRUE = 1;
-    static const uint64_t OBJ_BOOL_FALSE = 2;
-    static const uint64_t OBJ_DYNAMIC_BASE = 0x10000;
+  public:
+    static const uint8_t TAG_U32 = 0;
+    static const uint8_t TAG_I32 = 1;
+    static const uint8_t TAG_STATIC = 2;
+    static const uint8_t TAG_OBJECT = 3;
+    static const uint8_t TAG_SYMBOL = 4;
+    static const uint8_t TAG_BITSET = 5;
+    static const uint8_t TAG_STATUS = 6;
 
-    static inline uint64_t
-    rotate_right(uint64_t x, size_t s)
-    {
-        uint64_t r = s & 63;
-        return (x >> r) | (x << (64 - r));
-    }
+    static const uint32_t STATIC_VOID = 0;
+    static const uint32_t STATIC_TRUE = 1;
+    static const uint32_t STATIC_FALSE = 2;
 
-    static inline uint64_t
-    rotate_left(uint64_t x, size_t s)
+    static HostVal
+    fromU63(uint64_t u63)
     {
-        uint64_t r = s & 63;
-        return (x << r) | (x >> (64 - r));
+        releaseAssert((u63 & (1ULL << 63)) == 0);
+        return HostVal{u63 << 1};
     }
 
     static HostVal
-    fromTagAndBody(uint16_t tag3, uint64_t body48)
+    fromPositiveInt64(int64_t i)
     {
-        releaseAssert(tag3 < 7);
-        body48 = rotate_left(body48, 16);
-        releaseAssert((body48 & 0xffff) == 0);
-        return HostVal{body48 | tag3};
+        releaseAssert(i >= 0);
+        uint64_t u63 = uint64_t(i);
+        return fromU63(u63);
+    }
+
+  private:
+    static HostVal
+    fromBodyAndTag(uint64_t body, uint8_t tag)
+    {
+        releaseAssert(body < (1ULL << 60));
+        releaseAssert(tag < 8);
+        return HostVal{(body << 4) | (tag << 1) | 1};
+    }
+
+    static HostVal
+    fromObjectTypeAndIndex(uint8_t objectType, uint64_t index)
+    {
+        releaseAssert(objectType < 16);
+        releaseAssert(index < (1ULL << 48));
+        return fromBodyAndTag((index << 12) | objectType, TAG_OBJECT);
     }
 
   public:
-    static const uint16_t TAG_OBJECT = 0;
-    static const uint16_t TAG_U32 = 1;
-    static const uint16_t TAG_I32 = 2;
-    static const uint16_t TAG_SYMBOL = 3;
-    static const uint16_t TAG_BITSET = 4;
-    static const uint16_t TAG_TIMEPT = 5;
-    static const uint16_t TAG_STATUS = 6;
-
     bool
     operator==(HostVal const& other) const
     {
@@ -202,43 +211,68 @@ class HostVal
         return other.payload() < mPayload;
     }
 
-    uint16_t
-    getTag() const
+    bool
+    isU63() const
     {
-        return uint16_t(mPayload);
+        return !(mPayload & 1);
     }
 
-    uint64_t
-    getBody() const
+    uint8_t
+    getTag() const
     {
-        return (mPayload >> 16);
+        releaseAssert(!isU63());
+        return uint8_t((mPayload >> 1) & 7);
     }
 
     bool
     hasTag(uint8_t tag) const
     {
-        return getTag() == tag;
+        return !isU63() && (getTag() == tag);
+    }
+
+    uint64_t
+    getBody() const
+    {
+        releaseAssert(!isU63());
+        return (mPayload >> 4);
+    }
+
+    uint16_t
+    getObjectType() const
+    {
+        releaseAssert(hasTag(TAG_OBJECT));
+        return uint8_t(getBody() & 0xfff);
+    }
+
+    bool
+    hasObjectType(uint16_t objectType) const
+    {
+        return hasTag(TAG_OBJECT) && (getObjectType() == objectType);
+    }
+
+    bool
+    isStaticVal(uint32_t staticVal) const
+    {
+        return hasTag(TAG_STATIC) && (getBody() == staticVal);
     }
 
     bool
     isVoid() const
     {
-        return hasTag(TAG_OBJECT) && (getBody() == OBJ_VOID);
+        return isStaticVal(STATIC_VOID);
     }
 
     bool
     isBool() const
     {
-        auto body = getBody();
-        return hasTag(TAG_OBJECT) &&
-               (body == OBJ_BOOL_TRUE || body == OBJ_BOOL_FALSE);
+        return isStaticVal(STATIC_TRUE) || isStaticVal(STATIC_FALSE);
     }
 
     bool
     asBool() const
     {
         releaseAssert(isBool());
-        return getBody() == OBJ_BOOL_TRUE;
+        return isStaticVal(STATIC_TRUE);
     }
 
     bool
@@ -302,29 +336,20 @@ class HostVal
     }
 
     bool
-    isTimePt() const
-    {
-        return hasTag(TAG_TIMEPT);
-    }
-
-    uint64_t
-    asTimePt() const
-    {
-        releaseAssert(isTimePt());
-        return getBody();
-    }
-
-    bool
     isObject() const
     {
-        return hasTag(TAG_OBJECT) && getBody() >= OBJ_DYNAMIC_BASE;
+        return hasTag(TAG_OBJECT);
     }
 
     size_t
     asObject() const
     {
         releaseAssert(isObject());
-        return size_t(getBody() - OBJ_DYNAMIC_BASE);
+        // NB: we never _extract_ the object type of a HostVal since it might be
+        // a lie from the user; we just embed the object type when packing an
+        // index into an object HostVal, so the user can observe it without
+        // calling a host function.
+        return size_t(getBody() >> 12);
     }
 
     uint64_t
@@ -340,44 +365,52 @@ class HostVal
     static HostVal
     fromVoid()
     {
-        return fromTagAndBody(TAG_OBJECT, OBJ_VOID);
+        return fromBodyAndTag(STATIC_VOID, TAG_STATIC);
     }
     static HostVal
     fromBool(bool b)
     {
-        return fromTagAndBody(TAG_OBJECT, b ? OBJ_BOOL_TRUE : OBJ_BOOL_FALSE);
+        return fromBodyAndTag(b ? STATIC_TRUE : STATIC_FALSE, TAG_STATIC);
     }
     static HostVal
     fromStatus(uint32_t status)
     {
-        return fromTagAndBody(TAG_STATUS, uint64_t(status));
+        return fromBodyAndTag(uint64_t(status), TAG_STATUS);
+    }
+    static HostVal
+    fromStatic(SCStatic st)
+    {
+        return fromBodyAndTag(uint64_t(st), TAG_STATIC);
     }
     static HostVal
     fromU32(uint32_t u32)
     {
-        return fromTagAndBody(TAG_U32, uint64_t(u32));
+        return fromBodyAndTag(uint64_t(u32), TAG_U32);
     }
     static HostVal
     fromI32(int32_t i32)
     {
-        return fromTagAndBody(TAG_I32, uint64_t(i32) & 0xffffffffULL);
+        return fromBodyAndTag(uint64_t(i32) & 0xffffffffULL, TAG_I32);
     }
     static HostVal fromSymbol(std::string const& s);
 
     static HostVal
-    fromTimePt(uint64_t time)
-    {
-        return fromTagAndBody(TAG_TIMEPT, time);
-    }
-    static HostVal
     fromBitSet(uint64_t bits)
     {
-        return fromTagAndBody(TAG_BITSET, bits);
+        return fromBodyAndTag(bits, TAG_BITSET);
     }
+
+    static HostVal
+    fromObject(SCObjectType ty, size_t idx)
+    {
+        return fromObjectTypeAndIndex(uint8_t(ty), uint64_t(idx));
+    }
+
+    template <typename HObj>
     static HostVal
     fromObject(size_t idx)
     {
-        return fromTagAndBody(TAG_OBJECT, uint64_t(idx) + OBJ_DYNAMIC_BASE);
+        throw std::runtime_error("unhandled object type");
     }
 
     operator fizzy::ExecutionResult() const
@@ -409,6 +442,83 @@ using HostMap = immer::map<HostVal, HostVal>;
 using HostObject = std::variant<HostBox, HostVec, HostMap, uint64_t, int64_t,
                                 xdr::xstring<>, xdr::xvector<uint8_t>,
                                 LedgerKey, SCLedgerVal, Operation, Transaction>;
+
+template <>
+inline HostVal
+HostVal::fromObject<HostBox>(size_t idx)
+{
+    return fromObject(SCO_BOX, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<HostVec>(size_t idx)
+{
+    return fromObject(SCO_VEC, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<HostMap>(size_t idx)
+{
+    return fromObject(SCO_MAP, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<uint64_t>(size_t idx)
+{
+    return fromObject(SCO_U64, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<int64_t>(size_t idx)
+{
+    return fromObject(SCO_I64, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<xdr::xstring<>>(size_t idx)
+{
+    return fromObject(SCO_STRING, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<xdr::xvector<uint8_t>>(size_t idx)
+{
+    return fromObject(SCO_BINARY, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<LedgerKey>(size_t idx)
+{
+    return fromObject(SCO_LEDGERKEY, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<SCLedgerVal>(size_t idx)
+{
+    return fromObject(SCO_LEDGERVAL, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<Operation>(size_t idx)
+{
+    return fromObject(SCO_OPERATION, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<Transaction>(size_t idx)
+{
+    return fromObject(SCO_TRANSACTION, idx);
+}
 
 // All of our host functions take N i64 inputs and return 1 i64 output. The
 // values being passed are (statically) either full/wide i64s or i64s carrying
@@ -481,7 +591,7 @@ class HostContext
         HObj obj(std::forward<Args>(args)...);
         mObjects.emplace_back(
             std::make_unique<HostObject const>(std::move(obj)));
-        return HostVal::fromObject(idx);
+        return HostVal::fromObject<HObj>(idx);
     }
 
     std::unique_ptr<HostObject const> const&

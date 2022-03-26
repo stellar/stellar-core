@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include "xdr/Stellar-transaction.h"
 #include <cstdint>
 #include <fizzy/execute.hpp>
 #include <fizzy/instantiate.hpp>
@@ -18,14 +19,16 @@ namespace stellar
 std::string
 HostVal::asSymbol() const
 {
+    size_t MAXCHARS = SCSymbol::max_size();
+    size_t MAXBITS = MAXCHARS * 6;
     static char dict[64] =
         "_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     std::string out;
-    out.reserve(8);
+    out.reserve(MAXCHARS);
     auto tmp = getBody();
-    for (size_t off = 6; off <= 48; off += 6)
+    for (size_t off = 6; off <= MAXBITS; off += 6)
     {
-        auto idx = (tmp >> (48 - off)) & 63;
+        auto idx = (tmp >> (MAXBITS - off)) & 63;
         if (idx == 0)
         {
             break;
@@ -38,7 +41,8 @@ HostVal::asSymbol() const
 HostVal
 HostVal::fromSymbol(std::string const& s)
 {
-    if (s.size() > 8)
+    size_t MAXSZ = SCSymbol::max_size();
+    if (s.size() > MAXSZ)
     {
         throw std::runtime_error("bad symbol size");
     }
@@ -71,8 +75,8 @@ HostVal::fromSymbol(std::string const& s)
             throw std::runtime_error("bad symbol char");
         };
     }
-    accum <<= 6 * (8 - s.size());
-    return fromTagAndBody(TAG_SYMBOL, accum);
+    accum <<= 6 * (MAXSZ - s.size());
+    return fromBodyAndTag(accum, TAG_SYMBOL);
 }
 
 std::ostream&
@@ -112,10 +116,6 @@ operator<<(std::ostream& out, HostVal const& v)
             tmp >>= 1;
         }
         out << ')';
-    }
-    else if (v.isTimePt())
-    {
-        out << "time(" << v.asTimePt() << ')';
     }
     else if (v.isObject())
     {
@@ -172,22 +172,27 @@ HostContext::xdrToHost(SCVal const& v)
 {
     switch (v.type())
     {
-    case SCV_VOID:
-        return HostVal::fromVoid();
-    case SCV_BOOL:
-        return HostVal::fromBool(v.b());
-    case SCV_OBJECT:
-        return HostVal::fromObject(xdrToHost(v.obj()));
+    case SCV_U63:
+        return HostVal::fromU63(v.u63());
     case SCV_U32:
         return HostVal::fromU32(v.u32());
     case SCV_I32:
         return HostVal::fromI32(v.i32());
+    case SCV_STATIC:
+        return HostVal::fromStatic(v.ic());
+    case SCV_OBJECT:
+    {
+        SCObjectType ty = SCO_BOX;
+        if (v.obj())
+        {
+            ty = v.obj()->type();
+        }
+        return HostVal::fromObject(ty, xdrToHost(v.obj()));
+    }
     case SCV_SYMBOL:
         return HostVal::fromSymbol(v.sym());
     case SCV_BITSET:
         return HostVal::fromBitSet(v.bits());
-    case SCV_TIMEPT:
-        return HostVal::fromTimePt(v.time());
     case SCV_STATUS:
         return HostVal::fromStatus(v.status());
     }
@@ -199,12 +204,13 @@ HostContext::hostToXdr(HostVal const& hv)
     SCVal out;
     if (hv.isVoid())
     {
-        out.type(SCV_VOID);
+        out.type(SCV_STATIC);
+        out.ic() = SCS_VOID;
     }
     else if (hv.isBool())
     {
-        out.type(SCV_BOOL);
-        out.b() = hv.asBool();
+        out.type(SCV_STATIC);
+        out.ic() = hv.asBool() ? SCS_TRUE : SCS_FALSE;
     }
     else if (hv.isObject())
     {
@@ -235,11 +241,6 @@ HostContext::hostToXdr(HostVal const& hv)
     {
         out.type(SCV_BITSET);
         out.bits() = hv.asBitSet();
-    }
-    else if (hv.isTimePt())
-    {
-        out.type(SCV_TIMEPT);
-        out.time() = hv.asTimePt();
     }
     else if (hv.isStatus())
     {
@@ -783,9 +784,10 @@ fizzy::ExecutionResult
 HostContext::getCurrentLedgerCloseTime(fizzy::Instance& instance,
                                        fizzy::ExecutionContext& exec)
 {
+    // NB: this returns a raw u64, not a HostVal.
     TimePoint closeTime =
         getLedgerTxn().loadHeader().current().scpValue.closeTime;
-    return HostVal::fromTimePt(closeTime);
+    return fizzy::Value{closeTime};
 }
 
 HostContext::HostContext()

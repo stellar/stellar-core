@@ -532,14 +532,14 @@ invokeContract(Config cfg, std::string const& wasmFile,
         std::string val = a.substr(sepIdx + 1);
         if (ty == "bool")
         {
-            arg.type(SCV_BOOL);
+            arg.type(SCV_STATIC);
             if (val == "true")
             {
-                arg.b() = true;
+                arg.ic() = SCS_TRUE;
             }
             else if (val == "false")
             {
-                arg.b() = false;
+                arg.ic() = SCS_FALSE;
             }
             else
             {
