@@ -387,11 +387,44 @@ BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
     }
 }
 
+std::filesystem::path
+BucketManagerImpl::resortFile(std::shared_ptr<Bucket> b,
+                              BucketSortOrder oldType, BucketSortOrder newType)
+{
+    ZoneScoped;
+    releaseAssertOrThrow(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+    releaseAssert(b->hasFileWithSortOrder(oldType));
+    releaseAssert(!b->hasFileWithSortOrder(newType));
+
+    std::set<BucketEntry, BucketEntryIdCmpExp> sortedEntries;
+    for (BucketInputIterator in(b, oldType); in; ++in)
+    {
+        sortedEntries.insert(*in);
+    }
+
+    BucketMetadata meta;
+    meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    MergeCounters mc;
+
+    // Since we are resorting an existing bucket, always preserve dead entries.
+    BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/true, meta, mc,
+                             mApp.getClock().getIOContext(),
+                             !mApp.getConfig().DISABLE_XDR_FSYNC, newType);
+
+    for (auto const& e : sortedEntries)
+    {
+        out.put(e);
+    }
+
+    out.close();
+    return out.getFilename();
+}
+
 std::shared_ptr<Bucket>
-BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
+BucketManagerImpl::adoptFileAsBucket(std::filesystem::path const& filename,
                                      uint256 const& hash, size_t nObjects,
-                                     size_t nBytes, MergeKey* mergeKey,
-                                     std::string const& expFilename)
+                                     size_t nBytes, BucketSortOrder type,
+                                     MergeKey* mergeKey)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -424,15 +457,6 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         {
             auto timer = LogSlowExecution("Delete redundant bucket");
             std::remove(filename.c_str());
-            if (!expFilename.empty())
-            {
-                releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
-                CLOG_DEBUG(Bucket,
-                           "Deleting bucket file {} that is redundant with "
-                           "existing bucket",
-                           expFilename);
-                std::remove(expFilename.c_str());
-            }
         }
     }
     else
@@ -442,23 +466,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                    canonicalName);
         renameBucket(filename, canonicalName);
 
-        if (!expFilename.empty())
-        {
-            releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
-            auto expCanonicalName =
-                Bucket::getExperimentalFilename(canonicalName);
-            CLOG_INFO(Bucket, "Adopting experimental bucket file {} as {}",
-                      expFilename, expCanonicalName);
-
-            renameBucket(expFilename, expCanonicalName);
-            b = std::make_shared<Bucket>(canonicalName, hash,
-                                         /*isExperimental=*/true);
-        }
-        else
-        {
-            b = std::make_shared<Bucket>(canonicalName, hash);
-        }
-
+        b = std::make_shared<Bucket>(canonicalName, hash);
         {
             mSharedBuckets.emplace(hash, b);
             mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -472,6 +480,42 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         mFinishedMerges.recordMerge(*mergeKey, hash);
     }
     return b;
+}
+
+void
+BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
+                                   std::filesystem::path const& filename,
+                                   uint256 const& hash, BucketSortOrder type)
+{
+    ZoneScoped;
+    releaseAssertOrThrow(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+    releaseAssert(b);
+    releaseAssert(!filename.empty() && fs::exists(filename));
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+
+    if (b->hasFileWithSortOrder(type))
+    {
+        CLOG_DEBUG(
+            Bucket,
+            "Deleting bucket file {} that is redundant with existing bucket",
+            filename);
+        {
+            auto timer = LogSlowExecution("Delete redundant bucket");
+            std::remove(filename.c_str());
+        }
+    }
+    else
+    {
+
+        // std::filesystem::path canonicalName = bucketFilename(hash);
+        // TODO: Change this to not use the .v2 file extension
+        std::string canonicalName =
+            b->getFilename().string() + Bucket::EXPERIMENTAL_FILE_EXT;
+        CLOG_DEBUG(Bucket, "Adding bucket file {} as {}", filename,
+                   canonicalName);
+        renameBucket(filename, canonicalName);
+        b->addFile(canonicalName, hash, type);
+    }
 }
 
 void
@@ -496,6 +540,7 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
 std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
+    // TODO: Update this function
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
@@ -516,6 +561,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                    "BucketManager::getBucketByHash({}) found no bucket, making "
                    "new one",
                    binToHex(hash));
+        auto b = std::make_shared<Bucket>(canonicalName, hash);
 
         bool isExperimental =
             fs::exists(Bucket::getExperimentalFilename(canonicalName));
@@ -523,12 +569,13 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         if (isExperimental)
         {
             releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+            addFileToBucket(b, Bucket::getExperimentalFilename(canonicalName),
+                            hash, BucketSortOrder::SortByAccount);
         }
 
-        auto p = std::make_shared<Bucket>(canonicalName, hash, isExperimental);
-        mSharedBuckets.emplace(hash, p);
+        mSharedBuckets.emplace(hash, b);
         mSharedBucketsSize.set_count(mSharedBuckets.size());
-        return p;
+        return b;
     }
     return std::shared_ptr<Bucket>();
 }
@@ -603,6 +650,7 @@ BucketManagerImpl::clearMergeFuturesForTesting()
 std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
 {
+    // TODO: Update this function`
     ZoneScoped;
     std::set<Hash> referenced;
     if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
@@ -744,7 +792,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             {
                 CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
                 std::remove(filename.c_str());
-                auto gzfilename = filename + ".gz";
+                auto gzfilename = filename.string() + ".gz";
                 std::remove(gzfilename.c_str());
             }
 
@@ -897,45 +945,6 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
-    // Checks if bucket has been resorted with experimental cmp function. If
-    // not, creates a new file in the new sort order and adds it to the bucket
-    auto sortFile = [&](std::shared_ptr<Bucket> b, uint32_t i) {
-        if (!b->isExperimental() && !b->getFilename().empty())
-        {
-            auto expFilename =
-                Bucket::getExperimentalFilename(b->getFilename());
-            std::vector<BucketEntry> sortedEntries;
-            for (BucketInputIterator in(b, b->getFilename()); in; ++in)
-            {
-                sortedEntries.insert(std::upper_bound(sortedEntries.begin(),
-                                                      sortedEntries.end(), *in,
-                                                      BucketEntryIdCmpExp{}),
-                                     *in);
-            }
-
-            BucketMetadata meta;
-            meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-            MergeCounters mc;
-            BucketOutputIterator out(getTmpDir(),
-                                     BucketList::keepDeadEntries(i), meta, mc,
-                                     mApp.getClock().getIOContext(),
-                                     !mApp.getConfig().DISABLE_XDR_FSYNC,
-                                     /*isExperimental=*/true);
-
-            for (auto const& e : sortedEntries)
-            {
-                out.put(e);
-            }
-
-            out.close();
-            if (!out.empty())
-            {
-                renameBucket(out.getFilename(), expFilename);
-                b->addExperimentalFile();
-            }
-        }
-    };
-
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
@@ -946,10 +955,29 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                 "Missing bucket files while assuming saved BucketList state");
         }
 
+        // Resort files if experimental flag is set and if files have not yet
+        // been resorted
         if (mApp.getConfig().EXPERIMENTAL_BUCKET_STORE)
         {
-            sortFile(curr, i);
-            sortFile(snap, i);
+            if (curr->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
+                !curr->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
+            {
+                auto currResorted =
+                    resortFile(curr, BucketSortOrder::SortByType,
+                               BucketSortOrder::SortByAccount);
+                addFileToBucket(curr, currResorted, curr->getHash(),
+                                BucketSortOrder::SortByAccount);
+            }
+
+            if (snap->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
+                !snap->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
+            {
+                auto snapResorted =
+                    resortFile(snap, BucketSortOrder::SortByType,
+                               BucketSortOrder::SortByAccount);
+                addFileToBucket(snap, snapResorted, snap->getHash(),
+                                BucketSortOrder::SortByAccount);
+            }
         }
 
         mBucketList->getLevel(i).setCurr(curr);
@@ -982,7 +1010,7 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
 {
     using namespace std::chrono;
     medida::Timer timer;
-    BucketInputIterator in(b);
+    BucketInputIterator in(b, BucketSortOrder::SortByType);
     timer.Time([&]() {
         while (in)
         {
@@ -1054,15 +1082,17 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 std::shared_ptr<Bucket>
 BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 {
+    ZoneScoped;
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
 
-    std::vector<BucketEntry> expSortedEntries;
+    std::set<BucketEntry, BucketEntryIdCmpExp> expSortedEntries;
     BucketMetadata meta;
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
-                             ctx, /*doFsync=*/true, /*isExperimental=*/false);
+                             ctx, /*doFsync=*/true,
+                             BucketSortOrder::SortByType);
     auto isExperimental = mApp.getConfig().EXPERIMENTAL_BUCKET_STORE;
     for (auto const& pair : ledgerMap)
     {
@@ -1070,13 +1100,10 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
         be.type(LIVEENTRY);
         be.liveEntry() = pair.second;
 
+        // Sort in new order simultaneously in memory
         if (isExperimental)
         {
-            // Sort in new order simultaneously in memory
-            expSortedEntries.insert(std::upper_bound(expSortedEntries.begin(),
-                                                     expSortedEntries.end(), be,
-                                                     BucketEntryIdCmpExp{}),
-                                    be);
+            expSortedEntries.insert(be);
         }
 
         out.put(be);
@@ -1086,7 +1113,8 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     {
         BucketOutputIterator outExp(getTmpDir(),
                                     /*keepDeadEntries=*/false, meta, mc, ctx,
-                                    /*doFsync=*/true, /*isExperimental=*/true);
+                                    /*doFsync=*/true,
+                                    BucketSortOrder::SortByAccount);
         for (auto const& e : expSortedEntries)
         {
             outExp.put(e);
@@ -1117,7 +1145,8 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
                 FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
         }
         seq.emplace_back(std::make_shared<VerifyBucketWork>(
-            mApp, b->getFilename(), b->getHash(), nullptr));
+            mApp, b->getFilename(BucketSortOrder::SortByType),
+            b->getHash(BucketSortOrder::SortByType), nullptr));
     }
     return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);

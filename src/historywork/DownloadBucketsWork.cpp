@@ -94,10 +94,22 @@ DownloadBucketsWork::yieldMoreWork()
         if (self)
         {
             auto bucketPath = ft.localPath_nogz();
-            auto b = app.getBucketManager().adoptFileAsBucket(bucketPath,
-                                                              hexToBin256(hash),
-                                                              /*objectsPut=*/0,
-                                                              /*bytesPut=*/0);
+            auto b = app.getBucketManager().adoptFileAsBucket(
+                bucketPath, hexToBin256(hash),
+                /*objectsPut=*/0,
+                /*bytesPut=*/0, BucketSortOrder::SortByType);
+            if (app.getConfig().EXPERIMENTAL_BUCKET_STORE)
+            {
+                auto resortedFilename = app.getBucketManager().resortFile(
+                    b, BucketSortOrder::SortByType,
+                    BucketSortOrder::SortByAccount);
+
+                // TODO: Calculate actual hash
+                auto Newhash = b->getHash(BucketSortOrder::SortByType);
+                app.getBucketManager().addFileToBucket(
+                    b, resortedFilename, Newhash,
+                    BucketSortOrder::SortByAccount);
+            }
             self->mBuckets[hash] = b;
         }
         return true;

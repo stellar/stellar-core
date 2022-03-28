@@ -132,7 +132,7 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
 bool
 isExpFileSorted(std::shared_ptr<Bucket> bucket, std::string const& filename)
 {
-    BucketInputIterator in(bucket, filename);
+    BucketInputIterator in(bucket, BucketSortOrder::SortByAccount);
 
     // Edge case if file is empty
     if (!in)
@@ -171,7 +171,7 @@ areFilesConsistent(std::shared_ptr<Bucket> bucket, std::string const& filename,
     }
 
     std::set<BucketEntry> fileEntries;
-    for (BucketInputIterator in(bucket, filename); in; ++in)
+    for (BucketInputIterator in(bucket); in; ++in)
     {
         // Check for duplicate entries in file
         if (fileEntries.find(*in) != fileEntries.end())
@@ -181,7 +181,8 @@ areFilesConsistent(std::shared_ptr<Bucket> bucket, std::string const& filename,
     }
 
     std::set<BucketEntry> expFileEntries;
-    for (BucketInputIterator in(bucket, expFilename); in; ++in)
+    for (BucketInputIterator in(bucket, BucketSortOrder::SortByAccount); in;
+         ++in)
     {
         // Check for duplicate entries in file
         if (expFileEntries.find(*in) != expFileEntries.end())
@@ -218,7 +219,8 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
         // Check that experimental file exists iff non-experimental file exists
         if (bucket->getFilename().empty())
         {
-            CHECK(!bucket->isExperimental());
+            CHECK(
+                !bucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount));
             CHECK(expFilename.empty());
         }
         else
@@ -226,7 +228,7 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
             // If non-experimental file exists, check that the bucket is in
             // experimental mode, that the experimental file exists, and that it
             // is valid and consistent with the non-experimental file
-            CHECK(bucket->isExperimental());
+            CHECK(bucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
             CHECK(!expFilename.empty());
             CHECK(fs::exists(expFilename));
             CHECK(isExpFileSorted(bucket, expFilename));
@@ -238,7 +240,7 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
     {
         // If experimental buckets not enabled, ensure bucket is in the correct
         // mode and that no experimental files have been created
-        CHECK(!bucket->isExperimental());
+        CHECK(!bucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount));
         CHECK(!fs::exists(expFilename));
     }
 }

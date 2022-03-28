@@ -23,7 +23,7 @@ class BucketManager;
 class BucketOutputIterator
 {
   protected:
-    std::string mFilename;
+    std::filesystem::path mFilename;
     XDROutputFileStream mOut;
     std::unique_ptr<BucketEntry> mBuf;
     SHA256 mHasher;
@@ -33,7 +33,7 @@ class BucketOutputIterator
     BucketMetadata mMeta;
     bool mPutMeta{false};
     MergeCounters& mMergeCounters;
-    bool mIsExperimental;
+    BucketSortOrder mType;
 
     // Either uses BucketEntryIdCmp or BucketEntryIdCmpExp depending on file
     bool cmp(BucketEntry const& a, BucketEntry const& b) const;
@@ -49,7 +49,7 @@ class BucketOutputIterator
     BucketOutputIterator(std::string const& tmpDir, bool keepDeadEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
                          asio::io_context& ctx, bool doFsync,
-                         bool isExperimental = false);
+                         BucketSortOrder type = BucketSortOrder::SortByType);
 
     void put(BucketEntry const& e);
 
@@ -60,7 +60,7 @@ class BucketOutputIterator
     getBucket(BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
               BucketOutputIterator* expFileIter = nullptr);
 
-    std::string const& getFilename() const;
+    std::string getFilename() const;
 
     // Returns true if no objects have been written, false otherwise
     bool empty() const;

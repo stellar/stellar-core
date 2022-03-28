@@ -15,6 +15,12 @@
 namespace stellar
 {
 
+enum class BucketSortOrder
+{
+    SortByType,
+    SortByAccount
+};
+
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
  * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>
@@ -34,36 +40,40 @@ class Database;
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable
 {
-    // File extension for bucket files sorted with experimental cmp function
-    inline static std::string const EXPERIMENTAL_FILE_EXT = ".v2";
-
-    std::string const mFilename;
-    bool mIsExperimental;
-    Hash const mHash;
+    std::optional<std::filesystem::path const> mSortByTypeFilename;
+    std::optional<std::filesystem::path const> mSortByAccountFilename;
+    std::optional<Hash const> mSortByTypeHash;
+    std::optional<Hash const> mSortByAccountHash;
     size_t mSize{0};
 
   public:
+    // File extension for bucket files sorted with experimental cmp function
+    inline static std::string const EXPERIMENTAL_FILE_EXT = ".v2";
+
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
 
-    // Associates a file sorted using the experimental sort order with this
-    // bucket. Caller must make sure file exists and is properly sorted.
-    void addExperimentalFile();
-
-    // Returns true if Bucket has an experimental file backing it, false
-    // otherwise.
-    bool isExperimental() const;
-
-    // Construct a bucket with a given filename and hash. Asserts that the file
+    // Construct a bucket with a single filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
-    Bucket(std::string const& filename, Hash const& hash,
-           bool useExperimental = false);
+    Bucket(std::filesystem::path const& filename, Hash const& hash,
+           BucketSortOrder type = BucketSortOrder::SortByType);
 
-    Hash const& getHash() const;
-    std::string const& getFilename() const;
+    // Associates a file with the given sort order and hash to the bucket.
+    // Asserts that the file exists, but does not check that the hash is the
+    // bucket's hash. Caller needs to ensure that. Bucket must not already be
+    // associated with a file of the given type when this funciton is called.
+    void addFile(std::filesystem::path const& filename, Hash const& hash,
+                 BucketSortOrder type);
+
+    Hash const
+    getHash(BucketSortOrder type = BucketSortOrder::SortByType) const;
+    std::filesystem::path const
+    getFilename(BucketSortOrder type = BucketSortOrder::SortByType) const;
+
     size_t getSize() const;
+    bool hasFileWithSortOrder(BucketSortOrder type) const;
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.

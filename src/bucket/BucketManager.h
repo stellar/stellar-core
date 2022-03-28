@@ -127,10 +127,22 @@ class BucketManager : NonMovableOrCopyable
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
     virtual std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr,
-                      std::string const& expFilename = {}) = 0;
+    adoptFileAsBucket(std::filesystem::path const& filename,
+                      uint256 const& hash, size_t nObjects, size_t nBytes,
+                      BucketSortOrder type, MergeKey* mergeKey = nullptr) = 0;
+
+    // Associates a file with the given sort order and hash to the bucket.
+    // Asserts that the file exists, but does not check that the hash is the
+    // bucket's hash. Caller needs to ensure that.
+    virtual void addFileToBucket(std::shared_ptr<Bucket> b,
+                                 std::filesystem::path const& filename,
+                                 uint256 const& hash, BucketSortOrder type) = 0;
+
+    // Resorts the file of type oldType associated with bucket b with newType
+    // sort order. Returns path to newly sorted file.
+    virtual std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
+                                             BucketSortOrder oldType,
+                                             BucketSortOrder newType) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

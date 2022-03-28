@@ -14,7 +14,9 @@ namespace stellar
 
 namespace
 {
-std::string
+
+// TODO: Remove .v2 extension
+std::filesystem::path
 randomBucketName(std::string const& tmpDir, bool isExperimental)
 {
     ZoneScoped;
@@ -36,12 +38,10 @@ randomBucketName(std::string const& tmpDir, bool isExperimental)
 }
 }
 
-// There's probably a nice C++ way to do this with class inheritance or
-// templates or something. In the mean time though, here's this.
 bool
 BucketOutputIterator::cmp(BucketEntry const& a, BucketEntry const& b) const
 {
-    if (mIsExperimental)
+    if (mType == BucketSortOrder::SortByAccount)
     {
         return BucketEntryIdCmpExp{}(a, b);
     }
@@ -55,16 +55,20 @@ BucketOutputIterator::cmp(BucketEntry const& a, BucketEntry const& b) const
  * Helper class that points to an output tempfile. Absorbs BucketEntries and
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
-BucketOutputIterator::BucketOutputIterator(
-    std::string const& tmpDir, bool keepDeadEntries, BucketMetadata const& meta,
-    MergeCounters& mc, asio::io_context& ctx, bool doFsync, bool isExperimental)
-    : mFilename(randomBucketName(tmpDir, isExperimental))
+BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
+                                           bool keepDeadEntries,
+                                           BucketMetadata const& meta,
+                                           MergeCounters& mc,
+                                           asio::io_context& ctx, bool doFsync,
+                                           BucketSortOrder type)
+    : mFilename(
+          randomBucketName(tmpDir, type == BucketSortOrder::SortByAccount))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
-    , mIsExperimental(isExperimental)
+    , mType(type)
 {
     ZoneScoped;
     CLOG_TRACE(Bucket, "BucketOutputIterator opening file to write: {}",
@@ -139,6 +143,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     this->close();
     if (expFileIter)
     {
+        releaseAssert(expFileIter->mType == BucketSortOrder::SortByAccount);
         expFileIter->close();
     }
 
@@ -153,14 +158,22 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
 
     if (expFileIter)
     {
-        return bucketManager.adoptFileAsBucket(mFilename, mHasher.finish(),
-                                               mObjectsPut, mBytesPut, mergeKey,
-                                               expFileIter->getFilename());
+        auto b = bucketManager.adoptFileAsBucket(
+            mFilename, mHasher.finish(), mObjectsPut, mBytesPut,
+            BucketSortOrder::SortByType, mergeKey);
+
+        // TODO: Calculate hash
+        uint256 hash = b->getHash();
+        bucketManager.addFileToBucket(b, expFileIter->getFilename(),
+                                      /*hash=*/hash,
+                                      BucketSortOrder::SortByAccount);
+        return b;
     }
     else
     {
         return bucketManager.adoptFileAsBucket(
-            mFilename, mHasher.finish(), mObjectsPut, mBytesPut, mergeKey);
+            mFilename, mHasher.finish(), mObjectsPut, mBytesPut,
+            BucketSortOrder::SortByType, mergeKey);
     }
 }
 
@@ -184,7 +197,8 @@ BucketOutputIterator::close()
     }
 }
 
-std::string const&
+// TODO: Make this std::filesystem::path
+std::string
 BucketOutputIterator::getFilename() const
 {
     return mFilename;

@@ -97,10 +97,17 @@ class BucketManagerImpl : public BucketManager
     void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
     std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr,
-                      std::string const& expFilename = {}) override;
+    adoptFileAsBucket(std::filesystem::path const& filename,
+                      uint256 const& hash, size_t nObjects, size_t nBytes,
+                      BucketSortOrder type,
+                      MergeKey* mergeKey = nullptr) override;
+    void addFileToBucket(std::shared_ptr<Bucket> b,
+                         std::filesystem::path const& filename,
+                         uint256 const& hash, BucketSortOrder type) override;
+
+    std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
+                                     BucketSortOrder oldType,
+                                     BucketSortOrder newType) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 

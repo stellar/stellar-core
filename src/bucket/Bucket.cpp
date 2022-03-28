@@ -32,32 +32,29 @@
 
 namespace stellar
 {
-Bucket::Bucket(std::string const& filename, Hash const& hash,
-               bool useExperimental)
-    : mFilename(filename), mIsExperimental(useExperimental), mHash(hash)
+
+Bucket::Bucket(std::filesystem::path const& filename, Hash const& hash,
+               BucketSortOrder type)
 {
     releaseAssert(filename.empty() || fs::exists(filename));
-    if (filename.empty())
+    std::string typeStr;
+    if (type == BucketSortOrder::SortByType)
     {
-        releaseAssert(!useExperimental);
+        mSortByTypeFilename.emplace(filename);
+        mSortByTypeHash.emplace(hash);
+        typeStr = "SortByType";
     }
     else
     {
-        if (useExperimental)
-        {
-            releaseAssert(fs::exists(getExperimentalFilename(filename)));
-            CLOG_TRACE(Bucket,
-                       "Bucket::Bucket() created with experimental "
-                       "file, file exists : {}",
-                       filename);
-        }
-        else
-        {
-            CLOG_TRACE(Bucket, "Bucket::Bucket() created, file exists : {}",
-                       filename);
-        }
-        mSize = fs::size(filename);
+        mSortByAccountFilename.emplace(filename);
+        mSortByAccountHash.emplace(hash);
+        typeStr = "SortByAccount";
     }
+
+    mSize = fs::size(filename);
+    CLOG_TRACE(Bucket,
+               "Bucket::Bucket() created with sort order {}, file exists : {}",
+               typeStr, filename);
 }
 
 Bucket::Bucket()
@@ -65,28 +62,37 @@ Bucket::Bucket()
 }
 
 void
-Bucket::addExperimentalFile()
+Bucket::addFile(std::filesystem::path const& file, Hash const& hash,
+                BucketSortOrder type)
 {
-    releaseAssert(fs::exists(getExperimentalFilename(mFilename)));
-    mIsExperimental = true;
+    releaseAssert(!file.empty() && fs::exists(file));
+    releaseAssert(!hasFileWithSortOrder(type));
+    if (type == BucketSortOrder::SortByType)
+    {
+        mSortByTypeFilename.emplace(file);
+        mSortByTypeHash.emplace(hash);
+    }
+    else
+    {
+        mSortByAccountFilename.emplace(file);
+        mSortByAccountHash.emplace(hash);
+    }
 }
 
-bool
-Bucket::isExperimental() const
+Hash const
+Bucket::getHash(BucketSortOrder type) const
 {
-    return mIsExperimental;
+    return type == BucketSortOrder::SortByType
+               ? mSortByTypeHash.value_or(Hash{})
+               : mSortByAccountHash.value_or(Hash{});
 }
 
-Hash const&
-Bucket::getHash() const
+std::filesystem::path const
+Bucket::getFilename(BucketSortOrder type) const
 {
-    return mHash;
-}
-
-std::string const&
-Bucket::getFilename() const
-{
-    return mFilename;
+    return type == BucketSortOrder::SortByType
+               ? mSortByTypeFilename.value_or(std::filesystem::path{})
+               : mSortByAccountFilename.value_or(std::filesystem::path{});
 }
 
 size_t
@@ -96,10 +102,23 @@ Bucket::getSize() const
 }
 
 bool
+Bucket::hasFileWithSortOrder(BucketSortOrder type) const
+{
+    if (type == BucketSortOrder::SortByAccount)
+    {
+        return mSortByAccountFilename.has_value();
+    }
+    else
+    {
+        return mSortByTypeFilename.has_value();
+    }
+}
+
+bool
 Bucket::containsBucketIdentity(BucketEntry const& id) const
 {
     BucketEntryIdCmp cmp;
-    BucketInputIterator iter(shared_from_this());
+    BucketInputIterator iter(shared_from_this(), BucketSortOrder::SortByType);
     while (iter)
     {
         if (!(cmp(*iter, id) || cmp(id, *iter)))
@@ -208,7 +227,8 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         BucketEntryIdCmpExp cmp;
         std::sort(entries.begin(), entries.end(), cmp);
         BucketOutputIterator outExp(bucketManager.getTmpDir(), true, meta, mc,
-                                    ctx, doFsync, /*isExperimental=*/true);
+                                    ctx, doFsync,
+                                    BucketSortOrder::SortByAccount);
         for (auto const& e : entries)
         {
             outExp.put(e);
@@ -663,8 +683,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    BucketInputIterator oi(oldBucket, oldBucket->getFilename());
-    BucketInputIterator ni(newBucket, newBucket->getFilename());
+    BucketInputIterator oi(oldBucket, BucketSortOrder::SortByType);
+    BucketInputIterator ni(newBucket, BucketSortOrder::SortByType);
     std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
                                                      shadows.end());
 
@@ -718,16 +738,16 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 
     if (bucketManager.getConfig().EXPERIMENTAL_BUCKET_STORE)
     {
-        BucketInputIterator oiExp(
-            oldBucket, getExperimentalFilename(oldBucket->getFilename()));
-        BucketInputIterator viExp(
-            newBucket, getExperimentalFilename(newBucket->getFilename()));
+        BucketInputIterator sortByAccountOI(oldBucket,
+                                            BucketSortOrder::SortByAccount);
+        BucketInputIterator sortByAccountVI(newBucket,
+                                            BucketSortOrder::SortByAccount);
         BucketOutputIterator outExp(bucketManager.getTmpDir(), keepDeadEntries,
                                     meta, mc, ctx, doFsync,
-                                    /*isExperimental=*/true);
+                                    BucketSortOrder::SortByAccount);
 
         BucketEntryIdCmpExp cmpExp;
-        while (oiExp || viExp)
+        while (sortByAccountOI || sortByAccountVI)
         {
             // Check if the merge should be stopped every few entries
             if (++iter >= 1000)
@@ -744,11 +764,13 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
             }
 
             if (!mergeCasesWithDefaultAcceptance(
-                    cmpExp, mc, oiExp, viExp, outExp, shadowIterators,
-                    protocolVersion, keepShadowedLifecycleEntries))
+                    cmpExp, mc, sortByAccountOI, sortByAccountVI, outExp,
+                    shadowIterators, protocolVersion,
+                    keepShadowedLifecycleEntries))
             {
-                mergeCasesWithEqualKeys(mc, oiExp, viExp, outExp,
-                                        shadowIterators, protocolVersion,
+                mergeCasesWithEqualKeys(mc, sortByAccountOI, sortByAccountVI,
+                                        outExp, shadowIterators,
+                                        protocolVersion,
                                         keepShadowedLifecycleEntries);
             }
         }
@@ -765,7 +787,10 @@ uint32_t
 Bucket::getBucketVersion(std::shared_ptr<Bucket const> bucket)
 {
     releaseAssert(bucket);
-    BucketInputIterator it(bucket);
+    auto type = bucket->hasFileWithSortOrder(BucketSortOrder::SortByType)
+                    ? BucketSortOrder::SortByType
+                    : BucketSortOrder::SortByAccount;
+    BucketInputIterator it(bucket, type);
     return it.getMetadata().ledgerVersion;
 }
 
