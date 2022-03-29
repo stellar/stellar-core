@@ -36,6 +36,7 @@
 #include <lib/http/HttpClient.h>
 #include <locale>
 #include <optional>
+#include <string>
 
 namespace stellar
 {
@@ -488,6 +489,14 @@ loadXdr(Config cfg, std::string const& bucketFile)
     bucket.apply(*app);
 }
 
+std::string
+strToUpper(std::string ss)
+{
+    std::transform(ss.begin(), ss.end(), ss.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    return ss;
+}
+
 void
 invokeContract(Config cfg, std::string const& wasmFile,
                std::string const& function,
@@ -571,12 +580,54 @@ invokeContract(Config cfg, std::string const& wasmFile,
             arg.obj()->lkey().account().accountID =
                 KeyUtils::fromStrKey<PublicKey>(val);
         }
+        else if (ty == "asset")
+        {
+            arg.type(SCV_OBJECT);
+            arg.obj().activate();
+            arg.obj()->type(SCO_LEDGERVAL);
+            arg.obj()->lval().type(SCLV_ASSET);
+            auto valUpper = strToUpper(val);
+            Asset& asset = arg.obj()->lval().assetVal();
+            if (valUpper == "XLM" || valUpper == "NATIVE")
+            {
+                asset.type(ASSET_TYPE_NATIVE);
+            }
+            else
+            {
+                auto sepIdx2 = valUpper.find('@');
+                if (sepIdx2 == std::string::npos)
+                {
+                    throw std::runtime_error(
+                        "bad asset, must be <code>@<issuer>");
+                }
+                std::string assetCode = valUpper.substr(0, sepIdx2);
+                std::string issuer = valUpper.substr(sepIdx2 + 1);
+                asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+                asset.alphaNum4().issuer =
+                    KeyUtils::fromStrKey<PublicKey>(issuer);
+                if (assetCode.size() != 4)
+                {
+                    throw std::runtime_error("bad asset code length");
+                }
+                for (size_t i = 0; i < 4; ++i)
+                {
+                    asset.alphaNum4().assetCode[i] = assetCode.at(i);
+                }
+            }
+        }
+        else if (ty == "amount")
+        {
+            arg.type(SCV_OBJECT);
+            arg.obj().activate();
+            arg.obj()->type(SCO_LEDGERVAL);
+            arg.obj()->lval().type(SCLV_AMOUNT);
+            arg.obj()->lval().amountVal() = int64_t(std::stoll(val));
+        }
         else
         {
             LOG_ERROR(DEFAULT_LOG, "Unrecognized arg type {}", ty);
-            LOG_ERROR(
-                DEFAULT_LOG,
-                "Supported arg types are: bool, i32, u32, symbol, account");
+            LOG_ERROR(DEFAULT_LOG, "Supported arg types are: bool, i32, u32, "
+                                   "symbol, account, asset");
             throw std::runtime_error("Unknown arg type: " + ty);
         }
         if (i != 0)

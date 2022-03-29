@@ -25,5 +25,9 @@ extern "C" {
     pub(crate) fn vec_append(v1: Val, v2: Val) -> Val;
 
     pub(crate) fn get_current_ledger_num() -> Val;
-    pub(crate) fn get_current_ledger_close_time() -> Val;
+
+    // NB: this returns a raw/unboxed u64, not a Val union.
+    pub(crate) fn get_current_ledger_close_time() -> u64;
+
+    pub(crate) fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val;
 }

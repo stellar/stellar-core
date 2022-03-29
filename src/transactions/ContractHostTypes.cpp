@@ -3,10 +3,15 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/ContractHostTypes.h"
+#include "crypto/Hex.h"
 #include "ledger/LedgerTxn.h"
+#include "transactions/InvokeContractOpFrame.h"
+#include "transactions/PaymentOpFrame.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include "util/types.h"
 #include "xdr/Stellar-transaction.h"
+#include "xdr/Stellar-types.h"
 #include <cstdint>
 #include <fizzy/execute.hpp>
 #include <fizzy/instantiate.hpp>
@@ -790,6 +795,59 @@ HostContext::getCurrentLedgerCloseTime(fizzy::Instance& instance,
     return fizzy::Value{closeTime};
 }
 
+fizzy::ExecutionResult
+HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
+                 uint64_t dst, uint64_t asset, uint64_t amount)
+{
+
+    CLOG_INFO(Tx, "pay({},{},{},{})", src, dst, asset, amount);
+
+    return objMethod<LedgerKey>(src, [&](LedgerKey const& srcLK) {
+        return objMethod<LedgerKey>(dst, [&](LedgerKey const& dstLK) {
+            return objMethod<SCLedgerVal>(asset, [&](SCLedgerVal const&
+                                                         assetV) {
+                return objMethod<SCLedgerVal>(amount, [&](SCLedgerVal const&
+                                                              amountV) {
+                    if (srcLK.type() == ACCOUNT && dstLK.type() == ACCOUNT &&
+                        assetV.type() == SCLV_ASSET &&
+                        amountV.type() == SCLV_AMOUNT)
+                    {
+
+                        Operation op;
+                        op.sourceAccount.activate();
+                        op.sourceAccount->ed25519() =
+                            srcLK.account().accountID.ed25519();
+                        op.body.type(PAYMENT);
+                        PaymentOp& pop = op.body.paymentOp();
+                        pop.amount = amountV.amountVal();
+                        pop.asset = assetV.assetVal();
+                        pop.destination.type(KEY_TYPE_ED25519);
+                        pop.destination.ed25519() =
+                            dstLK.account().accountID.ed25519();
+
+                        CLOG_INFO(
+                            Tx,
+                            "contract attempting to pay {} {} from {} to {}",
+                            pop.amount, assetToString(pop.asset),
+                            hexAbbrev(op.sourceAccount->ed25519()),
+                            hexAbbrev(pop.destination.ed25519()));
+
+                        OperationResult res;
+                        PaymentOpFrame pof(op, res,
+                                           mHostOpCtx->mInvokeOp.getParentTx());
+
+                        if (pof.doApply(getLedgerTxn()))
+                        {
+                            return HostVal::fromBool(true);
+                        }
+                    }
+                    return HostVal::fromStatus(0);
+                });
+            });
+        });
+    });
+}
+
 HostContext::HostContext()
 {
     // Object 0 is predefined to always be a null unique_ptr, so we can return
@@ -822,6 +880,7 @@ HostContext::HostContext()
                          "get_current_ledger_num");
     registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
                          "get_current_ledger_close_time");
+    registerHostFunction(&HostContext::pay, "env", "pay");
 }
 
 }

@@ -245,7 +245,7 @@ class HostVal
     }
 
     bool
-    hasObjectType(uint16_t objectType) const
+    isObjectType(uint16_t objectType) const
     {
         return hasTag(TAG_OBJECT) && (getObjectType() == objectType);
     }
@@ -607,6 +607,17 @@ class HostContext
         }
     }
 
+    template <typename LedgerKeyT>
+    std::optional<LedgerKeyT>
+    getLedgerKeyObject(HostVal const& hv)
+    {
+        auto const& ptr = getObject(hv);
+        if (ptr && std::holds_alternative<LedgerKey>(*ptr))
+        {
+            std::get<LedgerKey>(*ptr);
+        }
+    }
+
     template <typename ObjType>
     fizzy::ExecutionResult
     objMethod(uint64_t objID,
@@ -751,6 +762,10 @@ class HostContext
                                                fizzy::ExecutionContext&);
     fizzy::ExecutionResult getCurrentLedgerCloseTime(fizzy::Instance&,
                                                      fizzy::ExecutionContext&);
+
+    fizzy::ExecutionResult pay(fizzy::Instance&, fizzy::ExecutionContext&,
+                               uint64_t src, uint64_t dst, uint64_t asset,
+                               uint64_t amount);
 };
 
 }

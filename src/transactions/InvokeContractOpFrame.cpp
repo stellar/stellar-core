@@ -107,6 +107,7 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
                 {
                     if (argTypes[i] != fizzy::ValType::i64)
                     {
+                        CLOG_WARNING(Tx, "arg type {} mismatch", i);
                         typesMatch = false;
                         break;
                     }
@@ -122,6 +123,13 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
                     CLOG_INFO(Tx, "   arg {}: {}={}", i, argName, *a);
                     fizzyArgs.emplace_back(a->payload());
                     ++i;
+                }
+
+                if (func_opt->output_types.size() != 1 ||
+                    func_opt->output_types[0] != fizzy::ValType::i64)
+                {
+                    CLOG_WARNING(Tx, "return type mismatch");
+                    typesMatch = false;
                 }
 
                 // Fail on type mismatch.
@@ -182,6 +190,13 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
                     CLOG_INFO(Tx, "contract return value {}", hv);
                     innerResult().returnVal() = hostCtx.hostToXdr(hv);
                 }
+            }
+            else
+            {
+                CLOG_WARNING(Tx, "function '{}' not found",
+                             mInvokeContract.function);
+                innerResult().code(INVOKE_CONTRACT_MALFORMED);
+                return false;
             }
         }
         catch (std::runtime_error& e)

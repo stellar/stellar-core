@@ -30,6 +30,12 @@ class InvokeContractOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    TransactionFrame&
+    getParentTx()
+    {
+        return mParentTx;
+    }
+
     static InvokeContractResultCode
     getInnerCode(OperationResult const& res)
     {
