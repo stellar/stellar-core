@@ -351,38 +351,35 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
     mMergeCounters += delta;
 }
 
-void
+bool
 BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
 {
     ZoneScoped;
     if (mApp.getConfig().DISABLE_XDR_FSYNC)
     {
-        if (rename(src.c_str(), dst.c_str()) != 0)
-        {
-            std::string err("Failed to rename bucket :");
-            err += strerror(errno);
-            // it seems there is a race condition with external systems
-            // retry after sleeping for a second works around the problem
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (rename(src.c_str(), dst.c_str()) != 0)
-            {
-                throw std::runtime_error(err);
-            }
-        }
+        return rename(src.c_str(), dst.c_str()) == 0;
     }
     else
     {
-        if (!fs::durableRename(src, dst, getBucketDir()))
+        return fs::durableRename(src, dst, getBucketDir());
+    }
+}
+
+void
+BucketManagerImpl::renameBucketWithOneRetry(std::string const& src,
+                                            std::string const& dst)
+{
+    ZoneScoped;
+    if (!renameBucket(src, dst))
+    {
+        std::string err("Failed to rename bucket :");
+        err += strerror(errno);
+        // it seems there is a race condition with external systems
+        // retry after sleeping for a second works around the problem
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (!renameBucket(src, dst))
         {
-            std::string err("Failed to rename bucket :");
-            err += strerror(errno);
-            // it seems there is a race condition with external systems
-            // retry after sleeping for a second works around the problem
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (!fs::durableRename(src, dst, getBucketDir()))
-            {
-                throw std::runtime_error(err);
-            }
+            throw std::runtime_error(err);
         }
     }
 }
@@ -466,7 +463,7 @@ BucketManagerImpl::adoptFileAsBucket(std::filesystem::path const& filename,
         std::string canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
-        renameBucket(filename, canonicalName);
+        renameBucketWithOneRetry(filename, canonicalName);
 
         b = std::make_shared<Bucket>(canonicalName, hash);
         {
@@ -516,7 +513,7 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
             b->getFilename().string() + Bucket::EXPERIMENTAL_FILE_EXT;
         CLOG_DEBUG(Bucket, "Adding bucket file {} as {}", filename,
                    canonicalName);
-        renameBucket(filename, canonicalName);
+        renameBucketWithOneRetry(filename, canonicalName);
         b->addFile(canonicalName, hash, type);
     }
 }

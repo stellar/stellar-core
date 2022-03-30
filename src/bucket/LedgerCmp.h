@@ -189,12 +189,11 @@ struct LedgerEntryCmpByAccount
             // Entries are identical
             return false;
         case TRUSTLINE:
-            return lexCompare(aid, bid, a.trustLine().asset,
-                              b.trustLine().asset);
+            return a.trustLine().asset < b.trustLine().asset;
         case OFFER:
-            return lexCompare(aid, bid, a.offer().offerID, b.offer().offerID);
+            return a.offer().offerID < b.offer().offerID;
         case DATA:
-            return lexCompare(aid, bid, a.data().dataName, b.data().dataName);
+            return a.data().dataName < b.data().dataName;
         default:
             throw std::runtime_error("Unexpected entry type.");
         }

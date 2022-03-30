@@ -92,9 +92,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     // Get experimental filename for bucket backed by the given file.
     static std::string getExperimentalFilename(std::string const& filename);
-
-    // Returns true is filename ends in experimental file extension
-    static bool isExperimentalFile(std::string const& filename);
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding

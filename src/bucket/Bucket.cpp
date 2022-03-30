@@ -227,6 +227,17 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         // memory sort using a vector should be fine.
         std::sort(entries.begin(), entries.end(),
                   BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
+
+        // Assert that there are no adjacent, equal BucketEntry's, strictly
+        // increasing only
+        releaseAssert(
+            std::adjacent_find(
+                entries.begin(), entries.end(),
+                [](BucketEntry const& lhs, BucketEntry const& rhs) {
+                    return !BucketEntryIdCmp<BucketSortOrder::SortByAccount>(
+                        lhs, rhs);
+                }) == entries.end());
+
         BucketOutputIterator sortByAccountOut(bucketManager.getTmpDir(), true,
                                               meta, mc, ctx, doFsync,
                                               BucketSortOrder::SortByAccount);
@@ -671,6 +682,62 @@ mergeCasesWithEqualKeys(BucketEntryIdCmpProto const& cmp, MergeCounters& mc,
     ++ni;
 }
 
+template <BucketSortOrder type>
+static std::shared_ptr<BucketOutputIterator>
+writeMergeToIter(BucketManager& bucketManager, uint32_t maxProtocolVersion,
+                 std::shared_ptr<Bucket> const& oldBucket,
+                 std::shared_ptr<Bucket> const& newBucket,
+                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 bool keepDeadEntries, bool countMergeEvents,
+                 asio::io_context& ctx, bool doFsync, MergeCounters& mc)
+{
+    BucketInputIterator oi(oldBucket, type);
+    BucketInputIterator ni(newBucket, type);
+    std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
+                                                     shadows.end());
+
+    uint32_t protocolVersion;
+    bool keepShadowedLifecycleEntries;
+    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni,
+                                  shadowIterators, protocolVersion,
+                                  keepShadowedLifecycleEntries);
+
+    BucketMetadata meta;
+    meta.ledgerVersion = protocolVersion;
+    auto out = std::make_shared<BucketOutputIterator>(bucketManager.getTmpDir(),
+                                                      keepDeadEntries, meta, mc,
+                                                      ctx, doFsync, type);
+
+    size_t iter = 0;
+    while (oi || ni)
+    {
+        // Check if the merge should be stopped every few entries
+        if (++iter >= 1000)
+        {
+            iter = 0;
+            if (bucketManager.isShutdown())
+            {
+                // Stop merging, as BucketManager is now shutdown
+                // This is safe as temp file has not been adopted yet,
+                // so it will be removed with the tmp dir
+                throw std::runtime_error(
+                    "Incomplete bucket merge due to BucketManager shutdown");
+            }
+        }
+
+        if (!mergeCasesWithDefaultAcceptance(
+                BucketEntryIdCmp<type>, mc, oi, ni, *out, shadowIterators,
+                protocolVersion, keepShadowedLifecycleEntries))
+        {
+            mergeCasesWithEqualKeys(BucketEntryIdCmp<type>, mc, oi, ni, *out,
+                                    shadowIterators, protocolVersion,
+                                    keepShadowedLifecycleEntries);
+        }
+    }
+
+    return out;
+}
+
 std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
               std::shared_ptr<Bucket> const& oldBucket,
@@ -688,104 +755,30 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    BucketInputIterator sortByTypeOI(oldBucket, BucketSortOrder::SortByType);
-    BucketInputIterator sortByTypeNI(newBucket, BucketSortOrder::SortByType);
-    std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
-                                                     shadows.end());
-
-    uint32_t protocolVersion;
-    bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion(
-        mc, maxProtocolVersion, sortByTypeOI, sortByTypeNI, shadowIterators,
-        protocolVersion, keepShadowedLifecycleEntries);
-
     auto timer = bucketManager.getMergeTimer().TimeScope();
-    BucketMetadata meta;
-    meta.ledgerVersion = protocolVersion;
-    BucketOutputIterator sortByTypeOut(bucketManager.getTmpDir(),
-                                       keepDeadEntries, meta, mc, ctx, doFsync);
-
-    size_t iter = 0;
-    while (sortByTypeOI || sortByTypeNI)
-    {
-        // Check if the merge should be stopped every few entries
-        if (++iter >= 1000)
-        {
-            iter = 0;
-            if (bucketManager.isShutdown())
-            {
-                // Stop merging, as BucketManager is now shutdown
-                // This is safe as temp file has not been adopted yet,
-                // so it will be removed with the tmp dir
-                throw std::runtime_error(
-                    "Incomplete bucket merge due to BucketManager shutdown");
-            }
-        }
-
-        if (!mergeCasesWithDefaultAcceptance(
-                BucketEntryIdCmp<BucketSortOrder::SortByType>, mc, sortByTypeOI,
-                sortByTypeNI, sortByTypeOut, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries))
-        {
-            mergeCasesWithEqualKeys(
-                BucketEntryIdCmp<BucketSortOrder::SortByType>, mc, sortByTypeOI,
-                sortByTypeNI, sortByTypeOut, shadowIterators, protocolVersion,
-                keepShadowedLifecycleEntries);
-        }
-    }
+    auto sortByTypeOut = writeMergeToIter<BucketSortOrder::SortByType>(
+        bucketManager, maxProtocolVersion, oldBucket, newBucket, shadows,
+        keepDeadEntries, countMergeEvents, ctx, doFsync, mc);
 
     // Don't want to double count merge events, don't incriment after 2nd loop
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters(mc);
     }
-    MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
 
+    MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
     if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
-        BucketInputIterator sortByAccountOI(oldBucket,
-                                            BucketSortOrder::SortByAccount);
-        BucketInputIterator sortByAccountVI(newBucket,
-                                            BucketSortOrder::SortByAccount);
-        BucketOutputIterator sortByAccountOut(
-            bucketManager.getTmpDir(), keepDeadEntries, meta, mc, ctx, doFsync,
-            BucketSortOrder::SortByAccount);
-
-        while (sortByAccountOI || sortByAccountVI)
-        {
-            // Check if the merge should be stopped every few entries
-            if (++iter >= 1000)
-            {
-                iter = 0;
-                if (bucketManager.isShutdown())
-                {
-                    // Stop merging, as BucketManager is now shutdown
-                    // This is safe as temp file has not been adopted yet,
-                    // so it will be removed with the tmp dir
-                    throw std::runtime_error("Incomplete bucket merge due to "
-                                             "BucketManager shutdown");
-                }
-            }
-
-            if (!mergeCasesWithDefaultAcceptance(
-                    BucketEntryIdCmp<BucketSortOrder::SortByAccount>, mc,
-                    sortByAccountOI, sortByAccountVI, sortByAccountOut,
-                    shadowIterators, protocolVersion,
-                    keepShadowedLifecycleEntries))
-            {
-                mergeCasesWithEqualKeys(
-                    BucketEntryIdCmp<BucketSortOrder::SortByAccount>, mc,
-                    sortByAccountOI, sortByAccountVI, sortByAccountOut,
-                    shadowIterators, protocolVersion,
-                    keepShadowedLifecycleEntries);
-            }
-        }
-
-        return sortByTypeOut.getBucket(bucketManager, &mk, &sortByAccountOut);
+        auto sortByAccountOut =
+            writeMergeToIter<BucketSortOrder::SortByAccount>(
+                bucketManager, maxProtocolVersion, oldBucket, newBucket,
+                shadows, keepDeadEntries, countMergeEvents, ctx, doFsync, mc);
+        return sortByTypeOut->getBucket(bucketManager, &mk,
+                                        sortByAccountOut.get());
     }
     else
     {
-        return sortByTypeOut.getBucket(bucketManager, &mk);
+        return sortByTypeOut->getBucket(bucketManager, &mk);
     }
 }
 
@@ -806,15 +799,5 @@ Bucket::getExperimentalFilename(std::string const& filename)
     // If primary filename is empty, so should the experimental filename
     return filename.empty() ? std::string()
                             : filename + Bucket::EXPERIMENTAL_FILE_EXT;
-}
-
-bool
-Bucket::isExperimentalFile(std::string const& filename)
-{
-    auto expExtSize = EXPERIMENTAL_FILE_EXT.size();
-    return filename.size() > expExtSize &&
-           std::equal(filename.rbegin(), filename.rbegin() + expExtSize,
-                      EXPERIMENTAL_FILE_EXT.rbegin(),
-                      EXPERIMENTAL_FILE_EXT.rend());
 }
 }

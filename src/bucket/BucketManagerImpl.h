@@ -70,7 +70,9 @@ class BucketManagerImpl : public BucketManager
     void cleanupStaleFiles();
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
-    void renameBucket(std::string const& src, std::string const& dst);
+    bool renameBucket(std::string const& src, std::string const& dst);
+    void renameBucketWithOneRetry(std::string const& src,
+                                  std::string const& dst);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
