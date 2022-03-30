@@ -64,6 +64,7 @@ LedgerKey poolShareTrustLineKey(AccountID const& accountID,
                                 PoolID const& poolID);
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
+InternalLedgerKey maxSeqNumToApplyKey(AccountID const& sourceAccount);
 
 ProtocolVersion const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS =
     ProtocolVersion::V_11;
@@ -123,6 +124,9 @@ LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
 
 LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
+
+LedgerTxnEntry loadMaxSeqNumToApply(AbstractLedgerTxn& ltx,
+                                    AccountID const& sourceAccount);
 
 LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
                                       AccountID const& accountID,

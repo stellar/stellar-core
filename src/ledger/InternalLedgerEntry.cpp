@@ -66,6 +66,31 @@ operator!=(SponsorshipCounterEntry const& lhs,
     return !(lhs == rhs);
 }
 
+bool
+operator==(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
+{
+    return lhs.sourceAccount == rhs.sourceAccount;
+}
+
+bool
+operator!=(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool
+operator==(MaxSeqNumToApplyEntry const& lhs, MaxSeqNumToApplyEntry const& rhs)
+{
+    return lhs.sourceAccount == rhs.sourceAccount &&
+           lhs.maxSeqNum == rhs.maxSeqNum;
+}
+
+bool
+operator!=(MaxSeqNumToApplyEntry const& lhs, MaxSeqNumToApplyEntry const& rhs)
+{
+    return !(lhs == rhs);
+}
+
 // InternalLedgerKey -------------------------------------------------------
 InternalLedgerKey::InternalLedgerKey()
     : InternalLedgerKey(InternalLedgerEntryType::LEDGER_ENTRY)
@@ -95,6 +120,12 @@ InternalLedgerKey::InternalLedgerKey(SponsorshipCounterKey const& sck)
     sponsorshipCounterKeyRef() = sck;
 }
 
+InternalLedgerKey::InternalLedgerKey(MaxSeqNumToApplyKey const& msnk)
+    : InternalLedgerKey(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY)
+{
+    maxSeqNumToApplyKeyRef() = msnk;
+}
+
 InternalLedgerKey::InternalLedgerKey(InternalLedgerKey const& glk)
     : InternalLedgerKey(glk.type())
 {
@@ -120,6 +151,14 @@ InternalLedgerKey::makeSponsorshipCounterKey(AccountID const& sponsoringId)
 {
     InternalLedgerKey res(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     res.sponsorshipCounterKeyRef().sponsoringID = sponsoringId;
+    return res;
+}
+
+InternalLedgerKey
+InternalLedgerKey::makeMaxSeqNumToApplyKey(AccountID const& sourceAccount)
+{
+    InternalLedgerKey res(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    res.maxSeqNumToApplyKeyRef().sourceAccount = sourceAccount;
     return res;
 }
 
@@ -170,6 +209,10 @@ InternalLedgerKey::hash() const
         res = std::hash<stellar::uint256>()(
             sponsorshipCounterKey().sponsoringID.ed25519());
         break;
+    case stellar::InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        res = std::hash<stellar::uint256>()(
+            maxSeqNumToApplyKey().sourceAccount.ed25519());
+        break;
     default:
         abort();
     }
@@ -194,6 +237,9 @@ InternalLedgerKey::assign(InternalLedgerKey const& glk)
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterKeyRef() = glk.sponsorshipCounterKey();
         break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        maxSeqNumToApplyKeyRef() = glk.maxSeqNumToApplyKey();
+        break;
     default:
         abort();
     }
@@ -215,6 +261,9 @@ InternalLedgerKey::assign(InternalLedgerKey&& glk)
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterKeyRef() = std::move(glk.mSponsorshipCounterKey);
         break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        maxSeqNumToApplyKeyRef() = std::move(glk.mMaxSeqNumToApplyKey);
+        break;
     default:
         abort();
     }
@@ -233,6 +282,9 @@ InternalLedgerKey::construct()
         break;
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         new (&mSponsorshipCounterKey) SponsorshipCounterKey();
+        break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        new (&mMaxSeqNumToApplyKey) MaxSeqNumToApplyKey();
         break;
     default:
         abort();
@@ -253,6 +305,9 @@ InternalLedgerKey::destruct()
         break;
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         mSponsorshipCounterKey.~SponsorshipCounterKey();
+        break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        mMaxSeqNumToApplyKey.~MaxSeqNumToApplyKey();
         break;
     default:
         abort();
@@ -331,6 +386,21 @@ InternalLedgerKey::sponsorshipCounterKey() const
     return mSponsorshipCounterKey;
 }
 
+MaxSeqNumToApplyKey&
+InternalLedgerKey::maxSeqNumToApplyKeyRef()
+{
+    checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    mHash = 0;
+    return mMaxSeqNumToApplyKey;
+}
+
+MaxSeqNumToApplyKey const&
+InternalLedgerKey::maxSeqNumToApplyKey() const
+{
+    checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    return mMaxSeqNumToApplyKey;
+}
+
 std::string
 InternalLedgerKey::toString() const
 {
@@ -347,6 +417,10 @@ InternalLedgerKey::toString() const
         return fmt::format(FMT_STRING("{{\n  {}\n}}\n"),
                            xdr_to_string(sponsorshipCounterKey().sponsoringID,
                                          "sponsoringID"));
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        return fmt::format(FMT_STRING("{{\n  {}\n}}\n"),
+                           xdr_to_string(maxSeqNumToApplyKey().sourceAccount,
+                                         "sourceAccount"));
     default:
         abort();
     }
@@ -368,6 +442,8 @@ operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
         return lhs.sponsorshipKey() == rhs.sponsorshipKey();
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return lhs.sponsorshipCounterKey() == rhs.sponsorshipCounterKey();
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        return lhs.maxSeqNumToApplyKey() == rhs.maxSeqNumToApplyKey();
     default:
         abort();
     }
@@ -406,6 +482,12 @@ InternalLedgerEntry::InternalLedgerEntry(SponsorshipCounterEntry const& sce)
     : InternalLedgerEntry(InternalLedgerEntryType::SPONSORSHIP_COUNTER)
 {
     sponsorshipCounterEntry() = sce;
+}
+
+InternalLedgerEntry::InternalLedgerEntry(MaxSeqNumToApplyEntry const& msne)
+    : InternalLedgerEntry(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY)
+{
+    maxSeqNumToApplyEntry() = msne;
 }
 
 InternalLedgerEntry::InternalLedgerEntry(InternalLedgerEntry const& gle)
@@ -466,6 +548,9 @@ InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterEntry() = gle.sponsorshipCounterEntry();
         break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        maxSeqNumToApplyEntry() = gle.maxSeqNumToApplyEntry();
+        break;
     default:
         abort();
     }
@@ -486,6 +571,9 @@ InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterEntry() = std::move(gle.sponsorshipCounterEntry());
         break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        maxSeqNumToApplyEntry() = std::move(gle.maxSeqNumToApplyEntry());
+        break;
     default:
         abort();
     }
@@ -505,6 +593,9 @@ InternalLedgerEntry::construct()
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         new (&mSponsorshipCounterEntry) SponsorshipCounterEntry();
         break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        new (&mMaxSeqNumToApplyEntry) MaxSeqNumToApplyEntry();
+        break;
     default:
         abort();
     }
@@ -523,6 +614,9 @@ InternalLedgerEntry::destruct()
         break;
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         mSponsorshipCounterEntry.~SponsorshipCounterEntry();
+        break;
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        mMaxSeqNumToApplyEntry.~MaxSeqNumToApplyEntry();
         break;
     default:
         abort();
@@ -597,6 +691,20 @@ InternalLedgerEntry::sponsorshipCounterEntry() const
     return mSponsorshipCounterEntry;
 }
 
+MaxSeqNumToApplyEntry&
+InternalLedgerEntry::maxSeqNumToApplyEntry()
+{
+    checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    return mMaxSeqNumToApplyEntry;
+}
+
+MaxSeqNumToApplyEntry const&
+InternalLedgerEntry::maxSeqNumToApplyEntry() const
+{
+    checkDiscriminant(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    return mMaxSeqNumToApplyEntry;
+}
+
 InternalLedgerKey
 InternalLedgerEntry::toKey() const
 {
@@ -610,6 +718,9 @@ InternalLedgerEntry::toKey() const
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return InternalLedgerKey(
             SponsorshipCounterKey{sponsorshipCounterEntry().sponsoringID});
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        return InternalLedgerKey(
+            MaxSeqNumToApplyKey{maxSeqNumToApplyEntry().sourceAccount});
     default:
         abort();
     }
@@ -632,6 +743,11 @@ InternalLedgerEntry::toString() const
                            xdr_to_string(sponsorshipCounterEntry().sponsoringID,
                                          "sponsoringID"),
                            sponsorshipCounterEntry().numSponsoring);
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        return fmt::format(FMT_STRING("{{\n  {},\n  maxSeqNum = {}\n}}\n"),
+                           xdr_to_string(maxSeqNumToApplyEntry().sourceAccount,
+                                         "sourceAccount"),
+                           maxSeqNumToApplyEntry().maxSeqNum);
     default:
         abort();
     }
@@ -653,6 +769,8 @@ operator==(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
         return lhs.sponsorshipEntry() == rhs.sponsorshipEntry();
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return lhs.sponsorshipCounterEntry() == rhs.sponsorshipCounterEntry();
+    case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
+        return lhs.maxSeqNumToApplyEntry() == rhs.maxSeqNumToApplyEntry();
     default:
         abort();
     }

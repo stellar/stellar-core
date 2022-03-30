@@ -283,6 +283,12 @@ sponsorshipCounterKey(AccountID const& sponsoringID)
     return InternalLedgerKey::makeSponsorshipCounterKey(sponsoringID);
 }
 
+InternalLedgerKey
+maxSeqNumToApplyKey(AccountID const& sourceAccount)
+{
+    return InternalLedgerKey::makeMaxSeqNumToApplyKey(sourceAccount);
+}
+
 LedgerTxnEntry
 loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
@@ -370,6 +376,12 @@ LedgerTxnEntry
 loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 {
     return ltx.load(sponsorshipCounterKey(sponsoringID));
+}
+
+LedgerTxnEntry
+loadMaxSeqNumToApply(AbstractLedgerTxn& ltx, AccountID const& sourceAccount)
+{
+    return ltx.load(maxSeqNumToApplyKey(sourceAccount));
 }
 
 LedgerTxnEntry

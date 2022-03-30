@@ -835,6 +835,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     {
         throw std::runtime_error("Unexpected database state");
     }
+
     auto& acc = sourceAccount.current().data.account();
 
     int64_t& fee = getResult().feeCharged;

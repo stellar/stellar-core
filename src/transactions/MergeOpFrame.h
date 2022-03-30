@@ -24,7 +24,8 @@ class MergeOpFrame : public OperationFrame
 
     ThresholdLevel getThresholdLevel() const override;
 
-    virtual bool isSeqnumTooFar(LedgerTxnHeader const& header,
+    virtual bool isSeqnumTooFar(AbstractLedgerTxn& ltx,
+                                LedgerTxnHeader const& header,
                                 AccountEntry const& sourceAccount);
 
   public:

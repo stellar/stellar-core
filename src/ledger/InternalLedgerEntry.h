@@ -14,7 +14,8 @@ enum class InternalLedgerEntryType
 {
     LEDGER_ENTRY,
     SPONSORSHIP,
-    SPONSORSHIP_COUNTER
+    SPONSORSHIP_COUNTER,
+    MAX_SEQ_NUM_TO_APPLY
 };
 
 struct SponsorshipKey
@@ -27,6 +28,11 @@ struct SponsorshipCounterKey
     AccountID sponsoringID;
 };
 
+struct MaxSeqNumToApplyKey
+{
+    AccountID sourceAccount;
+};
+
 class InternalLedgerKey
 {
   private:
@@ -37,6 +43,7 @@ class InternalLedgerKey
         LedgerKey mLedgerKey;
         SponsorshipKey mSponsorshipKey;
         SponsorshipCounterKey mSponsorshipCounterKey;
+        MaxSeqNumToApplyKey mMaxSeqNumToApplyKey;
     };
 
     void assign(InternalLedgerKey const& glk);
@@ -50,11 +57,15 @@ class InternalLedgerKey
     LedgerKey& ledgerKeyRef();
     SponsorshipKey& sponsorshipKeyRef();
     SponsorshipCounterKey& sponsorshipCounterKeyRef();
+    MaxSeqNumToApplyKey& maxSeqNumToApplyKeyRef();
 
   public:
     static InternalLedgerKey makeSponsorshipKey(AccountID const& sponsoredId);
     static InternalLedgerKey
     makeSponsorshipCounterKey(AccountID const& sponsoringId);
+
+    static InternalLedgerKey
+    makeMaxSeqNumToApplyKey(AccountID const& sourceAccount);
 
     InternalLedgerKey();
     explicit InternalLedgerKey(InternalLedgerEntryType t);
@@ -62,6 +73,7 @@ class InternalLedgerKey
     InternalLedgerKey(LedgerKey const& lk);
     explicit InternalLedgerKey(SponsorshipKey const& sk);
     explicit InternalLedgerKey(SponsorshipCounterKey const& sck);
+    explicit InternalLedgerKey(MaxSeqNumToApplyKey const& msnk);
 
     InternalLedgerKey(InternalLedgerKey const& glk);
     InternalLedgerKey(InternalLedgerKey&& glk);
@@ -78,6 +90,8 @@ class InternalLedgerKey
     SponsorshipKey const& sponsorshipKey() const;
 
     SponsorshipCounterKey const& sponsorshipCounterKey() const;
+
+    MaxSeqNumToApplyKey const& maxSeqNumToApplyKey() const;
 
     std::string toString() const;
 
@@ -96,6 +110,12 @@ struct SponsorshipCounterEntry
     int64_t numSponsoring;
 };
 
+struct MaxSeqNumToApplyEntry
+{
+    AccountID sourceAccount;
+    SequenceNumber maxSeqNum;
+};
+
 class InternalLedgerEntry
 {
   private:
@@ -105,6 +125,7 @@ class InternalLedgerEntry
         LedgerEntry mLedgerEntry;
         SponsorshipEntry mSponsorshipEntry;
         SponsorshipCounterEntry mSponsorshipCounterEntry;
+        MaxSeqNumToApplyEntry mMaxSeqNumToApplyEntry;
     };
 
     void assign(InternalLedgerEntry const& gle);
@@ -121,6 +142,7 @@ class InternalLedgerEntry
     InternalLedgerEntry(LedgerEntry const& le);
     explicit InternalLedgerEntry(SponsorshipEntry const& se);
     explicit InternalLedgerEntry(SponsorshipCounterEntry const& sce);
+    explicit InternalLedgerEntry(MaxSeqNumToApplyEntry const& msne);
 
     InternalLedgerEntry(InternalLedgerEntry const& gle);
     InternalLedgerEntry(InternalLedgerEntry&& gle);
@@ -142,6 +164,9 @@ class InternalLedgerEntry
     SponsorshipCounterEntry& sponsorshipCounterEntry();
     SponsorshipCounterEntry const& sponsorshipCounterEntry() const;
 
+    MaxSeqNumToApplyEntry& maxSeqNumToApplyEntry();
+    MaxSeqNumToApplyEntry const& maxSeqNumToApplyEntry() const;
+
     InternalLedgerKey toKey() const;
 
     std::string toString() const;
@@ -160,6 +185,13 @@ bool operator==(SponsorshipCounterEntry const& lhs,
                 SponsorshipCounterEntry const& rhs);
 bool operator!=(SponsorshipCounterEntry const& lhs,
                 SponsorshipCounterEntry const& rhs);
+
+bool operator==(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs);
+bool operator!=(MaxSeqNumToApplyKey const& lhs, MaxSeqNumToApplyKey const& rhs);
+bool operator==(MaxSeqNumToApplyEntry const& lhs,
+                MaxSeqNumToApplyEntry const& rhs);
+bool operator!=(MaxSeqNumToApplyEntry const& lhs,
+                MaxSeqNumToApplyEntry const& rhs);
 
 bool operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs);
 bool operator!=(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs);
