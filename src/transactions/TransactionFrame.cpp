@@ -160,21 +160,31 @@ TransactionFrame::getFeeBid() const
 }
 
 int64_t
-TransactionFrame::getMinFee(LedgerHeader const& header) const
+TransactionFrame::getMinFee(LedgerHeader const& header,
+                            std::optional<int64_t> baseFee) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
+    int64_t effectiveBaseFee = header.baseFee;
+    if (baseFee)
+    {
+        effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
+    }
+    return effectiveBaseFee * std::max<int64_t>(1, getNumOperations());
 }
 
 int64_t
-TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
-                         bool applying) const
+TransactionFrame::getFee(LedgerHeader const& header,
+                         std::optional<int64_t> baseFee, bool applying) const
 {
+    if (!baseFee)
+    {
+        return getFeeBid();
+    }
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
         int64_t adjustedFee =
-            baseFee * std::max<int64_t>(1, getNumOperations());
+            *baseFee * std::max<int64_t>(1, getNumOperations());
 
         if (applying)
         {
@@ -324,8 +334,8 @@ TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
 }
 
 void
-TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
-                               bool applying)
+TransactionFrame::resetResults(LedgerHeader const& header,
+                               std::optional<int64_t> baseFee, bool applying)
 {
     auto& ops = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                     ? mEnvelope.v0().tx.operations
@@ -822,7 +832,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 }
 
 void
-TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
+TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
+                                   std::optional<int64_t> baseFee)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -911,16 +922,26 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 }
 
 bool
-TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
-                             SequenceNumber current, bool chargeFee,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+TransactionFrame::checkValidWithOptionalFee(AbstractLedgerTxn& ltxOuter,
+                                            SequenceNumber current,
+                                            bool chargeFee,
+                                            uint64_t lowerBoundCloseTimeOffset,
+                                            uint64_t upperBoundCloseTimeOffset,
+                                            std::optional<int64_t> baseFee)
 {
     ZoneScoped;
     mCachedAccount.reset();
 
     LedgerTxn ltx(ltxOuter);
-    int64_t minBaseFee = chargeFee ? ltx.loadHeader().current().baseFee : 0;
+    int64_t minBaseFee = ltx.loadHeader().current().baseFee;
+    if (baseFee)
+    {
+        minBaseFee = std::max(minBaseFee, *baseFee);
+    }
+    if (!chargeFee)
+    {
+        minBaseFee = 0;
+    }
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -957,10 +978,12 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+                             uint64_t upperBoundCloseTimeOffset,
+                             std::optional<int64_t> baseFee)
 {
-    return checkValid(ltxOuter, current, true, lowerBoundCloseTimeOffset,
-                      upperBoundCloseTimeOffset);
+    return checkValidWithOptionalFee(ltxOuter, current, true,
+                                     lowerBoundCloseTimeOffset,
+                                     upperBoundCloseTimeOffset, baseFee);
 }
 
 void

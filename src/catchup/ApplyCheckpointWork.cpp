@@ -99,7 +99,7 @@ ApplyCheckpointWork::openInputFiles()
 }
 
 TxSetFrameConstPtr
-ApplyCheckpointWork::getCurrentTxSet()
+ApplyCheckpointWork::getCurrentTxSet(LedgerHeader const& ledgerHeader)
 {
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
@@ -124,14 +124,24 @@ ApplyCheckpointWork::getCurrentTxSet()
         {
             releaseAssert(mTxHistoryEntry.ledgerSeq == seq);
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
-            return std::make_shared<TxSetFrame const>(mApp.getNetworkID(),
-                                                      mTxHistoryEntry.txSet);
+            if (mTxHistoryEntry.ext.v() == 0)
+            {
+                auto txSet = std::make_shared<TxSetFrame const>(
+                    mApp.getNetworkID(), mTxHistoryEntry.txSet);
+                txSet->computeTxFees(ledgerHeader);
+                return txSet;
+            }
+            return std::make_shared<TxSetFrame const>(
+                mApp.getNetworkID(), mTxHistoryEntry.ext.generalizedTxSet());
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    return std::make_shared<TxSetFrame const>(
-        lm.getLastClosedLedgerHeader().hash);
+    auto emptyTxSet = std::make_shared<TxSetFrame const>(
+        lm.getLastClosedLedgerHeader().hash,
+        lm.getLastClosedLedgerHeader().header.ledgerVersion);
+    emptyTxSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
+    return emptyTxSet;
 }
 
 std::shared_ptr<LedgerCloseData>
@@ -208,7 +218,7 @@ ApplyCheckpointWork::getNextLedgerCloseData()
             LedgerManager::ledgerAbbrev(lclHeader)));
     }
 
-    auto txset = getCurrentTxSet();
+    auto txset = getCurrentTxSet(header);
     CLOG_DEBUG(History, "Ledger {} has {} transactions", header.ledgerSeq,
                txset->sizeTx());
 

@@ -165,7 +165,16 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     TxSetFrame txSet(lh->previousLedgerHash, txs);
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
-    txSet.toXDR(hist.txSet);
+    if (txSet.isGeneralizedTxSet())
+    {
+        hist.ext.v(1);
+        txSet.toXDR(hist.ext.generalizedTxSet());
+    }
+    else
+    {
+        txSet.toXDR(hist.txSet);
+    }
+
     txOut.writeOne(hist);
 
     txResultOut.writeOne(results);
@@ -194,6 +203,12 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
          soci::into(curLedgerSeq), soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
 
+    auto lh = LedgerHeaderUtils::loadBySequence(db, sess, ledgerSeq);
+    if (!lh)
+    {
+        throw std::runtime_error("Could not find ledger");
+    }
+
     Hash h;
     std::vector<TransactionFrameBasePtr> txs;
     TransactionHistoryResultEntry results;
@@ -209,6 +224,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
         {
             saveTransactionHelper(db, sess, lastLedgerSeq, txs, results, txOut,
                                   txResultOut);
+            // reset state
             txs.clear();
             results.ledgerSeq = curLedgerSeq;
             results.txResultSet.results.clear();
@@ -223,7 +239,6 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
 
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
-
         auto txFrame =
             TransactionFrameBase::makeTransactionFromWire(networkID, tx);
         txs.emplace_back(txFrame);

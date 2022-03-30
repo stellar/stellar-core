@@ -56,7 +56,7 @@ class ApplyCheckpointWork : public BasicWork
 
     std::shared_ptr<ConditionalWork> mConditionalWork;
 
-    TxSetFrameConstPtr getCurrentTxSet();
+    TxSetFrameConstPtr getCurrentTxSet(LedgerHeader const& ledgerHeader);
     void openInputFiles();
 
     std::shared_ptr<LedgerCloseData> getNextLedgerCloseData();

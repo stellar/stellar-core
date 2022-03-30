@@ -24,6 +24,7 @@
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 
 #include "medida/meter.h"
@@ -521,6 +522,7 @@ Peer::msgSummary(StellarMessage const& msg)
         return fmt::format(FMT_STRING("GETTXSET {}"),
                            hexAbbrev(msg.txSetHash()));
     case TX_SET:
+    case GENERALIZED_TX_SET:
         return "TXSET";
 
     case TRANSACTION:
@@ -615,6 +617,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         getOverlayMetrics().mSendGetTxSetMeter.Mark();
         break;
     case TX_SET:
+    case GENERALIZED_TX_SET:
         getOverlayMetrics().mSendTxSetMeter.Mark();
         break;
     case TRANSACTION:
@@ -868,6 +871,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     // consensus, self
     case DONT_HAVE:
     case TX_SET:
+    case GENERALIZED_TX_SET:
     case SCP_QUORUMSET:
     case SCP_MESSAGE:
         cat = "SCP";
@@ -1225,6 +1229,13 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     }
     break;
 
+    case GENERALIZED_TX_SET:
+    {
+        auto t = getOverlayMetrics().mRecvTxSetTimer.TimeScope();
+        recvGeneralizedTxSet(stellarMsg);
+    }
+    break;
+
     case TRANSACTION:
     {
         auto t = getOverlayMetrics().mRecvTransactionTimer.TimeScope();
@@ -1282,18 +1293,33 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    auto messageType = protocolVersionIsBefore(
+                           ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                           ? TX_SET
+                           : GENERALIZED_TX_SET;
     auto self = shared_from_this();
     if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
     {
         StellarMessage newMsg;
-        newMsg.type(TX_SET);
-        txSet->toXDR(newMsg.txSet());
+        newMsg.type(messageType);
+        if (messageType == TX_SET)
+        {
+            txSet->toXDR(newMsg.txSet());
+        }
+        else
+        {
+            txSet->toXDR(newMsg.generalizedTxSet());
+        }
+
         auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
         self->sendMessage(newMsgPtr);
     }
     else
     {
-        sendDontHave(TX_SET, msg.txSetHash());
+        sendDontHave(messageType, msg.txSetHash());
     }
 }
 
@@ -1302,6 +1328,18 @@ Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
+    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
+}
+
+void
+Peer::recvGeneralizedTxSet(StellarMessage const& msg)
+{
+    ZoneScoped;
+    if (!validateTxSetXDRStructure(msg.generalizedTxSet()))
+    {
+        return;
+    }
+    TxSetFrame frame(mApp.getNetworkID(), msg.generalizedTxSet());
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 

@@ -78,7 +78,17 @@ HistoryArchiveStream::makeEmptyTransactionHistory()
 {
     TransactionHistoryEntry txhe;
     txhe.ledgerSeq = mHeaderHistory.header.ledgerSeq + 1;
-    txhe.txSet.previousLedgerHash = mHeaderHistory.hash;
+    if (protocolVersionStartsFrom(mHeaderHistory.header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        txhe.ext.v(1);
+        txhe.ext.generalizedTxSet().v1TxSet().previousLedgerHash =
+            mHeaderHistory.hash;
+    }
+    else
+    {
+        txhe.txSet.previousLedgerHash = mHeaderHistory.hash;
+    }
     return txhe;
 }
 
@@ -123,9 +133,19 @@ HistoryArchiveStream::readTransactionHistory()
 
     if (mTransactionHistory.ledgerSeq == ledgerSeq)
     {
+        Hash previousLedgerHash;
+        if (mTransactionHistory.ext.v() == 1)
+        {
+            previousLedgerHash = mTransactionHistory.ext.generalizedTxSet()
+                                     .v1TxSet()
+                                     .previousLedgerHash;
+        }
+        else
+        {
+            previousLedgerHash = mTransactionHistory.txSet.previousLedgerHash;
+        }
         // Buffer contains transaction set for current header
-        if (mTransactionHistory.txSet.previousLedgerHash !=
-            mHeaderHistory.header.previousLedgerHash)
+        if (previousLedgerHash != mHeaderHistory.header.previousLedgerHash)
         {
             throw std::runtime_error("Incorrect transaction set hash");
         }

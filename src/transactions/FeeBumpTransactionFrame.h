@@ -42,8 +42,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
   protected:
-    void resetResults(LedgerHeader const& header, int64_t baseFee,
-                      bool applying);
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee, bool applying);
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
@@ -61,13 +61,16 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) override;
+                    uint64_t upperBoundCloseTimeOffset,
+                    std::optional<int64_t> minBaseFee) override;
 
     TransactionEnvelope const& getEnvelope() const override;
 
     int64_t getFeeBid() const override;
-    int64_t getMinFee(LedgerHeader const& header) const override;
-    int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    int64_t
+    getMinFee(LedgerHeader const& header,
+              std::optional<int64_t> baseFee = std::nullopt) const override;
+    int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
                    bool applying) const override;
 
     Hash const& getContentsHash() const override;
@@ -91,7 +94,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee) override;
 
     StellarMessage toStellarMessage() const override;
 

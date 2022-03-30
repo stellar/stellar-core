@@ -1302,7 +1302,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             SignerKey sk = alternative.createSigner(*tx2);
                             Signer sk1(sk, 100); // high rights account
                             root.setOptions(setSigner(sk1));
-                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                            auto sz = getAccountSigners(root, *app).size();
+                            REQUIRE(sz == 1);
                             alternative.sign(*tx2);
                         };
                         for_versions(3, 9, *app, [&] {
@@ -1867,6 +1868,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             auto txSet = std::make_shared<TxSetFrame const>(
                 app->getLedgerManager().getLastClosedLedgerHeader().hash,
                 TxSetFrame::Transactions{txFrame});
+            txSet->computeTxFees(
+                app->getLedgerManager().getLastClosedLedgerHeader().header);
 
             // Close this ledger
             auto lastCloseTime = app->getLedgerManager()

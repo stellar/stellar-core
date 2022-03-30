@@ -185,7 +185,7 @@ class TransactionQueueTest
 
         REQUIRE(fees == expectedFees);
 
-        auto expectedTxSet = std::make_shared<TxSetFrame const>(Hash{});
+        auto expectedTxSet = std::make_shared<TxSetFrame const>(Hash{}, 1);
         size_t totOps = 0;
         for (auto const& accountState : state.mAccountStates)
         {
@@ -1931,9 +1931,12 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
+        auto txSet =
+            std::make_shared<TxSetFrame const>(lcl.hash, lcl.header.ledgerVersion);
         root.loadSequenceNumber();
         auto txSet = std::make_shared<TxSetFrame const>(
             lcl.hash, std::vector<TransactionFrameBasePtr>{tx1b, tx2});
+        txSet->computeTxFees(lcl.header);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 

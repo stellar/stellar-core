@@ -565,7 +565,8 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     auto txFee = lm.getLastTxFee();
 
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
+    auto txSet =
+        std::make_shared<TxSetFrame const>(lcl.hash, lcl.header.ledgerVersion);
 
     auto root = TestAccount::createRoot(*app);
     auto issuer = root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
@@ -1417,6 +1418,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             lm.getLastClosedLedgerHeader().hash,
             TxSetFrame::Transactions{
                 root.tx({txtest::createAccount(stranger, big)})});
+txSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to activate
@@ -1649,7 +1651,8 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-        auto emptyTxSet = std::make_shared<TxSetFrame const>(lcl.hash);
+        auto emptyTxSet =
+            std::make_shared<TxSetFrame const>(lcl.hash, lcl.header.ledgerVersion);
         herder.getPendingEnvelopes().putTxSet(emptyTxSet->getContentsHash(),
                                               ledgerSeq, emptyTxSet);
 
@@ -2456,4 +2459,41 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
         REQUIRE_THROWS_AS(root.pay(a1, cur1, 2, native, 1, {}),
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
+}
+
+TEST_CASE("upgrade to generic tx set", "[upgrades]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(
+        *app, makeProtocolVersionUpgrade(
+                  static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1));
+
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto root = TestAccount::createRoot(*app);
+
+    herder.recvTransaction(root.tx({payment(root, 1)}));
+
+    auto txSet =
+        herder.getTransactionQueue().toTxSet(lm.getLastClosedLedgerHeader());
+
+    REQUIRE(!txSet->isGeneralizedTxSet());
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
+                             GENERALIZED_TX_SET_PROTOCOL_VERSION)));
+
+    txSet =
+        herder.getTransactionQueue().toTxSet(lm.getLastClosedLedgerHeader());
+    REQUIRE(txSet->isGeneralizedTxSet());
 }

@@ -100,6 +100,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
+                              time_t closeTime, TxSetFramePtr txSet);
+
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
@@ -268,6 +271,11 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond = std::nullopt);
+
+TxSetFramePtr createGeneralizedTxSet(
+    std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    std::vector<TransactionFrameBasePtr> const& bidIsFeeTxs, Application& app);
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 

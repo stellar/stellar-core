@@ -455,6 +455,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     TxSetFrameConstPtr txSet = std::make_shared<TxSetFrame const>(
         lm.getLastClosedLedgerHeader().hash, txs);
 
+    txSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
+    // Provoke sortForHash and hash-caching:
     CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
                ledgerSeq, txSet->sizeTx(), hexAbbrev(txSet->getContentsHash()));
 

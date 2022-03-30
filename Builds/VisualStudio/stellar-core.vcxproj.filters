@@ -1236,8 +1236,14 @@
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="src\generated\rust\bridge.cpp">
+   <ClCompile Include="src\generated\rust\bridge.cpp">
       <Filter>rust\generated</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\TxSetTests.cpp">
+      <Filter>herder\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2156,6 +2162,12 @@
     <ClInclude Include="src\generated\rust\bridge.h">
       <Filter>rust\generated</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-internal.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -2325,6 +2337,9 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-internal.x">
+      <Filter>xdr</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

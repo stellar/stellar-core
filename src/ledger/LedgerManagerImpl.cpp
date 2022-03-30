@@ -577,12 +577,12 @@ LedgerManagerImpl::emitNextMeta()
     auto streamWrite = mMetaStreamWriteTime.TimeScope();
     if (mMetaStream)
     {
-        mMetaStream->writeOne(*mNextMetaToEmit);
+        mMetaStream->writeOne(mNextMetaToEmit->getXDR());
         mMetaStream->flush();
     }
     if (mMetaDebugStream)
     {
-        mMetaDebugStream->writeOne(*mNextMetaToEmit);
+        mMetaDebugStream->writeOne(mNextMetaToEmit->getXDR());
     }
     mNextMetaToEmit.reset();
 }
@@ -664,12 +664,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
-    std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
+    std::unique_ptr<LedgerCloseMetaFrame> ledgerCloseMeta;
     if (mMetaStream || mMetaDebugStream)
     {
         if (mNextMetaToEmit)
         {
-            releaseAssert(mNextMetaToEmit->v0().ledgerHeader.hash ==
+            releaseAssert(mNextMetaToEmit->ledgerHeader().hash ==
                           getLastClosedLedgerHeader().hash);
             emitNextMeta();
         }
@@ -677,9 +677,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // Write to a local variable rather than a member variable first: this
         // enables us to discard incomplete meta and retry, should anything in
         // this method throw.
-        ledgerCloseMeta = std::make_unique<LedgerCloseMeta>();
-        ledgerCloseMeta->v0().txProcessing.reserve(txSet->sizeTx());
-        txSet->toXDR(ledgerCloseMeta->v0().txSet);
+        ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
+            header.current().ledgerVersion);
+        ledgerCloseMeta->txProcessing().reserve(txSet->sizeTx());
+        ledgerCloseMeta->populateTxSet(*txSet);
     }
 
     // the transaction set that was agreed upon by consensus
@@ -689,12 +690,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    auto curBaseFee = txSet->getBaseFee(header.current());
-    processFeesSeqNums(txs, ltx, curBaseFee, ledgerCloseMeta);
+    processFeesSeqNums(txs, ltx, txSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
+    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -729,7 +729,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             LedgerEntryChanges changes = ltxUpgrade.getChanges();
             if (ledgerCloseMeta)
             {
-                auto& up = ledgerCloseMeta->v0().upgradesProcessing;
+                auto& up = ledgerCloseMeta->upgradesProcessing();
                 up.emplace_back();
                 UpgradeEntryMeta& uem = up.back();
                 uem.upgrade = lupgrade;
@@ -766,7 +766,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (mMetaStream || mMetaDebugStream)
     {
         releaseAssert(ledgerCloseMeta);
-        ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
+        ledgerCloseMeta->ledgerHeader() = mLastClosedLedger;
 
         // At this point we've got a complete meta and we can store it to the
         // member variable: if we throw while committing below, we will at worst
@@ -1048,11 +1048,10 @@ mergeOpInTx(std::vector<Operation> const& ops)
 void
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
-    int64_t baseFee, std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
+    TxSetFrameBaseConstPtr const& txSet,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
-    CLOG_DEBUG(Ledger, "processing fees and sequence numbers with base fee {}",
-               baseFee);
     int index = 0;
     try
     {
@@ -1064,7 +1063,7 @@ LedgerManagerImpl::processFeesSeqNums(
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, baseFee);
+            tx->processFeeSeqNum(ltxTx, txSet->getTxBaseFee(tx));
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,
@@ -1087,7 +1086,7 @@ LedgerManagerImpl::processFeesSeqNums(
             LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
-                auto& tp = ledgerCloseMeta->v0().txProcessing;
+                auto& tp = ledgerCloseMeta->txProcessing();
                 tp.emplace_back();
                 tp.back().feeProcessing = changes;
             }
@@ -1181,7 +1180,7 @@ void
 LedgerManagerImpl::applyTransactions(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
-    std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta, int64 curBaseFee)
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
     int index = 0;
@@ -1200,9 +1199,8 @@ LedgerManagerImpl::applyTransactions(
                             });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
-        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{}, base_fee:{})",
-                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps,
-                  curBaseFee);
+        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{})",
+                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps);
     }
 
     prefetchTransactionData(txs);
@@ -1231,7 +1229,7 @@ LedgerManagerImpl::applyTransactions(
         if (ledgerCloseMeta)
         {
             TransactionResultMeta& trm =
-                ledgerCloseMeta->v0().txProcessing.at(index);
+                ledgerCloseMeta->txProcessing().at(index);
             trm.txApplyProcessing = tm;
             trm.result = results;
         }

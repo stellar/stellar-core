@@ -54,4 +54,9 @@ makeSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
 }
 
 }
+
+void
+TxSimTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
+{
+    releaseAssert(false);
 }

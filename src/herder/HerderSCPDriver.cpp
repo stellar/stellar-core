@@ -305,6 +305,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
     Hash const& txSetHash = b.txSetHash;
     TxSetFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    // Finalize fees for legacy (non-generalized) tx sets. This can be removed
+    // after migration to generalized tx set.
+    if (!txSet->isGeneralizedTxSet() && !txSet->feesComputed())
+    {
+        txSet->computeTxFees(lcl);
+    }
 
     SCPDriver::ValidationLevel res;
 
@@ -552,25 +558,38 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     }
     auto lSize = l->size(header);
     auto rSize = r->size(header);
-    if (lSize < rSize)
+    if (lSize != rSize)
     {
-        return true;
+        return lSize < rSize;
     }
-    else if (lSize > rSize)
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        return false;
+        auto lBids = l->getTotalBids();
+        auto rBids = r->getTotalBids();
+        if (lBids != rBids)
+        {
+            return lBids < rBids;
+        }
     }
     if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
         auto lFee = l->getTotalFees(header);
         auto rFee = r->getTotalFees(header);
-        if (lFee < rFee)
+        if (lFee != rFee)
         {
-            return true;
+            return lFee < rFee;
         }
-        else if (lFee > rFee)
+    }
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        auto lEncodedSize = l->encodedSize();
+        auto rEncodedSize = r->encodedSize();
+        if (lEncodedSize != rEncodedSize)
         {
-            return false;
+            // Look for the smallest encoded size.
+            return lEncodedSize > rEncodedSize;
         }
     }
     return lessThanXored(lh, rh, s);
