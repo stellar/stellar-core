@@ -1,0 +1,12 @@
+[package]
+name = "test_pay"
+version = "0.0.1"
+authors = ["Stellar Development Foundation <info@stellar.org>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+stellar_contract_sdk = {path = "../stellar_contract_sdk"}

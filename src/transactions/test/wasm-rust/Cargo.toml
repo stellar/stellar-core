@@ -1,12 +1,12 @@
-[package]
-name = "stellar-contract"
-version = "0.0.1"
-authors = ["Stellar Development Foundation <info@stellar.org>"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
+[workspace]
 
-[lib]
-crate-type = ["cdylib", "rlib"]
+members = [
+    "stellar_contract_sdk",
+    "test_call_helper",
+    "test_helper",
+    "test_host_objects",
+    "test_pay",
+]
 
 [profile.dev]
 opt-level = "z"

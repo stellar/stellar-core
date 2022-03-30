@@ -1,0 +1,9 @@
+[package]
+name = "stellar_contract_sdk"
+version = "0.0.1"
+authors = ["Stellar Development Foundation <info@stellar.org>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
