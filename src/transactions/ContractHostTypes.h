@@ -535,6 +535,12 @@ using HostClosure3 = std::function<fizzy::ExecutionResult(
 using HostClosure4 = std::function<fizzy::ExecutionResult(
     fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
     uint64_t)>;
+using HostClosure5 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t, uint64_t)>;
+using HostClosure6 = std::function<fizzy::ExecutionResult(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t, uint64_t, uint64_t)>;
 
 class HostContext;
 
@@ -549,6 +555,12 @@ using HostMemFun3 = fizzy::ExecutionResult (HostContext::*)(
 using HostMemFun4 = fizzy::ExecutionResult (HostContext::*)(
     fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
     uint64_t);
+using HostMemFun5 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t, uint64_t);
+using HostMemFun6 = fizzy::ExecutionResult (HostContext::*)(
+    fizzy::Instance&, fizzy::ExecutionContext&, uint64_t, uint64_t, uint64_t,
+    uint64_t, uint64_t, uint64_t);
 
 class InvokeContractOpFrame;
 struct HostOpContext
@@ -660,6 +672,10 @@ class HostContext
                               std::string const& name);
     void registerHostFunction(HostClosure4 clo, std::string const& module,
                               std::string const& name);
+    void registerHostFunction(HostClosure5 clo, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostClosure6 clo, std::string const& module,
+                              std::string const& name);
 
     void registerHostFunction(HostMemFun0 mf, std::string const& module,
                               std::string const& name);
@@ -670,6 +686,10 @@ class HostContext
     void registerHostFunction(HostMemFun3 mf, std::string const& module,
                               std::string const& name);
     void registerHostFunction(HostMemFun4 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun5 mf, std::string const& module,
+                              std::string const& name);
+    void registerHostFunction(HostMemFun6 mf, std::string const& module,
                               std::string const& name);
 
   public:
@@ -697,7 +717,13 @@ class HostContext
         return mHostOpCtx->mInvokeOp;
     }
 
+    std::variant<HostVal, InvokeContractResultCode>
+    invokeContract(AccountID const& owner, int64_t contractID,
+                   std::string const& function,
+                   std::vector<HostVal> const& args);
+
     void extendEnvironment(SCEnv const& locals);
+    void extendEnvironment(SCSymbol const& sym, HostVal hv);
     std::optional<HostVal> getEnv(std::string const& name) const;
 
     std::vector<fizzy::ImportedFunction> const&
@@ -766,6 +792,30 @@ class HostContext
     fizzy::ExecutionResult pay(fizzy::Instance&, fizzy::ExecutionContext&,
                                uint64_t src, uint64_t dst, uint64_t asset,
                                uint64_t amount);
+
+    fizzy::ExecutionResult call0(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function);
+
+    fizzy::ExecutionResult call1(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function,
+                                 uint64_t a);
+
+    fizzy::ExecutionResult call2(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function,
+                                 uint64_t a, uint64_t b);
+
+    fizzy::ExecutionResult call3(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function,
+                                 uint64_t a, uint64_t b, uint64_t c);
+
+    fizzy::ExecutionResult call4(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function,
+                                 uint64_t a, uint64_t b, uint64_t c,
+                                 uint64_t d);
+
+    fizzy::ExecutionResult callN(fizzy::Instance&, fizzy::ExecutionContext&,
+                                 uint64_t contract, uint64_t function,
+                                 std::vector<HostVal> const& args);
 };
 
 }

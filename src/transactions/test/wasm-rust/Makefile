@@ -1,6 +1,6 @@
 .PHONY: build
 
-build: test_invoke_contract.wasm test_typed_contract.wasm
+build: test_invoke_contract.wasm test_typed_contract.wasm test_other_contract.wasm
 
 
 STRIP=symbols

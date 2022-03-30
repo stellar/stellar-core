@@ -30,4 +30,10 @@ extern "C" {
     pub(crate) fn host__get_current_ledger_close_time() -> u64;
 
     pub(crate) fn host__pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val;
+
+    pub(crate) fn host__call0(contract: Val, func: Val) -> Val;
+    pub(crate) fn host__call1(contract: Val, func: Val, a: Val) -> Val;
+    pub(crate) fn host__call2(contract: Val, func: Val, a: Val, b: Val) -> Val;
+    pub(crate) fn host__call3(contract: Val, func: Val, a: Val, b: Val, c: Val) -> Val;
+    pub(crate) fn host__call4(contract: Val, func: Val, a: Val, b: Val, c: Val, d: Val) -> Val;
 }

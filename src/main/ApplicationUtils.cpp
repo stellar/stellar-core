@@ -502,19 +502,13 @@ invokeContract(Config cfg, std::string const& wasmFile,
                std::string const& function,
                std::vector<std::string> const& args)
 {
-    std::filesystem::path wasmPath(wasmFile);
-    if (wasmPath.extension() != ".wasm")
-    {
-        throw std::runtime_error(
-            fmt::format("contract file {} is not a .wasm file", wasmPath));
-    }
-    std::ifstream wasmInStream(wasmPath);
-    if (!wasmInStream)
-    {
-        throw std::runtime_error(fmt::format("failed to open {}", wasmPath));
-    }
+    SecretKey ownerSec = SecretKey::pseudoRandomForTesting();
+    PublicKey ownerPub = ownerSec.getPublicKey();
 
-    int64_t contractID = 1;
+    std::vector<std::tuple<uint64, PublicKey, std::filesystem::path>> contracts;
+    int64_t currContractID = 0;
+
+    contracts.emplace_back(++currContractID, ownerPub, wasmFile);
 
     // Compose a contract-invocation transaction.
     TransactionEnvelope txe;
@@ -524,7 +518,8 @@ invokeContract(Config cfg, std::string const& wasmFile,
     Operation& op = tx.operations.back();
     op.body.type(INVOKE_CONTRACT);
     auto& invoke = op.body.invokeContractOp();
-    invoke.contractID = contractID;
+    invoke.owner = ownerPub;
+    invoke.contractID = currContractID;
     invoke.function = function;
     size_t i = 0;
     std::string argStr;
@@ -623,11 +618,24 @@ invokeContract(Config cfg, std::string const& wasmFile,
             arg.obj()->lval().type(SCLV_AMOUNT);
             arg.obj()->lval().amountVal() = int64_t(std::stoll(val));
         }
+        else if (ty == "contract")
+        {
+            arg.type(SCV_OBJECT);
+            arg.obj().activate();
+            arg.obj()->type(SCO_LEDGERKEY);
+            arg.obj()->lkey().type(CONTRACT_CODE);
+            auto& cc = arg.obj()->lkey().contractCode();
+            cc.contractID = ++currContractID;
+            SecretKey sec = SecretKey::pseudoRandomForTesting();
+            PublicKey pub = sec.getPublicKey();
+            cc.owner = pub;
+            contracts.emplace_back(cc.contractID, pub, val);
+        }
         else
         {
             LOG_ERROR(DEFAULT_LOG, "Unrecognized arg type {}", ty);
             LOG_ERROR(DEFAULT_LOG, "Supported arg types are: bool, i32, u32, "
-                                   "symbol, account, asset");
+                                   "symbol, account, asset, contract");
             throw std::runtime_error("Unknown arg type: " + ty);
         }
         if (i != 0)
@@ -648,8 +656,6 @@ invokeContract(Config cfg, std::string const& wasmFile,
         ltx.loadHeader().current().ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
 
         // Create a ledger entry holding the contract owner.
-        SecretKey ownerSec = SecretKey::pseudoRandomForTesting();
-        PublicKey ownerPub = ownerSec.getPublicKey();
 
         InternalLedgerEntry ownerIle;
         ownerIle.ledgerEntry().data.type(ACCOUNT);
@@ -660,17 +666,35 @@ invokeContract(Config cfg, std::string const& wasmFile,
         acc.thresholds[THRESHOLD_MASTER_WEIGHT] = 1;
         ltx.create(ownerIle);
 
-        // Create a ledger entry holding the contract.
-        InternalLedgerEntry contractIle;
-        contractIle.ledgerEntry().data.type(CONTRACT_CODE);
-        auto& cc = contractIle.ledgerEntry().data.contractCode();
-        cc.contractID = contractID;
-        cc.body.type(CONTRACT_CODE_WASM);
-        cc.body.wasm().code.assign(std::istreambuf_iterator<char>{wasmInStream},
-                                   {});
-        ltx.create(contractIle);
-        LOG_INFO(DEFAULT_LOG, "loaded contract {} from {}", contractID,
-                 wasmFile);
+        // Create a ledger entry holding each contract.
+        for (auto const& triple : contracts)
+        {
+
+            std::filesystem::path const& wasmPath = std::get<2>(triple);
+            if (wasmPath.extension() != ".wasm")
+            {
+                throw std::runtime_error(fmt::format(
+                    "contract file {} is not a .wasm file", wasmPath));
+            }
+            std::ifstream wasmInStream(wasmPath);
+            if (!wasmInStream)
+            {
+                throw std::runtime_error(
+                    fmt::format("failed to open {}", wasmPath));
+            }
+
+            InternalLedgerEntry contractIle;
+            contractIle.ledgerEntry().data.type(CONTRACT_CODE);
+            auto& cc = contractIle.ledgerEntry().data.contractCode();
+            cc.contractID = std::get<0>(triple);
+            cc.owner = std::get<1>(triple);
+            cc.body.type(CONTRACT_CODE_WASM);
+            cc.body.wasm().code.assign(
+                std::istreambuf_iterator<char>{wasmInStream}, {});
+            ltx.create(contractIle);
+            LOG_INFO(DEFAULT_LOG, "loaded contract owner={} id={} from {}",
+                     hexAbbrev(cc.owner.ed25519()), cc.contractID, wasmPath);
+        }
 
         // Run the transaction composed above
         tx.sourceAccount.type(KEY_TYPE_ED25519);
@@ -683,7 +707,7 @@ invokeContract(Config cfg, std::string const& wasmFile,
         TransactionMeta txmeta;
         txmeta.v(2);
         LOG_INFO(DEFAULT_LOG, "invoking contract {} function {}({})",
-                 contractID, function, argStr);
+                 invoke.contractID, function, argStr);
         txp->processFeeSeqNum(ltx, 0);
         if (!txp->apply(*app, ltx, txmeta))
         {

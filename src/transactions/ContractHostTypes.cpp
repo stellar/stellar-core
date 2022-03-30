@@ -7,15 +7,18 @@
 #include "ledger/LedgerTxn.h"
 #include "transactions/InvokeContractOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdr/Stellar-types.h"
+#include <Tracy.hpp>
+#include <TracyC.h>
 #include <cstdint>
 #include <fizzy/execute.hpp>
-#include <fizzy/instantiate.hpp>
-#include <fizzy/value.hpp>
+#include <fizzy/parser.hpp>
 #include <iostream>
 #include <variant>
 
@@ -154,8 +157,14 @@ HostContext::extendEnvironment(SCEnv const& locals)
 {
     for (auto const& pair : locals)
     {
-        mEnv.insert_or_assign(pair.key, xdrToHost(pair.val));
+        extendEnvironment(pair.key, xdrToHost(pair.val));
     }
+}
+
+void
+HostContext::extendEnvironment(SCSymbol const& sym, HostVal hv)
+{
+    mEnv.insert_or_assign(sym, hv);
 }
 
 std::optional<HostVal>
@@ -464,6 +473,29 @@ dispatchClosure4(std::any& host_context, fizzy::Instance& instance,
                     args[3].as<uint64_t>());
 }
 
+fizzy::ExecutionResult
+dispatchClosure5(std::any& host_context, fizzy::Instance& instance,
+                 const fizzy::Value* args,
+                 fizzy::ExecutionContext& ctx) noexcept
+{
+    auto closure5 = std::any_cast<HostClosure5>(host_context);
+    return closure5(instance, ctx, args[0].as<uint64_t>(),
+                    args[1].as<uint64_t>(), args[2].as<uint64_t>(),
+                    args[3].as<uint64_t>(), args[4].as<uint64_t>());
+}
+
+fizzy::ExecutionResult
+dispatchClosure6(std::any& host_context, fizzy::Instance& instance,
+                 const fizzy::Value* args,
+                 fizzy::ExecutionContext& ctx) noexcept
+{
+    auto closure6 = std::any_cast<HostClosure6>(host_context);
+    return closure6(instance, ctx, args[0].as<uint64_t>(),
+                    args[1].as<uint64_t>(), args[2].as<uint64_t>(),
+                    args[3].as<uint64_t>(), args[4].as<uint64_t>(),
+                    args[5].as<uint64_t>());
+}
+
 void
 HostContext::registerHostFunction(HostClosure0 clo, std::string const& module,
                                   std::string const& name)
@@ -497,6 +529,20 @@ HostContext::registerHostFunction(HostClosure4 clo, std::string const& module,
                                   std::string const& name)
 {
     registerHostFunction(4, clo, &dispatchClosure4, module, name);
+}
+
+void
+HostContext::registerHostFunction(HostClosure5 clo, std::string const& module,
+                                  std::string const& name)
+{
+    registerHostFunction(5, clo, &dispatchClosure5, module, name);
+}
+
+void
+HostContext::registerHostFunction(HostClosure6 clo, std::string const& module,
+                                  std::string const& name)
+{
+    registerHostFunction(6, clo, &dispatchClosure6, module, name);
 }
 
 void
@@ -541,6 +587,24 @@ HostContext::registerHostFunction(HostMemFun4 mf, std::string const& module,
 {
     using namespace std::placeholders;
     HostClosure4 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6)};
+    registerHostFunction(std::move(clo), module, name);
+}
+
+void
+HostContext::registerHostFunction(HostMemFun5 mf, std::string const& module,
+                                  std::string const& name)
+{
+    using namespace std::placeholders;
+    HostClosure5 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6, _7)};
+    registerHostFunction(std::move(clo), module, name);
+}
+
+void
+HostContext::registerHostFunction(HostMemFun6 mf, std::string const& module,
+                                  std::string const& name)
+{
+    using namespace std::placeholders;
+    HostClosure6 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6, _7, _8)};
     registerHostFunction(std::move(clo), module, name);
 }
 
@@ -804,47 +868,252 @@ HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
 
     return objMethod<LedgerKey>(src, [&](LedgerKey const& srcLK) {
         return objMethod<LedgerKey>(dst, [&](LedgerKey const& dstLK) {
-            return objMethod<SCLedgerVal>(asset, [&](SCLedgerVal const&
-                                                         assetV) {
-                return objMethod<SCLedgerVal>(amount, [&](SCLedgerVal const&
-                                                              amountV) {
-                    if (srcLK.type() == ACCOUNT && dstLK.type() == ACCOUNT &&
-                        assetV.type() == SCLV_ASSET &&
-                        amountV.type() == SCLV_AMOUNT)
-                    {
+            return objMethod<SCLedgerVal>(
+                asset, [&](SCLedgerVal const& assetV) {
+                    return objMethod<SCLedgerVal>(
+                        amount, [&](SCLedgerVal const& amountV) {
+                            if (srcLK.type() == ACCOUNT &&
+                                dstLK.type() == ACCOUNT &&
+                                assetV.type() == SCLV_ASSET &&
+                                amountV.type() == SCLV_AMOUNT)
+                            {
 
-                        Operation op;
-                        op.sourceAccount.activate();
-                        op.sourceAccount->ed25519() =
-                            srcLK.account().accountID.ed25519();
-                        op.body.type(PAYMENT);
-                        PaymentOp& pop = op.body.paymentOp();
-                        pop.amount = amountV.amountVal();
-                        pop.asset = assetV.assetVal();
-                        pop.destination.type(KEY_TYPE_ED25519);
-                        pop.destination.ed25519() =
-                            dstLK.account().accountID.ed25519();
+                                Operation op;
+                                op.sourceAccount.activate();
+                                op.sourceAccount->ed25519() =
+                                    srcLK.account().accountID.ed25519();
+                                op.body.type(PAYMENT);
+                                PaymentOp& pop = op.body.paymentOp();
+                                pop.amount = amountV.amountVal();
+                                pop.asset = assetV.assetVal();
+                                pop.destination.type(KEY_TYPE_ED25519);
+                                pop.destination.ed25519() =
+                                    dstLK.account().accountID.ed25519();
 
-                        CLOG_INFO(
-                            Tx,
-                            "contract attempting to pay {} {} from {} to {}",
-                            pop.amount, assetToString(pop.asset),
-                            hexAbbrev(op.sourceAccount->ed25519()),
-                            hexAbbrev(pop.destination.ed25519()));
+                                CLOG_INFO(
+                                    Tx,
+                                    "contract attempting to pay {} {} "
+                                    "from {} to {}",
+                                    pop.amount, assetToString(pop.asset),
+                                    hexAbbrev(op.sourceAccount->ed25519()),
+                                    hexAbbrev(pop.destination.ed25519()));
 
-                        OperationResult res;
-                        PaymentOpFrame pof(op, res,
-                                           mHostOpCtx->mInvokeOp.getParentTx());
+                                OperationResult res;
+                                PaymentOpFrame pof(
+                                    op, res,
+                                    mHostOpCtx->mInvokeOp.getParentTx());
 
-                        if (pof.doApply(getLedgerTxn()))
-                        {
-                            return HostVal::fromBool(true);
-                        }
-                    }
-                    return HostVal::fromStatus(0);
+                                if (pof.doApply(getLedgerTxn()))
+                                {
+                                    return HostVal::fromBool(true);
+                                }
+                            }
+                            return HostVal::fromStatus(0);
+                        });
                 });
-            });
         });
+    });
+}
+
+std::variant<HostVal, InvokeContractResultCode>
+HostContext::invokeContract(AccountID const& owner, int64_t contractID,
+                            std::string const& function,
+                            std::vector<HostVal> const& args)
+{
+    auto& ltxInner = getLedgerTxn();
+    auto codeLtxEntry = stellar::loadContractCode(ltxInner, owner, contractID);
+
+    if (!codeLtxEntry)
+    {
+        CLOG_WARNING(Tx, "contract owner={} id={} not found",
+                     hexAbbrev(owner.ed25519()), contractID);
+        return INVOKE_CONTRACT_MALFORMED;
+    }
+
+    ContractCodeEntry const& codeEntry =
+        codeLtxEntry.current().data.contractCode();
+
+    switch (codeEntry.body.type())
+    {
+    case CONTRACT_CODE_WASM:
+    {
+        // Parse the contract code.
+        auto const& wasm = codeEntry.body.wasm();
+        std::basic_string_view<uint8_t> codeView(wasm.code.data(),
+                                                 wasm.code.size());
+
+        std::unique_ptr<const fizzy::Module> mod = [&]() {
+            ZoneNamedN(parseZone, "parse WASM", true);
+            return fizzy::parse(codeView);
+        }();
+
+        // Resolve function imports.
+        std::vector<fizzy::ExternalFunction> importedFunctions =
+            fizzy::resolve_imported_functions(*mod, getHostFunctions());
+
+        // Instantiate the module.
+        std::unique_ptr<fizzy::Instance> instance = [&]() {
+            ZoneNamedN(instantiateZone, "instantiate WASM", true);
+            return fizzy::instantiate(std::move(mod),
+                                      std::move(importedFunctions));
+        }();
+
+        // Look up the requested function.
+        std::optional<fizzy::ExternalFunction> func_opt =
+            fizzy::find_exported_function(*instance, function);
+
+        // If it exists...
+        if (func_opt.has_value())
+        {
+            // Look up requested symbols and pass as args to func.
+            std::vector<fizzy::Value> fizzyArgs;
+            auto const& argTypes = func_opt->input_types;
+            bool typesMatch = argTypes.size() == args.size();
+            CLOG_INFO(Tx, "invoking WASM contract {} func {}", contractID,
+                      function);
+
+            size_t i = 0;
+            while (typesMatch && (i < argTypes.size()))
+            {
+                if (argTypes[i] != fizzy::ValType::i64)
+                {
+                    CLOG_WARNING(Tx, "arg type {} mismatch", i);
+                    typesMatch = false;
+                    break;
+                }
+                CLOG_INFO(Tx, "   arg {}: {}", i, args[i]);
+                fizzyArgs.emplace_back(args[i].payload());
+                ++i;
+            }
+
+            if (func_opt->output_types.size() != 1 ||
+                func_opt->output_types[0] != fizzy::ValType::i64)
+            {
+                CLOG_WARNING(Tx, "return type mismatch");
+                typesMatch = false;
+            }
+
+            // Fail on type mismatch.
+            if (!typesMatch)
+            {
+                CLOG_WARNING(Tx, "invocation type mismatch");
+                return INVOKE_CONTRACT_MALFORMED;
+            }
+
+            // Execute WASM.
+            fizzy::ExecutionContext ctx;
+            auto result = [&]() {
+                ZoneNamedN(execZone, "exec WASM", true);
+                return func_opt.value().function(*instance, fizzyArgs.data(),
+                                                 ctx);
+            }();
+
+            // Convert results.
+            if (result.trapped)
+            {
+                CLOG_WARNING(Tx, "contract {} func {} trapped", contractID,
+                             function);
+                return INVOKE_CONTRACT_TRAPPED;
+            }
+            else if (!result.has_value)
+            {
+                // Result _should_ have an error by type, so if not there
+                // was something wrong in the VM.
+                CLOG_WARNING(Tx, "contract {} func {} returned with no value",
+                             contractID, function);
+                return INVOKE_CONTRACT_HOST_ERR;
+            }
+            else
+            {
+                auto hv = HostVal::fromPayload(result.value.as<uint64_t>());
+                CLOG_INFO(Tx, "contract {} func {} succeeded with val {}",
+                          contractID, function, hv);
+                return hv;
+            }
+        }
+        else
+        {
+            CLOG_WARNING(Tx, "function '{}' not found in contract {}", function,
+                         contractID);
+            return INVOKE_CONTRACT_MALFORMED;
+        }
+    }
+    default:
+        CLOG_WARNING(Tx, "contract {} is of unknown type", contractID);
+        return INVOKE_CONTRACT_HOST_ERR;
+    }
+}
+
+fizzy::ExecutionResult
+HostContext::call0(fizzy::Instance& instance, fizzy::ExecutionContext& ctx,
+                   uint64_t contract, uint64_t function)
+{
+    std::vector<HostVal> args{};
+    return callN(instance, ctx, contract, function, args);
+}
+
+fizzy::ExecutionResult
+HostContext::call1(fizzy::Instance& instance, fizzy::ExecutionContext& ctx,
+                   uint64_t contract, uint64_t function, uint64_t a)
+{
+    std::vector<HostVal> args{HostVal::fromPayload(a)};
+    return callN(instance, ctx, contract, function, args);
+}
+
+fizzy::ExecutionResult
+HostContext::call2(fizzy::Instance& instance, fizzy::ExecutionContext& ctx,
+                   uint64_t contract, uint64_t function, uint64_t a, uint64_t b)
+{
+    std::vector<HostVal> args{HostVal::fromPayload(a), HostVal::fromPayload(b)};
+    return callN(instance, ctx, contract, function, args);
+}
+
+fizzy::ExecutionResult
+HostContext::call3(fizzy::Instance& instance, fizzy::ExecutionContext& ctx,
+                   uint64_t contract, uint64_t function, uint64_t a, uint64_t b,
+                   uint64_t c)
+{
+    std::vector<HostVal> args{HostVal::fromPayload(a), HostVal::fromPayload(b),
+                              HostVal::fromPayload(c)};
+    return callN(instance, ctx, contract, function, args);
+}
+
+fizzy::ExecutionResult
+HostContext::call4(fizzy::Instance& instance, fizzy::ExecutionContext& ctx,
+                   uint64_t contract, uint64_t function, uint64_t a, uint64_t b,
+                   uint64_t c, uint64_t d)
+{
+    std::vector<HostVal> args{HostVal::fromPayload(a), HostVal::fromPayload(b),
+                              HostVal::fromPayload(c), HostVal::fromPayload(d)};
+    return callN(instance, ctx, contract, function, args);
+}
+
+fizzy::ExecutionResult
+HostContext::callN(fizzy::Instance&, fizzy::ExecutionContext&,
+                   uint64_t contract, uint64_t function,
+                   std::vector<HostVal> const& args)
+{
+    return objMethod<LedgerKey>(contract, [&](LedgerKey const& lk) {
+        if (lk.type() != CONTRACT_CODE)
+        {
+            return HostVal::fromStatus(0);
+        }
+        auto& contractLK = lk.contractCode();
+        auto func = HostVal::fromPayload(function);
+        if (!func.isSymbol())
+        {
+            return HostVal::fromStatus(0);
+        }
+        auto res = invokeContract(contractLK.owner, contractLK.contractID,
+                                  func.asSymbol(), args);
+        if (std::holds_alternative<HostVal>(res))
+        {
+            return std::get<HostVal>(res);
+        }
+        else
+        {
+            return HostVal::fromStatus(0);
+        }
     });
 }
 
@@ -881,6 +1150,12 @@ HostContext::HostContext()
     registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
                          "host__get_current_ledger_close_time");
     registerHostFunction(&HostContext::pay, "env", "host__pay");
+
+    registerHostFunction(&HostContext::call0, "env", "host__call0");
+    registerHostFunction(&HostContext::call1, "env", "host__call1");
+    registerHostFunction(&HostContext::call2, "env", "host__call2");
+    registerHostFunction(&HostContext::call3, "env", "host__call3");
+    registerHostFunction(&HostContext::call4, "env", "host__call4");
 }
 
 }

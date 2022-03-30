@@ -31,3 +31,18 @@ pub fn invoke(k: Val, v: Val) -> Val {
 pub fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val {
     stellar::pay(src, dst, asset, amount)
 }
+
+#[repr(transparent)]
+pub struct OtherContract(Val);
+impl OtherContract {
+    #[inline(always)]
+    pub fn other(&self, v:u32) -> Val {
+        const OTHER: Symbol = Symbol::from_str("other");
+        stellar::call1(self.0, OTHER, v.into())
+    }
+}
+
+#[no_mangle]
+pub fn call_other(contract: OtherContract) -> Val {
+    contract.other(10)
+}
