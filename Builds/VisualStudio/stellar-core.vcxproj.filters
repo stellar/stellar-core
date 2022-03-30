@@ -1227,9 +1227,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\catchup\TransactionHistoryEntryFrame.cpp">
-      <Filter>catchup</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2140,9 +2137,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h">
       <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\catchup\TransactionHistoryEntryFrame.h">
-      <Filter>catchup</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
