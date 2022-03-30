@@ -853,34 +853,34 @@ HostContext::HostContext()
     // Object 0 is predefined to always be a null unique_ptr, so we can return
     // a reference to it in contexts where users access invalid objects.
     mObjects.emplace_back(nullptr);
-    registerHostFunction(&HostContext::mapNew, "env", "map_new");
-    registerHostFunction(&HostContext::mapPut, "env", "map_put");
-    registerHostFunction(&HostContext::mapGet, "env", "map_get");
-    registerHostFunction(&HostContext::mapDel, "env", "map_del");
-    registerHostFunction(&HostContext::mapLen, "env", "map_len");
-    registerHostFunction(&HostContext::mapKeys, "env", "map_keys");
+    registerHostFunction(&HostContext::mapNew, "env", "host__map_new");
+    registerHostFunction(&HostContext::mapPut, "env", "host__map_put");
+    registerHostFunction(&HostContext::mapGet, "env", "host__map_get");
+    registerHostFunction(&HostContext::mapDel, "env", "host__map_del");
+    registerHostFunction(&HostContext::mapLen, "env", "host__map_len");
+    registerHostFunction(&HostContext::mapKeys, "env", "host__map_keys");
 
-    registerHostFunction(&HostContext::vecNew, "env", "vec_new");
-    registerHostFunction(&HostContext::vecPut, "env", "vec_put");
-    registerHostFunction(&HostContext::vecGet, "env", "vec_get");
-    registerHostFunction(&HostContext::vecDel, "env", "vec_del");
-    registerHostFunction(&HostContext::vecLen, "env", "vec_len");
+    registerHostFunction(&HostContext::vecNew, "env", "host__vec_new");
+    registerHostFunction(&HostContext::vecPut, "env", "host__vec_put");
+    registerHostFunction(&HostContext::vecGet, "env", "host__vec_get");
+    registerHostFunction(&HostContext::vecDel, "env", "host__vec_del");
+    registerHostFunction(&HostContext::vecLen, "env", "host__vec_len");
 
-    registerHostFunction(&HostContext::vecPush, "env", "vec_push");
-    registerHostFunction(&HostContext::vecPop, "env", "vec_pop");
-    registerHostFunction(&HostContext::vecTake, "env", "vec_take");
-    registerHostFunction(&HostContext::vecDrop, "env", "vec_drop");
-    registerHostFunction(&HostContext::vecFront, "env", "vec_front");
-    registerHostFunction(&HostContext::vecBack, "env", "vec_back");
-    registerHostFunction(&HostContext::vecInsert, "env", "vec_insert");
-    registerHostFunction(&HostContext::vecAppend, "env", "vec_append");
+    registerHostFunction(&HostContext::vecPush, "env", "host__vec_push");
+    registerHostFunction(&HostContext::vecPop, "env", "host__vec_pop");
+    registerHostFunction(&HostContext::vecTake, "env", "host__vec_take");
+    registerHostFunction(&HostContext::vecDrop, "env", "host__vec_drop");
+    registerHostFunction(&HostContext::vecFront, "env", "host__vec_front");
+    registerHostFunction(&HostContext::vecBack, "env", "host__vec_back");
+    registerHostFunction(&HostContext::vecInsert, "env", "host__vec_insert");
+    registerHostFunction(&HostContext::vecAppend, "env", "host__vec_append");
 
-    registerHostFunction(&HostContext::logValue, "env", "log_value");
+    registerHostFunction(&HostContext::logValue, "env", "host__log_value");
     registerHostFunction(&HostContext::getCurrentLedgerNum, "env",
-                         "get_current_ledger_num");
+                         "host__get_current_ledger_num");
     registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
-                         "get_current_ledger_close_time");
-    registerHostFunction(&HostContext::pay, "env", "pay");
+                         "host__get_current_ledger_close_time");
+    registerHostFunction(&HostContext::pay, "env", "host__pay");
 }
 
 }

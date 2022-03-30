@@ -26,15 +26,15 @@ pub fn require(b: bool) {
 
 #[inline(always)]
 pub fn log_value(v: Val) -> Val {
-    unsafe { host_fns::log_value(v) }
+    unsafe { host_fns::host__log_value(v) }
 }
 
 #[inline(always)]
 pub fn get_current_ledger_num() -> u32 {
-    unsafe { host_fns::get_current_ledger_num().as_u32() }
+    unsafe { host_fns::host__get_current_ledger_num().as_u32() }
 }
 
 #[inline(always)]
 pub fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val {
-    unsafe { host_fns::pay(src, dst, asset, amount) }
+    unsafe { host_fns::host__pay(src, dst, asset, amount) }
 }

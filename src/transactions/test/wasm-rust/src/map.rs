@@ -10,12 +10,12 @@ pub struct Map<K, V>(Val, PhantomData<K>, PhantomData<V>);
 impl<K: ValType, V: ValType> Map<K, V> {
     #[inline(always)]
     pub fn new() -> Map<K, V> {
-        unsafe { Map(host_fns::map_new(), PhantomData, PhantomData) }
+        unsafe { Map(host_fns::host__map_new(), PhantomData, PhantomData) }
     }
 
     #[inline(always)]
     pub fn try_get(&self, k: K) -> Result<V, <V as TryFrom<Val>>::Error> {
-        let v: Val = unsafe { host_fns::map_get(self.0, k.into()) };
+        let v: Val = unsafe { host_fns::host__map_get(self.0, k.into()) };
         V::try_from(v)
     }
 
@@ -26,27 +26,27 @@ impl<K: ValType, V: ValType> Map<K, V> {
 
     #[inline(always)]
     pub fn put(&self, k: K, v: V) -> Map<K, V> {
-        let m: Val = unsafe { host_fns::map_put(self.0, k.into(), v.into()) };
+        let m: Val = unsafe { host_fns::host__map_put(self.0, k.into(), v.into()) };
         //m.is_object().or_abort();
         Map(m, PhantomData, PhantomData)
     }
 
     #[inline(always)]
     pub fn del(&self, k: K) -> Map<K, V> {
-        let m: Val = unsafe { host_fns::map_del(self.0, k.into()) };
+        let m: Val = unsafe { host_fns::host__map_del(self.0, k.into()) };
         //m.is_object().or_abort();
         Map(m, PhantomData, PhantomData)
     }
 
     #[inline(always)]
     pub fn len(&self) -> u32 {
-        let m: Val = unsafe { host_fns::map_len(self.0) };
+        let m: Val = unsafe { host_fns::host__map_len(self.0) };
         m.as_u32()
     }
 
     #[inline(always)]
     pub fn keys(&self) -> Vec<K> {
-        let v: Val = unsafe { host_fns::map_keys(self.0) };
+        let v: Val = unsafe { host_fns::host__map_keys(self.0) };
         //v.is_object().or_abort();
         Vec(v, PhantomData)
     }

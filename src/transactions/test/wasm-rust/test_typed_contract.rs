@@ -27,10 +27,7 @@ pub fn invoke(k: Val, v: Val) -> Val {
     (r + r).into()
 }
 
-// NB: this can't be called `pay` since it will collide with the extern fn `pay`
-// we're _importing_ and LLVM will decide it's infinite recursion and optimize
-// it to an infinite loop, which is pretty great.
 #[no_mangle]
-pub fn transfer(src: Val, dst: Val, asset: Val, amount: Val) -> Val {
+pub fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val {
     stellar::pay(src, dst, asset, amount)
 }
