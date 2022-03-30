@@ -128,11 +128,13 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
     return ubound;
 }
 
-// Returns true if given file is sorted using BucketEntryIdCmpExp
+// Returns true if given file is sorted according to the given type
+template <BucketSortOrder type>
 bool
-isExpFileSorted(std::shared_ptr<Bucket> bucket, std::string const& filename)
+isFileSorted(std::shared_ptr<Bucket> bucket,
+             std::filesystem::path const& filename)
 {
-    BucketInputIterator in(bucket, BucketSortOrder::SortByAccount);
+    BucketInputIterator in(bucket, type);
 
     // Edge case if file is empty
     if (!in)
@@ -143,7 +145,7 @@ isExpFileSorted(std::shared_ptr<Bucket> bucket, std::string const& filename)
     auto prev = *in;
     while (++in)
     {
-        if (!BucketEntryIdCmpExp{}(prev, *in))
+        if (!BucketEntryIdCmp<type>(prev, *in))
         {
             return false;
         }
@@ -154,52 +156,54 @@ isExpFileSorted(std::shared_ptr<Bucket> bucket, std::string const& filename)
     return true;
 }
 
-// Returns true if the traditional file and experimental file for a given bucket
+// Returns true if the SortByType file and SortByAccount file for a given bucket
 // have consistent bucket entries
 bool
-areFilesConsistent(std::shared_ptr<Bucket> bucket, std::string const& filename,
-                   std::string const& expFilename)
+areFilesConsistent(std::shared_ptr<Bucket> bucket,
+                   std::filesystem::path const& sortByTypeFilename,
+                   std::filesystem::path const& sortByAccountFilename)
 {
-    if (filename.empty() || expFilename.empty())
+    if (sortByTypeFilename.empty() || sortByAccountFilename.empty())
     {
-        return filename.empty() && expFilename.empty();
+        return sortByTypeFilename.empty() && sortByAccountFilename.empty();
     }
 
-    if (!fs::exists(filename) || !fs::exists(expFilename))
+    if (!fs::exists(sortByTypeFilename) || !fs::exists(sortByAccountFilename))
     {
         return false;
     }
 
-    std::set<BucketEntry> fileEntries;
+    std::set<BucketEntry> sortByTypeFileEntries;
     for (BucketInputIterator in(bucket); in; ++in)
     {
         // Check for duplicate entries in file
-        if (fileEntries.find(*in) != fileEntries.end())
+        if (sortByTypeFileEntries.find(*in) != sortByTypeFileEntries.end())
         {
             return false;
         }
     }
 
-    std::set<BucketEntry> expFileEntries;
+    std::set<BucketEntry> sortByAccountFileEntries;
     for (BucketInputIterator in(bucket, BucketSortOrder::SortByAccount); in;
          ++in)
     {
         // Check for duplicate entries in file
-        if (expFileEntries.find(*in) != expFileEntries.end())
+        if (sortByAccountFileEntries.find(*in) !=
+            sortByAccountFileEntries.end())
         {
             return false;
         }
     }
 
     // Check if sets are identical
-    if (fileEntries.size() != expFileEntries.size())
+    if (sortByTypeFileEntries.size() != sortByAccountFileEntries.size())
     {
         return false;
     }
 
-    for (auto const& e : fileEntries)
+    for (auto const& e : sortByTypeFileEntries)
     {
-        if (expFileEntries.find(e) == expFileEntries.end())
+        if (sortByAccountFileEntries.find(e) == sortByAccountFileEntries.end())
         {
             return false;
         }
@@ -208,16 +212,16 @@ areFilesConsistent(std::shared_ptr<Bucket> bucket, std::string const& filename,
     return true;
 }
 
-// Checks if bucket is in valid state with respect to EXPERIMENTAL_BUCKET_STORE
-// flag
+// Checks if bucket is in valid state with respect to
+// EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT flag
 void
 checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
 {
     auto expFilename = Bucket::getExperimentalFilename(bucket->getFilename());
-    if (cfg.EXPERIMENTAL_BUCKET_STORE)
+    if (cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
         // Check that experimental file exists iff non-experimental file exists
-        if (bucket->getFilename().empty())
+        if (!bucket->hasFileWithSortOrder(BucketSortOrder::SortByType))
         {
             CHECK(
                 !bucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount));
@@ -231,7 +235,8 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
             CHECK(bucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
             CHECK(!expFilename.empty());
             CHECK(fs::exists(expFilename));
-            CHECK(isExpFileSorted(bucket, expFilename));
+            CHECK(isFileSorted<BucketSortOrder::SortByAccount>(bucket,
+                                                               expFilename));
             CHECK(
                 areFilesConsistent(bucket, bucket->getFilename(), expFilename));
         }
@@ -246,7 +251,7 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
 }
 
 // Checks if BucketList is in valid state with respect to
-// EXPERIMENTAL_BUCKET_STORE flag
+// EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT flag
 void
 checkValidBucketList(BucketList const& bl, Config const& cfg)
 {
@@ -309,14 +314,14 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
         }
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
         Config const& cfg = getTestConfig();
         f(cfg);
@@ -421,14 +426,14 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
         });
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
         Config const& cfg = getTestConfig();
         f(cfg);
@@ -502,14 +507,14 @@ TEST_CASE("bucket tombstones expire at bottom level",
         });
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
         Config const& cfg = getTestConfig();
         f(cfg);
@@ -596,14 +601,14 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
         });
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
         Config const& cfg = getTestConfig();
         f(cfg);
@@ -679,14 +684,14 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
         }
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
         Config const& cfg = getTestConfig();
         f(cfg);

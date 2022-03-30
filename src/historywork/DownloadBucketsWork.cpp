@@ -98,7 +98,7 @@ DownloadBucketsWork::yieldMoreWork()
                 bucketPath, hexToBin256(hash),
                 /*objectsPut=*/0,
                 /*bytesPut=*/0, BucketSortOrder::SortByType);
-            if (app.getConfig().EXPERIMENTAL_BUCKET_STORE)
+            if (app.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
             {
                 auto resortedFilename = app.getBucketManager().resortFile(
                     b, BucketSortOrder::SortByType,

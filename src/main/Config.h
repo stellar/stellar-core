@@ -267,7 +267,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // A config parameter that when set enables building and managing (as-in:
     // merges, garbage collects them, etc) buckets with an alternate sort order.
-    bool EXPERIMENTAL_BUCKET_STORE;
+    bool EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database

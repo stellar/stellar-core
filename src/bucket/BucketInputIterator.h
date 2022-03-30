@@ -47,8 +47,7 @@ class BucketInputIterator
 
     BucketEntry const& operator*();
 
-    // If no filename given, creates iterator for mFilename associated with
-    // the bucket (i.e. the non-experimental file).
+    // Creates iterator for file of given sort order associated with the bucket
     BucketInputIterator(std::shared_ptr<Bucket const> bucket,
                         BucketSortOrder type = BucketSortOrder::SortByType);
 

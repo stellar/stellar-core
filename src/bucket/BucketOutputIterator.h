@@ -35,7 +35,8 @@ class BucketOutputIterator
     MergeCounters& mMergeCounters;
     BucketSortOrder mType;
 
-    // Either uses BucketEntryIdCmp or BucketEntryIdCmpExp depending on file
+    // Either uses BucketEntryIdCmp<BucketSortOrder::SortByType> or
+    // BucketEntryIdCmp<BucketSortOrder::SortByAccount> depending on file
     bool cmp(BucketEntry const& a, BucketEntry const& b) const;
 
   public:
@@ -54,11 +55,12 @@ class BucketOutputIterator
     void put(BucketEntry const& e);
 
     // Publishes constructed bucket to BucketManager and returns constructed
-    // bucket. If expFileIter is given, the file associated with expFileIter
-    // will be added to the bucket as the experimental file.
+    // bucket. If auxFileIter is given, the file associated with auxFileIter
+    // will be added to the bucket aswell. Caller must assure that calling
+    // iterator and auxFileIter are of different types
     std::shared_ptr<Bucket>
     getBucket(BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
-              BucketOutputIterator* expFileIter = nullptr);
+              BucketOutputIterator* auxFileIter = nullptr);
 
     std::string getFilename() const;
 

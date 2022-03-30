@@ -138,7 +138,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
-    EXPERIMENTAL_BUCKET_STORE = false;
+    EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = false;
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -973,9 +973,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
             }
-            else if (item.first == "EXPERIMENTAL_BUCKET_STORE")
+            else if (item.first == "EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT")
             {
-                EXPERIMENTAL_BUCKET_STORE = readBool(item);
+                EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = readBool(item);
             }
             else if (item.first == "METADATA_DEBUG_LEDGERS")
             {

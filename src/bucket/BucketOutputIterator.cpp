@@ -43,11 +43,11 @@ BucketOutputIterator::cmp(BucketEntry const& a, BucketEntry const& b) const
 {
     if (mType == BucketSortOrder::SortByAccount)
     {
-        return BucketEntryIdCmpExp{}(a, b);
+        return BucketEntryIdCmp<BucketSortOrder::SortByAccount>(a, b);
     }
     else
     {
-        return BucketEntryIdCmp{}(a, b);
+        return BucketEntryIdCmp<BucketSortOrder::SortByType>(a, b);
     }
 }
 
@@ -137,14 +137,14 @@ BucketOutputIterator::put(BucketEntry const& e)
 std::shared_ptr<Bucket>
 BucketOutputIterator::getBucket(BucketManager& bucketManager,
                                 MergeKey* mergeKey,
-                                BucketOutputIterator* expFileIter)
+                                BucketOutputIterator* auxFileIter)
 {
     ZoneScoped;
     this->close();
-    if (expFileIter)
+    if (auxFileIter)
     {
-        releaseAssert(expFileIter->mType == BucketSortOrder::SortByAccount);
-        expFileIter->close();
+        releaseAssert(auxFileIter->mType != this->mType);
+        auxFileIter->close();
     }
 
     if (mObjectsPut == 0 || mBytesPut == 0)
@@ -156,25 +156,18 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         return std::make_shared<Bucket>();
     }
 
-    if (expFileIter)
-    {
-        auto b = bucketManager.adoptFileAsBucket(
-            mFilename, mHasher.finish(), mObjectsPut, mBytesPut,
-            BucketSortOrder::SortByType, mergeKey);
+    auto b = bucketManager.adoptFileAsBucket(
+        mFilename, mHasher.finish(), mObjectsPut, mBytesPut, mType, mergeKey);
 
+    if (auxFileIter)
+    {
         // TODO: Calculate hash
         uint256 hash = b->getHash();
-        bucketManager.addFileToBucket(b, expFileIter->getFilename(),
-                                      /*hash=*/hash,
-                                      BucketSortOrder::SortByAccount);
-        return b;
+        bucketManager.addFileToBucket(b, auxFileIter->getFilename(),
+                                      /*hash=*/hash, auxFileIter->mType);
     }
-    else
-    {
-        return bucketManager.adoptFileAsBucket(
-            mFilename, mHasher.finish(), mObjectsPut, mBytesPut,
-            BucketSortOrder::SortByType, mergeKey);
-    }
+
+    return b;
 }
 
 void

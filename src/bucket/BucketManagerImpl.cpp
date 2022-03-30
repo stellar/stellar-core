@@ -392,11 +392,13 @@ BucketManagerImpl::resortFile(std::shared_ptr<Bucket> b,
                               BucketSortOrder oldType, BucketSortOrder newType)
 {
     ZoneScoped;
-    releaseAssertOrThrow(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+    releaseAssertOrThrow(
+        mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
     releaseAssert(b->hasFileWithSortOrder(oldType));
     releaseAssert(!b->hasFileWithSortOrder(newType));
 
-    std::set<BucketEntry, BucketEntryIdCmpExp> sortedEntries;
+    std::set<BucketEntry, BucketEntryIdCmpProto> sortedEntries(
+        BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
     for (BucketInputIterator in(b, oldType); in; ++in)
     {
         sortedEntries.insert(*in);
@@ -488,7 +490,8 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
                                    uint256 const& hash, BucketSortOrder type)
 {
     ZoneScoped;
-    releaseAssertOrThrow(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+    releaseAssertOrThrow(
+        mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
     releaseAssert(b);
     releaseAssert(!filename.empty() && fs::exists(filename));
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
@@ -568,7 +571,8 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 
         if (isExperimental)
         {
-            releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
+            releaseAssert(
+                mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
             addFileToBucket(b, Bucket::getExperimentalFilename(canonicalName),
                             hash, BucketSortOrder::SortByAccount);
         }
@@ -722,6 +726,7 @@ BucketManagerImpl::getReferencedBuckets() const
 void
 BucketManagerImpl::cleanupStaleFiles()
 {
+    // TODO: Update this function
     ZoneScoped;
     if (mApp.getConfig().DISABLE_BUCKET_GC)
     {
@@ -747,11 +752,13 @@ BucketManagerImpl::cleanupStaleFiles()
             auto fullName = getBucketDir() + "/" + f;
             std::remove(fullName.c_str());
 
-            auto expFilename = Bucket::getExperimentalFilename(fullName);
-            if (fs::exists(expFilename))
+            auto sortByAccountFilename =
+                fullName + Bucket::EXPERIMENTAL_FILE_EXT;
+            if (fs::exists(sortByAccountFilename))
             {
-                releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKET_STORE);
-                std::remove(expFilename.c_str());
+                releaseAssert(
+                    mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
+                std::remove(sortByAccountFilename.c_str());
             }
         }
     }
@@ -955,10 +962,9 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                 "Missing bucket files while assuming saved BucketList state");
         }
 
-        // Resort files if experimental flag is set and if files have not yet
-        // been resorted
-        if (mApp.getConfig().EXPERIMENTAL_BUCKET_STORE)
+        if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
         {
+            // Resort files if they have not yet been resorted
             if (curr->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
                 !curr->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
             {
@@ -1085,45 +1091,48 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     ZoneScoped;
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
 
-    std::set<BucketEntry, BucketEntryIdCmpExp> expSortedEntries;
+    std::set<BucketEntry, BucketEntryIdCmpProto> entriesSortedByAccount(
+        BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
     BucketMetadata meta;
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
-                             ctx, /*doFsync=*/true,
-                             BucketSortOrder::SortByType);
-    auto isExperimental = mApp.getConfig().EXPERIMENTAL_BUCKET_STORE;
+    BucketOutputIterator sortByTypeOut(getTmpDir(), /*keepDeadEntries=*/false,
+                                       meta, mc, ctx, /*doFsync=*/true,
+                                       BucketSortOrder::SortByType);
+    auto isExperimental =
+        mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT;
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;
         be.type(LIVEENTRY);
         be.liveEntry() = pair.second;
 
-        // Sort in new order simultaneously in memory
+        // Resort simultaneously in memory
         if (isExperimental)
         {
-            expSortedEntries.insert(be);
+            entriesSortedByAccount.insert(be);
         }
 
-        out.put(be);
+        sortByTypeOut.put(be);
     }
 
     if (isExperimental)
     {
-        BucketOutputIterator outExp(getTmpDir(),
-                                    /*keepDeadEntries=*/false, meta, mc, ctx,
-                                    /*doFsync=*/true,
-                                    BucketSortOrder::SortByAccount);
-        for (auto const& e : expSortedEntries)
+        BucketOutputIterator sortByAccountOut(
+            getTmpDir(),
+            /*keepDeadEntries=*/false, meta, mc, ctx,
+            /*doFsync=*/true, BucketSortOrder::SortByAccount);
+        for (auto const& e : entriesSortedByAccount)
         {
-            outExp.put(e);
+            sortByAccountOut.put(e);
         }
-        return out.getBucket(*this, /*mergeKey=*/nullptr, &outExp);
+        return sortByTypeOut.getBucket(*this, /*mergeKey=*/nullptr,
+                                       &sortByAccountOut);
     }
     else
     {
-        return out.getBucket(*this, /*mergeKey=*/nullptr);
+        return sortByTypeOut.getBucket(*this, /*mergeKey=*/nullptr);
     }
 }
 

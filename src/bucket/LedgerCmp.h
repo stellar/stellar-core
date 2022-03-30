@@ -50,7 +50,7 @@ lexCompare(T&& lhs1, T&& rhs1, U&&... args)
  * Entries are first ordered by LedgerEntryType, then by key/key pair for the
  * given type.
  */
-struct LedgerEntryCmp
+struct LedgerEntryCmpByType
 {
     template <typename T, typename U>
     auto
@@ -111,7 +111,7 @@ struct LedgerEntryCmp
  * accountID, they are then sorted by LedgerEntryType and then by the associated
  * key/key pair for the given type.
  */
-struct LedgerEntryCmpExp
+struct LedgerEntryCmpByAccount
 {
     template <typename T, typename U>
     auto
@@ -259,30 +259,32 @@ bucketEntryIdCmpInternal(BucketEntry const& a, BucketEntry const& b)
 }
 }
 
-/**
- * Compare two BucketEntries for identity by comparing their respective
- * LedgerEntries (ignoring their hashes, as the LedgerEntryCmp ignores their
- * bodies).
- */
-struct BucketEntryIdCmp
+typedef std::function<bool(BucketEntry const&, BucketEntry const&)>
+    BucketEntryIdCmpProto;
+
+enum class BucketSortOrder
 {
-    virtual bool
-    operator()(BucketEntry const& a, BucketEntry const& b) const
-    {
-        return bucketEntryIdCmpInternal<LedgerEntryCmp>(a, b);
-    }
+    SortByType,
+    SortByAccount
 };
 
 /**
  * Compare two BucketEntries for identity by comparing their respective
- * LedgerEntries using LedgerEntryCmpExp.
+ * LedgerEntries (ignoring their hashes, as the LedgerEntryCmpByType ignores
+ * their bodies). Template parameter determines if entries are sorted by type or
+ * by account.
  */
-struct BucketEntryIdCmpExp : public BucketEntryIdCmp
+template <BucketSortOrder type>
+bool
+BucketEntryIdCmp(BucketEntry const& a, BucketEntry const& b)
 {
-    virtual bool
-    operator()(BucketEntry const& a, BucketEntry const& b) const override
+    if constexpr (type == BucketSortOrder::SortByType)
     {
-        return bucketEntryIdCmpInternal<LedgerEntryCmpExp>(a, b);
+        return bucketEntryIdCmpInternal<LedgerEntryCmpByType>(a, b);
     }
-};
+    else
+    {
+        return bucketEntryIdCmpInternal<LedgerEntryCmpByAccount>(a, b);
+    }
+}
 }

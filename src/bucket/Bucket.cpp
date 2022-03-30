@@ -117,11 +117,11 @@ Bucket::hasFileWithSortOrder(BucketSortOrder type) const
 bool
 Bucket::containsBucketIdentity(BucketEntry const& id) const
 {
-    BucketEntryIdCmp cmp;
     BucketInputIterator iter(shared_from_this(), BucketSortOrder::SortByType);
     while (iter)
     {
-        if (!(cmp(*iter, id) || cmp(id, *iter)))
+        if (!(BucketEntryIdCmp<BucketSortOrder::SortByType>(*iter, id) ||
+              BucketEntryIdCmp<BucketSortOrder::SortByType>(id, *iter)))
         {
             return true;
         }
@@ -177,12 +177,13 @@ Bucket::convertToBucketEntry(bool useInit,
         bucket.push_back(ce);
     }
 
-    BucketEntryIdCmp cmp;
-    std::sort(bucket.begin(), bucket.end(), cmp);
+    std::sort(bucket.begin(), bucket.end(),
+              BucketEntryIdCmp<BucketSortOrder::SortByType>);
     releaseAssert(std::adjacent_find(
                       bucket.begin(), bucket.end(),
-                      [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
-                          return !cmp(lhs, rhs);
+                      [](BucketEntry const& lhs, BucketEntry const& rhs) {
+                          return !BucketEntryIdCmp<BucketSortOrder::SortByType>(
+                              lhs, rhs);
                       }) == bucket.end());
     return bucket;
 }
@@ -207,11 +208,11 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
     MergeCounters mc;
-    BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc, ctx,
-                             doFsync);
+    BucketOutputIterator sortByTypeOut(bucketManager.getTmpDir(), true, meta,
+                                       mc, ctx, doFsync);
     for (auto const& e : entries)
     {
-        out.put(e);
+        sortByTypeOut.put(e);
     }
 
     if (countMergeEvents)
@@ -219,26 +220,27 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
 
-    if (bucketManager.getConfig().EXPERIMENTAL_BUCKET_STORE)
+    if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
         // Re-sort the bucket in memory. This function is only called to create
         // new buckets at level 0, so bucket should be small enough that an in
         // memory sort using a vector should be fine.
-        BucketEntryIdCmpExp cmp;
-        std::sort(entries.begin(), entries.end(), cmp);
-        BucketOutputIterator outExp(bucketManager.getTmpDir(), true, meta, mc,
-                                    ctx, doFsync,
-                                    BucketSortOrder::SortByAccount);
+        std::sort(entries.begin(), entries.end(),
+                  BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
+        BucketOutputIterator sortByAccountOut(bucketManager.getTmpDir(), true,
+                                              meta, mc, ctx, doFsync,
+                                              BucketSortOrder::SortByAccount);
         for (auto const& e : entries)
         {
-            outExp.put(e);
+            sortByAccountOut.put(e);
         }
 
-        return out.getBucket(bucketManager, /*mergeKey=*/nullptr, &outExp);
+        return sortByTypeOut.getBucket(bucketManager, /*mergeKey=*/nullptr,
+                                       &sortByAccountOut);
     }
     else
     {
-        return out.getBucket(bucketManager, /*mergeKey=*/nullptr);
+        return sortByTypeOut.getBucket(bucketManager, /*mergeKey=*/nullptr);
     }
 }
 
@@ -278,7 +280,8 @@ Bucket::checkProtocolLegality(BucketEntry const& entry,
 }
 
 inline void
-maybePut(BucketOutputIterator& out, BucketEntry const& entry,
+maybePut(BucketEntryIdCmpProto const& cmp, BucketOutputIterator& out,
+         BucketEntry const& entry,
          std::vector<BucketInputIterator>& shadowIterators,
          bool keepShadowedLifecycleEntries, MergeCounters& mc)
 {
@@ -328,11 +331,10 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
         return;
     }
 
-    BucketEntryIdCmp cmp;
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
-        while (si && cmp(*si, entry))
+        while (si && BucketEntryIdCmp<BucketSortOrder::SortByType>(*si, entry))
         {
             ++mc.mShadowScanSteps;
             ++si;
@@ -498,8 +500,8 @@ calculateMergeProtocolVersion(
 // not scrutinizing the entry type further.
 static bool
 mergeCasesWithDefaultAcceptance(
-    BucketEntryIdCmp const& cmp, MergeCounters& mc, BucketInputIterator& oi,
-    BucketInputIterator& ni, BucketOutputIterator& out,
+    BucketEntryIdCmpProto const& cmp, MergeCounters& mc,
+    BucketInputIterator& oi, BucketInputIterator& ni, BucketOutputIterator& out,
     std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
     bool keepShadowedLifecycleEntries)
 {
@@ -514,7 +516,8 @@ mergeCasesWithDefaultAcceptance(
         ++mc.mOldEntriesDefaultAccepted;
         Bucket::checkProtocolLegality(*oi, protocolVersion);
         countOldEntryType(mc, *oi);
-        maybePut(out, *oi, shadowIterators, keepShadowedLifecycleEntries, mc);
+        maybePut(cmp, out, *oi, shadowIterators, keepShadowedLifecycleEntries,
+                 mc);
         ++oi;
         return true;
     }
@@ -529,7 +532,8 @@ mergeCasesWithDefaultAcceptance(
         ++mc.mNewEntriesDefaultAccepted;
         Bucket::checkProtocolLegality(*ni, protocolVersion);
         countNewEntryType(mc, *ni);
-        maybePut(out, *ni, shadowIterators, keepShadowedLifecycleEntries, mc);
+        maybePut(cmp, out, *ni, shadowIterators, keepShadowedLifecycleEntries,
+                 mc);
         ++ni;
         return true;
     }
@@ -539,8 +543,9 @@ mergeCasesWithDefaultAcceptance(
 // The remaining cases happen when keys are equal and we have to reason
 // through the relationships of their bucket lifecycle states. Trickier.
 static void
-mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
-                        BucketInputIterator& ni, BucketOutputIterator& out,
+mergeCasesWithEqualKeys(BucketEntryIdCmpProto const& cmp, MergeCounters& mc,
+                        BucketInputIterator& oi, BucketInputIterator& ni,
+                        BucketOutputIterator& out,
                         std::vector<BucketInputIterator>& shadowIterators,
                         uint32_t protocolVersion,
                         bool keepShadowedLifecycleEntries)
@@ -628,8 +633,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
         newLive.type(LIVEENTRY);
         newLive.liveEntry() = newEntry.liveEntry();
         ++mc.mNewInitEntriesMergedWithOldDead;
-        maybePut(out, newLive, shadowIterators, keepShadowedLifecycleEntries,
-                 mc);
+        maybePut(cmp, out, newLive, shadowIterators,
+                 keepShadowedLifecycleEntries, mc);
     }
     else if (oldEntry.type() == INITENTRY)
     {
@@ -641,7 +646,7 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
             newInit.type(INITENTRY);
             newInit.liveEntry() = newEntry.liveEntry();
             ++mc.mOldInitEntriesMergedWithNewLive;
-            maybePut(out, newInit, shadowIterators,
+            maybePut(cmp, out, newInit, shadowIterators,
                      keepShadowedLifecycleEntries, mc);
         }
         else
@@ -659,8 +664,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     {
         // Neither is in INIT state, take the newer one.
         ++mc.mNewEntriesMergedWithOldNeitherInit;
-        maybePut(out, newEntry, shadowIterators, keepShadowedLifecycleEntries,
-                 mc);
+        maybePut(cmp, out, newEntry, shadowIterators,
+                 keepShadowedLifecycleEntries, mc);
     }
     ++oi;
     ++ni;
@@ -683,27 +688,25 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    BucketInputIterator oi(oldBucket, BucketSortOrder::SortByType);
-    BucketInputIterator ni(newBucket, BucketSortOrder::SortByType);
+    BucketInputIterator sortByTypeOI(oldBucket, BucketSortOrder::SortByType);
+    BucketInputIterator sortByTypeNI(newBucket, BucketSortOrder::SortByType);
     std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
                                                      shadows.end());
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni,
-                                  shadowIterators, protocolVersion,
-                                  keepShadowedLifecycleEntries);
+    calculateMergeProtocolVersion(
+        mc, maxProtocolVersion, sortByTypeOI, sortByTypeNI, shadowIterators,
+        protocolVersion, keepShadowedLifecycleEntries);
 
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    BucketOutputIterator out(bucketManager.getTmpDir(), keepDeadEntries, meta,
-                             mc, ctx, doFsync);
+    BucketOutputIterator sortByTypeOut(bucketManager.getTmpDir(),
+                                       keepDeadEntries, meta, mc, ctx, doFsync);
 
-    BucketEntryIdCmp cmp;
     size_t iter = 0;
-
-    while (oi || ni)
+    while (sortByTypeOI || sortByTypeNI)
     {
         // Check if the merge should be stopped every few entries
         if (++iter >= 1000)
@@ -719,13 +722,15 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
             }
         }
 
-        if (!mergeCasesWithDefaultAcceptance(cmp, mc, oi, ni, out,
-                                             shadowIterators, protocolVersion,
-                                             keepShadowedLifecycleEntries))
+        if (!mergeCasesWithDefaultAcceptance(
+                BucketEntryIdCmp<BucketSortOrder::SortByType>, mc, sortByTypeOI,
+                sortByTypeNI, sortByTypeOut, shadowIterators, protocolVersion,
+                keepShadowedLifecycleEntries))
         {
-            mergeCasesWithEqualKeys(mc, oi, ni, out, shadowIterators,
-                                    protocolVersion,
-                                    keepShadowedLifecycleEntries);
+            mergeCasesWithEqualKeys(
+                BucketEntryIdCmp<BucketSortOrder::SortByType>, mc, sortByTypeOI,
+                sortByTypeNI, sortByTypeOut, shadowIterators, protocolVersion,
+                keepShadowedLifecycleEntries);
         }
     }
 
@@ -736,17 +741,16 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     }
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
 
-    if (bucketManager.getConfig().EXPERIMENTAL_BUCKET_STORE)
+    if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
         BucketInputIterator sortByAccountOI(oldBucket,
                                             BucketSortOrder::SortByAccount);
         BucketInputIterator sortByAccountVI(newBucket,
                                             BucketSortOrder::SortByAccount);
-        BucketOutputIterator outExp(bucketManager.getTmpDir(), keepDeadEntries,
-                                    meta, mc, ctx, doFsync,
-                                    BucketSortOrder::SortByAccount);
+        BucketOutputIterator sortByAccountOut(
+            bucketManager.getTmpDir(), keepDeadEntries, meta, mc, ctx, doFsync,
+            BucketSortOrder::SortByAccount);
 
-        BucketEntryIdCmpExp cmpExp;
         while (sortByAccountOI || sortByAccountVI)
         {
             // Check if the merge should be stopped every few entries
@@ -764,22 +768,24 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
             }
 
             if (!mergeCasesWithDefaultAcceptance(
-                    cmpExp, mc, sortByAccountOI, sortByAccountVI, outExp,
+                    BucketEntryIdCmp<BucketSortOrder::SortByAccount>, mc,
+                    sortByAccountOI, sortByAccountVI, sortByAccountOut,
                     shadowIterators, protocolVersion,
                     keepShadowedLifecycleEntries))
             {
-                mergeCasesWithEqualKeys(mc, sortByAccountOI, sortByAccountVI,
-                                        outExp, shadowIterators,
-                                        protocolVersion,
-                                        keepShadowedLifecycleEntries);
+                mergeCasesWithEqualKeys(
+                    BucketEntryIdCmp<BucketSortOrder::SortByAccount>, mc,
+                    sortByAccountOI, sortByAccountVI, sortByAccountOut,
+                    shadowIterators, protocolVersion,
+                    keepShadowedLifecycleEntries);
             }
         }
 
-        return out.getBucket(bucketManager, &mk, &outExp);
+        return sortByTypeOut.getBucket(bucketManager, &mk, &sortByAccountOut);
     }
     else
     {
-        return out.getBucket(bucketManager, &mk);
+        return sortByTypeOut.getBucket(bucketManager, &mk);
     }
 }
 

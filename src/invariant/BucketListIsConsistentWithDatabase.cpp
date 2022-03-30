@@ -225,7 +225,9 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
         for (BucketInputIterator iter(bucket); iter; ++iter)
         {
             auto const& e = *iter;
-            if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
+            if (hasPreviousEntry &&
+                !BucketEntryIdCmp<BucketSortOrder::SortByType>(previousEntry,
+                                                               e))
             {
                 std::string s = "Bucket has out of order entries: ";
                 s += xdr_to_string(previousEntry, "previous");

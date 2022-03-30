@@ -15,12 +15,6 @@
 namespace stellar
 {
 
-enum class BucketSortOrder
-{
-    SortByType,
-    SortByAccount
-};
-
 /**
  * Bucket is an immutable container for a sorted set of "Entries" (object ID,
  * hash, xdr-message tuples) which is designed to be held in a shared_ptr<>
