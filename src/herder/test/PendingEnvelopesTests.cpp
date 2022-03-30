@@ -69,7 +69,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
                                      std::placeholders::_2, a1);
 
     auto makeTransactions = [&](Hash hash, int n) {
-        auto result = std::make_shared<TxSetFrame>(hash);
+        auto result =
+            std::make_shared<TxSetFrame>(hash, lcl.header.ledgerVersion);
         addTransactions(result, n);
         return result;
     };

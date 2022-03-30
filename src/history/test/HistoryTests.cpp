@@ -1001,7 +1001,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
                 *a, txtest::getAccount(fmt::format("stranger{}", i))};
             auto& lm = a->getLedgerManager();
             TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-                lm.getLastClosedLedgerHeader().hash);
+                lm.getLastClosedLedgerHeader().hash,
+                lm.getLastClosedLedgerHeader().header.ledgerVersion);
             uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
             uint64_t minBalance = lm.getLastMinBalance(5);
             uint64_t big = minBalance + ledgerSeq;

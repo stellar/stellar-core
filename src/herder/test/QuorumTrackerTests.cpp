@@ -109,7 +109,8 @@ testQuorumTracker()
     };
     auto makeValue = [&](int i) {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+        auto txSet =
+            std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
         StellarValue sv = herder->makeStellarValue(
             txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
             emptyUpgradeSteps, valSigner);

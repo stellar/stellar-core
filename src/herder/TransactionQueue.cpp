@@ -775,7 +775,8 @@ std::shared_ptr<TxSetFrame>
 TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
 {
     ZoneScoped;
-    auto result = std::make_shared<TxSetFrame>(lcl.hash);
+    auto result =
+        std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
 
     uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;
     int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);

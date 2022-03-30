@@ -33,10 +33,12 @@ namespace stellar
 
 using namespace std;
 
-TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
+TxSetFrame::TxSetFrame(Hash const& previousLedgerHash, uint32_t ledgerVersion)
     : mHash(std::nullopt)
     , mValid(std::nullopt)
     , mPreviousLedgerHash(previousLedgerHash)
+    , mGeneralized(protocolVersionStartsFrom(
+          ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION))
 {
 }
 
@@ -44,12 +46,35 @@ TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     : mHash(std::nullopt), mValid(std::nullopt)
 {
     ZoneScoped;
-    for (auto const& env : xdrSet.txs)
-    {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        mTransactions.push_back(tx);
-    }
+    addTxs(networkID, xdrSet.txs);
     mPreviousLedgerHash = xdrSet.previousLedgerHash;
+}
+
+TxSetFrame::TxSetFrame(Hash const& networkID,
+                       GeneralizedTransactionSet const& xdrSet)
+    : mHash(std::nullopt), mValid(std::nullopt), mGeneralized(true)
+{
+    ZoneScoped;
+    auto const& txSet = xdrSet.v1TxSet();
+
+    auto const& phases = txSet.phases;
+    for (auto const& phase : phases)
+    {
+        auto const& components = phase.v0Components();
+        for (auto const& component : components)
+        {
+            switch (component.type())
+            {
+            case TXSET_COMP_TXS_BID_IS_FEE:
+                addTxs(networkID, component.txsBidIsFee());
+                break;
+            case TXSET_COMP_TXS_DISCOUNTED_FEE:
+                addTxs(networkID, component.txsDiscountedFee().txs);
+                break;
+            }
+        }
+    }
+    mPreviousLedgerHash = txSet.previousLedgerHash;
 }
 
 static bool
@@ -215,6 +240,17 @@ TxSetFrame::buildAccountTxQueues()
         std::sort(am.second.begin(), am.second.end(), SeqSorter);
     }
     return actTxQueueMap;
+}
+
+void
+TxSetFrame::addTxs(Hash const& networkID,
+                   xdr::xvector<TransactionEnvelope> const& txs)
+{
+    for (auto const& env : txs)
+    {
+        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+        mTransactions.push_back(tx);
+    }
 }
 
 void
@@ -537,9 +573,10 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 }
 
 void
-TxSetFrame::toXDR(TransactionSet& txSet)
+TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
+    releaseAssert(!mGeneralized);
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
     txSet.txs.resize(xdr::size32(mTransactions.size()));
@@ -548,6 +585,37 @@ TxSetFrame::toXDR(TransactionSet& txSet)
         txSet.txs[n] = mTransactions[n]->getEnvelope();
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
+}
+
+void
+TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
+{
+    ZoneScoped;
+    releaseAssert(mGeneralized);
+    generalizedTxSet.v(1);
+    // The following code assumes the legacy behavior: only a single phase with
+    // all the txs discounted.
+    releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
+                                 HashTxSorter));
+    auto& txs = generalizedTxSet.v1TxSet()
+                    .phases.emplace_back()
+                    .v0Components()
+                    .emplace_back(TXSET_COMP_TXS_DISCOUNTED_FEE)
+                    .txsDiscountedFee()
+                    .txs;
+    txs.resize(xdr::size32(mTransactions.size()));
+    for (size_t i = 0; i < mTransactions.size(); i++)
+    {
+        txs[i] = mTransactions[i]->getEnvelope();
+    }
+
+    generalizedTxSet.v1TxSet().previousLedgerHash = mPreviousLedgerHash;
+}
+
+bool
+TxSetFrame::isGeneralizedTxSet() const
+{
+    return mGeneralized;
 }
 
 } // namespace stellar

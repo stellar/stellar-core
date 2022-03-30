@@ -115,8 +115,14 @@ TxSimTxSetFrame::sortForApply()
     return res;
 }
 
+bool
+TxSimTxSetFrame::isGeneralizedTxSet() const
+{
+    return mGeneralized;
+}
+
 void
-TxSimTxSetFrame::toXDR(TransactionSet& set)
+TxSimTxSetFrame::toXDR(TransactionSet& set) const
 {
     // Delegate to TxSetFrame and explicitly call sortForHash on it for now;
     // likely this whole class will go away at some point.
@@ -127,6 +133,13 @@ TxSimTxSetFrame::toXDR(TransactionSet& set)
     TxSetFrame tf(mNetworkID, txSet);
     tf.sortForHash();
     tf.toXDR(set);
+}
+
+void
+TxSimTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
+{
+    // TODO: implement
+    releaseAssert(false);
 }
 }
 }

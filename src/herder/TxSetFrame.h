@@ -11,6 +11,7 @@
 #include <deque>
 #include <functional>
 #include <optional>
+#include <variant>
 
 namespace stellar
 {
@@ -36,7 +37,11 @@ class AbstractTxSetFrameForApply
     virtual size_t sizeOp() const = 0;
 
     virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
-    virtual void toXDR(TransactionSet& set) = 0;
+
+    virtual bool isGeneralizedTxSet() const = 0;
+
+    virtual void toXDR(TransactionSet& set) const = 0;
+    virtual void toXDR(GeneralizedTransactionSet& set) const = 0;
 };
 
 class TxSetFrame : public AbstractTxSetFrameForApply
@@ -59,15 +64,20 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     UnorderedMap<AccountID, AccountTransactionQueue> buildAccountTxQueues();
     friend struct SurgeCompare;
 
+    void addTxs(Hash const& networkID,
+                xdr::xvector<TransactionEnvelope> const& txs);
+
   public:
     std::vector<TransactionFrameBasePtr> mTransactions;
+    bool mGeneralized = false;
 
-    TxSetFrame(Hash const& previousLedgerHash);
+    TxSetFrame(Hash const& previousLedgerHash, uint32_t ledgerVersion);
 
     TxSetFrame(TxSetFrame const& other) = default;
 
     // make it from the wire
     TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet);
+    TxSetFrame(Hash const& networkID, GeneralizedTransactionSet const& xdrSet);
 
     virtual ~TxSetFrame(){};
 
@@ -116,6 +126,10 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     // return the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
-    void toXDR(TransactionSet& set) override;
+
+    bool isGeneralizedTxSet() const override;
+
+    void toXDR(TransactionSet& set) const override;
+    void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
 };
 } // namespace stellar

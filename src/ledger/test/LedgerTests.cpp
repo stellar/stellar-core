@@ -20,7 +20,8 @@ TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
 
     auto applyEmptyLedger = [&]() {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+        auto txSet =
+            std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
 
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), 1, emptyUpgradeSteps,

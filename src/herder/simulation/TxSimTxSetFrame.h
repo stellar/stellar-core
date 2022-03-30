@@ -19,6 +19,7 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
     std::vector<TransactionResultPair> const mResults;
     Hash const mContentsHash;
     uint32_t const mMultiplier;
+    bool mGeneralized = false;
 
   public:
     TxSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
@@ -37,7 +38,11 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
     size_t sizeOp() const override;
 
     std::vector<TransactionFrameBasePtr> sortForApply() override;
-    void toXDR(TransactionSet& set) override;
+
+    bool isGeneralizedTxSet() const override;
+
+    void toXDR(TransactionSet& set) const override;
+    void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
 };
 }
 }

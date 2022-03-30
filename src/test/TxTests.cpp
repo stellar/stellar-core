@@ -430,8 +430,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 class TxSetFrameStrictOrderForTesting : public TxSetFrame
 {
   public:
-    TxSetFrameStrictOrderForTesting(Hash const& previousLedgerHash)
-        : TxSetFrame(previousLedgerHash){};
+    TxSetFrameStrictOrderForTesting(Hash const& previousLedgerHash,
+                                    uint32_t ledgerVersion)
+        : TxSetFrame(previousLedgerHash, ledgerVersion){};
 
     std::vector<TransactionFrameBasePtr>
     sortForApply() override
@@ -448,13 +449,16 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
 {
     std::shared_ptr<TxSetFrame> txSet;
     auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
+    auto ledgerVersion =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
     if (strictOrder)
     {
-        txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(lclHash);
+        txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(
+            lclHash, ledgerVersion);
     }
     else
     {
-        txSet = std::make_shared<TxSetFrame>(lclHash);
+        txSet = std::make_shared<TxSetFrame>(lclHash, ledgerVersion);
     }
 
     for (auto const& tx : txs)
@@ -1457,7 +1461,8 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 {
     auto& lm = app.getLedgerManager();
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+    auto txSet =
+        std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
 
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
                                      upgrades);

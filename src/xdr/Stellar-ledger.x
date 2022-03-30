@@ -176,12 +176,51 @@ case METAENTRY:
     BucketMetadata metaEntry;
 };
 
-// Transaction sets are the unit used by SCP to decide on transitions
-// between ledgers
+enum TxSetComponentType
+{
+  // txs with effective fee = bid
+  TXSET_COMP_TXS_BID_IS_FEE = 0,
+  // txs with effective fee <= bid derived from a base fee
+  TXSET_COMP_TXS_DISCOUNTED_FEE = 1
+};
+
+union TxSetComponent switch (TxSetComponentType type)
+{
+case TXSET_COMP_TXS_BID_IS_FEE:
+    TransactionEnvelope txsBidIsFee<>;
+case TXSET_COMP_TXS_DISCOUNTED_FEE:
+  struct
+  {
+    int64 baseFee;
+    TransactionEnvelope txs<>;
+  } txsDiscountedFee;
+};
+
+union TransactionPhase switch (int v)
+{
+case 0:
+    TxSetComponent v0Components<>;
+};
+
 struct TransactionSet
 {
     Hash previousLedgerHash;
     TransactionEnvelope txs<>;
+};
+
+struct TransactionSetV1
+{
+    Hash previousLedgerHash;
+    TransactionPhase phases<>;
+};
+
+// Transaction sets are the unit used by SCP to decide on transitions
+// between ledgers
+union GeneralizedTransactionSet switch (int v)
+{
+// We consider the legacy TransactionSet to be v0.
+case 1:
+    TransactionSetV1 v1TxSet;
 };
 
 struct TransactionResultPair
@@ -203,11 +242,13 @@ struct TransactionHistoryEntry
     uint32 ledgerSeq;
     TransactionSet txSet;
 
-    // reserved for future use
+    // when v != 0, txSet must be empty
     union switch (int v)
     {
     case 0:
         void;
+    case 1:
+        GeneralizedTransactionSet generalizedTxSet;
     }
     ext;
 };
@@ -358,9 +399,29 @@ struct LedgerCloseMetaV0
     SCPHistoryEntry scpInfo<>;
 };
 
+struct LedgerCloseMetaV1
+{
+    LedgerHeaderHistoryEntry ledgerHeader;
+
+    GeneralizedTransactionSet txSet;
+
+    // NB: transactions are sorted in apply order here
+    // fees for all transactions are processed first
+    // followed by applying transactions
+    TransactionResultMeta txProcessing<>;
+
+    // upgrades are applied last
+    UpgradeEntryMeta upgradesProcessing<>;
+
+    // other misc information attached to the ledger close
+    SCPHistoryEntry scpInfo<>;
+};
+
 union LedgerCloseMeta switch (int v)
 {
 case 0:
     LedgerCloseMetaV0 v0;
+case 1:
+    LedgerCloseMetaV0 v1;
 };
 }

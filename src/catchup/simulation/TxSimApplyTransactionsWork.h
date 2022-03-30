@@ -17,14 +17,14 @@ struct LedgerRange;
 namespace txsimulation
 {
 class TxSimApplyTransactionsWork : public BasicWork
-{
+{  
     TmpDir const& mDownloadDir;
     LedgerRange const mRange;
     Hash const mNetworkID;
 
     std::unique_ptr<HistoryArchiveStream> mStream;
     LedgerHeaderHistoryEntry mHeaderHistory;
-    TransactionHistoryEntry mTransactionHistory;
+    std::vector<TransactionEnvelope> mTransactionHistory;
     std::vector<TransactionEnvelope>::const_iterator mTransactionIter;
     TransactionHistoryResultEntry mResultHistory;
     std::vector<TransactionResultPair>::const_iterator mResultIter;

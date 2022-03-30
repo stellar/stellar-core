@@ -165,7 +165,15 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     txSet.sortForHash();
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
-    txSet.toXDR(hist.txSet);
+    if (txSet.isGeneralizedTxSet())
+    {
+        txSet.toXDR(hist.ext.generalizedTxSet());
+    }
+    else
+    {
+        txSet.toXDR(hist.txSet);
+    }
+
     txOut.writeOne(hist);
 
     txResultOut.writeOne(results);
@@ -175,7 +183,8 @@ size_t
 copyTransactionsToStream(Hash const& networkID, Database& db,
                          soci::session& sess, uint32_t ledgerSeq,
                          uint32_t ledgerCount, XDROutputFileStream& txOut,
-                         XDROutputFileStream& txResultOut)
+                         XDROutputFileStream& txResultOut,
+                         uint32_t ledgerVersion)
 {
     ZoneScoped;
     auto timer = db.getSelectTimer("txhistory");
@@ -195,7 +204,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
          soci::use(begin), soci::use(end));
 
     Hash h;
-    TxSetFrame txSet(h); // we're setting the hash later
+    TxSetFrame txSet(h, ledgerVersion); // we're setting the hash later
     TransactionHistoryResultEntry results;
 
     st.execute(true);

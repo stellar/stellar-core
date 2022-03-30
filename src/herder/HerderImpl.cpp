@@ -1621,21 +1621,40 @@ HerderImpl::persistSCPState(uint64 slot)
         }
     }
 
-    xdr::xvector<TransactionSet> latestTxSets;
-    for (auto it : txSets)
-    {
-        latestTxSets.emplace_back();
-        it.second->toXDR(latestTxSets.back());
-    }
-
     xdr::xvector<SCPQuorumSet> latestQSets;
     for (auto it : quorumSets)
     {
         latestQSets.emplace_back(*it.second);
     }
 
-    auto latestSCPData =
-        xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
+    stellar::Value latestSCPData;
+
+    if (protocolVersionIsBefore(mApp.getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        xdr::xvector<TransactionSet> latestTxSets;
+        for (auto it : txSets)
+        {
+            latestTxSets.emplace_back();
+            it.second->toXDR(latestTxSets.back());
+        }
+        latestSCPData =
+            xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
+    }
+    else
+    {
+        xdr::xvector<GeneralizedTransactionSet> latestTxSets;
+        for (auto it : txSets)
+        {
+            latestTxSets.emplace_back();
+            it.second->toXDR(latestTxSets.back());
+        }
+        latestSCPData =
+            xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
+    }
+
     std::string scpState;
     scpState = decoder::encode_b64(latestSCPData);
 
@@ -1649,51 +1668,70 @@ HerderImpl::restoreSCPState()
 
     // load saved state from database
     auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
+    bool useGeneralizedTxSet =
+        protocolVersionStartsFrom(mApp.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION);
     for (auto const& state : latest64)
     {
-        std::vector<uint8_t> buffer;
-        decoder::decode_b64(state, buffer);
-
-        xdr::xvector<SCPEnvelope> latestEnvs;
-        xdr::xvector<TransactionSet> latestTxSets;
-        xdr::xvector<SCPQuorumSet> latestQSets;
-
-        try
+        if (useGeneralizedTxSet)
         {
-            xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
-
-            for (auto const& txset : latestTxSets)
-            {
-                TxSetFramePtr cur =
-                    make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
-                Hash h = cur->getContentsHash();
-                mPendingEnvelopes.addTxSet(h, 0, cur);
-            }
-            for (auto const& qset : latestQSets)
-            {
-                Hash hash = xdrSha256(qset);
-                mPendingEnvelopes.addSCPQuorumSet(hash, qset);
-            }
-            for (auto const& e : latestEnvs)
-            {
-                auto envW = getHerderSCPDriver().wrapEnvelope(e);
-                getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
-                mLastSlotSaved =
-                    std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
-            }
+            restoreSCPStateFromState<GeneralizedTransactionSet>(state);
         }
-        catch (std::exception& e)
+        else
         {
-            // we may have exceptions when upgrading the protocol
-            // this should be the only time we get exceptions decoding old
-            // messages.
-            CLOG_INFO(Herder,
-                      "Error while restoring old scp messages, "
-                      "proceeding without them : {}",
-                      e.what());
+            restoreSCPStateFromState<TransactionSet>(state);
         }
-        mPendingEnvelopes.rebuildQuorumTrackerState();
     }
+}
+
+template <typename TxSetType>
+inline void
+HerderImpl::restoreSCPStateFromState(std::string const& state)
+{
+    std::vector<uint8_t> buffer;
+    decoder::decode_b64(state, buffer);
+
+    xdr::xvector<SCPEnvelope> latestEnvs;
+    xdr::xvector<TxSetType> latestTxSets;
+    xdr::xvector<SCPQuorumSet> latestQSets;
+
+    try
+    {
+        xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
+
+        for (auto const& txset : latestTxSets)
+        {
+            TxSetFramePtr cur =
+                make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
+            Hash h = cur->getContentsHash();
+            mPendingEnvelopes.addTxSet(h, 0, cur);
+        }
+        for (auto const& qset : latestQSets)
+        {
+            Hash hash = xdrSha256(qset);
+            mPendingEnvelopes.addSCPQuorumSet(hash, qset);
+        }
+        for (auto const& e : latestEnvs)
+        {
+            auto envW = getHerderSCPDriver().wrapEnvelope(e);
+            getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
+            mLastSlotSaved =
+                std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
+        }
+    }
+    catch (std::exception& e)
+    {
+        // we may have exceptions when upgrading the protocol
+        // this should be the only time we get exceptions decoding old
+        // messages.
+        CLOG_INFO(Herder,
+                  "Error while restoring old scp messages, "
+                  "proceeding without them : {}",
+                  e.what());
+    }
+    mPendingEnvelopes.rebuildQuorumTrackerState();
 }
 
 void

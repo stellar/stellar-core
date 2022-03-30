@@ -13,6 +13,13 @@ protocolVersionIsBefore(uint32_t protocolVersion, ProtocolVersion beforeVersion)
 }
 
 bool
+protocolVersionIsBefore(ProtocolVersion protocolVersion,
+                        ProtocolVersion beforeVersion)
+{
+    return protocolVersion < beforeVersion;
+}
+
+bool
 protocolVersionStartsFrom(uint32_t protocolVersion, ProtocolVersion fromVersion)
 {
     return protocolVersion >= static_cast<uint32_t>(fromVersion);

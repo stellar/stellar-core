@@ -275,7 +275,10 @@ testTxSet(uint32 protocolVersion)
         nbTransactions * app->getLedgerManager().getLastTxFee() + minBalance0;
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        app->getLedgerManager().getLastClosedLedgerHeader().hash,
+        app->getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.ledgerVersion);
 
     auto genTx = [&](int nbTxs) {
         std::string accountName = fmt::format("A{}", accounts.size());
@@ -441,7 +444,10 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        app->getLedgerManager().getLastClosedLedgerHeader().hash,
+        app->getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.ledgerVersion);
 
     auto root = TestAccount::createRoot(*app);
     auto account1 = root.create("a1", minBalance2);
@@ -683,7 +689,10 @@ TEST_CASE("txset base fee", "[herder][txset]")
         auto accounts = std::vector<TestAccount>{};
 
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            app->getLedgerManager().getLastClosedLedgerHeader().hash,
+            app->getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion);
 
         for (uint32 i = 0; i < nbTransactions; i++)
         {
@@ -869,7 +878,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     auto accountC = root.create("accountC", 5000000000);
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        app->getLedgerManager().getLastClosedLedgerHeader().hash,
+        app->getLedgerManager()
+            .getLastClosedLedgerHeader()
+            .header.ledgerVersion);
 
     auto multiPaymentTx =
         std::bind(makeMultiPayment, destAccount, _1, _2, _3, 0, 100);
@@ -1044,7 +1056,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
         auto accountC = root.create("accountC", 5000000000);
 
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            app->getLedgerManager().getLastClosedLedgerHeader().hash,
+            app->getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion);
 
         auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
         txSet->add(tx);
@@ -1135,7 +1150,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     };
     auto makeTransactions = [&](Hash hash, int n, int nbOps, uint32 feeMulti) {
         root.loadSequenceNumber();
-        auto result = std::make_shared<TxSetFrame>(hash);
+        auto result = std::make_shared<TxSetFrame>(hash, protocolVersion);
         addTransactions(result, n, nbOps, feeMulti);
         result->sortForHash();
         REQUIRE(result->checkValid(*app, 0, 0));
@@ -1375,7 +1390,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 sig.clear();
                 tx->addSignature(root.getSecretKey());
                 auto txSet = std::make_shared<TxSetFrame>(
-                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash,
+                    app->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.ledgerVersion);
                 txSet->add(tx);
 
                 // Build a StellarValue containing the transaction set we just
@@ -2476,7 +2494,8 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+    auto txSet =
+        std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
     for (auto const& tx : txs)
     {
         txSet->add(tx);
@@ -2754,7 +2773,10 @@ TEST_CASE("slot herder policy", "[herder]")
         envelope.statement.slotIndex = slotIndex;
         envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
         auto& ext = envelope.statement.pledges.externalize();
-        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(prevHash);
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+            prevHash, app->getLedgerManager()
+                          .getLastClosedLedgerHeader()
+                          .header.ledgerVersion);
 
         // sign values with the same secret key
         StellarValue sv = herder.makeStellarValue(
