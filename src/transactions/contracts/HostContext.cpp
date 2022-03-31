@@ -105,7 +105,12 @@ HostContext::hostToXdr(HostVal const& hv)
 {
     ZoneScoped;
     SCVal out;
-    if (hv.isVoid())
+    if (hv.isU63())
+    {
+        out.type(SCV_U63);
+        out.u63() = hv.asU63();
+    }
+    else if (hv.isVoid())
     {
         out.type(SCV_STATIC);
         out.ic() = SCS_VOID;

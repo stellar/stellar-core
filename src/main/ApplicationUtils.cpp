@@ -551,6 +551,11 @@ invokeContract(Config cfg, std::string const& wasmFile,
                     fmt::format("unrecognized bool value {}", val));
             }
         }
+        else if (ty == "u63")
+        {
+            arg.type(SCV_U63);
+            arg.u63() = int64_t(std::stoll(val));
+        }
         else if (ty == "i32")
         {
             arg.type(SCV_I32);

@@ -69,7 +69,11 @@ HostVal::fromSymbol(std::string const& s)
 std::ostream&
 operator<<(std::ostream& out, HostVal const& v)
 {
-    if (v.isVoid())
+    if (v.isU63())
+    {
+        out << "u63(" << v.asU63() << ")";
+    }
+    else if (v.isVoid())
     {
         out << "void";
     }

@@ -213,6 +213,12 @@ class HostVal
         return !(mPayload & 1);
     }
 
+    int64_t
+    asU63() const
+    {
+        return mPayload >> 1;
+    }
+
     uint8_t
     getTag() const
     {
