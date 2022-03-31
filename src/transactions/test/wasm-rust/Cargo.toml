@@ -13,8 +13,7 @@ members = [
 opt-level = "z"
 overflow-checks = false
 debug = 0
-strip = "symbols"
-debug-assertions = false
+strip = "debuginfo"
 panic = "abort"
 
 [profile.release]

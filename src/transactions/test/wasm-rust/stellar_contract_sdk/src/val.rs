@@ -49,15 +49,20 @@ impl ValType for () {}
 impl ValType for bool {}
 impl ValType for u32 {}
 impl ValType for i32 {}
-impl ValType for i64 {}
 impl ValType for Symbol {}
 impl ValType for BitSet {}
 impl ValType for Object {}
 
-impl From<i64> for Val {
+impl TryFrom<i64> for Val {
+    type Error = Error;
+
     #[inline(always)]
-    fn from(i: i64) -> Self {
-        Val::from_u63(i)
+    fn try_from(i: i64) -> Result<Self, Self::Error> {
+        if i > 0 {
+            Ok(Val::from_u63(i))
+        } else {
+            Err(Error(0))
+        }
     }
 }
 
