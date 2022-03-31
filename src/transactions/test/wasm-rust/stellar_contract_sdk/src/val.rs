@@ -49,9 +49,30 @@ impl ValType for () {}
 impl ValType for bool {}
 impl ValType for u32 {}
 impl ValType for i32 {}
+impl ValType for i64 {}
 impl ValType for Symbol {}
 impl ValType for BitSet {}
 impl ValType for Object {}
+
+impl From<i64> for Val {
+    #[inline(always)]
+    fn from(i: i64) -> Self {
+        Val::from_u63(i)
+    }
+}
+
+impl TryFrom<Val> for i64 {
+    type Error = Error;
+
+    #[inline(always)]
+    fn try_from(value: Val) -> Result<Self, Self::Error> {
+        if value.is_u63() {
+            Ok(value.as_u63())
+        } else {
+            Err(Error(0))
+        }
+    }
+}
 
 impl From<Symbol> for Val {
     #[inline(always)]
@@ -204,6 +225,11 @@ impl Val {
     }
 
     #[inline(always)]
+    fn as_u63(&self) -> i64 {
+        (self.0 >> 1) as i64
+    }
+
+    #[inline(always)]
     fn get_tag(&self) -> u8 {
         //(!self.is_u63()).or_abort();
         //super::log_value(Symbol::from_str("get_tag").into());
@@ -324,6 +350,12 @@ impl Val {
     pub fn as_object_type(&self, ty: u8) -> Object {
         self.is_object_type(ty).or_abort();
         Object(self.get_body())
+    }
+
+    #[inline(always)]
+    pub fn from_u63(i: i64) -> Val {
+        (i >= 0).or_abort();
+        Val((i as u64) << 1)
     }
 
     #[inline(always)]

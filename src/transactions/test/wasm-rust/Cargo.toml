@@ -2,6 +2,7 @@
 
 members = [
     "stellar_contract_sdk",
+    "test_add",
     "test_call_helper",
     "test_helper",
     "test_host_objects",
