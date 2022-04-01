@@ -10,6 +10,8 @@ mod map;
 mod or_abort;
 mod rt;
 mod vec;
+mod bignum;
+mod object;
 
 mod symbol;
 mod val;
@@ -17,7 +19,9 @@ mod val;
 pub use map::Map;
 pub use vec::Vec;
 pub use or_abort::OrAbort;
-pub use val::{BitSet, Object, Symbol, Val};
+pub use val::{BitSet, Symbol, Val, Status};
+pub use object::Object;
+pub use bignum::BigNum;
 
 #[inline(always)]
 pub fn require(b: bool) {

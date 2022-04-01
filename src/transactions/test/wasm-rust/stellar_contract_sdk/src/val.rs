@@ -1,4 +1,5 @@
 use super::OrAbort;
+use super::Object;
 
 const TAG_U32: u8 = 0;
 const TAG_I32: u8 = 1;
@@ -12,18 +13,6 @@ const STATIC_VOID: u32 = 0;
 const STATIC_TRUE: u32 = 1;
 const STATIC_FALSE: u32 = 2;
 
-const OBJ_BOX: u16 = 0;
-const OBJ_VEC: u16 = 1;
-const OBJ_MAP: u16 = 2;
-const OBJ_U64: u16 = 3;
-const OBJ_I64: u16 = 4;
-const OBJ_STRING: u16 = 5;
-const OBJ_BINARY: u16 = 6;
-const OBJ_LEDGERKEY: u16 = 7;
-const OBJ_LEDGERVAL: u16 = 8;
-const OBJ_OPERATION: u16 = 9;
-const OBJ_TRANSACTION: u16 = 10;
-
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Val(u64);
@@ -36,13 +25,10 @@ pub struct Symbol(pub(crate) u64);
 #[derive(Copy, Clone)]
 pub struct BitSet(u64);
 
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Object(u64);
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
-pub struct Error(u32);
+pub struct Status(pub(crate) u64);
 
 pub trait ValType: Into<Val> + TryFrom<Val> {}
 impl ValType for () {}
@@ -54,27 +40,27 @@ impl ValType for BitSet {}
 impl ValType for Object {}
 
 impl TryFrom<i64> for Val {
-    type Error = Error;
+    type Error = Status;
 
     #[inline(always)]
     fn try_from(i: i64) -> Result<Self, Self::Error> {
         if i > 0 {
             Ok(Val::from_u63(i))
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
 
 impl TryFrom<Val> for i64 {
-    type Error = Error;
+    type Error = Status;
 
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_u63() {
             Ok(value.as_u63())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -87,14 +73,14 @@ impl From<Symbol> for Val {
 }
 
 impl TryFrom<Val> for Symbol {
-    type Error = Error;
+    type Error = Status;
 
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_symbol() {
             Ok(value.as_symbol())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -107,14 +93,14 @@ impl From<bool> for Val {
 }
 
 impl TryFrom<Val> for bool {
-    type Error = Error;
+    type Error = Status;
 
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_bool() {
             Ok(value.as_bool())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -127,14 +113,14 @@ impl From<()> for Val {
 }
 
 impl TryFrom<Val> for () {
-    type Error = Error;
+    type Error = Status;
 
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_void() {
             Ok(())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -147,13 +133,13 @@ impl From<u32> for Val {
 }
 
 impl TryFrom<Val> for u32 {
-    type Error = Error;
+    type Error = Status;
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_u32() {
             Ok(value.as_u32())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -166,13 +152,13 @@ impl From<i32> for Val {
 }
 
 impl TryFrom<Val> for i32 {
-    type Error = Error;
+    type Error = Status;
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_i32() {
             Ok(value.as_i32())
         } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -185,31 +171,13 @@ impl From<BitSet> for Val {
 }
 
 impl TryFrom<Val> for BitSet {
-    type Error = Error;
+    type Error = Status;
     #[inline(always)]
     fn try_from(value: Val) -> Result<Self, Self::Error> {
         if value.is_bit_set() {
             Ok(value.as_bit_set())
         } else {
-            Err(Error(0))
-        }
-    }
-}
-
-impl From<Object> for Val {
-    #[inline(always)]
-    fn from(obj: Object) -> Self {
-        Val::from_object(obj)
-    }
-}
-impl TryFrom<Val> for Object {
-    type Error = Error;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_object() {
-            Ok(value.as_object())
-        } else {
-            Err(Error(0))
+            Err(Status(0))
         }
     }
 }
@@ -235,14 +203,14 @@ impl Val {
     }
 
     #[inline(always)]
-    fn get_tag(&self) -> u8 {
+    pub(crate) fn get_tag(&self) -> u8 {
         //(!self.is_u63()).or_abort();
         //super::log_value(Symbol::from_str("get_tag").into());
         ((self.0 >> 1) & 7) as u8
     }
 
     #[inline(always)]
-    fn get_body(&self) -> u64 {
+    pub(crate) fn get_body(&self) -> u64 {
         //(!self.is_u63()).or_abort();
         //super::log_value(Symbol::from_str("get_body").into());
         self.0 >> 4
@@ -277,9 +245,9 @@ impl Val {
     }
 
     #[inline(always)]
-    pub fn as_status(&self) -> u32 {
+    pub fn as_status(&self) -> Status {
         self.is_status().or_abort();
-        self.get_body() as u32
+        Status(self.get_body())
     }
 
     #[inline(always)]
@@ -335,26 +303,8 @@ impl Val {
     }
 
     #[inline(always)]
-    pub fn get_object_type(&self) -> u8 {
-        self.is_object().or_abort();
-        (self.get_body() & 0xf) as u8
-    }
-
-    #[inline(always)]
-    pub fn is_object_type(&self, ty: u8) -> bool {
-        self.has_tag(TAG_OBJECT) && self.get_object_type() == ty
-    }
-
-    #[inline(always)]
     pub fn as_object(&self) -> Object {
-        self.is_object().or_abort();
-        Object(self.get_body())
-    }
-
-    #[inline(always)]
-    pub fn as_object_type(&self, ty: u8) -> Object {
-        self.is_object_type(ty).or_abort();
-        Object(self.get_body())
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -408,6 +358,6 @@ impl Val {
 
     #[inline(always)]
     pub fn from_object(obj: Object) -> Val {
-        Val::from_body_and_tag(obj.0, TAG_OBJECT)
+        obj.into()
     }
 }

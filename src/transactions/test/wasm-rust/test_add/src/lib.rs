@@ -4,6 +4,7 @@ use sdk::{Val, OrAbort};
 
 #[no_mangle]
 pub fn add(a: Val, b: Val) -> Val {
+
     let a:i64 = a.try_into().or_abort();
     let b:i64 = b.try_into().or_abort();
 
