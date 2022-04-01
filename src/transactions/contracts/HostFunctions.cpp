@@ -414,6 +414,227 @@ HostContext::callN(fizzy::Instance&, fizzy::ExecutionContext&,
     });
 }
 
+fizzy::ExecutionResult
+HostContext::bigNumFromU64(fizzy::Instance&, fizzy::ExecutionContext&,
+                           uint64_t rhs)
+{
+    ZoneScoped;
+    return newObject<HostBigNum>(rhs);
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumAdd(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs + rhs);
+        });
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumSub(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs - rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumMul(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs * rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumDiv(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs / rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumRem(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs % rhs);
+        });
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumAnd(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs & rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumOr(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                      uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs | rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumXor(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lhs ^ rhs);
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumShl(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    // NB: rhs is a plain uint64_t here
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return newObject<HostBigNum>(lhs << rhs);
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumShr(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    // NB: rhs is a plain uint64_t here
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return newObject<HostBigNum>(lhs >> rhs);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumCmp(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            int i = lhs.compare(rhs);
+            if (i > 0)
+            {
+                return HostVal::fromI32(1);
+            }
+            else if (i < 0)
+            {
+                return HostVal::fromI32(-1);
+            }
+            else
+            {
+                return HostVal::fromI32(0);
+            }
+        });
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumIsZero(fizzy::Instance&, fizzy::ExecutionContext&,
+                          uint64_t x)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(
+        x, [&](HostBigNum const& x) { return HostVal::fromBool(x.is_zero()); });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumNeg(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t x)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(
+        x, [&](HostBigNum const& x) { return newObject<HostBigNum>(-x); });
+}
+fizzy::ExecutionResult
+HostContext::bigNumNot(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t x)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(
+        x, [&](HostBigNum const& x) { return newObject<HostBigNum>(~x); });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumGcd(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(gcd(lhs, rhs));
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumLcm(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return objMethod<HostBigNum>(rhs, [&](HostBigNum const& rhs) {
+            return newObject<HostBigNum>(lcm(lhs, rhs));
+        });
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumPow(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t lhs,
+                       uint64_t rhs)
+{
+    ZoneScoped;
+    // NB: rhs is plain uint64_t here
+    return objMethod<HostBigNum>(lhs, [&](HostBigNum const& lhs) {
+        return newObject<HostBigNum>(pow(lhs, rhs));
+    });
+}
+fizzy::ExecutionResult
+HostContext::bigNumPowMod(fizzy::Instance&, fizzy::ExecutionContext&,
+                          uint64_t p, uint64_t q, uint64_t m)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(p, [&](HostBigNum const& p) {
+        return objMethod<HostBigNum>(q, [&](HostBigNum const& q) {
+            return objMethod<HostBigNum>(m, [&](HostBigNum const& m) {
+                return newObject<HostBigNum>(powm(p, q, m));
+            });
+        });
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::bigNumSqrt(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t x)
+{
+    ZoneScoped;
+    return objMethod<HostBigNum>(
+        x, [&](HostBigNum const& x) { return newObject<HostBigNum>(sqrt(x)); });
+}
+
 void
 HostContext::registerHostFunctions()
 {
@@ -451,5 +672,31 @@ HostContext::registerHostFunctions()
     registerHostFunction(&HostContext::call2, "env", "host__call2");
     registerHostFunction(&HostContext::call3, "env", "host__call3");
     registerHostFunction(&HostContext::call4, "env", "host__call4");
+
+    registerHostFunction(&HostContext::bigNumFromU64, "env",
+                         "host__bignum_from_u64");
+    registerHostFunction(&HostContext::bigNumAdd, "env", "host__bignum_add");
+    registerHostFunction(&HostContext::bigNumSub, "env", "host__bignum_sub");
+    registerHostFunction(&HostContext::bigNumMul, "env", "host__bignum_mul");
+    registerHostFunction(&HostContext::bigNumDiv, "env", "host__bignum_div");
+    registerHostFunction(&HostContext::bigNumRem, "env", "host__bignum_rem");
+    registerHostFunction(&HostContext::bigNumAnd, "env", "host__bignum_and");
+    registerHostFunction(&HostContext::bigNumOr, "env", "host__bignum_or");
+    registerHostFunction(&HostContext::bigNumXor, "env", "host__bignum_xor");
+    registerHostFunction(&HostContext::bigNumShl, "env", "host__bignum_shl");
+    registerHostFunction(&HostContext::bigNumShr, "env", "host__bignum_shr");
+    registerHostFunction(&HostContext::bigNumCmp, "env", "host__bignum_cmp");
+    registerHostFunction(&HostContext::bigNumIsZero, "env",
+                         "host__bignum_is_zero");
+
+    registerHostFunction(&HostContext::bigNumNeg, "env", "host__bignum_neg");
+    registerHostFunction(&HostContext::bigNumNot, "env", "host__bignum_is_not");
+
+    registerHostFunction(&HostContext::bigNumGcd, "env", "host__bignum_gcd");
+    registerHostFunction(&HostContext::bigNumLcm, "env", "host__bignum_lcm");
+    registerHostFunction(&HostContext::bigNumPow, "env", "host__bignum_pow");
+    registerHostFunction(&HostContext::bigNumPowMod, "env",
+                         "host__bignum_pow_mod");
+    registerHostFunction(&HostContext::bigNumSqrt, "env", "host__bignum_sqrt");
 }
 }

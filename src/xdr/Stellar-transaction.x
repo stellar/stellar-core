@@ -590,7 +590,8 @@ enum SCObjectType {
     SCO_LEDGERKEY = 7,
     SCO_LEDGERVAL = 8,
     SCO_OPERATION = 9,
-    SCO_TRANSACTION = 10
+    SCO_TRANSACTION = 10,
+    SCO_BIGNUM = 11
 };
 
 struct SCMapEntry {
@@ -601,6 +602,11 @@ struct SCMapEntry {
 
 typedef SCVal SCVec<>;
 typedef SCMapEntry SCMap<>;
+
+struct SCBigNum {
+    bool positive;
+    opaque magnitude<>;
+};
 
 % struct Transaction;
 % struct Operation;
@@ -628,6 +634,8 @@ union SCObject switch (SCObjectType type) {
         Operation *op;
     case SCO_TRANSACTION:
         Transaction *tx;
+    case SCO_BIGNUM:
+        SCBigNum bn;
 };
 
 struct SCEnvEntry {

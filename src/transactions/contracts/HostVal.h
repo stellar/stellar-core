@@ -5,6 +5,7 @@
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-transaction.h"
 
+#include <boost/multiprecision/cpp_int.hpp>
 #include <fizzy/execute.hpp>
 #include <immer/box.hpp>
 #include <immer/flex_vector.hpp>
@@ -441,9 +442,11 @@ namespace stellar
 using HostBox = immer::box<HostVal>;
 using HostVec = immer::flex_vector<HostVal>;
 using HostMap = immer::map<HostVal, HostVal>;
-using HostObject = std::variant<HostBox, HostVec, HostMap, uint64_t, int64_t,
-                                xdr::xstring<>, xdr::xvector<uint8_t>,
-                                LedgerKey, SCLedgerVal, Operation, Transaction>;
+using HostBigNum = boost::multiprecision::cpp_int;
+using HostObject =
+    std::variant<HostBox, HostVec, HostMap, uint64_t, int64_t, xdr::xstring<>,
+                 xdr::xvector<uint8_t>, LedgerKey, SCLedgerVal, Operation,
+                 Transaction, HostBigNum>;
 
 template <>
 inline HostVal
@@ -520,5 +523,12 @@ inline HostVal
 HostVal::fromObject<Transaction>(size_t idx)
 {
     return fromObject(SCO_TRANSACTION, idx);
+}
+
+template <>
+inline HostVal
+HostVal::fromObject<HostBigNum>(size_t idx)
+{
+    return fromObject(SCO_BIGNUM, idx);
 }
 }

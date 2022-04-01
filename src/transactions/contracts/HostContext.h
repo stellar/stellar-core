@@ -315,6 +315,53 @@ class HostContext
     fizzy::ExecutionResult callN(fizzy::Instance&, fizzy::ExecutionContext&,
                                  uint64_t contract, uint64_t function,
                                  std::vector<HostVal> const& args);
+
+    fizzy::ExecutionResult
+    bigNumFromU64(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t rhs);
+
+    fizzy::ExecutionResult bigNumAdd(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumSub(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumMul(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumDiv(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumRem(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+
+    fizzy::ExecutionResult bigNumAnd(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumOr(fizzy::Instance&, fizzy::ExecutionContext&,
+                                    uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumXor(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumShl(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumShr(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+
+    fizzy::ExecutionResult bigNumCmp(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumIsZero(fizzy::Instance&,
+                                        fizzy::ExecutionContext&, uint64_t x);
+
+    fizzy::ExecutionResult bigNumNeg(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t x);
+    fizzy::ExecutionResult bigNumNot(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t x);
+
+    fizzy::ExecutionResult bigNumGcd(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumLcm(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumPow(fizzy::Instance&, fizzy::ExecutionContext&,
+                                     uint64_t lhs, uint64_t rhs);
+    fizzy::ExecutionResult bigNumPowMod(fizzy::Instance&,
+                                        fizzy::ExecutionContext&, uint64_t p,
+                                        uint64_t q, uint64_t m);
+    fizzy::ExecutionResult bigNumSqrt(fizzy::Instance&,
+                                      fizzy::ExecutionContext&, uint64_t x);
 };
 
 }

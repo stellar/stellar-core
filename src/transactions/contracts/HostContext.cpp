@@ -15,6 +15,7 @@
 #include "xdr/Stellar-types.h"
 #include <Tracy.hpp>
 #include <TracyC.h>
+#include <boost/multiprecision/cpp_int/import_export.hpp>
 #include <cstdint>
 #include <fizzy/execute.hpp>
 #include <fizzy/parser.hpp>
@@ -231,6 +232,17 @@ HostContext::hostToXdr(std::unique_ptr<HostObject const> const& obj)
         out.type(SCO_TRANSACTION);
         out.tx().activate() = std::get<Transaction>(*obj);
     }
+    else if (std::holds_alternative<HostBigNum>(*obj))
+    {
+        out.type(SCO_BIGNUM);
+        auto bi = std::back_inserter(out.bn().magnitude);
+        boost::multiprecision::export_bits(std::get<HostBigNum>(*obj), bi, 8);
+        out.bn().positive = std::get<HostBigNum>(*obj) >= 0;
+    }
+    else
+    {
+        throw std::runtime_error("unknown host object type");
+    }
     return ptr;
 }
 
@@ -302,6 +314,18 @@ HostContext::xdrToHost(std::unique_ptr<SCObject> const& obj)
         }
         immObj = std::make_unique<HostObject const>(*obj->tx());
         break;
+    case SCO_BIGNUM:
+    {
+        HostBigNum bn;
+        boost::multiprecision::import_bits(bn, obj->bn().magnitude.begin(),
+                                           obj->bn().magnitude.end(), 8);
+        if (!obj->bn().positive)
+        {
+            bn = -bn;
+        }
+        immObj = std::make_unique<HostObject const>(bn);
+    }
+    break;
     }
     size_t idx = mObjects.size();
     mObjects.emplace_back(std::move(immObj));

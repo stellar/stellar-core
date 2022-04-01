@@ -36,4 +36,25 @@ extern "C" {
     pub(crate) fn host__call2(contract: Val, func: Val, a: Val, b: Val) -> Val;
     pub(crate) fn host__call3(contract: Val, func: Val, a: Val, b: Val, c: Val) -> Val;
     pub(crate) fn host__call4(contract: Val, func: Val, a: Val, b: Val, c: Val, d: Val) -> Val;
+
+    pub(crate) fn host__bignum_from_u64(x: u64) -> Val;
+    pub(crate) fn host__bignum_add(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_sub(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_mul(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_div(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_rem(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_and(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_or(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_xor(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_shl(lhs: Val, rhs: u64) -> Val;
+    pub(crate) fn host__bignum_shr(lhs: Val, rhs: u64) -> Val;
+    pub(crate) fn host__bignum_cmp(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_is_zero(x: Val) -> Val;
+    pub(crate) fn host__bignum_neg(x: Val) -> Val;
+    pub(crate) fn host__bignum_not(x: Val) -> Val;
+    pub(crate) fn host__bignum_gcd(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_lcm(lhs: Val, rhs: Val) -> Val;
+    pub(crate) fn host__bignum_pow(lhs: Val, rhs: u64) -> Val;
+    pub(crate) fn host__bignum_pow_mod(p: Val, q: Val, m: Val) -> Val;
+    pub(crate) fn host__bignum_sqrt(x: Val) -> Val;
 }
