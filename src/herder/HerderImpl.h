@@ -227,8 +227,8 @@ class HerderImpl : public Herder
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState();
 
-    template<typename TxSetType>
     void restoreSCPStateFromState(std::string const& state);
+    void restoreSCPStateFromXDRState(std::string const& state);
 
     // saves upgrade parameters
     void persistUpgrades();

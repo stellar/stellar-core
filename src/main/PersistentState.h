@@ -24,6 +24,7 @@ class PersistentState
         kNetworkPassphrase,
         kLedgerUpgrades,
         kRebuildLedger,
+        kLastSCPDataXDR,
         kLastEntry,
     };
 
@@ -33,8 +34,11 @@ class PersistentState
     void setState(Entry stateName, std::string const& value);
 
     // Special methods for SCP state (multiple slots)
-    std::vector<std::string> getSCPStateAllSlots();
-    void setSCPStateForSlot(uint64 slot, std::string const& value);
+    // Returns a vector of encoded SCP states with the flag that determines
+    // encoding: false for the legacy encoding, true for the new 
+    // single-XDR-based encoding.
+    std::vector<std::pair<std::string, bool>> getSCPStateAllSlots();
+    void setSCPStateForSlot(uint64 slot, std::string const& value, bool useXDR);
 
     bool shouldRebuildForType(LedgerEntryType let);
     void clearRebuildForType(LedgerEntryType let);

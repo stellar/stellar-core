@@ -2138,6 +2138,9 @@
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h">
       <Filter>ledger</Filter>
     </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-internal.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -2298,6 +2301,9 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-internal.x">
+      <Filter>xdr</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

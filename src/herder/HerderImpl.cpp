@@ -34,6 +34,7 @@
 #include "medida/metrics_registry.h"
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
+#include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
@@ -1595,8 +1596,15 @@ HerderImpl::persistSCPState(uint64 slot)
 
     mLastSlotSaved = slot;
 
+    bool useStateXDR =
+        protocolVersionStartsFrom(mApp.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION);
     // saves SCP messages and related data (transaction sets, quorum sets)
-    xdr::xvector<SCPEnvelope> latestEnvs;
+    PersistedSCPState scpState;
+
+    auto& latestEnvs = scpState.v0().scpEnvelopes;
     std::map<Hash, TxSetFramePtr> txSets;
     std::map<Hash, SCPQuorumSetPtr> quorumSets;
 
@@ -1621,7 +1629,7 @@ HerderImpl::persistSCPState(uint64 slot)
         }
     }
 
-    xdr::xvector<SCPQuorumSet> latestQSets;
+    auto& latestQSets = scpState.v0().quorumSets;
     for (auto it : quorumSets)
     {
         latestQSets.emplace_back(*it.second);
@@ -1629,10 +1637,7 @@ HerderImpl::persistSCPState(uint64 slot)
 
     stellar::Value latestSCPData;
 
-    if (protocolVersionIsBefore(mApp.getLedgerManager()
-                                    .getLastClosedLedgerHeader()
-                                    .header.ledgerVersion,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    if (useStateXDR)
     {
         xdr::xvector<TransactionSet> latestTxSets;
         for (auto it : txSets)
@@ -1645,20 +1650,28 @@ HerderImpl::persistSCPState(uint64 slot)
     }
     else
     {
-        xdr::xvector<GeneralizedTransactionSet> latestTxSets;
+        auto& latestTxSets = scpState.v0().txSets;
         for (auto it : txSets)
         {
             latestTxSets.emplace_back();
-            it.second->toXDR(latestTxSets.back());
+            if (it.second->isGeneralizedTxSet())
+            {
+                latestTxSets.back().v(1);
+                it.second->toXDR(latestTxSets.back().generalizedTxSet());
+            }
+            else
+            {
+                it.second->toXDR(latestTxSets.back().txSet());
+            }
         }
         latestSCPData =
             xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
     }
 
-    std::string scpState;
-    scpState = decoder::encode_b64(latestSCPData);
+    std::string encodedScpState = decoder::encode_b64(latestSCPData);
 
-    mApp.getPersistentState().setSCPStateForSlot(slot, scpState);
+    mApp.getPersistentState().setSCPStateForSlot(slot, encodedScpState,
+                                                 useStateXDR);
 }
 
 void
@@ -1668,33 +1681,27 @@ HerderImpl::restoreSCPState()
 
     // load saved state from database
     auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
-    bool useGeneralizedTxSet =
-        protocolVersionStartsFrom(mApp.getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION);
-    for (auto const& state : latest64)
+    for (auto const& [state, useXDR] : latest64)
     {
-        if (useGeneralizedTxSet)
+        if (useXDR)
         {
-            restoreSCPStateFromState<GeneralizedTransactionSet>(state);
+            restoreSCPStateFromXDRState(state);
         }
         else
         {
-            restoreSCPStateFromState<TransactionSet>(state);
+            restoreSCPStateFromState(state);
         }
     }
 }
 
-template <typename TxSetType>
-inline void
+void
 HerderImpl::restoreSCPStateFromState(std::string const& state)
 {
     std::vector<uint8_t> buffer;
     decoder::decode_b64(state, buffer);
 
     xdr::xvector<SCPEnvelope> latestEnvs;
-    xdr::xvector<TxSetType> latestTxSets;
+    xdr::xvector<TransactionSet> latestTxSets;
     xdr::xvector<SCPQuorumSet> latestQSets;
 
     try
@@ -1714,6 +1721,60 @@ HerderImpl::restoreSCPStateFromState(std::string const& state)
             mPendingEnvelopes.addSCPQuorumSet(hash, qset);
         }
         for (auto const& e : latestEnvs)
+        {
+            auto envW = getHerderSCPDriver().wrapEnvelope(e);
+            getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
+            mLastSlotSaved =
+                std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
+        }
+    }
+    catch (std::exception& e)
+    {
+        // we may have exceptions when upgrading the protocol
+        // this should be the only time we get exceptions decoding old
+        // messages.
+        CLOG_INFO(Herder,
+                  "Error while restoring old scp messages, "
+                  "proceeding without them : {}",
+                  e.what());
+    }
+    mPendingEnvelopes.rebuildQuorumTrackerState();
+}
+
+void
+HerderImpl::restoreSCPStateFromXDRState(std::string const& state)
+{
+    std::vector<uint8_t> buffer;
+    decoder::decode_b64(state, buffer);
+
+    PersistedSCPState scpState;
+    try
+    {
+        xdr::xdr_from_opaque(buffer, scpState);
+
+        for (auto const& txSet : scpState.v0().txSets)
+        {
+            TxSetFramePtr cur;
+            if (txSet.v() == 0)
+            {
+                cur =
+                    make_shared<TxSetFrame>(mApp.getNetworkID(), txSet.txSet());
+            }
+            else
+            {
+                cur = make_shared<TxSetFrame>(mApp.getNetworkID(),
+                                              txSet.generalizedTxSet());
+            }
+
+            Hash h = cur->getContentsHash();
+            mPendingEnvelopes.addTxSet(h, 0, cur);
+        }
+        for (auto const& qset : scpState.v0().quorumSets)
+        {
+            Hash hash = xdrSha256(qset);
+            mPendingEnvelopes.addSCPQuorumSet(hash, qset);
+        }
+        for (auto const& e : scpState.v0().scpEnvelopes)
         {
             auto envW = getHerderSCPDriver().wrapEnvelope(e);
             getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
