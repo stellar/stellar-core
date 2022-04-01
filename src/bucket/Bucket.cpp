@@ -188,6 +188,23 @@ Bucket::convertToBucketEntry(bool useInit,
     return bucket;
 }
 
+BucketSortOrder
+Bucket::getFileType(std::filesystem::path filename)
+{
+    // Dummy bucket for convenience
+    auto bucket = std::make_shared<Bucket>(filename, Hash{});
+    BucketInputIterator it(bucket);
+    if (protocolVersionIsBefore(it.getMetadata().ledgerVersion,
+                                FIRST_PROTOCOL_SORTED_BY_ACCOUNT))
+    {
+        return BucketSortOrder::SortByType;
+    }
+    else
+    {
+        return BucketSortOrder::SortByAccount;
+    }
+}
+
 std::shared_ptr<Bucket>
 Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
               std::vector<LedgerEntry> const& initEntries,
@@ -793,11 +810,9 @@ Bucket::getBucketVersion(std::shared_ptr<Bucket const> bucket)
     return it.getMetadata().ledgerVersion;
 }
 
-std::string
-Bucket::getExperimentalFilename(std::string const& filename)
+uint256
+Bucket::extractFromFilename(std::filesystem::path const& path)
 {
-    // If primary filename is empty, so should the experimental filename
-    return filename.empty() ? std::string()
-                            : filename + Bucket::EXPERIMENTAL_FILE_EXT;
-}
+    return hexToBin256(path.filename().string().substr(7, 64));
+};
 }

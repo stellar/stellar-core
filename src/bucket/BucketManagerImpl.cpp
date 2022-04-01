@@ -13,6 +13,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/PersistentState.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
@@ -79,7 +80,7 @@ BucketManagerImpl::initialize()
             e.what()));
     }
 
-    mLockedBucketDir = std::make_unique<std::string>(d);
+    mLockedBucketDir = std::make_unique<std::filesystem::path>(d);
     mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
 
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
@@ -137,28 +138,22 @@ isBucketFile(std::string const& name)
     static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
     return std::regex_match(name, re);
 };
-
-uint256
-extractFromFilename(std::string const& name)
-{
-    return hexToBin256(name.substr(7, 64));
-};
 }
 
-std::string
+std::filesystem::path
 BucketManagerImpl::bucketFilename(std::string const& bucketHexHash)
 {
-    std::string basename = bucketBasename(bucketHexHash);
-    return getBucketDir() + "/" + basename;
+    std::filesystem::path basename = bucketBasename(bucketHexHash);
+    return getBucketDir() / basename;
 }
 
-std::string
+std::filesystem::path
 BucketManagerImpl::bucketFilename(Hash const& hash)
 {
     return bucketFilename(binToHex(hash));
 }
 
-std::string const&
+std::filesystem::path const
 BucketManagerImpl::getTmpDir()
 {
     ZoneScoped;
@@ -171,7 +166,7 @@ BucketManagerImpl::getTmpDir()
     return mWorkDir->getName();
 }
 
-std::string const&
+std::filesystem::path const&
 BucketManagerImpl::getBucketDir() const
 {
     return *(mLockedBucketDir);
@@ -506,15 +501,29 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
     }
     else
     {
-
-        // std::filesystem::path canonicalName = bucketFilename(hash);
-        // TODO: Change this to not use the .v2 file extension
-        std::string canonicalName =
-            b->getFilename().string() + Bucket::EXPERIMENTAL_FILE_EXT;
+        std::filesystem::path canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adding bucket file {} as {}", filename,
                    canonicalName);
         renameBucketWithOneRetry(filename, canonicalName);
         b->addFile(canonicalName, hash, type);
+        if (type == BucketSortOrder::SortByAccount)
+        {
+            auto sortByTypeFilename =
+                b->getFilename(BucketSortOrder::SortByType);
+            releaseAssert(mAccountToTypeFileMap.find(canonicalName) ==
+                          mAccountToTypeFileMap.end());
+            mAccountToTypeFileMap.emplace(canonicalName, sortByTypeFilename);
+        }
+        else
+        {
+            auto sortByAccountFilename =
+                b->getFilename(BucketSortOrder::SortByAccount);
+            releaseAssert(mAccountToTypeFileMap.find(sortByAccountFilename) ==
+                          mAccountToTypeFileMap.end());
+            mAccountToTypeFileMap.emplace(sortByAccountFilename, canonicalName);
+        }
+
+        writeBucketFileMapToPersistentState();
     }
 }
 
@@ -537,10 +546,67 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     mLiveFutures.erase(mergeKey);
 }
 
+// The two following functions handle reading/writing mAccountToTypeFileMap to
+// persistent state store. The map is written as a JSON string with the
+// following format:
+//
+// {
+//     typeToAcct: {
+//         "##sortByAccountHash1##": "##sortByTypeHash1##",
+//         "##sortByAccountHash2##": "##sortByTypeHash2##",
+//     },
+// }
+void
+BucketManagerImpl::loadBucketFileMapFromPersistentState()
+{
+    ZoneScoped;
+    releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
+
+    Json::Value root;
+    Json::Reader reader;
+    auto jsonStr =
+        mApp.getPersistentState().getState(PersistentState::kBucketFileMap);
+    releaseAssertOrThrow(reader.parse(jsonStr, root));
+    CLOG_TRACE(Bucket,
+               "BucketManagerImpl::loadBucketFileMapFromPersistentState() "
+               "loaded map: {}",
+               root.toStyledString());
+
+    mAccountToTypeFileMap.clear();
+    auto const& accountToTypeJson = root[ACCOUNT_TO_TYPE_JSON_KEY];
+    for (auto iter = accountToTypeJson.begin(); iter != accountToTypeJson.end();
+         ++iter)
+    {
+        mAccountToTypeFileMap.emplace(iter.key().asString(), iter->asString());
+    }
+}
+
+void
+BucketManagerImpl::writeBucketFileMapToPersistentState() const
+{
+    ZoneScoped;
+    releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
+
+    Json::Value root;
+    for (auto const& [accountFilename, typeFilename] : mAccountToTypeFileMap)
+    {
+        root[ACCOUNT_TO_TYPE_JSON_KEY][accountFilename.string()] =
+            typeFilename.string();
+    }
+
+    Json::FastWriter writer;
+    auto jsonStr = writer.write(root);
+    mApp.getPersistentState().setState(PersistentState::kBucketFileMap,
+                                       jsonStr);
+    CLOG_TRACE(Bucket,
+               "BucketManagerImpl::writeBucketFileMapToPersistentState() wrote "
+               "map: {}",
+               jsonStr);
+}
+
 std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
-    // TODO: Update this function
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
@@ -548,30 +614,85 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         return std::make_shared<Bucket>();
     }
     auto i = mSharedBuckets.find(hash);
+
+    // Hash may be sortByAccount file, mSharedBuckets maps only sortByType files
+    std::filesystem::path canonicalName;
+    if (i == mSharedBuckets.end())
+    {
+        canonicalName = bucketFilename(hash);
+        auto iter = mAccountToTypeFileMap.find(canonicalName);
+        if (iter != mAccountToTypeFileMap.end())
+        {
+            // If the hash was a sortByAccount hash, redo search for
+            // corresponding sortByType hash
+            i = mSharedBuckets.find(Bucket::extractFromFilename(iter->second));
+        }
+    }
+
     if (i != mSharedBuckets.end())
     {
         CLOG_TRACE(Bucket, "BucketManager::getBucketByHash({}) found bucket {}",
                    binToHex(hash), i->second->getFilename());
         return i->second;
     }
-    std::string canonicalName = bucketFilename(hash);
+
     if (fs::exists(canonicalName))
     {
         CLOG_TRACE(Bucket,
                    "BucketManager::getBucketByHash({}) found no bucket, making "
                    "new one",
                    binToHex(hash));
-        auto b = std::make_shared<Bucket>(canonicalName, hash);
-
-        bool isExperimental =
-            fs::exists(Bucket::getExperimentalFilename(canonicalName));
-
-        if (isExperimental)
+        auto fileType = Bucket::getFileType(canonicalName);
+        auto b = std::make_shared<Bucket>(canonicalName, hash, fileType);
+        if (fileType == BucketSortOrder::SortByType)
         {
-            releaseAssert(
-                mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
-            addFileToBucket(b, Bucket::getExperimentalFilename(canonicalName),
-                            hash, BucketSortOrder::SortByAccount);
+            if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+            {
+                auto iter = mAccountToTypeFileMap.begin();
+                for (; iter != mAccountToTypeFileMap.end(); ++iter)
+                {
+                    if (iter->second == canonicalName)
+                    {
+                        break;
+                    }
+                }
+
+                if (iter == mAccountToTypeFileMap.end())
+                {
+                    auto resortedFilename =
+                        resortFile(b, BucketSortOrder::SortByType,
+                                   BucketSortOrder::SortByAccount);
+                    addFileToBucket(
+                        b, resortedFilename,
+                        Bucket::extractFromFilename(resortedFilename),
+                        BucketSortOrder::SortByAccount);
+                }
+                else
+                {
+                    b->addFile(iter->first,
+                               Bucket::extractFromFilename(iter->first),
+                               BucketSortOrder::SortByAccount);
+                }
+            }
+        }
+        else
+        {
+            auto iter = mAccountToTypeFileMap.find(canonicalName);
+            if (iter == mAccountToTypeFileMap.end())
+            {
+                auto resortedFilename =
+                    resortFile(b, BucketSortOrder::SortByAccount,
+                               BucketSortOrder::SortByType);
+                addFileToBucket(b, resortedFilename,
+                                Bucket::extractFromFilename(resortedFilename),
+                                BucketSortOrder::SortByType);
+            }
+            else
+            {
+                b->addFile(iter->second,
+                           Bucket::extractFromFilename(iter->second),
+                           BucketSortOrder::SortByType);
+            }
         }
 
         mSharedBuckets.emplace(hash, b);
@@ -651,7 +772,6 @@ BucketManagerImpl::clearMergeFuturesForTesting()
 std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
 {
-    // TODO: Update this function`
     ZoneScoped;
     std::set<Hash> referenced;
     if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
@@ -659,25 +779,32 @@ BucketManagerImpl::getReferencedBuckets() const
         return referenced;
     }
 
+    auto addReferencedFile = [&](auto const& b, BucketSortOrder type) {
+        if (!b->hasFileWithSortOrder(type))
+        {
+            return;
+        }
+
+        auto rit = referenced.emplace(b->getHash(type));
+        if (rit.second)
+        {
+            CLOG_TRACE(Bucket, "{} referenced by bucket list",
+                       binToHex(*rit.first));
+        }
+    };
+
     // retain current bucket list
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList->getLevel(i);
-        auto rit = referenced.emplace(level.getCurr()->getHash());
-        if (rit.second)
-        {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
-        rit = referenced.emplace(level.getSnap()->getHash());
-        if (rit.second)
-        {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
+        addReferencedFile(level.getCurr(), BucketSortOrder::SortByType);
+        addReferencedFile(level.getCurr(), BucketSortOrder::SortByAccount);
+        addReferencedFile(level.getSnap(), BucketSortOrder::SortByType);
+        addReferencedFile(level.getSnap(), BucketSortOrder::SortByAccount);
+
         for (auto const& h : level.getNext().getHashes())
         {
-            rit = referenced.emplace(hexToBin256(h));
+            auto rit = referenced.emplace(hexToBin256(h));
             if (rit.second)
             {
                 CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
@@ -723,7 +850,6 @@ BucketManagerImpl::getReferencedBuckets() const
 void
 BucketManagerImpl::cleanupStaleFiles()
 {
-    // TODO: Update this function
     ZoneScoped;
     if (mApp.getConfig().DISABLE_BUCKET_GC)
     {
@@ -738,25 +864,16 @@ BucketManagerImpl::cleanupStaleFiles()
                        return p.first;
                    });
 
-    for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
+    for (std::filesystem::path f : fs::findfiles(getBucketDir(), isBucketFile))
     {
-        auto hash = extractFromFilename(f);
+        auto hash = Bucket::extractFromFilename(f);
         if (referenced.find(hash) == std::end(referenced))
         {
             // we don't care about failure here
             // if removing file failed one time, it may not fail when this is
             // called again
-            auto fullName = getBucketDir() + "/" + f;
+            auto fullName = getBucketDir() / f;
             std::remove(fullName.c_str());
-
-            auto sortByAccountFilename =
-                fullName + Bucket::EXPERIMENTAL_FILE_EXT;
-            if (fs::exists(sortByAccountFilename))
-            {
-                releaseAssert(
-                    mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
-                std::remove(sortByAccountFilename.c_str());
-            }
         }
     }
 }
@@ -788,16 +905,32 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         if (referenced.find(j->first) == referenced.end() &&
             j->second.use_count() == 1)
         {
-            auto filename = j->second->getFilename();
-            CLOG_TRACE(Bucket,
-                       "BucketManager::forgetUnreferencedBuckets dropping {}",
-                       filename);
-            if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
+
+            auto deleteFile = [&](auto const& filename) {
+                CLOG_TRACE(
+                    Bucket,
+                    "BucketManager::forgetUnreferencedBuckets dropping {}",
+                    filename);
+                if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
+                {
+                    CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
+                    std::remove(filename.c_str());
+                    auto gzfilename = filename.string() + ".gz";
+                    std::remove(gzfilename.c_str());
+                }
+            };
+
+            if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
             {
-                CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
-                std::remove(filename.c_str());
-                auto gzfilename = filename.string() + ".gz";
-                std::remove(gzfilename.c_str());
+                auto sortByAccountFilename =
+                    j->second->getFilename(BucketSortOrder::SortByAccount);
+                mAccountToTypeFileMap.erase(sortByAccountFilename);
+                deleteFile(sortByAccountFilename);
+            }
+
+            if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByType))
+            {
+                deleteFile(j->second->getFilename(BucketSortOrder::SortByType));
             }
 
             // Dropping this bucket means we'll no longer be able to
@@ -871,7 +1004,7 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     std::set<Hash> hashes;
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
     {
-        hashes.emplace(extractFromFilename(f));
+        hashes.emplace(Bucket::extractFromFilename(f));
     }
     return hashes;
 }
@@ -986,6 +1119,11 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         mBucketList->getLevel(i).setCurr(curr);
         mBucketList->getLevel(i).setSnap(snap);
         mBucketList->getLevel(i).setNext(has.currentBuckets.at(i).next);
+    }
+
+    if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+    {
+        loadBucketFileMapFromPersistentState();
     }
 
     mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);

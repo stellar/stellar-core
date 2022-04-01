@@ -15,24 +15,19 @@ namespace stellar
 namespace
 {
 
-// TODO: Remove .v2 extension
 std::filesystem::path
-randomBucketName(std::string const& tmpDir, bool isExperimental)
+randomBucketName(std::filesystem::path const& tmpDir)
 {
     ZoneScoped;
     for (;;)
     {
-        std::string name =
-            tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
-        if (isExperimental)
-        {
-            name = Bucket::getExperimentalFilename(name);
-        }
-
-        std::ifstream ifile(name);
+        std::filesystem::path name("tmp-bucket-" + binToHex(randomBytes(8)) +
+                                   ".xdr");
+        std::filesystem::path path = tmpDir / name;
+        std::ifstream ifile(path);
         if (!ifile)
         {
-            return name;
+            return path;
         }
     }
 }
@@ -61,8 +56,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
                                            MergeCounters& mc,
                                            asio::io_context& ctx, bool doFsync,
                                            BucketSortOrder type)
-    : mFilename(
-          randomBucketName(tmpDir, type == BucketSortOrder::SortByAccount))
+    : mFilename(randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
@@ -161,10 +155,9 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
 
     if (auxFileIter)
     {
-        // TODO: Calculate hash
-        uint256 hash = b->getHash();
         bucketManager.addFileToBucket(b, auxFileIter->getFilename(),
-                                      /*hash=*/hash, auxFileIter->mType);
+                                      auxFileIter->mHasher.finish(),
+                                      auxFileIter->mType);
     }
 
     return b;
@@ -190,8 +183,7 @@ BucketOutputIterator::close()
     }
 }
 
-// TODO: Make this std::filesystem::path
-std::string
+std::filesystem::path
 BucketOutputIterator::getFilename() const
 {
     return mFilename;

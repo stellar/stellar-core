@@ -102,9 +102,9 @@ class BucketManager : NonMovableOrCopyable
     }
     virtual void initialize() = 0;
     virtual void dropAll() = 0;
-    virtual std::string const& getTmpDir() = 0;
+    virtual std::filesystem::path const getTmpDir() = 0;
     virtual TmpDirManager& getTmpDirManager() = 0;
-    virtual std::string const& getBucketDir() const = 0;
+    virtual std::filesystem::path const& getBucketDir() const = 0;
     virtual BucketList& getBucketList() = 0;
     virtual Config const& getConfig() const = 0;
 

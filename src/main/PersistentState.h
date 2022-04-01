@@ -24,6 +24,7 @@ class PersistentState
         kNetworkPassphrase,
         kLedgerUpgrades,
         kRebuildLedger,
+        kBucketFileMap,
         kLastEntry,
     };
 

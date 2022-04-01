@@ -217,7 +217,6 @@ areFilesConsistent(std::shared_ptr<Bucket> bucket,
 void
 checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
 {
-    auto expFilename = Bucket::getExperimentalFilename(bucket->getFilename());
     if (cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
         // Check that experimental file exists iff non-experimental file exists
@@ -225,7 +224,6 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
         {
             CHECK(
                 !bucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount));
-            CHECK(expFilename.empty());
         }
         else
         {
@@ -233,20 +231,22 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
             // experimental mode, that the experimental file exists, and that it
             // is valid and consistent with the non-experimental file
             CHECK(bucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
-            CHECK(!expFilename.empty());
-            CHECK(fs::exists(expFilename));
-            CHECK(isFileSorted<BucketSortOrder::SortByAccount>(bucket,
-                                                               expFilename));
-            CHECK(
-                areFilesConsistent(bucket, bucket->getFilename(), expFilename));
+            auto sortByAccountFilename =
+                bucket->getFilename(BucketSortOrder::SortByAccount);
+            CHECK(!sortByAccountFilename.empty());
+            CHECK(fs::exists(sortByAccountFilename));
+            CHECK(isFileSorted<BucketSortOrder::SortByAccount>(
+                bucket, sortByAccountFilename));
+            CHECK(areFilesConsistent(
+                bucket, bucket->getFilename(BucketSortOrder::SortByType),
+                sortByAccountFilename));
         }
     }
     else
     {
         // If experimental buckets not enabled, ensure bucket is in the correct
-        // mode and that no experimental files have been created
+        // mode
         CHECK(!bucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount));
-        CHECK(!fs::exists(expFilename));
     }
 }
 

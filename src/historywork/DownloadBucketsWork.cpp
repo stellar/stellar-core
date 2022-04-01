@@ -104,10 +104,10 @@ DownloadBucketsWork::yieldMoreWork()
                     b, BucketSortOrder::SortByType,
                     BucketSortOrder::SortByAccount);
 
-                // TODO: Calculate actual hash
-                auto Newhash = b->getHash(BucketSortOrder::SortByType);
+                auto resortedHash =
+                    Bucket::extractFromFilename(resortedFilename);
                 app.getBucketManager().addFileToBucket(
-                    b, resortedFilename, Newhash,
+                    b, resortedFilename, resortedHash,
                     BucketSortOrder::SortByAccount);
             }
             self->mBuckets[hash] = b;

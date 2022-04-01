@@ -62,7 +62,7 @@ class BucketOutputIterator
     getBucket(BucketManager& bucketManager, MergeKey* mergeKey = nullptr,
               BucketOutputIterator* auxFileIter = nullptr);
 
-    std::string getFilename() const;
+    std::filesystem::path getFilename() const;
 
     // Returns true if no objects have been written, false otherwise
     bool empty() const;

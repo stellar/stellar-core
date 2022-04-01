@@ -41,9 +41,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     size_t mSize{0};
 
   public:
-    // File extension for bucket files sorted with experimental cmp function
-    inline static std::string const EXPERIMENTAL_FILE_EXT = ".v2";
-
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
@@ -81,6 +78,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static constexpr ProtocolVersion FIRST_PROTOCOL_SHADOWS_REMOVED =
         ProtocolVersion::V_12;
 
+    // Buckets with protocol version 20 and higher are sorted by account instead
+    // of by type
+    static constexpr ProtocolVersion FIRST_PROTOCOL_SORTED_BY_ACCOUNT =
+        ProtocolVersion::V_20;
+
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
 
@@ -90,8 +92,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
-    // Get experimental filename for bucket backed by the given file.
-    static std::string getExperimentalFilename(std::string const& filename);
+    static BucketSortOrder getFileType(std::filesystem::path filename);
+
+    static uint256 extractFromFilename(std::filesystem::path const& path);
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding

@@ -33,6 +33,11 @@ struct HistoryArchiveState;
 
 class BucketManagerImpl : public BucketManager
 {
+    typedef std::map<std::filesystem::path, std::filesystem::path>
+        BucketFileMap;
+
+    inline static std::string const ACCOUNT_TO_TYPE_JSON_KEY = "AccountToType";
+
     static std::string const kLockFilename;
 
     Application& mApp;
@@ -41,12 +46,13 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
-    std::unique_ptr<std::string> mLockedBucketDir;
+    std::unique_ptr<std::filesystem::path> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
     MergeCounters mMergeCounters;
+    BucketFileMap mAccountToTypeFileMap;
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -74,6 +80,9 @@ class BucketManagerImpl : public BucketManager
     void renameBucketWithOneRetry(std::string const& src,
                                   std::string const& dst);
 
+    void loadBucketFileMapFromPersistentState();
+    void writeBucketFileMapToPersistentState() const;
+
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
     uint32_t mFakeTestProtocolVersion;
@@ -82,16 +91,16 @@ class BucketManagerImpl : public BucketManager
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
-    std::string bucketFilename(std::string const& bucketHexHash);
-    std::string bucketFilename(Hash const& hash);
+    std::filesystem::path bucketFilename(std::string const& bucketHexHash);
+    std::filesystem::path bucketFilename(Hash const& hash);
 
   public:
     BucketManagerImpl(Application& app);
     ~BucketManagerImpl() override;
     void initialize() override;
     void dropAll() override;
-    std::string const& getTmpDir() override;
-    std::string const& getBucketDir() const override;
+    std::filesystem::path const getTmpDir() override;
+    std::filesystem::path const& getBucketDir() const override;
     BucketList& getBucketList() override;
     Config const& getConfig() const override;
     medida::Timer& getMergeTimer() override;
