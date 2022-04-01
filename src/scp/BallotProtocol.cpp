@@ -641,6 +641,21 @@ BallotProtocol::emitCurrentStateStatement()
 void
 BallotProtocol::checkInvariants()
 {
+    switch (mPhase)
+    {
+    case SCP_PHASE_PREPARE:
+        break;
+    case SCP_PHASE_CONFIRM:
+    case SCP_PHASE_EXTERNALIZE:
+        dbgAssert(mCurrentBallot);
+        dbgAssert(mPrepared);
+        dbgAssert(mCommit);
+        dbgAssert(mHighBallot);
+        break;
+    default:
+        dbgAbort();
+    }
+
     if (mCurrentBallot)
     {
         dbgAssert(mCurrentBallot->getBallot().counter != 0);
@@ -663,21 +678,6 @@ BallotProtocol::checkInvariants()
                                               mHighBallot->getBallot()));
         dbgAssert(areBallotsLessAndCompatible(mHighBallot->getBallot(),
                                               mCurrentBallot->getBallot()));
-    }
-
-    switch (mPhase)
-    {
-    case SCP_PHASE_PREPARE:
-        break;
-    case SCP_PHASE_CONFIRM:
-        dbgAssert(mCommit);
-        break;
-    case SCP_PHASE_EXTERNALIZE:
-        dbgAssert(mCommit);
-        dbgAssert(mHighBallot);
-        break;
-    default:
-        dbgAbort();
     }
 }
 
