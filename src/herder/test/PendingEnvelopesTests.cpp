@@ -36,10 +36,12 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
     using TxPair = std::pair<Value, TxSetFramePtr>;
-    auto makeTxPair = [&](TxSetFramePtr txSet, uint64_t closeTime) {
+    auto makeTxPair = [&](TxSetFramePtr txSet, uint64_t closeTime,
+                          StellarValueType svt) {
         txSet->sortForHash();
         StellarValue sv = herder.makeStellarValue(
             txSet->getContentsHash(), closeTime, emptyUpgradeSteps, s);
+        sv.ext.v(svt);
         auto v = xdr::xdr_to_opaque(sv);
 
         return TxPair{v, txSet};
@@ -109,7 +111,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
     auto transactions = makeTransactions(lcl.hash, 50);
-    auto p = makeTxPair(transactions, 10);
+    auto p = makeTxPair(transactions, 10, STELLAR_VALUE_SIGNED);
     auto saneEnvelope = makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
     auto bigEnvelope = makeEnvelope(p, bigQSetHash, lcl.header.ledgerSeq + 1);
 
@@ -317,5 +319,16 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
                         Herder::ENVELOPE_STATUS_FETCHING);
             }
         }
+    }
+
+    SECTION("do not fetch if txsets are not signed")
+    {
+        auto p = makeTxPair(transactions, 10, STELLAR_VALUE_BASIC);
+        auto envNoSign =
+            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+
+        // Make sure to discard the envelope
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(envNoSign) ==
+                Herder::ENVELOPE_STATUS_DISCARDED);
     }
 }
