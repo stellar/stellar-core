@@ -2470,3 +2470,35 @@ TEST_CASE("upgrade flags", "[upgrades][liquiditypool]")
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
 }
+
+TEST_CASE("upgrade to generic tx set", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(
+        *app, makeProtocolVersionUpgrade(
+                  static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1));
+
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto root = TestAccount::createRoot(*app);
+
+    herder.recvTransaction(root.tx({payment(root, 1)}));
+
+    auto txSet =
+        herder.getTransactionQueue().toTxSet(lm.getLastClosedLedgerHeader());
+
+    REQUIRE(!txSet->isGeneralizedTxSet());
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
+                             GENERALIZED_TX_SET_PROTOCOL_VERSION)));
+
+    txSet =
+        herder.getTransactionQueue().toTxSet(lm.getLastClosedLedgerHeader());
+    REQUIRE(txSet->isGeneralizedTxSet());
+}

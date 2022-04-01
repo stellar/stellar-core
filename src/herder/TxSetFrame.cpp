@@ -591,7 +591,8 @@ void
 TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
 {
     ZoneScoped;
-    releaseAssert(mGeneralized);
+    // We don't check for mGeneralized here as during the upgrade it's possible
+    // that we need to encode mixed TxSetFrames in SCP state.
     generalizedTxSet.v(1);
     // The following code assumes the legacy behavior: only a single phase with
     // all the txs discounted.
