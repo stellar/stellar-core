@@ -7,6 +7,7 @@
 #include "bucket/Bucket.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedMap.h"
 #include <future>
 #include <map>
 #include <memory>
@@ -209,6 +210,9 @@ class BucketManager : NonMovableOrCopyable
     // This interface exists only for checking that the BucketDir isn't
     // leaking buckets, in tests.
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
+
+    virtual UnorderedMap<Hash, Hash> const&
+    getAccountToTypeHashesForTesting() const = 0;
 #endif
 
     // Return the set of buckets referenced by the BucketList, LCL HAS,

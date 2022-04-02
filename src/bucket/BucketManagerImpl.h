@@ -33,10 +33,8 @@ struct HistoryArchiveState;
 
 class BucketManagerImpl : public BucketManager
 {
-    typedef std::map<std::filesystem::path, std::filesystem::path>
-        BucketFileMap;
-
-    inline static std::string const ACCOUNT_TO_TYPE_JSON_KEY = "AccountToType";
+    inline static std::string const ACCOUNT_TO_TYPE_JSON_KEY =
+        "AccountToTypeHashes";
 
     static std::string const kLockFilename;
 
@@ -52,7 +50,7 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
     MergeCounters mMergeCounters;
-    BucketFileMap mAccountToTypeFileMap;
+    UnorderedMap<Hash, Hash> mAccountToTypeHashes;
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -147,6 +145,9 @@ class BucketManagerImpl : public BucketManager
                                               uint256 const& hash) override;
 
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
+
+    UnorderedMap<Hash, Hash> const&
+    getAccountToTypeHashesForTesting() const override;
 #endif
 
     std::set<Hash> getReferencedBuckets() const override;

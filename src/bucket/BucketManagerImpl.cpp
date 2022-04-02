@@ -514,21 +514,25 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
                    canonicalName);
         renameBucketWithOneRetry(filename, canonicalName);
         b->addFile(canonicalName, hash, type);
-        if (type == BucketSortOrder::SortByAccount)
+
+        // If two bucket hashes now need to be mapped together
+        if (type == BucketSortOrder::SortByAccount &&
+            b->hasFileWithSortOrder(BucketSortOrder::SortByType))
         {
-            auto sortByTypeFilename =
-                b->getFilename(BucketSortOrder::SortByType);
-            releaseAssert(mAccountToTypeFileMap.find(canonicalName) ==
-                          mAccountToTypeFileMap.end());
-            mAccountToTypeFileMap.emplace(canonicalName, sortByTypeFilename);
+            releaseAssert(mAccountToTypeHashes.find(hash) ==
+                          mAccountToTypeHashes.end());
+            mAccountToTypeHashes.emplace(
+                hash, b->getHash(BucketSortOrder::SortByType));
         }
-        else
+
+        if (type == BucketSortOrder::SortByType &&
+            b->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
         {
-            auto sortByAccountFilename =
-                b->getFilename(BucketSortOrder::SortByAccount);
-            releaseAssert(mAccountToTypeFileMap.find(sortByAccountFilename) ==
-                          mAccountToTypeFileMap.end());
-            mAccountToTypeFileMap.emplace(sortByAccountFilename, canonicalName);
+            auto const& sortByAccountHash =
+                b->getHash(BucketSortOrder::SortByAccount);
+            releaseAssert(mAccountToTypeHashes.find(sortByAccountHash) ==
+                          mAccountToTypeHashes.end());
+            mAccountToTypeHashes.emplace(sortByAccountHash, hash);
         }
 
         writeBucketFileMapToPersistentState();
@@ -554,12 +558,13 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     mLiveFutures.erase(mergeKey);
 }
 
-// The two following functions handle reading/writing mAccountToTypeFileMap to
+// The two following functions handle reading/writing mAccountToTypeHashes to
 // persistent state store. The map is written as a JSON string with the
-// following format:
+// following format, where each hash is represented by a hexadecimal 32 byte
+// string:
 //
 // {
-//     typeToAcct: {
+//     accountToTypeHashes: {
 //         "##sortByAccountHash1##": "##sortByTypeHash1##",
 //         "##sortByAccountHash2##": "##sortByTypeHash2##",
 //     },
@@ -580,12 +585,13 @@ BucketManagerImpl::loadBucketFileMapFromPersistentState()
                "loaded map: {}",
                root.toStyledString());
 
-    mAccountToTypeFileMap.clear();
+    mAccountToTypeHashes.clear();
     auto const& accountToTypeJson = root[ACCOUNT_TO_TYPE_JSON_KEY];
     for (auto iter = accountToTypeJson.begin(); iter != accountToTypeJson.end();
          ++iter)
     {
-        mAccountToTypeFileMap.emplace(iter.key().asString(), iter->asString());
+        mAccountToTypeHashes.emplace(hexToBin256(iter.key().asString()),
+                                     hexToBin256(iter->asString()));
     }
 }
 
@@ -596,10 +602,10 @@ BucketManagerImpl::writeBucketFileMapToPersistentState() const
     releaseAssert(mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
 
     Json::Value root;
-    for (auto const& [accountFilename, typeFilename] : mAccountToTypeFileMap)
+    for (auto const& [accountHash, typeHash] : mAccountToTypeHashes)
     {
-        root[ACCOUNT_TO_TYPE_JSON_KEY][accountFilename.string()] =
-            typeFilename.string();
+        root[ACCOUNT_TO_TYPE_JSON_KEY][binToHex(accountHash)] =
+            binToHex(typeHash);
     }
 
     Json::FastWriter writer;
@@ -623,17 +629,16 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     }
     auto i = mSharedBuckets.find(hash);
 
-    // Hash may be sortByAccount file, mSharedBuckets maps only sortByType files
-    std::filesystem::path canonicalName;
+    // Hash may be sortByAccount hash, mSharedBuckets maps only sortByType
+    // hashes
     if (i == mSharedBuckets.end())
     {
-        canonicalName = bucketFilename(hash);
-        auto iter = mAccountToTypeFileMap.find(canonicalName);
-        if (iter != mAccountToTypeFileMap.end())
+        auto iter = mAccountToTypeHashes.find(hash);
+        if (iter != mAccountToTypeHashes.end())
         {
             // If the hash was a sortByAccount hash, redo search for
             // corresponding sortByType hash
-            i = mSharedBuckets.find(extractFromFilename(iter->second));
+            i = mSharedBuckets.find(iter->second);
         }
     }
 
@@ -644,6 +649,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         return i->second;
     }
 
+    std::filesystem::path canonicalName = bucketFilename(hash);
     if (fs::exists(canonicalName))
     {
         CLOG_TRACE(Bucket,
@@ -656,16 +662,20 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         {
             if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
             {
-                auto iter = mAccountToTypeFileMap.begin();
-                for (; iter != mAccountToTypeFileMap.end(); ++iter)
+                // Only time we have to search for a value in the map.
+                // The size of this map should be small (size == number of
+                // referenced buckets), so it doesn't seem worth adding and
+                // maintaining a typeToAccountHash map
+                auto iter = mAccountToTypeHashes.begin();
+                for (; iter != mAccountToTypeHashes.end(); ++iter)
                 {
-                    if (iter->second == canonicalName)
+                    if (iter->second == hash)
                     {
                         break;
                     }
                 }
 
-                if (iter == mAccountToTypeFileMap.end())
+                if (iter == mAccountToTypeHashes.end())
                 {
                     Hash resortedHash;
                     auto resortedFilename = resortFile(
@@ -676,15 +686,15 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                 }
                 else
                 {
-                    b->addFile(iter->first, extractFromFilename(iter->first),
+                    b->addFile(bucketFilename(iter->first), iter->first,
                                BucketSortOrder::SortByAccount);
                 }
             }
         }
         else
         {
-            auto iter = mAccountToTypeFileMap.find(canonicalName);
-            if (iter == mAccountToTypeFileMap.end())
+            auto iter = mAccountToTypeHashes.find(hash);
+            if (iter == mAccountToTypeHashes.end())
             {
                 Hash resortedHash;
                 auto resortedFilename =
@@ -695,7 +705,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
             }
             else
             {
-                b->addFile(iter->second, extractFromFilename(iter->second),
+                b->addFile(bucketFilename(iter->second), iter->second,
                            BucketSortOrder::SortByType);
             }
         }
@@ -816,17 +826,42 @@ BucketManagerImpl::getReferencedBuckets() const
             }
         }
     }
+
+    auto addCorrespondingAccountHash = [&](const auto& typeHash,
+                                           const auto& hashStr) {
+        auto iter = mAccountToTypeHashes.begin();
+        for (; iter != mAccountToTypeHashes.end(); ++iter)
+        {
+            if (iter->second == typeHash)
+            {
+                break;
+            }
+        }
+
+        if (iter != mAccountToTypeHashes.end())
+        {
+
+            auto rit = referenced.emplace(iter->first);
+            if (rit.second)
+            {
+                CLOG_TRACE(Bucket, "{} referenced by LCL", hashStr);
+            }
+        }
+    };
+
     // retain any bucket referenced by the last closed ledger as recorded in the
     // database (as merges complete, the bucket list drifts from that state)
     auto lclHas = mApp.getLedgerManager().getLastClosedLedgerHAS();
     auto lclBuckets = lclHas.allBuckets();
     for (auto const& h : lclBuckets)
     {
-        auto rit = referenced.emplace(hexToBin256(h));
+        auto bucketHash = hexToBin256(h);
+        auto rit = referenced.emplace(bucketHash);
         if (rit.second)
         {
             CLOG_TRACE(Bucket, "{} referenced by LCL", h);
         }
+        addCorrespondingAccountHash(bucketHash, h);
     }
 
     // retain buckets that are referenced by a state in the publish queue.
@@ -847,6 +882,7 @@ BucketManagerImpl::getReferencedBuckets() const
                 // the future, rather than re-run it.
                 mFinishedMerges.getOutputsUsingInput(rhash, referenced);
             }
+            addCorrespondingAccountHash(rhash, h);
         }
     }
     return referenced;
@@ -927,10 +963,10 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
             if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
             {
-                auto sortByAccountFilename =
-                    j->second->getFilename(BucketSortOrder::SortByAccount);
-                mAccountToTypeFileMap.erase(sortByAccountFilename);
-                deleteFile(sortByAccountFilename);
+                mAccountToTypeHashes.erase(
+                    j->second->getHash(BucketSortOrder::SortByAccount));
+                deleteFile(
+                    j->second->getFilename(BucketSortOrder::SortByAccount));
             }
 
             if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByType))
@@ -1012,6 +1048,12 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
         hashes.emplace(extractFromFilename(f));
     }
     return hashes;
+}
+
+UnorderedMap<Hash, Hash> const&
+BucketManagerImpl::getAccountToTypeHashesForTesting() const
+{
+    return mAccountToTypeHashes;
 }
 #endif
 
