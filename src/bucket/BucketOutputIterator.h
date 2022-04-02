@@ -69,5 +69,7 @@ class BucketOutputIterator
 
     // Flushes changes to file and closes file.
     void close();
+
+    Hash getHash();
 };
 }

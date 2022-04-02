@@ -156,7 +156,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     if (auxFileIter)
     {
         bucketManager.addFileToBucket(b, auxFileIter->getFilename(),
-                                      auxFileIter->mHasher.finish(),
+                                      auxFileIter->getHash(),
                                       auxFileIter->mType);
     }
 
@@ -181,6 +181,12 @@ BucketOutputIterator::close()
         CLOG_DEBUG(Bucket, "Deleting empty bucket file {}", mFilename);
         std::remove(mFilename.c_str());
     }
+}
+
+Hash
+BucketOutputIterator::getHash()
+{
+    return mHasher.finish();
 }
 
 std::filesystem::path

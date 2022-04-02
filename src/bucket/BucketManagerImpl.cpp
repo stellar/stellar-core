@@ -138,6 +138,12 @@ isBucketFile(std::string const& name)
     static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
     return std::regex_match(name, re);
 };
+
+uint256
+extractFromFilename(std::filesystem::path const& name)
+{
+    return hexToBin256(name.filename().string().substr(7, 64));
+};
 }
 
 std::filesystem::path
@@ -381,7 +387,8 @@ BucketManagerImpl::renameBucketWithOneRetry(std::string const& src,
 
 std::filesystem::path
 BucketManagerImpl::resortFile(std::shared_ptr<Bucket> b,
-                              BucketSortOrder oldType, BucketSortOrder newType)
+                              BucketSortOrder oldType, BucketSortOrder newType,
+                              Hash& hash)
 {
     ZoneScoped;
     releaseAssertOrThrow(
@@ -411,6 +418,7 @@ BucketManagerImpl::resortFile(std::shared_ptr<Bucket> b,
     }
 
     out.close();
+    hash = out.getHash();
     return out.getFilename();
 }
 
@@ -625,7 +633,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         {
             // If the hash was a sortByAccount hash, redo search for
             // corresponding sortByType hash
-            i = mSharedBuckets.find(Bucket::extractFromFilename(iter->second));
+            i = mSharedBuckets.find(extractFromFilename(iter->second));
         }
     }
 
@@ -659,18 +667,16 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 
                 if (iter == mAccountToTypeFileMap.end())
                 {
-                    auto resortedFilename =
-                        resortFile(b, BucketSortOrder::SortByType,
-                                   BucketSortOrder::SortByAccount);
-                    addFileToBucket(
-                        b, resortedFilename,
-                        Bucket::extractFromFilename(resortedFilename),
-                        BucketSortOrder::SortByAccount);
+                    Hash resortedHash;
+                    auto resortedFilename = resortFile(
+                        b, BucketSortOrder::SortByType,
+                        BucketSortOrder::SortByAccount, resortedHash);
+                    addFileToBucket(b, resortedFilename, resortedHash,
+                                    BucketSortOrder::SortByAccount);
                 }
                 else
                 {
-                    b->addFile(iter->first,
-                               Bucket::extractFromFilename(iter->first),
+                    b->addFile(iter->first, extractFromFilename(iter->first),
                                BucketSortOrder::SortByAccount);
                 }
             }
@@ -680,17 +686,16 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
             auto iter = mAccountToTypeFileMap.find(canonicalName);
             if (iter == mAccountToTypeFileMap.end())
             {
+                Hash resortedHash;
                 auto resortedFilename =
                     resortFile(b, BucketSortOrder::SortByAccount,
-                               BucketSortOrder::SortByType);
-                addFileToBucket(b, resortedFilename,
-                                Bucket::extractFromFilename(resortedFilename),
+                               BucketSortOrder::SortByType, resortedHash);
+                addFileToBucket(b, resortedFilename, resortedHash,
                                 BucketSortOrder::SortByType);
             }
             else
             {
-                b->addFile(iter->second,
-                           Bucket::extractFromFilename(iter->second),
+                b->addFile(iter->second, extractFromFilename(iter->second),
                            BucketSortOrder::SortByType);
             }
         }
@@ -866,7 +871,7 @@ BucketManagerImpl::cleanupStaleFiles()
 
     for (std::filesystem::path f : fs::findfiles(getBucketDir(), isBucketFile))
     {
-        auto hash = Bucket::extractFromFilename(f);
+        auto hash = extractFromFilename(f);
         if (referenced.find(hash) == std::end(referenced))
         {
             // we don't care about failure here
@@ -1004,7 +1009,7 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     std::set<Hash> hashes;
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
     {
-        hashes.emplace(Bucket::extractFromFilename(f));
+        hashes.emplace(extractFromFilename(f));
     }
     return hashes;
 }
@@ -1094,26 +1099,21 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 
         if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
         {
-            // Resort files if they have not yet been resorted
-            if (curr->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
-                !curr->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
-            {
-                auto currResorted =
-                    resortFile(curr, BucketSortOrder::SortByType,
-                               BucketSortOrder::SortByAccount);
-                addFileToBucket(curr, currResorted, curr->getHash(),
-                                BucketSortOrder::SortByAccount);
-            }
+            auto resortIfNotSorted = [&](auto const& b) {
+                if (b->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
+                    !b->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
+                {
+                    Hash resortedHash;
+                    auto resortedFilename = resortFile(
+                        b, BucketSortOrder::SortByType,
+                        BucketSortOrder::SortByAccount, resortedHash);
+                    addFileToBucket(b, resortedFilename, resortedHash,
+                                    BucketSortOrder::SortByAccount);
+                }
+            };
 
-            if (snap->hasFileWithSortOrder(BucketSortOrder::SortByType) &&
-                !snap->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
-            {
-                auto snapResorted =
-                    resortFile(snap, BucketSortOrder::SortByType,
-                               BucketSortOrder::SortByAccount);
-                addFileToBucket(snap, snapResorted, snap->getHash(),
-                                BucketSortOrder::SortByAccount);
-            }
+            resortIfNotSorted(curr);
+            resortIfNotSorted(snap);
         }
 
         mBucketList->getLevel(i).setCurr(curr);

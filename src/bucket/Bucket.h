@@ -93,8 +93,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerKey> const& deadEntries);
 
     static BucketSortOrder getFileType(std::filesystem::path filename);
-
-    static uint256 extractFromFilename(std::filesystem::path const& path);
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding

@@ -118,7 +118,8 @@ class BucketManagerImpl : public BucketManager
 
     std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
                                      BucketSortOrder oldType,
-                                     BucketSortOrder newType) override;
+                                     BucketSortOrder newType,
+                                     Hash& hash) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 

@@ -809,10 +809,4 @@ Bucket::getBucketVersion(std::shared_ptr<Bucket const> bucket)
     BucketInputIterator it(bucket, type);
     return it.getMetadata().ledgerVersion;
 }
-
-uint256
-Bucket::extractFromFilename(std::filesystem::path const& path)
-{
-    return hexToBin256(path.filename().string().substr(7, 64));
-};
 }

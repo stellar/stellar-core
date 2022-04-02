@@ -100,12 +100,11 @@ DownloadBucketsWork::yieldMoreWork()
                 /*bytesPut=*/0, BucketSortOrder::SortByType);
             if (app.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
             {
+                Hash resortedHash;
                 auto resortedFilename = app.getBucketManager().resortFile(
                     b, BucketSortOrder::SortByType,
-                    BucketSortOrder::SortByAccount);
+                    BucketSortOrder::SortByAccount, resortedHash);
 
-                auto resortedHash =
-                    Bucket::extractFromFilename(resortedFilename);
                 app.getBucketManager().addFileToBucket(
                     b, resortedFilename, resortedHash,
                     BucketSortOrder::SortByAccount);

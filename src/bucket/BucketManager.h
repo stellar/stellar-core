@@ -142,7 +142,8 @@ class BucketManager : NonMovableOrCopyable
     // sort order. Returns path to newly sorted file.
     virtual std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
                                              BucketSortOrder oldType,
-                                             BucketSortOrder newType) = 0;
+                                             BucketSortOrder newType,
+                                             Hash& hash) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
