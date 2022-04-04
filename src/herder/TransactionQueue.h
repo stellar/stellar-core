@@ -125,7 +125,7 @@ class TransactionQueue
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
-    AddResult tryAdd(TransactionFrameBasePtr tx);
+    AddResult tryAdd(TransactionFrameBasePtr tx, TransactionResult& txRes);
     void removeApplied(Transactions const& txs);
     void ban(Transactions const& txs);
 
@@ -206,7 +206,7 @@ class TransactionQueue
     };
     BroadcastStatus broadcastTx(AccountState& state, TimestampedTx& tx);
 
-    AddResult canAdd(TransactionFrameBasePtr tx,
+    AddResult canAdd(TransactionFrameBasePtr tx, TransactionResult& txRes,
                      AccountStates::iterator& stateIter,
                      TimestampedTransactions::iterator& oldTxIter);
 

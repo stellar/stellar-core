@@ -745,16 +745,17 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     StellarMessage msg(txf->toStellarMessage());
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
-    auto status = mApp.getHerder().recvTransaction(txf);
+    TransactionResult txRes;
+    auto status = mApp.getHerder().recvTransaction(txf, txRes);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG_INFO(LoadGen, "tx rejected '{}': {} ===> {}",
                   TX_STATUS_STRING[static_cast<int>(status)],
                   xdr_to_string(txf->getEnvelope(), "TransactionEnvelope"),
-                  xdr_to_string(txf->getResult(), "TransactionResult"));
+                  xdr_to_string(txRes, "TransactionResult"));
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            code = txf->getResultCode();
+            code = txRes.result.code();
         }
         txm.mTxnRejected.Mark();
     }

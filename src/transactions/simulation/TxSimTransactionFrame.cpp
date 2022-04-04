@@ -100,12 +100,13 @@ TxSimTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
 }
 
 void
-TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
+TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee,
+                                        TransactionResult& txResult)
 {
     mCachedAccount.reset();
 
     auto header = ltx.loadHeader();
-    resetResults(header.current(), baseFee, true);
+    resetResults(header.current(), baseFee, true, txResult);
 
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
@@ -114,7 +115,7 @@ TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     }
     auto& acc = sourceAccount.current().data.account();
 
-    int64_t& fee = getResult().feeCharged;
+    int64_t& fee = txResult.feeCharged;
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);

@@ -117,7 +117,7 @@ class Herder
     virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx) = 0;
+    recvTransaction(TransactionFrameBasePtr tx, TransactionResult& txRes) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;
     virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;

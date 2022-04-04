@@ -33,9 +33,11 @@ TxSimFeeBumpTransactionFrame::getFee(const stellar::LedgerHeader& header,
 
 void
 TxSimFeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                               int64_t baseFee)
+                                               int64_t baseFee,
+                                               TransactionResult& txResult)
 {
-    resetResults(ltx.loadHeader().current(), baseFee, true);
+    TransactionResult innerRes;
+    resetResults(ltx.loadHeader().current(), baseFee, true, innerRes, txResult);
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
     if (!feeSource)
@@ -45,7 +47,7 @@ TxSimFeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     auto& acc = feeSource.current().data.account();
 
     auto header = ltx.loadHeader();
-    int64_t& fee = getResult().feeCharged;
+    int64_t& fee = txResult.feeCharged;
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);

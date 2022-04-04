@@ -43,8 +43,6 @@ class TransactionFrame : public TransactionFrameBase
 {
   protected:
     TransactionEnvelope mEnvelope;
-    TransactionResult mResult;
-
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -77,7 +75,8 @@ class TransactionFrame : public TransactionFrameBase
 
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset);
+                              uint64_t upperBoundCloseTimeOffset,
+                              TransactionResult& txResult);
 
     virtual bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const;
 
@@ -86,7 +85,8 @@ class TransactionFrame : public TransactionFrameBase
                                SequenceNumber current, bool applying,
                                bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset);
+                               uint64_t upperBoundCloseTimeOffset,
+                               TransactionResult& txResult);
 
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
@@ -97,16 +97,18 @@ class TransactionFrame : public TransactionFrameBase
                              AccountID const& accountID,
                              SignerKey const& signerKey) const;
 
-    void markResultFailed();
+    void markResultFailed(TransactionResult& txResult);
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerTxn& ltx, TransactionMeta& meta);
+                         AbstractLedgerTxn& ltx, TransactionMeta& meta,
+                         TransactionResult& txResult);
 
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter);
+                           AbstractLedgerTxn& ltxOuter,
+                           TransactionResult& txResult);
 
     std::optional<TimeBounds const> const getTimeBounds() const;
     std::optional<LedgerBounds const> const getLedgerBounds() const;
@@ -136,26 +138,8 @@ class TransactionFrame : public TransactionFrameBase
         return mOperations;
     }
 
-    TransactionResult const&
-    getResult() const
-    {
-        return mResult;
-    }
-
-    TransactionResult&
-    getResult() override
-    {
-        return mResult;
-    }
-
-    TransactionResultCode
-    getResultCode() const override
-    {
-        return getResult().result.code();
-    }
-
-    void resetResults(LedgerHeader const& header, int64_t baseFee,
-                      bool applying);
+    virtual void resetResults(LedgerHeader const& header, int64_t baseFee,
+                              bool applying, TransactionResult& txResult);
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
@@ -186,29 +170,34 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkExtraSigners(SignatureChecker& signatureChecker);
 
-    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
-                    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset);
+    virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                            bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+                            uint64_t upperBoundCloseTimeOffset,
+                            TransactionResult& txResult);
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) override;
+                    uint64_t upperBoundCloseTimeOffset,
+                    TransactionResult& txResult) override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee,
+                          TransactionResult& txResult) override;
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
+    virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
+                       TransactionMeta& meta, bool chargeFee,
+                       TransactionResult& txResult);
     bool apply(Application& app, AbstractLedgerTxn& ltx, TransactionMeta& meta,
-               bool chargeFee);
-    bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMeta& meta) override;
+               TransactionResult& txResult) override;
 
     // version without meta
-    bool apply(Application& app, AbstractLedgerTxn& ltx);
+    virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
+                       TransactionResult& txResult);
 
     StellarMessage toStellarMessage() const override;
 
@@ -219,5 +208,40 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
+
+#ifdef BUILD_TESTS
+    TransactionResult&
+    getResult() override
+    {
+        throw std::runtime_error("Not implemented");
+    }
+
+    TransactionResultCode
+    getResultCode() const override
+    {
+        throw std::runtime_error("Not implemented");
+    }
+
+    bool
+    checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+               uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset) override
+    {
+        throw std::runtime_error("Not implemented");
+    }
+
+    void
+    processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override
+    {
+        throw std::runtime_error("Not implemented");
+    }
+
+    bool
+    apply(Application& app, AbstractLedgerTxn& ltx,
+          TransactionMeta& meta) override
+    {
+        throw std::runtime_error("Not implemented");
+    }
+#endif
 };
 }

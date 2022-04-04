@@ -313,9 +313,10 @@ TxSetFrame::checkOrTrim(Application& app,
             bool minSeqCheckIsInvalid =
                 iter != kv.second.begin() &&
                 (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0);
+            TransactionResult txRes;
             if (minSeqCheckIsInvalid ||
                 !tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset))
+                                upperBoundCloseTimeOffset, txRes))
             {
                 if (justCheck)
                 {
@@ -336,7 +337,7 @@ TxSetFrame::checkOrTrim(Application& app,
                             hexAbbrev(mPreviousLedgerHash), lastSeq,
                             xdr_to_string(tx->getEnvelope(),
                                           "TransactionEnvelope"),
-                            tx->getResultCode());
+                            txRes.result.code());
                     }
                     return false;
                 }

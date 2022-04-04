@@ -845,10 +845,11 @@ class FuzzTransactionFrame : public TransactionFrame
         : TransactionFrame(networkID, envelope){};
 
     void
-    attemptApplication(Application& app, AbstractLedgerTxn& ltx)
+    attemptApplication(Application& app, AbstractLedgerTxn& ltx,
+                       TransactionResult& txRes)
     {
         // reset results of operations
-        resetResults(ltx.getHeader(), 0, true);
+        resetResults(ltx.getHeader(), 0, true, txRes);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -862,7 +863,7 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         isInvalidOperation))
         {
-            markResultFailed();
+            markResultFailed(txRes);
             return;
         }
         // while the following method's result is not captured, regardless, for
@@ -871,8 +872,8 @@ class FuzzTransactionFrame : public TransactionFrame
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
         TransactionMeta tm(2);
-        applyOperations(signatureChecker, app, ltx, tm);
-        if (getResultCode() == txINTERNAL_ERROR)
+        applyOperations(signatureChecker, app, ltx, tm, txRes);
+        if (txRes.result.code() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
@@ -932,16 +933,16 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                                   : begin + MAX_OPS_PER_TX;
         auto txFramePtr = createFuzzTransactionFrame(
             ltx, sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
-        txFramePtr->attemptApplication(app, ltx);
+        TransactionResult txRes;
+        txFramePtr->attemptApplication(app, ltx, txRes);
         begin = endOpsInThisTx;
 
-        if (txFramePtr->getResultCode() != txSUCCESS)
+        if (txRes.result.code() != txSUCCESS)
         {
             auto const msg = fmt::format(
                 FMT_STRING("Error {} while setting up fuzzing -- "
                            "{}"),
-                txFramePtr->getResultCode(),
-                xdr_to_string(txFramePtr->getResult(), "TransactionResult"));
+                txRes.result.code(), xdr_to_string(txRes, "TransactionResult"));
             LOG_FATAL(DEFAULT_LOG, "{}", msg);
             throw std::runtime_error(msg);
         }
@@ -984,7 +985,8 @@ applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 {
     auto txFramePtr = createFuzzTransactionFrame(ltx, sourceAccount, begin, end,
                                                  app.getNetworkID());
-    txFramePtr->attemptApplication(app, ltx);
+    TransactionResult txRes;
+    txFramePtr->attemptApplication(app, ltx, txRes);
 }
 
 // Unlike Asset, this can be a constexpr.

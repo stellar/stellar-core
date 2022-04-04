@@ -27,11 +27,12 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMeta& meta) = 0;
+                       TransactionMeta& meta, TransactionResult& txResult) = 0;
 
     virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) = 0;
+                            uint64_t upperBoundCloseTimeOffset,
+                            TransactionResult& txResult) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
@@ -46,9 +47,6 @@ class TransactionFrameBase
     virtual uint32_t getNumOperations() const = 0;
     virtual std::vector<Operation> const& getRawOperations() const = 0;
 
-    virtual TransactionResult& getResult() = 0;
-    virtual TransactionResultCode getResultCode() const = 0;
-
     virtual SequenceNumber getSeqNum() const = 0;
     virtual AccountID getFeeSourceID() const = 0;
     virtual AccountID getSourceID() const = 0;
@@ -60,8 +58,23 @@ class TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
+    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee,
+                                  TransactionResult& txResult) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;
+
+#ifdef BUILD_TESTS
+    static TransactionFrameBasePtr
+    makeTestTransactionFromWire(Hash const& networkID,
+                                TransactionEnvelope const& env);
+    virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
+                       TransactionMeta& meta) = 0;
+    virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                            uint64_t lowerBoundCloseTimeOffset,
+                            uint64_t upperBoundCloseTimeOffset) = 0;
+    virtual TransactionResult& getResult() = 0;
+    virtual TransactionResultCode getResultCode() const = 0;
+    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
+#endif
 };
 }

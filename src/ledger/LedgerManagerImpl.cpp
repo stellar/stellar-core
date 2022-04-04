@@ -686,15 +686,17 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
     vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
+    vector<TransactionResult> txResults(txs.size());
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
     auto curBaseFee = txSet->getBaseFee(header.current());
-    processFeesSeqNums(txs, ltx, curBaseFee, ledgerCloseMeta);
+    processFeesSeqNums(txs, txResults, ltx, curBaseFee, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
+    applyTransactions(txs, txResults, ltx, txResultSet, ledgerCloseMeta,
+                      curBaseFee);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -1047,7 +1049,8 @@ mergeOpInTx(std::vector<Operation> const& ops)
 
 void
 LedgerManagerImpl::processFeesSeqNums(
-    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
+    std::vector<TransactionFrameBasePtr>& txs,
+    std::vector<TransactionResult>& txResults, AbstractLedgerTxn& ltxOuter,
     int64_t baseFee, std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
 {
     ZoneScoped;
@@ -1064,7 +1067,7 @@ LedgerManagerImpl::processFeesSeqNums(
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, baseFee);
+            tx->processFeeSeqNum(ltxTx, baseFee, txResults.at(index));
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,
@@ -1179,7 +1182,8 @@ LedgerManagerImpl::prefetchTransactionData(
 
 void
 LedgerManagerImpl::applyTransactions(
-    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
+    std::vector<TransactionFrameBasePtr>& txs,
+    std::vector<TransactionResult>& txResults, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta, int64 curBaseFee)
 {
@@ -1212,15 +1216,16 @@ LedgerManagerImpl::applyTransactions(
         ZoneNamedN(txZone, "applyTransaction", true);
         auto txTime = mTransactionApply.TimeScope();
         TransactionMeta tm(2);
+        auto& txRes = txResults.at(index);
         CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                    hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
                    tx->getSeqNum(),
                    mApp.getConfig().toShortString(tx->getSourceID()));
-        tx->apply(mApp, ltx, tm);
+        tx->apply(mApp, ltx, tm, txRes);
 
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
-        results.result = tx->getResult();
+        results.result = txRes;
 
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.

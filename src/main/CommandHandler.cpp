@@ -662,6 +662,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     if (params.compare(0, prefix.size(), prefix) == 0)
     {
         TransactionEnvelope envelope;
+        TransactionResult txResult;
         std::string blob = params.substr(prefix.size());
         std::vector<uint8_t> binBlob;
         decoder::decode_b64(blob, binBlob);
@@ -683,7 +684,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             // add it to our current set
             // and make sure it is valid
             TransactionQueue::AddResult status =
-                mApp.getHerder().recvTransaction(transaction);
+                mApp.getHerder().recvTransaction(transaction, txResult);
 
             output << "{"
                    << "\"status\": "
@@ -692,7 +693,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                auto resultBin = xdr::xdr_to_opaque(txResult);
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
@@ -999,6 +1000,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["amount"] = (Json::UInt64)paymentAmount;
 
         TransactionFramePtr txFrame;
+        TransactionResult txRes;
         if (create != retMap.end() && create->second == "true")
         {
             txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
@@ -1008,12 +1010,12 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame);
+        auto status = mApp.getHerder().recvTransaction(txFrame, txRes);
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdr_to_string(txFrame->getResult().result.code(),
-                                           "TransactionResultCode");
+            root["detail"] =
+                xdr_to_string(txRes.result.code(), "TransactionResultCode");
         }
     }
     else

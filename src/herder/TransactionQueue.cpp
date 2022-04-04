@@ -186,7 +186,7 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
 }
 
 TransactionQueue::AddResult
-TransactionQueue::canAdd(TransactionFrameBasePtr tx,
+TransactionQueue::canAdd(TransactionFrameBasePtr tx, TransactionResult& txRes,
                          AccountStates::iterator& stateIter,
                          TimestampedTransactions::iterator& oldTxIter)
 {
@@ -236,7 +236,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             {
                 if (!findBySeq(tx, transactions, oldTxIter))
                 {
-                    tx->getResult().result.code(txBAD_SEQ);
+                    txRes.result.code(txBAD_SEQ);
                     return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                 }
 
@@ -252,8 +252,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     int64_t minFee;
                     if (!canReplaceByFee(tx, oldTxIter->mTx, minFee))
                     {
-                        tx->getResult().result.code(txINSUFFICIENT_FEE);
-                        tx->getResult().feeCharged = minFee;
+                        txRes.result.code(txINSUFFICIENT_FEE);
+                        txRes.feeCharged = minFee;
                         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                     }
 
@@ -295,8 +295,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         ban({tx});
         if (canAddRes.second != 0)
         {
-            tx->getResult().result.code(txINSUFFICIENT_FEE);
-            tx->getResult().feeCharged = canAddRes.second;
+            txRes.result.code(txINSUFFICIENT_FEE);
+            txRes.feeCharged = canAddRes.second;
             return TransactionQueue::AddResult::ADD_STATUS_ERROR;
         }
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
@@ -320,7 +320,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
     if (!tx->checkValid(ltx, seqNum, 0,
-                        getUpperBoundCloseTimeOffset(mApp, closeTime)))
+                        getUpperBoundCloseTimeOffset(mApp, closeTime), txRes))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
@@ -334,7 +334,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                             : feeStateIter->second.mTotalFees;
     if (getAvailableBalance(ltx.loadHeader(), feeSource) - netFee < totalFees)
     {
-        tx->getResult().result.code(txINSUFFICIENT_BALANCE);
+        txRes.result.code(txINSUFFICIENT_BALANCE);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
@@ -481,12 +481,12 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, TransactionResult& txRes)
 {
     ZoneScoped;
     AccountStates::iterator stateIter;
     TimestampedTransactions::iterator oldTxIter;
-    auto const res = canAdd(tx, stateIter, oldTxIter);
+    auto const res = canAdd(tx, txRes, stateIter, oldTxIter);
     if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         return res;
