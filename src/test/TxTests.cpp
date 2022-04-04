@@ -126,7 +126,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     TransactionResultCode code;
     AccountEntry srcAccountBefore;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
+    auto checkedTx = TransactionFrameBase::makeTestTransactionFromWire(
         app.getNetworkID(), tx->getEnvelope());
     bool checkedTxApplyRes = false;
     {
@@ -401,7 +401,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
+    auto checkedTx = TransactionFrameBase::makeTestTransactionFromWire(
         app.getNetworkID(), tx->getEnvelope());
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -610,7 +610,8 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
               std::back_inserter(e.v0().tx.operations));
 
     auto res = std::static_pointer_cast<TransactionFrame>(
-        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+        TransactionFrameBase::makeTestTransactionFromWire(app.getNetworkID(),
+                                                          e));
     res->addSignature(from);
     return res;
 }
@@ -639,7 +640,8 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     }
 
     auto res = std::static_pointer_cast<TransactionFrame>(
-        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+        TransactionFrameBase::makeTestTransactionFromWire(app.getNetworkID(),
+                                                          e));
     res->addSignature(from);
     return res;
 }
@@ -1515,7 +1517,7 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond)
 {
-    return TransactionFrameBase::makeTransactionFromWire(
+    return TransactionFrameBase::makeTestTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
 

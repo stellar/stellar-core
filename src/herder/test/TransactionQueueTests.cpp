@@ -57,8 +57,8 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
     auto hash = sha256(xdr::xdr_to_opaque(
         app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
     fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
-    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
-                                                         fb);
+    return TransactionFrameBase::makeTestTransactionFromWire(app.getNetworkID(),
+                                                             fb);
 }
 
 TransactionFramePtr
@@ -100,7 +100,7 @@ class TransactionQueueTest
     add(TransactionFrameBasePtr const& tx,
         TransactionQueue::AddResult AddResult)
     {
-        REQUIRE(mTransactionQueue.tryAdd(tx) == AddResult);
+        REQUIRE(mTransactionQueue.tryAdd(tx, tx->getResult()) == AddResult);
     }
 
     void
@@ -1147,7 +1147,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             auto& herder = static_cast<HerderImpl&>(app->getHerder());
             auto& tq = herder.getTransactionQueue();
 
-            REQUIRE(herder.recvTransaction(tx) ==
+            REQUIRE(herder.recvTransaction(tx, tx->getResult()) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
             REQUIRE(tq.toTxSet({})->mTransactions.size() == 1);
@@ -1407,7 +1407,8 @@ TEST_CASE("transaction queue starting sequence boundary",
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
 
         TransactionQueue tq(*app, 4, 10, 4);
-        REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100)) ==
+        TransactionResult txRes;
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100), txRes) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
         auto checkTxSet = [&](uint32_t ledgerSeq) {
@@ -1432,7 +1433,8 @@ TEST_CASE("transaction queue starting sequence boundary",
         TransactionQueue tq(*app, 4, 10, 4);
         for (size_t i = 1; i <= 4; ++i)
         {
-            REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100)) ==
+            TransactionResult txRes;
+            REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100), txRes) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
         }
 
@@ -1923,9 +1925,9 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     auto tx3 = root.tx({payment(root, 4)});
     auto tx4 = root.tx({payment(root, 5)});
 
-    herder.recvTransaction(tx1a);
-    herder.recvTransaction(tx2);
-    herder.recvTransaction(tx3);
+    herder.recvTransaction(tx1a, tx1a->getResult());
+    herder.recvTransaction(tx2, tx2->getResult());
+    herder.recvTransaction(tx3, tx3->getResult());
 
     {
         auto const& lcl = lm.getLastClosedLedgerHeader();
@@ -1947,7 +1949,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     }
 
     REQUIRE(tq.toTxSet({})->mTransactions.size() == 1);
-    REQUIRE(herder.recvTransaction(tx4) ==
+    REQUIRE(herder.recvTransaction(tx4, tx4->getResult()) ==
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
     REQUIRE(tq.toTxSet({})->mTransactions.size() == 2);
 }
