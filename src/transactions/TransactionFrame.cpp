@@ -49,8 +49,9 @@ using namespace std;
 using namespace stellar::txbridge;
 
 TransactionFrame::TransactionFrame(Hash const& networkID,
-                                   TransactionEnvelope const& envelope)
-    : mEnvelope(envelope), mNetworkID(networkID)
+                                   TransactionEnvelope const& envelope,
+                                   std::optional<bool> isDiscounted)
+    : mEnvelope(envelope), mNetworkID(networkID), mDiscounted(isDiscounted)
 {
 }
 
@@ -170,6 +171,10 @@ int64_t
 TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
                          bool applying) const
 {
+    if (!mDiscounted)
+    {
+        return getFeeBid();
+    }
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   ProtocolVersion::V_11) ||
         !applying)
@@ -488,6 +493,17 @@ TransactionFrame::processSignatures(ValidationType cv,
     }
 
     return maybeValid;
+}
+
+bool
+TransactionFrame::isDiscounted() const
+{
+    if (mDiscounted)
+    {
+        return *mDiscounted;
+    }
+    // Currently we consider all the transactions to be discounted.
+    return true;
 }
 
 bool

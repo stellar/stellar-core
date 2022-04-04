@@ -23,6 +23,11 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     mutable Hash mContentsHash;
     mutable Hash mFullHash;
 
+    // When set, determines whether this transaction is discounted. When not
+    // set, the discounting behavior is defined by the frame implementation
+    // itself.
+    std::optional<bool> const mDiscounted;
+
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
 
@@ -47,7 +52,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
-                            TransactionEnvelope const& envelope);
+                            TransactionEnvelope const& envelope,
+                            std::optional<bool> isDiscounted = std::nullopt);
 #ifdef BUILD_TESTS
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope,
@@ -94,5 +100,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     static TransactionEnvelope
     convertInnerTxToV1(TransactionEnvelope const& envelope);
+
+    bool isDiscounted() const override;
 };
 }

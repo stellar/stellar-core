@@ -1225,7 +1225,7 @@ Peer::recvTransaction(StellarMessage const& msg)
 {
     ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction());
+        mApp.getNetworkID(), msg.transaction(), std::nullopt);
     if (transaction)
     {
         // record that this peer sent us this transaction

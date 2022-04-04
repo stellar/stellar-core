@@ -54,6 +54,12 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     Hash mPreviousLedgerHash;
 
+    bool mGeneralized = false;
+
+    // Base fee applicable to discounted transactions (currently everything but
+    // mBidIsFeeTransactions).
+    std::optional<int64_t> mutable mBaseFee;
+
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
 
     bool checkOrTrim(Application& app,
@@ -65,11 +71,19 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     friend struct SurgeCompare;
 
     void addTxs(Hash const& networkID,
-                xdr::xvector<TransactionEnvelope> const& txs);
+                xdr::xvector<TransactionEnvelope> const& txs,
+                bool isDiscounted);
+
+  protected:
+    // Determines whether the transaction should be discounted based on the
+    // context of transaction.
+    virtual bool isDiscountedTransaction(TransactionFrameBasePtr tx) const;
 
   public:
     std::vector<TransactionFrameBasePtr> mTransactions;
-    bool mGeneralized = false;
+
+    // Returns the base fee associated with this transaction set
+    int64_t getBaseFee(LedgerHeader const& lh) const override;
 
     TxSetFrame(Hash const& previousLedgerHash, uint32_t ledgerVersion);
 
@@ -103,13 +117,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void removeTx(TransactionFrameBasePtr tx);
 
-    void
-    add(TransactionFrameBasePtr tx)
-    {
-        mTransactions.push_back(tx);
-        mHash.reset();
-        mValid.reset();
-    }
+    void add(TransactionFrameBasePtr tx);
 
     size_t size(LedgerHeader const& lh) const;
 
@@ -121,11 +129,11 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     size_t sizeOp() const override;
 
-    // return the base fee associated with this transaction set
-    int64_t getBaseFee(LedgerHeader const& lh) const override;
-
-    // return the sum of all fees that this transaction set would take
+    // Returns the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
+
+    // Returns the sum of all bids for all transactions in this set
+    int64_t getTotalBids() const;
 
     bool isGeneralizedTxSet() const override;
 

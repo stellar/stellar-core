@@ -46,7 +46,7 @@ TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     : mHash(std::nullopt), mValid(std::nullopt)
 {
     ZoneScoped;
-    addTxs(networkID, xdrSet.txs);
+    addTxs(networkID, xdrSet.txs, /* isDiscounted= */ true);
     mPreviousLedgerHash = xdrSet.previousLedgerHash;
 }
 
@@ -66,10 +66,13 @@ TxSetFrame::TxSetFrame(Hash const& networkID,
             switch (component.type())
             {
             case TXSET_COMP_TXS_BID_IS_FEE:
-                addTxs(networkID, component.txsBidIsFee());
+                addTxs(networkID, component.txsBidIsFee(),
+                       /* isDiscounted= */ false);
                 break;
             case TXSET_COMP_TXS_DISCOUNTED_FEE:
-                addTxs(networkID, component.txsDiscountedFee().txs);
+                addTxs(networkID, component.txsDiscountedFee().txs,
+                       /* isDiscounted= */ true);
+                mBaseFee = component.txsDiscountedFee().baseFee;
                 break;
             }
         }
@@ -244,11 +247,13 @@ TxSetFrame::buildAccountTxQueues()
 
 void
 TxSetFrame::addTxs(Hash const& networkID,
-                   xdr::xvector<TransactionEnvelope> const& txs)
+                   xdr::xvector<TransactionEnvelope> const& txs,
+                   bool isDiscounted)
 {
     for (auto const& env : txs)
     {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env,
+                                                                isDiscounted);
         mTransactions.push_back(tx);
     }
 }
@@ -470,26 +475,50 @@ TxSetFrame::removeTx(TransactionFrameBasePtr tx)
 {
     auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
     if (it != mTransactions.end())
+    {
         mTransactions.erase(it);
+    }
     mHash.reset();
     mValid.reset();
+    mBaseFee.reset();
+}
+
+void
+TxSetFrame::add(TransactionFrameBasePtr tx)
+{
+    mTransactions.push_back(tx);
+    mHash.reset();
+    mValid.reset();
+    mBaseFee.reset();
 }
 
 Hash const&
 TxSetFrame::getContentsHash()
 {
     ZoneScoped;
-    if (!mHash)
+    if (mHash)
     {
-        sortForHash();
-        SHA256 hasher;
+        return *mHash;
+    }
+
+    sortForHash();
+    SHA256 hasher;
+    if (isGeneralizedTxSet())
+    {
+        GeneralizedTransactionSet txSet;
+        toXDR(txSet);
+        hasher.add(xdr::xdr_to_opaque(txSet));
+    }
+    else
+    {
         hasher.add(mPreviousLedgerHash);
         for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
             hasher.add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
         }
-        mHash = std::make_optional<Hash>(hasher.finish());
     }
+
+    mHash = std::make_optional<Hash>(hasher.finish());
     return *mHash;
 }
 
@@ -500,6 +529,7 @@ TxSetFrame::previousLedgerHash()
     // be mutating, so we treat this as an invalidation event.
     mHash.reset();
     mValid.reset();
+    mBaseFee.reset();
     return mPreviousLedgerHash;
 }
 
@@ -531,13 +561,22 @@ TxSetFrame::sizeOp() const
 int64_t
 TxSetFrame::getBaseFee(LedgerHeader const& lh) const
 {
+    if (mBaseFee)
+    {
+        return *mBaseFee;
+    }
     int64_t baseFee = lh.baseFee;
     if (protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11))
     {
         size_t ops = 0;
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
+
         for (auto& txPtr : mTransactions)
         {
+            if (mGeneralized && !txPtr->isDiscounted())
+            {
+                continue;
+            }
             auto txOps = txPtr->getNumOperations();
             ops += txOps;
             int64_t txBaseFee = bigDivideOrThrow(txPtr->getFeeBid(), 1,
@@ -557,13 +596,23 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
             baseFee = lowBaseFee;
         }
     }
+    mBaseFee = baseFee;
     return baseFee;
+}
+
+bool
+TxSetFrame::isDiscountedTransaction(TransactionFrameBasePtr tx) const
+{
+    // Currently we preserve the old behavior and discount all the
+    // transactions.
+    return true;
 }
 
 int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 {
     ZoneScoped;
+    releaseAssert(!mGeneralized);
     auto baseFee = getBaseFee(lh);
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            int64_t(0),
@@ -572,11 +621,23 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
                            });
 }
 
+int64_t
+TxSetFrame::getTotalBids() const
+{
+    ZoneScoped;
+    releaseAssert(mGeneralized);
+    return std::accumulate(mTransactions.begin(), mTransactions.end(),
+                           int64_t(0),
+                           [&](int64_t t, TransactionFrameBasePtr const& tx) {
+                               return t + tx->getFeeBid();
+                           });
+}
+
 void
 TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
-    releaseAssert(!mGeneralized);
+    releaseAssert(!isGeneralizedTxSet());
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
     txSet.txs.resize(xdr::size32(mTransactions.size()));
@@ -591,22 +652,32 @@ void
 TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
 {
     ZoneScoped;
-    releaseAssert(mGeneralized);
-    generalizedTxSet.v(1);
-    // The following code assumes the legacy behavior: only a single phase with
-    // all the txs discounted.
+    releaseAssert(isGeneralizedTxSet());
+    releaseAssert(mBaseFee);
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
-    auto& txs = generalizedTxSet.v1TxSet()
-                    .phases.emplace_back()
-                    .v0Components()
-                    .emplace_back(TXSET_COMP_TXS_DISCOUNTED_FEE)
-                    .txsDiscountedFee()
-                    .txs;
-    txs.resize(xdr::size32(mTransactions.size()));
-    for (size_t i = 0; i < mTransactions.size(); i++)
+    generalizedTxSet.v(1);
+    // The following code assumes that only a single phase exists.
+    auto& phase =
+        generalizedTxSet.v1TxSet().phases.emplace_back().v0Components();
+    phase.emplace_back(TXSET_COMP_TXS_DISCOUNTED_FEE);
+    phase.emplace_back(TXSET_COMP_TXS_BID_IS_FEE);
+    auto& discountedFeeComponent = phase[0].txsDiscountedFee();
+    discountedFeeComponent.baseFee = *mBaseFee;
+    auto& discountedTxs = discountedFeeComponent.txs;
+    auto& bidIsFeeTxs = phase[1].txsBidIsFee();
+
+    discountedTxs.reserve(mTransactions.size());
+    for (auto const& tx : mTransactions)
     {
-        txs[i] = mTransactions[i]->getEnvelope();
+        if (tx->isDiscounted())
+        {
+            discountedTxs.emplace_back(tx->getEnvelope());
+        }
+        else
+        {
+            bidIsFeeTxs.emplace_back(tx->getEnvelope());
+        }
     }
 
     generalizedTxSet.v1TxSet().previousLedgerHash = mPreviousLedgerHash;

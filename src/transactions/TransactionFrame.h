@@ -11,6 +11,7 @@
 #include "util/types.h"
 
 #include <memory>
+#include <optional>
 #include <set>
 
 namespace soci
@@ -52,6 +53,8 @@ class TransactionFrame : public TransactionFrameBase
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
+
+    std::optional<bool> const mDiscounted;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);
@@ -105,8 +108,8 @@ class TransactionFrame : public TransactionFrameBase
                            AbstractLedgerTxn& ltxOuter);
 
   public:
-    TransactionFrame(Hash const& networkID,
-                     TransactionEnvelope const& envelope);
+    TransactionFrame(Hash const& networkID, TransactionEnvelope const& envelope,
+                     std::optional<bool> isDiscounted = std::nullopt);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
@@ -205,5 +208,7 @@ class TransactionFrame : public TransactionFrameBase
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
                                AccountID const& accountID);
+
+    bool isDiscounted() const override;
 };
 }

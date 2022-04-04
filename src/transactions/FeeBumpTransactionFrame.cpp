@@ -34,11 +34,13 @@ FeeBumpTransactionFrame::convertInnerTxToV1(TransactionEnvelope const& envelope)
 }
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope)
+    Hash const& networkID, TransactionEnvelope const& envelope,
+    std::optional<bool> isDiscounted)
     : mEnvelope(envelope)
-    , mInnerTx(std::make_shared<TransactionFrame>(networkID,
-                                                  convertInnerTxToV1(envelope)))
+    , mInnerTx(std::make_shared<TransactionFrame>(
+          networkID, convertInnerTxToV1(envelope), isDiscounted))
     , mNetworkID(networkID)
+    , mDiscounted(isDiscounted)
 {
 }
 
@@ -278,6 +280,10 @@ int64_t
 FeeBumpTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
                                 bool applying) const
 {
+    if (!isDiscounted())
+    {
+        return getFeeBid();
+    }
     int64_t adjustedFee = baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {
@@ -418,6 +424,17 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
         removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
                                             account);
     }
+}
+
+bool
+FeeBumpTransactionFrame::isDiscounted() const
+{
+    if (mDiscounted)
+    {
+        return *mDiscounted;
+    }
+    // Currently we consider all the transactions to be discounted.
+    return true;
 }
 
 void

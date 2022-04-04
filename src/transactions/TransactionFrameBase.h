@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "util/UnorderedSet.h"
@@ -23,7 +25,8 @@ class TransactionFrameBase
   public:
     static TransactionFrameBasePtr
     makeTransactionFromWire(Hash const& networkID,
-                            TransactionEnvelope const& env);
+                            TransactionEnvelope const& env,
+                            std::optional<bool> isDiscounted = std::nullopt);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMeta& meta) = 0;
@@ -59,5 +62,7 @@ class TransactionFrameBase
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;
+
+    virtual bool isDiscounted() const = 0;
 };
 }
