@@ -314,40 +314,40 @@ impl Val {
     }
 
     #[inline(always)]
-    fn from_body_and_tag(body: u64, tag: u8) -> Val {
-        (body < (1 << 60)).or_abort();
-        (tag < 8).or_abort();
+    // This does no checking, so it can be used in const fns
+    // below; it should not be made public.
+    const fn from_body_and_tag(body: u64, tag: u8) -> Val {
         Val(body << 4 | ((tag << 1) as u64) | 1)
     }
 
     #[inline(always)]
-    pub fn from_void() -> Val {
+    pub const fn from_void() -> Val {
         Val::from_body_and_tag(STATIC_VOID as u64, TAG_STATIC)
     }
 
     #[inline(always)]
-    pub fn from_bool(b: bool) -> Val {
+    pub const fn from_bool(b: bool) -> Val {
         let body = if b { STATIC_TRUE } else { STATIC_FALSE };
         Val::from_body_and_tag(body as u64, TAG_STATIC)
     }
 
     #[inline(always)]
-    pub fn from_status(e: u32) -> Val {
+    pub const fn from_status(e: u32) -> Val {
         Val::from_body_and_tag(e as u64, TAG_STATUS)
     }
 
     #[inline(always)]
-    pub fn from_u32(u: u32) -> Val {
+    pub const fn from_u32(u: u32) -> Val {
         Val::from_body_and_tag(u as u64, TAG_U32)
     }
 
     #[inline(always)]
-    pub fn from_i32(i: i32) -> Val {
+    pub const fn from_i32(i: i32) -> Val {
         Val::from_body_and_tag((i as u32) as u64, TAG_I32)
     }
 
     #[inline(always)]
-    pub fn from_symbol(s: Symbol) -> Val {
+    pub const fn from_symbol(s: Symbol) -> Val {
         Val::from_body_and_tag(s.0, TAG_SYMBOL)
     }
 
