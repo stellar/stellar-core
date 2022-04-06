@@ -702,67 +702,68 @@ HostContext::bigNumSqrt(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t x)
 void
 HostContext::registerHostFunctions()
 {
-    registerHostFunction(&HostContext::mapNew, "env", "host__map_new");
-    registerHostFunction(&HostContext::mapPut, "env", "host__map_put");
-    registerHostFunction(&HostContext::mapGet, "env", "host__map_get");
-    registerHostFunction(&HostContext::mapDel, "env", "host__map_del");
-    registerHostFunction(&HostContext::mapLen, "env", "host__map_len");
-    registerHostFunction(&HostContext::mapKeys, "env", "host__map_keys");
+    // Movule 'x' is miscellaneous context-access functions
+    registerHostFunction(&HostContext::logValue, "x", "$_");
+    registerHostFunction(&HostContext::getLastOperationResult, "x", "$0");
 
-    registerHostFunction(&HostContext::vecNew, "env", "host__vec_new");
-    registerHostFunction(&HostContext::vecPut, "env", "host__vec_put");
-    registerHostFunction(&HostContext::vecGet, "env", "host__vec_get");
-    registerHostFunction(&HostContext::vecDel, "env", "host__vec_del");
-    registerHostFunction(&HostContext::vecLen, "env", "host__vec_len");
+    // Module 'm' is map functions
+    registerHostFunction(&HostContext::mapNew, "m", "$_");
+    registerHostFunction(&HostContext::mapPut, "m", "$0");
+    registerHostFunction(&HostContext::mapGet, "m", "$1");
+    registerHostFunction(&HostContext::mapDel, "m", "$2");
+    registerHostFunction(&HostContext::mapLen, "m", "$3");
+    registerHostFunction(&HostContext::mapKeys, "m", "$4");
 
-    registerHostFunction(&HostContext::vecPush, "env", "host__vec_push");
-    registerHostFunction(&HostContext::vecPop, "env", "host__vec_pop");
-    registerHostFunction(&HostContext::vecTake, "env", "host__vec_take");
-    registerHostFunction(&HostContext::vecDrop, "env", "host__vec_drop");
-    registerHostFunction(&HostContext::vecFront, "env", "host__vec_front");
-    registerHostFunction(&HostContext::vecBack, "env", "host__vec_back");
-    registerHostFunction(&HostContext::vecInsert, "env", "host__vec_insert");
-    registerHostFunction(&HostContext::vecAppend, "env", "host__vec_append");
+    // Module 'v' is vec functions
+    registerHostFunction(&HostContext::vecNew, "v", "$_");
+    registerHostFunction(&HostContext::vecPut, "v", "$0");
+    registerHostFunction(&HostContext::vecGet, "v", "$1");
+    registerHostFunction(&HostContext::vecDel, "v", "$2");
+    registerHostFunction(&HostContext::vecLen, "v", "$3");
 
-    registerHostFunction(&HostContext::logValue, "env", "host__log_value");
-    registerHostFunction(&HostContext::getCurrentLedgerNum, "env",
-                         "host__get_current_ledger_num");
-    registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
-                         "host__get_current_ledger_close_time");
-    registerHostFunction(&HostContext::getLastOperationResult, "env",
-                         "host__get_last_operation_result");
-    registerHostFunction(&HostContext::pay, "env", "host__pay");
+    registerHostFunction(&HostContext::vecPush, "v", "$4");
+    registerHostFunction(&HostContext::vecPop, "v", "$5");
+    registerHostFunction(&HostContext::vecTake, "v", "$6");
+    registerHostFunction(&HostContext::vecDrop, "v", "$7");
+    registerHostFunction(&HostContext::vecFront, "v", "$8");
+    registerHostFunction(&HostContext::vecBack, "v", "$9");
+    registerHostFunction(&HostContext::vecInsert, "v", "$A");
+    registerHostFunction(&HostContext::vecAppend, "v", "$B");
 
-    registerHostFunction(&HostContext::call0, "env", "host__call0");
-    registerHostFunction(&HostContext::call1, "env", "host__call1");
-    registerHostFunction(&HostContext::call2, "env", "host__call2");
-    registerHostFunction(&HostContext::call3, "env", "host__call3");
-    registerHostFunction(&HostContext::call4, "env", "host__call4");
+    // Module 'l' is ledger-access functions
+    registerHostFunction(&HostContext::getCurrentLedgerNum, "l", "$_");
+    registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "l", "$0");
+    registerHostFunction(&HostContext::pay, "l", "$1");
 
-    registerHostFunction(&HostContext::bigNumFromU64, "env",
-                         "host__bignum_from_u64");
-    registerHostFunction(&HostContext::bigNumAdd, "env", "host__bignum_add");
-    registerHostFunction(&HostContext::bigNumSub, "env", "host__bignum_sub");
-    registerHostFunction(&HostContext::bigNumMul, "env", "host__bignum_mul");
-    registerHostFunction(&HostContext::bigNumDiv, "env", "host__bignum_div");
-    registerHostFunction(&HostContext::bigNumRem, "env", "host__bignum_rem");
-    registerHostFunction(&HostContext::bigNumAnd, "env", "host__bignum_and");
-    registerHostFunction(&HostContext::bigNumOr, "env", "host__bignum_or");
-    registerHostFunction(&HostContext::bigNumXor, "env", "host__bignum_xor");
-    registerHostFunction(&HostContext::bigNumShl, "env", "host__bignum_shl");
-    registerHostFunction(&HostContext::bigNumShr, "env", "host__bignum_shr");
-    registerHostFunction(&HostContext::bigNumCmp, "env", "host__bignum_cmp");
-    registerHostFunction(&HostContext::bigNumIsZero, "env",
-                         "host__bignum_is_zero");
+    // Module 'c' is cross-contract functions
+    registerHostFunction(&HostContext::call0, "c", "$_");
+    registerHostFunction(&HostContext::call1, "c", "$0");
+    registerHostFunction(&HostContext::call2, "c", "$1");
+    registerHostFunction(&HostContext::call3, "c", "$2");
+    registerHostFunction(&HostContext::call4, "c", "$3");
 
-    registerHostFunction(&HostContext::bigNumNeg, "env", "host__bignum_neg");
-    registerHostFunction(&HostContext::bigNumNot, "env", "host__bignum_is_not");
+    // Module 'b' is BigNum functions
+    registerHostFunction(&HostContext::bigNumFromU64, "b", "$_");
+    registerHostFunction(&HostContext::bigNumAdd, "b", "$0");
+    registerHostFunction(&HostContext::bigNumSub, "b", "$1");
+    registerHostFunction(&HostContext::bigNumMul, "b", "$2");
+    registerHostFunction(&HostContext::bigNumDiv, "b", "$3");
+    registerHostFunction(&HostContext::bigNumRem, "b", "$4");
+    registerHostFunction(&HostContext::bigNumAnd, "b", "$5");
+    registerHostFunction(&HostContext::bigNumOr, "b", "$6");
+    registerHostFunction(&HostContext::bigNumXor, "b", "$7");
+    registerHostFunction(&HostContext::bigNumShl, "b", "$8");
+    registerHostFunction(&HostContext::bigNumShr, "b", "$9");
+    registerHostFunction(&HostContext::bigNumCmp, "b", "$A");
+    registerHostFunction(&HostContext::bigNumIsZero, "b", "$B");
 
-    registerHostFunction(&HostContext::bigNumGcd, "env", "host__bignum_gcd");
-    registerHostFunction(&HostContext::bigNumLcm, "env", "host__bignum_lcm");
-    registerHostFunction(&HostContext::bigNumPow, "env", "host__bignum_pow");
-    registerHostFunction(&HostContext::bigNumPowMod, "env",
-                         "host__bignum_pow_mod");
-    registerHostFunction(&HostContext::bigNumSqrt, "env", "host__bignum_sqrt");
+    registerHostFunction(&HostContext::bigNumNeg, "b", "$C");
+    registerHostFunction(&HostContext::bigNumNot, "b", "$D");
+
+    registerHostFunction(&HostContext::bigNumGcd, "b", "$E");
+    registerHostFunction(&HostContext::bigNumLcm, "b", "$F");
+    registerHostFunction(&HostContext::bigNumPow, "b", "$G");
+    registerHostFunction(&HostContext::bigNumPowMod, "b", "$H");
+    registerHostFunction(&HostContext::bigNumSqrt, "b", "$I");
 }
 }

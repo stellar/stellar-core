@@ -64,67 +64,67 @@ impl<T: ValType> Vec<T> {
 
     #[inline(always)]
     pub fn new() -> Vec<T> {
-        unsafe { host_fns::host__vec_new().try_into().or_abort() }
+        unsafe { host_fns::vec_new().try_into().or_abort() }
     }
 
     #[inline(always)]
     pub fn get(&self, i: u32) -> T {
         let i: Val = i.into();
-        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_get(self.0.into(), i)) }
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::vec_get(self.0.into(), i)) }
     }
 
     #[inline(always)]
     pub fn put(&self, i: u32, v: T) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_put(self.0.into(), i.into(), v.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_put(self.0.into(), i.into(), v.into())) }
     }
 
     #[inline(always)]
     pub fn del(&self, i: u32) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_del(self.0.into(), i.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_del(self.0.into(), i.into())) }
     }
 
     #[inline(always)]
     pub fn len(&self) -> u32 {
-        unsafe { host_fns::host__vec_len(self.0.into()).as_u32() }
+        unsafe { host_fns::vec_len(self.0.into()).as_u32() }
     }
 
     #[inline(always)]
     pub fn push(&self, x: T) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_push(self.0.into(), x.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_push(self.0.into(), x.into())) }
     }
 
     #[inline(always)]
     pub fn pop(&self) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_pop(self.0.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_pop(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn take(&self, n: u32) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_take(self.0.into(), n.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_take(self.0.into(), n.into())) }
     }
 
     #[inline(always)]
     pub fn drop(&self, n: u32) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_drop(self.0.into(), n.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_drop(self.0.into(), n.into())) }
     }
 
     #[inline(always)]
     pub fn front(&self) -> T {
-        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_front(self.0.into())) }
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::vec_front(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn back(&self) -> T {
-        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_back(self.0.into())) }
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::vec_back(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn insert(&self, i: u32, x: T) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_insert(self.0.into(), i.into(), x.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_insert(self.0.into(), i.into(), x.into())) }
     }
 
     #[inline(always)]
     pub fn append(&self, other: Vec<T>) -> Vec<T> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__vec_append(self.0.into(), other.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::vec_append(self.0.into(), other.into())) }
     }
 }

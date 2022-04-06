@@ -58,32 +58,32 @@ impl<K: ValType, V: ValType> Map<K, V> {
 
     #[inline(always)]
     pub fn new() -> Map<K, V> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__map_new()) }
+        unsafe { Self::unchecked_from_obj(host_fns::map_new()) }
     }
 
     #[inline(always)]
     pub fn get(&self, k: K) -> V {
-        unsafe { <V as ValType>::unchecked_from_val(host_fns::host__map_get(self.0.into(), k.into())) }
+        unsafe { <V as ValType>::unchecked_from_val(host_fns::map_get(self.0.into(), k.into())) }
     }
 
     #[inline(always)]
     pub fn put(&self, k: K, v: V) -> Map<K, V> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__map_put(self.0.into(), k.into(), v.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::map_put(self.0.into(), k.into(), v.into())) }
     }
 
     #[inline(always)]
     pub fn del(&self, k: K) -> Map<K, V> {
-        unsafe { Self::unchecked_from_obj(host_fns::host__map_del(self.0.into(), k.into())) }
+        unsafe { Self::unchecked_from_obj(host_fns::map_del(self.0.into(), k.into())) }
     }
 
     #[inline(always)]
     pub fn len(&self) -> u32 {
-        let m: Val = unsafe { host_fns::host__map_len(self.0.into()) };
+        let m: Val = unsafe { host_fns::map_len(self.0.into()) };
         m.as_u32()
     }
 
     #[inline(always)]
     pub fn keys(&self) -> Vec<K> {
-        unsafe { <Vec<K> as ObjType>::unchecked_from_obj(host_fns::host__map_keys(self.0.into())) }
+        unsafe { <Vec<K> as ObjType>::unchecked_from_obj(host_fns::map_keys(self.0.into())) }
     }
 }

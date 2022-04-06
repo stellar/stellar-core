@@ -8,6 +8,7 @@ members = [
     "test_helper",
     "test_host_objects",
     "test_pay",
+    "test_call_everything",
 ]
 
 [profile.dev]
