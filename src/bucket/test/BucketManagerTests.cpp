@@ -279,77 +279,129 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
 TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MANUAL_CLOSE = false;
-    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-        Application::pointer app = createTestApplication(clock, cfg);
+    auto f = [&clock](Config const& cfg) {
+        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+            Application::pointer app = createTestApplication(clock, cfg);
 
-        std::vector<LedgerEntry> live(
-            LedgerTestUtils::generateValidLedgerEntries(10));
-        std::vector<LedgerKey> dead{};
+            std::vector<LedgerEntry> live(
+                LedgerTestUtils::generateValidLedgerEntries(10));
+            std::vector<LedgerKey> dead{};
 
-        std::shared_ptr<Bucket> b1;
+            std::shared_ptr<Bucket> b1;
 
-        {
-            std::shared_ptr<Bucket> b2 = Bucket::fresh(
-                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true);
-            b1 = b2;
+            {
+                std::shared_ptr<Bucket> b2 = Bucket::fresh(
+                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true);
+                b1 = b2;
 
-            // Bucket is referenced by b1, b2 and the BucketManager.
+                // Bucket is referenced by b1, b2 and the BucketManager.
+                CHECK(b1.use_count() == 3);
+
+                std::shared_ptr<Bucket> b3 = Bucket::fresh(
+                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true);
+                std::shared_ptr<Bucket> b4 = Bucket::fresh(
+                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true);
+                // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
+                CHECK(b1.use_count() == 5);
+            }
+
+            // Bucket is now only referenced by b1 and the BucketManager.
+            CHECK(b1.use_count() == 2);
+
+            auto dropBucket = [&](std::shared_ptr<Bucket>& bucket) {
+                auto sortByTypeFilenameOp =
+                    bucket->getFilename(BucketSortOrder::SortByType);
+                auto sortByTypeHashOp =
+                    bucket->getHash(BucketSortOrder::SortByType);
+
+                auto sortByAccountFilenameOp =
+                    bucket->getFilename(BucketSortOrder::SortByAccount);
+                auto sortByAccountHashOp =
+                    bucket->getHash(BucketSortOrder::SortByAccount);
+
+                auto& accountToTypeMap =
+                    app->getBucketManager().getAccountToTypeHashesForTesting();
+
+                REQUIRE(sortByTypeFilenameOp.has_value());
+                CHECK(sortByTypeHashOp.has_value());
+                CHECK(fs::exists(*sortByTypeFilenameOp));
+                if (cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+                {
+                    REQUIRE(sortByAccountFilenameOp.has_value());
+                    CHECK(sortByAccountHashOp.has_value());
+                    CHECK(fs::exists(*sortByAccountFilenameOp));
+                    CHECK(accountToTypeMap.find(*sortByAccountHashOp)->second ==
+                          *sortByTypeHashOp);
+                }
+                else
+                {
+                    CHECK(!sortByAccountFilenameOp.has_value());
+                    CHECK(accountToTypeMap.empty());
+                }
+
+                bucket.reset();
+                app->getBucketManager().forgetUnreferencedBuckets();
+                CLOG_INFO(Bucket, "File should be deleted: {}",
+                          *sortByTypeFilenameOp);
+                CHECK(!fs::exists(*sortByTypeFilenameOp));
+
+                if (cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+                {
+                    CHECK(!fs::exists(*sortByAccountFilenameOp));
+                    CHECK(accountToTypeMap.find(*sortByAccountHashOp) ==
+                          accountToTypeMap.end());
+                }
+            };
+
+            // Drop bucket ourselves then purge bucketManager.
+            dropBucket(b1);
+
+            // Try adding a bucket to the BucketManager's bucketlist
+            auto& bl = app->getBucketManager().getBucketList();
+            bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
+            clearFutures(app, bl);
+            b1 = bl.getLevel(0).getCurr();
+
+            // Bucket should be referenced by bucketlist itself, BucketManager
+            // cache and b1.
             CHECK(b1.use_count() == 3);
 
-            std::shared_ptr<Bucket> b3 = Bucket::fresh(
-                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true);
-            std::shared_ptr<Bucket> b4 = Bucket::fresh(
-                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true);
-            // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
-            CHECK(b1.use_count() == 5);
-        }
+            // This shouldn't change if we forget unreferenced buckets since
+            // it's referenced by bucketlist.
+            app->getBucketManager().forgetUnreferencedBuckets();
+            CHECK(b1.use_count() == 3);
 
-        // Bucket is now only referenced by b1 and the BucketManager.
-        CHECK(b1.use_count() == 2);
+            // But if we mutate the curr bucket of the bucketlist, it should.
+            live[0] = LedgerTestUtils::generateValidLedgerEntry(10);
+            bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
+            clearFutures(app, bl);
+            CHECK(b1.use_count() == 2);
 
-        // Drop bucket ourselves then purge bucketManager.
-        std::string filename = b1->getFilename();
-        CHECK(fs::exists(filename));
-        b1.reset();
-        app->getBucketManager().forgetUnreferencedBuckets();
-        CHECK(!fs::exists(filename));
+            // Drop it again.
+            dropBucket(b1);
+        });
+    };
 
-        // Try adding a bucket to the BucketManager's bucketlist
-        auto& bl = app->getBucketManager().getBucketList();
-        bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
-        clearFutures(app, bl);
-        b1 = bl.getLevel(0).getCurr();
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
+    {
+        Config cfg = getTestConfig();
+        cfg.MANUAL_CLOSE = false;
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
+        f(cfg);
+    }
 
-        // Bucket should be referenced by bucketlist itself, BucketManager cache
-        // and b1.
-        CHECK(b1.use_count() == 3);
-
-        // This shouldn't change if we forget unreferenced buckets since it's
-        // referenced by bucketlist.
-        app->getBucketManager().forgetUnreferencedBuckets();
-        CHECK(b1.use_count() == 3);
-
-        // But if we mutate the curr bucket of the bucketlist, it should.
-        live[0] = LedgerTestUtils::generateValidLedgerEntry(10);
-        bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
-        clearFutures(app, bl);
-        CHECK(b1.use_count() == 2);
-
-        // Drop it again.
-        filename = b1->getFilename();
-        CHECK(fs::exists(filename));
-        b1.reset();
-        app->getBucketManager().forgetUnreferencedBuckets();
-        CHECK(!fs::exists(filename));
-    });
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
+    {
+        Config cfg = getTestConfig();
+        cfg.MANUAL_CLOSE = false;
+        f(cfg);
+    }
 }
 
 TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
@@ -374,7 +426,10 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
             closeLedger(*app);
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
-        someBucketFileName = someBucket->getFilename();
+        auto someBucketFileNameOp =
+            someBucket->getFilename(BucketSortOrder::SortByType);
+        REQUIRE(someBucketFileNameOp.has_value());
+        someBucketFileName = *someBucketFileNameOp;
     }
 
     // Delete a bucket from the bucket dir
@@ -965,8 +1020,8 @@ class StopAndRestartBucketMergesTest
             mLedgerHeaderHash = lm.getLastClosedLedgerHeader().hash;
             mBucketListHash = bl.getHash();
             BucketLevel& blv = bl.getLevel(level);
-            mCurrBucketHash = blv.getCurr()->getHash();
-            mSnapBucketHash = blv.getSnap()->getHash();
+            mCurrBucketHash = blv.getCurr()->getPrimaryHash();
+            mSnapBucketHash = blv.getSnap()->getPrimaryHash();
         }
     };
 

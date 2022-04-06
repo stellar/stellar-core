@@ -485,12 +485,12 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                  .getBucketList()
                                  .getLevel(0)
                                  .getCurr()
-                                 ->getHash());
+                                 ->getPrimaryHash());
     mBucket1Hashes.push_back(mApp.getBucketManager()
                                  .getBucketList()
                                  .getLevel(2)
                                  .getCurr()
-                                 ->getHash());
+                                 ->getPrimaryHash());
 
     rootBalances.push_back(root.getBalance());
     aliceBalances.push_back(alice.getBalance());
@@ -882,12 +882,12 @@ CatchupSimulation::validateCatchup(Application::pointer app)
                                .getBucketList()
                                .getLevel(0)
                                .getCurr()
-                               ->getHash();
+                               ->getPrimaryHash();
     auto haveBucket1Hash = app->getBucketManager()
                                .getBucketList()
                                .getLevel(2)
                                .getCurr()
-                               ->getHash();
+                               ->getPrimaryHash();
 
     CLOG_INFO(History, "Caught up: want Seq[{}] = {}", i, wantSeq);
     CLOG_INFO(History, "Caught up: have Seq[{}] = {}", i, haveSeq);

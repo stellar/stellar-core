@@ -93,7 +93,7 @@ InvariantManagerImpl::checkOnBucketApply(
             FMT_STRING(
                 R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})"),
             invariant->getName(), isCurr ? "Curr" : "Snap", level,
-            binToHex(bucket->getHash()), result);
+            binToHex(bucket->getPrimaryHash()), result);
         onInvariantFailure(invariant, message, ledger);
     }
 }

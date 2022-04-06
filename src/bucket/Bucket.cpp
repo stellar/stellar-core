@@ -79,20 +79,40 @@ Bucket::addFile(std::filesystem::path const& file, Hash const& hash,
     }
 }
 
-Hash const
+std::optional<Hash const> const&
 Bucket::getHash(BucketSortOrder type) const
 {
-    return type == BucketSortOrder::SortByType
-               ? mSortByTypeHash.value_or(Hash{})
-               : mSortByAccountHash.value_or(Hash{});
+    return type == BucketSortOrder::SortByType ? mSortByTypeHash
+                                               : mSortByAccountHash;
 }
 
-std::filesystem::path const
+std::optional<std::filesystem::path const> const&
 Bucket::getFilename(BucketSortOrder type) const
 {
-    return type == BucketSortOrder::SortByType
-               ? mSortByTypeFilename.value_or(std::filesystem::path{})
-               : mSortByAccountFilename.value_or(std::filesystem::path{});
+    return type == BucketSortOrder::SortByType ? mSortByTypeFilename
+                                               : mSortByAccountFilename;
+}
+
+Hash const
+Bucket::getPrimaryHash() const
+{
+    if (mSortByAccountHash.has_value())
+    {
+        return *mSortByAccountHash;
+    }
+
+    if (mSortByTypeHash.has_value())
+    {
+        return *mSortByTypeHash;
+    }
+
+    return {};
+}
+
+bool
+Bucket::isEmpty() const
+{
+    return !mSortByAccountHash.has_value() && !mSortByTypeHash.has_value();
 }
 
 size_t

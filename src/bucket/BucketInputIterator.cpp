@@ -98,12 +98,12 @@ BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket,
     // protocol of a pre-protocol-11 bucket, and we have to use as conservative
     // a default as possible to avoid spurious attempted-downgrade errors.
     mMetadata.ledgerVersion = 0;
-    auto filename = bucket->getFilename(type);
-    if (!filename.empty())
+    auto const& filename = bucket->getFilename(type);
+    if (filename)
     {
         CLOG_TRACE(Bucket, "BucketInputIterator opening file to read: {}",
-                   filename);
-        mIn.open(filename);
+                   *filename);
+        mIn.open(*filename);
         loadEntry();
     }
 }

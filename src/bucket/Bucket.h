@@ -41,6 +41,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     size_t mSize{0};
 
   public:
+    static constexpr BucketSortOrder LEDGER_HASH_SORT_ORDER =
+        BucketSortOrder::SortByType;
+
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
@@ -58,10 +61,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     void addFile(std::filesystem::path const& filename, Hash const& hash,
                  BucketSortOrder type);
 
-    Hash const
-    getHash(BucketSortOrder type = BucketSortOrder::SortByType) const;
-    std::filesystem::path const
-    getFilename(BucketSortOrder type = BucketSortOrder::SortByType) const;
+    std::optional<Hash const> const& getHash(BucketSortOrder type) const;
+    std::optional<std::filesystem::path const> const&
+    getFilename(BucketSortOrder type) const;
+    Hash const getPrimaryHash() const;
+    bool isEmpty() const;
 
     size_t getSize() const;
     bool hasFileWithSortOrder(BucketSortOrder type) const;

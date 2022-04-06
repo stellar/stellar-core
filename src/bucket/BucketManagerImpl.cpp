@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
@@ -519,10 +520,12 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
         if (type == BucketSortOrder::SortByAccount &&
             b->hasFileWithSortOrder(BucketSortOrder::SortByType))
         {
+            auto const& sortByTypeHash =
+                b->getHash(BucketSortOrder::SortByType);
+            releaseAssert(sortByTypeHash);
             releaseAssert(mAccountToTypeHashes.find(hash) ==
                           mAccountToTypeHashes.end());
-            mAccountToTypeHashes.emplace(
-                hash, b->getHash(BucketSortOrder::SortByType));
+            mAccountToTypeHashes.emplace(hash, *sortByTypeHash);
         }
 
         if (type == BucketSortOrder::SortByType &&
@@ -530,9 +533,10 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
         {
             auto const& sortByAccountHash =
                 b->getHash(BucketSortOrder::SortByAccount);
-            releaseAssert(mAccountToTypeHashes.find(sortByAccountHash) ==
+            releaseAssert(sortByAccountHash);
+            releaseAssert(mAccountToTypeHashes.find(*sortByAccountHash) ==
                           mAccountToTypeHashes.end());
-            mAccountToTypeHashes.emplace(sortByAccountHash, hash);
+            mAccountToTypeHashes.emplace(*sortByAccountHash, hash);
         }
 
         writeBucketFileMapToPersistentState();
@@ -638,14 +642,24 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         {
             // If the hash was a sortByAccount hash, redo search for
             // corresponding sortByType hash
+            CLOG_TRACE(Bucket,
+                       "BucketManager::getBucketByHash({}) redirected to "
+                       "sorted-by-account hash {}",
+                       binToHex(hash), binToHex(iter->second));
             i = mSharedBuckets.find(iter->second);
         }
     }
 
     if (i != mSharedBuckets.end())
     {
-        CLOG_TRACE(Bucket, "BucketManager::getBucketByHash({}) found bucket {}",
-                   binToHex(hash), i->second->getFilename());
+        auto const& ty = i->second->getFilename(BucketSortOrder::SortByType);
+        auto const& acct =
+            i->second->getFilename(BucketSortOrder::SortByAccount);
+        CLOG_TRACE(Bucket,
+                   "BucketManager::getBucketByHash({}) found bucket by-type:{} "
+                   "/ by-account:{}",
+                   binToHex(hash), ty ? *ty : "<none>",
+                   acct ? *acct : "<none>");
         return i->second;
     }
 
@@ -800,7 +814,7 @@ BucketManagerImpl::getReferencedBuckets() const
             return;
         }
 
-        auto rit = referenced.emplace(b->getHash(type));
+        auto rit = referenced.emplace(*b->getHash(type));
         if (rit.second)
         {
             CLOG_TRACE(Bucket, "{} referenced by bucket list",
@@ -963,15 +977,22 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
             if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByAccount))
             {
-                mAccountToTypeHashes.erase(
-                    j->second->getHash(BucketSortOrder::SortByAccount));
-                deleteFile(
-                    j->second->getFilename(BucketSortOrder::SortByAccount));
+                auto const& hash =
+                    j->second->getHash(BucketSortOrder::SortByAccount);
+                auto const& path =
+                    j->second->getFilename(BucketSortOrder::SortByAccount);
+                releaseAssert(hash);
+                releaseAssert(path);
+                mAccountToTypeHashes.erase(*hash);
+                deleteFile(*path);
             }
 
             if (j->second->hasFileWithSortOrder(BucketSortOrder::SortByType))
             {
-                deleteFile(j->second->getFilename(BucketSortOrder::SortByType));
+                auto const& path =
+                    j->second->getFilename(BucketSortOrder::SortByType);
+                releaseAssert(path);
+                deleteFile(*path);
             }
 
             // Dropping this bucket means we'll no longer be able to
@@ -1330,9 +1351,15 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
             throw std::runtime_error(fmt::format(
                 FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
         }
-        seq.emplace_back(std::make_shared<VerifyBucketWork>(
-            mApp, b->getFilename(BucketSortOrder::SortByType),
-            b->getHash(BucketSortOrder::SortByType), nullptr));
+        for (auto ty :
+             {BucketSortOrder::SortByType, BucketSortOrder::SortByAccount})
+        {
+            if (b->hasFileWithSortOrder(ty))
+            {
+                seq.emplace_back(std::make_shared<VerifyBucketWork>(
+                    mApp, *b->getFilename(ty), *b->getHash(ty), nullptr));
+            }
+        }
     }
     return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);

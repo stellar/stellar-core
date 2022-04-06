@@ -6,6 +6,7 @@
 
 #include "overlay/StellarXDR.h"
 #include "util/XDROperators.h"
+#include <functional>
 
 namespace stellar
 {

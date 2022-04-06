@@ -32,8 +32,13 @@ uint256
 BucketLevel::getHash() const
 {
     SHA256 hsh;
-    hsh.add(mCurr->getHash());
-    hsh.add(mSnap->getHash());
+    auto const& curr = mCurr->getHash(Bucket::LEDGER_HASH_SORT_ORDER);
+    auto const& snap = mSnap->getHash(Bucket::LEDGER_HASH_SORT_ORDER);
+
+    // Empty bucket effects hash, so add empty hash if option is null
+    hsh.add(curr.value_or(Hash{}));
+    hsh.add(snap.value_or(Hash{}));
+
     return hsh.finish();
 }
 
@@ -622,7 +627,6 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             // spill, and after such spills, new merges are started with new
             // inputs.
             auto snap = mLevels[i - 1].getSnap();
-            Hash const emptyHash;
 
             // Exit early if a level has not been initialized yet;
             // There are two possibilities for empty buckets: it is either truly
@@ -632,7 +636,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             // 10-or-earlier bucket, it must have had an output published, and
             // would be handled in the previous `if` block. Therefore, we must
             // be dealing with an untouched level.
-            if (snap->getHash() == emptyHash)
+            if (snap->isEmpty())
             {
                 return;
             }

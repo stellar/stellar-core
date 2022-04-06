@@ -94,7 +94,7 @@ TxSimGenerateBucketsWork::processGeneratedBucket()
 
     auto newBucket = mIntermediateBuckets.front();
     mIntermediateBuckets.pop_front();
-    auto hash = newBucket->getHash();
+    auto hash = newBucket->getPrimaryHash();
     mBuckets[binToHex(hash)] = newBucket;
 
     // Forget any intermediate buckets produced

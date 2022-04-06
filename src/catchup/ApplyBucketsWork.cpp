@@ -171,8 +171,8 @@ ApplyBucketsWork::startLevel()
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
 
-    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
-    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
+    bool applySnap = (i.snap != binToHex(level.getSnap()->getPrimaryHash()));
+    bool applyCurr = (i.curr != binToHex(level.getCurr()->getPrimaryHash()));
 
     if (mApplying || applySnap)
     {

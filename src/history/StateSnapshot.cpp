@@ -149,7 +149,8 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
     {
         auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
         releaseAssert(b);
-        addIfExists(std::make_shared<FileTransferInfo>(*b));
+        addIfExists(std::make_shared<FileTransferInfo>(
+            *b, BucketSortOrder::SortByType));
     }
 
     return files;

@@ -231,15 +231,17 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
             // experimental mode, that the experimental file exists, and that it
             // is valid and consistent with the non-experimental file
             CHECK(bucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
-            auto sortByAccountFilename =
+            auto const& sortByAccountFilename =
                 bucket->getFilename(BucketSortOrder::SortByAccount);
-            CHECK(!sortByAccountFilename.empty());
-            CHECK(fs::exists(sortByAccountFilename));
+            REQUIRE(sortByAccountFilename);
+            CHECK(fs::exists(*sortByAccountFilename));
             CHECK(isFileSorted<BucketSortOrder::SortByAccount>(
-                bucket, sortByAccountFilename));
+                bucket, *sortByAccountFilename));
+            auto const& sortByTypeFilename = bucket->getFilename(BucketSortOrder::SortByType);
+            REQUIRE(sortByTypeFilename);
             CHECK(areFilesConsistent(
-                bucket, bucket->getFilename(BucketSortOrder::SortByType),
-                sortByAccountFilename));
+                bucket, *sortByTypeFilename,
+                *sortByAccountFilename));
         }
     }
     else

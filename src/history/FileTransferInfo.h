@@ -28,10 +28,10 @@ class FileTransferInfo
     std::string getLocalDir(TmpDir const& localRoot) const;
 
   public:
-    FileTransferInfo(Bucket const& bucket)
+    FileTransferInfo(Bucket const& bucket, BucketSortOrder type)
         : mType(HISTORY_FILE_TYPE_BUCKET)
-        , mHexDigits(binToHex(bucket.getHash()))
-        , mLocalPath(bucket.getFilename())
+        , mHexDigits(binToHex(*bucket.getHash(type)))
+        , mLocalPath(*bucket.getFilename(type))
     {
     }
 

@@ -311,7 +311,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             app.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
         releaseAssert(bucket);
         int32_t version = 0;
-        if (bucket->getHash() != emptyHash)
+        if (!bucket->isEmpty())
         {
             version = Bucket::getBucketVersion(bucket);
             if (!nonEmptySeen)
@@ -441,9 +441,9 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     {
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);
-        b.curr = binToHex(level.getCurr()->getHash());
+        b.curr = binToHex(level.getCurr()->getPrimaryHash());
         b.next = level.getNext();
-        b.snap = binToHex(level.getSnap()->getHash());
+        b.snap = binToHex(level.getSnap()->getPrimaryHash());
         currentBuckets.push_back(b);
     }
 }

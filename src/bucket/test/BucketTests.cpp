@@ -167,7 +167,9 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
                     /*doFsync=*/true);
             }
         }
-        auto sz = static_cast<size_t>(fileSize(b1->getFilename()));
+        auto pathOp = b1->getFilename(BucketSortOrder::SortByType);
+        REQUIRE(pathOp.has_value());
+        auto sz = static_cast<size_t>(fileSize(*pathOp));
         CLOG_DEBUG(Bucket, "Spill file size: {}", sz);
     });
 }

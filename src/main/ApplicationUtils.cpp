@@ -421,7 +421,9 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto bucket = bm.mergeBuckets(has);
 
     using std::filesystem::path;
-    path bpath(bucket->getFilename());
+    auto pathOp = bucket->getFilename(BucketSortOrder::SortByType);
+    releaseAssert(pathOp.has_value());
+    path bpath(*pathOp);
     path outpath(outputDir);
     outpath /= bpath.filename();
     if (fs::durableRename(bpath.string(), outpath.string(), outputDir))

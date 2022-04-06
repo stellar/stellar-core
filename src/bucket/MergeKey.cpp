@@ -15,13 +15,13 @@ MergeKey::MergeKey(bool keepDeadEntries,
                    std::shared_ptr<Bucket> const& inputSnap,
                    std::vector<std::shared_ptr<Bucket>> const& inputShadows)
     : mKeepDeadEntries(keepDeadEntries)
-    , mInputCurrBucket(inputCurr->getHash())
-    , mInputSnapBucket(inputSnap->getHash())
+    , mInputCurrBucket(inputCurr->getPrimaryHash())
+    , mInputSnapBucket(inputSnap->getPrimaryHash())
 {
     mInputShadowBuckets.reserve(inputShadows.size());
     for (auto const& s : inputShadows)
     {
-        mInputShadowBuckets.emplace_back(s->getHash());
+        mInputShadowBuckets.emplace_back(s->getPrimaryHash());
     }
 }
 

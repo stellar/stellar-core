@@ -46,8 +46,8 @@ FutureBucket::FutureBucket(Application& app,
     // presence of inputs implies merging, and vice-versa.
     releaseAssert(curr);
     releaseAssert(snap);
-    mInputCurrBucketHash = binToHex(curr->getHash());
-    mInputSnapBucketHash = binToHex(snap->getHash());
+    mInputCurrBucketHash = binToHex(curr->getPrimaryHash());
+    mInputSnapBucketHash = binToHex(snap->getPrimaryHash());
     if (protocolVersionStartsFrom(Bucket::getBucketVersion(snap),
                                   Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
     {
@@ -59,7 +59,7 @@ FutureBucket::FutureBucket(Application& app,
     }
     for (auto const& b : mInputShadowBuckets)
     {
-        mInputShadowBucketHashes.push_back(binToHex(b->getHash()));
+        mInputShadowBucketHashes.push_back(binToHex(b->getPrimaryHash()));
     }
     startMerge(app, maxProtocolVersion, countMergeEvents, level);
 }
@@ -69,7 +69,7 @@ FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 {
     ZoneScoped;
     mState = FB_LIVE_OUTPUT;
-    mOutputBucketHash = binToHex(output->getHash());
+    mOutputBucketHash = binToHex(output->getPrimaryHash());
     mOutputBucket = output;
     checkState();
 }
@@ -77,7 +77,7 @@ FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 static void
 checkHashEq(std::shared_ptr<Bucket> const& b, std::string const& h)
 {
-    releaseAssert(b->getHash() == hexToBin256(h));
+    releaseAssert(b->getPrimaryHash() == hexToBin256(h));
 }
 
 void
@@ -259,7 +259,7 @@ FutureBucket::resolve()
     {
         auto timer = LogSlowExecution("Resolving bucket");
         mOutputBucket = mOutputBucketFuture.get();
-        mOutputBucketHash = binToHex(mOutputBucket->getHash());
+        mOutputBucketHash = binToHex(mOutputBucket->getPrimaryHash());
 
         // Explicitly reset shared_future to ensure destruction of shared state.
         // Some compilers store packaged_task lambdas in the shared state,
@@ -323,7 +323,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     releaseAssert(!mOutputBucket);
 
     CLOG_TRACE(Bucket, "Preparing merge of curr={} with snap={}",
-               hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
+               hexAbbrev(curr->getPrimaryHash()),
+               hexAbbrev(snap->getPrimaryHash()));
 
     BucketManager& bm = app.getBucketManager();
     auto& timer = app.getMetrics().NewTimer(
@@ -340,7 +341,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     {
         CLOG_TRACE(Bucket,
                    "Re-attached to existing merge of curr={} with snap={}",
-                   hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
+                   hexAbbrev(curr->getPrimaryHash()),
+                   hexAbbrev(snap->getPrimaryHash()));
         mOutputBucketFuture = f;
         checkState();
         return;
@@ -351,7 +353,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
          &timer, &app]() mutable {
             auto timeScope = timer.TimeScope();
             CLOG_TRACE(Bucket, "Worker merging curr={} with snap={}",
-                       hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
+                       hexAbbrev(curr->getPrimaryHash()),
+                       hexAbbrev(snap->getPrimaryHash()));
 
             try
             {
@@ -366,9 +369,10 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
                 if (res)
                 {
-                    CLOG_TRACE(
-                        Bucket, "Worker finished merging curr={} with snap={}",
-                        hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
+                    CLOG_TRACE(Bucket,
+                               "Worker finished merging curr={} with snap={}",
+                               hexAbbrev(curr->getPrimaryHash()),
+                               hexAbbrev(snap->getPrimaryHash()));
 
                     std::chrono::duration<double> time(timeScope.Stop());
                     double timePct =
@@ -388,8 +392,9 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                 throw std::runtime_error(fmt::format(
                     FMT_STRING("Error merging bucket curr={} with snap={}: "
                                "{}. {}"),
-                    hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
-                    e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
+                    hexAbbrev(curr->getPrimaryHash()),
+                    hexAbbrev(snap->getPrimaryHash()), e.what(),
+                    POSSIBLY_CORRUPTED_LOCAL_FS));
             };
         });
 
