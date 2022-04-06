@@ -258,6 +258,9 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
 
     bool fullKeys = retMap["fullkeys"] == "true";
+    // compact should be true by default
+    // as the response can be quite verbose.
+    bool compact = retMap["compact"] != "false";
     Json::Value root;
 
     auto& pendingPeers = root["pending_peers"];
@@ -284,15 +287,9 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
             for (auto const& peer : peers)
             {
                 auto& peerNode = node[counter++];
-                peerNode["address"] = peer.second->toString();
-                peerNode["elapsed"] = (int)peer.second->getLifeTime().count();
-                peerNode["latency"] = (int)peer.second->getPing().count();
-                peerNode["ver"] = peer.second->getRemoteVersion();
-                peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
+                peerNode = peer.second->getJsonInfo(compact);
                 peerNode["id"] =
                     mApp.getConfig().toStrKey(peer.first, fullKeys);
-                peerNode["flow_control"] =
-                    peer.second->getFlowControlJsonInfo();
             }
         };
     addAuthenticatedPeers(

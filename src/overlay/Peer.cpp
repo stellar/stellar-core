@@ -294,6 +294,23 @@ Peer::getFlowControlJsonInfo() const
     return res;
 }
 
+Json::Value
+Peer::getJsonInfo(bool compact) const
+{
+    Json::Value res;
+    res["address"] = mAddress.toString();
+    res["elapsed"] = (int)getLifeTime().count();
+    res["latency"] = (int)getPing().count();
+    res["ver"] = getRemoteVersion();
+    res["olver"] = (int)getRemoteOverlayVersion();
+    res["flow_control"] = getFlowControlJsonInfo();
+    if (!compact)
+    {
+    }
+
+    return res;
+}
+
 void
 Peer::sendAuth()
 {

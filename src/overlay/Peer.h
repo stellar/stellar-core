@@ -134,6 +134,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     Peer::FlowControlState flowControlEnabled() const;
 
     Json::Value getFlowControlJsonInfo() const;
+    Json::Value getJsonInfo(bool compact) const;
 
   protected:
     Application& mApp;
