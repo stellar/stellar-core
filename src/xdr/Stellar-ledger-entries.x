@@ -306,7 +306,8 @@ struct TrustLineEntry
 
 enum OfferEntryFlags
 {
-    // an offer with this flag will not act on and take a reverse offer of equal price
+    // an offer with this flag will not act on and take a reverse offer of equal
+    // price
     PASSIVE_FLAG = 1
 };
 
@@ -387,7 +388,7 @@ case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
     int64 absBefore; // Predicate will be true if closeTime < absBefore
 case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
     int64 relBefore; // Seconds since closeTime of the ledger in which the
-                        // ClaimableBalanceEntry was created
+                     // ClaimableBalanceEntry was created
 };
 
 enum ClaimantType
@@ -466,7 +467,7 @@ struct LiquidityPoolConstantProductParameters
 {
     Asset assetA; // assetA < assetB
     Asset assetB;
-    int32 fee;    // Fee is in basis points, so the actual rate is (fee/100)%
+    int32 fee; // Fee is in basis points, so the actual rate is (fee/100)%
 };
 
 struct LiquidityPoolEntry
@@ -483,7 +484,8 @@ struct LiquidityPoolEntry
             int64 reserveA;        // amount of A in the pool
             int64 reserveB;        // amount of B in the pool
             int64 totalPoolShares; // total number of pool shares issued
-            int64 poolSharesTrustLineCount; // number of trust lines for the associated pool shares
+            int64 poolSharesTrustLineCount; // number of trust lines for the
+                                            // associated pool shares
         } constantProduct;
     }
     body;
