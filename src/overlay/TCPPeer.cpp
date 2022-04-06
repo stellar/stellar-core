@@ -268,6 +268,7 @@ TCPPeer::messageSender()
     CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", toString(),
                expected_length, mWriteBuffers.size(), mWriteQueue.size());
     getOverlayMetrics().mAsyncWrite.Mark();
+    mPeerMetrics.mAsyncWrite++;
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     asio::async_write(*(mSocket.get()), mWriteBuffers,
                       [self, expected_length](asio::error_code const& ec,
@@ -293,7 +294,8 @@ TCPPeer::messageSender()
                           while (!self->mWriteBuffers.empty())
                           {
                               i->mCompletedTime = now;
-                              i->recordWriteTiming(self->getOverlayMetrics());
+                              i->recordWriteTiming(self->getOverlayMetrics(),
+                                                   self->mPeerMetrics);
                               ++i;
                               self->mWriteBuffers.pop_back();
                           }
@@ -311,7 +313,8 @@ TCPPeer::messageSender()
 }
 
 void
-TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
+TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
+                                               PeerMetrics& peerMetrics)
 {
     auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
         mIssuedTime - mEnqueuedTime);
@@ -319,6 +322,8 @@ TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
         mCompletedTime - mIssuedTime);
     metrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
     metrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
+    peerMetrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
+    peerMetrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
 }
 
 void
@@ -533,6 +538,7 @@ TCPPeer::startRead()
         // header (message length), issue an async_read and hope that the
         // buffering pulls in much more than just the 4 bytes we ask for here.
         getOverlayMetrics().mAsyncRead.Mark();
+        mPeerMetrics.mAsyncRead++;
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
         asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                          [self](asio::error_code ec, std::size_t length) {
