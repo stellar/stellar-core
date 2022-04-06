@@ -1,6 +1,6 @@
 #![no_std]
+use sdk::Val;
 use stellar_contract_sdk as sdk;
-use sdk::{Val};
 
 mod helper_contract_interface;
 use helper_contract_interface::HelperContract;

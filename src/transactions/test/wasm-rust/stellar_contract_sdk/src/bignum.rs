@@ -3,7 +3,13 @@ use core::{
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
 };
 
-use super::{host_fns, object::{ObjType, OBJ_BIGNUM}, status, Object, Status, Val, val::ValType};
+use super::{
+    host_fns,
+    object::{ObjType, OBJ_BIGNUM},
+    status,
+    val::ValType,
+    Object, Status, Val,
+};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -161,7 +167,12 @@ impl PartialOrd for BigNum {
 impl Eq for BigNum {}
 impl Ord for BigNum {
     fn cmp(&self, other: &Self) -> Ordering {
-        let i = unsafe { <i32 as ValType>::unchecked_from_val(host_fns::bignum_cmp((*self).into(), (*other).into())) };
+        let i = unsafe {
+            <i32 as ValType>::unchecked_from_val(host_fns::bignum_cmp(
+                (*self).into(),
+                (*other).into(),
+            ))
+        };
         if i < 0 {
             Ordering::Less
         } else if i > 0 {
@@ -173,7 +184,6 @@ impl Ord for BigNum {
 }
 
 impl BigNum {
-
     unsafe fn unchecked_new(obj: Object) -> Self {
         Self(obj)
     }

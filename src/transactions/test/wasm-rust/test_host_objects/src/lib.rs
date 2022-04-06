@@ -1,6 +1,6 @@
 #![no_std]
+use sdk::{log_value, Map, OrAbort, Symbol, Val};
 use stellar_contract_sdk as sdk;
-use sdk::{Map,Val,Symbol,log_value, OrAbort};
 
 const STEP1: Symbol = Symbol::from_str("step1");
 const STEP2: Symbol = Symbol::from_str("step2");
@@ -9,15 +9,14 @@ const STEP4: Symbol = Symbol::from_str("step4");
 
 #[no_mangle]
 pub fn invoke(k: Val, v: Val) -> Val {
-
     let k: Symbol = k.try_into().or_abort();
     log_value(STEP1.into());
 
     log_value(v);
     let v: u32 = v.try_into().or_abort();
     log_value(STEP2.into());
- 
-    let m: Map<Symbol,u32> = Map::new();
+
+    let m: Map<Symbol, u32> = Map::new();
     log_value(STEP3.into());
 
     let m = m.put(k, v);

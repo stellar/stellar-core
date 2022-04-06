@@ -1,4 +1,7 @@
-use super::{object::{ObjType, OBJ_OPERATION_RESULT}, status, Object, Status, Val};
+use super::{
+    object::{ObjType, OBJ_OPERATION_RESULT},
+    status, Object, Status, Val,
+};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]

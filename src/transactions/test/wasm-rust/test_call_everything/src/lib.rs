@@ -1,13 +1,12 @@
 #![no_std]
+use sdk::{BigNum, Map, Object, OrAbort, Symbol, Val, Vec};
 use stellar_contract_sdk as sdk;
-use sdk::{Val,Vec,Map,Object,BigNum,OrAbort,Symbol};
 
 #[no_mangle]
 pub fn call_everything() -> Val {
-
     let n = 0;
-    let v:Val = n.into();
-    const S:Symbol = Symbol::from_str("S");
+    let v: Val = n.into();
+    const S: Symbol = Symbol::from_str("S");
     let _ = sdk::call0(v, S);
     let _ = sdk::call1(v, S, v);
     let _ = sdk::call2(v, S, v, v);
@@ -18,13 +17,13 @@ pub fn call_everything() -> Val {
     let _ = sdk::get_last_operation_result();
     let _ = sdk::log_value(v);
 
-    let m: Map<u32,u32> = Map::new();
+    let m: Map<u32, u32> = Map::new();
     let m = m.put(n, n);
     let n = m.get(n);
     let m = m.del(n);
     let k = m.keys();
 
-    let v:Vec<u32> = Vec::new();
+    let v: Vec<u32> = Vec::new();
     let v = v.put(n, n);
     let n = v.get(n);
     let v = v.del(n);
@@ -37,8 +36,8 @@ pub fn call_everything() -> Val {
     let n = v.back();
     let v = v.insert(n, n);
     let v = v.append(v);
-    
-    let bn:BigNum = 0.try_into().or_abort();
+
+    let bn: BigNum = 0.try_into().or_abort();
     let bn = bn + bn;
     let bn = bn - bn;
     let bn = bn * bn;

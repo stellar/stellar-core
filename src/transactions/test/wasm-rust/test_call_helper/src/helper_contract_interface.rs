@@ -1,5 +1,5 @@
+use sdk::{Symbol, Val};
 use stellar_contract_sdk as sdk;
-use sdk::{Val,Symbol};
 
 // This file contains a wrapper type around a Val that presents a static
 // interface to the methods on the helper contract. It implements them by
@@ -17,9 +17,8 @@ use sdk::{Val,Symbol};
 pub struct HelperContract(Val);
 
 impl HelperContract {
-
     #[inline(always)]
-    pub fn helper(&self, v:u32) -> Val {
+    pub fn helper(&self, v: u32) -> Val {
         const HELPER: Symbol = Symbol::from_str("helper");
         sdk::call1(self.0, HELPER, v.into())
     }

@@ -1,15 +1,15 @@
 use core::marker::PhantomData;
 
 use super::host_fns;
-use super::val::ValType;
 use super::object::ObjType;
-use super::{Object, Val, Vec, status, Status, object::OBJ_MAP};
+use super::val::ValType;
+use super::{object::OBJ_MAP, status, Object, Status, Val, Vec};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Map<K, V>(Object, PhantomData<K>, PhantomData<V>);
 
-impl<K:ValType,V:ValType> TryFrom<Object> for Map<K,V> {
+impl<K: ValType, V: ValType> TryFrom<Object> for Map<K, V> {
     type Error = Status;
 
     fn try_from(obj: Object) -> Result<Self, Self::Error> {
@@ -21,11 +21,11 @@ impl<K:ValType,V:ValType> TryFrom<Object> for Map<K,V> {
     }
 }
 
-impl<K:ValType,V:ValType> TryFrom<Val> for Map<K,V> {
+impl<K: ValType, V: ValType> TryFrom<Val> for Map<K, V> {
     type Error = Status;
 
     fn try_from(val: Val) -> Result<Self, Self::Error> {
-        let obj:Object = val.try_into()?;
+        let obj: Object = val.try_into()?;
         obj.try_into()
     }
 }
@@ -55,7 +55,6 @@ impl<K: ValType, V: ValType> ObjType for Map<K, V> {
 }
 
 impl<K: ValType, V: ValType> Map<K, V> {
-
     #[inline(always)]
     pub fn new() -> Map<K, V> {
         unsafe { Self::unchecked_from_obj(host_fns::map_new()) }

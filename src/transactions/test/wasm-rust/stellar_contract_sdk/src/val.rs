@@ -1,5 +1,5 @@
-use super::{Object,Symbol,BitSet,Status,status};
 use super::OrAbort;
+use super::{status, BitSet, Object, Status, Symbol};
 
 pub(crate) const TAG_U32: u8 = 0;
 pub(crate) const TAG_I32: u8 = 1;
@@ -17,7 +17,7 @@ const STATIC_FALSE: u32 = 2;
 #[derive(Copy, Clone)]
 pub struct Val(u64);
 
-pub trait ValType : Into<Val> {
+pub trait ValType: Into<Val> {
     fn is_val_type(v: Val) -> bool;
     unsafe fn unchecked_from_val(v: Val) -> Self;
 }
@@ -137,8 +137,6 @@ impl From<i32> for Val {
         Val::from_i32(i)
     }
 }
-
-
 
 impl Val {
     #[inline(always)]

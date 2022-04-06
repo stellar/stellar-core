@@ -5,7 +5,7 @@ use super::object::ObjType;
 use super::host_fns;
 use super::val::ValType;
 use super::OrAbort;
-use super::{object::OBJ_VEC, Object, Status, status, Val};
+use super::{object::OBJ_VEC, status, Object, Status, Val};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -46,7 +46,7 @@ impl<T: ValType> From<Vec<T>> for Val {
     }
 }
 
-impl<V:ValType> ObjType for Vec<V> {
+impl<V: ValType> ObjType for Vec<V> {
     fn is_obj_type(obj: Object) -> bool {
         obj.is_type(OBJ_VEC)
     }
@@ -57,7 +57,6 @@ impl<V:ValType> ObjType for Vec<V> {
 }
 
 impl<T: ValType> Vec<T> {
-
     unsafe fn unchecked_new(obj: Object) -> Self {
         Self(obj, PhantomData)
     }

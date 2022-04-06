@@ -1,4 +1,4 @@
-use super::{Val,Object};
+use super::{Object, Val};
 
 // Most host functions have strong contractual guarantees from the host: they
 // will either return the correctly-typed objects here, or they will trap. So we
@@ -23,7 +23,7 @@ use super::{Val,Object};
 // them so it's ok that they are a little more expensive code-size-wise.
 
 // General context-access functions live in the 'x' module.
-#[link(wasm_import_module="x")]
+#[link(wasm_import_module = "x")]
 extern "C" {
 
     // link names are chosen to be (a) unrepresentable as rust identifiers so
@@ -37,82 +37,82 @@ extern "C" {
     // pick a different prefix-char for the category-overflow space; both of
     // these possibilities seem unlikely at present, but either way they're
     // fairly straightforward.
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn log_value(v: Val) -> Val;
 
     // Fetches an OpResult object for inspection, in the rare case the user
     // wants more detail than is conveyed in a simple Status.
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn get_last_operation_result() -> Object;
 }
 
 // Map functions live in the 'm' module
-#[link(wasm_import_module="m")]
+#[link(wasm_import_module = "m")]
 extern "C" {
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn map_new() -> Object;
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn map_put(m: Object, k: Val, v: Val) -> Object;
-    #[link_name="$1"]
+    #[link_name = "$1"]
     pub(crate) fn map_get(m: Object, k: Val) -> Val;
-    #[link_name="$2"]
+    #[link_name = "$2"]
     pub(crate) fn map_del(m: Object, k: Val) -> Object;
-    #[link_name="$3"]
+    #[link_name = "$3"]
     pub(crate) fn map_len(m: Object) -> Val;
-    #[link_name="$4"]
+    #[link_name = "$4"]
     pub(crate) fn map_keys(m: Object) -> Object;
 }
 
 // Vec functions live in the 'v' module
-#[link(wasm_import_module="m")]
+#[link(wasm_import_module = "v")]
 extern "C" {
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn vec_new() -> Object;
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn vec_put(v: Object, i: Val, x: Val) -> Object;
-    #[link_name="$1"]
+    #[link_name = "$1"]
     pub(crate) fn vec_get(v: Object, i: Val) -> Val;
-    #[link_name="$2"]
+    #[link_name = "$2"]
     pub(crate) fn vec_del(v: Object, i: Val) -> Object;
-    #[link_name="$3"]
+    #[link_name = "$3"]
     pub(crate) fn vec_len(v: Object) -> Val;
 
-    #[link_name="$4"]
+    #[link_name = "$4"]
     pub(crate) fn vec_push(v: Object, x: Val) -> Object;
-    #[link_name="$5"]
+    #[link_name = "$5"]
     pub(crate) fn vec_pop(v: Object) -> Object;
-    #[link_name="$6"]
+    #[link_name = "$6"]
     pub(crate) fn vec_take(v: Object, n: Val) -> Object;
-    #[link_name="$7"]
+    #[link_name = "$7"]
     pub(crate) fn vec_drop(v: Object, n: Val) -> Object;
-    #[link_name="$8"]
+    #[link_name = "$8"]
     pub(crate) fn vec_front(v: Object) -> Val;
-    #[link_name="$9"]
+    #[link_name = "$9"]
     pub(crate) fn vec_back(v: Object) -> Val;
-    #[link_name="$A"]
+    #[link_name = "$A"]
     pub(crate) fn vec_insert(v: Object, i: Val, x: Val) -> Object;
-    #[link_name="$B"]
+    #[link_name = "$B"]
     pub(crate) fn vec_append(v1: Object, v2: Object) -> Object;
 }
 
 // Ledger functions live in the 'l' module
-#[link(wasm_import_module="l")]
+#[link(wasm_import_module = "l")]
 extern "C" {
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn get_current_ledger_num() -> Val;
 
     // NB: this returns a raw/unboxed u64, not a Val union.
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn get_current_ledger_close_time() -> u64;
 
     // NB: returns a Status; details can be fetched with
     // get_last_operation_result.
-    #[link_name="$1"]
+    #[link_name = "$1"]
     pub(crate) fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val;
 }
 
 // Cross-contract functions live in the 'c' module
-#[link(wasm_import_module="c")]
+#[link(wasm_import_module = "c")]
 extern "C" {
     // NB: returns callee-return-value-or-Status; details can be fetched with
     // get_last_operation_result.
@@ -120,59 +120,59 @@ extern "C" {
     // TODO: possibly revisit this since it adds ambiguity to whether callee
     // successfully returned a status, or call failed and failure _generated_ a
     // status. Possibly this distinction is too fussy to disambiguate.
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn call0(contract: Val, func: Val) -> Val;
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn call1(contract: Val, func: Val, a: Val) -> Val;
-    #[link_name="$1"]
+    #[link_name = "$1"]
     pub(crate) fn call2(contract: Val, func: Val, a: Val, b: Val) -> Val;
-    #[link_name="$2"]
+    #[link_name = "$2"]
     pub(crate) fn call3(contract: Val, func: Val, a: Val, b: Val, c: Val) -> Val;
-    #[link_name="$3"]
+    #[link_name = "$3"]
     pub(crate) fn call4(contract: Val, func: Val, a: Val, b: Val, c: Val, d: Val) -> Val;
 }
 
 // BigNum functions live in the 'b' module
-#[link(wasm_import_module="b")]
+#[link(wasm_import_module = "b")]
 extern "C" {
-    #[link_name="$_"]
+    #[link_name = "$_"]
     pub(crate) fn bignum_from_u64(x: u64) -> Object;
-    #[link_name="$0"]
+    #[link_name = "$0"]
     pub(crate) fn bignum_add(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$1"]
+    #[link_name = "$1"]
     pub(crate) fn bignum_sub(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$2"]
+    #[link_name = "$2"]
     pub(crate) fn bignum_mul(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$3"]
+    #[link_name = "$3"]
     pub(crate) fn bignum_div(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$4"]
+    #[link_name = "$4"]
     pub(crate) fn bignum_rem(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$5"]
+    #[link_name = "$5"]
     pub(crate) fn bignum_and(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$6"]
+    #[link_name = "$6"]
     pub(crate) fn bignum_or(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$7"]
+    #[link_name = "$7"]
     pub(crate) fn bignum_xor(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$8"]
+    #[link_name = "$8"]
     pub(crate) fn bignum_shl(lhs: Object, rhs: u64) -> Object;
-    #[link_name="$9"]
+    #[link_name = "$9"]
     pub(crate) fn bignum_shr(lhs: Object, rhs: u64) -> Object;
-    #[link_name="$A"]
+    #[link_name = "$A"]
     pub(crate) fn bignum_cmp(lhs: Object, rhs: Object) -> Val;
-    #[link_name="$B"]
+    #[link_name = "$B"]
     pub(crate) fn bignum_is_zero(x: Object) -> Val;
-    #[link_name="$C"]
+    #[link_name = "$C"]
     pub(crate) fn bignum_neg(x: Object) -> Object;
-    #[link_name="$D"]
+    #[link_name = "$D"]
     pub(crate) fn bignum_not(x: Object) -> Object;
-    #[link_name="$E"]
+    #[link_name = "$E"]
     pub(crate) fn bignum_gcd(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$F"]
+    #[link_name = "$F"]
     pub(crate) fn bignum_lcm(lhs: Object, rhs: Object) -> Object;
-    #[link_name="$G"]
+    #[link_name = "$G"]
     pub(crate) fn bignum_pow(lhs: Object, rhs: u64) -> Object;
-    #[link_name="$H"]
+    #[link_name = "$H"]
     pub(crate) fn bignum_pow_mod(p: Object, q: Object, m: Object) -> Object;
-    #[link_name="$I"]
+    #[link_name = "$I"]
     pub(crate) fn bignum_sqrt(x: Object) -> Object;
 }

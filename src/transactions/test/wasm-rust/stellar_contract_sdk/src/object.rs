@@ -1,6 +1,5 @@
-
-use super::{Val,OrAbort};
 use super::val::{ValType, TAG_OBJECT};
+use super::{OrAbort, Val};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -16,12 +15,12 @@ impl ValType for Object {
     }
 }
 
-pub trait ObjType : Into<Val> {
+pub trait ObjType: Into<Val> {
     fn is_obj_type(obj: Object) -> bool;
     unsafe fn unchecked_from_obj(obj: Object) -> Self;
 }
 
-impl <OB:ObjType> ValType for OB {
+impl<OB: ObjType> ValType for OB {
     fn is_val_type(v: Val) -> bool {
         v.is_object() && <Self as ObjType>::is_obj_type(v.as_object())
     }

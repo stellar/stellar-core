@@ -1,5 +1,5 @@
-use super::{Val};
 use super::val::{ValType, TAG_BITSET};
+use super::Val;
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]

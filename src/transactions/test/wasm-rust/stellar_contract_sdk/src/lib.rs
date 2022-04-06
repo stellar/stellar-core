@@ -5,31 +5,31 @@
 //#![feature(alloc)]
 //mod alloc;
 
-mod host_fns;
-mod map;
-mod or_abort;
-mod rt;
-mod vec;
 mod bignum;
 mod bitset;
-mod status;
+mod host_fns;
+mod map;
 mod object;
+mod or_abort;
 mod result;
+mod rt;
+mod status;
+mod vec;
 
 mod symbol;
 mod val;
 
+pub use bignum::BigNum;
+pub use bitset::BitSet;
 pub use map::Map;
 use object::ObjType;
-pub use vec::Vec;
+pub use object::Object;
 pub use or_abort::OrAbort;
-pub use val::Val;
+pub use result::OpResult;
 pub use status::Status;
 pub use symbol::Symbol;
-pub use bitset::BitSet;
-pub use object::Object;
-pub use bignum::BigNum;
-pub use result::OpResult;
+pub use val::Val;
+pub use vec::Vec;
 
 #[inline(always)]
 pub fn require(b: bool) {
@@ -38,7 +38,9 @@ pub fn require(b: bool) {
 
 #[inline(always)]
 pub fn log_value(v: Val) {
-    unsafe { host_fns::log_value(v); }
+    unsafe {
+        host_fns::log_value(v);
+    }
 }
 
 #[inline(always)]

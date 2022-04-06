@@ -1,10 +1,10 @@
-use super::val::{Val,ValType,TAG_STATUS};
+use super::val::{Val, ValType, TAG_STATUS};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Status(Val);
 
-const fn decompose_status(body: u64) -> (u32,u32) {
+const fn decompose_status(body: u64) -> (u32, u32) {
     ((body as u32) >> 4, (body >> 32) as u32)
 }
 
@@ -20,7 +20,8 @@ const SST_PAYMENT_RESULT: u32 = 4;
 const SST_INVOKE_CONTRACT_RESULT: u32 = 5;
 // See SCStatusType in stellar-transaction.x
 
-pub const UNKNOWN_ERROR: Status = Status(unsafe { Val::from_body_and_tag(compose_status(SST_UNKNOWN, 0), TAG_STATUS) });
+pub const UNKNOWN_ERROR: Status =
+    Status(unsafe { Val::from_body_and_tag(compose_status(SST_UNKNOWN, 0), TAG_STATUS) });
 
 impl ValType for Status {
     #[inline(always)]

@@ -16,11 +16,10 @@ HostVal::asSymbol() const
     for (size_t off = 6; off <= MAXBITS; off += 6)
     {
         auto idx = (tmp >> (MAXBITS - off)) & 63;
-        if (idx == 0)
+        if (idx != 0)
         {
-            break;
+            out += dict[idx - 1];
         }
-        out += dict[idx - 1];
     }
     return out;
 }
@@ -62,7 +61,6 @@ HostVal::fromSymbol(std::string const& s)
             throw std::runtime_error("bad symbol char");
         };
     }
-    accum <<= 6 * (MAXSZ - s.size());
     return fromBodyAndTag(accum, TAG_SYMBOL);
 }
 

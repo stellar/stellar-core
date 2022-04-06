@@ -1,10 +1,9 @@
-use super::val::{Val,ValType,TAG_SYMBOL};
 use super::require;
+use super::val::{Val, ValType, TAG_SYMBOL};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Symbol(pub(crate) Val);
-
 
 impl From<Symbol> for Val {
     #[inline(always)]
@@ -15,7 +14,7 @@ impl From<Symbol> for Val {
 
 impl ValType for Symbol {
     #[inline(always)]
-    unsafe fn unchecked_from_val(v:Val) -> Self {
+    unsafe fn unchecked_from_val(v: Val) -> Self {
         Symbol(v)
     }
 
@@ -55,11 +54,10 @@ impl Symbol {
                 '0'..='9' => 2 + ((ch as u64) - ('0' as u64)),
                 'A'..='Z' => 12 + ((ch as u64) - ('A' as u64)),
                 'a'..='z' => 38 + ((ch as u64) - ('a' as u64)),
-                _ => 0,
+                _ => break,
             };
             accum |= v;
         }
-        accum <<= 6 * (MAX_CHARS - n);
         let v = unsafe { Val::from_body_and_tag(accum, TAG_SYMBOL) };
         Symbol(v)
     }
@@ -79,19 +77,20 @@ impl Iterator for SymbolIter {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = match ((self.0 >> (MAX_CHARS-6)) & 63) as u8 {
-            1 => b'_',
-            n @ (2..=11) => (b'0' + n - 2),
-            n @ (12..=37) => (b'A' + n - 12),
-            n @ (38..=63) => (b'a' + n - 38),
-            _ => b'\0',
-        };
-        self.0 <<= 6;
-        if res == 0 {
-            None
-        } else {
-            Some(res as char)
+        while self.0 != 0 {
+            let res = match ((self.0 >> (MAX_CHARS - 6)) & 63) as u8 {
+                1 => b'_',
+                n @ (2..=11) => (b'0' + n - 2),
+                n @ (12..=37) => (b'A' + n - 12),
+                n @ (38..=63) => (b'a' + n - 38),
+                _ => b'\0',
+            };
+            self.0 <<= 6;
+            if res != b'\0' {
+                return Some(res as char);
+            }
         }
+        None
     }
 }
 
@@ -108,11 +107,10 @@ impl FromIterator<char> for Symbol {
                 '0'..='9' => 2 + ((i as u64) - ('0' as u64)),
                 'A'..='Z' => 12 + ((i as u64) - ('A' as u64)),
                 'a'..='z' => 38 + ((i as u64) - ('a' as u64)),
-                _ => 0,
+                _ => break,
             };
             accum |= v;
         }
-        accum <<= 6 * (MAX_CHARS - n);
         let v = unsafe { Val::from_body_and_tag(accum, super::val::TAG_SYMBOL) };
         Symbol(v)
     }
