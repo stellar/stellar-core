@@ -1,9 +1,11 @@
 use core::marker::PhantomData;
 
+use super::object::ObjType;
+
 use super::host_fns;
 use super::val::ValType;
 use super::OrAbort;
-use super::{object::OBJ_VEC, Object, Status, Val};
+use super::{object::OBJ_VEC, Object, Status, status, Val};
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
@@ -16,7 +18,7 @@ impl<V: ValType> TryFrom<Object> for Vec<V> {
         if obj.is_type(OBJ_VEC) {
             Ok(Vec(obj, PhantomData))
         } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -44,34 +46,41 @@ impl<T: ValType> From<Vec<T>> for Val {
     }
 }
 
+impl<V:ValType> ObjType for Vec<V> {
+    fn is_obj_type(obj: Object) -> bool {
+        obj.is_type(OBJ_VEC)
+    }
+
+    unsafe fn unchecked_from_obj(obj: Object) -> Self {
+        Self(obj, PhantomData)
+    }
+}
+
 impl<T: ValType> Vec<T> {
+
+    unsafe fn unchecked_new(obj: Object) -> Self {
+        Self(obj, PhantomData)
+    }
+
     #[inline(always)]
     pub fn new() -> Vec<T> {
         unsafe { host_fns::host__vec_new().try_into().or_abort() }
     }
 
     #[inline(always)]
-    pub fn try_get(&self, i: u32) -> Result<T, <T as TryFrom<Val>>::Error> {
-        let i: Val = i.into();
-        let v: Val = unsafe { host_fns::host__vec_get(self.0.into(), i) };
-        T::try_from(v)
-    }
-
-    #[inline(always)]
     pub fn get(&self, i: u32) -> T {
-        self.try_get(i).or_abort()
+        let i: Val = i.into();
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_get(self.0.into(), i)) }
     }
 
     #[inline(always)]
     pub fn put(&self, i: u32, v: T) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_put(self.0.into(), i.into(), v.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_put(self.0.into(), i.into(), v.into())) }
     }
 
     #[inline(always)]
     pub fn del(&self, i: u32) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_del(self.0.into(), i.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_del(self.0.into(), i.into())) }
     }
 
     #[inline(always)]
@@ -81,49 +90,41 @@ impl<T: ValType> Vec<T> {
 
     #[inline(always)]
     pub fn push(&self, x: T) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_push(self.0.into(), x.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_push(self.0.into(), x.into())) }
     }
 
     #[inline(always)]
     pub fn pop(&self) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_pop(self.0.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_pop(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn take(&self, n: u32) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_take(self.0.into(), n.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_take(self.0.into(), n.into())) }
     }
 
     #[inline(always)]
     pub fn drop(&self, n: u32) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_drop(self.0.into(), n.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_drop(self.0.into(), n.into())) }
     }
 
     #[inline(always)]
     pub fn front(&self) -> T {
-        let x: Val = unsafe { host_fns::host__vec_front(self.0.into()) };
-        T::try_from(x).or_abort()
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_front(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn back(&self) -> T {
-        let x: Val = unsafe { host_fns::host__vec_back(self.0.into()) };
-        T::try_from(x).or_abort()
+        unsafe { <T as ValType>::unchecked_from_val(host_fns::host__vec_back(self.0.into())) }
     }
 
     #[inline(always)]
     pub fn insert(&self, i: u32, x: T) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_insert(self.0.into(), i.into(), x.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_insert(self.0.into(), i.into(), x.into())) }
     }
 
     #[inline(always)]
     pub fn append(&self, other: Vec<T>) -> Vec<T> {
-        let v: Val = unsafe { host_fns::host__vec_append(self.0.into(), other.into()) };
-        v.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__vec_append(self.0.into(), other.into())) }
     }
 }

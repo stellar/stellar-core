@@ -83,7 +83,8 @@ operator<<(std::ostream& out, HostVal const& v)
     }
     else if (v.isStatus())
     {
-        out << "status(" << v.asStatus() << ')';
+        auto pair = v.asStatus();
+        out << "status(" << pair.first << "," << pair.second << ')';
     }
     else if (v.isU32())
     {

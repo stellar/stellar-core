@@ -1,5 +1,28 @@
+use super::val::{Val,ValType,TAG_SYMBOL};
 use super::require;
-use super::Symbol;
+
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Symbol(pub(crate) Val);
+
+
+impl From<Symbol> for Val {
+    #[inline(always)]
+    fn from(s: Symbol) -> Self {
+        s.0
+    }
+}
+
+impl ValType for Symbol {
+    #[inline(always)]
+    unsafe fn unchecked_from_val(v:Val) -> Self {
+        Symbol(v)
+    }
+
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_SYMBOL)
+    }
+}
 
 const MAX_CHARS: usize = 10;
 
@@ -37,11 +60,22 @@ impl Symbol {
             accum |= v;
         }
         accum <<= 6 * (MAX_CHARS - n);
-        Symbol(accum)
+        let v = unsafe { Val::from_body_and_tag(accum, TAG_SYMBOL) };
+        Symbol(v)
     }
 }
 
-impl Iterator for Symbol {
+impl IntoIterator for Symbol {
+    type Item = char;
+    type IntoIter = SymbolIter;
+    fn into_iter(self) -> Self::IntoIter {
+        SymbolIter(self.0.get_body())
+    }
+}
+
+pub struct SymbolIter(u64);
+
+impl Iterator for SymbolIter {
     type Item = char;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,6 +113,7 @@ impl FromIterator<char> for Symbol {
             accum |= v;
         }
         accum <<= 6 * (MAX_CHARS - n);
-        Symbol(accum)
+        let v = unsafe { Val::from_body_and_tag(accum, super::val::TAG_SYMBOL) };
+        Symbol(v)
     }
 }

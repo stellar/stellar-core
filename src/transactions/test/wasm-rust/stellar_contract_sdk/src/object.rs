@@ -1,26 +1,40 @@
 
-use super::{Val,OrAbort,Status};
+use super::{Val,OrAbort};
+use super::val::{ValType, TAG_OBJECT};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
 pub struct Object(Val);
 
+impl ValType for Object {
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_OBJECT)
+    }
+
+    unsafe fn unchecked_from_val(v: Val) -> Self {
+        Object(v)
+    }
+}
+
+pub trait ObjType : Into<Val> {
+    fn is_obj_type(obj: Object) -> bool;
+    unsafe fn unchecked_from_obj(obj: Object) -> Self;
+}
+
+impl <OB:ObjType> ValType for OB {
+    fn is_val_type(v: Val) -> bool {
+        v.is_object() && <Self as ObjType>::is_obj_type(v.as_object())
+    }
+
+    unsafe fn unchecked_from_val(v: Val) -> Self {
+        <Self as ObjType>::unchecked_from_obj(Object(v))
+    }
+}
+
 impl From<Object> for Val {
     #[inline(always)]
     fn from(obj: Object) -> Self {
         obj.0
-    }
-}
-
-impl TryFrom<Val> for Object {
-    type Error = Status;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_object() {
-            Ok(Object(value))
-        } else {
-            Err(Status(0))
-        }
     }
 }
 
@@ -34,8 +48,9 @@ pub(crate) const OBJ_BINARY: u8 = 6;
 pub(crate) const OBJ_LEDGERKEY: u8 = 7;
 pub(crate) const OBJ_LEDGERVAL: u8 = 8;
 pub(crate) const OBJ_OPERATION: u8 = 9;
-pub(crate) const OBJ_TRANSACTION: u8 = 10;
-pub(crate) const OBJ_BIGNUM: u8 = 11;
+pub(crate) const OBJ_OPERATION_RESULT: u8 = 10;
+pub(crate) const OBJ_TRANSACTION: u8 = 11;
+pub(crate) const OBJ_BIGNUM: u8 = 12;
 
 impl Object {
     #[inline(always)]

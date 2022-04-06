@@ -1,13 +1,13 @@
+use super::{Object,Symbol,BitSet,Status,status};
 use super::OrAbort;
-use super::Object;
 
-const TAG_U32: u8 = 0;
-const TAG_I32: u8 = 1;
-const TAG_STATIC: u8 = 2;
-const TAG_OBJECT: u8 = 3;
-const TAG_SYMBOL: u8 = 4;
-const TAG_BITSET: u8 = 5;
-const TAG_STATUS: u8 = 6;
+pub(crate) const TAG_U32: u8 = 0;
+pub(crate) const TAG_I32: u8 = 1;
+pub(crate) const TAG_STATIC: u8 = 2;
+pub(crate) const TAG_OBJECT: u8 = 3;
+pub(crate) const TAG_SYMBOL: u8 = 4;
+pub(crate) const TAG_BITSET: u8 = 5;
+pub(crate) const TAG_STATUS: u8 = 6;
 
 const STATIC_VOID: u32 = 0;
 const STATIC_TRUE: u32 = 1;
@@ -17,27 +17,72 @@ const STATIC_FALSE: u32 = 2;
 #[derive(Copy, Clone)]
 pub struct Val(u64);
 
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Symbol(pub(crate) u64);
+pub trait ValType : Into<Val> {
+    fn is_val_type(v: Val) -> bool;
+    unsafe fn unchecked_from_val(v: Val) -> Self;
+}
 
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct BitSet(u64);
+// Orphan rules mean we have to macro these, can't blanket-impl on V:Valtype.
+macro_rules! declare_tryfrom {
+    ($T:ty) => {
+        impl TryFrom<Val> for $T {
+            type Error = Status;
+            fn try_from(v: Val) -> Result<Self, Self::Error> {
+                if <Self as ValType>::is_val_type(v) {
+                    Ok(unsafe { <Self as ValType>::unchecked_from_val(v) })
+                } else {
+                    Err(status::UNKNOWN_ERROR)
+                }
+            }
+        }
+    };
+}
 
+declare_tryfrom!(());
+declare_tryfrom!(bool);
+declare_tryfrom!(i32);
+declare_tryfrom!(u32);
+declare_tryfrom!(Object);
+declare_tryfrom!(Symbol);
+declare_tryfrom!(BitSet);
+declare_tryfrom!(Status);
 
-#[repr(transparent)]
-#[derive(Copy, Clone)]
-pub struct Status(pub(crate) u64);
+impl ValType for () {
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_STATIC) && v.get_body() == STATIC_VOID as u64
+    }
+    unsafe fn unchecked_from_val(_v: Val) -> Self {
+        ()
+    }
+}
 
-pub trait ValType: Into<Val> + TryFrom<Val> {}
-impl ValType for () {}
-impl ValType for bool {}
-impl ValType for u32 {}
-impl ValType for i32 {}
-impl ValType for Symbol {}
-impl ValType for BitSet {}
-impl ValType for Object {}
+impl ValType for bool {
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_STATIC)
+            && (v.get_body() == STATIC_TRUE as u64 || v.get_body() == STATIC_FALSE as u64)
+    }
+    unsafe fn unchecked_from_val(v: Val) -> Self {
+        v.get_body() == STATIC_TRUE as u64
+    }
+}
+
+impl ValType for u32 {
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_U32)
+    }
+    unsafe fn unchecked_from_val(v: Val) -> Self {
+        v.get_body() as u32
+    }
+}
+
+impl ValType for i32 {
+    fn is_val_type(v: Val) -> bool {
+        v.has_tag(TAG_I32)
+    }
+    unsafe fn unchecked_from_val(v: Val) -> Self {
+        v.get_body() as i32
+    }
+}
 
 impl TryFrom<i64> for Val {
     type Error = Status;
@@ -47,7 +92,7 @@ impl TryFrom<i64> for Val {
         if i > 0 {
             Ok(Val::from_u63(i))
         } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -60,27 +105,7 @@ impl TryFrom<Val> for i64 {
         if value.is_u63() {
             Ok(value.as_u63())
         } else {
-            Err(Status(0))
-        }
-    }
-}
-
-impl From<Symbol> for Val {
-    #[inline(always)]
-    fn from(s: Symbol) -> Self {
-        Val::from_symbol(s)
-    }
-}
-
-impl TryFrom<Val> for Symbol {
-    type Error = Status;
-
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_symbol() {
-            Ok(value.as_symbol())
-        } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -92,36 +117,10 @@ impl From<bool> for Val {
     }
 }
 
-impl TryFrom<Val> for bool {
-    type Error = Status;
-
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_bool() {
-            Ok(value.as_bool())
-        } else {
-            Err(Status(0))
-        }
-    }
-}
-
 impl From<()> for Val {
     #[inline(always)]
     fn from(_: ()) -> Self {
         Val::from_void()
-    }
-}
-
-impl TryFrom<Val> for () {
-    type Error = Status;
-
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_void() {
-            Ok(())
-        } else {
-            Err(Status(0))
-        }
     }
 }
 
@@ -132,18 +131,6 @@ impl From<u32> for Val {
     }
 }
 
-impl TryFrom<Val> for u32 {
-    type Error = Status;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_u32() {
-            Ok(value.as_u32())
-        } else {
-            Err(Status(0))
-        }
-    }
-}
-
 impl From<i32> for Val {
     #[inline(always)]
     fn from(i: i32) -> Self {
@@ -151,39 +138,9 @@ impl From<i32> for Val {
     }
 }
 
-impl TryFrom<Val> for i32 {
-    type Error = Status;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_i32() {
-            Ok(value.as_i32())
-        } else {
-            Err(Status(0))
-        }
-    }
-}
 
-impl From<BitSet> for Val {
-    #[inline(always)]
-    fn from(b: BitSet) -> Self {
-        Val::from_bit_set(b)
-    }
-}
-
-impl TryFrom<Val> for BitSet {
-    type Error = Status;
-    #[inline(always)]
-    fn try_from(value: Val) -> Result<Self, Self::Error> {
-        if value.is_bit_set() {
-            Ok(value.as_bit_set())
-        } else {
-            Err(Status(0))
-        }
-    }
-}
 
 impl Val {
-
     #[inline(always)]
     fn is_u63(&self) -> bool {
         let is = (self.0 & 1) == 0;
@@ -204,39 +161,32 @@ impl Val {
 
     #[inline(always)]
     pub(crate) fn get_tag(&self) -> u8 {
-        //(!self.is_u63()).or_abort();
-        //super::log_value(Symbol::from_str("get_tag").into());
         ((self.0 >> 1) & 7) as u8
     }
 
     #[inline(always)]
     pub(crate) fn get_body(&self) -> u64 {
-        //(!self.is_u63()).or_abort();
-        //super::log_value(Symbol::from_str("get_body").into());
         self.0 >> 4
     }
 
     #[inline(always)]
-    fn has_tag(&self, tag: u8) -> bool {
-        //super::log_value(Symbol::from_str("has_tag").into());
+    pub(crate) fn has_tag(&self, tag: u8) -> bool {
         !self.is_u63() && self.get_tag() == tag
     }
 
     #[inline(always)]
-    pub fn is_void(&self) -> bool {
-        self.has_tag(TAG_STATIC) && self.get_body() == STATIC_VOID as u64
+    pub fn is_void(self) -> bool {
+        <() as ValType>::is_val_type(self)
     }
 
     #[inline(always)]
-    pub fn is_bool(&self) -> bool {
-        self.has_tag(TAG_STATIC)
-            && (self.get_body() == STATIC_TRUE as u64 || self.get_body() == STATIC_FALSE as u64)
+    pub fn is_bool(self) -> bool {
+        <bool as ValType>::is_val_type(self)
     }
 
     #[inline(always)]
     pub fn as_bool(&self) -> bool {
-        self.is_bool().or_abort();
-        self.get_body() == STATIC_TRUE as u64
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -246,22 +196,22 @@ impl Val {
 
     #[inline(always)]
     pub fn as_status(&self) -> Status {
-        self.is_status().or_abort();
-        Status(self.get_body())
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
     pub fn is_u32(&self) -> bool {
-        //super::log_value(Symbol::from_str("is_u32").into());
         self.has_tag(TAG_U32)
     }
 
     #[inline(always)]
-    pub fn as_u32(&self) -> u32 {
-        //super::log_value(Symbol::from_str("as_u32_a").into());
-        self.is_u32().or_abort();
-        //super::log_value(Symbol::from_str("as_u32_b").into());
+    pub unsafe fn as_u32_unchecked(&self) -> u32 {
         self.get_body() as u32
+    }
+
+    #[inline(always)]
+    pub fn as_u32(&self) -> u32 {
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -271,8 +221,7 @@ impl Val {
 
     #[inline(always)]
     pub fn as_i32(&self) -> i32 {
-        self.is_i32().or_abort();
-        self.get_body() as i32
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -282,8 +231,7 @@ impl Val {
 
     #[inline(always)]
     pub fn as_symbol(&self) -> Symbol {
-        self.is_symbol().or_abort();
-        Symbol(self.get_body())
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -293,8 +241,7 @@ impl Val {
 
     #[inline(always)]
     pub fn as_bit_set(&self) -> BitSet {
-        self.is_bit_set().or_abort();
-        BitSet(self.get_body())
+        (*self).try_into().or_abort()
     }
 
     #[inline(always)]
@@ -316,44 +263,44 @@ impl Val {
     #[inline(always)]
     // This does no checking, so it can be used in const fns
     // below; it should not be made public.
-    const fn from_body_and_tag(body: u64, tag: u8) -> Val {
+    pub(crate) const unsafe fn from_body_and_tag(body: u64, tag: u8) -> Val {
         Val(body << 4 | ((tag << 1) as u64) | 1)
     }
 
     #[inline(always)]
     pub const fn from_void() -> Val {
-        Val::from_body_and_tag(STATIC_VOID as u64, TAG_STATIC)
+        unsafe { Val::from_body_and_tag(STATIC_VOID as u64, TAG_STATIC) }
     }
 
     #[inline(always)]
     pub const fn from_bool(b: bool) -> Val {
         let body = if b { STATIC_TRUE } else { STATIC_FALSE };
-        Val::from_body_and_tag(body as u64, TAG_STATIC)
+        unsafe { Val::from_body_and_tag(body as u64, TAG_STATIC) }
     }
 
     #[inline(always)]
     pub const fn from_status(e: u32) -> Val {
-        Val::from_body_and_tag(e as u64, TAG_STATUS)
+        unsafe { Val::from_body_and_tag(e as u64, TAG_STATUS) }
     }
 
     #[inline(always)]
     pub const fn from_u32(u: u32) -> Val {
-        Val::from_body_and_tag(u as u64, TAG_U32)
+        unsafe { Val::from_body_and_tag(u as u64, TAG_U32) }
     }
 
     #[inline(always)]
     pub const fn from_i32(i: i32) -> Val {
-        Val::from_body_and_tag((i as u32) as u64, TAG_I32)
+        unsafe { Val::from_body_and_tag((i as u32) as u64, TAG_I32) }
     }
 
     #[inline(always)]
     pub const fn from_symbol(s: Symbol) -> Val {
-        Val::from_body_and_tag(s.0, TAG_SYMBOL)
+        s.0
     }
 
     #[inline(always)]
     pub fn from_bit_set(bits: BitSet) -> Val {
-        Val::from_body_and_tag(bits.0, TAG_BITSET)
+        bits.into()
     }
 
     #[inline(always)]

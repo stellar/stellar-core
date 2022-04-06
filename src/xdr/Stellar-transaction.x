@@ -488,7 +488,7 @@ struct LiquidityPoolWithdrawOp
 *    0x_IIII_IIII_IIII_SST7  - object: with 16 object types, 256 subtypes each, and 48-bit index
 *    0x_nnnn_nnnn_nnnn_nnn9  - symbol: up to 10 6-bit identifier characters
 *    0x_nnnn_nnnn_nnnn_nnnb  - small bitset (up to 60 bits)
-*    0x_nnnn_nnnn_nnnn_nnnd  - status code (error or other)
+*    0x_CCCC_CCCC_TTTT_TTTd  - 32-bit status code C, and 28-bit type code T
 *    0x_nnnn_nnnn_nnnn_nnnf  - reserved
 *
 * Up here in XDR we have variable-length tagged disjoint unions but no bit-level
@@ -560,6 +560,19 @@ enum SCStatic
     SCS_FALSE = 2
 };
 
+enum SCStatusType
+{
+    SST_OK = 0,
+    SST_UNKNOWN = 1,
+    SST_WASM_TRAP_CODE = 2,
+    SST_HOST_TRAP_CODE = 3,
+    SST_PAYMENT_RESULT = 4,
+    SST_INVOKE_CONTRACT_RESULT = 5
+    // TODO: add more
+};
+
+% struct SCStatus;
+
 union SCVal switch (SCValType type) {
     case SCV_U63:
         uint64 u63;
@@ -576,7 +589,7 @@ union SCVal switch (SCValType type) {
     case SCV_BITSET:
         uint64 bits;
     case SCV_STATUS:
-        uint64 status;
+        SCStatus *status;
 };
 
 enum SCObjectType {
@@ -590,8 +603,9 @@ enum SCObjectType {
     SCO_LEDGERKEY = 7,
     SCO_LEDGERVAL = 8,
     SCO_OPERATION = 9,
-    SCO_TRANSACTION = 10,
-    SCO_BIGNUM = 11
+    SCO_OPERATION_RESULT = 10,
+    SCO_TRANSACTION = 11,
+    SCO_BIGNUM = 12
 };
 
 struct SCMapEntry {
@@ -610,6 +624,7 @@ struct SCBigNum {
 
 % struct Transaction;
 % struct Operation;
+% struct OperationResult;
 
 union SCObject switch (SCObjectType type) {
     case SCO_BOX:
@@ -632,6 +647,8 @@ union SCObject switch (SCObjectType type) {
         SCLedgerVal lval;
     case SCO_OPERATION:
         Operation *op;
+    case SCO_OPERATION_RESULT:
+        OperationResult *ores;
     case SCO_TRANSACTION:
         Transaction *tx;
     case SCO_BIGNUM:
@@ -1624,19 +1641,32 @@ enum InvokeContractResultCode
     INVOKE_CONTRACT_OUT_OF_GAS = -4
 };
 
+enum ContractTrapType
+{
+    HOST_TRAPPED = 0,
+    GUEST_TRAPPED = 1
+};
+
 enum WasmTrapCode {
-    WASM_TRAP_UNSPECIFIED = 0, // For engines that don't differentiate traps.
-    WASM_TRAP_OUT_OF_BOUNDS_MEMORY_ACCESS = -1,
-    WASM_TRAP_DIVISION_BY_ZERO = -2,
-    WASM_TRAP_INTEGER_OVERFLOW = -3,
-    WASM_TRAP_INTEGER_CONVERSION = -4,
-    WASM_TRAP_INDIRECT_CALL_TYPE_MISMATCH = -5,
-    WASM_TRAP_TABLE_INDEX_OUT_OF_RANGE = -6,
-    WASM_TRAP_TABLE_ELEMENT_IS_NULL = -7,
-    WASM_TRAP_EXIT = -8,
-    WASM_TRAP_ABORT = -9,
-    WASM_TRAP_UNREACHABLE = -10,
-    WASM_TRAP_STACK_OVERFLOW = -11
+    WASM_TRAP_UNSPECIFIED = -1, // For engines that don't differentiate traps.
+    WASM_TRAP_OUT_OF_BOUNDS_MEMORY_ACCESS = -2,
+    WASM_TRAP_DIVISION_BY_ZERO = -3,
+    WASM_TRAP_INTEGER_OVERFLOW = -4,
+    WASM_TRAP_INTEGER_CONVERSION = -5,
+    WASM_TRAP_INDIRECT_CALL_TYPE_MISMATCH = -6,
+    WASM_TRAP_TABLE_INDEX_OUT_OF_RANGE = -7,
+    WASM_TRAP_TABLE_ELEMENT_IS_NULL = -8,
+    WASM_TRAP_EXIT = -9,
+    WASM_TRAP_ABORT = -10,
+    WASM_TRAP_UNREACHABLE = -11,
+    WASM_TRAP_STACK_OVERFLOW = -12
+};
+
+enum HostTrapCode {
+    HOST_TRAP_UNSPECIFIED = -1,
+    HOST_TRAP_VALUE_NOT_FOUND = -2,
+    HOST_TRAP_VALUE_HAS_WRONG_TYPE = -3,
+    HOST_TRAP_VALUE_OUT_OF_RANGE = -4
 };
 
 union InvokeContractResult switch (
@@ -1645,12 +1675,17 @@ union InvokeContractResult switch (
 case INVOKE_CONTRACT_SUCCESS:
     SCVal returnVal;
 case INVOKE_CONTRACT_TRAPPED:
-    union switch (ContractCodeType type) {
-        case CONTRACT_CODE_WASM:
-            WasmTrapCode wasmTrap;
-        default:
-            void;
-    } trapCode;
+    union switch (ContractTrapType type) {
+    case HOST_TRAPPED:
+        HostTrapCode hostTrap;
+    case GUEST_TRAPPED:
+        union switch (ContractCodeType type) {
+            case CONTRACT_CODE_WASM:
+                WasmTrapCode wasmTrap;
+            default:
+                void;
+        } guestTrap;
+    } trap;
 default:
     void;
 };
@@ -1824,4 +1859,21 @@ struct TransactionResult
     }
     ext;
 };
+
+
+union SCStatus switch (SCStatusType type) {
+    case SST_OK:
+        void;
+    case SST_WASM_TRAP_CODE:
+        WasmTrapCode wasmTrap;
+    case SST_HOST_TRAP_CODE:
+        HostTrapCode hostTrap;
+    case SST_PAYMENT_RESULT:
+        PaymentResultCode paymentResult;
+    case SST_INVOKE_CONTRACT_RESULT:
+        InvokeContractResultCode invokeResult;
+    case SST_UNKNOWN:
+        void;
+};
+
 }

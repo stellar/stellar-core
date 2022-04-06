@@ -7,9 +7,11 @@
 #include "transactions/contracts/HostVal.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 #include "xdr/Stellar-types.h"
 
 #include <cstdint>
+#include <fizzy/execute.hpp>
 #include <map>
 #include <stdexcept>
 #include <variant>
@@ -60,7 +62,7 @@ using HostMemFun6 = fizzy::ExecutionResult (HostContext::*)(
     uint64_t, uint64_t, uint64_t);
 
 class InvokeContractOpFrame;
-struct HostOpContext
+struct InvokeContractContext
 {
     HostContext& mHostContext;
     InvokeContractOpFrame& mInvokeOp;
@@ -88,7 +90,34 @@ class HostContext
     std::vector<std::unique_ptr<HostObject const>> mObjects;
     std::vector<fizzy::ImportedFunction> mHostFunctions;
     std::map<std::string, HostVal> mEnv;
-    std::optional<HostOpContext> mHostOpCtx;
+    std::vector<InvokeContractContext> mInvokeCtxs;
+
+    // mLastOperationResult is set by any host function that
+    // calls an XDR operation or invokes cross-contract. We
+    // return just a Status value by default, since this is
+    // probably enough for most users, and there's no reason
+    // to chew up an object slot with an OperationResult
+    // unless the user asks to materialize "the last one".
+    //
+    // We also store any host trap code that occurs while
+    // processing a host function in here, so that the
+    // caller of a nested invocation can get the cause of
+    // a host trap.
+    OperationResult mLastOperationResult;
+
+    fizzy::ExecutionResult
+    hostTrap(HostTrapCode code)
+    {
+        mLastOperationResult.code(opINNER);
+        mLastOperationResult.tr().type(INVOKE_CONTRACT);
+        mLastOperationResult.tr().invokeContractResult().code(
+            INVOKE_CONTRACT_TRAPPED);
+        mLastOperationResult.tr().invokeContractResult().trap().type(
+            HOST_TRAPPED);
+        mLastOperationResult.tr().invokeContractResult().trap().hostTrap() =
+            code;
+        return fizzy::Trap;
+    }
 
     friend class HostContextTxn;
 
@@ -123,8 +152,9 @@ class HostContext
         auto const& ptr = getObject(hv);
         if (ptr && std::holds_alternative<LedgerKey>(*ptr))
         {
-            std::get<LedgerKey>(*ptr);
+            return std::make_optional(std::get<LedgerKey>(*ptr));
         }
+        return std::nullopt;
     }
 
     template <typename ObjType>
@@ -140,7 +170,7 @@ class HostContext
         }
         else
         {
-            return HostVal::fromStatus(0);
+            return fizzy::Trap;
         }
     }
 
@@ -195,23 +225,33 @@ class HostContext
     HostContextTxn
     beginOpTxn(InvokeContractOpFrame& op, AbstractLedgerTxn& ltx)
     {
-        releaseAssert(!mHostOpCtx);
-        mHostOpCtx.emplace(HostOpContext{*this, op, ltx});
+        releaseAssert(mInvokeCtxs.empty());
+        mInvokeCtxs.emplace_back(InvokeContractContext{*this, op, ltx});
+        return HostContextTxn(*this);
+    }
+
+    HostContextTxn
+    beginInnerTxn(AbstractLedgerTxn& innerLtx)
+    {
+        releaseAssert(!mInvokeCtxs.empty());
+        auto& curr = mInvokeCtxs.back();
+        InvokeContractContext next{curr.mHostContext, curr.mInvokeOp, innerLtx};
+        mInvokeCtxs.emplace_back(std::move(next));
         return HostContextTxn(*this);
     }
 
     AbstractLedgerTxn&
     getLedgerTxn()
     {
-        releaseAssert(mHostOpCtx);
-        return mHostOpCtx->mLedgerTxn;
+        releaseAssert(!mInvokeCtxs.empty());
+        return mInvokeCtxs.back().mLedgerTxn;
     }
 
     InvokeContractOpFrame&
     getOpFrame()
     {
-        releaseAssert(mHostOpCtx);
-        return mHostOpCtx->mInvokeOp;
+        releaseAssert(!mInvokeCtxs.empty());
+        return mInvokeCtxs.back().mInvokeOp;
     }
 
     std::variant<HostVal, InvokeContractResultCode>
@@ -287,6 +327,8 @@ class HostContext
                                                fizzy::ExecutionContext&);
     fizzy::ExecutionResult getCurrentLedgerCloseTime(fizzy::Instance&,
                                                      fizzy::ExecutionContext&);
+    fizzy::ExecutionResult getLastOperationResult(fizzy::Instance&,
+                                                  fizzy::ExecutionContext&);
 
     fizzy::ExecutionResult pay(fizzy::Instance&, fizzy::ExecutionContext&,
                                uint64_t src, uint64_t dst, uint64_t asset,

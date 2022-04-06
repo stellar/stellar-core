@@ -3,6 +3,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/contracts/HostContext.h"
 #include "util/Logging.h"
+#include "xdr/Stellar-transaction.h"
 
 #include <Tracy.hpp>
 #include <fizzy/execute.hpp>
@@ -40,9 +41,9 @@ HostContext::mapGet(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
         auto* valPtr = map.find(keyV);
         if (valPtr)
         {
-            return *valPtr;
+            return fizzy::ExecutionResult(*valPtr);
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 
@@ -65,9 +66,9 @@ HostContext::mapLen(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t map)
         size_t sz = map.size();
         if (sz <= UINT32_MAX)
         {
-            return HostVal::fromU32(uint32_t(sz));
+            return fizzy::ExecutionResult(HostVal::fromU32(uint32_t(sz)));
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 
@@ -102,11 +103,15 @@ HostContext::vecGet(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     ZoneScoped;
     auto idxV = HostVal::fromPayload(idx);
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
-        if (idxV.isU32() && idxV.asU32() < vec.size())
+        if (!idxV.isU32())
         {
-            return vec.at(idxV.asU32());
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
-        return HostVal::fromStatus(0);
+        if (idxV.asU32() >= vec.size())
+        {
+            return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
+        }
+        return fizzy::ExecutionResult(vec.at(idxV.asU32()));
     });
 }
 fizzy::ExecutionResult
@@ -117,11 +122,16 @@ HostContext::vecPut(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     auto idxV = HostVal::fromPayload(idx);
     auto valV = HostVal::fromPayload(val);
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
-        if (idxV.isU32() && idxV.asU32() < vec.size())
+        if (!idxV.isU32())
         {
-            return newObject<HostVec>(vec.set(idxV.asU32(), valV));
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
-        return HostVal::fromStatus(0);
+        if (idxV.asU32() >= vec.size())
+        {
+            return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
+        }
+        return fizzy::ExecutionResult(
+            newObject<HostVec>(vec.set(idxV.asU32(), valV)));
     });
 }
 fizzy::ExecutionResult
@@ -131,11 +141,16 @@ HostContext::vecDel(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     ZoneScoped;
     auto idxV = HostVal::fromPayload(idx);
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
-        if (idxV.isU32() && idxV.asU32() < vec.size())
+        if (!idxV.isU32())
         {
-            return newObject<HostVec>(vec.erase(idxV.asU32()));
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
-        return HostVal::fromStatus(0);
+        if (idxV.asU32() >= vec.size())
+        {
+            return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
+        }
+        return fizzy::ExecutionResult(
+            newObject<HostVec>(vec.erase(idxV.asU32())));
     });
 }
 fizzy::ExecutionResult
@@ -146,9 +161,9 @@ HostContext::vecLen(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
         size_t sz = vec.size();
         if (sz <= UINT32_MAX)
         {
-            return HostVal::fromU32(sz);
+            return fizzy::ExecutionResult(HostVal::fromU32(sz));
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 fizzy::ExecutionResult
@@ -170,9 +185,10 @@ HostContext::vecTake(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
         if (numV.isU32())
         {
-            return newObject<HostVec>(vec.take(numV.asU32()));
+            return fizzy::ExecutionResult(
+                newObject<HostVec>(vec.take(numV.asU32())));
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
     });
 }
 fizzy::ExecutionResult
@@ -184,9 +200,10 @@ HostContext::vecDrop(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
         if (numV.isU32())
         {
-            return newObject<HostVec>(vec.drop(numV.asU32()));
+            return fizzy::ExecutionResult(
+                newObject<HostVec>(vec.drop(numV.asU32())));
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
     });
 }
 fizzy::ExecutionResult
@@ -196,9 +213,10 @@ HostContext::vecPop(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
         if (!vec.empty())
         {
-            return newObject<HostVec>(vec.erase(vec.size() - 1));
+            return fizzy::ExecutionResult(
+                newObject<HostVec>(vec.erase(vec.size() - 1)));
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 
@@ -209,9 +227,9 @@ HostContext::vecFront(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
         if (!vec.empty())
         {
-            return vec.front();
+            return fizzy::ExecutionResult(vec.front());
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 
@@ -222,9 +240,9 @@ HostContext::vecBack(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec)
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
         if (!vec.empty())
         {
-            return vec.back();
+            return fizzy::ExecutionResult(vec.back());
         }
-        return HostVal::fromStatus(0);
+        return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
     });
 }
 
@@ -236,11 +254,16 @@ HostContext::vecInsert(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t vec,
     auto idxV = HostVal::fromPayload(idx);
     auto valV = HostVal::fromPayload(val);
     return objMethod<HostVec>(vec, [&](HostVec const& vec) {
-        if (idxV.isU32() && idxV.asU32() < vec.size())
+        if (!idxV.isU32())
         {
-            return newObject<HostVec>(vec.insert(idxV.asU32(), valV));
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
-        return HostVal::fromStatus(0);
+        if (idxV.asU32() >= vec.size())
+        {
+            return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
+        }
+        return fizzy::ExecutionResult(
+            newObject<HostVec>(vec.insert(idxV.asU32(), valV)));
     });
 }
 fizzy::ExecutionResult
@@ -285,6 +308,12 @@ HostContext::getCurrentLedgerCloseTime(fizzy::Instance& instance,
 }
 
 fizzy::ExecutionResult
+HostContext::getLastOperationResult(fizzy::Instance&, fizzy::ExecutionContext&)
+{
+    return newObject<OperationResult>(mLastOperationResult);
+}
+
+fizzy::ExecutionResult
 HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
                  uint64_t dst, uint64_t asset, uint64_t amount)
 {
@@ -326,14 +355,41 @@ HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
                                 OperationResult res;
                                 PaymentOpFrame pof(
                                     op, res,
-                                    mHostOpCtx->mInvokeOp.getParentTx());
+                                    mInvokeCtxs.back().mInvokeOp.getParentTx());
 
-                                if (pof.doApply(getLedgerTxn()))
+                                bool ok = pof.doApply(getLedgerTxn());
+
+                                // Stash detailed result code for detailed
+                                // inspection.
+                                mLastOperationResult = res;
+
+                                if (res.code() != opINNER ||
+                                    res.tr().type() != PAYMENT)
                                 {
-                                    return HostVal::fromBool(true);
+                                    return fizzy::ExecutionResult(
+                                        HostVal::statusUnknownError());
+                                }
+                                if (ok && res.tr().paymentResult().code() ==
+                                              PAYMENT_SUCCESS)
+                                {
+                                    // Collapse the happy path into a single
+                                    // "ok" guest status.
+                                    return fizzy::ExecutionResult(
+                                        HostVal::statusOK());
+                                }
+                                else
+                                {
+                                    // Fish out the code of the result for cheap
+                                    // inspection.
+                                    uint32_t code =
+                                        res.tr().paymentResult().code();
+                                    auto status =
+                                        HostVal::fromStatus(std::make_pair(
+                                            SST_PAYMENT_RESULT, code));
+                                    return fizzy::ExecutionResult(status);
                                 }
                             }
-                            return HostVal::fromStatus(0);
+                            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
                         });
                 });
         });
@@ -393,23 +449,31 @@ HostContext::callN(fizzy::Instance&, fizzy::ExecutionContext&,
     return objMethod<LedgerKey>(contract, [&](LedgerKey const& lk) {
         if (lk.type() != CONTRACT_CODE)
         {
-            return HostVal::fromStatus(0);
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
         auto& contractLK = lk.contractCode();
         auto func = HostVal::fromPayload(function);
         if (!func.isSymbol())
         {
-            return HostVal::fromStatus(0);
+            return hostTrap(HOST_TRAP_VALUE_HAS_WRONG_TYPE);
         }
-        auto res = invokeContract(contractLK.owner, contractLK.contractID,
+
+        auto res = [&]() {
+            LedgerTxn ltxInner(getLedgerTxn());
+            HostContextTxn htx(beginInnerTxn(ltxInner));
+            return invokeContract(contractLK.owner, contractLK.contractID,
                                   func.asSymbol(), args);
+        }();
         if (std::holds_alternative<HostVal>(res))
         {
-            return std::get<HostVal>(res);
+            return fizzy::ExecutionResult(std::get<HostVal>(res));
         }
         else
         {
-            return HostVal::fromStatus(0);
+            auto rc = std::get<InvokeContractResultCode>(res);
+            HostVal status = HostVal::fromStatus(
+                std::make_pair(SST_INVOKE_CONTRACT_RESULT, uint32_t(rc)));
+            return fizzy::ExecutionResult(status);
         }
     });
 }
@@ -665,6 +729,8 @@ HostContext::registerHostFunctions()
                          "host__get_current_ledger_num");
     registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "env",
                          "host__get_current_ledger_close_time");
+    registerHostFunction(&HostContext::getLastOperationResult, "env",
+                         "host__get_last_operation_result");
     registerHostFunction(&HostContext::pay, "env", "host__pay");
 
     registerHostFunction(&HostContext::call0, "env", "host__call0");

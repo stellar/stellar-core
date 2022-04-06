@@ -3,7 +3,7 @@ use core::{
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub},
 };
 
-use super::{host_fns, object::OBJ_BIGNUM, or_abort::OrAbort, Object, Status, Val};
+use super::{host_fns, object::{ObjType, OBJ_BIGNUM}, status, Object, Status, Val, val::ValType};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -16,7 +16,7 @@ impl TryFrom<Object> for BigNum {
         if obj.is_type(OBJ_BIGNUM) {
             Ok(BigNum(obj))
         } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -29,7 +29,7 @@ impl TryFrom<Val> for BigNum {
         if obj.is_type(OBJ_BIGNUM) {
             Ok(BigNum(obj))
         } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -46,106 +46,103 @@ impl From<BigNum> for Val {
     }
 }
 
+impl ObjType for BigNum {
+    fn is_obj_type(obj: Object) -> bool {
+        obj.is_type(OBJ_BIGNUM)
+    }
+
+    unsafe fn unchecked_from_obj(obj: Object) -> Self {
+        Self(obj)
+    }
+}
+
 impl From<u64> for BigNum {
     fn from(x: u64) -> Self {
-        let b = unsafe { host_fns::host__bignum_from_u64(x) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_from_u64(x)) }
     }
 }
 
 impl Add for BigNum {
     type Output = BigNum;
     fn add(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_add(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_add(self.into(), rhs.into())) }
     }
 }
 
 impl Sub for BigNum {
     type Output = BigNum;
     fn sub(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_sub(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_sub(self.into(), rhs.into())) }
     }
 }
 
 impl Mul for BigNum {
     type Output = BigNum;
     fn mul(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_mul(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_mul(self.into(), rhs.into())) }
     }
 }
 
 impl Div for BigNum {
     type Output = BigNum;
     fn div(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_div(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_div(self.into(), rhs.into())) }
     }
 }
 
 impl Rem for BigNum {
     type Output = BigNum;
     fn rem(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_rem(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_rem(self.into(), rhs.into())) }
     }
 }
 
 impl BitAnd for BigNum {
     type Output = BigNum;
     fn bitand(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_and(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_and(self.into(), rhs.into())) }
     }
 }
 
 impl BitOr for BigNum {
     type Output = BigNum;
     fn bitor(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_or(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_or(self.into(), rhs.into())) }
     }
 }
 
 impl BitXor for BigNum {
     type Output = BigNum;
     fn bitxor(self, rhs: Self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_xor(self.into(), rhs.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_xor(self.into(), rhs.into())) }
     }
 }
 
 impl Neg for BigNum {
     type Output = BigNum;
     fn neg(self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_neg(self.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_neg(self.into())) }
     }
 }
 
 impl Not for BigNum {
     type Output = BigNum;
     fn not(self) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_not(self.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_not(self.into())) }
     }
 }
 
 impl Shl<u64> for BigNum {
     type Output = BigNum;
     fn shl(self, rhs: u64) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_shl(self.into(), rhs) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_shl(self.into(), rhs)) }
     }
 }
 
 impl Shr<u64> for BigNum {
     type Output = BigNum;
     fn shr(self, rhs: u64) -> Self::Output {
-        let b = unsafe { host_fns::host__bignum_shr(self.into(), rhs) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_shr(self.into(), rhs)) }
     }
 }
 
@@ -164,8 +161,7 @@ impl PartialOrd for BigNum {
 impl Eq for BigNum {}
 impl Ord for BigNum {
     fn cmp(&self, other: &Self) -> Ordering {
-        let v = unsafe { host_fns::host__bignum_cmp((*self).into(), (*other).into()) };
-        let i = v.as_i32();
+        let i = unsafe { <i32 as ValType>::unchecked_from_val(host_fns::host__bignum_cmp((*self).into(), (*other).into())) };
         if i < 0 {
             Ordering::Less
         } else if i > 0 {
@@ -177,33 +173,32 @@ impl Ord for BigNum {
 }
 
 impl BigNum {
+
+    unsafe fn unchecked_new(obj: Object) -> Self {
+        Self(obj)
+    }
+
     pub fn gcd(&self, other: BigNum) -> BigNum {
-        let b = unsafe { host_fns::host__bignum_gcd((*self).into(), other.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_gcd((*self).into(), other.into())) }
     }
 
     pub fn lcm(&self, other: BigNum) -> BigNum {
-        let b = unsafe { host_fns::host__bignum_lcm((*self).into(), other.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_lcm((*self).into(), other.into())) }
     }
 
     pub fn pow(&self, k: u64) -> BigNum {
-        let b = unsafe { host_fns::host__bignum_pow((*self).into(), k) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_pow((*self).into(), k)) }
     }
 
     pub fn pow_mod(&self, q: BigNum, m: BigNum) -> BigNum {
-        let b = unsafe { host_fns::host__bignum_pow_mod((*self).into(), q.into(), m.into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_pow_mod((*self).into(), q.into(), m.into())) }
     }
 
     pub fn sqrt(&self) -> BigNum {
-        let b = unsafe { host_fns::host__bignum_sqrt((*self).into()) };
-        b.try_into().or_abort()
+        unsafe { Self::unchecked_new(host_fns::host__bignum_sqrt((*self).into())) }
     }
 
     pub fn is_zero(&self) -> bool {
-        let b = unsafe { host_fns::host__bignum_is_zero((*self).into()) };
-        b.try_into().or_abort()
+        unsafe { <bool as ValType>::unchecked_from_val(host_fns::host__bignum_is_zero((*self).into())) }
     }
 }

@@ -92,9 +92,12 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(code);
             if (code == INVOKE_CONTRACT_TRAPPED)
             {
-                innerResult().trapCode().type(CONTRACT_CODE_WASM);
-                innerResult().trapCode().wasmTrap() = WASM_TRAP_UNSPECIFIED;
+                innerResult().trap().type(GUEST_TRAPPED);
+                innerResult().trap().guestTrap().type(CONTRACT_CODE_WASM);
+                innerResult().trap().guestTrap().wasmTrap() =
+                    WASM_TRAP_UNSPECIFIED;
             }
+            return false;
         }
     }
     catch (std::runtime_error& e)

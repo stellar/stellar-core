@@ -284,11 +284,12 @@ class HostVal
         return hasTag(TAG_STATUS);
     }
 
-    uint32_t
+    std::pair<uint32_t, uint32_t>
     asStatus() const
     {
         releaseAssert(isStatus());
-        return uint32_t(getBody());
+        uint64_t body = getBody();
+        return std::make_pair(uint32_t(body) >> 4, uint32_t(body >> 32));
     }
 
     bool
@@ -376,9 +377,22 @@ class HostVal
         return fromBodyAndTag(b ? STATIC_TRUE : STATIC_FALSE, TAG_STATIC);
     }
     static HostVal
-    fromStatus(uint32_t status)
+    fromStatus(std::pair<uint32_t, uint32_t> typeAndCode)
     {
-        return fromBodyAndTag(uint64_t(status), TAG_STATUS);
+        releaseAssert(typeAndCode.first < 0xfffffff);
+        uint64_t body = (uint64_t(typeAndCode.second) << 32) |
+                        (uint64_t(typeAndCode.first) << 4);
+        return fromBodyAndTag(body, TAG_STATUS);
+    }
+    static HostVal
+    statusOK()
+    {
+        return fromStatus(std::make_pair(SST_OK, 0));
+    }
+    static HostVal
+    statusUnknownError()
+    {
+        return fromStatus(std::make_pair(SST_UNKNOWN, 0));
     }
     static HostVal
     fromStatic(SCStatic st)
@@ -446,7 +460,7 @@ using HostBigNum = boost::multiprecision::cpp_int;
 using HostObject =
     std::variant<HostBox, HostVec, HostMap, uint64_t, int64_t, xdr::xstring<>,
                  xdr::xvector<uint8_t>, LedgerKey, SCLedgerVal, Operation,
-                 Transaction, HostBigNum>;
+                 OperationResult, Transaction, HostBigNum>;
 
 template <>
 inline HostVal

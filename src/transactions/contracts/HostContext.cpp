@@ -33,10 +33,10 @@ HostContextTxn::~HostContextTxn()
 {
     if (mRollback)
     {
-        mHostCtx.mHostOpCtx.value().mLedgerTxn.rollback();
+        mHostCtx.mInvokeCtxs.back().mLedgerTxn.rollback();
         mHostCtx.mObjects.resize(mRollbackPoint);
     }
-    mHostCtx.mHostOpCtx.reset();
+    mHostCtx.mInvokeCtxs.pop_back();
 }
 
 void
@@ -69,6 +69,68 @@ HostContext::getEnv(std::string const& name) const
     }
 }
 
+static std::pair<uint32_t, uint32_t>
+getStatusPair(SCStatus const& s)
+{
+    uint32_t code{0};
+    switch (s.type())
+    {
+    case SST_OK:
+        break;
+    case SST_WASM_TRAP_CODE:
+        code = uint32_t(s.wasmTrap());
+        break;
+    case SST_HOST_TRAP_CODE:
+        code = uint32_t(s.hostTrap());
+        break;
+    case SST_PAYMENT_RESULT:
+        code = uint32_t(s.paymentResult());
+        break;
+    default:
+        return std::make_pair(SST_UNKNOWN, 0);
+    }
+    return std::make_pair(uint32_t(s.type()), code);
+}
+
+static SCStatus
+getStatus(std::pair<uint32_t, uint32_t> const& s)
+{
+    SCStatus status;
+    status.type(SST_UNKNOWN);
+    switch (SCStatusType(s.first))
+    {
+    case SST_OK:
+        status.type(SST_OK);
+        break;
+    case SST_WASM_TRAP_CODE:
+        if (xdr::xdr_traits<WasmTrapCode>::enum_name(WasmTrapCode(s.second)))
+        {
+            status.type(SST_WASM_TRAP_CODE);
+            status.wasmTrap() = WasmTrapCode(s.second);
+        }
+        break;
+    case SST_HOST_TRAP_CODE:
+        if (xdr::xdr_traits<HostTrapCode>::enum_name(HostTrapCode(s.second)))
+        {
+            status.type(SST_HOST_TRAP_CODE);
+            status.hostTrap() = HostTrapCode(s.second);
+        }
+        break;
+    case SST_PAYMENT_RESULT:
+        if (xdr::xdr_traits<PaymentResultCode>::enum_name(
+                PaymentResultCode(s.second)))
+        {
+            status.type(SST_PAYMENT_RESULT);
+            status.paymentResult() = PaymentResultCode(s.second);
+        }
+        break;
+    default:
+        status.type(SST_UNKNOWN);
+        break;
+    }
+    return status;
+}
+
 HostVal
 HostContext::xdrToHost(SCVal const& v)
 {
@@ -97,7 +159,14 @@ HostContext::xdrToHost(SCVal const& v)
     case SCV_BITSET:
         return HostVal::fromBitSet(v.bits());
     case SCV_STATUS:
-        return HostVal::fromStatus(v.status());
+        if (v.status())
+        {
+            return HostVal::fromStatus(getStatusPair(*v.status()));
+        }
+        else
+        {
+            return HostVal::fromStatus(std::make_pair(uint32_t(SST_OK), 0));
+        }
     }
 }
 
@@ -154,7 +223,14 @@ HostContext::hostToXdr(HostVal const& hv)
     else if (hv.isStatus())
     {
         out.type(SCV_STATUS);
-        out.status() = hv.asStatus();
+        {
+            auto pair = hv.asStatus();
+            if (pair.first != uint32_t(SST_OK))
+            {
+                out.status().activate();
+                *out.status() = getStatus(pair);
+            }
+        }
     }
     return out;
 }
@@ -226,6 +302,11 @@ HostContext::hostToXdr(std::unique_ptr<HostObject const> const& obj)
     {
         out.type(SCO_OPERATION);
         out.op().activate() = std::get<Operation>(*obj);
+    }
+    else if (std::holds_alternative<OperationResult>(*obj))
+    {
+        out.type(SCO_OPERATION_RESULT);
+        out.ores().activate() = std::get<OperationResult>(*obj);
     }
     else if (std::holds_alternative<Transaction>(*obj))
     {
@@ -306,6 +387,13 @@ HostContext::xdrToHost(std::unique_ptr<SCObject> const& obj)
             return 0;
         }
         immObj = std::make_unique<HostObject const>(*obj->op());
+        break;
+    case SCO_OPERATION_RESULT:
+        if (!obj->ores())
+        {
+            return 0;
+        }
+        immObj = std::make_unique<HostObject const>(*obj->ores());
         break;
     case SCO_TRANSACTION:
         if (!obj->tx())

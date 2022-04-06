@@ -2,8 +2,8 @@ use core::marker::PhantomData;
 
 use super::host_fns;
 use super::val::ValType;
-use super::OrAbort;
-use super::{Object, Val, Vec, Status, object::OBJ_MAP};
+use super::object::ObjType;
+use super::{Object, Val, Vec, status, Status, object::OBJ_MAP};
 
 #[repr(transparent)]
 #[derive(Copy, Clone)]
@@ -16,7 +16,7 @@ impl<K:ValType,V:ValType> TryFrom<Object> for Map<K,V> {
         if obj.is_type(OBJ_MAP) {
             Ok(Map(obj, PhantomData, PhantomData))
         } else {
-            Err(Status(0))
+            Err(status::UNKNOWN_ERROR)
         }
     }
 }
@@ -44,33 +44,36 @@ impl<K: ValType, V: ValType> From<Map<K, V>> for Val {
     }
 }
 
-impl<K: ValType, V: ValType> Map<K, V> {
-    #[inline(always)]
-    pub fn new() -> Map<K, V> {
-        unsafe { host_fns::host__map_new().try_into().or_abort() }
+impl<K: ValType, V: ValType> ObjType for Map<K, V> {
+    fn is_obj_type(obj: Object) -> bool {
+        obj.is_type(OBJ_MAP)
     }
 
+    unsafe fn unchecked_from_obj(obj: Object) -> Self {
+        Map(obj, PhantomData, PhantomData)
+    }
+}
+
+impl<K: ValType, V: ValType> Map<K, V> {
+
     #[inline(always)]
-    pub fn try_get(&self, k: K) -> Result<V, <V as TryFrom<Val>>::Error> {
-        let v: Val = unsafe { host_fns::host__map_get(self.0.into(), k.into()) };
-        V::try_from(v)
+    pub fn new() -> Map<K, V> {
+        unsafe { Self::unchecked_from_obj(host_fns::host__map_new()) }
     }
 
     #[inline(always)]
     pub fn get(&self, k: K) -> V {
-        self.try_get(k).or_abort()
+        unsafe { <V as ValType>::unchecked_from_val(host_fns::host__map_get(self.0.into(), k.into())) }
     }
 
     #[inline(always)]
     pub fn put(&self, k: K, v: V) -> Map<K, V> {
-        let m: Val = unsafe { host_fns::host__map_put(self.0.into(), k.into(), v.into()) };
-        m.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__map_put(self.0.into(), k.into(), v.into())) }
     }
 
     #[inline(always)]
     pub fn del(&self, k: K) -> Map<K, V> {
-        let m: Val = unsafe { host_fns::host__map_del(self.0.into(), k.into()) };
-        m.try_into().or_abort()
+        unsafe { Self::unchecked_from_obj(host_fns::host__map_del(self.0.into(), k.into())) }
     }
 
     #[inline(always)]
@@ -81,7 +84,6 @@ impl<K: ValType, V: ValType> Map<K, V> {
 
     #[inline(always)]
     pub fn keys(&self) -> Vec<K> {
-        let v: Val = unsafe { host_fns::host__map_keys(self.0.into()) };
-        v.try_into().or_abort()
+        unsafe { <Vec<K> as ObjType>::unchecked_from_obj(host_fns::host__map_keys(self.0.into())) }
     }
 }
