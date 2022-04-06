@@ -973,7 +973,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             SignerKey sk = alternative.createSigner(*tx2);
                             Signer sk1(sk, 100); // high rights account
                             root.setOptions(setSigner(sk1));
-                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                            auto sz = getAccountSigners(root, *app).size();
+                            REQUIRE(sz == 1);
                             alternative.sign(*tx2);
                         };
                         for_versions(3, 9, *app, [&] {
@@ -1532,6 +1533,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             txFrame = root.tx({createAccount(a1, paymentAmount)});
             txSet->add(txFrame);
+            txSet->finalize(*app);
 
             // Close this ledger
             app->getHerder().externalizeValue(txSet, 2, 1, emptyUpgradeSteps);

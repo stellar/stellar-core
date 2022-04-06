@@ -616,7 +616,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mLastClose = now;
     mLedgerAge.set_count(0);
 
-    std::shared_ptr<AbstractTxSetFrameForApply> txSet = ledgerData.getTxSet();
+    auto txSet = ledgerData.getTxSet();
 
     // If we do not support ledger version, we can't apply that ledger, fail!
     if (header.current().ledgerVersion >
@@ -690,12 +690,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    auto curBaseFee = txSet->getBaseFee(header.current());
-    processFeesSeqNums(txs, ltx, curBaseFee, ledgerCloseMeta);
+    processFeesSeqNums(txs, ltx, txSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
+    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -1035,12 +1034,10 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 void
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
-    int64_t baseFee,
+    TxSetFrameBaseConstPtr const& txSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
-    CLOG_DEBUG(Ledger, "processing fees and sequence numbers with base fee {}",
-               baseFee);
     int index = 0;
     try
     {
@@ -1049,7 +1046,7 @@ LedgerManagerImpl::processFeesSeqNums(
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, baseFee);
+            tx->processFeeSeqNum(ltxTx, txSet->getTxBaseFee(tx));
             LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
@@ -1118,8 +1115,7 @@ void
 LedgerManagerImpl::applyTransactions(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
-    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    int64 curBaseFee)
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
     int index = 0;
@@ -1138,9 +1134,8 @@ LedgerManagerImpl::applyTransactions(
                             });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
-        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{}, base_fee:{})",
-                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps,
-                  curBaseFee);
+        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{})",
+                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps);
     }
 
     prefetchTransactionData(txs);

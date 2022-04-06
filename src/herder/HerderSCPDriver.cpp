@@ -562,6 +562,14 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         {
             return lBids < rBids;
         }
+
+        auto lEncodedSize = l->encodedSize();
+        auto rEncodedSize = r->encodedSize();
+        if (lEncodedSize != rEncodedSize)
+        {
+            // Look for the smallest encoded size.
+            return lEncodedSize > rEncodedSize;
+        }
     }
     else if (protocolVersionStartsFrom(header.ledgerVersion,
                                        ProtocolVersion::V_11))

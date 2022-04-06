@@ -23,11 +23,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     mutable Hash mContentsHash;
     mutable Hash mFullHash;
 
-    // When set, determines whether this transaction is discounted. When not
-    // set, the discounting behavior is defined by the frame implementation
-    // itself.
-    std::optional<bool> const mDiscounted;
-
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
 
@@ -47,13 +42,13 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
   protected:
-    void resetResults(LedgerHeader const& header, int64_t baseFee,
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee,
                       bool applying);
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
-                            TransactionEnvelope const& envelope,
-                            std::optional<bool> isDiscounted = std::nullopt);
+                            TransactionEnvelope const& envelope);
 #ifdef BUILD_TESTS
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope,
@@ -67,13 +62,14 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset) override;
+                    uint64_t upperBoundCloseTimeOffset,
+                    std::optional<int64_t> minBaseFee) override;
 
     TransactionEnvelope const& getEnvelope() const override;
 
     int64_t getFeeBid() const override;
     int64_t getMinFee(LedgerHeader const& header) const override;
-    int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
                    bool applying) const override;
 
     Hash const& getContentsHash() const override;
@@ -94,13 +90,12 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee) override;
 
     StellarMessage toStellarMessage() const override;
 
     static TransactionEnvelope
     convertInnerTxToV1(TransactionEnvelope const& envelope);
-
-    bool isDiscounted() const override;
 };
 }

@@ -896,7 +896,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     auto surgePricing = [&]() {
         txSet->trimInvalid(*app, 0, 0);
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->finalize(*app);
     };
 
     SECTION("basic single account")
@@ -1072,10 +1072,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        txSet->surgePricingFilter(*app);
+        txSet->finalize(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
-        txSet->surgePricingFilter(*app);
+        txSet->finalize(*app);
         REQUIRE(txSet->sizeOp() == 0);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }

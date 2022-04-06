@@ -27,7 +27,8 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
                     std::vector<TransactionResultPair> const& results,
                     uint32_t multiplier);
 
-    int64_t getBaseFee(LedgerHeader const& lh) const override;
+    std::optional<int64_t>
+    getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const override;
 
     Hash const& getContentsHash() override;
 
@@ -36,6 +37,8 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
     size_t sizeTx() const override;
 
     size_t sizeOp() const override;
+
+    size_t encodedSize() const override;
 
     std::vector<TransactionFrameBasePtr> sortForApply() override;
 

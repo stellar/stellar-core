@@ -466,12 +466,18 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
         txSet->add(tx);
     }
 
+    txSet->finalize(app);
     txSet->sortForHash();
     if (!strictOrder)
     {
-        REQUIRE(txSet->checkValid(app, 0, 0));
+        bool b = txSet->checkValid(app, 0, 0);
+        if (!b)
+        {
+            int t = 0;
+        }
+        REQUIRE(b);
     }
-
+    
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
 
@@ -1463,7 +1469,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet =
         std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
-
+    txSet->finalize(app);
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
                                      upgrades);
     return lm.getLastClosedLedgerHeader().header;

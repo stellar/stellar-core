@@ -39,8 +39,8 @@ TxSimTxSetFrame::TxSimTxSetFrame(
 {
 }
 
-int64_t
-TxSimTxSetFrame::getBaseFee(LedgerHeader const& lh) const
+std::optional<int64_t>
+TxSimTxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const
 {
     return 0;
 }
@@ -75,6 +75,12 @@ TxSimTxSetFrame::sizeOp() const
                                }
                                return a + ops;
                            });
+}
+
+size_t
+TxSimTxSetFrame::encodedSize() const
+{
+    throw std::runtime_error("Not implemented");
 }
 
 std::vector<TransactionFrameBasePtr>

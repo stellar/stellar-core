@@ -1177,8 +1177,8 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     auto ledgerVersion = mApp.getLedgerManager()
                              .getLastClosedLedgerHeader()
                              .header.ledgerVersion;
-    auto messageType =
-        protocolVersionIsBefore(ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
+    auto messageType = protocolVersionIsBefore(
+                           ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
                            ? TX_SET
                            : GENERALIZED_TX_SET;
     auto self = shared_from_this();
@@ -1225,7 +1225,7 @@ Peer::recvTransaction(StellarMessage const& msg)
 {
     ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction(), std::nullopt);
+        mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
         // record that this peer sent us this transaction

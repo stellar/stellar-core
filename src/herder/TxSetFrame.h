@@ -17,16 +17,13 @@ namespace stellar
 {
 class Application;
 
-class TxSetFrame;
-typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
-typedef std::shared_ptr<TxSetFrame const> TxSetFrameConstPtr;
-
 class AbstractTxSetFrameForApply
 {
   public:
     virtual ~AbstractTxSetFrameForApply(){};
 
-    virtual int64_t getBaseFee(LedgerHeader const& lh) const = 0;
+    virtual std::optional<int64_t>
+    getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const = 0;
 
     virtual Hash const& getContentsHash() = 0;
 
@@ -36,6 +33,8 @@ class AbstractTxSetFrameForApply
 
     virtual size_t sizeOp() const = 0;
 
+    virtual size_t encodedSize() const = 0;
+
     virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
 
     virtual bool isGeneralizedTxSet() const = 0;
@@ -43,6 +42,9 @@ class AbstractTxSetFrameForApply
     virtual void toXDR(TransactionSet& set) const = 0;
     virtual void toXDR(GeneralizedTransactionSet& set) const = 0;
 };
+
+typedef std::shared_ptr<AbstractTxSetFrameForApply const>
+    TxSetFrameBaseConstPtr;
 
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
@@ -56,9 +58,12 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     bool mGeneralized = false;
 
-    // Base fee applicable to discounted transactions (currently everything but
-    // mBidIsFeeTransactions).
-    std::optional<int64_t> mutable mBaseFee;
+    bool mFinalized = false;
+
+    std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>
+        mTxBaseFee;
+
+    std::optional<size_t> mutable mEncodedSize;
 
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
 
@@ -72,18 +77,19 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void addTxs(Hash const& networkID,
                 xdr::xvector<TransactionEnvelope> const& txs,
-                bool isDiscounted);
+                std::optional<int64_t> baseFee);
 
-  protected:
-    // Determines whether the transaction should be discounted based on the
-    // context of transaction.
-    virtual bool isDiscountedTransaction(TransactionFrameBasePtr tx) const;
+    void surgePricingFilter(Application& app, LedgerHeader const& header);
+
+    void computeBaseFees(LedgerHeader const& lh);
 
   public:
     std::vector<TransactionFrameBasePtr> mTransactions;
 
-    // Returns the base fee associated with this transaction set
-    int64_t getBaseFee(LedgerHeader const& lh) const override;
+    // Returns the base fee for the transaction or std::nullopt when the
+    // transaction is not discounted.
+    std::optional<int64_t>
+    getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const override;
 
     TxSetFrame(Hash const& previousLedgerHash, uint32_t ledgerVersion);
 
@@ -108,12 +114,13 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset);
 
+    void finalize(Application& app);
+
     // remove invalid transaction from this set and return those removed
     // transactions
     std::vector<TransactionFrameBasePtr>
     trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset);
-    void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFrameBasePtr tx);
 
@@ -129,6 +136,8 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     size_t sizeOp() const override;
 
+    size_t encodedSize() const override;
+
     // Returns the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
 
@@ -140,4 +149,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     void toXDR(TransactionSet& set) const override;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
 };
+
+typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
+typedef std::shared_ptr<TxSetFrame const> TxSetFrameConstPtr;
 } // namespace stellar

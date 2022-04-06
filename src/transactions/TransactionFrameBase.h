@@ -19,27 +19,30 @@ class OperationFrame;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
+using TransactionFrameBaseConstPtr =
+    std::shared_ptr<TransactionFrameBase const>;
 
 class TransactionFrameBase
 {
   public:
     static TransactionFrameBasePtr
     makeTransactionFromWire(Hash const& networkID,
-                            TransactionEnvelope const& env,
-                            std::optional<bool> isDiscounted = std::nullopt);
+                            TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMeta& meta) = 0;
 
     virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) = 0;
+                            uint64_t upperBoundCloseTimeOffset,
+                            std::optional<int64_t> baseFee = std::nullopt) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
     virtual int64_t getFeeBid() const = 0;
     virtual int64_t getMinFee(LedgerHeader const& header) const = 0;
-    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    virtual int64_t getFee(LedgerHeader const& header,
+                           std::optional<int64_t> baseFee,
                            bool applying) const = 0;
 
     virtual Hash const& getContentsHash() const = 0;
@@ -59,10 +62,9 @@ class TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
+    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                                  std::optional<int64_t> baseFee) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;
-
-    virtual bool isDiscounted() const = 0;
 };
 }

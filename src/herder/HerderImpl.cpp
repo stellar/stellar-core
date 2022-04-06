@@ -1102,7 +1102,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                             upperBoundCloseTimeOffset);
     mTransactionQueue.ban(removed);
 
-    proposedSet->surgePricingFilter(mApp);
+    proposedSet->finalize(mApp);
 
     // we not only check that the value is valid for consensus (offset=0) but
     // also that we performed the proper cleanup above

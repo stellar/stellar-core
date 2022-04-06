@@ -49,9 +49,8 @@ using namespace std;
 using namespace stellar::txbridge;
 
 TransactionFrame::TransactionFrame(Hash const& networkID,
-                                   TransactionEnvelope const& envelope,
-                                   std::optional<bool> isDiscounted)
-    : mEnvelope(envelope), mNetworkID(networkID), mDiscounted(isDiscounted)
+                                   TransactionEnvelope const& envelope)
+    : mEnvelope(envelope), mNetworkID(networkID)
 {
 }
 
@@ -168,10 +167,10 @@ TransactionFrame::getMinFee(LedgerHeader const& header) const
 }
 
 int64_t
-TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
-                         bool applying) const
+TransactionFrame::getFee(LedgerHeader const& header,
+                         std::optional<int64_t> baseFee, bool applying) const
 {
-    if (!mDiscounted)
+    if (!baseFee)
     {
         return getFeeBid();
     }
@@ -180,7 +179,7 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
         !applying)
     {
         int64_t adjustedFee =
-            baseFee * std::max<int64_t>(1, getNumOperations());
+            *baseFee * std::max<int64_t>(1, getNumOperations());
 
         if (applying)
         {
@@ -304,8 +303,8 @@ TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
 }
 
 void
-TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
-                               bool applying)
+TransactionFrame::resetResults(LedgerHeader const& header,
+                               std::optional<int64_t> baseFee, bool applying)
 {
     auto& ops = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                     ? mEnvelope.v0().tx.operations
@@ -496,17 +495,6 @@ TransactionFrame::processSignatures(ValidationType cv,
 }
 
 bool
-TransactionFrame::isDiscounted() const
-{
-    if (mDiscounted)
-    {
-        return *mDiscounted;
-    }
-    // Currently we consider all the transactions to be discounted.
-    return true;
-}
-
-bool
 TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 {
     return seqNum == INT64_MAX || seqNum + 1 != getSeqNum() ||
@@ -590,7 +578,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 }
 
 void
-TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
+TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
+                                   std::optional<int64_t> baseFee)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -678,16 +667,26 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 }
 
 bool
-TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
-                             SequenceNumber current, bool chargeFee,
-                             uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+TransactionFrame::checkValidWithOptionalFee(AbstractLedgerTxn& ltxOuter,
+                                            SequenceNumber current,
+                                            bool chargeFee,
+                                            uint64_t lowerBoundCloseTimeOffset,
+                                            uint64_t upperBoundCloseTimeOffset,
+                                            std::optional<int64_t> baseFee)
 {
     ZoneScoped;
     mCachedAccount.reset();
 
     LedgerTxn ltx(ltxOuter);
-    int64_t minBaseFee = chargeFee ? ltx.loadHeader().current().baseFee : 0;
+    int64_t minBaseFee = ltx.loadHeader().current().baseFee;
+    if (baseFee)
+    {
+        minBaseFee = std::max(minBaseFee, *baseFee);
+    }
+    if (!chargeFee)
+    {
+        minBaseFee = 0;
+    }
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -724,10 +723,12 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset)
+                             uint64_t upperBoundCloseTimeOffset,
+                             std::optional<int64_t> baseFee)
 {
-    return checkValid(ltxOuter, current, true, lowerBoundCloseTimeOffset,
-                      upperBoundCloseTimeOffset);
+    return checkValidWithOptionalFee(ltxOuter, current, true,
+                                     lowerBoundCloseTimeOffset,
+                                     upperBoundCloseTimeOffset, baseFee);
 }
 
 void
