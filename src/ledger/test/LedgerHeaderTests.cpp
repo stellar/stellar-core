@@ -72,7 +72,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         auto const& lastHash = lcl.hash;
         TxSetFramePtr txSet =
             make_shared<TxSetFrame>(lastHash, lcl.header.ledgerVersion);
-
+        txSet->computeTxFees(lcl.header);
         // close this ledger
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), 1, emptyUpgradeSteps,
