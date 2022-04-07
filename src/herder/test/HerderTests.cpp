@@ -915,6 +915,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     {
         auto refSeqNum = root.getLastSequenceNumber();
         addRootTxs();
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -940,6 +941,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -969,6 +971,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -1002,6 +1005,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -1075,6 +1079,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
         auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
         txSet->add(tx);
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
 
         // txSet contains a valid transaction
@@ -1084,10 +1089,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        txSet->finalizeFees(*app);
+        txSet->surgePricingFilter(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
-        txSet->finalizeFees(*app);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->sizeOp() == 0);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }
