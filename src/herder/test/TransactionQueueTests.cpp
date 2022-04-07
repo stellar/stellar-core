@@ -1433,6 +1433,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         root.loadSequenceNumber();
         txSet->add(tx1b);
         txSet->add(tx2);
+        txSet->computeTxFees(lcl.header);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 
