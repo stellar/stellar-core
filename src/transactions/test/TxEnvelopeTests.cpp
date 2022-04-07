@@ -686,7 +686,14 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                                  1);
 
                             SignerKey sk = alternative.createSigner(*tx);
-                            KeyFunctions<SignerKey>::getKeyValue(sk)[0] ^= 0x01;
+                            if (sk.type() == SIGNER_KEY_TYPE_PRE_AUTH_TX)
+                            {
+                                sk.preAuthTx()[0] ^= 0x01;
+                            }
+                            else
+                            {
+                                sk.hashX()[0] ^= 0x01;
+                            }
                             Signer sk1(sk, 1);
                             a1.setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
