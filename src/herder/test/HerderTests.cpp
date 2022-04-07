@@ -2797,7 +2797,8 @@ TEST_CASE("slot herder policy", "[herder]")
             prevHash, app->getLedgerManager()
                           .getLastClosedLedgerHeader()
                           .header.ledgerVersion);
-
+        txSet->computeTxFees(
+            app->getLedgerManager().getLastClosedLedgerHeader().header);
         // sign values with the same secret key
         StellarValue sv = herder.makeStellarValue(
             txSet->getContentsHash(), (TimePoint)slotIndex,

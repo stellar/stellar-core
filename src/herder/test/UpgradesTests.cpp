@@ -1421,6 +1421,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
         txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+        txSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
         // Provoke sortForHash and hash-caching:
         txSet->getContentsHash();
 
@@ -1546,6 +1547,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
         txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+        txSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
         // Provoke sortForHash and hash-caching:
         txSet->getContentsHash();
 
