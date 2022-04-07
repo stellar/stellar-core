@@ -86,12 +86,10 @@ StateSnapshot::writeHistoryBlocks() const
         nHeaders = LedgerHeaderUtils::copyToStream(mApp.getDatabase(), sess,
                                                    begin, count, ledgerOut);
 
-        size_t nTxs =
-            copyTransactionsToStream(mApp.getNetworkID(), mApp.getDatabase(),
-                                     sess, begin, count, txOut, txResultOut,
-                                     mApp.getLedgerManager()
-                                         .getLastClosedLedgerHeader()
-                                         .header.ledgerVersion);
+        size_t nTxs = copyTransactionsToStream(
+            mApp.getNetworkID(), mApp.getDatabase(), sess, begin, count, txOut,
+            txResultOut,
+            mApp.getLedgerManager().getLastClosedLedgerHeader().header);
         CLOG_DEBUG(History, "Wrote {} ledger headers to {}", nHeaders,
                    mLedgerSnapFile->localPath_nogz());
         CLOG_DEBUG(History, "Wrote {} transactions to {} and {}", nTxs,

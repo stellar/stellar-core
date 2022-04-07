@@ -1103,7 +1103,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     mTransactionQueue.ban(removed);
 
     proposedSet->surgePricingFilter(mApp);
-    proposedSet->finalizeFees(mApp);
+    proposedSet->computeTxFees(lcl.header);
 
     // we not only check that the value is valid for consensus (offset=0) but
     // also that we performed the proper cleanup above

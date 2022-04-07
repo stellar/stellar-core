@@ -456,6 +456,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
             txSet->add(carol.tx({payment(bob, small)}));
     }
 
+    txSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
     // Provoke sortForHash and hash-caching:
     txSet->getContentsHash();
 

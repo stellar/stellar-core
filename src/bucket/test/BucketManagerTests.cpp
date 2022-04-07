@@ -166,7 +166,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
     auto txSet =
         std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
-    txSet->finalizeFees(app);
+    txSet->computeTxFees(lcl.header);
     app.getHerder().externalizeValue(txSet, ledgerNum,
                                      lcl.header.scpValue.closeTime,
                                      emptyUpgradeSteps, skToSignValue);

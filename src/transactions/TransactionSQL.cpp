@@ -152,7 +152,8 @@ static void
 saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       TxSetFrame& txSet, TransactionHistoryResultEntry& results,
                       XDROutputFileStream& txOut,
-                      XDROutputFileStream& txResultOut)
+                      XDROutputFileStream& txResultOut,
+                      LedgerHeader const& lclHeader)
 {
     ZoneScoped;
     // prepare the txset for saving
@@ -162,11 +163,13 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
         throw std::runtime_error("Could not find ledger");
     }
     txSet.previousLedgerHash() = lh->previousLedgerHash;
+    txSet.computeTxFees(lclHeader);
     txSet.sortForHash();
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
     if (txSet.isGeneralizedTxSet())
     {
+        hist.ext.v(1);
         txSet.toXDR(hist.ext.generalizedTxSet());
     }
     else
@@ -184,7 +187,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
                          soci::session& sess, uint32_t ledgerSeq,
                          uint32_t ledgerCount, XDROutputFileStream& txOut,
                          XDROutputFileStream& txResultOut,
-                         uint32_t ledgerVersion)
+                         LedgerHeader const& lclHeader)
 {
     ZoneScoped;
     auto timer = db.getSelectTimer("txhistory");
@@ -204,7 +207,8 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
          soci::use(begin), soci::use(end));
 
     Hash h;
-    TxSetFrame txSet(h, ledgerVersion); // we're setting the hash later
+    TxSetFrame txSet(h,
+                     lclHeader.ledgerVersion); // we're setting the hash later
     TransactionHistoryResultEntry results;
 
     st.execute(true);
@@ -217,7 +221,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
         if (curLedgerSeq != lastLedgerSeq)
         {
             saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results,
-                                  txOut, txResultOut);
+                                  txOut, txResultOut, lclHeader);
             // reset state
             txSet.mTransactions.clear();
             results.ledgerSeq = curLedgerSeq;
@@ -255,7 +259,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
     if (n != 0)
     {
         saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results, txOut,
-                              txResultOut);
+                              txResultOut, lclHeader);
     }
     return n;
 }

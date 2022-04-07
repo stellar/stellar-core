@@ -81,7 +81,7 @@ TxSetFrame::TxSetFrame(Hash const& networkID,
     }
     mPreviousLedgerHash = txSet.previousLedgerHash;
     sortForHash();
-    mFeesFinalized = true;
+    mFeesComputed = true;
 }
 
 static bool
@@ -323,15 +323,6 @@ TxSetFrame::surgePricingFilter(Application& app)
     }
 }
 
-void
-TxSetFrame::finalizeFees(Application& app)
-{
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto header = ltx.loadHeader();
-    computeBaseFees(header.current());
-    mFeesFinalized = true;
-}
-
 bool
 TxSetFrame::checkOrTrim(Application& app,
                         std::vector<TransactionFrameBasePtr>& trimmed,
@@ -365,7 +356,7 @@ TxSetFrame::checkOrTrim(Application& app,
             int64_t txBaseFee = ledgerBaseFee;
             if (protocolVersionStartsFrom(
                     ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION) &&
-                mFeesFinalized)
+                mFeesComputed)
             {
                 auto maybeTxBaseFee = getTxBaseFee(tx);
                 if (maybeTxBaseFee)
@@ -464,7 +455,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                        uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
-    releaseAssert(mFeesFinalized);
+    releaseAssert(mFeesComputed);
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     if (mValid && mValid->first == lcl.hash)
     {
@@ -547,7 +538,6 @@ TxSetFrame::removeTx(TransactionFrameBasePtr tx)
 void
 TxSetFrame::add(TransactionFrameBasePtr tx)
 {
-    releaseAssert(!mFeesFinalized);
     mTransactions.push_back(tx);
     mHash.reset();
     mValid.reset();
@@ -636,7 +626,7 @@ TxSetFrame::encodedSize() const
 }
 
 void
-TxSetFrame::computeBaseFees(LedgerHeader const& lh)
+TxSetFrame::computeTxFees(LedgerHeader const& lh)
 {
     ZoneScoped;
     int64_t baseFee = lh.baseFee;
@@ -671,12 +661,13 @@ TxSetFrame::computeBaseFees(LedgerHeader const& lh)
     {
         mTxBaseFee[tx] = baseFee;
     }
+    mFeesComputed = true;
 }
 
 std::optional<int64_t>
 TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const
 {
-    releaseAssert(mFeesFinalized);
+    releaseAssert(mFeesComputed);
     auto it = mTxBaseFee.find(tx);
     if (it == mTxBaseFee.end())
     {
@@ -731,7 +722,7 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
     releaseAssert(isGeneralizedTxSet());
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
-    releaseAssert(mFeesFinalized);
+    releaseAssert(mFeesComputed);
 
     generalizedTxSet.v(1);
     // The following code assumes that only a single phase exists.

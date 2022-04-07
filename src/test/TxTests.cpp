@@ -448,9 +448,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
     std::shared_ptr<TxSetFrame> txSet;
-    auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
-    auto ledgerVersion =
-        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto lclHash = lcl.hash;
+    auto ledgerVersion = lcl.header.ledgerVersion;
     if (strictOrder)
     {
         txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(
@@ -466,7 +466,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
         txSet->add(tx);
     }
 
-    txSet->finalizeFees(app);
+    txSet->computeTxFees(lcl.header);
     txSet->sortForHash();
     if (!strictOrder)
     {
@@ -477,7 +477,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
         }
         REQUIRE(b);
     }
-    
+
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
 
@@ -1469,7 +1469,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto txSet =
         std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
-    txSet->finalizeFees(app);
+    txSet->computeTxFees(lcl.header);
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1, 2,
                                      upgrades);
     return lm.getLastClosedLedgerHeader().header;

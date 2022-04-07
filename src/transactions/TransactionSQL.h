@@ -31,7 +31,7 @@ size_t copyTransactionsToStream(Hash const& networkID, Database& db,
                                 uint32_t ledgerCount,
                                 XDROutputFileStream& txOut,
                                 XDROutputFileStream& txResultOut,
-                                uint32_t ledgerVersion);
+                                LedgerHeader const& lclHeader);
 
 void dropTransactionHistory(Database& db);
 
