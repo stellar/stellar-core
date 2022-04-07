@@ -1595,12 +1595,11 @@ HerderImpl::persistSCPState(uint64 slot)
     }
 
     mLastSlotSaved = slot;
-
-    bool useStateXDR =
-        protocolVersionStartsFrom(mApp.getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    auto ledgerVersion = mApp.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.ledgerVersion;
+    bool useStateXDR = protocolVersionStartsFrom(
+        ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION);
     // saves SCP messages and related data (transaction sets, quorum sets)
     PersistedSCPState scpState;
 
@@ -1637,7 +1636,7 @@ HerderImpl::persistSCPState(uint64 slot)
 
     stellar::Value latestSCPData;
 
-    if (useStateXDR)
+    if (!useStateXDR)
     {
         xdr::xvector<TransactionSet> latestTxSets;
         for (auto it : txSets)

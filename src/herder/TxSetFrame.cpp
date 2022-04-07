@@ -362,8 +362,9 @@ TxSetFrame::checkOrTrim(Application& app,
         {
             auto tx = *iter;
             int64_t txBaseFee = ledgerBaseFee;
-            if (protocolVersionStartsFrom(ledgerVersion,
-                                          GENERALIZED_TX_SET_PROTOCOL_VERSION))
+            if (protocolVersionStartsFrom(
+                    ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION) &&
+                mFinalized)
             {
                 auto maybeTxBaseFee = getTxBaseFee(tx);
                 if (maybeTxBaseFee)
