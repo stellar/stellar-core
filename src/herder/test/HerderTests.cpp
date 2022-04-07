@@ -915,6 +915,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     {
         auto refSeqNum = root.getLastSequenceNumber();
         addRootTxs();
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -940,6 +941,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -969,6 +971,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -1002,6 +1005,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             tx->addSignature(accountB);
             txSet->add(tx);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
@@ -1075,6 +1079,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
         auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
         txSet->add(tx);
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
 
         // txSet contains a valid transaction
@@ -1084,10 +1089,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        txSet->finalizeFees(*app);
+        txSet->surgePricingFilter(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
-        txSet->finalizeFees(*app);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->sizeOp() == 0);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }
@@ -1164,6 +1169,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         root.loadSequenceNumber();
         auto result = std::make_shared<TxSetFrame>(hash, protocolVersion);
         addTransactions(result, n, nbOps, feeMulti);
+        result->finalizeFees(*app);
         result->sortForHash();
         REQUIRE(result->checkValid(*app, 0, 0));
         return result;
@@ -1407,6 +1413,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                         .getLastClosedLedgerHeader()
                         .header.ledgerVersion);
                 txSet->add(tx);
+                txSet->finalizeFees(*app);
 
                 // Build a StellarValue containing the transaction set we just
                 // built and the given next closeTime.
@@ -2501,7 +2508,7 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
 
 static void
 externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
-            std::vector<TransactionFrameBasePtr> const& txs)
+            std::vector<TransactionFrameBasePtr> const& txs, Application& app)
 {
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto ledgerSeq = lcl.header.ledgerSeq + 1;
@@ -2512,6 +2519,7 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     {
         txSet->add(tx);
     }
+    txSet->finalizeFees(app);
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
@@ -2547,7 +2555,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     size_t numBroadcast = 0;
     tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
 
-    externalize(cfg.NODE_SEED, lm, herder, {tx1r});
+    externalize(cfg.NODE_SEED, lm, herder, {tx1r}, *app);
     auto timeout = clock.now() + std::chrono::seconds(5);
     while (numBroadcast != 1)
     {
@@ -2557,6 +2565,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txSet = tq.toTxSet(lhhe);
+    txSet->finalizeFees(*app);
     REQUIRE(txSet->mTransactions.size() == 1);
     REQUIRE(txSet->mTransactions.front()->getContentsHash() ==
             tx1a->getContentsHash());
@@ -2693,7 +2702,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             ++numBroadcast;
         };
 
-        externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
+        externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r}, *app);
 
         // no broadcast right away
         REQUIRE(numBroadcast == 0);
