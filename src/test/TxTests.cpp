@@ -470,12 +470,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     txSet->sortForHash();
     if (!strictOrder)
     {
-        bool b = txSet->checkValid(app, 0, 0);
-        if (!b)
-        {
-            int t = 0;
-        }
-        REQUIRE(b);
+        REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,

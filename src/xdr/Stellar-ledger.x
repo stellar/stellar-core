@@ -422,6 +422,6 @@ union LedgerCloseMeta switch (int v)
 case 0:
     LedgerCloseMetaV0 v0;
 case 1:
-    LedgerCloseMetaV0 v1;
+    LedgerCloseMetaV1 v1;
 };
 }
