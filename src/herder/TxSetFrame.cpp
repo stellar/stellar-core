@@ -81,7 +81,7 @@ TxSetFrame::TxSetFrame(Hash const& networkID,
     }
     mPreviousLedgerHash = txSet.previousLedgerHash;
     sortForHash();
-    mFinalized = true;
+    mFeesFinalized = true;
 }
 
 static bool
@@ -263,11 +263,13 @@ TxSetFrame::addTxs(Hash const& networkID,
 }
 
 void
-TxSetFrame::surgePricingFilter(Application& app, LedgerHeader const& header)
+TxSetFrame::surgePricingFilter(Application& app)
 {
     ZoneScoped;
-    bool maxIsOps =
-        protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11);
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto header = ltx.loadHeader();
+    bool maxIsOps = protocolVersionStartsFrom(header.current().ledgerVersion,
+                                              ProtocolVersion::V_11);
 
     size_t opsLeft = app.getLedgerManager().getLastMaxTxSetSizeOps();
 
@@ -322,13 +324,12 @@ TxSetFrame::surgePricingFilter(Application& app, LedgerHeader const& header)
 }
 
 void
-TxSetFrame::finalize(Application& app)
+TxSetFrame::finalizeFees(Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
-    surgePricingFilter(app, header.current());
     computeBaseFees(header.current());
-    mFinalized = true;
+    mFeesFinalized = true;
 }
 
 bool
@@ -364,7 +365,7 @@ TxSetFrame::checkOrTrim(Application& app,
             int64_t txBaseFee = ledgerBaseFee;
             if (protocolVersionStartsFrom(
                     ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION) &&
-                mFinalized)
+                mFeesFinalized)
             {
                 auto maybeTxBaseFee = getTxBaseFee(tx);
                 if (maybeTxBaseFee)
@@ -463,7 +464,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                        uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
-    releaseAssert(mFinalized);
+    releaseAssert(mFeesFinalized);
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     if (mValid && mValid->first == lcl.hash)
     {
@@ -533,7 +534,6 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 void
 TxSetFrame::removeTx(TransactionFrameBasePtr tx)
 {
-    releaseAssert(!mFinalized);
     auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
     if (it != mTransactions.end())
     {
@@ -547,7 +547,7 @@ TxSetFrame::removeTx(TransactionFrameBasePtr tx)
 void
 TxSetFrame::add(TransactionFrameBasePtr tx)
 {
-    releaseAssert(!mFinalized);
+    releaseAssert(!mFeesFinalized);
     mTransactions.push_back(tx);
     mHash.reset();
     mValid.reset();
@@ -676,7 +676,7 @@ TxSetFrame::computeBaseFees(LedgerHeader const& lh)
 std::optional<int64_t>
 TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx) const
 {
-    releaseAssert(mFinalized);
+    releaseAssert(mFeesFinalized);
     auto it = mTxBaseFee.find(tx);
     if (it == mTxBaseFee.end())
     {
@@ -731,7 +731,7 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
     releaseAssert(isGeneralizedTxSet());
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
-    releaseAssert(mFinalized);
+    releaseAssert(mFeesFinalized);
 
     generalizedTxSet.v(1);
     // The following code assumes that only a single phase exists.

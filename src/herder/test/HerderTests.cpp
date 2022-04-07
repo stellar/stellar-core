@@ -303,13 +303,14 @@ testTxSet(uint32 protocolVersion)
         {
             genTx(1);
         }
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
     }
     SECTION("order check")
     {
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
-
         SECTION("success")
         {
             REQUIRE(txSet->checkValid(*app, 0, 0));
@@ -332,6 +333,7 @@ testTxSet(uint32 protocolVersion)
         {
             auto newUser = TestAccount{*app, getAccount("doesnotexist")};
             txSet->add(newUser.tx({payment(root, 1)}));
+            txSet->finalizeFees(*app);
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app, 0, 0));
 
@@ -345,6 +347,7 @@ testTxSet(uint32 protocolVersion)
                 auto tx = accounts[0].tx({payment(accounts[0], 1)});
                 setSeqNum(tx, tx->getSeqNum() + 5);
                 txSet->add(tx);
+                txSet->finalizeFees(*app);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app, 0, 0));
 
@@ -353,7 +356,10 @@ testTxSet(uint32 protocolVersion)
             }
             SECTION("gap begin")
             {
-                txSet->removeTx(txSet->sortForApply()[0]);
+                txSet->finalizeFees(*app);
+                auto sortedForApply = txSet->sortForApply();
+                txSet->removeTx(sortedForApply[0]);
+                txSet->finalizeFees(*app);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app, 0, 0));
 
@@ -366,9 +372,11 @@ testTxSet(uint32 protocolVersion)
             SECTION("gap middle")
             {
                 int remIdx = 2; // 3rd transaction
+                txSet->finalizeFees(*app);
                 txSet->sortForApply();
                 txSet->mTransactions.erase(txSet->mTransactions.begin() +
                                            (remIdx * 2));
+                txSet->finalizeFees(*app);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app, 0, 0));
 
@@ -384,6 +392,7 @@ testTxSet(uint32 protocolVersion)
         {
             // extra transaction would push the account below the reserve
             txSet->add(accounts[0].tx({payment(accounts[0], 10)}));
+            txSet->finalizeFees(*app);
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app, 0, 0));
 
@@ -398,6 +407,7 @@ testTxSet(uint32 protocolVersion)
                 txSet->mTransactions[0]);
             setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
+            txSet->finalizeFees(*app);
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
@@ -476,7 +486,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 =
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1, fb2});
         }
 
@@ -493,7 +503,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb3 =
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
             txSet->add(fb3);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2, fb3});
         }
 
@@ -510,7 +520,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb3 =
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
             txSet->add(fb3);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1, fb2, fb3});
         }
 
@@ -527,7 +537,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx3 = transaction(*app, account1, 3, 1, 100);
             auto fb3 = feeBump(*app, account3, tx3, 200);
             txSet->add(fb3);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1, fb2, fb3});
         }
 
@@ -540,7 +550,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 =
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1, fb2});
         }
     }
@@ -552,7 +562,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
             txSet->add(fb1);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1});
         }
 
@@ -564,7 +574,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx2 = transaction(*app, account1, 2, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, 200);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb1, fb2});
         }
 
@@ -578,7 +588,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx2 = transaction(*app, account1, 2, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2});
         }
 
@@ -594,7 +604,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 =
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2});
         }
 
@@ -607,7 +617,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx2 = transaction(*app, account2, 1, 1, 100);
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2});
         }
 
@@ -621,7 +631,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 =
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             txSet->add(fb2);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2});
         }
 
@@ -638,7 +648,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb3 =
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
             txSet->add(fb3);
-
+            txSet->finalizeFees(*app);
             checkTrimCheck({fb2, fb3});
         }
     }
@@ -716,6 +726,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
 
         REQUIRE(txSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
+        txSet->finalizeFees(*app);
         txSet->sortForHash();
         REQUIRE(txSet->checkValid(*app, 0, 0));
 
@@ -896,7 +907,8 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     auto surgePricing = [&]() {
         txSet->trimInvalid(*app, 0, 0);
         txSet->sortForHash();
-        txSet->finalize(*app);
+        txSet->surgePricingFilter(*app);
+        txSet->finalizeFees(*app);
     };
 
     SECTION("basic single account")
@@ -1072,10 +1084,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        txSet->finalize(*app);
+        txSet->finalizeFees(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
-        txSet->finalize(*app);
+        txSet->finalizeFees(*app);
         REQUIRE(txSet->sizeOp() == 0);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }

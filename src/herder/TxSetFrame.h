@@ -58,7 +58,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     bool mGeneralized = false;
 
-    bool mFinalized = false;
+    bool mFeesFinalized = false;
 
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>
         mTxBaseFee;
@@ -77,9 +77,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void addTxs(Hash const& networkID,
                 xdr::xvector<TransactionEnvelope> const& txs,
-                std::optional<int64_t> baseFee);
-
-    void surgePricingFilter(Application& app, LedgerHeader const& header);
+                std::optional<int64_t> baseFee);    
 
     void computeBaseFees(LedgerHeader const& lh);
 
@@ -114,7 +112,8 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset);
 
-    void finalize(Application& app);
+    void surgePricingFilter(Application& app);
+    void finalizeFees(Application& app);
 
     // remove invalid transaction from this set and return those removed
     // transactions

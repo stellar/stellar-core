@@ -1533,7 +1533,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             txFrame = root.tx({createAccount(a1, paymentAmount)});
             txSet->add(txFrame);
-            txSet->finalize(*app);
+            txSet->finalizeFees(*app);
 
             // Close this ledger
             app->getHerder().externalizeValue(txSet, 2, 1, emptyUpgradeSteps);
