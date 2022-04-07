@@ -324,7 +324,7 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
             CLOG_DEBUG(Overlay,
                        "Peer rejected - all outbound pending connections "
                        "taken: {}",
-                       currentConnection->toString());
+                       address.toString());
             return false;
         }
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
