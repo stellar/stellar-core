@@ -87,9 +87,10 @@ struct LedgerEntryIdCmp
                               a.contractCode().contractID,
                               b.contractCode().contractID);
         case CONTRACT_DATA:
-            return lexCompare(a.contractCode().owner, b.contractCode().owner,
-                              a.contractCode().contractID,
-                              b.contractCode().contractID);
+            return lexCompare(a.contractData().owner, b.contractData().owner,
+                              a.contractData().contractID,
+                              b.contractData().contractID, a.contractData().key,
+                              b.contractData().key);
         }
         return false;
     }

@@ -3,6 +3,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/contracts/HostContext.h"
 #include "util/Logging.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
 #include <Tracy.hpp>
@@ -44,6 +45,18 @@ HostContext::mapGet(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
             return fizzy::ExecutionResult(*valPtr);
         }
         return hostTrap(HOST_TRAP_VALUE_OUT_OF_RANGE);
+    });
+}
+
+fizzy::ExecutionResult
+HostContext::mapHas(fizzy::Instance& instance, fizzy::ExecutionContext& exec,
+                    uint64_t map, uint64_t key)
+{
+    ZoneScoped;
+    auto keyV = HostVal::fromPayload(key);
+    return objMethod<HostMap>(map, [&](HostMap const& map) {
+        auto* valPtr = map.find(keyV);
+        return HostVal::fromBool(bool(valPtr));
     });
 }
 
@@ -307,6 +320,100 @@ HostContext::getCurrentLedgerCloseTime(fizzy::Instance& instance,
     return fizzy::Value{closeTime};
 }
 
+LedgerKey
+HostContext::currentContractDataLedgerKey(uint64_t key)
+{
+    ZoneScoped;
+    HostVal keyV = HostVal::fromPayload(key);
+    SCVal keyX = hostToXdr(keyV);
+    LedgerKey lk;
+    lk.type(CONTRACT_DATA);
+    releaseAssert(!mInvokeCtxs.empty());
+    lk.contractData().owner = mInvokeCtxs.back().mContractOwner;
+    lk.contractData().contractID = mInvokeCtxs.back().mContractID;
+    lk.contractData().key.activate();
+    *lk.contractData().key = keyX;
+    return lk;
+}
+
+fizzy::ExecutionResult
+HostContext::putContractData(fizzy::Instance&, fizzy::ExecutionContext&,
+                             uint64_t key, uint64_t val)
+{
+    ZoneScoped;
+    LedgerKey lk = currentContractDataLedgerKey(key);
+    HostVal keyV = HostVal::fromPayload(key);
+    HostVal valV = HostVal::fromPayload(val);
+    auto& ltx = getLedgerTxn();
+
+    auto lte = ltx.load(lk);
+    if (lte)
+    {
+        CLOG_TRACE(Tx, "putContractData updating existing entry under {}",
+                   keyV);
+        releaseAssert(lte.current().data.contractData().val);
+        *lte.current().data.contractData().val = hostToXdr(valV);
+    }
+    else
+    {
+        CLOG_TRACE(Tx, "putContractData creating new entry under {}", keyV);
+        LedgerEntry le;
+        le.data.type(CONTRACT_DATA);
+        le.data.contractData().owner = lk.contractData().owner;
+        le.data.contractData().contractID = lk.contractData().contractID;
+        le.data.contractData().key.activate();
+        le.data.contractData().val.activate();
+        *le.data.contractData().key = *lk.contractData().key;
+        *le.data.contractData().val = hostToXdr(valV);
+        ltx.create(le);
+    }
+    return HostVal::fromVoid();
+}
+
+fizzy::ExecutionResult
+HostContext::hasContractData(fizzy::Instance&, fizzy::ExecutionContext&,
+                             uint64_t key)
+{
+    ZoneScoped;
+    LedgerKey lk = currentContractDataLedgerKey(key);
+    auto& ltx = getLedgerTxn();
+    auto lte = ltx.load(lk);
+    return HostVal::fromBool(bool(lte));
+}
+
+fizzy::ExecutionResult
+HostContext::getContractData(fizzy::Instance&, fizzy::ExecutionContext&,
+                             uint64_t key)
+{
+    ZoneScoped;
+    LedgerKey lk = currentContractDataLedgerKey(key);
+    HostVal keyV = HostVal::fromPayload(key);
+    auto& ltx = getLedgerTxn();
+    auto lte = ltx.load(lk);
+    if (lte)
+    {
+        CLOG_TRACE(Tx, "getContractData found entry under {}", keyV);
+        lte.current().data.contractData().val.activate();
+        return xdrToHost(*lte.current().data.contractData().val);
+    }
+    else
+    {
+        CLOG_TRACE(Tx, "getContractData missing entry under {}", keyV);
+        return hostTrap(HOST_TRAP_VALUE_NOT_FOUND);
+    }
+}
+
+fizzy::ExecutionResult
+HostContext::delContractData(fizzy::Instance&, fizzy::ExecutionContext&,
+                             uint64_t key)
+{
+    ZoneScoped;
+    LedgerKey lk = currentContractDataLedgerKey(key);
+    auto& ltx = getLedgerTxn();
+    ltx.erase(lk);
+    return HostVal::fromVoid();
+}
+
 fizzy::ExecutionResult
 HostContext::getLastOperationResult(fizzy::Instance&, fizzy::ExecutionContext&)
 {
@@ -359,8 +466,8 @@ HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
 
                                 bool ok = pof.doApply(getLedgerTxn());
 
-                                // Stash detailed result code for detailed
-                                // inspection.
+                                // Stash detailed result code for
+                                // detailed inspection.
                                 mLastOperationResult = res;
 
                                 if (res.code() != opINNER ||
@@ -372,15 +479,15 @@ HostContext::pay(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t src,
                                 if (ok && res.tr().paymentResult().code() ==
                                               PAYMENT_SUCCESS)
                                 {
-                                    // Collapse the happy path into a single
-                                    // "ok" guest status.
+                                    // Collapse the happy path into a
+                                    // single "ok" guest status.
                                     return fizzy::ExecutionResult(
                                         HostVal::statusOK());
                                 }
                                 else
                                 {
-                                    // Fish out the code of the result for cheap
-                                    // inspection.
+                                    // Fish out the code of the result
+                                    // for cheap inspection.
                                     uint32_t code =
                                         res.tr().paymentResult().code();
                                     auto status =
@@ -460,7 +567,8 @@ HostContext::callN(fizzy::Instance&, fizzy::ExecutionContext&,
 
         auto res = [&]() {
             LedgerTxn ltxInner(getLedgerTxn());
-            HostContextTxn htx(beginInnerTxn(ltxInner));
+            HostContextTxn htx(beginInnerTxn(ltxInner, contractLK.owner,
+                                             contractLK.contractID));
             return invokeContract(contractLK.owner, contractLK.contractID,
                                   func.asSymbol(), args);
         }();
@@ -713,6 +821,7 @@ HostContext::registerHostFunctions()
     registerHostFunction(&HostContext::mapDel, "m", "$2");
     registerHostFunction(&HostContext::mapLen, "m", "$3");
     registerHostFunction(&HostContext::mapKeys, "m", "$4");
+    registerHostFunction(&HostContext::mapHas, "m", "$5");
 
     // Module 'v' is vec functions
     registerHostFunction(&HostContext::vecNew, "v", "$_");
@@ -734,6 +843,10 @@ HostContext::registerHostFunctions()
     registerHostFunction(&HostContext::getCurrentLedgerNum, "l", "$_");
     registerHostFunction(&HostContext::getCurrentLedgerCloseTime, "l", "$0");
     registerHostFunction(&HostContext::pay, "l", "$1");
+    registerHostFunction(&HostContext::putContractData, "l", "$2");
+    registerHostFunction(&HostContext::hasContractData, "l", "$3");
+    registerHostFunction(&HostContext::getContractData, "l", "$4");
+    registerHostFunction(&HostContext::delContractData, "l", "$5");
 
     // Module 'c' is cross-contract functions
     registerHostFunction(&HostContext::call0, "c", "$_");

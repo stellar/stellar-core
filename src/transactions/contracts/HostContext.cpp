@@ -159,14 +159,7 @@ HostContext::xdrToHost(SCVal const& v)
     case SCV_BITSET:
         return HostVal::fromBitSet(v.bits());
     case SCV_STATUS:
-        if (v.status())
-        {
-            return HostVal::fromStatus(getStatusPair(*v.status()));
-        }
-        else
-        {
-            return HostVal::fromStatus(std::make_pair(uint32_t(SST_OK), 0));
-        }
+        return HostVal::fromStatus(getStatusPair(v.status()));
     }
 }
 
@@ -223,14 +216,7 @@ HostContext::hostToXdr(HostVal const& hv)
     else if (hv.isStatus())
     {
         out.type(SCV_STATUS);
-        {
-            auto pair = hv.asStatus();
-            if (pair.first != uint32_t(SST_OK))
-            {
-                out.status().activate();
-                *out.status() = getStatus(pair);
-            }
-        }
+        out.status() = getStatus(hv.asStatus());
     }
     return out;
 }

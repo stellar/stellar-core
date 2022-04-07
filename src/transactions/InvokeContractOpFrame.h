@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/OperationFrame.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -40,6 +41,18 @@ class InvokeContractOpFrame : public OperationFrame
     getInnerCode(OperationResult const& res)
     {
         return res.tr().invokeContractResult().code();
+    }
+
+    AccountID
+    getContractOwner() const
+    {
+        return mOperation.body.invokeContractOp().owner;
+    }
+
+    int64_t
+    getContractID() const
+    {
+        return mOperation.body.invokeContractOp().contractID;
     }
 };
 }

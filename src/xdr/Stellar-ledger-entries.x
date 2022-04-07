@@ -492,17 +492,13 @@ struct ContractCodeEntry {
     } body;
 };
 
+%struct SCVal;
+
 struct ContractDataEntry {
     AccountID owner;
     int64 contractID;
-    union switch (ContractCodeType type)
-    {
-    case CONTRACT_CODE_WASM:
-        struct
-        {
-            opaque data<65536>;
-        } wasm;
-    } body;
+    SCVal *key;
+    SCVal *val;
 };
 
 struct LedgerEntryExtensionV1
@@ -604,6 +600,7 @@ case CONTRACT_DATA:
     {
         AccountID owner;
         int64 contractID;
+        SCVal *key;
     } contractData;
 };
 

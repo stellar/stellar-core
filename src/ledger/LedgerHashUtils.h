@@ -152,6 +152,8 @@ template <> class hash<stellar::LedgerKey>
                                       lk.contractData().owner.ed25519()));
             stellar::hashMix(
                 res, std::hash<uint64_t>()(lk.contractData().contractID));
+            stellar::hashMix(
+                res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
             break;
         default:
             abort();

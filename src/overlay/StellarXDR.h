@@ -1,4 +1,5 @@
 #pragma once
+#include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-overlay.h"

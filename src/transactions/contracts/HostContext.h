@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "transactions/InvokeContractOpFrame.h"
 #include "transactions/contracts/HostVal.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -67,6 +68,8 @@ struct InvokeContractContext
     HostContext& mHostContext;
     InvokeContractOpFrame& mInvokeOp;
     AbstractLedgerTxn& mLedgerTxn;
+    AccountID mContractOwner;
+    int64_t mContractID;
 };
 class HostContextTxn
 {
@@ -226,16 +229,19 @@ class HostContext
     beginOpTxn(InvokeContractOpFrame& op, AbstractLedgerTxn& ltx)
     {
         releaseAssert(mInvokeCtxs.empty());
-        mInvokeCtxs.emplace_back(InvokeContractContext{*this, op, ltx});
+        mInvokeCtxs.emplace_back(InvokeContractContext{
+            *this, op, ltx, op.getContractOwner(), op.getContractID()});
         return HostContextTxn(*this);
     }
 
     HostContextTxn
-    beginInnerTxn(AbstractLedgerTxn& innerLtx)
+    beginInnerTxn(AbstractLedgerTxn& innerLtx, AccountID const& owner,
+                  int64_t contractID)
     {
         releaseAssert(!mInvokeCtxs.empty());
         auto& curr = mInvokeCtxs.back();
-        InvokeContractContext next{curr.mHostContext, curr.mInvokeOp, innerLtx};
+        InvokeContractContext next{curr.mHostContext, curr.mInvokeOp, innerLtx,
+                                   owner, contractID};
         mInvokeCtxs.emplace_back(std::move(next));
         return HostContextTxn(*this);
     }
@@ -294,6 +300,8 @@ class HostContext
                                   uint64_t map);
     fizzy::ExecutionResult mapKeys(fizzy::Instance&, fizzy::ExecutionContext&,
                                    uint64_t map);
+    fizzy::ExecutionResult mapHas(fizzy::Instance&, fizzy::ExecutionContext&,
+                                  uint64_t map, uint64_t key);
 
     fizzy::ExecutionResult vecNew(fizzy::Instance&, fizzy::ExecutionContext&);
     fizzy::ExecutionResult vecGet(fizzy::Instance&, fizzy::ExecutionContext&,
@@ -329,6 +337,17 @@ class HostContext
                                                      fizzy::ExecutionContext&);
     fizzy::ExecutionResult getLastOperationResult(fizzy::Instance&,
                                                   fizzy::ExecutionContext&);
+
+    LedgerKey currentContractDataLedgerKey(uint64_t key);
+    fizzy::ExecutionResult putContractData(fizzy::Instance&,
+                                           fizzy::ExecutionContext&,
+                                           uint64_t key, uint64_t val);
+    fizzy::ExecutionResult
+    hasContractData(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t key);
+    fizzy::ExecutionResult
+    getContractData(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t key);
+    fizzy::ExecutionResult
+    delContractData(fizzy::Instance&, fizzy::ExecutionContext&, uint64_t key);
 
     fizzy::ExecutionResult pay(fizzy::Instance&, fizzy::ExecutionContext&,
                                uint64_t src, uint64_t dst, uint64_t asset,

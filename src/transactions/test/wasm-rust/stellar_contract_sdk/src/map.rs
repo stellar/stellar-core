@@ -61,6 +61,11 @@ impl<K: ValType, V: ValType> Map<K, V> {
     }
 
     #[inline(always)]
+    pub fn has(&self, k: K) -> bool {
+        unsafe { <bool as ValType>::unchecked_from_val(host_fns::map_has(self.0.into(), k.into())) }
+    }
+
+    #[inline(always)]
     pub fn get(&self, k: K) -> V {
         unsafe { <V as ValType>::unchecked_from_val(host_fns::map_get(self.0.into(), k.into())) }
     }

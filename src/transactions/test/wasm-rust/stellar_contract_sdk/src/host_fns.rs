@@ -61,6 +61,8 @@ extern "C" {
     pub(crate) fn map_len(m: Object) -> Val;
     #[link_name = "$4"]
     pub(crate) fn map_keys(m: Object) -> Object;
+    #[link_name = "$5"]
+    pub(crate) fn map_has(m: Object, k: Val) -> Val;
 }
 
 // Vec functions live in the 'v' module
@@ -109,6 +111,15 @@ extern "C" {
     // get_last_operation_result.
     #[link_name = "$1"]
     pub(crate) fn pay(src: Val, dst: Val, asset: Val, amount: Val) -> Val;
+
+    #[link_name = "$2"]
+    pub(crate) fn put_contract_data(key: Val, val: Val) -> Val;
+    #[link_name = "$3"]
+    pub(crate) fn has_contract_data(key: Val) -> Val;
+    #[link_name = "$4"]
+    pub(crate) fn get_contract_data(key: Val) -> Val;
+    #[link_name = "$5"]
+    pub(crate) fn del_contract_data(key: Val) -> Val;
 }
 
 // Cross-contract functions live in the 'c' module

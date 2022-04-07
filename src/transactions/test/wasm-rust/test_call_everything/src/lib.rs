@@ -1,5 +1,5 @@
 #![no_std]
-use sdk::{BigNum, Map, Object, OrAbort, Symbol, Val, Vec};
+use sdk::{BigNum, Map, OrAbort, Symbol, Val, Vec};
 use stellar_contract_sdk as sdk;
 
 #[no_mangle]
@@ -21,7 +21,7 @@ pub fn call_everything() -> Val {
     let m = m.put(n, n);
     let n = m.get(n);
     let m = m.del(n);
-    let k = m.keys();
+    let _k = m.keys();
 
     let v: Vec<u32> = Vec::new();
     let v = v.put(n, n);
@@ -32,10 +32,10 @@ pub fn call_everything() -> Val {
     let v = v.pop();
     let v = v.take(n);
     let v = v.drop(n);
-    let n = v.front();
-    let n = v.back();
+    let _n = v.front();
+    let _n = v.back();
     let v = v.insert(n, n);
-    let v = v.append(v);
+    let _v = v.append(v);
 
     let bn: BigNum = 0.try_into().or_abort();
     let bn = bn + bn;
@@ -48,7 +48,7 @@ pub fn call_everything() -> Val {
     let bn = bn ^ bn;
     let bn = bn >> 1;
     let bn = bn << 1;
-    let ord = bn.cmp(&bn);
+    let _ord = bn.cmp(&bn);
     let _ = bn.is_zero();
     let bn = !bn;
     let bn = -bn;
@@ -56,6 +56,6 @@ pub fn call_everything() -> Val {
     let bn = bn.lcm(bn);
     let bn = bn.pow(1);
     let bn = bn.pow_mod(bn, bn);
-    let bn = bn.sqrt();
+    let _bn = bn.sqrt();
     Val::from_void()
 }

@@ -29,6 +29,7 @@ pub use result::OpResult;
 pub use status::Status;
 pub use symbol::Symbol;
 pub use val::Val;
+use val::ValType;
 pub use vec::Vec;
 
 #[inline(always)]
@@ -81,4 +82,24 @@ pub fn call4(contract: Val, func: Symbol, a: Val, b: Val, c: Val, d: Val) -> Val
 #[inline(always)]
 pub fn get_last_operation_result() -> OpResult {
     unsafe { OpResult::unchecked_from_obj(host_fns::get_last_operation_result()) }
+}
+
+#[inline(always)]
+pub fn put_contract_data(k: Val, v: Val) {
+    unsafe { host_fns::put_contract_data(k, v) };
+}
+
+#[inline(always)]
+pub fn has_contract_data(k: Val) -> bool {
+    unsafe { <bool as ValType>::unchecked_from_val(host_fns::has_contract_data(k)) }
+}
+
+#[inline(always)]
+pub fn get_contract_data(k: Val) -> Val {
+    unsafe { host_fns::get_contract_data(k) }
+}
+
+#[inline(always)]
+pub fn del_contract_data(k: Val) {
+    unsafe { host_fns::del_contract_data(k) };
 }

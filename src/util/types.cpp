@@ -59,6 +59,7 @@ LedgerEntryKey(LedgerEntry const& e)
     case CONTRACT_DATA:
         k.contractData().owner = d.contractData().owner;
         k.contractData().contractID = d.contractData().contractID;
+        k.contractData().key = d.contractData().key;
         break;
 
     default:

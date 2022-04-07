@@ -19,20 +19,23 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& key) const
     ZoneScoped;
     std::string owner = KeyUtils::toStrKey(key.contractData().owner);
     int64_t contractID = key.contractData().contractID;
+    std::string k = toOpaqueBase64(key.contractData().key);
 
-    std::string body;
+    std::string val;
     LedgerEntry le;
     le.data.type(CONTRACT_DATA);
     ContractDataEntry& cde = le.data.contractData();
 
-    std::string sql = "SELECT body "
-                      "FROM contractdata "
-                      "WHERE owner = :owner AND contractid = :contractid";
+    std::string sql =
+        "SELECT val "
+        "FROM contractdata "
+        "WHERE owner = :owner AND contractid = :contractid AND key = :key";
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
-    st.exchange(soci::into(body));
+    st.exchange(soci::into(val));
     st.exchange(soci::use(owner));
     st.exchange(soci::use(contractID));
+    st.exchange(soci::use(k));
     st.define_and_bind();
     st.execute(true);
     if (!st.got_data())
@@ -41,8 +44,10 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& key) const
     }
     cde.owner = KeyUtils::fromStrKey<PublicKey>(owner);
     cde.contractID = contractID;
+    cde.key.activate();
+    *cde.key = *key.contractData().key;
 
-    fromOpaqueBase64(cde.body, body);
+    fromOpaqueBase64(cde.val, val);
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
@@ -52,7 +57,8 @@ class BulkUpsertContractDataOperation
     Database& mDB;
     std::vector<std::string> mOwners;
     std::vector<int64_t> mContractIDs;
-    std::vector<std::string> mContractBodies;
+    std::vector<std::string> mContractKeys;
+    std::vector<std::string> mContractVals;
     std::vector<int32_t> mLastModifieds;
 
     void
@@ -62,7 +68,8 @@ class BulkUpsertContractDataOperation
         ContractDataEntry const& data = entry.data.contractData();
         mOwners.emplace_back(KeyUtils::toStrKey(data.owner));
         mContractIDs.emplace_back(data.contractID);
-        mContractBodies.emplace_back(toOpaqueBase64(data.body));
+        mContractKeys.emplace_back(toOpaqueBase64(data.key));
+        mContractVals.emplace_back(toOpaqueBase64(data.val));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));
     }
@@ -94,18 +101,20 @@ class BulkUpsertContractDataOperation
     void
     doSociGenericOperation()
     {
-        std::string sql = "INSERT INTO contractdata ( "
-                          "owner, contractid, body, lastmodified"
-                          ") VALUES ( "
-                          ":owner, :contractid, :body, :lastmodified"
-                          ") ON CONFLICT (owner, contractid) DO UPDATE SET "
-                          "body = excluded.body, "
-                          "lastmodified = excluded.lastmodified";
+        std::string sql =
+            "INSERT INTO contractdata ( "
+            "owner, contractid, key, val, lastmodified"
+            ") VALUES ( "
+            ":owner, :contractid, :key, :val, :lastmodified"
+            ") ON CONFLICT (owner, contractid, key) DO UPDATE SET "
+            "val = excluded.val, "
+            "lastmodified = excluded.lastmodified";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mOwners));
         st.exchange(soci::use(mContractIDs));
-        st.exchange(soci::use(mContractBodies));
+        st.exchange(soci::use(mContractKeys));
+        st.exchange(soci::use(mContractVals));
         st.exchange(soci::use(mLastModifieds));
         st.define_and_bind();
         {
@@ -127,31 +136,34 @@ class BulkUpsertContractDataOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strOwners, strContractIDs, strContractBodies,
+        std::string strOwners, strContractIDs, strContractKeys, strContractVals,
             strLastModifieds;
 
         PGconn* conn = pg->conn_;
         marshalToPGArray(conn, strOwners, mOwners);
         marshalToPGArray(conn, strContractIDs, mContractIDs);
-        marshalToPGArray(conn, strContractBodies, mContractBodies);
+        marshalToPGArray(conn, strContractKeys, mContractKeys);
+        marshalToPGArray(conn, strContractVals, mContractVals);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
         std::string sql = "WITH r AS (SELECT "
                           "unnest(:owners::TEXT[]), "
                           "unnest(:contractids::BIGINT[]), "
-                          "unnest(:contractbodies::TEXT[]), "
+                          "unnest(:contractkeys::TEXT[]), "
+                          "unnest(:contractvals::TEXT[]), "
                           "unnest(:lastmodifieds::INT[]) "
                           ")"
                           "INSERT INTO contractdata ( "
-                          "owner, contractid, body, lastmodified "
+                          "owner, contractid, key, val, lastmodified "
                           ") SELECT * FROM r "
-                          "ON CONFLICT (owner, contractid) DO UPDATE SET "
-                          "body = excluded.body, "
+                          "ON CONFLICT (owner, contractid, key) DO UPDATE SET "
+                          "val = excluded.val, "
                           "lastmodified = excluded.lastmodified";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strOwners));
         st.exchange(soci::use(strContractIDs));
-        st.exchange(soci::use(strContractBodies));
+        st.exchange(soci::use(strContractKeys));
+        st.exchange(soci::use(strContractVals));
         st.exchange(soci::use(strLastModifieds));
         st.define_and_bind();
         {
@@ -173,6 +185,7 @@ class BulkDeleteContractDataOperation
     LedgerTxnConsistency mCons;
     std::vector<std::string> mOwners;
     std::vector<int64_t> mContractIDs;
+    std::vector<std::string> mKeys;
 
   public:
     BulkDeleteContractDataOperation(Database& DB, LedgerTxnConsistency cons,
@@ -188,6 +201,7 @@ class BulkDeleteContractDataOperation
             auto const& data = e.key().ledgerKey().contractData();
             mOwners.emplace_back(KeyUtils::toStrKey(data.owner));
             mContractIDs.emplace_back(data.contractID);
+            mKeys.emplace_back(toOpaqueBase64(data.key));
         }
     }
 
@@ -195,11 +209,12 @@ class BulkDeleteContractDataOperation
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM contractdata WHERE owner = :owner AND "
-                          " contractid = :contractid ";
+                          " contractid = :contractid AND key = :key";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mOwners));
         st.exchange(soci::use(mContractIDs));
+        st.exchange(soci::use(mKeys));
         st.define_and_bind();
         {
             auto timer = mDB.getDeleteTimer("contractdata");
@@ -224,20 +239,24 @@ class BulkDeleteContractDataOperation
     {
         std::string strOwners;
         std::string strContractIDs;
+        std::string strKeys;
         PGconn* conn = pg->conn_;
         marshalToPGArray(conn, strOwners, mOwners);
         marshalToPGArray(conn, strContractIDs, mContractIDs);
+        marshalToPGArray(conn, strKeys, mKeys);
         std::string sql =
             "WITH r AS ( SELECT "
             "unnest(:owners::TEXT[]),"
-            "unnest(:contractids::BIGINT[])"
+            "unnest(:contractids::BIGINT[]),"
+            "unnest(:keys::TEXT[]),"
             " ) "
-            "DELETE FROM contractdata WHERE (owner, contractid) IN "
+            "DELETE FROM contractdata WHERE (owner, contractid, key) IN "
             "(SELECT * FROM r)";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strOwners));
         st.exchange(soci::use(strContractIDs));
+        st.exchange(soci::use(strKeys));
         st.define_and_bind();
         {
             auto timer = mDB.getDeleteTimer("contractdata");
@@ -278,17 +297,19 @@ class BulkLoadContractDataOperation
     Database& mDb;
     std::vector<std::string> mOwners;
     std::vector<int64_t> mContractIDs;
+    std::vector<std::string> mKeys;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
     {
-        std::string owner, body;
+        std::string owner, key, val;
         int64_t contractID;
         uint32_t lastModified;
 
         st.exchange(soci::into(owner));
         st.exchange(soci::into(contractID));
-        st.exchange(soci::into(body));
+        st.exchange(soci::into(key));
+        st.exchange(soci::into(val));
         st.exchange(soci::into(lastModified));
         st.define_and_bind();
         {
@@ -306,7 +327,10 @@ class BulkLoadContractDataOperation
 
             cc.owner = KeyUtils::fromStrKey<PublicKey>(owner);
             cc.contractID = contractID;
-            fromOpaqueBase64(cc.body, body);
+            cc.key.activate();
+            cc.val.activate();
+            fromOpaqueBase64(*cc.key, key);
+            fromOpaqueBase64(*cc.val, val);
             le.lastModifiedLedgerSeq = lastModified;
             st.fetch();
         }
@@ -320,11 +344,13 @@ class BulkLoadContractDataOperation
     {
         mOwners.reserve(keys.size());
         mContractIDs.reserve(keys.size());
+        mKeys.reserve(keys.size());
         for (auto const& k : keys)
         {
             releaseAssert(k.type() == CONTRACT_DATA);
             mOwners.emplace_back(KeyUtils::toStrKey(k.contractData().owner));
             mContractIDs.emplace_back(k.contractData().contractID);
+            mKeys.emplace_back(toOpaqueBase64(k.contractData().key));
         }
     }
 
@@ -332,6 +358,7 @@ class BulkLoadContractDataOperation
     doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
         releaseAssert(mOwners.size() == mContractIDs.size());
+        releaseAssert(mOwners.size() == mKeys.size());
 
         std::vector<char const*> cstrOwners;
         cstrOwners.reserve(mOwners.size());
@@ -340,16 +367,22 @@ class BulkLoadContractDataOperation
             cstrOwners.emplace_back(mOwners[i].c_str());
         }
 
-        std::string sqlJoin =
-            "SELECT x.value, y.value FROM "
-            "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
-            "AS x "
-            "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'int64') ORDER "
-            "BY rowid) AS y ON x.rowid = y.rowid";
-        std::string sql = "WITH r AS (" + sqlJoin +
-                          ") SELECT owner, contractid, body, "
-                          "lastmodified "
-                          "FROM contractdata WHERE (owner, contractid) IN r";
+        std::string sqlJoin = "SELECT x.value, y.value, z.value FROM "
+                              "(SELECT rowid, value FROM carray(?, ?, 'char*') "
+                              "ORDER BY rowid) AS x "
+                              "INNER JOIN "
+                              "(SELECT rowid, value FROM carray(?, ?, 'int64') "
+                              "ORDER BY rowid) AS y "
+                              "ON x.rowid = y.rowid "
+                              "INNER JOIN "
+                              "(SELECT rowid, value FROM carray(?, ?, 'char*') "
+                              "ORDER BY rowid) AS z "
+                              "ON x.rowid = z.rowid ";
+        std::string sql =
+            "WITH r AS (" + sqlJoin +
+            ") SELECT owner, contractid, key, val, "
+            "lastmodified "
+            "FROM contractdata WHERE (owner, contractid, key) IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
@@ -366,6 +399,8 @@ class BulkLoadContractDataOperation
         sqlite3_bind_int(st, 2, static_cast<int>(cstrOwners.size()));
         sqlite3_bind_pointer(st, 3, mContractIDs.data(), "carray", 0);
         sqlite3_bind_int(st, 4, static_cast<int>(mContractIDs.size()));
+        sqlite3_bind_pointer(st, 5, mKeys.data(), "carray", 0);
+        sqlite3_bind_int(st, 6, static_cast<int>(mKeys.size()));
         return executeAndFetch(prep.statement());
     }
 
@@ -377,19 +412,23 @@ class BulkLoadContractDataOperation
 
         std::string strOwners;
         std::string strContractIDs;
+        std::string strKeys;
         marshalToPGArray(pg->conn_, strOwners, mOwners);
         marshalToPGArray(pg->conn_, strContractIDs, mContractIDs);
+        marshalToPGArray(pg->conn_, strKeys, mKeys);
 
-        std::string sql =
-            "WITH r AS (SELECT unnest(:owners::TEXT[]), "
-            "unnest(:contractids::BIGINT[])) "
-            "SELECT owner, contractid, body, lastmodified "
-            "FROM contractdata WHERE (owner, contractid) IN (SELECT * FROM r)";
+        std::string sql = "WITH r AS (SELECT unnest(:owners::TEXT[]), "
+                          "unnest(:contractids::BIGINT[])) "
+                          "unnest(:keys::TEXT[])) "
+                          "SELECT owner, contractid, key, val, lastmodified "
+                          "FROM contractdata WHERE (owner, contractid, key) IN "
+                          "(SELECT * FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
         st.exchange(soci::use(strOwners));
         st.exchange(soci::use(strContractIDs));
+        st.exchange(soci::use(strKeys));
         return executeAndFetch(st);
     }
 #endif
@@ -426,9 +465,10 @@ LedgerTxnRoot::Impl::dropContractData()
                            << "("
                            << "owner    VARCHAR(56) " << coll << " NOT NULL,"
                            << "contractid   BIGINT       NOT NULL,"
-                           << "body         TEXT         NOT NULL,"
+                           << "key          TEXT         NOT NULL,"
+                           << "val          TEXT         NOT NULL,"
                               "lastmodified INT          NOT NULL,"
-                              "PRIMARY KEY  (owner, contractid)"
+                              "PRIMARY KEY  (owner, contractid, key)"
                               ");";
     if (!mDatabase.isSqlite())
     {
