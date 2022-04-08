@@ -1216,6 +1216,10 @@ void
 Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    if (!validateTxSetXDRStructure(msg.generalizedTxSet()))
+    {
+        return;
+    }
     TxSetFrame frame(mApp.getNetworkID(), msg.generalizedTxSet());
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }

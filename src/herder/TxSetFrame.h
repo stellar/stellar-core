@@ -46,6 +46,8 @@ class AbstractTxSetFrameForApply
 typedef std::shared_ptr<AbstractTxSetFrameForApply const>
     TxSetFrameBaseConstPtr;
 
+bool validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet);
+
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
     std::optional<Hash> mHash;

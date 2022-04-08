@@ -773,4 +773,45 @@ TxSetFrame::isGeneralizedTxSet() const
     return mGeneralized;
 }
 
+bool
+validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
+{
+    if (txSet.v() != 1)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: unsupported version {}", txSet.v());
+        return false;
+    }
+    auto const& txSetV1 = txSet.v1TxSet();
+    if (txSetV1.phases.size() != 1)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: exactly 1 phase is expected, got {}",
+                   txSetV1.phases.size());
+        return false;
+    }
+
+    auto const& phase = txSetV1.phases[0];
+    if (phase.v() != 1)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: unsupported phase version {}",
+                   phase.v());
+        return false;
+    }
+    int bidIsFeeComponents = 0;
+    for (auto const& component : phase.v0Components())
+    {
+        if (component.type() == TXSET_COMP_TXS_BID_IS_FEE)
+        {
+            ++bidIsFeeComponents;
+        }
+    }
+    if (bidIsFeeComponents > 1)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: more than 1 BID_IS_FEE component {}",
+                   bidIsFeeComponents);
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace stellar

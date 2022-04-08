@@ -661,6 +661,10 @@ TEST_CASE("txset", "[herder][txset]")
     {
         testTxSet(13);
     }
+    SECTION("generalized tx set protocol")
+    {
+        testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+    }
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -1095,6 +1099,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }
 }
+
+// TEST_CASE("")
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)

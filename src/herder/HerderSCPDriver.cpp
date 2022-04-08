@@ -562,23 +562,25 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         {
             return lBids < rBids;
         }
-
-        auto lEncodedSize = l->encodedSize();
-        auto rEncodedSize = r->encodedSize();
-        if (lEncodedSize != rEncodedSize)
-        {
-            // Look for the smallest encoded size.
-            return lEncodedSize > rEncodedSize;
-        }
     }
-    else if (protocolVersionStartsFrom(header.ledgerVersion,
-                                       ProtocolVersion::V_11))
+    if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
         auto lFee = l->getTotalFees(header);
         auto rFee = r->getTotalFees(header);
         if (lFee != rFee)
         {
             return lFee < rFee;
+        }
+    }
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        auto lEncodedSize = l->encodedSize();
+        auto rEncodedSize = r->encodedSize();
+        if (lEncodedSize != rEncodedSize)
+        {
+            // Look for the smallest encoded size.
+            return lEncodedSize > rEncodedSize;
         }
     }
     return lessThanXored(lh, rh, s);
