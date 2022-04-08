@@ -30,8 +30,7 @@ size_t copyTransactionsToStream(Hash const& networkID, Database& db,
                                 soci::session& sess, uint32_t ledgerSeq,
                                 uint32_t ledgerCount,
                                 XDROutputFileStream& txOut,
-                                XDROutputFileStream& txResultOut,
-                                LedgerHeader const& lclHeader);
+                                XDROutputFileStream& txResultOut);
 
 void dropTransactionHistory(Database& db);
 

@@ -150,10 +150,10 @@ getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
 
 static void
 saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
-                      TxSetFrame& txSet, TransactionHistoryResultEntry& results,
+                      std::vector<TransactionFrameBasePtr> const& txs,
+                      TransactionHistoryResultEntry& results,
                       XDROutputFileStream& txOut,
-                      XDROutputFileStream& txResultOut,
-                      LedgerHeader const& lclHeader)
+                      XDROutputFileStream& txResultOut)
 {
     ZoneScoped;
     // prepare the txset for saving
@@ -162,8 +162,9 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     {
         throw std::runtime_error("Could not find ledger");
     }
-    txSet.previousLedgerHash() = lh->previousLedgerHash;
-    txSet.computeTxFees(lclHeader);
+    TxSetFrame txSet(lh->previousLedgerHash, lh->ledgerVersion);
+    txSet.mTransactions = txs;
+    txSet.computeTxFees(*lh);
     txSet.sortForHash();
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
@@ -186,8 +187,7 @@ size_t
 copyTransactionsToStream(Hash const& networkID, Database& db,
                          soci::session& sess, uint32_t ledgerSeq,
                          uint32_t ledgerCount, XDROutputFileStream& txOut,
-                         XDROutputFileStream& txResultOut,
-                         LedgerHeader const& lclHeader)
+                         XDROutputFileStream& txResultOut)
 {
     ZoneScoped;
     auto timer = db.getSelectTimer("txhistory");
@@ -206,9 +206,14 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
          soci::into(curLedgerSeq), soci::into(txBody), soci::into(txResult),
          soci::use(begin), soci::use(end));
 
+    auto lh = LedgerHeaderUtils::loadBySequence(db, sess, ledgerSeq);
+    if (!lh)
+    {
+        throw std::runtime_error("Could not find ledger");
+    }
+
     Hash h;
-    TxSetFrame txSet(h,
-                     lclHeader.ledgerVersion); // we're setting the hash later
+    std::vector<TransactionFrameBasePtr> txs;
     TransactionHistoryResultEntry results;
 
     st.execute(true);
@@ -220,10 +225,10 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
     {
         if (curLedgerSeq != lastLedgerSeq)
         {
-            saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results,
-                                  txOut, txResultOut, lclHeader);
+            saveTransactionHelper(db, sess, lastLedgerSeq, txs, results, txOut,
+                                  txResultOut);
             // reset state
-            txSet.mTransactions.clear();
+            txs.clear();
             results.ledgerSeq = curLedgerSeq;
             results.txResultSet.results.clear();
             lastLedgerSeq = curLedgerSeq;
@@ -237,10 +242,9 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
 
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
-
         auto txFrame =
             TransactionFrameBase::makeTransactionFromWire(networkID, tx);
-        txSet.add(txFrame);
+        txs.push_back(txFrame);
 
         xdr::xdr_get g2(&result.front(), &result.back() + 1);
         results.txResultSet.results.emplace_back();
@@ -258,8 +262,8 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
     }
     if (n != 0)
     {
-        saveTransactionHelper(db, sess, lastLedgerSeq, txSet, results, txOut,
-                              txResultOut, lclHeader);
+        saveTransactionHelper(db, sess, lastLedgerSeq, txs, results, txOut,
+                              txResultOut);
     }
     return n;
 }

@@ -686,7 +686,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
-    vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
+    vector<TransactionFrameBasePtr> txs = txSet->sortForApply();
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
