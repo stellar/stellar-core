@@ -72,6 +72,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         auto result =
             std::make_shared<TxSetFrame>(hash, lcl.header.ledgerVersion);
         addTransactions(result, n);
+        result->computeTxFees(lcl.header);
         return result;
     };
 

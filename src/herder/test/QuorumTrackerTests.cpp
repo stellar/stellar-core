@@ -111,6 +111,7 @@ testQuorumTracker()
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet =
             std::make_shared<TxSetFrame>(lcl.hash, lcl.header.ledgerVersion);
+        txSet->computeTxFees(lcl.header);
         StellarValue sv = herder->makeStellarValue(
             txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
             emptyUpgradeSteps, valSigner);
