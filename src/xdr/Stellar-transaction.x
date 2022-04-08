@@ -466,10 +466,12 @@ struct InvokeContractOp
     AccountID owner;
     int64 contractID;
     SCEnv locals; // Any op-local values to add to environment.
+    LedgerKey readSet<>; // Worst-case set keys to read.
+    LedgerKey writeSet<>; // Worst-case set of keys to write (or read).
     SCSymbol function; // Function to invoke in contract.
     SCSymbol arguments<>; // Args to take from env and pass to function.
     SCSymbol *definition; // Optional env entry to update with result.
-    SCSymbol *predicate; // Optional env entry to predicate call on non-error value of.
+    SCSymbol *predicate; // Optional env entry to predicate call on non-Status-error value of.
 };
 
 /* An operation is the lowest unit of work that a transaction does */
@@ -1460,7 +1462,8 @@ enum HostTrapCode {
     HOST_TRAP_UNSPECIFIED = -1,
     HOST_TRAP_VALUE_NOT_FOUND = -2,
     HOST_TRAP_VALUE_HAS_WRONG_TYPE = -3,
-    HOST_TRAP_VALUE_OUT_OF_RANGE = -4
+    HOST_TRAP_VALUE_OUT_OF_RANGE = -4,
+    HOST_TRAP_LEDGER_ENTRY_DENIED = -5
 };
 
 union InvokeContractResult switch (

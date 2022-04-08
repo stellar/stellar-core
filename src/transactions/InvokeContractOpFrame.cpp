@@ -92,10 +92,28 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(code);
             if (code == INVOKE_CONTRACT_TRAPPED)
             {
-                innerResult().trap().type(GUEST_TRAPPED);
-                innerResult().trap().guestTrap().type(CONTRACT_CODE_WASM);
-                innerResult().trap().guestTrap().wasmTrap() =
-                    WASM_TRAP_UNSPECIFIED;
+                // Fish out an inner host-originating trap if one occurred.
+                if (hostCtx.getLastOperationResult().code() == opINNER &&
+                    hostCtx.getLastOperationResult().tr().type() ==
+                        INVOKE_CONTRACT &&
+                    hostCtx.getLastOperationResult()
+                            .tr()
+                            .invokeContractResult()
+                            .code() == INVOKE_CONTRACT_TRAPPED)
+                {
+                    innerResult() = hostCtx.getLastOperationResult()
+                                        .tr()
+                                        .invokeContractResult();
+                }
+                // TODO: route other operation results that occurred on behalf
+                // of this op out to users as well, eg. failed payments.
+                else
+                {
+                    innerResult().trap().type(GUEST_TRAPPED);
+                    innerResult().trap().guestTrap().type(CONTRACT_CODE_WASM);
+                    innerResult().trap().guestTrap().wasmTrap() =
+                        WASM_TRAP_UNSPECIFIED;
+                }
             }
             return false;
         }

@@ -748,7 +748,7 @@ invokeContract(Config cfg, std::string const& wasmFile,
         else
         {
             LOG_INFO(DEFAULT_LOG, "transaction failed: {}",
-                     xdr_to_string(txp->getResult().result.code(), "code"));
+                     xdr_to_string(txp->getResult().result, "result"));
         }
         ltx.rollback();
     }

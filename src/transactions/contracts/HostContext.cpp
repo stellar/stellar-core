@@ -24,6 +24,8 @@
 namespace stellar
 {
 
+#pragma region transactions
+
 HostContextTxn::HostContextTxn(HostContext& hc)
     : mRollbackPoint(hc.mObjects.size()), mHostCtx(hc)
 {
@@ -37,7 +39,54 @@ HostContextTxn::~HostContextTxn()
         mHostCtx.mObjects.resize(mRollbackPoint);
     }
     mHostCtx.mInvokeCtxs.pop_back();
+    if (mHostCtx.mInvokeCtxs.empty())
+    {
+        // If we're at the top-level, clear the read/write sets.
+        mHostCtx.mReadSet.clear();
+        mHostCtx.mWriteSet.clear();
+    }
 }
+
+HostContextTxn
+HostContext::beginOpTxn(InvokeContractOpFrame& op, AbstractLedgerTxn& ltx)
+{
+    releaseAssert(mInvokeCtxs.empty());
+    releaseAssert(mReadSet.empty());
+    releaseAssert(mWriteSet.empty());
+    auto& iop = op.getOperation().body.invokeContractOp();
+    mLastOperationResult.code(opINNER);
+    mLastOperationResult.tr().type(INVOKE_CONTRACT);
+    mLastOperationResult.tr().invokeContractResult() = InvokeContractResult();
+    mReadSet.clear();
+    mWriteSet.clear();
+    for (auto const& r : iop.readSet)
+    {
+        mReadSet.insert(r);
+    }
+    for (auto const& w : iop.writeSet)
+    {
+        mWriteSet.insert(w);
+    }
+    mInvokeCtxs.emplace_back(
+        InvokeContractContext{*this, op, ltx, iop.owner, iop.contractID});
+    return HostContextTxn(*this);
+}
+
+HostContextTxn
+HostContext::beginInnerTxn(AbstractLedgerTxn& innerLtx, AccountID const& owner,
+                           int64_t contractID)
+{
+    releaseAssert(!mInvokeCtxs.empty());
+    auto& curr = mInvokeCtxs.back();
+    InvokeContractContext next{curr.mHostContext, curr.mInvokeOp, innerLtx,
+                               owner, contractID};
+    mInvokeCtxs.emplace_back(std::move(next));
+    return HostContextTxn(*this);
+}
+
+#pragma endregion transactions
+
+#pragma region environment
 
 void
 HostContext::extendEnvironment(SCEnv const& locals)
@@ -69,6 +118,9 @@ HostContext::getEnv(std::string const& name) const
     }
 }
 
+#pragma endregion environment
+
+#pragma region conversions
 static std::pair<uint32_t, uint32_t>
 getStatusPair(SCStatus const& s)
 {
@@ -405,202 +457,7 @@ HostContext::xdrToHost(std::unique_ptr<SCObject> const& obj)
     mObjects.emplace_back(std::move(immObj));
     return idx;
 }
-
-// The host function signature fizzy expects to have registered with it is:
-//
-// using HostFunctionPtr = ExecutionResult (*)(std::any& host_context,
-//    Instance&, const Value* args, ExecutionContext& ctx) noexcept;
-//
-// This isn't _quite_ what we want to be defining: we'd like to have our
-// arguments unpacked and be calling a member function on HostContext. So we
-// register as host_context a closure that captures the HostContext
-// member-function pointer, and pass as HostFunctionPtr a dispatcher function
-// that downcasts the any to the appropriate closure type, extracts args and
-// calls the closure.
-
-fizzy::ExecutionResult
-dispatchClosure0(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure0 = std::any_cast<HostClosure0>(host_context);
-    return closure0(instance, ctx);
-}
-
-fizzy::ExecutionResult
-dispatchClosure1(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure1 = std::any_cast<HostClosure1>(host_context);
-    return closure1(instance, ctx, args[0].as<uint64_t>());
-}
-
-fizzy::ExecutionResult
-dispatchClosure2(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure2 = std::any_cast<HostClosure2>(host_context);
-    return closure2(instance, ctx, args[0].as<uint64_t>(),
-                    args[1].as<uint64_t>());
-}
-
-fizzy::ExecutionResult
-dispatchClosure3(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure3 = std::any_cast<HostClosure3>(host_context);
-    return closure3(instance, ctx, args[0].as<uint64_t>(),
-                    args[1].as<uint64_t>(), args[2].as<uint64_t>());
-}
-
-fizzy::ExecutionResult
-dispatchClosure4(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure4 = std::any_cast<HostClosure4>(host_context);
-    return closure4(instance, ctx, args[0].as<uint64_t>(),
-                    args[1].as<uint64_t>(), args[2].as<uint64_t>(),
-                    args[3].as<uint64_t>());
-}
-
-fizzy::ExecutionResult
-dispatchClosure5(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure5 = std::any_cast<HostClosure5>(host_context);
-    return closure5(instance, ctx, args[0].as<uint64_t>(),
-                    args[1].as<uint64_t>(), args[2].as<uint64_t>(),
-                    args[3].as<uint64_t>(), args[4].as<uint64_t>());
-}
-
-fizzy::ExecutionResult
-dispatchClosure6(std::any& host_context, fizzy::Instance& instance,
-                 const fizzy::Value* args,
-                 fizzy::ExecutionContext& ctx) noexcept
-{
-    auto closure6 = std::any_cast<HostClosure6>(host_context);
-    return closure6(instance, ctx, args[0].as<uint64_t>(),
-                    args[1].as<uint64_t>(), args[2].as<uint64_t>(),
-                    args[3].as<uint64_t>(), args[4].as<uint64_t>(),
-                    args[5].as<uint64_t>());
-}
-
-void
-HostContext::registerHostFunction(HostClosure0 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(0, clo, &dispatchClosure0, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure1 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(1, clo, &dispatchClosure1, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure2 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(2, clo, &dispatchClosure2, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure3 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(3, clo, &dispatchClosure3, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure4 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(4, clo, &dispatchClosure4, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure5 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(5, clo, &dispatchClosure5, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostClosure6 clo, std::string const& module,
-                                  std::string const& name)
-{
-    registerHostFunction(6, clo, &dispatchClosure6, module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun0 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure0 clo{std::bind(mf, this, _1, _2)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun1 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure1 clo{std::bind(mf, this, _1, _2, _3)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun2 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure2 clo{std::bind(mf, this, _1, _2, _3, _4)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun3 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure3 clo{std::bind(mf, this, _1, _2, _3, _4, _5)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun4 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure4 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun5 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure5 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6, _7)};
-    registerHostFunction(std::move(clo), module, name);
-}
-
-void
-HostContext::registerHostFunction(HostMemFun6 mf, std::string const& module,
-                                  std::string const& name)
-{
-    using namespace std::placeholders;
-    HostClosure6 clo{std::bind(mf, this, _1, _2, _3, _4, _5, _6, _7, _8)};
-    registerHostFunction(std::move(clo), module, name);
-}
+#pragma endregion conversions
 
 std::variant<HostVal, InvokeContractResultCode>
 HostContext::invokeContract(AccountID const& owner, int64_t contractID,
@@ -637,7 +494,8 @@ HostContext::invokeContract(AccountID const& owner, int64_t contractID,
 
         // Resolve function imports.
         std::vector<fizzy::ExternalFunction> importedFunctions =
-            fizzy::resolve_imported_functions(*mod, getHostFunctions());
+            fizzy::resolve_imported_functions(
+                *mod, mHostFunctions.getImportedFunctions());
 
         // Instantiate the module.
         std::unique_ptr<fizzy::Instance> instance = [&]() {
@@ -732,13 +590,11 @@ HostContext::invokeContract(AccountID const& owner, int64_t contractID,
     }
 }
 
-HostContext::HostContext()
+HostContext::HostContext() : mHostFunctions(*this)
 {
     // Object 0 is predefined to always be a null unique_ptr, so we can return
     // a reference to it in contexts where users access invalid objects.
     mObjects.emplace_back(nullptr);
-
-    registerHostFunctions();
 }
 
 }

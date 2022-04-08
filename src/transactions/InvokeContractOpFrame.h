@@ -42,17 +42,5 @@ class InvokeContractOpFrame : public OperationFrame
     {
         return res.tr().invokeContractResult().code();
     }
-
-    AccountID
-    getContractOwner() const
-    {
-        return mOperation.body.invokeContractOp().owner;
-    }
-
-    int64_t
-    getContractID() const
-    {
-        return mOperation.body.invokeContractOp().contractID;
-    }
 };
 }
