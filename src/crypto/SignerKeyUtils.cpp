@@ -40,5 +40,15 @@ hashXKey(ByteSlice const& bs)
     sk.hashX() = sha256(bs);
     return sk;
 }
+
+SignerKey
+ed25519PayloadKey(uint256 const& ed25519, xdr::opaque_vec<64> const& payload)
+{
+    SignerKey sk;
+    sk.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+    sk.ed25519SignedPayload().ed25519 = ed25519;
+    sk.ed25519SignedPayload().payload = payload;
+    return sk;
+}
 }
 }

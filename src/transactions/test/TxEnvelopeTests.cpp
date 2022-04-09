@@ -597,6 +597,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             bool autoRemove;
             std::function<SignerKey(TransactionFrame&)> createSigner;
             std::function<void(TransactionFrame&)> sign;
+            uint32_t minLedgerVersion;
         };
 
         // ensue that hash(x) supports 0 inside 'x'
@@ -604,22 +605,51 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                       0,   0,   'g', 'h', 'i', 'j', 'k', 'l',
                                       'A', 'B', 'C', 0,   'D', 'E', 'F', 0,
                                       0,   0,   'G', 'H', 'I', 'J', 'K', 'L'};
+
+        xdr::opaque_vec<64> payload(x.begin(), x.end());
+        SignerKey rootPayloadSignerKey = SignerKeyUtils::ed25519PayloadKey(
+            root.getPublicKey().ed25519(), payload);
+
         auto alternatives = std::vector<AltSignature>{
             AltSignature{"hash tx", true,
                          [](TransactionFrame& tx) {
                              tx.clearCached();
                              return SignerKeyUtils::preAuthTxKey(tx);
                          },
-                         [](TransactionFrame&) {}},
+                         [](TransactionFrame&) {}, 0},
             AltSignature{
                 "hash x", false,
                 [x](TransactionFrame&) { return SignerKeyUtils::hashXKey(x); },
                 [x](TransactionFrame& tx) {
                     tx.addSignature(SignatureUtils::signHashX(x));
-                }}};
+                },
+                0},
+            AltSignature{"payload signer", false,
+                         [rootPayloadSignerKey](TransactionFrame&) {
+                             return rootPayloadSignerKey;
+                         },
+                         [root, x, rootPayloadSignerKey](TransactionFrame& tx) {
+                             DecoratedSignature sig;
+                             sig.signature = root.getSecretKey().sign(x);
+                             sig.hint = SignatureUtils::getSignedPayloadHint(
+                                 rootPayloadSignerKey.ed25519SignedPayload());
+                             tx.addSignature(sig);
+                         },
+                         19},
+        };
 
         for (auto const& alternative : alternatives)
         {
+            uint32_t ledgerVersion;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+                if (ledgerVersion < alternative.minLedgerVersion)
+                {
+                    continue;
+                }
+            }
+
             SECTION(alternative.name)
             {
                 for_versions_to(2, *app, [&] {
@@ -690,9 +720,13 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             {
                                 sk.preAuthTx()[0] ^= 0x01;
                             }
-                            else
+                            else if (sk.type() == SIGNER_KEY_TYPE_HASH_X)
                             {
                                 sk.hashX()[0] ^= 0x01;
+                            }
+                            else
+                            {
+                                sk.ed25519SignedPayload().ed25519[0] ^= 0x01;
                             }
                             Signer sk1(sk, 1);
                             a1.setOptions(setSigner(sk1));
@@ -1222,6 +1256,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             alternative.name)
                     {
                         for_versions_from(14, *app, [&] {
+                            // set threshold higher so all signers are required
+                            a1.setOptions(setMedThreshold(100));
                             auto a2 = root.create("A2", paymentAmount);
 
                             TransactionFramePtr tx;
@@ -1236,7 +1272,13 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             // signer that will be removed (sk1), so we can
                             // verify how signerSponsoringIDs changes
                             Signer signer1 = makeSigner(getAccount("1"), 5);
-                            Signer signer2(SignerKeyUtils::hashXKey("5"), 5);
+                            SignerKey s2 =
+                                protocolVersionStartsFrom(ledgerVersion,
+                                                          ProtocolVersion::V_19)
+                                    ? SignerKeyUtils::ed25519PayloadKey(
+                                          root.getPublicKey().ed25519(), {'z'})
+                                    : SignerKeyUtils::hashXKey("5");
+                            Signer signer2(s2, 5);
 
                             REQUIRE(signer1.key < sk);
                             REQUIRE(sk < signer2.key);
@@ -1333,6 +1375,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     SECTION("success signature + " + alternative.name)
                     {
+                        // set threshold higher so all signers are required
+                        a1.setOptions(setMedThreshold(100));
                         TransactionFramePtr tx;
                         auto setup = [&]() {
                             tx = a1.tx({payment(root, 1000)});
