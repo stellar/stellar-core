@@ -245,6 +245,146 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         });
     }
 
+    SECTION("extraSigners")
+    {
+        for_versions_from(19, *app, [&] {
+            auto minBalance = app->getLedgerManager().getLastMinBalance(2);
+            auto a1 = root.create("a1", minBalance);
+
+            SignerKey rootSigner;
+            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
+            rootSigner.ed25519() = root.getPublicKey().ed25519();
+
+            auto hashXSigner = SignerKeyUtils::hashXKey("hashx");
+
+            PreconditionsV2 cond;
+
+            SECTION("one extra signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("success")
+                {
+                    tx->addSignature(root.getSecretKey());
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("one extra hashx signer")
+            {
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("success")
+                {
+                    tx->addSignature(SignatureUtils::signHashX("hashx"));
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("two extra signers")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                // add a hashx signer
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                tx->addSignature(root.getSecretKey());
+
+                SECTION("success")
+                {
+                    tx->addSignature(SignatureUtils::signHashX("hashx"));
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("duplicate extra signers")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                cond.extraSigners.emplace_back(rootSigner);
+                auto txDupeSigner =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                txDupeSigner->addSignature(root.getSecretKey());
+
+                REQUIRE(!applyCheck(txDupeSigner, *app));
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("duplicate hash card signers")
+            {
+                cond.extraSigners.emplace_back(hashXSigner);
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto txDupeSigner =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                txDupeSigner->addSignature(SignatureUtils::signHashX("hashx"));
+
+                REQUIRE(!applyCheck(txDupeSigner, *app));
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("signer overlap with default account signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto rootTx =
+                    transactionWithV2Precondition(*app, root, 1, 100, cond);
+                REQUIRE(applyCheck(rootTx, *app));
+            }
+            SECTION("signer overlap with added account signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("signature present")
+                {
+                    tx->addSignature(root.getSecretKey());
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("signature missing")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION(
+                "signer overlap with added account signer - both signers used")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                  {root.op(payment(a1, 1))},
+                                                  {root}, cond);
+                REQUIRE(applyCheck(
+                    std::dynamic_pointer_cast<TransactionFrame>(tx), *app));
+            }
+            SECTION("preauth signer")
+            {
+                // preauth signers aren't useful with extraSigners because you
+                // need the hash of the transaction, but the transaction
+                // includes extraSigners. We still want to test a preauth signer
+                // in extraSigners though.
+                cond.extraSigners.emplace_back(
+                    SignerKeyUtils::preAuthTxKey(*root.tx({})));
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                tx->addSignature(a1.getSecretKey());
+                REQUIRE(!applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txBAD_AUTH);
+            }
+        });
+    }
+
     SECTION("outer envelope")
     {
         auto a1 = TestAccount{*app, getAccount("A")};
