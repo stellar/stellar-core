@@ -291,15 +291,30 @@ TxSimApplyTransactionsWork::addSignerKeys(
         return;
     }
 
-    for (auto const& signer : account.current().data.account().signers)
-    {
-        if (signer.key.type() == SIGNER_KEY_TYPE_ED25519)
+    auto maybeAddKey = [&](SignerKey const& signer) {
+        if (signer.type() == SIGNER_KEY_TYPE_ED25519)
         {
-            auto pubKey = KeyUtils::convertKey<PublicKey>(signer.key);
+            auto pubKey = KeyUtils::convertKey<PublicKey>(signer);
             if (hasSig(pubKey, sigs, txHash))
             {
                 keys.emplace(generateScaledSecret(pubKey, partition));
             }
+        }
+    };
+
+    for (auto const& signer : account.current().data.account().signers)
+    {
+        maybeAddKey(signer.key);
+    }
+
+    auto const& env = mUpgradeProtocol
+                          ? txbridge::convertForV13(*mTransactionIter)
+                          : *mTransactionIter;
+    if (env.type() == ENVELOPE_TYPE_TX && env.v1().tx.cond.type() == PRECOND_V2)
+    {
+        for (auto const& signerKey : env.v1().tx.cond.v2().extraSigners)
+        {
+            maybeAddKey(signerKey);
         }
     }
 }
@@ -468,6 +483,19 @@ TxSimApplyTransactionsWork::scaleLedger(
             partition);
         mutateScaledAccountID(newEnv.feeBump().tx.feeSource, partition);
         newTxHash = simulateSigs(outerSigs, outerTxKeys, false);
+    }
+    else if (env.type() == ENVELOPE_TYPE_TX &&
+             env.v1().tx.cond.type() == PRECOND_V2)
+    {
+        newEnv.v1().tx.cond.v2().extraSigners.clear();
+        for (auto const& signerKey : env.v1().tx.cond.v2().extraSigners)
+        {
+            if (signerKey.type() == SIGNER_KEY_TYPE_ED25519)
+            {
+                newEnv.v1().tx.cond.v2().extraSigners.emplace_back(
+                    generateScaledEd25519Signer(signerKey, partition));
+            }
+        }
     }
 
     // These are not exactly accurate, but sufficient to check result codes
