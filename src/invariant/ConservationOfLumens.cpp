@@ -29,6 +29,10 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
         break;
     case DATA:
         break;
+    case CONTRACT_CODE:
+        break;
+    case CONTRACT_DATA:
+        break;
     case CLAIMABLE_BALANCE:
     {
         auto const& asset = current ? current->data.claimableBalance().asset

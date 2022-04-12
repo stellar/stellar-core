@@ -7,6 +7,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -113,6 +114,8 @@ computeMultiplier(LedgerEntry const& le)
                                                                          : 1;
     case OFFER:
     case DATA:
+    case CONTRACT_CODE:
+    case CONTRACT_DATA:
         return 1;
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(

@@ -9,6 +9,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -43,6 +44,10 @@ getAccountID(LedgerEntry const& le)
         return le.data.data().accountID;
     case CLAIMABLE_BALANCE:
         return *le.ext.v1().sponsoringID;
+    case CONTRACT_CODE:
+        return le.data.contractCode().owner;
+    case CONTRACT_DATA:
+        return le.data.contractData().owner;
     default:
         abort();
     }
@@ -433,6 +438,9 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case LIQUIDITY_POOL:
             innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
             return false;
+        case CONTRACT_CODE:
+        case CONTRACT_DATA:
+            break;
         default:
             throw std::runtime_error("unknown ledger key type");
         }

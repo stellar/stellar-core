@@ -24,6 +24,8 @@
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionUtils.h"
+#include "transactions/contracts/HostVal.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -505,19 +507,17 @@ invokeContract(Config cfg, std::string const& wasmFile,
     SecretKey ownerSec = SecretKey::pseudoRandomForTesting();
     PublicKey ownerPub = ownerSec.getPublicKey();
 
-    std::vector<std::tuple<uint64, PublicKey, std::filesystem::path>> contracts;
+    std::vector<std::tuple<uint64, std::filesystem::path>> contracts;
     int64_t currContractID = 0;
 
-    contracts.emplace_back(++currContractID, ownerPub, wasmFile);
+    contracts.emplace_back(++currContractID, wasmFile);
 
-    // Compose a contract-invocation transaction.
-    TransactionEnvelope txe;
-    txe.type(ENVELOPE_TYPE_TX);
-    Transaction& tx = txe.v1().tx;
-    tx.operations.emplace_back();
-    Operation& op = tx.operations.back();
-    op.body.type(INVOKE_CONTRACT);
-    auto& invoke = op.body.invokeContractOp();
+    // Upgrade to a ledger protocol version that supports contracts.
+
+    // Compose a contract-invocation operation.
+    Operation invokeOp;
+    invokeOp.body.type(INVOKE_CONTRACT);
+    auto& invoke = invokeOp.body.invokeContractOp();
     invoke.owner = ownerPub;
     invoke.contractID = currContractID;
     invoke.function = function;
@@ -579,6 +579,7 @@ invokeContract(Config cfg, std::string const& wasmFile,
             arg.obj()->lkey().type(ACCOUNT);
             arg.obj()->lkey().account().accountID =
                 KeyUtils::fromStrKey<PublicKey>(val);
+            invoke.writeSet.emplace_back(arg.obj()->lkey());
         }
         else if (ty == "asset")
         {
@@ -631,10 +632,9 @@ invokeContract(Config cfg, std::string const& wasmFile,
             arg.obj()->lkey().type(CONTRACT_CODE);
             auto& cc = arg.obj()->lkey().contractCode();
             cc.contractID = ++currContractID;
-            SecretKey sec = SecretKey::pseudoRandomForTesting();
-            PublicKey pub = sec.getPublicKey();
-            cc.owner = pub;
-            contracts.emplace_back(cc.contractID, pub, val);
+            cc.owner = ownerPub;
+            contracts.emplace_back(cc.contractID, val);
+            invoke.writeSet.emplace_back(arg.obj()->lkey());
         }
         else
         {
@@ -657,25 +657,33 @@ invokeContract(Config cfg, std::string const& wasmFile,
     Application::pointer app = Application::create(clock, cfg, false);
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
+
         ++ltx.loadHeader().current().ledgerSeq;
-        ltx.loadHeader().current().ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
+        ltx.loadHeader().current().ledgerVersion =
+            uint32_t(FIRST_PROTOCOL_SUPPORTING_SMART_CONTRACTS);
+
+        SequenceNumber acctSeq =
+            getStartingSequenceNumber(ltx.loadHeader().current().ledgerSeq);
+
+        TransactionEnvelope txe;
+        txe.type(ENVELOPE_TYPE_TX);
+        Transaction& tx = txe.v1().tx;
 
         // Create a ledger entry holding the contract owner.
-
         InternalLedgerEntry ownerIle;
         ownerIle.ledgerEntry().data.type(ACCOUNT);
         auto& acc = ownerIle.ledgerEntry().data.account();
         acc.accountID = ownerPub;
         acc.balance = 10'000'000'000;
-        acc.seqNum = 0;
+        acc.seqNum = acctSeq;
         acc.thresholds[THRESHOLD_MASTER_WEIGHT] = 1;
         ltx.create(ownerIle);
 
-        // Create a ledger entry holding each contract.
-        for (auto const& triple : contracts)
+        // Compose manage-contract operations that load all contracts.
+        for (auto const& pair : contracts)
         {
 
-            std::filesystem::path const& wasmPath = std::get<2>(triple);
+            std::filesystem::path const& wasmPath = std::get<1>(pair);
             if (wasmPath.extension() != ".wasm")
             {
                 throw std::runtime_error(fmt::format(
@@ -688,24 +696,25 @@ invokeContract(Config cfg, std::string const& wasmFile,
                     fmt::format("failed to open {}", wasmPath));
             }
 
-            InternalLedgerEntry contractIle;
-            contractIle.ledgerEntry().data.type(CONTRACT_CODE);
-            auto& cc = contractIle.ledgerEntry().data.contractCode();
-            cc.contractID = std::get<0>(triple);
-            cc.owner = std::get<1>(triple);
-            cc.body.type(CONTRACT_CODE_WASM);
-            cc.body.wasm().assign(std::istreambuf_iterator<char>{wasmInStream},
-                                  {});
-            ltx.create(contractIle);
-            LOG_INFO(DEFAULT_LOG, "loaded contract owner={} id={} from {}",
-                     hexAbbrev(cc.owner.ed25519()), cc.contractID, wasmPath);
+            tx.operations.emplace_back();
+            Operation& manageOp = tx.operations.back();
+            manageOp.body.type(MANAGE_CONTRACT);
+            auto& manage = manageOp.body.manageContractOp();
+            manage.contractID = std::get<0>(pair);
+            manage.body.activate();
+            manage.body->type(CONTRACT_CODE_WASM);
+            manage.body->wasm().assign(
+                std::istreambuf_iterator<char>{wasmInStream}, {});
         }
+
+        // Do the invoke after the loads.
+        tx.operations.emplace_back(invokeOp);
 
         // Run the transaction composed above
         tx.sourceAccount.type(KEY_TYPE_ED25519);
         tx.sourceAccount.ed25519() = ownerPub.ed25519();
         tx.fee = 100'000'000;
-        tx.seqNum = ltx.loadHeader().current().ledgerSeq;
+        tx.seqNum = acctSeq + 1;
         TransactionFramePtr txp =
             std::make_shared<TransactionFrame>(app->getNetworkID(), txe);
         txp->addSignature(ownerSec);
@@ -718,37 +727,24 @@ invokeContract(Config cfg, std::string const& wasmFile,
         {
             LOG_INFO(DEFAULT_LOG, "tx apply failed");
         }
-
-        if (txp->getResult().result.code() == txSUCCESS)
+        if (txp->getResult().result.code() == txSUCCESS &&
+            !txp->getResult().result.results().empty() &&
+            txp->getResult().result.results().back().code() == opINNER &&
+            txp->getResult().result.results().back().tr().type() ==
+                INVOKE_CONTRACT)
         {
-            if (txp->getResult().result.results().size() > 0)
-            {
-                auto const& contractRes = txp->getResult()
-                                              .result.results()
-                                              .at(0)
-                                              .tr()
-                                              .invokeContractResult();
-                if (contractRes.code() == INVOKE_CONTRACT_SUCCESS)
-                {
-                    LOG_INFO(
-                        DEFAULT_LOG, "contract success: {}",
-                        xdr_to_string(contractRes.returnVal(), "returnVal"));
-                }
-                else
-                {
-                    LOG_INFO(DEFAULT_LOG, "contract failed: {}",
-                             xdr_to_string(contractRes.code(), "code"));
-                }
-            }
-            else
-            {
-                LOG_INFO(DEFAULT_LOG, "contract success with empty results");
-            }
+            LOG_INFO(DEFAULT_LOG, "invoke-contract success: {}",
+                     xdr_to_string(txp->getResult()
+                                       .result.results()
+                                       .back()
+                                       .tr()
+                                       .invokeContractResult(),
+                                   "invokeContractResult"));
         }
         else
         {
-            LOG_INFO(DEFAULT_LOG, "transaction failed: {}",
-                     xdr_to_string(txp->getResult().result, "result"));
+            LOG_WARNING(DEFAULT_LOG, "unexpected result: {}",
+                        xdr_to_string(txp->getResult(), "result"));
         }
         ltx.rollback();
     }

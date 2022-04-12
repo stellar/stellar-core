@@ -11,6 +11,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 using namespace stellar;
 
@@ -197,6 +198,8 @@ computeMultiplier(LedgerEntry const& le)
                                                                          : 1;
     case OFFER:
     case DATA:
+    case CONTRACT_CODE:
+    case CONTRACT_DATA:
         return 1;
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
@@ -220,6 +223,8 @@ isSubentry(LedgerEntry const& le)
     case TRUSTLINE:
     case OFFER:
     case DATA:
+    case CONTRACT_CODE:
+    case CONTRACT_DATA:
         return true;
     case LIQUIDITY_POOL:
         throw std::runtime_error(

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-transaction.h"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -21,6 +22,9 @@
 
 namespace stellar
 {
+
+static constexpr ProtocolVersion FIRST_PROTOCOL_SUPPORTING_SMART_CONTRACTS =
+    ProtocolVersion::V_20;
 
 // We have two representations of values:
 //
