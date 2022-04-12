@@ -704,7 +704,8 @@ int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 {
     ZoneScoped;
-    releaseAssert(!mGeneralized);
+    releaseAssert(mFeesComputed);
+
     return std::accumulate(
         mTransactions.begin(), mTransactions.end(), int64_t(0),
         [&](int64_t t, TransactionFrameBasePtr const& tx) {
@@ -716,7 +717,6 @@ int64_t
 TxSetFrame::getTotalBids() const
 {
     ZoneScoped;
-    releaseAssert(mGeneralized);
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            int64_t(0),
                            [&](int64_t t, TransactionFrameBasePtr const& tx) {
