@@ -17,7 +17,7 @@ struct LedgerRange;
 namespace txsimulation
 {
 class TxSimApplyTransactionsWork : public BasicWork
-{  
+{
     TmpDir const& mDownloadDir;
     LedgerRange const mRange;
     Hash const mNetworkID;

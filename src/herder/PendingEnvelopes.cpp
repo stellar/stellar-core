@@ -483,7 +483,7 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
                     TransactionSet txSet;
                     txSetPtr->toXDR(txSet);
                     txSetSize = xdr::xdr_argpack_size(txSet);
-                }                
+                }
                 mValueSizeCache.put(v.txSetHash, txSetSize);
             }
         }

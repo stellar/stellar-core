@@ -499,9 +499,9 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         }
         else
         {
-            txSetFrame = std::make_unique<TxSetFrame>(mNetworkID,
-                                                      txHistoryEntry.txSet);
-        }        
+            txSetFrame =
+                std::make_unique<TxSetFrame>(mNetworkID, txHistoryEntry.txSet);
+        }
         for (auto const& txFrame : txSetFrame->mTransactions)
         {
             transactions[txFrame->getContentsHash()] = &txFrame->getEnvelope();

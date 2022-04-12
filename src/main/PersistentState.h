@@ -35,7 +35,7 @@ class PersistentState
 
     // Special methods for SCP state (multiple slots)
     // Returns a vector of encoded SCP states with the flag that determines
-    // encoding: false for the legacy encoding, true for the new 
+    // encoding: false for the legacy encoding, true for the new
     // single-XDR-based encoding.
     std::vector<std::pair<std::string, bool>> getSCPStateAllSlots();
     void setSCPStateForSlot(uint64 slot, std::string const& value, bool useXDR);

@@ -334,8 +334,6 @@ TxSetFrame::checkOrTrim(Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
-    /*auto ledgerVersion = header.current().ledgerVersion;
-    auto ledgerBaseFee = header.current().baseFee;*/
     uint32_t ledgerVersion, ledgerBaseFee;
     {
         LedgerTxn ltx2(ltx);
@@ -343,8 +341,6 @@ TxSetFrame::checkOrTrim(Application& app,
         ledgerVersion = header2.ledgerVersion;
         ledgerBaseFee = header2.baseFee;
     }
-    /*auto ledgerVersion = header.current().ledgerVersion;
-    auto ledgerBaseFee = header.current().baseFee;*/
 
     UnorderedMap<AccountID, int64_t> accountFeeMap;
     auto accountTxMap = buildAccountTxQueues();
