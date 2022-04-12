@@ -484,8 +484,7 @@ HostContext::invokeContract(AccountID const& owner, int64_t contractID,
     {
         // Parse the contract code.
         auto const& wasm = codeEntry.body.wasm();
-        std::basic_string_view<uint8_t> codeView(wasm.code.data(),
-                                                 wasm.code.size());
+        std::basic_string_view<uint8_t> codeView(wasm.data(), wasm.size());
 
         std::unique_ptr<const fizzy::Module> mod = [&]() {
             ZoneNamedN(parseZone, "parse WASM", true);

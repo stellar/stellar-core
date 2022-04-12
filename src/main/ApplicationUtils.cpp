@@ -694,8 +694,8 @@ invokeContract(Config cfg, std::string const& wasmFile,
             cc.contractID = std::get<0>(triple);
             cc.owner = std::get<1>(triple);
             cc.body.type(CONTRACT_CODE_WASM);
-            cc.body.wasm().code.assign(
-                std::istreambuf_iterator<char>{wasmInStream}, {});
+            cc.body.wasm().assign(std::istreambuf_iterator<char>{wasmInStream},
+                                  {});
             ltx.create(contractIle);
             LOG_INFO(DEFAULT_LOG, "loaded contract owner={} id={} from {}",
                      hexAbbrev(cc.owner.ed25519()), cc.contractID, wasmPath);

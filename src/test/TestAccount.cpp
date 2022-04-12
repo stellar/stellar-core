@@ -604,7 +604,7 @@ TestAccount::addWasmContract(int64_t contractID,
     cc.contractID = contractID;
     cc.body.type(CONTRACT_CODE_WASM);
     std::ifstream in(wasmCode);
-    cc.body.wasm().code.assign(std::istreambuf_iterator<char>{in}, {});
+    cc.body.wasm().assign(std::istreambuf_iterator<char>{in}, {});
     ltx.create(ile);
     ltx.commit();
 }

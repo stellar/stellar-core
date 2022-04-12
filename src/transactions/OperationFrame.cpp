@@ -19,6 +19,7 @@
 #include "transactions/LiquidityPoolDepositOpFrame.h"
 #include "transactions/LiquidityPoolWithdrawOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
+#include "transactions/ManageContractOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
@@ -114,6 +115,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     case LIQUIDITY_POOL_WITHDRAW:
         return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
+    case MANAGE_CONTRACT:
+        return std::make_shared<ManageContractOpFrame>(op, res, tx);
     case INVOKE_CONTRACT:
         return std::make_shared<InvokeContractOpFrame>(op, res, tx);
     default:

@@ -42,6 +42,15 @@ bool
 InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "InvokeContractOp apply", true);
+    auto header = ltx.loadHeader();
+
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_20))
+    {
+        throw std::runtime_error(
+            "INVOKE_CONTRACT not supported before ledger version 20");
+    }
+
     LedgerTxn ltxInner(ltx);
     HostContext& hostCtx = mParentTx.getHostContext();
     HostContextTxn htx(hostCtx.beginOpTxn(*this, ltxInner));
@@ -134,6 +143,11 @@ InvokeContractOpFrame::doApply(AbstractLedgerTxn& ltx)
 bool
 InvokeContractOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_20))
+    {
+        innerResult().code(INVOKE_CONTRACT_NOT_SUPPORTED_YET);
+        return false;
+    }
     return true;
 }
 

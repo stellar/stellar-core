@@ -46,7 +46,8 @@ enum OperationType
     SET_TRUST_LINE_FLAGS = 21,
     LIQUIDITY_POOL_DEPOSIT = 22,
     LIQUIDITY_POOL_WITHDRAW = 23,
-    INVOKE_CONTRACT = 24
+    MANAGE_CONTRACT = 24,
+    INVOKE_CONTRACT = 25
 };
 
 /* CreateAccount
@@ -455,6 +456,24 @@ struct LiquidityPoolWithdrawOp
 };
 
 
+/* Manage a smart contract
+
+   Threshold: med
+
+   Result: ManageContractResult
+*/
+struct ManageContractOp
+{
+    int64 contractID;
+    union switch (ContractCodeType type)
+    {
+        case CONTRACT_CODE_WASM:
+            WASMCode wasm;
+        default:
+            void;
+    } *body;
+};
+
 /* Invoke a smart contract
 
    Threshold: med
@@ -532,6 +551,8 @@ struct Operation
         LiquidityPoolDepositOp liquidityPoolDepositOp;
     case LIQUIDITY_POOL_WITHDRAW:
         LiquidityPoolWithdrawOp liquidityPoolWithdrawOp;
+    case MANAGE_CONTRACT:
+        ManageContractOp manageContractOp;
     case INVOKE_CONTRACT:
         InvokeContractOp invokeContractOp;
     }
@@ -1426,15 +1447,41 @@ default:
     void;
 };
 
+/******* ManageContract Result ********/
+
+enum ManageContractResultCode
+{
+    MANAGE_CONTRACT_SUCCESS = 0,
+    MANAGE_CONTRACT_NOT_SUPPORTED_YET = -1,
+    MANAGE_CONTRACT_NOT_FOUND = -2,
+    MANAGE_CONTRACT_LOW_RESERVE = -3
+};
+
+union ManageContractResult switch (
+    ManageContractResultCode code)
+{
+    case MANAGE_CONTRACT_SUCCESS:
+        void;
+    case MANAGE_CONTRACT_NOT_SUPPORTED_YET:
+        void;
+    case MANAGE_CONTRACT_NOT_FOUND:
+        void;
+    case MANAGE_CONTRACT_LOW_RESERVE:
+        void;
+    default:
+        void;
+};
+
 /******* InvokeContract Result ********/
 
 enum InvokeContractResultCode
 {
     INVOKE_CONTRACT_SUCCESS = 0,
-    INVOKE_CONTRACT_TRAPPED = -1,
-    INVOKE_CONTRACT_HOST_ERR = -2,
-    INVOKE_CONTRACT_MALFORMED = -3,
-    INVOKE_CONTRACT_OUT_OF_GAS = -4
+    INVOKE_CONTRACT_NOT_SUPPORTED_YET = -1,
+    INVOKE_CONTRACT_TRAPPED = -2,
+    INVOKE_CONTRACT_HOST_ERR = -3,
+    INVOKE_CONTRACT_MALFORMED = -4,
+    INVOKE_CONTRACT_OUT_OF_GAS = -5
 };
 
 enum ContractTrapType
@@ -1554,6 +1601,8 @@ case opINNER:
         LiquidityPoolDepositResult liquidityPoolDepositResult;
     case LIQUIDITY_POOL_WITHDRAW:
         LiquidityPoolWithdrawResult liquidityPoolWithdrawResult;
+    case MANAGE_CONTRACT:
+        ManageContractResult manageContractResult;
     case INVOKE_CONTRACT:
         InvokeContractResult invokeContractResult;
     }

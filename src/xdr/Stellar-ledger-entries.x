@@ -15,6 +15,7 @@ typedef int64 SequenceNumber;
 typedef uint64 TimePoint;
 typedef opaque DataValue<64>;
 typedef Hash PoolID; // SHA256(LiquidityPoolParameters)
+typedef opaque WASMCode<65536>;
 
 // 1-4 alphanumeric characters right-padded with 0 bytes
 typedef opaque AssetCode4[4];
@@ -485,10 +486,7 @@ struct ContractCodeEntry {
     union switch (ContractCodeType type)
     {
     case CONTRACT_CODE_WASM:
-        struct
-        {
-            opaque code<65536>;
-        } wasm;
+        WASMCode wasm;
     } body;
 };
 
