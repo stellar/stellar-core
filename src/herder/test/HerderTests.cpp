@@ -678,7 +678,12 @@ TEST_CASE("txset", "[herder][txset]")
     }
     SECTION("generalized tx set protocol")
     {
-        testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+        if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                      GENERALIZED_TX_SET_PROTOCOL_VERSION))
+        {
+
+            testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+        }
     }
     SECTION("protocol current")
     {
@@ -840,11 +845,14 @@ TEST_CASE("txset base fee", "[herder][txset]")
             }
             SECTION("generalized tx set protocol")
             {
-                // low = 20000+1 -> baseFee = 20001/2+ = 10001
-                // high = 10001*2
-                testBaseFee(
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                    0, v11NewCount, maxTxSetSize, 20000, 20000);
+                if (protocolVersionStartsFrom(
+                        Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                {
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                0, v11NewCount, maxTxSetSize, 20000, 20000);
+                }
             }
         }
     }
@@ -1127,8 +1135,13 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
 TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
-    Config cfg(getTestConfig());
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
 
+    Config cfg(getTestConfig());
     cfg.LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     VirtualClock clock;

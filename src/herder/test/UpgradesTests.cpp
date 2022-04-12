@@ -2475,6 +2475,11 @@ TEST_CASE("upgrade flags", "[upgrades][liquiditypool]")
 
 TEST_CASE("upgrade to generic tx set", "[upgrades]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     cfg.USE_CONFIG_FOR_GENESIS = false;

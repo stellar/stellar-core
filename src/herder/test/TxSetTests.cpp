@@ -70,6 +70,11 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
 
 TEST_CASE("generalized tx set XDR conversion", "[txset]")
 {
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION =
