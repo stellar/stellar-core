@@ -501,9 +501,7 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         {
             txSetFrame = std::make_unique<TxSetFrame>(mNetworkID,
                                                       txHistoryEntry.txSet);
-        }
-        // TODO: This should probably be a proper iterator after TxSetFrame
-        // refactoring.
+        }        
         for (auto const& txFrame : txSetFrame->mTransactions)
         {
             transactions[txFrame->getContentsHash()] = &txFrame->getEnvelope();

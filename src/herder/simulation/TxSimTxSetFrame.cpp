@@ -144,7 +144,6 @@ TxSimTxSetFrame::toXDR(TransactionSet& set) const
 void
 TxSimTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
 {
-    // TODO: implement
     releaseAssert(false);
 }
 }
