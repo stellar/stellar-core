@@ -1209,8 +1209,6 @@ Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
-    frame.computeTxFees(
-        mApp.getLedgerManager().getLastClosedLedgerHeader().header);
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 

@@ -302,6 +302,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
     Hash const& txSetHash = b.txSetHash;
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    // Finalize fees for legacy (non-generalized) tx sets. This can be removed
+    // after migration to generalized tx set.
+    if (!txSet->isGeneralizedTxSet() && !txSet->feesComputed())
+    {
+        txSet->computeTxFees(lcl);
+    }
 
     SCPDriver::ValidationLevel res;
 

@@ -1114,7 +1114,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     }
 
     auto txSetHash = proposedSet->getContentsHash();
-
+     
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint32_t slotIndex = lcl.header.ledgerSeq + 1;

@@ -60,8 +60,6 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     bool mGeneralized = false;
 
-    bool mFeesComputed = false;
-
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>
         mTxBaseFee;
 
@@ -80,6 +78,8 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     void addTxs(Hash const& networkID,
                 xdr::xvector<TransactionEnvelope> const& txs,
                 std::optional<int64_t> baseFee);
+
+    bool mFeesComputed = false;
 
   public:
     std::vector<TransactionFrameBasePtr> mTransactions;
@@ -148,6 +148,12 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void toXDR(TransactionSet& set) const override;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
+
+    bool
+    feesComputed() const
+    {
+        return mFeesComputed;
+    }
 };
 
 typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
