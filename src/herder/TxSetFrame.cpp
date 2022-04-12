@@ -56,7 +56,10 @@ TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
 
 TxSetFrame::TxSetFrame(Hash const& networkID,
                        GeneralizedTransactionSet const& xdrSet)
-    : mHash(std::nullopt), mValid(std::nullopt), mGeneralized(true)
+    : mHash(std::nullopt)
+    , mValid(std::nullopt)
+    , mGeneralized(true)
+    , mFeesComputed(true)
 {
     ZoneScoped;
     auto const& txSet = xdrSet.v1TxSet();
@@ -81,7 +84,6 @@ TxSetFrame::TxSetFrame(Hash const& networkID,
     }
     mPreviousLedgerHash = txSet.previousLedgerHash;
     sortForHash();
-    mFeesComputed = true;
 }
 
 static bool
@@ -472,12 +474,31 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 
     if (mGeneralized)
     {
-        for (auto const& [_, fee] : mTxBaseFee)
+        for (auto const& [tx, fee] : mTxBaseFee)
         {
-            if (fee && *fee < lcl.header.baseFee)
+            if (!fee)
             {
+                continue;
+            }
+            if (*fee < lcl.header.baseFee)
+            {
+
                 CLOG_DEBUG(Herder, "Got bad txSet: {} has too low base fee {}",
                            hexAbbrev(mPreviousLedgerHash), *fee);
+                mValid =
+                    std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
+                return false;
+            }
+            // Here we validate the fee bid in relation to the respective bid
+            // from this tx set. The tx frame itself currently validates bid vs
+            // baseFee in the ledger header, which is redundant for generalized
+            // tx set, but relevant for other tx frame uses.
+            if (tx->getFeeBid() < tx->getMinFee(lcl.header, fee))
+            {
+                CLOG_DEBUG(
+                    Herder,
+                    "Got bad txSet: {} has tx with fee bid lower than base fee",
+                    hexAbbrev(mPreviousLedgerHash));
                 mValid =
                     std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
                 return false;
@@ -634,14 +655,17 @@ TxSetFrame::computeTxFees(LedgerHeader const& lh)
     {
         size_t ops = 0;
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
-
+        auto rounding =
+            protocolVersionStartsFrom(lh.ledgerVersion,
+                                      GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                ? Rounding::ROUND_DOWN
+                : Rounding::ROUND_UP;
         for (auto& txPtr : mTransactions)
         {
             auto txOps = txPtr->getNumOperations();
             ops += txOps;
-            int64_t txBaseFee = bigDivideOrThrow(txPtr->getFeeBid(), 1,
-                                                 static_cast<int64_t>(txOps),
-                                                 Rounding::ROUND_UP);
+            int64_t txBaseFee = bigDivideOrThrow(
+                txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps), rounding);
             lowBaseFee = std::min(lowBaseFee, txBaseFee);
         }
         // if surge pricing was in action, use the lowest base fee bid from the
@@ -790,7 +814,7 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
     }
 
     auto const& phase = txSetV1.phases[0];
-    if (phase.v() != 1)
+    if (phase.v() != 0)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: unsupported phase version {}",
                    phase.v());

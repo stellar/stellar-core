@@ -163,7 +163,9 @@ class TransactionFrame : public TransactionFrameBase
 
     int64_t getFeeBid() const override;
 
-    int64_t getMinFee(LedgerHeader const& header) const override;
+    int64_t
+    getMinFee(LedgerHeader const& header,
+              std::optional<int64_t> baseFee = std::nullopt) const override;
 
     virtual int64_t getFee(LedgerHeader const& header,
                            std::optional<int64_t> baseFee,
@@ -178,10 +180,11 @@ class TransactionFrame : public TransactionFrameBase
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
-    bool checkValidWithOptionalFee(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
-                    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset,
-                    std::optional<int64_t> baseFee);
+    bool checkValidWithOptionalFee(AbstractLedgerTxn& ltxOuter,
+                                   SequenceNumber current, bool chargeFee,
+                                   uint64_t lowerBoundCloseTimeOffset,
+                                   uint64_t upperBoundCloseTimeOffset,
+                                   std::optional<int64_t> baseFee);
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset,

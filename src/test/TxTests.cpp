@@ -492,6 +492,29 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     return res;
 }
 
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+              TxSetFramePtr txSet)
+{
+    app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
+                                     emptyUpgradeSteps);
+
+    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
+
+    REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
+
+    TxSetResultMeta res;
+    std::transform(
+        z1.results.begin(), z1.results.end(), z2.begin(),
+        std::back_inserter(res),
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
+            return std::make_pair(r1, r2);
+        });
+
+    return res;
+}
+
 SecretKey
 getRoot(Hash const& networkID)
 {
@@ -1439,6 +1462,44 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 {
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys));
+}
+
+TxSetFramePtr
+createGeneralizedTxSet(
+    std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    std::vector<TransactionFrameBasePtr> const& bidIsFeeTxs, Application& app)
+{
+    GeneralizedTransactionSet xdrSet(1);
+    xdrSet.v1TxSet().previousLedgerHash =
+        app.getLedgerManager().getLastClosedLedgerHeader().hash;
+    auto& phase = xdrSet.v1TxSet().phases.emplace_back();
+    if (!txsPerBaseFee.empty())
+    {
+        for (auto const& [baseFee, txs] : txsPerBaseFee)
+        {
+            auto& component = phase.v0Components().emplace_back(
+                TXSET_COMP_TXS_DISCOUNTED_FEE);
+            component.txsDiscountedFee().baseFee = baseFee;
+            auto& componentTxs = component.txsDiscountedFee().txs;
+            for (auto const& tx : txs)
+            {
+                componentTxs.emplace_back(tx->getEnvelope());
+            }
+        }
+    }
+    if (!bidIsFeeTxs.empty())
+    {
+        auto& component =
+            phase.v0Components().emplace_back(TXSET_COMP_TXS_BID_IS_FEE);
+        auto& componentTxs = component.txsBidIsFee();
+        for (auto const& tx : bidIsFeeTxs)
+        {
+            componentTxs.emplace_back(tx->getEnvelope());
+        }
+    }
+    REQUIRE(validateTxSetXDRStructure(xdrSet));
+    return std::make_shared<TxSetFrame>(app.getNetworkID(), xdrSet);
 }
 
 LedgerUpgrade

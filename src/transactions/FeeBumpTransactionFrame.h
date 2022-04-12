@@ -43,8 +43,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
   protected:
     void resetResults(LedgerHeader const& header,
-                      std::optional<int64_t> baseFee,
-                      bool applying);
+                      std::optional<int64_t> baseFee, bool applying);
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
@@ -68,7 +67,9 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     TransactionEnvelope const& getEnvelope() const override;
 
     int64_t getFeeBid() const override;
-    int64_t getMinFee(LedgerHeader const& header) const override;
+    int64_t
+    getMinFee(LedgerHeader const& header,
+              std::optional<int64_t> baseFee = std::nullopt) const override;
     int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
                    bool applying) const override;
 

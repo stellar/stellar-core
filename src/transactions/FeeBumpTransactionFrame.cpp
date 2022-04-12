@@ -274,9 +274,15 @@ FeeBumpTransactionFrame::getFeeBid() const
 }
 
 int64_t
-FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header) const
+FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header,
+                                   std::optional<int64_t> baseFee) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
+    int64_t effectiveBaseFee = (int64_t)header.baseFee;
+    if (baseFee)
+    {
+        effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
+    }
+    return effectiveBaseFee * std::max<int64_t>(1, getNumOperations());
 }
 
 int64_t

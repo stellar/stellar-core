@@ -40,7 +40,9 @@ class TransactionFrameBase
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
     virtual int64_t getFeeBid() const = 0;
-    virtual int64_t getMinFee(LedgerHeader const& header) const = 0;
+    virtual int64_t
+    getMinFee(LedgerHeader const& header,
+              std::optional<int64_t> baseFee = std::nullopt) const = 0;
     virtual int64_t getFee(LedgerHeader const& header,
                            std::optional<int64_t> baseFee,
                            bool applying) const = 0;

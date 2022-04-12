@@ -251,6 +251,21 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
     return tx;
 }
 
+static TransactionFramePtr
+makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
+{
+    std::vector<stellar::Operation> ops;
+    for (int i = 0; i < nbOps; i++)
+    {
+        ops.emplace_back(payment(account, i + 1000));
+    }
+    auto tx = account.tx(ops);
+    setFee(tx, fee);
+    getSignatures(tx).clear();
+    tx->addSignature(account);
+    return tx;
+}
+
 static void
 testTxSet(uint32 protocolVersion)
 {
@@ -814,12 +829,22 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 // high = 20000+112
                 testBaseFee(10, 0, v10NewCount, maxTxSetSize, 20001, 20112);
             }
-            SECTION("protocol current")
+            SECTION("protocol before generalized tx set")
             {
                 // low = 20000+1 -> baseFee = 20001/2+ = 10001
                 // high = 10001*2
-                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                            v11NewCount, maxTxSetSize, 20001, 20002);
+                testBaseFee(
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                        1,
+                    0, v11NewCount, maxTxSetSize, 20001, 20002);
+            }
+            SECTION("generalized tx set protocol")
+            {
+                // low = 20000+1 -> baseFee = 20001/2+ = 10001
+                // high = 10001*2
+                testBaseFee(
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    0, v11NewCount, maxTxSetSize, 20000, 20000);
             }
         }
     }
@@ -1100,7 +1125,88 @@ TEST_CASE("surge pricing", "[herder][txset]")
     }
 }
 
-// TEST_CASE("")
+TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
+{
+    Config cfg(getTestConfig());
+
+    cfg.LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    int64 startingBalance =
+        app->getLedgerManager().getLastMinBalance(0) + 10000000;
+
+    std::vector<TestAccount> accounts;
+    int txCnt = 0;
+
+    auto addTx = [&](int nbOps, uint32_t fee) {
+        auto account = root.create(std::to_string(txCnt++), startingBalance);
+        accounts.push_back(account);
+        return makeSelfPayment(account, nbOps, fee);
+    };
+
+    auto checkFees = [&](TxSetFramePtr txSet,
+                         std::vector<int64_t> const& expectedFeeCharged) {
+        REQUIRE(txSet->checkValid(*app, 0, 0));
+
+        // fetch balances
+        auto getBalances = [&]() {
+            std::vector<int64_t> balances;
+            std::transform(accounts.begin(), accounts.end(),
+                           std::back_inserter(balances),
+                           [](TestAccount& a) { return a.getBalance(); });
+            return balances;
+        };
+        auto balancesBefore = getBalances();
+
+        closeLedgerOn(*app, 2, getTestDate(13, 4, 2022), txSet);
+
+        auto balancesAfter = getBalances();
+        std::vector<int64_t> feeCharged;
+        for (size_t i = 0; i < balancesAfter.size(); i++)
+        {
+            feeCharged.push_back(balancesBefore[i] - balancesAfter[i]);
+        }
+
+        REQUIRE(feeCharged == expectedFeeCharged);
+    };
+
+    SECTION("single discounted component")
+    {
+        auto txSet = createGeneralizedTxSet(
+            {std::make_pair(
+                1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
+                                                           addTx(2, 5000)})},
+            {}, *app);
+        checkFees(txSet, {3000, 2000});
+    }
+    SECTION("single non-discounted component")
+    {
+        auto txSet =
+            createGeneralizedTxSet({}, {addTx(3, 3500), addTx(2, 5000)}, *app);
+        checkFees(txSet, {3500, 5000});
+    }
+    SECTION("multiple components")
+    {
+        std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>>
+            discounted = {
+                std::make_pair(
+                    1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
+                                                               addTx(2, 5000)}),
+                std::make_pair(
+                    500, std::vector<TransactionFrameBasePtr>{addTx(1, 501),
+                                                              addTx(5, 10000)}),
+                std::make_pair(2000,
+                               std::vector<TransactionFrameBasePtr>{
+                                   addTx(4, 15000),
+                               }),
+            };
+        auto txSet = createGeneralizedTxSet(
+            discounted, {addTx(5, 35000), addTx(1, 10000)}, *app);
+        checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
+    }
+}
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)

@@ -161,9 +161,15 @@ TransactionFrame::getFeeBid() const
 }
 
 int64_t
-TransactionFrame::getMinFee(LedgerHeader const& header) const
+TransactionFrame::getMinFee(LedgerHeader const& header,
+                            std::optional<int64_t> baseFee) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
+    int64_t effectiveBaseFee = header.baseFee;
+    if (baseFee)
+    {
+        effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
+    }
+    return effectiveBaseFee * std::max<int64_t>(1, getNumOperations());
 }
 
 int64_t
