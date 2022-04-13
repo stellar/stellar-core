@@ -23,7 +23,7 @@ BasicWork::State
 ApplyLedgerWork::onRun()
 {
     ZoneScoped;
-    auto& txSet = mLedgerCloseData.getTxSet();
+    auto txSet = mLedgerCloseData.getTxSet();
     if (!txSet->isGeneralizedTxSet() && !txSet->feesComputed())
     {
         txSet->computeTxFees(
