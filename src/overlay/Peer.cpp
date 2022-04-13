@@ -1209,6 +1209,10 @@ Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
+    //// Finalize fees for legacy (non-generalized) tx sets. This can be removed
+    //// after migration to generalized tx set.
+    //frame.computeTxFees(
+    //    mApp.getLedgerManager().getLastClosedLedgerHeader().header);
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 

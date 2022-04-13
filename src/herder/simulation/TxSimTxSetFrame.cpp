@@ -146,5 +146,16 @@ TxSimTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
 {
     releaseAssert(false);
 }
+
+void
+TxSimTxSetFrame::computeTxFees(LedgerHeader const& lh)
+{
+}
+
+bool
+TxSimTxSetFrame::feesComputed() const
+{
+    return true;
+}
 }
 }

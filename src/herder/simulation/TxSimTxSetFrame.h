@@ -46,6 +46,10 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
 
     void toXDR(TransactionSet& set) const override;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
+
+    void computeTxFees(LedgerHeader const& lh) override;
+
+    bool feesComputed() const override;
 };
 }
 }

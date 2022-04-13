@@ -41,6 +41,10 @@ class AbstractTxSetFrameForApply
 
     virtual void toXDR(TransactionSet& set) const = 0;
     virtual void toXDR(GeneralizedTransactionSet& set) const = 0;
+
+    virtual void computeTxFees(LedgerHeader const& lh) = 0;
+
+    virtual bool feesComputed() const = 0;
 };
 
 typedef std::shared_ptr<AbstractTxSetFrameForApply const>
@@ -114,7 +118,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void surgePricingFilter(Application& app);
 
-    void computeTxFees(LedgerHeader const& lh);
+    void computeTxFees(LedgerHeader const& lh) override;
 
     // remove invalid transaction from this set and return those removed
     // transactions
@@ -149,11 +153,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     void toXDR(TransactionSet& set) const override;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const override;
 
-    bool
-    feesComputed() const
-    {
-        return mFeesComputed;
-    }
+    bool feesComputed() const override;
 };
 
 typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;

@@ -794,6 +794,12 @@ TxSetFrame::isGeneralizedTxSet() const
 }
 
 bool
+TxSetFrame::feesComputed() const
+{
+    return mFeesComputed;
+}
+
+bool
 validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
 {
     if (txSet.v() != 1)
