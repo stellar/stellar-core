@@ -1,13 +1,14 @@
 
 {
-	"!cfg protocol version" : 18,
+	"!cfg protocol version" : 19,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
-	"!versions to test" : [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ],
+	"!versions to test" : [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ],
 	"confirm and clear sponsor|protocol version 13|not supported" : [ "QJDMJ0PvkYA=" ],
 	"confirm and clear sponsor|protocol version 14|not sponsored" : [ "QJDMJ0PvkYA=" ],
 	"confirm and clear sponsor|protocol version 15|not sponsored" : [ "QJDMJ0PvkYA=" ],
 	"confirm and clear sponsor|protocol version 16|not sponsored" : [ "QJDMJ0PvkYA=" ],
 	"confirm and clear sponsor|protocol version 17|not sponsored" : [ "QJDMJ0PvkYA=" ],
-	"confirm and clear sponsor|protocol version 18|not sponsored" : [ "QJDMJ0PvkYA=" ]
+	"confirm and clear sponsor|protocol version 18|not sponsored" : [ "QJDMJ0PvkYA=" ],
+	"confirm and clear sponsor|protocol version 19|not sponsored" : [ "u8plyJbPb2c=" ]
 }
