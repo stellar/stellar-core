@@ -87,6 +87,304 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
     const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
+    SECTION("ed25519 payload signer")
+    {
+        auto a1 = root.create("a1", paymentAmount);
+
+        auto tx = a1.tx({payment(root, 100)});
+        auto tx2 = root.tx({payment(a1, 10)});
+
+        getSignatures(tx).clear();
+        getSignatures(tx2).clear();
+        setSeqNum(tx, tx->getSeqNum() + 1);
+        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
+
+        SignerKey signerKey;
+        signerKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        // payload may or may not be populated depending on the test below
+        signerKey.ed25519SignedPayload().ed25519 =
+            root.getPublicKey().ed25519();
+
+        for_versions_to(18, *app, [&] {
+            REQUIRE_THROWS_AS(a1.setOptions(setSigner(Signer{signerKey, 1})),
+                              ex_SET_OPTIONS_BAD_SIGNER);
+        });
+
+        for_versions_from(19, *app, [&] {
+            auto testPayloadSignerOnAccount = [&](xdr::opaque_vec<64> payload,
+                                                  bool signTx2) {
+                signerKey.ed25519SignedPayload().payload = payload;
+
+                Signer sk1(signerKey, 1);
+                a1.setOptions(setSigner(sk1));
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                tx->addSignature(sig);
+
+                REQUIRE(applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+                REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        PAYMENT_SUCCESS);
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                if (signTx2)
+                {
+                    // Now use the signature of the first tx on the second tx
+                    sig.hint =
+                        SignatureUtils::getHint(root.getPublicKey().ed25519());
+                    tx2->addSignature(sig);
+
+                    applyCheck(tx2, *app);
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(
+                                getFirstResult(*tx2)) == PAYMENT_SUCCESS);
+                    REQUIRE(getAccountSigners(root, *app).size() == 0);
+                }
+            };
+            SECTION("3 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2'}, false);
+            }
+            SECTION("4 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2', '3'}, false);
+            }
+            SECTION("5 byte payload")
+            {
+                testPayloadSignerOnAccount({'a', '1', '2', '3', '4'}, false);
+            }
+            SECTION("payload is tx")
+            {
+                xdr::opaque_vec<64> payload;
+                auto hash = tx2->getContentsHash();
+                for (auto const& b : hash)
+                {
+                    payload.emplace_back(b);
+                }
+
+                testPayloadSignerOnAccount(payload, true);
+            }
+            SECTION("payload signer in extra signers")
+            {
+                signerKey.ed25519SignedPayload().payload = {'a', 'a', 'a'};
+                PreconditionsV2 cond;
+                cond.extraSigners.emplace_back(signerKey);
+
+                auto extraSignerTx =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                SECTION("success")
+                {
+                    extraSignerTx->addSignature(sig);
+                    REQUIRE(applyCheck(extraSignerTx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(extraSignerTx, *app));
+                }
+            }
+            SECTION("payload signer with zeroed out ed25519")
+            {
+                SignerKey zeroKey;
+                zeroKey.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+                zeroKey.ed25519SignedPayload().ed25519 =
+                    xdr::opaque_array<32>{};
+                zeroKey.ed25519SignedPayload().payload = {'a', 'a', 'a'};
+
+                // set the threshold high enough so we will go over every signer
+                // in the SignatureChecker
+                Signer sk1(zeroKey, 1);
+                a1.setOptions(setSigner(sk1) | setLowThreshold(255));
+                REQUIRE(getAccountSigners(a1, *app).size() == 1);
+
+                // Add the wrong signature, with a hint that matches zeroKeys
+                // hint
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    zeroKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    zeroKey.ed25519SignedPayload());
+
+                tx->addSignature(sig);
+                tx->addSignature(a1);
+                REQUIRE(!applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txBAD_AUTH);
+            }
+            SECTION("empty payload in payload signer in extra signers")
+            {
+                PreconditionsV2 cond;
+                cond.extraSigners.emplace_back(signerKey);
+
+                auto extraSignerTx =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+
+                REQUIRE(signerKey.ed25519SignedPayload().payload.empty());
+
+                DecoratedSignature sig;
+                sig.signature = root.getSecretKey().sign(
+                    signerKey.ed25519SignedPayload().payload);
+                sig.hint = SignatureUtils::getSignedPayloadHint(
+                    signerKey.ed25519SignedPayload());
+
+                extraSignerTx->addSignature(sig);
+                REQUIRE(!applyCheck(extraSignerTx, *app));
+                REQUIRE(extraSignerTx->getResultCode() == txMALFORMED);
+            }
+        });
+    }
+
+    SECTION("extraSigners")
+    {
+        for_versions_from(19, *app, [&] {
+            auto minBalance = app->getLedgerManager().getLastMinBalance(2);
+            auto a1 = root.create("a1", minBalance);
+
+            SignerKey rootSigner;
+            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
+            rootSigner.ed25519() = root.getPublicKey().ed25519();
+
+            auto hashXSigner = SignerKeyUtils::hashXKey("hashx");
+
+            PreconditionsV2 cond;
+
+            SECTION("one extra signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("success")
+                {
+                    tx->addSignature(root.getSecretKey());
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("one extra hashx signer")
+            {
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("success")
+                {
+                    tx->addSignature(SignatureUtils::signHashX("hashx"));
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("two extra signers")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                // add a hashx signer
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                tx->addSignature(root.getSecretKey());
+
+                SECTION("success")
+                {
+                    tx->addSignature(SignatureUtils::signHashX("hashx"));
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("fail")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION("duplicate extra signers")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                cond.extraSigners.emplace_back(rootSigner);
+                auto txDupeSigner =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                txDupeSigner->addSignature(root.getSecretKey());
+
+                REQUIRE(!applyCheck(txDupeSigner, *app));
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("duplicate hash card signers")
+            {
+                cond.extraSigners.emplace_back(hashXSigner);
+                cond.extraSigners.emplace_back(hashXSigner);
+                auto txDupeSigner =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                txDupeSigner->addSignature(SignatureUtils::signHashX("hashx"));
+
+                REQUIRE(!applyCheck(txDupeSigner, *app));
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("signer overlap with default account signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto rootTx =
+                    transactionWithV2Precondition(*app, root, 1, 100, cond);
+                REQUIRE(applyCheck(rootTx, *app));
+            }
+            SECTION("signer overlap with added account signer")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("signature present")
+                {
+                    tx->addSignature(root.getSecretKey());
+                    REQUIRE(applyCheck(tx, *app));
+                }
+                SECTION("signature missing")
+                {
+                    REQUIRE(!applyCheck(tx, *app));
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            }
+            SECTION(
+                "signer overlap with added account signer - both signers used")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                  {root.op(payment(a1, 1))},
+                                                  {root}, cond);
+                REQUIRE(applyCheck(
+                    std::dynamic_pointer_cast<TransactionFrame>(tx), *app));
+            }
+            SECTION("preauth signer")
+            {
+                // preauth signers aren't useful with extraSigners because you
+                // need the hash of the transaction, but the transaction
+                // includes extraSigners. We still want to test a preauth signer
+                // in extraSigners though.
+                cond.extraSigners.emplace_back(
+                    SignerKeyUtils::preAuthTxKey(*root.tx({})));
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                tx->addSignature(a1.getSecretKey());
+                REQUIRE(!applyCheck(tx, *app));
+                REQUIRE(tx->getResultCode() == txBAD_AUTH);
+            }
+        });
+    }
+
     SECTION("outer envelope")
     {
         auto a1 = TestAccount{*app, getAccount("A")};
@@ -439,6 +737,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             bool autoRemove;
             std::function<SignerKey(TransactionFrame&)> createSigner;
             std::function<void(TransactionFrame&)> sign;
+            uint32_t minLedgerVersion;
         };
 
         // ensue that hash(x) supports 0 inside 'x'
@@ -446,22 +745,51 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                       0,   0,   'g', 'h', 'i', 'j', 'k', 'l',
                                       'A', 'B', 'C', 0,   'D', 'E', 'F', 0,
                                       0,   0,   'G', 'H', 'I', 'J', 'K', 'L'};
+
+        xdr::opaque_vec<64> payload(x.begin(), x.end());
+        SignerKey rootPayloadSignerKey = SignerKeyUtils::ed25519PayloadKey(
+            root.getPublicKey().ed25519(), payload);
+
         auto alternatives = std::vector<AltSignature>{
             AltSignature{"hash tx", true,
                          [](TransactionFrame& tx) {
                              tx.clearCached();
                              return SignerKeyUtils::preAuthTxKey(tx);
                          },
-                         [](TransactionFrame&) {}},
+                         [](TransactionFrame&) {}, 0},
             AltSignature{
                 "hash x", false,
                 [x](TransactionFrame&) { return SignerKeyUtils::hashXKey(x); },
                 [x](TransactionFrame& tx) {
                     tx.addSignature(SignatureUtils::signHashX(x));
-                }}};
+                },
+                0},
+            AltSignature{"payload signer", false,
+                         [rootPayloadSignerKey](TransactionFrame&) {
+                             return rootPayloadSignerKey;
+                         },
+                         [root, x, rootPayloadSignerKey](TransactionFrame& tx) {
+                             DecoratedSignature sig;
+                             sig.signature = root.getSecretKey().sign(x);
+                             sig.hint = SignatureUtils::getSignedPayloadHint(
+                                 rootPayloadSignerKey.ed25519SignedPayload());
+                             tx.addSignature(sig);
+                         },
+                         19},
+        };
 
         for (auto const& alternative : alternatives)
         {
+            uint32_t ledgerVersion;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+                if (ledgerVersion < alternative.minLedgerVersion)
+                {
+                    continue;
+                }
+            }
+
             SECTION(alternative.name)
             {
                 for_versions_to(2, *app, [&] {
@@ -528,7 +856,18 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                                  1);
 
                             SignerKey sk = alternative.createSigner(*tx);
-                            KeyFunctions<SignerKey>::getKeyValue(sk)[0] ^= 0x01;
+                            if (sk.type() == SIGNER_KEY_TYPE_PRE_AUTH_TX)
+                            {
+                                sk.preAuthTx()[0] ^= 0x01;
+                            }
+                            else if (sk.type() == SIGNER_KEY_TYPE_HASH_X)
+                            {
+                                sk.hashX()[0] ^= 0x01;
+                            }
+                            else
+                            {
+                                sk.ed25519SignedPayload().ed25519[0] ^= 0x01;
+                            }
                             Signer sk1(sk, 1);
                             a1.setOptions(setSigner(sk1));
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -1057,6 +1396,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             alternative.name)
                     {
                         for_versions_from(14, *app, [&] {
+                            // set threshold higher so all signers are required
+                            a1.setOptions(setMedThreshold(100));
                             auto a2 = root.create("A2", paymentAmount);
 
                             TransactionFramePtr tx;
@@ -1071,7 +1412,13 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                             // signer that will be removed (sk1), so we can
                             // verify how signerSponsoringIDs changes
                             Signer signer1 = makeSigner(getAccount("1"), 5);
-                            Signer signer2(SignerKeyUtils::hashXKey("5"), 5);
+                            SignerKey s2 =
+                                protocolVersionStartsFrom(ledgerVersion,
+                                                          ProtocolVersion::V_19)
+                                    ? SignerKeyUtils::ed25519PayloadKey(
+                                          root.getPublicKey().ed25519(), {'z'})
+                                    : SignerKeyUtils::hashXKey("5");
+                            Signer signer2(s2, 5);
 
                             REQUIRE(signer1.key < sk);
                             REQUIRE(sk < signer2.key);
@@ -1168,6 +1515,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     SECTION("success signature + " + alternative.name)
                     {
+                        // set threshold higher so all signers are required
+                        a1.setOptions(setMedThreshold(100));
                         TransactionFramePtr tx;
                         auto setup = [&]() {
                             tx = a1.tx({payment(root, 1000)});
@@ -1522,7 +1871,11 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
             txSet->add(txFrame);
 
             // Close this ledger
-            app->getHerder().externalizeValue(txSet, 3, 1, emptyUpgradeSteps);
+            auto lastCloseTime = app->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header.scpValue.closeTime;
+            app->getHerder().externalizeValue(txSet, 3, lastCloseTime,
+                                              emptyUpgradeSteps);
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 3);
         };

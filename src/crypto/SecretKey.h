@@ -121,10 +121,15 @@ template <> struct KeyFunctions<PublicKey>
 
     static std::string getKeyTypeName();
     static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
+    static bool
+    getKeyVersionIsVariableLength(strKey::StrKeyVersionByte keyVersion);
     static PublicKeyType toKeyType(strKey::StrKeyVersionByte keyVersion);
     static strKey::StrKeyVersionByte toKeyVersion(PublicKeyType keyType);
-    static uint256& getKeyValue(PublicKey& key);
-    static uint256 const& getKeyValue(PublicKey const& key);
+    static uint256& getEd25519Value(PublicKey& key);
+    static uint256 const& getEd25519Value(PublicKey const& key);
+
+    static std::vector<uint8_t> getKeyValue(PublicKey const& key);
+    static void setKeyValue(PublicKey& key, std::vector<uint8_t> const& data);
 };
 
 // public key utility functions

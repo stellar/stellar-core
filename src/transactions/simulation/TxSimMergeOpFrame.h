@@ -20,7 +20,7 @@ class TxSimMergeOpFrame : public MergeOpFrame
                       TransactionFrame& parentTx,
                       OperationResult const& simulationResult);
 
-    bool isSeqnumTooFar(LedgerTxnHeader const& header,
+    bool isSeqnumTooFar(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         AccountEntry const& sourceAccount) override;
 };
 }

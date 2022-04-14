@@ -38,6 +38,8 @@ void generateScaledDeadEntries(
         poolIDToParam,
     uint32_t partition);
 
+SignerKey generateScaledEd25519Signer(SignerKey const& signer,
+                                      uint32_t partition);
 SignerKey generateScaledEd25519Signer(Signer const& signer, uint32_t partition);
 
 SecretKey mutateScaledAccountID(AccountID& acc, uint32_t partition);

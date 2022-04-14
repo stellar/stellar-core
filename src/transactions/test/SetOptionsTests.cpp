@@ -541,6 +541,38 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 }
             });
         }
+        SECTION("ed25519 payload signer")
+        {
+            SignerKey a1Signer;
+            a1Signer.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+            a1Signer.ed25519SignedPayload().ed25519 =
+                a1.getPublicKey().ed25519();
+            a1Signer.ed25519SignedPayload().payload.emplace_back('s');
+            Signer sk(a1Signer, 1);
+
+            a1Signer.ed25519SignedPayload().payload.clear();
+            Signer skEmptyPayload(a1Signer, 1);
+
+            for_versions_to(18, *app, [&]() {
+                REQUIRE_THROWS_AS(root.setOptions(setSigner(sk)),
+                                  ex_SET_OPTIONS_BAD_SIGNER);
+
+                REQUIRE_THROWS_AS(root.setOptions(setSigner(skEmptyPayload)),
+                                  ex_SET_OPTIONS_BAD_SIGNER);
+            });
+
+            for_versions_from(19, *app, [&]() {
+                root.setOptions(setSigner(sk));
+                REQUIRE(root.getNumSubEntries() == 1);
+
+                sk.weight = 0;
+                root.setOptions(setSigner(sk));
+                REQUIRE(root.getNumSubEntries() == 0);
+
+                REQUIRE_THROWS_AS(root.setOptions(setSigner(skEmptyPayload)),
+                                  ex_SET_OPTIONS_BAD_SIGNER);
+            });
+        }
     }
 
     SECTION("flags")

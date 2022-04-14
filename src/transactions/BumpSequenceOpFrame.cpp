@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include <Tracy.hpp>
@@ -42,6 +43,8 @@ BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
     LedgerTxn ltxInner(ltx);
     auto header = ltxInner.loadHeader();
     auto sourceAccountEntry = loadSourceAccount(ltxInner, header);
+    maybeUpdateAccountOnLedgerSeqUpdate(header, sourceAccountEntry);
+
     auto& sourceAccount = sourceAccountEntry.current().data.account();
     SequenceNumber current = sourceAccount.seqNum;
 
@@ -49,6 +52,13 @@ BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
     if (mBumpSequenceOp.bumpTo > current)
     {
         sourceAccount.seqNum = mBumpSequenceOp.bumpTo;
+        ltxInner.commit();
+    }
+    else if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                       ProtocolVersion::V_19))
+    {
+        // we need to commit the changes from
+        // maybeUpdateAccountOnLedgerSeqUpdate
         ltxInner.commit();
     }
 

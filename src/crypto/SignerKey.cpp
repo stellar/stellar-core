@@ -6,6 +6,7 @@
 
 #include "crypto/StrKey.h"
 #include "xdr/Stellar-types.h"
+#include "xdrpp/marshal.h"
 
 #include <sodium/crypto_sign.h>
 
@@ -30,8 +31,29 @@ KeyFunctions<SignerKey>::getKeyVersionIsSupported(
         return true;
     case strKey::STRKEY_HASH_X:
         return true;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return true;
     default:
         return false;
+    }
+}
+
+bool
+KeyFunctions<SignerKey>::getKeyVersionIsVariableLength(
+    strKey::StrKeyVersionByte keyVersion)
+{
+    switch (keyVersion)
+    {
+    case strKey::STRKEY_PUBKEY_ED25519:
+        return false;
+    case strKey::STRKEY_PRE_AUTH_TX:
+        return false;
+    case strKey::STRKEY_HASH_X:
+        return false;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return true;
+    default:
+        throw std::invalid_argument("invalid signer key type");
     }
 }
 
@@ -46,6 +68,8 @@ KeyFunctions<SignerKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
         return SignerKeyType::SIGNER_KEY_TYPE_PRE_AUTH_TX;
     case strKey::STRKEY_HASH_X:
         return SignerKeyType::SIGNER_KEY_TYPE_HASH_X;
+    case strKey::STRKEY_ED25519_SIGNED_PAYLOAD:
+        return SignerKeyType::SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD;
     default:
         throw std::invalid_argument("invalid signer key type");
     }
@@ -62,40 +86,76 @@ KeyFunctions<SignerKey>::toKeyVersion(SignerKeyType keyType)
         return strKey::STRKEY_PRE_AUTH_TX;
     case SignerKeyType::SIGNER_KEY_TYPE_HASH_X:
         return strKey::STRKEY_HASH_X;
+    case SignerKeyType::SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
+        return strKey::STRKEY_ED25519_SIGNED_PAYLOAD;
     default:
         throw std::invalid_argument("invalid signer key type");
     }
 }
 
 uint256&
-KeyFunctions<SignerKey>::getKeyValue(SignerKey& key)
+KeyFunctions<SignerKey>::getEd25519Value(SignerKey& key)
 {
     switch (key.type())
     {
     case SIGNER_KEY_TYPE_ED25519:
         return key.ed25519();
-    case SIGNER_KEY_TYPE_PRE_AUTH_TX:
-        return key.preAuthTx();
-    case SIGNER_KEY_TYPE_HASH_X:
-        return key.hashX();
     default:
         throw std::invalid_argument("invalid signer key type");
     }
 }
 
 uint256 const&
-KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
+KeyFunctions<SignerKey>::getEd25519Value(SignerKey const& key)
 {
     switch (key.type())
     {
     case SIGNER_KEY_TYPE_ED25519:
         return key.ed25519();
-    case SIGNER_KEY_TYPE_PRE_AUTH_TX:
-        return key.preAuthTx();
-    case SIGNER_KEY_TYPE_HASH_X:
-        return key.hashX();
     default:
         throw std::invalid_argument("invalid signer key type");
     }
 }
+
+std::vector<uint8_t>
+KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
+{
+    switch (key.type())
+    {
+    case SIGNER_KEY_TYPE_ED25519:
+        return xdr::xdr_to_opaque(key.ed25519());
+    case SIGNER_KEY_TYPE_PRE_AUTH_TX:
+        return xdr::xdr_to_opaque(key.preAuthTx());
+    case SIGNER_KEY_TYPE_HASH_X:
+        return xdr::xdr_to_opaque(key.hashX());
+    case SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
+        return xdr::xdr_to_opaque(key.ed25519SignedPayload());
+    default:
+        throw std::invalid_argument("invalid signer key type");
+    }
+}
+
+void
+KeyFunctions<SignerKey>::setKeyValue(SignerKey& key,
+                                     std::vector<uint8_t> const& data)
+{
+    switch (key.type())
+    {
+    case SIGNER_KEY_TYPE_ED25519:
+        xdr::xdr_from_opaque(data, key.ed25519());
+        break;
+    case SIGNER_KEY_TYPE_PRE_AUTH_TX:
+        xdr::xdr_from_opaque(data, key.preAuthTx());
+        break;
+    case SIGNER_KEY_TYPE_HASH_X:
+        xdr::xdr_from_opaque(data, key.hashX());
+        break;
+    case SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
+        xdr::xdr_from_opaque(data, key.ed25519SignedPayload());
+        break;
+    default:
+        throw std::invalid_argument("invalid signer key type");
+    }
+}
+
 }

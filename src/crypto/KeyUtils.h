@@ -25,12 +25,17 @@ template <typename T> struct KeyFunctions
 
     static std::string getKeyTypeName();
     static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
+    static bool
+    getKeyVersionIsVariableLength(strKey::StrKeyVersionByte keyVersion);
     static typename getKeyTypeEnum::type
     toKeyType(strKey::StrKeyVersionByte keyVersion);
     static strKey::StrKeyVersionByte
     toKeyVersion(typename getKeyTypeEnum::type keyType);
-    static uint256& getKeyValue(T& key);
-    static uint256 const& getKeyValue(T const& key);
+    static uint256& getEd25519Value(T& key);
+    static uint256 const& getEd25519Value(T const& key);
+
+    static std::vector<uint8_t> getKeyValue(T const& key);
+    static void setKeyValue(T& key, std::vector<uint8_t> const& data);
 };
 
 // signer key utility functions
@@ -84,15 +89,18 @@ fromStrKey(std::string const& s)
 
     strKey::StrKeyVersionByte ver =
         static_cast<strKey::StrKeyVersionByte>(verByte);
-    if (!KeyFunctions<T>::getKeyVersionIsSupported(ver) ||
-        (k.size() != getKeyVersionSize(ver)) ||
-        (s.size() != strKey::getStrKeySize(getKeyVersionSize(ver))))
+
+    bool fixedSizeKeyValid =
+        !KeyFunctions<T>::getKeyVersionIsVariableLength(ver) &&
+        (k.size() != getKeyVersionSize(ver));
+    if (fixedSizeKeyValid || !KeyFunctions<T>::getKeyVersionIsSupported(ver) ||
+        s.size() != strKey::getStrKeySize(k.size()))
     {
         throw std::invalid_argument("bad " + KeyFunctions<T>::getKeyTypeName());
     }
 
     key.type(KeyFunctions<T>::toKeyType(ver));
-    std::copy(k.begin(), k.end(), KeyFunctions<T>::getKeyValue(key).begin());
+    KeyFunctions<T>::setKeyValue(key, k);
     return key;
 }
 
@@ -111,7 +119,8 @@ convertKey(F const& fromKey)
     T toKey;
     toKey.type(KeyFunctions<T>::toKeyType(
         KeyFunctions<F>::toKeyVersion(fromKey.type())));
-    KeyFunctions<T>::getKeyValue(toKey) = KeyFunctions<F>::getKeyValue(fromKey);
+    KeyFunctions<T>::getEd25519Value(toKey) =
+        KeyFunctions<F>::getEd25519Value(fromKey);
     return toKey;
 }
 }

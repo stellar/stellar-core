@@ -1032,6 +1032,19 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     mLastClosedLedger.header = header;
 }
 
+static bool
+mergeOpInTx(std::vector<Operation> const& ops)
+{
+    for (auto const& op : ops)
+    {
+        if (op.body.type() == ACCOUNT_MERGE)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
@@ -1045,10 +1058,32 @@ LedgerManagerImpl::processFeesSeqNums(
     {
         LedgerTxn ltx(ltxOuter);
         auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+        std::map<AccountID, SequenceNumber> accToMaxSeq;
+
+        bool mergeSeen = false;
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
             tx->processFeeSeqNum(ltxTx, baseFee);
+
+            if (protocolVersionStartsFrom(
+                    ltxTx.loadHeader().current().ledgerVersion,
+                    ProtocolVersion::V_19))
+            {
+                auto res =
+                    accToMaxSeq.emplace(tx->getSourceID(), tx->getSeqNum());
+                if (!res.second)
+                {
+                    res.first->second =
+                        std::max(res.first->second, tx->getSeqNum());
+                }
+
+                if (mergeOpInTx(tx->getRawOperations()))
+                {
+                    mergeSeen = true;
+                }
+            }
+
             LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
@@ -1070,6 +1105,35 @@ LedgerManagerImpl::processFeesSeqNums(
             }
             ltxTx.commit();
         }
+
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      ProtocolVersion::V_19) &&
+            mergeSeen)
+        {
+            for (const auto& [accountID, seqNum] : accToMaxSeq)
+            {
+                auto ltxe = loadMaxSeqNumToApply(ltx, accountID);
+                if (!ltxe)
+                {
+                    InternalLedgerEntry gle(
+                        InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+                    gle.maxSeqNumToApplyEntry().sourceAccount = accountID;
+                    gle.maxSeqNumToApplyEntry().maxSeqNum = seqNum;
+
+                    auto res = ltx.create(gle);
+                    if (!res)
+                    {
+                        throw std::runtime_error("create failed");
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error(
+                        "found unexpected MAX_SEQ_NUM_TO_APPLY");
+                }
+            }
+        }
+
         ltx.commit();
     }
     catch (std::exception& e)

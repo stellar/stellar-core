@@ -14,11 +14,21 @@ typedef int int32;
 typedef unsigned hyper uint64;
 typedef hyper int64;
 
+// An ExtensionPoint is always marshaled as a 32-bit 0 value.  At a
+// later point, it can be replaced by a different union so as to
+// extend a structure.
+union ExtensionPoint switch (int v)
+{
+case 0:
+    void;
+};
+
 enum CryptoKeyType
 {
     KEY_TYPE_ED25519 = 0,
     KEY_TYPE_PRE_AUTH_TX = 1,
     KEY_TYPE_HASH_X = 2,
+    KEY_TYPE_ED25519_SIGNED_PAYLOAD = 3,
     // MUXED enum values for supported type are derived from the enum values
     // above by ORing them with 0x100
     KEY_TYPE_MUXED_ED25519 = 0x100
@@ -33,7 +43,8 @@ enum SignerKeyType
 {
     SIGNER_KEY_TYPE_ED25519 = KEY_TYPE_ED25519,
     SIGNER_KEY_TYPE_PRE_AUTH_TX = KEY_TYPE_PRE_AUTH_TX,
-    SIGNER_KEY_TYPE_HASH_X = KEY_TYPE_HASH_X
+    SIGNER_KEY_TYPE_HASH_X = KEY_TYPE_HASH_X,
+    SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD = KEY_TYPE_ED25519_SIGNED_PAYLOAD
 };
 
 union PublicKey switch (PublicKeyType type)
@@ -52,6 +63,14 @@ case SIGNER_KEY_TYPE_PRE_AUTH_TX:
 case SIGNER_KEY_TYPE_HASH_X:
     /* Hash of random 256 bit preimage X */
     uint256 hashX;
+case SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD:
+    struct
+    {
+        /* Public key that must sign the payload. */
+        uint256 ed25519;
+        /* Payload to be raw signed by ed25519. */
+        opaque payload<64>;
+    } ed25519SignedPayload;
 };
 
 // variable size as the size depends on the signature scheme used

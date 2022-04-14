@@ -1162,6 +1162,11 @@ LedgerTxn::Impl::getDelta()
         for (auto const& kv : entries)
         {
             auto const& key = kv.first;
+            if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY)
+            {
+                continue;
+            }
+
             auto previous = mParent.getNewestVersion(key);
 
             // Deep copy is not required here because getDelta causes

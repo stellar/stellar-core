@@ -71,6 +71,10 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
 
+    bool isTooEarlyForAccount(LedgerTxnHeader const& header,
+                              LedgerTxnEntry const& sourceAccount,
+                              uint64_t lowerBoundCloseTimeOffset) const;
+
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
@@ -103,6 +107,10 @@ class TransactionFrame : public TransactionFrameBase
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
+
+    std::optional<TimeBounds const> const getTimeBounds() const;
+    std::optional<LedgerBounds const> const getLedgerBounds() const;
+    bool extraSignersExist() const;
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -176,6 +184,8 @@ class TransactionFrame : public TransactionFrameBase
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
+    bool checkExtraSigners(SignatureChecker& signatureChecker);
+
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset);
@@ -205,5 +215,9 @@ class TransactionFrame : public TransactionFrameBase
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
                                AccountID const& accountID);
+
+    std::optional<SequenceNumber const> const getMinSeqNum() const override;
+    Duration getMinSeqAge() const override;
+    uint32 getMinSeqLedgerGap() const override;
 };
 }

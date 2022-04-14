@@ -121,6 +121,17 @@ SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
         return true;
     }
 
+    verified =
+        verifyAll(signers[SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD],
+                  [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      return SignatureUtils::verifyEd25519SignedPayload(
+                          sig, signerKey.key);
+                  });
+    if (verified)
+    {
+        return true;
+    }
+
     return false;
 }
 

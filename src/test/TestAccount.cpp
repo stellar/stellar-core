@@ -346,6 +346,19 @@ void
 TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
+
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto account = stellar::loadAccount(ltx, getPublicKey());
+        REQUIRE(account);
+
+        auto const& v3 =
+            getAccountEntryExtensionV3(account.current().data.account());
+        REQUIRE(v3.seqLedger == ltx.loadHeader().current().ledgerSeq);
+        REQUIRE(v3.seqTime == ltx.loadHeader().current().scpValue.closeTime);
+    }
 }
 
 ClaimableBalanceID

@@ -83,6 +83,20 @@ prepareAccountEntryExtensionV2(AccountEntry& ae)
     return extV1.ext.v2();
 }
 
+AccountEntryExtensionV3&
+prepareAccountEntryExtensionV3(AccountEntry& ae)
+{
+    auto& extV2 = prepareAccountEntryExtensionV2(ae);
+    if (extV2.ext.v() == 0)
+    {
+        extV2.ext.v(3);
+        auto& extV3 = extV2.ext.v3();
+        extV3.seqLedger = 0;
+        extV3.seqTime = 0;
+    }
+    return extV2.ext.v3();
+}
+
 TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl)
 {
@@ -137,6 +151,17 @@ getAccountEntryExtensionV2(AccountEntry& ae)
         throw std::runtime_error("expected AccountEntry extension V2");
     }
     return ae.ext.v1().ext.v2();
+}
+
+AccountEntryExtensionV3 const&
+getAccountEntryExtensionV3(AccountEntry const& ae)
+{
+    if (ae.ext.v() != 1 || ae.ext.v1().ext.v() != 2 ||
+        ae.ext.v1().ext.v2().ext.v() != 3)
+    {
+        throw std::runtime_error("expected AccountEntry extension V3");
+    }
+    return ae.ext.v1().ext.v2().ext.v3();
 }
 
 TrustLineEntryExtensionV2&
@@ -258,6 +283,12 @@ sponsorshipCounterKey(AccountID const& sponsoringID)
     return InternalLedgerKey::makeSponsorshipCounterKey(sponsoringID);
 }
 
+InternalLedgerKey
+maxSeqNumToApplyKey(AccountID const& sourceAccount)
+{
+    return InternalLedgerKey::makeMaxSeqNumToApplyKey(sourceAccount);
+}
+
 LedgerTxnEntry
 loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
@@ -345,6 +376,12 @@ LedgerTxnEntry
 loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 {
     return ltx.load(sponsorshipCounterKey(sponsoringID));
+}
+
+LedgerTxnEntry
+loadMaxSeqNumToApply(AbstractLedgerTxn& ltx, AccountID const& sourceAccount)
+{
+    return ltx.load(maxSeqNumToApplyKey(sourceAccount));
 }
 
 LedgerTxnEntry
@@ -1187,6 +1224,13 @@ hasAccountEntryExtV2(AccountEntry const& ae)
 }
 
 bool
+hasAccountEntryExtV3(AccountEntry const& ae)
+{
+    return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2 &&
+           ae.ext.v1().ext.v2().ext.v() == 3;
+}
+
+bool
 hasTrustLineEntryExtV2(TrustLineEntry const& tl)
 {
     return tl.ext.v() == 1 && tl.ext.v1().ext.v() == 2;
@@ -1711,6 +1755,20 @@ getPoolWithdrawalAmount(int64_t amountPoolShares, int64_t totalPoolShares,
 
     return bigDivideOrThrow(amountPoolShares, reserve, totalPoolShares,
                             ROUND_DOWN);
+}
+
+void
+maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
+                                    LedgerTxnEntry& account)
+{
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto& v3 =
+            prepareAccountEntryExtensionV3(account.current().data.account());
+        v3.seqLedger = header.current().ledgerSeq;
+        v3.seqTime = header.current().scpValue.closeTime;
+    }
 }
 
 namespace detail

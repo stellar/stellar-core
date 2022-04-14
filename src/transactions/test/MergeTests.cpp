@@ -619,6 +619,80 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
         });
     }
 
+    SECTION("merge too far due to MAX_SEQ_NUM_TO_APPLY")
+    {
+        for_versions_from(19, *app, [&]() {
+            SequenceNumber curStartSeqNum;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ltx.loadHeader().current().ledgerSeq += 1;
+                curStartSeqNum = getStartingSequenceNumber(ltx.loadHeader());
+            }
+
+            PreconditionsV2 cond;
+            cond.minSeqNum.activate() = 0;
+
+            auto txMinSeqNumSrc = transactionFromOperationsV1(
+                *app, a1, curStartSeqNum + 1, {payment(a1.getPublicKey(), 1)},
+                100, cond);
+
+            SECTION("merge using different account")
+            {
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+
+                auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
+
+                REQUIRE(tx1->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .accountMergeResult()
+                            .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+
+                checkTx(1, r, txSUCCESS);
+            }
+            SECTION("merge source account")
+            {
+                auto tx1 = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                   {accountMerge(b1)}, {});
+
+                // Add some intermediate transactions between the merge and the
+                // gap tx so MAX_SEQ_NUM_TO_APPLY receives additional updates
+                auto tx2 = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                   {payment(root, 1)}, {});
+                auto tx3 = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                   {payment(root, 1)}, {});
+
+                auto r = closeLedger(*app, {tx1, tx2, tx3, txMinSeqNumSrc});
+
+                REQUIRE(tx1->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .accountMergeResult()
+                            .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+
+                checkTx(1, r, txSUCCESS);
+            }
+            SECTION("merge without minSeqNum")
+            {
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {a1.op(bumpSequence(curStartSeqNum))}, {a1});
+                auto tx2 = transactionFrameFromOps(
+                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+
+                auto r = closeLedger(*app, {tx1, tx2}, true);
+
+                checkTx(0, r, txSUCCESS);
+                REQUIRE(tx2->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .accountMergeResult()
+                            .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+            }
+        });
+    }
+
     SECTION("destination with native buying liabilities")
     {
         auto& lm = app->getLedgerManager();

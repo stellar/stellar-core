@@ -59,6 +59,7 @@
 		"ricfKLqoSLo=",
 		"ricfKLqoSLo="
 	],
+	"txenvelope|protocol version 0|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=" ],
 	"txenvelope|protocol version 0|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=" ],
 	"txenvelope|protocol version 0|alternative signatures|hash tx|single signature|merge source account before payment" : [ "88FTRJod/cs=", "KgW73jFjwso=", "88FTRJod/cs=", "KgW73jFjwso=" ],
 	"txenvelope|protocol version 0|alternative signatures|hash x|multisig" : 
@@ -73,6 +74,7 @@
 		"ricfKLqoSLo=",
 		"ricfKLqoSLo="
 	],
+	"txenvelope|protocol version 0|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=" ],
 	"txenvelope|protocol version 0|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=" ],
 	"txenvelope|protocol version 0|alternative signatures|hash x|single signature|merge source account before payment" : [ "88FTRJod/cs=", "KgW73jFjwso=", "88FTRJod/cs=", "KgW73jFjwso=" ],
 	"txenvelope|protocol version 0|batching|non empty" : 
@@ -117,6 +119,7 @@
 	"txenvelope|protocol version 0|change signer and weights mid-transaction|switch a into regular account 1" : [ "Bi4ebyzAmLI=" ],
 	"txenvelope|protocol version 0|change signer and weights mid-transaction|switch a into regular account 2" : [ "Bi4ebyzAmLI=" ],
 	"txenvelope|protocol version 0|common transaction" : [ "49rU55h6rBs=", "49rU55h6rBs=", "49rU55h6rBs=", "49rU55h6rBs=" ],
+	"txenvelope|protocol version 0|ed25519 payload signer" : [ "SpBnYZXO2mk=" ],
 	"txenvelope|protocol version 0|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -220,7 +223,7 @@
 	"txenvelope|protocol version 10|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash tx|multisig|signatures removed from multiple accounts even though transaction failed" : [ "CGeRVB0d1kM=", "q3lBBUTjMmQ=", "N6wylrYbDuU=" ],
-	"txenvelope|protocol version 10|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 10|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "/lfj8xIFS8I=" ],
@@ -251,7 +254,7 @@
 	"txenvelope|protocol version 10|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash x|multisig|signatures removed from multiple accounts even though transaction failed" : [ "LIpvE/BCZX0=", "xzfJhc8EOQk=", "QkSn+qekXZI=" ],
-	"txenvelope|protocol version 10|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 10|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 10|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -343,6 +346,7 @@
 	"txenvelope|protocol version 10|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 10|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 10|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 10|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 10|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -460,7 +464,7 @@
 	"txenvelope|protocol version 11|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 11|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 11|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "/lfj8xIFS8I=" ],
@@ -490,7 +494,7 @@
 	"txenvelope|protocol version 11|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 11|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 11|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 11|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -582,6 +586,7 @@
 	"txenvelope|protocol version 11|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 11|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 11|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 11|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 11|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -699,7 +704,7 @@
 	"txenvelope|protocol version 12|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 12|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 12|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "/lfj8xIFS8I=" ],
@@ -729,7 +734,7 @@
 	"txenvelope|protocol version 12|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 12|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 12|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 12|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -821,6 +826,7 @@
 	"txenvelope|protocol version 12|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 12|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 12|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 12|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 12|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -940,7 +946,7 @@
 	"txenvelope|protocol version 13|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 13|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 13|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -970,7 +976,7 @@
 	"txenvelope|protocol version 13|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 13|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 13|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 13|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -1062,6 +1068,7 @@
 	"txenvelope|protocol version 13|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 13|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 13|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 13|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 13|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -1181,8 +1188,8 @@
 	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "aN+E6AZrh0E=", "rUvHd4lwEJY=" ],
-	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "GXulSaEBlsg=" ],
+	"txenvelope|protocol version 14|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -1212,8 +1219,8 @@
 	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "aN+E6AZrh0E=", "pYKGYxMi6ZQ=" ],
-	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "s9tTEuDmL1Q=" ],
+	"txenvelope|protocol version 14|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 14|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -1305,6 +1312,7 @@
 	"txenvelope|protocol version 14|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 14|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 14|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 14|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 14|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -1424,8 +1432,8 @@
 	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "aN+E6AZrh0E=", "rUvHd4lwEJY=" ],
-	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "GXulSaEBlsg=" ],
+	"txenvelope|protocol version 15|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -1455,8 +1463,8 @@
 	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "aN+E6AZrh0E=", "pYKGYxMi6ZQ=" ],
-	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "s9tTEuDmL1Q=" ],
+	"txenvelope|protocol version 15|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 15|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -1548,6 +1556,7 @@
 	"txenvelope|protocol version 15|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 15|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 15|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 15|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 15|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -1667,8 +1676,8 @@
 	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "aN+E6AZrh0E=", "rUvHd4lwEJY=" ],
-	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "GXulSaEBlsg=" ],
+	"txenvelope|protocol version 16|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -1698,8 +1707,8 @@
 	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "aN+E6AZrh0E=", "pYKGYxMi6ZQ=" ],
-	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "s9tTEuDmL1Q=" ],
+	"txenvelope|protocol version 16|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 16|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -1791,6 +1800,7 @@
 	"txenvelope|protocol version 16|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 16|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 16|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 16|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 16|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -1910,8 +1920,8 @@
 	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "aN+E6AZrh0E=", "rUvHd4lwEJY=" ],
-	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "GXulSaEBlsg=" ],
+	"txenvelope|protocol version 17|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -1941,8 +1951,8 @@
 	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "aN+E6AZrh0E=", "pYKGYxMi6ZQ=" ],
-	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "s9tTEuDmL1Q=" ],
+	"txenvelope|protocol version 17|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 17|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -2034,6 +2044,7 @@
 	"txenvelope|protocol version 17|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 17|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 17|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 17|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 17|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -2153,8 +2164,8 @@
 	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "bWQV9RGGn10=", "r5eqRixNcho=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "rO4cTIocnyk=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "zYP8bRNgJbk=" ],
-	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "aN+E6AZrh0E=", "rUvHd4lwEJY=" ],
-	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "jQdv6PguSbg=", "EhszwFuB1eA=" ],
+	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|success complex sponsored signatures + hash tx" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "GXulSaEBlsg=" ],
+	"txenvelope|protocol version 18|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "IF5hGrjjLEM=", "PRnyBpYQT9Q=", "hICLaD2OLu4=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "YxhjmsesZcg=", "MeciNpbK/lA=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash tx|single signature|failing transaction" : [ "k8yMJlLL3B8=", "/RrjgGXPfMc=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash tx|single signature|invalid seq nr" : [ "xOAVkJ007LI=", "7vS2vlL4R2c=" ],
@@ -2184,8 +2195,8 @@
 	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "ZOwdB+fmKjM=", "511i2rRxiMI=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "VwP3r9J7ttc=", "Vs9AnrUJNns=" ],
-	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "aN+E6AZrh0E=", "pYKGYxMi6ZQ=" ],
-	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|success signature + hash x" : [ "0BrctU+fHM4=", "xvOcEwHUYWg=" ],
+	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|success complex sponsored signatures + hash x" : [ "IF5hGrjjLEM=", "41CUe6MU20Y=", "s9tTEuDmL1Q=" ],
+	"txenvelope|protocol version 18|alternative signatures|hash x|multisig|success signature + hash x" : [ "IF5hGrjjLEM=", "9FVpRTlh3Lg=", "xTcOm8XDZq8=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash x|single signature|accountMerge signing account" : [ "QX02OX53mlU=", "Ca3C4aHxJFM=", "9XQY8VPxCDQ=", "QK4ky4wAMhs=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash x|single signature|failing transaction" : [ "vioyvz1btfI=", "569QECM4Jig=" ],
 	"txenvelope|protocol version 18|alternative signatures|hash x|single signature|invalid seq nr" : [ "vioyvz1btfI=", "/lfj8xIFS8I=" ],
@@ -2277,6 +2288,7 @@
 	"txenvelope|protocol version 18|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 18|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 18|common transaction|transaction gap" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 18|ed25519 payload signer" : [ "39iU72L8Dyw=", "q99LwWsrJ7Y=" ],
 	"txenvelope|protocol version 18|multisig" : 
 	[
 		"cosdeMSOWRo=",
@@ -2410,6 +2422,7 @@
 		"59yOKUnLG34=",
 		"59yOKUnLG34="
 	],
+	"txenvelope|protocol version 1|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "6Ng/uzcKC5s=" ],
 	"txenvelope|protocol version 1|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 1|alternative signatures|hash tx|single signature|merge source account before payment" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=", "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 1|alternative signatures|hash x" : 
@@ -2446,6 +2459,7 @@
 		"59yOKUnLG34=",
 		"59yOKUnLG34="
 	],
+	"txenvelope|protocol version 1|alternative signatures|hash x|multisig|success signature + hash x" : [ "6Ng/uzcKC5s=" ],
 	"txenvelope|protocol version 1|alternative signatures|hash x|single signature|accountMerge signing account" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 1|alternative signatures|hash x|single signature|merge source account before payment" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=", "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 1|batching|empty batch" : [ "/lfj8xIFS8I=" ],
@@ -2527,6 +2541,7 @@
 	"txenvelope|protocol version 1|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 1|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 1|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 1|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 1|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -2658,6 +2673,7 @@
 		"59yOKUnLG34=",
 		"59yOKUnLG34="
 	],
+	"txenvelope|protocol version 2|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "6Ng/uzcKC5s=" ],
 	"txenvelope|protocol version 2|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 2|alternative signatures|hash tx|single signature|merge source account before payment" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=", "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 2|alternative signatures|hash x" : 
@@ -2694,6 +2710,7 @@
 		"59yOKUnLG34=",
 		"59yOKUnLG34="
 	],
+	"txenvelope|protocol version 2|alternative signatures|hash x|multisig|success signature + hash x" : [ "6Ng/uzcKC5s=" ],
 	"txenvelope|protocol version 2|alternative signatures|hash x|single signature|accountMerge signing account" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 2|alternative signatures|hash x|single signature|merge source account before payment" : [ "mh5kQ8WNrSM=", "SqS08vvhlLo=", "mh5kQ8WNrSM=", "SqS08vvhlLo=" ],
 	"txenvelope|protocol version 2|batching|empty batch" : [ "/lfj8xIFS8I=" ],
@@ -2775,6 +2792,7 @@
 	"txenvelope|protocol version 2|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 2|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 2|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 2|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 2|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -2891,7 +2909,7 @@
 	"txenvelope|protocol version 3|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 3|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 3|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -2920,7 +2938,7 @@
 	"txenvelope|protocol version 3|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 3|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 3|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -3009,6 +3027,7 @@
 	"txenvelope|protocol version 3|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 3|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 3|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 3|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -3125,7 +3144,7 @@
 	"txenvelope|protocol version 4|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 4|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 4|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -3154,7 +3173,7 @@
 	"txenvelope|protocol version 4|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 4|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 4|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -3243,6 +3262,7 @@
 	"txenvelope|protocol version 4|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 4|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 4|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 4|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -3359,7 +3379,7 @@
 	"txenvelope|protocol version 5|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 5|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 5|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -3388,7 +3408,7 @@
 	"txenvelope|protocol version 5|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 5|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 5|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -3477,6 +3497,7 @@
 	"txenvelope|protocol version 5|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 5|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 5|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 5|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -3593,7 +3614,7 @@
 	"txenvelope|protocol version 6|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 6|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 6|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -3622,7 +3643,7 @@
 	"txenvelope|protocol version 6|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 6|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 6|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -3711,6 +3732,7 @@
 	"txenvelope|protocol version 6|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 6|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 6|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 6|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -3827,7 +3849,7 @@
 	"txenvelope|protocol version 7|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "Qal5IZ05kyg=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 7|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "JzN9OQjS1us=" ],
+	"txenvelope|protocol version 7|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "AVPoABIwlMA=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -3856,7 +3878,7 @@
 	"txenvelope|protocol version 7|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "CMnoYZx6XCI=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 7|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 7|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 7|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -3947,6 +3969,7 @@
 	"txenvelope|protocol version 7|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 7|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 7|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 7|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 7|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -4061,7 +4084,7 @@
 	"txenvelope|protocol version 8|alternative signatures|hash tx|multisig|not enough rights (operation)" : [ "4OZy8mwlUE8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
-	"txenvelope|protocol version 8|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 8|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -4090,7 +4113,7 @@
 	"txenvelope|protocol version 8|alternative signatures|hash x|multisig|not enough rights (operation)" : [ "fq9cSzkaNvI=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
-	"txenvelope|protocol version 8|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 8|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -4179,6 +4202,7 @@
 	"txenvelope|protocol version 8|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 8|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 8|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 8|multisig" : 
 	[
 		"49rU55h6rBs=",
@@ -4296,7 +4320,7 @@
 	"txenvelope|protocol version 9|alternative signatures|hash tx|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "igIsVgN22Lg=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash tx|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "T60pn7P7lQM=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash tx|multisig|signatures removed from multiple accounts even though transaction failed" : [ "anr6jnq7tf8=", "JiRu+TWpIHg=", "/lfj8xIFS8I=" ],
-	"txenvelope|protocol version 9|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "u9+v3WCdR1g=", "3xOqSOmwvnk=" ],
+	"txenvelope|protocol version 9|alternative signatures|hash tx|multisig|success signature + hash tx" : [ "GjplIy5uwyM=", "+s8MVo+Psew=", "3UxGStVAee8=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash tx|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "k57krCbAQlU=", "9QjEYubfs84=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash tx|single signature|failing transaction" : [ "QJIb3iCC2G0=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash tx|single signature|invalid seq nr" : [ "+tIrdME7U6U=" ],
@@ -4326,7 +4350,7 @@
 	"txenvelope|protocol version 9|alternative signatures|hash x|multisig|not enough rights on first operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash x|multisig|not enough rights on second operation" : [ "mQPm/1BcnSE=", "ux2Zl8ASy9Y=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash x|multisig|signatures removed from multiple accounts even though transaction failed" : [ "T4gTvTCzuoo=", "gbeD+XDbk0s=", "/lfj8xIFS8I=" ],
-	"txenvelope|protocol version 9|alternative signatures|hash x|multisig|success signature + hash x" : [ "r8D+9dOpxxI=", "Uhfeqbt/9QE=" ],
+	"txenvelope|protocol version 9|alternative signatures|hash x|multisig|success signature + hash x" : [ "GjplIy5uwyM=", "rNi6uVy0a7A=", "fFvBA7h+IaQ=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash x|single signature|accountMerge signing account" : [ "88FTRJod/cs=", "KgW73jFjwso=", "apOFJdVMVek=", "cgA24gWczBI=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash x|single signature|failing transaction" : [ "sWLsAbC/EI8=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 9|alternative signatures|hash x|single signature|invalid seq nr" : [ "sWLsAbC/EI8=" ],
@@ -4415,6 +4439,7 @@
 	"txenvelope|protocol version 9|common transaction|time issues|on time" : [ "Uvf33X0pOBA=" ],
 	"txenvelope|protocol version 9|common transaction|time issues|too early" : [ "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 9|common transaction|time issues|too late" : [ "/lfj8xIFS8I=" ],
+	"txenvelope|protocol version 9|ed25519 payload signer" : [ "SpBnYZXO2mk=", "/lfj8xIFS8I=" ],
 	"txenvelope|protocol version 9|multisig" : 
 	[
 		"49rU55h6rBs=",

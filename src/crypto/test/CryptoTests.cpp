@@ -9,6 +9,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
+#include "crypto/SignerKey.h"
 #include "crypto/StrKey.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -450,4 +451,50 @@ TEST_CASE("StrKey tests", "[crypto]")
         (((double)n_detected) / ((double)n_corrupted)) * 100.0;
     LOG_INFO(DEFAULT_LOG, "CRC16 error-detection rate {}", detectionRate);
     REQUIRE(detectionRate > 99.99);
+}
+
+TEST_CASE("key string roundtrip", "[crypto]")
+{
+    SignerKey signer;
+    auto publicKey = SecretKey::random().getPublicKey();
+    uint256 rand256 = publicKey.ed25519();
+    SECTION("SIGNER_KEY_TYPE_ED25519")
+    {
+        signer.type(SIGNER_KEY_TYPE_ED25519);
+        signer.ed25519() = rand256;
+        REQUIRE(KeyUtils::fromStrKey<SignerKey>(KeyUtils::toStrKey(signer)) ==
+                signer);
+    }
+    SECTION("SIGNER_KEY_TYPE_PRE_AUTH_TX")
+    {
+        signer.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+        signer.preAuthTx() = rand256;
+        REQUIRE(KeyUtils::fromStrKey<SignerKey>(KeyUtils::toStrKey(signer)) ==
+                signer);
+    }
+    SECTION("SIGNER_KEY_TYPE_HASH_X")
+    {
+        signer.type(SIGNER_KEY_TYPE_HASH_X);
+        signer.hashX() = rand256;
+        REQUIRE(KeyUtils::fromStrKey<SignerKey>(KeyUtils::toStrKey(signer)) ==
+                signer);
+    }
+    SECTION("SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD")
+    {
+        signer.type(SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD);
+        signer.ed25519SignedPayload().ed25519 = rand256;
+
+        for (uint32_t i = 0;
+             i < signer.ed25519SignedPayload().payload.max_size(); ++i)
+        {
+            signer.ed25519SignedPayload().payload.emplace_back('1');
+            REQUIRE(KeyUtils::fromStrKey<SignerKey>(
+                        KeyUtils::toStrKey(signer)) == signer);
+        }
+    }
+    SECTION("public key")
+    {
+        REQUIRE(KeyUtils::fromStrKey<PublicKey>(
+                    KeyUtils::toStrKey(publicKey)) == publicKey);
+    }
 }

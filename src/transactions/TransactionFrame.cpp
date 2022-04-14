@@ -24,7 +24,6 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Algorithm.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -235,6 +234,32 @@ TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, 0);
 }
 
+bool
+TransactionFrame::checkExtraSigners(SignatureChecker& signatureChecker)
+{
+    ZoneScoped;
+    if (extraSignersExist())
+    {
+        auto const& extraSigners = mEnvelope.v1().tx.cond.v2().extraSigners;
+        std::vector<Signer> signers;
+
+        std::transform(extraSigners.begin(), extraSigners.end(),
+                       std::back_inserter(signers),
+                       [](SignerKey const& k) { return Signer(k, 1); });
+
+        // Sanity check for the int32 cast below
+        static_assert(decltype(PreconditionsV2::extraSigners)::max_size() <=
+                      INT32_MAX);
+
+        // We want to verify that there is a signature for each extraSigner, so
+        // we assign a weight of 1 to each key, and set the neededWeight to the
+        // number of extraSigners
+        return signatureChecker.checkSignature(
+            signers, static_cast<int32_t>(signers.size()));
+    }
+    return true;
+}
+
 LedgerTxnEntry
 TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                     LedgerTxnHeader const& header)
@@ -324,19 +349,124 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
     getResult().feeCharged = getFee(header, baseFee, applying);
 }
 
+std::optional<TimeBounds const> const
+TransactionFrame::getTimeBounds() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
+    {
+        return mEnvelope.v0().tx.timeBounds ? std::optional<TimeBounds const>(
+                                                  *mEnvelope.v0().tx.timeBounds)
+                                            : std::optional<TimeBounds const>();
+    }
+    else
+    {
+        auto const& cond = mEnvelope.v1().tx.cond;
+        switch (cond.type())
+        {
+        case PRECOND_NONE:
+        {
+            return std::optional<TimeBounds const>();
+        }
+        case PRECOND_TIME:
+        {
+            return std::optional<TimeBounds const>(cond.timeBounds());
+        }
+        case PRECOND_V2:
+        {
+            return cond.v2().timeBounds
+                       ? std::optional<TimeBounds const>(*cond.v2().timeBounds)
+                       : std::optional<TimeBounds const>();
+        }
+        default:
+            throw std::runtime_error("unknown condition type");
+        }
+    }
+}
+
+std::optional<LedgerBounds const> const
+TransactionFrame::getLedgerBounds() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto const& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_V2 && cond.v2().ledgerBounds)
+        {
+            return std::optional<LedgerBounds const>(*cond.v2().ledgerBounds);
+        }
+    }
+
+    return std::optional<LedgerBounds const>();
+}
+
+Duration
+TransactionFrame::getMinSeqAge() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        return cond.type() == PRECOND_V2 ? cond.v2().minSeqAge : 0;
+    }
+
+    return 0;
+}
+
+uint32
+TransactionFrame::getMinSeqLedgerGap() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        return cond.type() == PRECOND_V2 ? cond.v2().minSeqLedgerGap : 0;
+    }
+
+    return 0;
+}
+
+std::optional<SequenceNumber const> const
+TransactionFrame::getMinSeqNum() const
+{
+    if (mEnvelope.type() == ENVELOPE_TYPE_TX)
+    {
+        auto& cond = mEnvelope.v1().tx.cond;
+        if (cond.type() == PRECOND_V2 && cond.v2().minSeqNum)
+        {
+            return std::optional<SequenceNumber const>(*cond.v2().minSeqNum);
+        }
+    }
+
+    return std::optional<SequenceNumber const>();
+}
+
+bool
+TransactionFrame::extraSignersExist() const
+{
+    return mEnvelope.type() == ENVELOPE_TYPE_TX &&
+           mEnvelope.v1().tx.cond.type() == PRECOND_V2 &&
+           !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
+}
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const tb = getTimeBounds();
     if (tb)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
-        return tb->minTime &&
-               (tb->minTime > (closeTime + lowerBoundCloseTimeOffset));
+        if (tb->minTime &&
+            (tb->minTime > (closeTime + lowerBoundCloseTimeOffset)))
+        {
+            return true;
+        }
     }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto const lb = getLedgerBounds();
+        return lb && lb->minLedger > header.current().ledgerSeq;
+    }
+
     return false;
 }
 
@@ -344,18 +474,71 @@ bool
 TransactionFrame::isTooLate(LedgerTxnHeader const& header,
                             uint64_t upperBoundCloseTimeOffset) const
 {
-    auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
-                         ? mEnvelope.v0().tx.timeBounds
-                         : mEnvelope.v1().tx.timeBounds;
+    auto const tb = getTimeBounds();
     if (tb)
     {
         // Prior to consensus, we can pass in an upper bound estimate on when we
         // expect the ledger to close so we don't accept transactions that will
         // expire by the time they are applied
         uint64 closeTime = header.current().scpValue.closeTime;
-        return tb->maxTime &&
-               (tb->maxTime < (closeTime + upperBoundCloseTimeOffset));
+        if (tb->maxTime &&
+            (tb->maxTime < (closeTime + upperBoundCloseTimeOffset)))
+        {
+            return true;
+        }
     }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        auto const lb = getLedgerBounds();
+        return lb && lb->maxLedger != 0 &&
+               lb->maxLedger <= header.current().ledgerSeq;
+    }
+    return false;
+}
+
+bool
+TransactionFrame::isTooEarlyForAccount(LedgerTxnHeader const& header,
+                                       LedgerTxnEntry const& sourceAccount,
+                                       uint64_t lowerBoundCloseTimeOffset) const
+{
+    if (protocolVersionIsBefore(header.current().ledgerVersion,
+                                ProtocolVersion::V_19))
+    {
+        return false;
+    }
+
+    auto accountEntry = [&]() -> AccountEntry const& {
+        return sourceAccount.current().data.account();
+    };
+
+    auto accSeqTime = hasAccountEntryExtV3(accountEntry())
+                          ? getAccountEntryExtensionV3(accountEntry()).seqTime
+                          : 0;
+    auto minSeqAge = getMinSeqAge();
+
+    auto lowerBoundCloseTime =
+        header.current().scpValue.closeTime + lowerBoundCloseTimeOffset;
+    if (minSeqAge > lowerBoundCloseTime ||
+        lowerBoundCloseTime - minSeqAge < accSeqTime)
+    {
+        return true;
+    }
+
+    auto accSeqLedger =
+        hasAccountEntryExtV3(accountEntry())
+            ? getAccountEntryExtensionV3(accountEntry()).seqLedger
+            : 0;
+    auto minSeqLedgerGap = getMinSeqLedgerGap();
+
+    auto ledgerSeq = header.current().ledgerSeq;
+    if (minSeqLedgerGap > ledgerSeq ||
+        ledgerSeq - minSeqLedgerGap < accSeqLedger)
+    {
+        return true;
+    }
+
     return false;
 }
 
@@ -377,6 +560,36 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
     {
         getResult().result.code(txNOT_SUPPORTED);
         return false;
+    }
+
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19) &&
+        mEnvelope.type() == ENVELOPE_TYPE_TX &&
+        mEnvelope.v1().tx.cond.type() == PRECOND_V2)
+    {
+        getResult().result.code(txNOT_SUPPORTED);
+        return false;
+    }
+
+    if (extraSignersExist())
+    {
+        auto const& extraSigners = mEnvelope.v1().tx.cond.v2().extraSigners;
+
+        static_assert(decltype(PreconditionsV2::extraSigners)::max_size() == 2);
+        if (extraSigners.size() == 2 && extraSigners[0] == extraSigners[1])
+        {
+            getResult().result.code(txMALFORMED);
+            return false;
+        }
+
+        for (auto const& signer : extraSigners)
+        {
+            if (signer.type() == SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD &&
+                signer.ed25519SignedPayload().payload.empty())
+            {
+                getResult().result.code(txMALFORMED);
+                return false;
+            }
+        }
     }
 
     if (getNumOperations() == 0)
@@ -430,6 +643,8 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
             throw std::runtime_error("unexpected sequence number");
         }
         sourceAccount.current().data.account().seqNum = getSeqNum();
+
+        maybeUpdateAccountOnLedgerSeqUpdate(header, sourceAccount);
     }
 }
 
@@ -493,8 +708,27 @@ TransactionFrame::processSignatures(ValidationType cv,
 bool
 TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 {
-    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum() ||
-           getSeqNum() == getStartingSequenceNumber(header);
+    if (getSeqNum() == getStartingSequenceNumber(header))
+    {
+        return true;
+    }
+
+    // If seqNum == INT64_MAX, seqNum >= getSeqNum() is guaranteed to be true
+    // because SequenceNumber is int64, so isBadSeq will always return true in
+    // that case.
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        // Check if we need to relax sequence number checking
+        auto minSeqNum = getMinSeqNum();
+        if (minSeqNum)
+        {
+            return seqNum < *minSeqNum || seqNum >= getSeqNum();
+        }
+    }
+
+    // If we get here, we need to do the strict seqnum check
+    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
 }
 
 TransactionFrame::ValidationType
@@ -544,9 +778,23 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
     res = ValidationType::kInvalidUpdateSeqNum;
 
+    if (isTooEarlyForAccount(header, sourceAccount, lowerBoundCloseTimeOffset))
+    {
+        getResult().result.code(txBAD_MIN_SEQ_AGE_OR_GAP);
+        return res;
+    }
+
     if (!checkSignature(
             signatureChecker, sourceAccount,
             sourceAccount.current().data.account().thresholds[THRESHOLD_LOW]))
+    {
+        getResult().result.code(txBAD_AUTH);
+        return res;
+    }
+
+    if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                  ProtocolVersion::V_19) &&
+        !checkExtraSigners(signatureChecker))
     {
         getResult().result.code(txBAD_AUTH);
         return res;
@@ -587,6 +835,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     {
         throw std::runtime_error("Unexpected database state");
     }
+
     auto& acc = sourceAccount.current().data.account();
 
     int64_t& fee = getResult().feeCharged;

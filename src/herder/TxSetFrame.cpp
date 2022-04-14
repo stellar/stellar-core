@@ -288,6 +288,15 @@ TxSetFrame::checkOrTrim(Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_19))
+    {
+        // This is done so minSeqLedgerGap is validated against the next
+        // ledgerSeq, which is what will be used at apply time
+        ltx.loadHeader().current().ledgerSeq =
+            app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    }
+
     UnorderedMap<AccountID, int64_t> accountFeeMap;
     auto accountTxMap = buildAccountTxQueues();
     for (auto& kv : accountTxMap)
@@ -297,18 +306,38 @@ TxSetFrame::checkOrTrim(Application& app,
         while (iter != kv.second.end())
         {
             auto tx = *iter;
-            if (!tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
+
+            // In addition to checkValid, we also want to make sure that all but
+            // the transaction with the lowest seqNum on a given sourceAccount
+            // do not have minSeqAge and minSeqLedgerGap set
+            bool minSeqCheckIsInvalid =
+                iter != kv.second.begin() &&
+                (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0);
+            if (minSeqCheckIsInvalid ||
+                !tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
                                 upperBoundCloseTimeOffset))
             {
                 if (justCheck)
                 {
-                    CLOG_DEBUG(
-                        Herder,
-                        "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
-                        "result: {}",
-                        hexAbbrev(mPreviousLedgerHash), lastSeq,
-                        xdr_to_string(tx->getEnvelope(), "TransactionEnvelope"),
-                        tx->getResultCode());
+                    if (minSeqCheckIsInvalid)
+                    {
+                        CLOG_DEBUG(Herder,
+                                   "minSeqAge or minSeqLedgerGap set on tx "
+                                   "without lowest seqNum. tx: {}",
+                                   xdr_to_string(tx->getEnvelope(),
+                                                 "TransactionEnvelope"));
+                    }
+                    else
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
+                            "result: {}",
+                            hexAbbrev(mPreviousLedgerHash), lastSeq,
+                            xdr_to_string(tx->getEnvelope(),
+                                          "TransactionEnvelope"),
+                            tx->getResultCode());
+                    }
                     return false;
                 }
                 trimmed.emplace_back(tx);

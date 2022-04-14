@@ -17,7 +17,8 @@ TxSimMergeOpFrame::TxSimMergeOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-TxSimMergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
+TxSimMergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
+                                  LedgerTxnHeader const& header,
                                   AccountEntry const& sourceAccount)
 {
     if (mSimulationResult.code() == opINNER)

@@ -20,9 +20,14 @@ template <> struct KeyFunctions<SignerKey>
 
     static std::string getKeyTypeName();
     static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
+    static bool
+    getKeyVersionIsVariableLength(strKey::StrKeyVersionByte keyVersion);
     static SignerKeyType toKeyType(strKey::StrKeyVersionByte keyVersion);
     static strKey::StrKeyVersionByte toKeyVersion(SignerKeyType keyType);
-    static uint256& getKeyValue(SignerKey& key);
-    static uint256 const& getKeyValue(SignerKey const& key);
+    static uint256& getEd25519Value(SignerKey& key);
+    static uint256 const& getEd25519Value(SignerKey const& key);
+
+    static std::vector<uint8_t> getKeyValue(SignerKey const& key);
+    static void setKeyValue(SignerKey& key, std::vector<uint8_t> const& data);
 };
 }

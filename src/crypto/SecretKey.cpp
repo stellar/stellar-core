@@ -343,6 +343,13 @@ KeyFunctions<PublicKey>::getKeyVersionIsSupported(
     }
 }
 
+bool
+KeyFunctions<PublicKey>::getKeyVersionIsVariableLength(
+    strKey::StrKeyVersionByte keyVersion)
+{
+    return false;
+}
+
 PublicKeyType
 KeyFunctions<PublicKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
 {
@@ -368,7 +375,7 @@ KeyFunctions<PublicKey>::toKeyVersion(PublicKeyType keyType)
 }
 
 uint256&
-KeyFunctions<PublicKey>::getKeyValue(PublicKey& key)
+KeyFunctions<PublicKey>::getEd25519Value(PublicKey& key)
 {
     switch (key.type())
     {
@@ -380,12 +387,32 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey& key)
 }
 
 uint256 const&
-KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
+KeyFunctions<PublicKey>::getEd25519Value(PublicKey const& key)
 {
     switch (key.type())
     {
     case PUBLIC_KEY_TYPE_ED25519:
         return key.ed25519();
+    default:
+        throw CryptoError("invalid public key type");
+    }
+}
+
+std::vector<uint8_t>
+KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
+{
+    return xdr::xdr_to_opaque(getEd25519Value(key));
+}
+
+void
+KeyFunctions<PublicKey>::setKeyValue(PublicKey& key,
+                                     std::vector<uint8_t> const& data)
+{
+    switch (key.type())
+    {
+    case PUBLIC_KEY_TYPE_ED25519:
+        xdr::xdr_from_opaque(data, key.ed25519());
+        break;
     default:
         throw CryptoError("invalid public key type");
     }

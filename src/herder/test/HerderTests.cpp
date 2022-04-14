@@ -665,6 +665,448 @@ TEST_CASE("txset", "[herder][txset]")
     }
 }
 
+TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+    auto root = TestAccount::createRoot(*app);
+    auto a1 = root.create("a1", minBalance2);
+
+    for_versions_to(18, *app, [&] {
+        auto txSet = std::make_shared<TxSetFrame>(
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        auto checkTxSupport = [&](PreconditionsV2 const& c) {
+            auto tx = transactionWithV2Precondition(*app, a1, 1, 100, c);
+            txSet->add(tx);
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            REQUIRE(tx->getResultCode() == txNOT_SUPPORTED);
+        };
+
+        SECTION("empty V2 precondition")
+        {
+            PreconditionsV2 cond;
+            checkTxSupport(cond);
+        }
+        SECTION("ledgerBounds")
+        {
+            PreconditionsV2 cond;
+            LedgerBounds b;
+            cond.ledgerBounds.activate() = b;
+            checkTxSupport(cond);
+        }
+        SECTION("minSeqNum")
+        {
+            PreconditionsV2 cond;
+            cond.minSeqNum.activate() = 0;
+            checkTxSupport(cond);
+        }
+        SECTION("minSeqLedgerGap")
+        {
+            PreconditionsV2 cond;
+            cond.minSeqLedgerGap = 1;
+            checkTxSupport(cond);
+        }
+        SECTION("minSeqAge")
+        {
+            PreconditionsV2 cond;
+            cond.minSeqAge = 1;
+            checkTxSupport(cond);
+        }
+        SECTION("extraSigners")
+        {
+            SignerKey rootSigner;
+            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
+            rootSigner.ed25519() = root.getPublicKey().ed25519();
+
+            PreconditionsV2 cond;
+            cond.extraSigners.emplace_back(rootSigner);
+            checkTxSupport(cond);
+        }
+    });
+
+    for_versions_from(19, *app, [&] {
+        // Move close time past 0
+        closeLedgerOn(*app, 1, 1, 2022);
+
+        auto txSet = std::make_shared<TxSetFrame>(
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        SECTION("minSeqNum gap")
+        {
+            auto minSeqNumCond = [](SequenceNumber seqNum) {
+                PreconditionsV2 cond;
+                cond.minSeqNum.activate() = seqNum;
+                return cond;
+            };
+
+            auto tx1 = transaction(*app, a1, 1, 1, 100);
+            txSet->add(tx1);
+
+            auto tx2InvalidGap = transactionWithV2Precondition(
+                *app, a1, 5, 100,
+                minSeqNumCond(a1.getLastSequenceNumber() + 2));
+            txSet->add(tx2InvalidGap);
+
+            txSet->sortForHash();
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+            REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == tx2InvalidGap);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
+
+            auto tx2 = transactionWithV2Precondition(
+                *app, a1, 5, 100,
+                minSeqNumCond(a1.getLastSequenceNumber() + 1));
+            txSet->add(tx2);
+
+            auto tx3 = transaction(*app, a1, 6, 1, 100);
+            txSet->add(tx3);
+
+            txSet->sortForHash();
+            REQUIRE(txSet->checkValid(*app, 0, 0));
+        }
+        SECTION("minSeqLedgerGap")
+        {
+            auto minSeqLedgerGapCond = [](uint32_t minSeqLedgerGap) {
+                PreconditionsV2 cond;
+                cond.minSeqLedgerGap = minSeqLedgerGap;
+                return cond;
+            };
+
+            auto test = [&](bool v3ExtIsSet, bool minSeqNumTxIsFeeBump) {
+                // gap between a1's seqLedger and lcl
+                uint32_t minGap;
+                if (v3ExtIsSet)
+                {
+                    // run a v19 op so a1's seqLedger is set
+                    a1.bumpSequence(0);
+                    closeLedger(*app);
+                    closeLedger(*app);
+                    minGap = 2;
+
+                    txSet = std::make_shared<TxSetFrame>(
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                }
+                else
+                {
+                    // a1 seqLedger is 0 because it has not done a
+                    // v19 tx yet
+                    minGap = app->getLedgerManager().getLastClosedLedgerNum();
+                }
+
+                auto txInvalid = transactionWithV2Precondition(
+                    *app, a1, 1, 100, minSeqLedgerGapCond(minGap + 2));
+                txSet->add(txInvalid);
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+                REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == txInvalid);
+                REQUIRE(txSet->sizeTx() == 0);
+
+                // we use minGap lcl + 1 because validation is done against the
+                // next ledger
+                auto tx1 = transactionWithV2Precondition(
+                    *app, a1, 1, 100, minSeqLedgerGapCond(minGap + 1));
+
+                // only the first tx can have minSeqLedgerGap set
+                auto tx2Invalid = transactionWithV2Precondition(
+                    *app, a1, 2, 100, minSeqLedgerGapCond(minGap + 1));
+
+                auto fb1 = feeBump(*app, a1, tx1, 200);
+                auto fb2Invalid = feeBump(*app, a1, tx2Invalid, 200);
+
+                if (minSeqNumTxIsFeeBump)
+                {
+                    txSet->add(fb1);
+                    txSet->add(fb2Invalid);
+                }
+                else
+                {
+                    txSet->add(tx1);
+                    txSet->add(tx2Invalid);
+                }
+
+                txSet->sortForHash();
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+
+                auto invalid = txSet->trimInvalid(*app, 0, 0);
+                REQUIRE(invalid.size() == 1);
+                REQUIRE(invalid.back() ==
+                        (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
+
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            };
+
+            SECTION("before v3 ext is set")
+            {
+                test(false, false);
+            }
+            SECTION("after v3 ext is set")
+            {
+                test(true, false);
+            }
+            SECTION("after v3 ext is set - fee bump")
+            {
+                test(true, true);
+            }
+        }
+        SECTION("minSeqAge")
+        {
+            auto minSeqAgeCond = [](Duration minSeqAge) {
+                PreconditionsV2 cond;
+                cond.minSeqAge = minSeqAge;
+                return cond;
+            };
+
+            auto test = [&](bool v3ExtIsSet, bool minSeqNumTxIsFeeBump) {
+                Duration minGap;
+                if (v3ExtIsSet)
+                {
+                    // run a v19 op so a1's seqLedger is set
+                    a1.bumpSequence(0);
+                    closeLedgerOn(
+                        *app,
+                        app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                        app->getLedgerManager()
+                                .getLastClosedLedgerHeader()
+                                .header.scpValue.closeTime +
+                            1);
+                    minGap = 1;
+
+                    txSet = std::make_shared<TxSetFrame>(
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                }
+                else
+                {
+                    minGap = app->getLedgerManager()
+                                 .getLastClosedLedgerHeader()
+                                 .header.scpValue.closeTime;
+                }
+
+                auto txInvalid = transactionWithV2Precondition(
+                    *app, a1, 1, 100, minSeqAgeCond(minGap + 1));
+                txSet->add(txInvalid);
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+                REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == txInvalid);
+                REQUIRE(txSet->sizeTx() == 0);
+
+                auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
+                                                         minSeqAgeCond(minGap));
+
+                // only the first tx can have minSeqAge set
+                auto tx2Invalid = transactionWithV2Precondition(
+                    *app, a1, 2, 100, minSeqAgeCond(minGap));
+
+                auto fb1 = feeBump(*app, a1, tx1, 200);
+                auto fb2Invalid = feeBump(*app, a1, tx2Invalid, 200);
+
+                if (minSeqNumTxIsFeeBump)
+                {
+                    txSet->add(fb1);
+                    txSet->add(fb2Invalid);
+                }
+                else
+                {
+                    txSet->add(tx1);
+                    txSet->add(tx2Invalid);
+                }
+
+                txSet->sortForHash();
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+
+                auto invalid = txSet->trimInvalid(*app, 0, 0);
+                REQUIRE(invalid.size() == 1);
+                REQUIRE(invalid.back() ==
+                        (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
+
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            };
+            SECTION("before v3 ext is set")
+            {
+                test(false, false);
+            }
+            SECTION("after v3 ext is set")
+            {
+                test(true, false);
+            }
+            SECTION("after v3 ext is set - fee bump")
+            {
+                test(true, true);
+            }
+        }
+        SECTION("ledgerBounds")
+        {
+            auto ledgerBoundsCond = [](uint32_t minLedger, uint32_t maxLedger) {
+                LedgerBounds bounds;
+                bounds.minLedger = minLedger;
+                bounds.maxLedger = maxLedger;
+
+                PreconditionsV2 cond;
+                cond.ledgerBounds.activate() = bounds;
+                return cond;
+            };
+
+            auto lclNum = app->getLedgerManager().getLastClosedLedgerNum();
+
+            auto tx1 = transaction(*app, a1, 1, 1, 100);
+            txSet->add(tx1);
+
+            SECTION("minLedger")
+            {
+                auto txInvalid = transactionWithV2Precondition(
+                    *app, a1, 2, 100, ledgerBoundsCond(lclNum + 2, 0));
+                txSet->add(txInvalid);
+
+                txSet->sortForHash();
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+                REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == txInvalid);
+
+                // the highest minLedger can be is lcl + 1 because validation is
+                // done against the next ledger
+                auto tx2 = transactionWithV2Precondition(
+                    *app, a1, 2, 100, ledgerBoundsCond(lclNum + 1, 0));
+
+                txSet->sortForHash();
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            }
+            SECTION("maxLedger")
+            {
+                auto txInvalid = transactionWithV2Precondition(
+                    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum));
+                txSet->add(txInvalid);
+
+                txSet->sortForHash();
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+                REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == txInvalid);
+
+                // the highest minLedger can be is lcl + 1 because validation is
+                // done against the next ledger
+                auto tx2 = transactionWithV2Precondition(
+                    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum + 1));
+
+                txSet->sortForHash();
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            }
+        }
+        SECTION("extraSigners")
+        {
+            SignerKey rootSigner;
+            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
+            rootSigner.ed25519() = root.getPublicKey().ed25519();
+
+            PreconditionsV2 cond;
+            cond.extraSigners.emplace_back(rootSigner);
+
+            SECTION("one extra signer")
+            {
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("success")
+                {
+                    tx->addSignature(root.getSecretKey());
+                    txSet->add(tx);
+                    REQUIRE(txSet->checkValid(*app, 0, 0));
+                }
+                SECTION("fail")
+                {
+                    txSet->add(tx);
+                    REQUIRE(!txSet->checkValid(*app, 0, 0));
+                    REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == tx);
+                }
+            }
+            SECTION("two extra signers")
+            {
+                auto a2 = root.create("a2", minBalance2);
+                txSet = std::make_shared<TxSetFrame>(
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+                SignerKey a2Signer;
+                a2Signer.type(SIGNER_KEY_TYPE_ED25519);
+                a2Signer.ed25519() = a2.getPublicKey().ed25519();
+
+                cond.extraSigners.emplace_back(a2Signer);
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                tx->addSignature(root.getSecretKey());
+
+                SECTION("success")
+                {
+                    tx->addSignature(a2.getSecretKey());
+                    txSet->add(tx);
+                    REQUIRE(txSet->checkValid(*app, 0, 0));
+                }
+                SECTION("fail")
+                {
+                    txSet->add(tx);
+                    REQUIRE(!txSet->checkValid(*app, 0, 0));
+                    REQUIRE(txSet->trimInvalid(*app, 0, 0).back() == tx);
+                }
+            }
+            SECTION("duplicate extra signers")
+            {
+                cond.extraSigners.emplace_back(rootSigner);
+                auto txDupeSigner =
+                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                txDupeSigner->addSignature(root.getSecretKey());
+                txSet->add(txDupeSigner);
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
+                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+            }
+            SECTION("signer overlap with default account signer")
+            {
+                auto rootTx =
+                    transactionWithV2Precondition(*app, root, 1, 100, cond);
+                txSet->add(rootTx);
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            }
+            SECTION("signer overlap with added account signer")
+            {
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+                SECTION("signature present")
+                {
+                    tx->addSignature(root.getSecretKey());
+
+                    txSet = std::make_shared<TxSetFrame>(
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                    txSet->add(tx);
+                    REQUIRE(txSet->checkValid(*app, 0, 0));
+                }
+                SECTION("signature missing")
+                {
+                    txSet = std::make_shared<TxSetFrame>(
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+                    txSet->add(tx);
+                    REQUIRE(!txSet->checkValid(*app, 0, 0));
+                }
+            }
+            SECTION(
+                "signer overlap with added account signer - both signers used")
+            {
+                auto sk1 = makeSigner(root, 100);
+                a1.setOptions(setSigner(sk1));
+
+                auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
+                                                  {root.op(payment(a1, 1))},
+                                                  {root}, cond);
+
+                txSet = std::make_shared<TxSetFrame>(
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                txSet->add(tx);
+                REQUIRE(txSet->checkValid(*app, 0, 0));
+            }
+        }
+    });
+}
+
 TEST_CASE("txset base fee", "[herder][txset]")
 {
     Config cfg(getTestConfig());
