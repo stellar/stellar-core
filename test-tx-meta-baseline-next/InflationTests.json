@@ -1,9 +1,32 @@
 
 {
-	"!cfg protocol version" : 19,
+	"!cfg protocol version" : 20,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
-	"!versions to test" : [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ],
+	"!versions to test" : 
+	[
+		0,
+		1,
+		2,
+		3,
+		4,
+		5,
+		6,
+		7,
+		8,
+		9,
+		10,
+		11,
+		12,
+		13,
+		14,
+		15,
+		16,
+		17,
+		18,
+		19,
+		20
+	],
 	"inflation|protocol version 10|inflation scenarios|50/50 split" : 
 	[
 		"bpzXPzeqe+Q=",
@@ -7350,6 +7373,7 @@
 		"PoaWeZKiPuQ=",
 		"/lfj8xIFS8I="
 	],
+	"inflation|protocol version 20|not supported" : [ "Hh0UYapt5UI=" ],
 	"inflation|protocol version 2|inflation scenarios|50/50 split" : 
 	[
 		"kLAIaEj7I2M=",
