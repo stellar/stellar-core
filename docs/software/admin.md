@@ -697,6 +697,7 @@ Some notable fields in `info` are:
 The `peers` command returns information on the peers the instance is connected to.
 
 This list is the result of both inbound connections from other peers and outbound connections from this node to other peers.
+If `compact=false`, then it also returns some extra metrics on each peer such as the number of dropped messages.
 
 `$ stellar-core http-command 'peers'`
 

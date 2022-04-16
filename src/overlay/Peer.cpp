@@ -263,7 +263,7 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
 }
 
 Json::Value
-Peer::getFlowControlJsonInfo() const
+Peer::getFlowControlJsonInfo(bool compact) const
 {
     Json::Value res;
     std::string stateStr;
@@ -289,6 +289,62 @@ Peer::getFlowControlJsonInfo() const
             (Json::UInt64)mCapacity.mTotalCapacity;
         res["local_capacity"]["flood"] = (Json::UInt64)mCapacity.mFloodCapacity;
         res["peer_capacity"] = (Json::UInt64)mOutboundCapacity;
+    }
+
+    if (!compact)
+    {
+        res["outbound_queue_delay_scp_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelaySCP.GetSnapshot()
+                .get75thPercentile());
+        res["outbound_queue_delay_txs_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayTxs.GetSnapshot()
+                .get75thPercentile());
+    }
+
+    return res;
+}
+
+Json::Value
+Peer::getJsonInfo(bool compact) const
+{
+    Json::Value res;
+    res["address"] = mAddress.toString();
+    res["elapsed"] = (int)getLifeTime().count();
+    res["latency"] = (int)getPing().count();
+    res["ver"] = getRemoteVersion();
+    res["olver"] = (int)getRemoteOverlayVersion();
+    res["flow_control"] = getFlowControlJsonInfo(compact);
+    if (!compact)
+    {
+        res["message_read"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mMessageRead);
+        res["message_write"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mMessageWrite);
+        res["byte_read"] = static_cast<Json::UInt64>(mPeerMetrics.mByteRead);
+        res["byte_write"] = static_cast<Json::UInt64>(mPeerMetrics.mByteWrite);
+
+        res["async_read"] = static_cast<Json::UInt64>(mPeerMetrics.mAsyncRead);
+        res["async_write"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mAsyncWrite);
+
+        res["message_drop"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mMessageDrop);
+
+        res["message_delay_in_write_queue_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mMessageDelayInWriteQueueTimer.GetSnapshot()
+                .get75thPercentile());
+        res["message_delay_in_async_write_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mMessageDelayInAsyncWriteTimer.GetSnapshot()
+                .get75thPercentile());
+
+        res["unique_flood_message_recv"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mUniqueFloodMessageRecv);
+        res["duplicate_flood_message_recv"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mDuplicateFloodMessageRecv);
+        res["unique_fetch_message_recv"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mUniqueFetchMessageRecv);
+        res["duplicate_fetch_message_recv"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mDuplicateFetchMessageRecv);
     }
 
     return res;
@@ -531,6 +587,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         sendQueueIsOverloaded())
     {
         getOverlayMetrics().mMessageDrop.Mark();
+        mPeerMetrics.mMessageDrop++;
         return;
     }
 
@@ -1004,10 +1061,15 @@ Peer::maybeSendNextBatch()
             auto& front = queue.front();
             sendAuthenticatedMessage(*(front.mMessage));
             auto& om = mApp.getOverlayManager().getOverlayMetrics();
-            auto& timer = front.mMessage->type() == SCP_MESSAGE
-                              ? om.mOutboundQueueDelaySCP
-                              : om.mOutboundQueueDelayTxs;
-            timer.Update(mApp.getClock().now() - front.mTimeEmplaced);
+            auto& aggregateTimer = front.mMessage->type() == SCP_MESSAGE
+                                       ? om.mOutboundQueueDelaySCP
+                                       : om.mOutboundQueueDelayTxs;
+            auto& peerTimer = front.mMessage->type() == SCP_MESSAGE
+                                  ? mPeerMetrics.mOutboundQueueDelaySCP
+                                  : mPeerMetrics.mOutboundQueueDelayTxs;
+            auto const& diff = mApp.getClock().now() - front.mTimeEmplaced;
+            aggregateTimer.Update(diff);
+            peerTimer.Update(diff);
             mOutboundCapacity--;
             if (mOutboundCapacity == 0)
             {
@@ -1746,6 +1808,21 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mMessageWrite(0)
     , mByteRead(0)
     , mByteWrite(0)
+    , mAsyncRead(0)
+    , mAsyncWrite(0)
+    , mMessageDrop(0)
+    , mMessageDelayInWriteQueueTimer(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                                   PEER_METRICS_RATE_UNIT,
+                                                   PEER_METRICS_WINDOW_SIZE))
+    , mMessageDelayInAsyncWriteTimer(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                                   PEER_METRICS_RATE_UNIT,
+                                                   PEER_METRICS_WINDOW_SIZE))
+    , mOutboundQueueDelaySCP(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                           PEER_METRICS_RATE_UNIT,
+                                           PEER_METRICS_WINDOW_SIZE))
+    , mOutboundQueueDelayTxs(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                           PEER_METRICS_RATE_UNIT,
+                                           PEER_METRICS_WINDOW_SIZE))
     , mUniqueFloodBytesRecv(0)
     , mDuplicateFloodBytesRecv(0)
     , mUniqueFetchBytesRecv(0)

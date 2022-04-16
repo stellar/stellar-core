@@ -7,6 +7,7 @@
 #include "util/asio.h"
 #include "database/Database.h"
 #include "lib/json/json.h"
+#include "medida/timer.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
@@ -57,6 +58,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL = 20;
     static constexpr std::chrono::seconds PEER_SEND_MODE_IDLE_TIMEOUT =
         std::chrono::seconds(60);
+    static constexpr std::chrono::nanoseconds PEER_METRICS_DURATION_UNIT =
+        std::chrono::milliseconds(1);
+    static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
+        std::chrono::seconds(1);
+    // The reporting will be based on the previous
+    // PEER_METRICS_WINDOW_SIZE-second time window.
+    static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
+        std::chrono::seconds(300);
 
     typedef std::shared_ptr<Peer> pointer;
 
@@ -94,6 +103,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
         uint64_t mMessageWrite;
         uint64_t mByteRead;
         uint64_t mByteWrite;
+        uint64_t mAsyncRead;
+        uint64_t mAsyncWrite;
+        uint64_t mMessageDrop;
+
+        medida::Timer mMessageDelayInWriteQueueTimer;
+        medida::Timer mMessageDelayInAsyncWriteTimer;
+        medida::Timer mOutboundQueueDelaySCP;
+        medida::Timer mOutboundQueueDelayTxs;
 
         uint64_t mUniqueFloodBytesRecv;
         uint64_t mDuplicateFloodBytesRecv;
@@ -113,7 +130,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         VirtualClock::time_point mEnqueuedTime;
         VirtualClock::time_point mIssuedTime;
         VirtualClock::time_point mCompletedTime;
-        void recordWriteTiming(OverlayMetrics& metrics);
+        void recordWriteTiming(OverlayMetrics& metrics,
+                               PeerMetrics& peerMetrics);
         xdr::msg_ptr mMessage;
     };
 
@@ -133,7 +151,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     Peer::FlowControlState flowControlEnabled() const;
 
-    Json::Value getFlowControlJsonInfo() const;
+    Json::Value getFlowControlJsonInfo(bool compact) const;
+    Json::Value getJsonInfo(bool compact) const;
 
   protected:
     Application& mApp;

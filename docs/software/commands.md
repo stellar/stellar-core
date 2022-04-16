@@ -179,9 +179,10 @@ format.
   Clear metrics for a specified domain. If no domain specified, clear all
   metrics (for testing purposes).
 
-* **peers?[&fullkeys=false]**
-  Returns the list of known peers in JSON format.
+* **peers?[&fullkeys=false&compact=true]**
+  Returns the list of known peers in JSON format with some metrics.
   If `fullkeys` is set, outputs unshortened public keys.
+  If `compact` is `false`, it will output extra metrics.
 
 * **quorum**
   `quorum?[node=NODE_ID][&compact=false][&fullkeys=false][&transitive=false]`<br>
