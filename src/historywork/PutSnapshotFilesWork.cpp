@@ -18,6 +18,16 @@
 namespace stellar
 {
 
+void
+PutSnapshotFilesWork::cleanup()
+{
+    // Delete `gz` files produced by this work
+    for (auto const& f : mFilesToUpload)
+    {
+        std::remove(f.second.localPath_gz().c_str());
+    }
+}
+
 PutSnapshotFilesWork::PutSnapshotFilesWork(
     Application& app, std::shared_ptr<StateSnapshot> snapshot)
     : Work(app,
@@ -73,10 +83,7 @@ PutSnapshotFilesWork::doWork()
         if (status == State::WORK_SUCCESS)
         {
             // Step 2: Gzip all unique files
-            for (auto const& f : getFilesToZip())
-            {
-                mGzipFilesWorks.emplace_back(addWork<GzipFileWork>(f, true));
-            }
+            createGzipWorks();
             return State::WORK_RUNNING;
         }
         else
@@ -99,13 +106,16 @@ PutSnapshotFilesWork::doWork()
 void
 PutSnapshotFilesWork::doReset()
 {
+    cleanup();
+
     mGetStateWorks.clear();
     mGzipFilesWorks.clear();
     mUploadSeqs.clear();
+    mFilesToUpload.clear();
 }
 
-UnorderedSet<std::string>
-PutSnapshotFilesWork::getFilesToZip()
+void
+PutSnapshotFilesWork::createGzipWorks()
 {
     // Sanity check: there are states for all archives
     if (mGetStateWorks.size() !=
@@ -114,17 +124,18 @@ PutSnapshotFilesWork::getFilesToZip()
         throw std::runtime_error("Corrupted GetHistoryArchiveStateWork");
     }
 
-    UnorderedSet<std::string> filesToZip{};
     for (auto const& getState : mGetStateWorks)
     {
         for (auto const& f :
              mSnapshot->differingHASFiles(getState->getHistoryArchiveState()))
         {
-            filesToZip.insert(f->localPath_nogz());
+            if (mFilesToUpload.emplace(f->localPath_nogz(), *f).second)
+            {
+                mGzipFilesWorks.emplace_back(
+                    addWork<GzipFileWork>(f->localPath_nogz(), true));
+            }
         }
     }
-
-    return filesToZip;
 }
 
 std::string
@@ -146,5 +157,11 @@ PutSnapshotFilesWork::getStatus() const
     }
 
     return BasicWork::getStatus();
+}
+
+void
+PutSnapshotFilesWork::onSuccess()
+{
+    cleanup();
 }
 }

@@ -23,8 +23,10 @@ class PutSnapshotFilesWork : public Work
     std::list<std::shared_ptr<GetHistoryArchiveStateWork>> mGetStateWorks;
     std::list<std::shared_ptr<BasicWork>> mGzipFilesWorks;
     std::list<std::shared_ptr<BasicWork>> mUploadSeqs;
+    UnorderedMap<std::string, FileTransferInfo> mFilesToUpload;
 
-    UnorderedSet<std::string> getFilesToZip();
+    void createGzipWorks();
+    void cleanup();
 
   public:
     PutSnapshotFilesWork(Application& app,
@@ -36,5 +38,6 @@ class PutSnapshotFilesWork : public Work
   protected:
     State doWork() override;
     void doReset() override;
+    void onSuccess() override;
 };
 }
