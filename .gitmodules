@@ -29,3 +29,9 @@
 [submodule "lib/immer"]
 	path = lib/immer
 	url = https://github.com/arximboldi/immer
+[submodule "lib/boost/config"]
+	path = lib/boost/config
+	url = https://github.com/boostorg/config
+[submodule "lib/boost/multiprecision"]
+	path = lib/boost/multiprecision
+	url = https://github.com/boostorg/multiprecision

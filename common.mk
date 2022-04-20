@@ -14,6 +14,8 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/fizzy/include"          \
 	-isystem "$(top_srcdir)/lib/fizzy/lib"              \
 	-isystem "$(top_srcdir)/lib/immer"                  \
+	-isystem "$(top_srcdir)/lib/boost/config/include"   \
+	-isystem "$(top_srcdir)/lib/boost/multiprecision/include"
 
 
 if USE_POSTGRES
@@ -40,6 +42,8 @@ endif # USE_SPDLOG
 if USE_FIZZY
 AM_CPPFLAGS += -DUSE_FIZZY
 endif # USE_FIZZY
+
+AM_CPPFLAGS += -DBOOST_MP_STANDALONE
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 AM_CPPFLAGS += -DENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
