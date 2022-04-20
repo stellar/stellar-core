@@ -36,6 +36,8 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     static Hash loadHashFromJsonOutput(uint32_t seq,
                                        std::string const& filename);
 
+    void onSuccess() override;
+
   private:
     // This class is a batch work, but it also creates a conditional dependency
     // chain among its batch elements (for trusted ledger propagation): this

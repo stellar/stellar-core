@@ -38,12 +38,6 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
             pair, file, nestedBatchSize);
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
     }
-    // Make sure w is destroyed.
-    wm.shutdown();
-    while (wm.getState() != BasicWork::State::WORK_ABORTED)
-    {
-        catchupSimulation.getClock().crank();
-    }
 
     for (auto const& p : pairs)
     {

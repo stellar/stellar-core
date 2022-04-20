@@ -199,4 +199,10 @@ WriteVerifiedCheckpointHashesWork::resetIter()
     endOutputFile();
     startOutputFile();
 }
+
+void
+WriteVerifiedCheckpointHashesWork::onSuccess()
+{
+    endOutputFile();
+}
 }
