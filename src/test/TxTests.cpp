@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -1510,14 +1511,6 @@ makeBaseReserveUpgrade(int baseReserve)
     return result;
 }
 
-UpgradeType
-toUpgradeType(LedgerUpgrade const& upgrade)
-{
-    auto v = xdr::xdr_to_opaque(upgrade);
-    auto result = UpgradeType{v.begin(), v.end()};
-    return result;
-}
-
 LedgerHeader
 executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 {
@@ -1534,7 +1527,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 LedgerHeader
 executeUpgrade(Application& app, LedgerUpgrade const& lupgrade)
 {
-    return executeUpgrades(app, {toUpgradeType(lupgrade)});
+    return executeUpgrades(app, {LedgerTestUtils::toUpgradeType(lupgrade)});
 };
 
 // trades is a vector of pairs, where the bool indicates if assetA or assetB is

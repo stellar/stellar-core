@@ -59,5 +59,7 @@ std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
     LedgerHeaderHistoryEntry firstLedger, uint32_t size,
     HistoryManager::LedgerVerificationStatus state =
         HistoryManager::VERIFY_STATUS_OK);
+
+UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);
 }
 }

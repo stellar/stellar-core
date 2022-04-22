@@ -31,6 +31,7 @@
 
 using namespace stellar;
 using namespace stellar::txtest;
+using stellar::LedgerTestUtils::toUpgradeType;
 
 struct LedgerUpgradeableData
 {

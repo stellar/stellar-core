@@ -271,8 +271,6 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 
-UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);
-
 LedgerHeader executeUpgrades(Application& app,
                              xdr::xvector<UpgradeType, 6> const& upgrades);
 
