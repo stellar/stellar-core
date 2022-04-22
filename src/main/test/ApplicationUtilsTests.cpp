@@ -106,11 +106,9 @@ TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
             "client");
         catchupSimulation.catchupOffline(app, l1);
         chkConfig = app->getConfig();
-        auto filenameOp = app->getBucketManager()
-                              .getBucketList()
-                              .getLevel(0)
-                              .getCurr()
-                              ->getFilename(BucketSortOrder::SortByType);
+        auto bucket =
+            app->getBucketManager().getBucketList().getLevel(0).getCurr();
+        auto filenameOp = bucket->getFilename(bucket->getValidType());
         REQUIRE(filenameOp.has_value());
         victimBucketPath = *filenameOp;
     }

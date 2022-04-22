@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/HashID.h"
 #include "overlay/StellarXDR.h"
 #include <cereal/cereal.hpp>
 #include <future>
@@ -69,8 +70,9 @@ class FutureBucket
     // on the hash-values.
     std::string mInputCurrBucketHash;
     std::string mInputSnapBucketHash;
-    std::vector<std::string> mInputShadowBucketHashes;
+    std::vector<HashID> mInputShadowBucketIDs;
     std::string mOutputBucketHash;
+    uint32_t mProtocolVersion;
 
     void checkHashesMatch() const;
     void checkState() const;
@@ -80,6 +82,9 @@ class FutureBucket
     void clearInputs();
     void clearOutput();
     void setLiveOutput(std::shared_ptr<Bucket> b);
+
+    void checkHashEq(std::shared_ptr<Bucket> const& b,
+                     std::string const& h) const;
 
   public:
     FutureBucket(Application& app, std::shared_ptr<Bucket> const& curr,
@@ -124,6 +129,9 @@ class FutureBucket
     void makeLive(Application& app, uint32_t maxProtocolVersion,
                   uint32_t level);
 
+    // Return all HashIDs for Buckets referenced by this future.
+    std::vector<HashID> getBucketIDs() const;
+
     // Return all hashes referenced by this future.
     std::vector<std::string> getHashes() const;
 
@@ -133,12 +141,16 @@ class FutureBucket
     {
         clear();
         ar(cereal::make_nvp("state", mState));
+        std::vector<std::string> shadowHashStrings;
         switch (mState)
         {
         case FB_HASH_INPUTS:
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
-            ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
+            ar(cereal::make_nvp("shadow", shadowHashStrings));
+            std::transform(shadowHashStrings.begin(), shadowHashStrings.end(),
+                           std::back_inserter(mInputShadowBucketIDs),
+                           [](auto const& hash) { return HashID(hash); });
             break;
         case FB_HASH_OUTPUT:
             ar(cereal::make_nvp("output", mOutputBucketHash));
@@ -158,6 +170,7 @@ class FutureBucket
     save(Archive& ar) const
     {
         checkState();
+        std::vector<std::string> shadowHashStrings;
         switch (mState)
         {
         case FB_LIVE_INPUTS:
@@ -165,7 +178,11 @@ class FutureBucket
             ar(cereal::make_nvp("state", FB_HASH_INPUTS));
             ar(cereal::make_nvp("curr", mInputCurrBucketHash));
             ar(cereal::make_nvp("snap", mInputSnapBucketHash));
-            ar(cereal::make_nvp("shadow", mInputShadowBucketHashes));
+            std::transform(mInputShadowBucketIDs.begin(),
+                           mInputShadowBucketIDs.end(),
+                           std::back_inserter(shadowHashStrings),
+                           [](auto const& id) { return id.toHex(); });
+            ar(cereal::make_nvp("shadow", shadowHashStrings));
             break;
         case FB_LIVE_OUTPUT:
         case FB_HASH_OUTPUT:

@@ -163,6 +163,7 @@ struct BucketListGenerator
         MergeCounters mergeCounters;
         LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
         auto vers = ltx.loadHeader().current().ledgerVersion;
+        auto type = Bucket::protocolSortOrder(vers);
         for (uint32_t i = 0; i <= BucketList::kNumLevels - 1; i++)
         {
             auto& level = blGenerate.getLevel(i);
@@ -172,7 +173,7 @@ struct BucketListGenerator
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
                                          mergeCounters, mClock.getIOContext(),
                                          /*doFsync=*/true);
-                for (BucketInputIterator in(level.getCurr()); in; ++in)
+                for (BucketInputIterator in(level.getCurr(), type); in; ++in)
                 {
                     out.put(*in);
                 }
@@ -182,7 +183,7 @@ struct BucketListGenerator
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
                                          mergeCounters, mClock.getIOContext(),
                                          /*doFsync=*/true);
-                for (BucketInputIterator in(level.getSnap()); in; ++in)
+                for (BucketInputIterator in(level.getSnap(), type); in; ++in)
                 {
                     out.put(*in);
                 }
@@ -191,14 +192,18 @@ struct BucketListGenerator
         }
         return HistoryArchiveState(
             mLedgerSeq, blGenerate,
-            mAppGenerate->getConfig().NETWORK_PASSPHRASE);
+            mAppGenerate->getConfig().NETWORK_PASSPHRASE,
+            mAppGenerate->getConfig().LEDGER_PROTOCOL_VERSION);
     }
 };
 
 bool
 doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
 {
-    for (BucketInputIterator iter(bucket); iter; ++iter)
+    // Sort order doesn't matter, both files contain same entries and this
+    // search is linear
+    auto type = bucket->getValidType();
+    for (BucketInputIterator iter(bucket, type); iter; ++iter)
     {
         if (*iter == be)
         {

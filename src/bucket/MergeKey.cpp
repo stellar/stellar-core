@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/MergeKey.h"
+#include "bucket/HashID.h"
 #include "crypto/Hex.h"
 #include "fmt/format.h"
 #include <sstream>
@@ -15,13 +16,13 @@ MergeKey::MergeKey(bool keepDeadEntries,
                    std::shared_ptr<Bucket> const& inputSnap,
                    std::vector<std::shared_ptr<Bucket>> const& inputShadows)
     : mKeepDeadEntries(keepDeadEntries)
-    , mInputCurrBucket(inputCurr->getPrimaryHash())
-    , mInputSnapBucket(inputSnap->getPrimaryHash())
+    , mInputCurrBucket(inputCurr->getHashID())
+    , mInputSnapBucket(inputSnap->getHashID())
 {
     mInputShadowBuckets.reserve(inputShadows.size());
     for (auto const& s : inputShadows)
     {
-        mInputShadowBuckets.emplace_back(s->getPrimaryHash());
+        mInputShadowBuckets.emplace_back(s->getHashID());
     }
 }
 
@@ -37,8 +38,8 @@ MergeKey::operator==(MergeKey const& other) const
 std::ostream&
 operator<<(std::ostream& out, MergeKey const& b)
 {
-    out << "[curr=" << hexAbbrev(b.mInputCurrBucket)
-        << ", snap=" << hexAbbrev(b.mInputSnapBucket) << ", shadows=[";
+    out << "[curr=" << b.mInputCurrBucket.toLogString()
+        << ", snap=" << b.mInputSnapBucket.toLogString() << ", shadows=[";
     bool first = true;
     for (auto const& s : b.mInputShadowBuckets)
     {
@@ -47,7 +48,7 @@ operator<<(std::ostream& out, MergeKey const& b)
             out << ", ";
         }
         first = false;
-        out << hexAbbrev(s);
+        out << s.toLogString();
     }
     out << fmt::format(FMT_STRING("], keep={}]"), b.mKeepDeadEntries);
     return out;
@@ -60,12 +61,11 @@ size_t
 hash<stellar::MergeKey>::operator()(stellar::MergeKey const& key) const noexcept
 {
     std::ostringstream oss;
-    oss << key.mKeepDeadEntries << ','
-        << stellar::binToHex(key.mInputCurrBucket) << ','
-        << stellar::binToHex(key.mInputSnapBucket);
+    oss << key.mKeepDeadEntries << ',' << key.mInputCurrBucket.toHex() << ','
+        << key.mInputSnapBucket.toHex();
     for (auto const& e : key.mInputShadowBuckets)
     {
-        oss << stellar::binToHex(e) << ',';
+        oss << e.toHex() << ',';
     }
     std::hash<std::string> h;
     return h(oss.str());

@@ -87,7 +87,7 @@ ApplyBucketsWork::getBucket(std::string const& hash)
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
                  ? i->second
-                 : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+                 : mApp.getBucketManager().getBucketByHashID(HashID(hash));
     releaseAssert(b);
     return b;
 }
@@ -171,10 +171,22 @@ ApplyBucketsWork::startLevel()
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
 
-    bool applySnap = (i.snap != binToHex(level.getSnap()->getPrimaryHash()));
-    bool applyCurr = (i.curr != binToHex(level.getCurr()->getPrimaryHash()));
+    // History hash could either by sortByType or sortByAccount
+    auto shouldApply = [](auto const& historyHash, auto const& bucket) {
+        for (auto type :
+             {BucketSortOrder::SortByType, BucketSortOrder::SortByAccount})
+        {
+            auto bucketHashOp = bucket->getHash(type);
+            if (binToHex(bucketHashOp.value_or(Hash{})) == historyHash)
+            {
+                return false;
+            }
+        }
 
-    if (mApplying || applySnap)
+        return true;
+    };
+
+    if (mApplying || shouldApply(i.snap, level.getSnap()))
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator = std::make_unique<BucketApplicator>(
@@ -183,7 +195,7 @@ ApplyBucketsWork::startLevel()
                    mLevel, i.snap);
         mApplying = true;
     }
-    if (mApplying || applyCurr)
+    if (mApplying || shouldApply(i.curr, level.getCurr()))
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator = std::make_unique<BucketApplicator>(

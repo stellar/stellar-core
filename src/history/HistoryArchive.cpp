@@ -308,7 +308,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     // Process bucket, return version
     auto processBucket = [&](std::string const& bucketHash) {
         auto bucket =
-            app.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
+            app.getBucketManager().getBucketByHashID(HashID(bucketHash));
         releaseAssert(bucket);
         int32_t version = 0;
         if (!bucket->isEmpty())
@@ -390,8 +390,7 @@ HistoryArchiveState::prepareForPublish(Application& app)
         auto& level = currentBuckets[i];
         auto& prev = currentBuckets[i - 1];
 
-        auto snap =
-            app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
+        auto snap = app.getBucketManager().getBucketByHashID(HashID(prev.snap));
         if (!level.next.isClear() &&
             protocolVersionStartsFrom(Bucket::getBucketVersion(snap),
                                       Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
@@ -432,7 +431,8 @@ HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
 
 HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
                                          BucketList const& buckets,
-                                         std::string const& passphrase)
+                                         std::string const& passphrase,
+                                         uint32_t protocolVersion)
     : server(STELLAR_CORE_VERSION)
     , networkPassphrase(passphrase)
     , currentLedger(ledgerSeq)
@@ -441,9 +441,9 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     {
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);
-        b.curr = binToHex(level.getCurr()->getPrimaryHash());
+        b.curr = binToHex(level.getCurr()->getHashByProtocol(protocolVersion));
         b.next = level.getNext();
-        b.snap = binToHex(level.getSnap()->getPrimaryHash());
+        b.snap = binToHex(level.getSnap()->getHashByProtocol(protocolVersion));
         currentBuckets.push_back(b);
     }
 }

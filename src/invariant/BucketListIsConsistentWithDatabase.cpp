@@ -222,12 +222,26 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 
         bool hasPreviousEntry = false;
         BucketEntry previousEntry;
-        for (BucketInputIterator iter(bucket); iter; ++iter)
+        auto type = Bucket::protocolSortOrder(ltx.getHeader().ledgerVersion);
+        auto cmp = [type](auto const& lhs, auto const& rhs) {
+            if (type == BucketSortOrder::SortByType)
+            {
+                return BucketEntryIdCmp<BucketSortOrder::SortByType>(lhs, rhs);
+            }
+            else
+            {
+                return BucketEntryIdCmp<BucketSortOrder::SortByAccount>(lhs,
+                                                                        rhs);
+            }
+        };
+
+        CLOG_INFO(Bucket, "YEET: Opening iter with type: {}",
+                  type == BucketSortOrder::SortByType ? "SortByType"
+                                                      : "SortByAccount");
+        for (BucketInputIterator iter(bucket, type); iter; ++iter)
         {
             auto const& e = *iter;
-            if (hasPreviousEntry &&
-                !BucketEntryIdCmp<BucketSortOrder::SortByType>(previousEntry,
-                                                               e))
+            if (hasPreviousEntry && !cmp(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
                 s += xdr_to_string(previousEntry, "previous");

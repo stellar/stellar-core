@@ -94,21 +94,24 @@ TxSimGenerateBucketsWork::processGeneratedBucket()
 
     auto newBucket = mIntermediateBuckets.front();
     mIntermediateBuckets.pop_front();
-    auto hash = newBucket->getPrimaryHash();
-    mBuckets[binToHex(hash)] = newBucket;
+    auto hashID = newBucket->getHashID();
+    mBuckets[hashID.toHex()] = newBucket;
 
     // Forget any intermediate buckets produced
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
-    CLOG_INFO(History, "Generated bucket: {}", hexAbbrev(hash));
+    CLOG_INFO(History, "Generated bucket: {}", hashID.toLogString());
     auto& level = mGeneratedApplyState.currentBuckets[mLevel];
+
+    auto ledgerHash = binToHex(
+        newBucket->getHashByProtocol(mApp.getConfig().LEDGER_PROTOCOL_VERSION));
     if (mIsCurr)
     {
-        level.curr = binToHex(hash);
+        level.curr = ledgerHash;
     }
     else
     {
-        level.snap = binToHex(hash);
+        level.snap = ledgerHash;
         mPrevSnap = newBucket;
     }
 }
@@ -157,7 +160,7 @@ TxSimGenerateBucketsWork::onRun()
         auto const& currentLevel = mApplyState.currentBuckets.at(mLevel);
         auto bucketHash = mIsCurr ? currentLevel.curr : currentLevel.snap;
         auto bucket =
-            mApp.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
+            mApp.getBucketManager().getBucketByHashID(hexToBin256(bucketHash));
         CLOG_INFO(History, "Simulating {} bucketlist level: {}",
                   (mIsCurr ? "curr" : "snap"), mLevel);
         startBucketGeneration(bucket);
@@ -220,8 +223,8 @@ TxSimGenerateBucketsWork::startBucketGeneration(
 {
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
-    BucketInputIterator iter(oldBucket);
-    uint32_t ledgerVersion = iter.getMetadata().ledgerVersion;
+    uint32_t ledgerVersion = Bucket::getBucketVersion(oldBucket);
+    BucketInputIterator iter(oldBucket, ledgerVersion);
 
     // Deconstruct the existing bucket to use for simulated bucket generation
     for (; iter; ++iter)

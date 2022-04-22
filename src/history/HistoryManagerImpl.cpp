@@ -219,8 +219,12 @@ HistoryManagerImpl::queueCurrentHistory()
 {
     ZoneScoped;
     auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
+    auto protocolVersion = mApp.getLedgerManager()
+                               .getLastClosedLedgerHeader()
+                               .header.ledgerVersion;
     HistoryArchiveState has(ledger, mApp.getBucketManager().getBucketList(),
-                            mApp.getConfig().NETWORK_PASSPHRASE);
+                            mApp.getConfig().NETWORK_PASSPHRASE,
+                            protocolVersion);
 
     CLOG_DEBUG(History, "Queueing publish state for ledger {}", ledger);
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());

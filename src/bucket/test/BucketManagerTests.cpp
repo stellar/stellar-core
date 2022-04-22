@@ -160,10 +160,12 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
+    auto protocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     uint32_t ledgerNum = lcl.header.ledgerSeq + 1;
     CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
               ledgerNum, hexAbbrev(lcl.hash),
-              hexAbbrev(app.getBucketManager().getBucketList().getHash()));
+              hexAbbrev(app.getBucketManager().getBucketList().getHash(
+                  protocolVersion)));
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
     app.getHerder().externalizeValue(txSet, ledgerNum,
                                      lcl.header.scpValue.closeTime,
@@ -427,7 +429,7 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
         auto someBucketFileNameOp =
-            someBucket->getFilename(BucketSortOrder::SortByType);
+            someBucket->getFilename(someBucket->getValidType());
         REQUIRE(someBucketFileNameOp.has_value());
         someBucketFileName = *someBucketFileNameOp;
     }
@@ -475,8 +477,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
         REQUIRE(bl.getLevel(level).getNext().isMerging());
 
         // Serialize HAS.
-        HistoryArchiveState has(ledger, bl,
-                                app->getConfig().NETWORK_PASSPHRASE);
+        HistoryArchiveState has(ledger, bl, app->getConfig().NETWORK_PASSPHRASE,
+                                app->getConfig().LEDGER_PROTOCOL_VERSION);
         std::string serialHas = has.toString();
 
         // Simulate level committing (and the FutureBucket clearing),
@@ -552,7 +554,8 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
             bm.forgetUnreferencedBuckets();
 
             HistoryArchiveState has(ledger, bl,
-                                    app->getConfig().NETWORK_PASSPHRASE);
+                                    app->getConfig().NETWORK_PASSPHRASE,
+                                    app->getConfig().LEDGER_PROTOCOL_VERSION);
             std::string serialHas = has.toString();
 
             // Deserialize and reactivate levels of HAS. Races with the merge
@@ -586,64 +589,100 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // BucketManager::noteEmptyMergeOutput is being called properly from merges
     // that produce empty outputs, and that the input buckets to those merges
     // are thereby not leaking.
-    VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
-    cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
-        1;
 
-    auto app = createTestApplication<BucketManagerTestApplication>(clock, cfg);
+    auto f = [](Config& cfg) {
+        VirtualClock clock;
+        cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(
+                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+            1;
+        auto app =
+            createTestApplication<BucketManagerTestApplication>(clock, cfg);
 
-    BucketManager& bm = app->getBucketManager();
-    BucketList& bl = bm.getBucketList();
-    LedgerManagerForBucketTests& lm = app->getLedgerManager();
+        BucketManager& bm = app->getBucketManager();
+        BucketList& bl = bm.getBucketList();
+        LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
-    // We create 8 live ledger entries spread across 8 ledgers then add a ledger
-    // that destroys all 8, which then serves to shadow-out the entries when
-    // subsequent merges touch them, producing empty buckets.
-    for (size_t i = 0; i < 128; ++i)
-    {
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(8);
-        REQUIRE(entries.size() == 8);
-        for (auto const& e : entries)
+        // We create 8 live ledger entries spread across 8 ledgers then add a
+        // ledger that destroys all 8, which then serves to shadow-out the
+        // entries when subsequent merges touch them, producing empty buckets.
+        for (size_t i = 0; i < 128; ++i)
         {
-            lm.setNextLedgerEntryBatchForBucketTesting({}, {e}, {});
+            auto entries = LedgerTestUtils::generateValidLedgerEntries(8);
+            REQUIRE(entries.size() == 8);
+            for (auto const& e : entries)
+            {
+                lm.setNextLedgerEntryBatchForBucketTesting({}, {e}, {});
+                closeLedger(*app);
+            }
+            std::vector<LedgerKey> dead;
+            for (auto const& e : entries)
+            {
+                dead.emplace_back(LedgerEntryKey(e));
+            }
+            lm.setNextLedgerEntryBatchForBucketTesting({}, {}, dead);
             closeLedger(*app);
         }
-        std::vector<LedgerKey> dead;
-        for (auto const& e : entries)
+
+        // Now check that the bucket dir has only as many buckets as
+        // we expect given the nonzero entries in the bucketlist.
+        while (!bl.futuresAllResolved())
         {
-            dead.emplace_back(LedgerEntryKey(e));
+            bl.resolveAnyReadyFutures();
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
-        lm.setNextLedgerEntryBatchForBucketTesting({}, {}, dead);
-        closeLedger(*app);
+        bm.forgetUnreferencedBuckets();
+        auto bmRefBuckets = bm.getReferencedBuckets();
+        auto bmDirBuckets = bm.getBucketHashesInBucketDirForTesting();
+
+        // Remove the 0 bucket in case it's "referenced"; it's never a file.
+        bmRefBuckets.erase(Hash());
+
+        for (auto const& bmr : bmRefBuckets)
+        {
+            CLOG_DEBUG(Bucket, "bucketmanager ref: {}", bmr.toHex());
+        }
+        for (auto const& bmd : bmDirBuckets)
+        {
+            CLOG_DEBUG(Bucket, "bucketmanager dir: {}", binToHex(bmd));
+        }
+
+        if (app->getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+        {
+            std::set<Hash> hashes;
+            for (auto const& id : bmRefBuckets)
+            {
+                auto bucket = bm.getBucketByHashID(id);
+                for (BucketSortOrder type : {BucketSortOrder::SortByType,
+                                             BucketSortOrder::SortByAccount})
+                {
+                    if (bucket->hasFileWithSortOrder(type))
+                    {
+                        hashes.insert(bucket->getHash(type).value());
+                    }
+                }
+            }
+            REQUIRE(hashes.size() == bmDirBuckets.size());
+        }
+        else
+        {
+            REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
+        }
+    };
+
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT enabled")
+    {
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        cfg.EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT = true;
+        f(cfg);
     }
 
-    // Now check that the bucket dir has only as many buckets as
-    // we expect given the nonzero entries in the bucketlist.
-    while (!bl.futuresAllResolved())
+    SECTION("EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT disabled")
     {
-        bl.resolveAnyReadyFutures();
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        f(cfg);
     }
-    bm.forgetUnreferencedBuckets();
-    auto bmRefBuckets = bm.getReferencedBuckets();
-    auto bmDirBuckets = bm.getBucketHashesInBucketDirForTesting();
-
-    // Remove the 0 bucket in case it's "referenced"; it's never a file.
-    bmRefBuckets.erase(Hash());
-
-    for (auto const& bmr : bmRefBuckets)
-    {
-        CLOG_DEBUG(Bucket, "bucketmanager ref: {}", binToHex(bmr));
-    }
-    for (auto const& bmd : bmDirBuckets)
-    {
-        CLOG_DEBUG(Bucket, "bucketmanager dir: {}", binToHex(bmd));
-    }
-    REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
 }
 
 TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
@@ -776,8 +815,8 @@ class StopAndRestartBucketMergesTest
 
     struct Survey
     {
-        Hash mCurrBucketHash;
-        Hash mSnapBucketHash;
+        HashID mCurrBucketHash;
+        HashID mSnapBucketHash;
         Hash mBucketListHash;
         Hash mLedgerHeaderHash;
         MergeCounters mMergeCounters;
@@ -1018,10 +1057,11 @@ class StopAndRestartBucketMergesTest
 
             mMergeCounters = bm.readMergeCounters();
             mLedgerHeaderHash = lm.getLastClosedLedgerHeader().hash;
-            mBucketListHash = bl.getHash();
+            auto protocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
+            mBucketListHash = bl.getHash(protocolVersion);
             BucketLevel& blv = bl.getLevel(level);
-            mCurrBucketHash = blv.getCurr()->getPrimaryHash();
-            mSnapBucketHash = blv.getSnap()->getPrimaryHash();
+            mCurrBucketHash = blv.getCurr()->getHashID();
+            mSnapBucketHash = blv.getSnap()->getHashID();
         }
     };
 
@@ -1044,7 +1084,9 @@ class StopAndRestartBucketMergesTest
             BucketLevel const& level = bl.getLevel(i - 1);
             for (auto bucket : {level.getSnap(), level.getCurr()})
             {
-                for (BucketInputIterator bi(bucket); bi; ++bi)
+                for (BucketInputIterator bi(
+                         bucket, app.getConfig().LEDGER_PROTOCOL_VERSION);
+                     bi; ++bi)
                 {
                     BucketEntry const& e = *bi;
                     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
@@ -1493,7 +1535,7 @@ TEST_CASE("bucket persistence over app restart",
             }
 
             Lh1 = closeLedger(*app);
-            Blh1 = bl.getHash();
+            Blh1 = bl.getHash(app->getConfig().LEDGER_PROTOCOL_VERSION);
             REQUIRE(!isZero(Lh1));
             REQUIRE(!isZero(Blh1));
 
@@ -1506,7 +1548,7 @@ TEST_CASE("bucket persistence over app restart",
             }
 
             Lh2 = closeLedger(*app);
-            Blh2 = bl.getHash();
+            Blh2 = bl.getHash(app->getConfig().LEDGER_PROTOCOL_VERSION);
             REQUIRE(!isZero(Blh2));
             REQUIRE(!isZero(Lh2));
         }
@@ -1527,12 +1569,14 @@ TEST_CASE("bucket persistence over app restart",
                 i++;
             }
 
+            auto protocolVersion = app->getConfig().LEDGER_PROTOCOL_VERSION;
             REQUIRE(sk);
             REQUIRE(hexAbbrev(Lh1) == hexAbbrev(closeLedger(*app, sk)));
-            REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
+            REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash(protocolVersion)));
 
             // Confirm that there are merges-in-progress in this checkpoint.
-            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE);
+            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE,
+                                    protocolVersion);
             REQUIRE(!has.futuresAllResolved());
         }
 
@@ -1546,16 +1590,18 @@ TEST_CASE("bucket persistence over app restart",
             BucketList& bl = app->getBucketManager().getBucketList();
 
             // Confirm that we re-acquired the close-ledger state.
+            auto protocolVersion = app->getConfig().LEDGER_PROTOCOL_VERSION;
             REQUIRE(
                 hexAbbrev(Lh1) ==
                 hexAbbrev(
                     app->getLedgerManager().getLastClosedLedgerHeader().hash));
-            REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
+            REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash(protocolVersion)));
 
             uint32_t i = pause;
 
             // Confirm that merges-in-progress were restarted.
-            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE);
+            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE,
+                                    protocolVersion);
             REQUIRE(!has.futuresAllResolved());
 
             while (i < 100)
@@ -1569,7 +1615,7 @@ TEST_CASE("bucket persistence over app restart",
             // Confirm that merges-in-progress finished with expected
             // results.
             REQUIRE(hexAbbrev(Lh2) == hexAbbrev(closeLedger(*app, sk)));
-            REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash()));
+            REQUIRE(hexAbbrev(Blh2) == hexAbbrev(bl.getHash(protocolVersion)));
         }
     });
 }

@@ -143,7 +143,6 @@ class BucketManager : NonMovableOrCopyable
     // sort order. Returns path to newly sorted file.
     virtual std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
                                              BucketSortOrder oldType,
-                                             BucketSortOrder newType,
                                              Hash& hash) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
@@ -155,7 +154,7 @@ class BucketManager : NonMovableOrCopyable
     virtual void noteEmptyMergeOutput(MergeKey const& mergeKey) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
+    virtual std::shared_ptr<Bucket> getBucketByHashID(HashID const& hash) = 0;
 
     // Get a reference to a merge-future that's either running (or finished
     // somewhat recently) from either a map of the std::shared_futures doing the
@@ -211,13 +210,13 @@ class BucketManager : NonMovableOrCopyable
     // leaking buckets, in tests.
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
 
-    virtual UnorderedMap<Hash, Hash> const&
+    virtual UnorderedMap<HashID, HashID> const&
     getAccountToTypeHashesForTesting() const = 0;
 #endif
 
     // Return the set of buckets referenced by the BucketList, LCL HAS,
     // and publish queue.
-    virtual std::set<Hash> getReferencedBuckets() const = 0;
+    virtual std::set<HashID> getReferencedBuckets() const = 0;
 
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding

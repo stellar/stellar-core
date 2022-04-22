@@ -147,10 +147,16 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
 
     for (auto const& hash : mLocalState.differingBuckets(other))
     {
-        auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+        auto b = mApp.getBucketManager().getBucketByHashID(HashID(hash));
         releaseAssert(b);
-        addIfExists(std::make_shared<FileTransferInfo>(
-            *b, BucketSortOrder::SortByType));
+        auto sortOrder = BucketSortOrder::SortByType;
+        auto hashOp = b->getHash(sortOrder);
+        if (!hashOp || binToHex(*hashOp) != hash)
+        {
+            sortOrder = BucketSortOrder::SortByAccount;
+        }
+
+        addIfExists(std::make_shared<FileTransferInfo>(*b, sortOrder));
     }
 
     return files;

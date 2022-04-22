@@ -91,7 +91,8 @@ checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq, uint32_t level,
     std::set<uint32_t> ledgers;
     uint32_t lbound = std::numeric_limits<uint32_t>::max();
     uint32_t ubound = 0;
-    for (BucketInputIterator iter(bucket); iter; ++iter)
+    BucketSortOrder type = bucket->getValidType();
+    for (BucketInputIterator iter(bucket, type); iter; ++iter)
     {
         auto lastModified = (*iter).liveEntry().lastModifiedLedgerSeq;
         ledgers.insert(lastModified);
@@ -174,7 +175,7 @@ areFilesConsistent(std::shared_ptr<Bucket> bucket,
     }
 
     std::set<BucketEntry> sortByTypeFileEntries;
-    for (BucketInputIterator in(bucket); in; ++in)
+    for (BucketInputIterator in(bucket, BucketSortOrder::SortByType); in; ++in)
     {
         // Check for duplicate entries in file
         if (sortByTypeFileEntries.find(*in) != sortByTypeFileEntries.end())
@@ -237,11 +238,11 @@ checkValidBucket(std::shared_ptr<Bucket> bucket, Config const& cfg)
             CHECK(fs::exists(*sortByAccountFilename));
             CHECK(isFileSorted<BucketSortOrder::SortByAccount>(
                 bucket, *sortByAccountFilename));
-            auto const& sortByTypeFilename = bucket->getFilename(BucketSortOrder::SortByType);
+            auto const& sortByTypeFilename =
+                bucket->getFilename(BucketSortOrder::SortByType);
             REQUIRE(sortByTypeFilename);
-            CHECK(areFilesConsistent(
-                bucket, *sortByTypeFilename,
-                *sortByAccountFilename));
+            CHECK(areFilesConsistent(bucket, *sortByTypeFilename,
+                                     *sortByAccountFilename));
         }
     }
     else
@@ -292,7 +293,8 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
                             deadGen(5));
                         if (i % 10 == 0)
                             CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                                       binToHex(bl.getHash()));
+                                       binToHex(bl.getHash(
+                                           cfg.LEDGER_PROTOCOL_VERSION)));
                         for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
                         {
                             auto const& lev = bl.getLevel(j);
@@ -370,8 +372,9 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
                             deadGen(5));
                 if (i % 100 == 0)
                 {
-                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                               binToHex(bl.getHash()));
+                    CLOG_DEBUG(
+                        Bucket, "Added batch {}, hash={}", i,
+                        binToHex(bl.getHash(cfg.LEDGER_PROTOCOL_VERSION)));
                     // Alice and bob should be in either curr or snap of
                     // level 0 and
                     // 1
@@ -646,7 +649,8 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
                                     emptySetEntry, emptySet);
                         if (i % 10 == 0)
                             CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
-                                       binToHex(bl.getHash()));
+                                       binToHex(bl.getHash(
+                                           cfg.LEDGER_PROTOCOL_VERSION)));
 
                         CLOG_DEBUG(Bucket, "------- ledger {}", i);
 

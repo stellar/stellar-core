@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/HashID.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
@@ -388,32 +389,52 @@ BucketManagerImpl::renameBucketWithOneRetry(std::string const& src,
 
 std::filesystem::path
 BucketManagerImpl::resortFile(std::shared_ptr<Bucket> b,
-                              BucketSortOrder oldType, BucketSortOrder newType,
-                              Hash& hash)
+                              BucketSortOrder oldType, Hash& hash)
 {
     ZoneScoped;
     releaseAssertOrThrow(
         mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
     releaseAssert(b->hasFileWithSortOrder(oldType));
+    BucketSortOrder newType = oldType == BucketSortOrder::SortByType
+                                  ? BucketSortOrder::SortByAccount
+                                  : BucketSortOrder::SortByType;
+
     releaseAssert(!b->hasFileWithSortOrder(newType));
 
-    std::set<BucketEntry, BucketEntryIdCmpProto> sortedEntries(
-        BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
+    typedef std::set<BucketEntry, BucketEntryIdCmpProto> SortedSet;
+    std::unique_ptr<SortedSet> sortedEntries;
+    if (newType == BucketSortOrder::SortByAccount)
+    {
+        sortedEntries = std::make_unique<SortedSet>(
+            BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
+    }
+    else
+    {
+        sortedEntries = std::make_unique<SortedSet>(
+            BucketEntryIdCmp<BucketSortOrder::SortByType>);
+    }
+
     for (BucketInputIterator in(b, oldType); in; ++in)
     {
-        sortedEntries.insert(*in);
+        sortedEntries->insert(*in);
     }
 
     BucketMetadata meta;
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    if (newType == BucketSortOrder::SortByAccount)
+    {
+        meta.ledgerVersion = std::max(
+            meta.ledgerVersion,
+            static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT));
+    }
     MergeCounters mc;
 
     // Since we are resorting an existing bucket, always preserve dead entries.
     BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/true, meta, mc,
                              mApp.getClock().getIOContext(),
-                             !mApp.getConfig().DISABLE_XDR_FSYNC, newType);
+                             !mApp.getConfig().DISABLE_XDR_FSYNC);
 
-    for (auto const& e : sortedEntries)
+    for (auto const& e : *sortedEntries)
     {
         out.put(e);
     }
@@ -450,7 +471,7 @@ BucketManagerImpl::adoptFileAsBucket(std::filesystem::path const& filename,
     }
 
     // Check to see if we have an existing bucket (either in-memory or on-disk)
-    std::shared_ptr<Bucket> b = getBucketByHash(hash);
+    std::shared_ptr<Bucket> b = getBucketByHashID(HashID(hash));
     if (b)
     {
         CLOG_DEBUG(
@@ -469,7 +490,8 @@ BucketManagerImpl::adoptFileAsBucket(std::filesystem::path const& filename,
                    canonicalName);
         renameBucketWithOneRetry(filename, canonicalName);
 
-        b = std::make_shared<Bucket>(canonicalName, hash);
+        b = std::make_shared<Bucket>(canonicalName, hash,
+                                     Bucket::getFileType(canonicalName));
         {
             mSharedBuckets.emplace(hash, b);
             mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -513,18 +535,35 @@ BucketManagerImpl::addFileToBucket(std::shared_ptr<Bucket> b,
         std::filesystem::path canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adding bucket file {} as {}", filename,
                    canonicalName);
-        renameBucketWithOneRetry(filename, canonicalName);
+
+        // In some cases, (like an empty bucket or a bucket with a single
+        // entry), both sort orders produce the same file
+        if (fs::exists(canonicalName))
+        {
+            CLOG_DEBUG(Bucket,
+                       "Deleting bucket file {} that is redundant with "
+                       "existing bucket",
+                       filename);
+            {
+                auto timer = LogSlowExecution("Delete redundant bucket");
+                std::remove(filename.c_str());
+            }
+        }
+        else
+        {
+            renameBucketWithOneRetry(filename, canonicalName);
+        }
+
         b->addFile(canonicalName, hash, type);
 
         // If two bucket hashes now need to be mapped together
         if (type == BucketSortOrder::SortByAccount &&
             b->hasFileWithSortOrder(BucketSortOrder::SortByType))
         {
-            auto const& sortByTypeHash =
-                b->getHash(BucketSortOrder::SortByType);
+            auto sortByTypeHash = b->getHash(BucketSortOrder::SortByType);
             releaseAssert(sortByTypeHash);
-            releaseAssert(mAccountToTypeHashes.find(hash) ==
-                          mAccountToTypeHashes.end());
+            auto iter = mAccountToTypeHashes.find(hash);
+            releaseAssert(iter == mAccountToTypeHashes.end());
             mAccountToTypeHashes.emplace(hash, *sortByTypeHash);
         }
 
@@ -608,8 +647,7 @@ BucketManagerImpl::writeBucketFileMapToPersistentState() const
     Json::Value root;
     for (auto const& [accountHash, typeHash] : mAccountToTypeHashes)
     {
-        root[ACCOUNT_TO_TYPE_JSON_KEY][binToHex(accountHash)] =
-            binToHex(typeHash);
+        root[ACCOUNT_TO_TYPE_JSON_KEY][accountHash.toHex()] = typeHash.toHex();
     }
 
     Json::FastWriter writer;
@@ -623,29 +661,54 @@ BucketManagerImpl::writeBucketFileMapToPersistentState() const
 }
 
 std::shared_ptr<Bucket>
-BucketManagerImpl::getBucketByHash(uint256 const& hash)
+BucketManagerImpl::getBucketByHashID(HashID const& hash)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    if (isZero(hash))
+    if (hash.isZero())
     {
         return std::make_shared<Bucket>();
     }
     auto i = mSharedBuckets.find(hash);
 
-    // Hash may be sortByAccount hash, mSharedBuckets maps only sortByType
-    // hashes
+    // HashID may be wrong type, search again for other type of hash
     if (i == mSharedBuckets.end())
     {
         auto iter = mAccountToTypeHashes.find(hash);
-        if (iter != mAccountToTypeHashes.end())
+
+        // Either only one file type exists, or original hash was
+        // sortByAccount
+        if (iter == mAccountToTypeHashes.end())
+        {
+            for (iter = mAccountToTypeHashes.begin();
+                 iter != mAccountToTypeHashes.end(); ++iter)
+            {
+                if (iter->second == hash)
+                {
+                    break;
+                }
+            }
+
+            if (iter != mAccountToTypeHashes.end())
+            {
+
+                // If the hash was a sortByType hash, redo search for
+                // corresponding sortByAccount hash
+                CLOG_TRACE(Bucket,
+                           "BucketManager::getBucketByHashID({}) redirected to "
+                           "sorted-by-account hash {}",
+                           hash.toHex(), iter->first.toHex());
+                i = mSharedBuckets.find(iter->first);
+            }
+        }
+        else
         {
             // If the hash was a sortByAccount hash, redo search for
             // corresponding sortByType hash
             CLOG_TRACE(Bucket,
-                       "BucketManager::getBucketByHash({}) redirected to "
-                       "sorted-by-account hash {}",
-                       binToHex(hash), binToHex(iter->second));
+                       "BucketManager::getBucketByHashID({}) redirected to "
+                       "sorted-by-type hash {}",
+                       hash.toHex(), iter->second.toHex());
             i = mSharedBuckets.find(iter->second);
         }
     }
@@ -655,54 +718,47 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         auto const& ty = i->second->getFilename(BucketSortOrder::SortByType);
         auto const& acct =
             i->second->getFilename(BucketSortOrder::SortByAccount);
-        CLOG_TRACE(Bucket,
-                   "BucketManager::getBucketByHash({}) found bucket by-type:{} "
-                   "/ by-account:{}",
-                   binToHex(hash), ty ? *ty : "<none>",
-                   acct ? *acct : "<none>");
+        CLOG_TRACE(
+            Bucket,
+            "BucketManager::getBucketByHashID({}) found bucket by-type:{} "
+            "/ by-account:{}",
+            hash.toHex(), ty ? *ty : "<none>", acct ? *acct : "<none>");
         return i->second;
     }
 
-    std::filesystem::path canonicalName = bucketFilename(hash);
+    std::filesystem::path canonicalName = bucketFilename(hash.raw());
     if (fs::exists(canonicalName))
     {
-        CLOG_TRACE(Bucket,
-                   "BucketManager::getBucketByHash({}) found no bucket, making "
-                   "new one",
-                   binToHex(hash));
+        CLOG_TRACE(
+            Bucket,
+            "BucketManager::getBucketByHashID({}) found no bucket, making "
+            "new one",
+            hash.toHex());
         auto fileType = Bucket::getFileType(canonicalName);
-        auto b = std::make_shared<Bucket>(canonicalName, hash, fileType);
+        auto b = std::make_shared<Bucket>(canonicalName, hash.raw(), fileType);
         if (fileType == BucketSortOrder::SortByType)
         {
-            if (mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+            // Only time we have to search for a value in the map.
+            // The size of this map should be small (size == number of
+            // referenced buckets), so it doesn't seem worth adding and
+            // maintaining a typeToAccountHash map
+            auto iter = mAccountToTypeHashes.begin();
+            for (; iter != mAccountToTypeHashes.end(); ++iter)
             {
-                // Only time we have to search for a value in the map.
-                // The size of this map should be small (size == number of
-                // referenced buckets), so it doesn't seem worth adding and
-                // maintaining a typeToAccountHash map
-                auto iter = mAccountToTypeHashes.begin();
-                for (; iter != mAccountToTypeHashes.end(); ++iter)
+                if (iter->second == hash)
                 {
-                    if (iter->second == hash)
-                    {
-                        break;
-                    }
+                    break;
                 }
+            }
 
-                if (iter == mAccountToTypeHashes.end())
-                {
-                    Hash resortedHash;
-                    auto resortedFilename = resortFile(
-                        b, BucketSortOrder::SortByType,
-                        BucketSortOrder::SortByAccount, resortedHash);
-                    addFileToBucket(b, resortedFilename, resortedHash,
-                                    BucketSortOrder::SortByAccount);
-                }
-                else
-                {
-                    b->addFile(bucketFilename(iter->first), iter->first,
-                               BucketSortOrder::SortByAccount);
-                }
+            if (iter != mAccountToTypeHashes.end())
+            {
+                releaseAssert(
+                    mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
+                auto sortByAccountFilename = bucketFilename(iter->first.raw());
+                releaseAssert(fs::exists(sortByAccountFilename));
+                b->addFile(sortByAccountFilename, iter->first.raw(),
+                           BucketSortOrder::SortByAccount);
             }
         }
         else
@@ -710,16 +766,16 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
             auto iter = mAccountToTypeHashes.find(hash);
             if (iter == mAccountToTypeHashes.end())
             {
-                Hash resortedHash;
-                auto resortedFilename =
-                    resortFile(b, BucketSortOrder::SortByAccount,
-                               BucketSortOrder::SortByType, resortedHash);
-                addFileToBucket(b, resortedFilename, resortedHash,
-                                BucketSortOrder::SortByType);
+                releaseAssert(
+                    !mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
             }
             else
             {
-                b->addFile(bucketFilename(iter->second), iter->second,
+                releaseAssert(
+                    mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
+                auto sortByTypeFilename = bucketFilename(iter->second.raw());
+                releaseAssert(fs::exists(sortByTypeFilename));
+                b->addFile(sortByTypeFilename, iter->second.raw(),
                            BucketSortOrder::SortByType);
             }
         }
@@ -742,16 +798,16 @@ BucketManagerImpl::getMergeFuture(MergeKey const& key)
     {
         // If there's no live (running) future, we might be able to _make_ one
         // for a retained bucket, if we still know its inputs.
-        Hash bucketHash;
-        if (mFinishedMerges.findMergeFor(key, bucketHash))
+        HashID bucketID;
+        if (mFinishedMerges.findMergeFor(key, bucketID))
         {
-            auto bucket = getBucketByHash(bucketHash);
+            auto bucket = getBucketByHashID(bucketID);
             if (bucket)
             {
                 CLOG_TRACE(Bucket,
                            "BucketManager::getMergeFuture returning new future "
                            "for finished merge {} with output={}",
-                           key, hexAbbrev(bucketHash));
+                           key, bucketID.toLogString());
                 std::promise<std::shared_ptr<Bucket>> promise;
                 auto future = promise.get_future().share();
                 promise.set_value(bucket);
@@ -798,27 +854,22 @@ BucketManagerImpl::clearMergeFuturesForTesting()
 }
 #endif
 
-std::set<Hash>
+std::set<HashID>
 BucketManagerImpl::getReferencedBuckets() const
 {
     ZoneScoped;
-    std::set<Hash> referenced;
+    std::set<HashID> referenced;
     if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         return referenced;
     }
 
-    auto addReferencedFile = [&](auto const& b, BucketSortOrder type) {
-        if (!b->hasFileWithSortOrder(type))
-        {
-            return;
-        }
-
-        auto rit = referenced.emplace(*b->getHash(type));
+    auto addHashID = [&](auto const& b) {
+        auto rit = referenced.emplace(b->getHashID());
         if (rit.second)
         {
             CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
+                       rit.first->toHex());
         }
     };
 
@@ -826,42 +877,18 @@ BucketManagerImpl::getReferencedBuckets() const
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList->getLevel(i);
-        addReferencedFile(level.getCurr(), BucketSortOrder::SortByType);
-        addReferencedFile(level.getCurr(), BucketSortOrder::SortByAccount);
-        addReferencedFile(level.getSnap(), BucketSortOrder::SortByType);
-        addReferencedFile(level.getSnap(), BucketSortOrder::SortByAccount);
+        addHashID(level.getCurr());
+        addHashID(level.getSnap());
 
-        for (auto const& h : level.getNext().getHashes())
+        for (auto const& id : level.getNext().getBucketIDs())
         {
-            auto rit = referenced.emplace(hexToBin256(h));
+            auto rit = referenced.insert(id);
             if (rit.second)
             {
-                CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
+                CLOG_TRACE(Bucket, "{} referenced by bucket list", id.toHex());
             }
         }
     }
-
-    auto addCorrespondingAccountHash = [&](const auto& typeHash,
-                                           const auto& hashStr) {
-        auto iter = mAccountToTypeHashes.begin();
-        for (; iter != mAccountToTypeHashes.end(); ++iter)
-        {
-            if (iter->second == typeHash)
-            {
-                break;
-            }
-        }
-
-        if (iter != mAccountToTypeHashes.end())
-        {
-
-            auto rit = referenced.emplace(iter->first);
-            if (rit.second)
-            {
-                CLOG_TRACE(Bucket, "{} referenced by LCL", hashStr);
-            }
-        }
-    };
 
     // retain any bucket referenced by the last closed ledger as recorded in the
     // database (as merges complete, the bucket list drifts from that state)
@@ -875,7 +902,6 @@ BucketManagerImpl::getReferencedBuckets() const
         {
             CLOG_TRACE(Bucket, "{} referenced by LCL", h);
         }
-        addCorrespondingAccountHash(bucketHash, h);
     }
 
     // retain buckets that are referenced by a state in the publish queue.
@@ -896,7 +922,6 @@ BucketManagerImpl::getReferencedBuckets() const
                 // the future, rather than re-run it.
                 mFinishedMerges.getOutputsUsingInput(rhash, referenced);
             }
-            addCorrespondingAccountHash(rhash, h);
         }
     }
     return referenced;
@@ -915,7 +940,7 @@ BucketManagerImpl::cleanupStaleFiles()
     auto referenced = getReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
                    std::inserter(referenced, std::end(referenced)),
-                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
+                   [](std::pair<HashID, std::shared_ptr<Bucket>> const& p) {
                        return p.first;
                    });
 
@@ -946,6 +971,30 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         // valid.
         auto j = i;
         ++i;
+
+        // Drop sortByType file if no longer needed
+        if (protocolVersionStartsFrom(mApp.getConfig().LEDGER_PROTOCOL_VERSION,
+                                      Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT))
+        {
+            auto sortByTypeFilename =
+                j->second->getFilename(BucketSortOrder::SortByType);
+            if (sortByTypeFilename.has_value())
+            {
+                CLOG_TRACE(Bucket,
+                           "BucketManager::forgetUnreferencedBuckets dropping "
+                           "sortByType file {}",
+                           *sortByTypeFilename);
+                j->second->dropFile(BucketSortOrder::SortByType);
+                auto sortByAccountHashOp =
+                    j->second->getHash(BucketSortOrder::SortByAccount);
+                releaseAssert(sortByAccountHashOp.has_value());
+                mAccountToTypeHashes.erase(*sortByAccountHashOp);
+                if (!mApp.getConfig().DISABLE_BUCKET_GC)
+                {
+                    std::remove(sortByTypeFilename->c_str());
+                }
+            }
+        }
 
         // Only drop buckets if the bucketlist has forgotten them _and_
         // no other in-progress structures (worker threads, shadow lists)
@@ -1016,7 +1065,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                     CLOG_WARNING(
                         Bucket,
                         "Unexpected live future for unreferenced bucket: {}",
-                        binToHex(i->first));
+                        i->first.toHex());
                     mLiveFutures.erase(f);
                 }
             }
@@ -1071,7 +1120,7 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     return hashes;
 }
 
-UnorderedMap<Hash, Hash> const&
+UnorderedMap<HashID, HashID> const&
 BucketManagerImpl::getAccountToTypeHashesForTesting() const
 {
     return mAccountToTypeHashes;
@@ -1087,7 +1136,7 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     Hash hash;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        hash = mBucketList->getHash();
+        hash = mBucketList->getHash(mApp.getConfig().LEDGER_PROTOCOL_VERSION);
     }
 
     currentHeader.bucketListHash = hash;
@@ -1152,8 +1201,8 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
-        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+        auto curr = getBucketByHashID(HashID(has.currentBuckets.at(i).curr));
+        auto snap = getBucketByHashID(HashID(has.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error(
@@ -1168,8 +1217,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                 {
                     Hash resortedHash;
                     auto resortedFilename = resortFile(
-                        b, BucketSortOrder::SortByType,
-                        BucketSortOrder::SortByAccount, resortedHash);
+                        b, BucketSortOrder::SortByType, resortedHash);
                     addFileToBucket(b, resortedFilename, resortedHash,
                                     BucketSortOrder::SortByAccount);
                 }
@@ -1214,7 +1262,8 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
 {
     using namespace std::chrono;
     medida::Timer timer;
-    BucketInputIterator in(b, BucketSortOrder::SortByType);
+    auto type = b->getValidType();
+    BucketInputIterator in(b, type);
     timer.Time([&]() {
         while (in)
         {
@@ -1272,7 +1321,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
         {
             continue;
         }
-        auto b = getBucketByHash(pair.first);
+        auto b = getBucketByHashID(HashID(pair.first));
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
@@ -1294,12 +1343,14 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     BucketMetadata meta;
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
-    meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    auto protocolVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    meta.ledgerVersion = protocolVersion;
     BucketOutputIterator sortByTypeOut(getTmpDir(), /*keepDeadEntries=*/false,
-                                       meta, mc, ctx, /*doFsync=*/true,
-                                       BucketSortOrder::SortByType);
-    auto isExperimental =
-        mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT;
+                                       meta, mc, ctx, /*doFsync=*/true);
+    auto shouldResort =
+        mApp.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT &&
+        protocolVersionIsBefore(protocolVersion,
+                                Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT);
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;
@@ -1307,7 +1358,7 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
         be.liveEntry() = pair.second;
 
         // Resort simultaneously in memory
-        if (isExperimental)
+        if (shouldResort)
         {
             entriesSortedByAccount.insert(be);
         }
@@ -1315,12 +1366,16 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
         sortByTypeOut.put(be);
     }
 
-    if (isExperimental)
+    if (shouldResort)
     {
-        BucketOutputIterator sortByAccountOut(
-            getTmpDir(),
-            /*keepDeadEntries=*/false, meta, mc, ctx,
-            /*doFsync=*/true, BucketSortOrder::SortByAccount);
+        BucketMetadata sortByAccountMeta;
+        sortByAccountMeta.ledgerVersion = std::max(
+            protocolVersion,
+            static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT));
+        BucketOutputIterator sortByAccountOut(getTmpDir(),
+                                              /*keepDeadEntries=*/false,
+                                              sortByAccountMeta, mc, ctx,
+                                              /*doFsync=*/true);
         for (auto const& e : entriesSortedByAccount)
         {
             sortByAccountOut.put(e);
@@ -1337,19 +1392,19 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 std::shared_ptr<BasicWork>
 BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
 {
-    std::set<Hash> hashes = getReferencedBuckets();
+    std::set<HashID> hashes = getReferencedBuckets();
     std::vector<std::shared_ptr<BasicWork>> seq;
     for (auto const& h : hashes)
     {
-        if (isZero(h))
+        if (h.isZero())
         {
             continue;
         }
-        auto b = getBucketByHash(h);
+        auto b = getBucketByHashID(h);
         if (!b)
         {
             throw std::runtime_error(fmt::format(
-                FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
+                FMT_STRING("Missing referenced bucket {}"), h.toHex()));
         }
         for (auto ty :
              {BucketSortOrder::SortByType, BucketSortOrder::SortByAccount})

@@ -137,8 +137,8 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
 {
     auto ledgerEntries =
         LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries =
-        Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
+    auto bucketEntries = Bucket::convertToBucketEntry(false, {}, ledgerEntries,
+                                                      {}, mMeta.ledgerVersion);
     for (auto const& bucketEntry : bucketEntries)
     {
         put(bucketEntry);
@@ -481,16 +481,16 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     mLedgerSeqs.push_back(lclh.header.ledgerSeq);
     mLedgerHashes.push_back(lclh.hash);
     mBucketListHashes.push_back(lclh.header.bucketListHash);
-    mBucket0Hashes.push_back(mApp.getBucketManager()
-                                 .getBucketList()
-                                 .getLevel(0)
-                                 .getCurr()
-                                 ->getPrimaryHash());
-    mBucket1Hashes.push_back(mApp.getBucketManager()
-                                 .getBucketList()
-                                 .getLevel(2)
-                                 .getCurr()
-                                 ->getPrimaryHash());
+    mBucket0IDs.push_back(mApp.getBucketManager()
+                              .getBucketList()
+                              .getLevel(0)
+                              .getCurr()
+                              ->getHashID());
+    mBucket1IDs.push_back(mApp.getBucketManager()
+                              .getBucketList()
+                              .getLevel(2)
+                              .getCurr()
+                              ->getHashID());
 
     rootBalances.push_back(root.getBalance());
     aliceBalances.push_back(alice.getBalance());
@@ -871,23 +871,23 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     auto wantSeq = mLedgerSeqs.at(i);
     auto wantHash = mLedgerHashes.at(i);
     auto wantBucketListHash = mBucketListHashes.at(i);
-    auto wantBucket0Hash = mBucket0Hashes.at(i);
-    auto wantBucket1Hash = mBucket1Hashes.at(i);
+    auto wantBucket0ID = mBucket0IDs.at(i);
+    auto wantBucket1ID = mBucket1IDs.at(i);
 
     auto haveSeq = lm.getLastClosedLedgerNum();
     auto haveHash = lm.getLastClosedLedgerHeader().hash;
     auto haveBucketListHash =
         lm.getLastClosedLedgerHeader().header.bucketListHash;
-    auto haveBucket0Hash = app->getBucketManager()
-                               .getBucketList()
-                               .getLevel(0)
-                               .getCurr()
-                               ->getPrimaryHash();
-    auto haveBucket1Hash = app->getBucketManager()
-                               .getBucketList()
-                               .getLevel(2)
-                               .getCurr()
-                               ->getPrimaryHash();
+    auto haveBucket0ID = app->getBucketManager()
+                             .getBucketList()
+                             .getLevel(0)
+                             .getCurr()
+                             ->getHashID();
+    auto haveBucket1ID = app->getBucketManager()
+                             .getBucketList()
+                             .getLevel(2)
+                             .getCurr()
+                             ->getHashID();
 
     CLOG_INFO(History, "Caught up: want Seq[{}] = {}", i, wantSeq);
     CLOG_INFO(History, "Caught up: have Seq[{}] = {}", i, haveSeq);
@@ -900,25 +900,25 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CLOG_INFO(History, "Caught up: have BucketListHash[{}] = {}", i,
               hexAbbrev(haveBucketListHash));
 
-    CLOG_INFO(History, "Caught up: want Bucket0Hash[{}] = {}", i,
-              hexAbbrev(wantBucket0Hash));
-    CLOG_INFO(History, "Caught up: have Bucket0Hash[{}] = {}", i,
-              hexAbbrev(haveBucket0Hash));
+    CLOG_INFO(History, "Caught up: want Bucket0ID[{}] = {}", i,
+              wantBucket0ID.toLogString());
+    CLOG_INFO(History, "Caught up: have Bucket0ID[{}] = {}", i,
+              haveBucket0ID.toLogString());
 
-    CLOG_INFO(History, "Caught up: want Bucket1Hash[{}] = {}", i,
-              hexAbbrev(wantBucket1Hash));
-    CLOG_INFO(History, "Caught up: have Bucket1Hash[{}] = {}", i,
-              hexAbbrev(haveBucket1Hash));
+    CLOG_INFO(History, "Caught up: want Bucket1ID[{}] = {}", i,
+              wantBucket1ID.toLogString());
+    CLOG_INFO(History, "Caught up: have Bucket1ID[{}] = {}", i,
+              haveBucket1ID.toLogString());
 
     CHECK(nextLedger == haveSeq + 1);
     CHECK(wantSeq == haveSeq);
     CHECK(wantBucketListHash == haveBucketListHash);
     CHECK(wantHash == haveHash);
 
-    CHECK(app->getBucketManager().getBucketByHash(wantBucket0Hash));
-    CHECK(app->getBucketManager().getBucketByHash(wantBucket1Hash));
-    CHECK(wantBucket0Hash == haveBucket0Hash);
-    CHECK(wantBucket1Hash == haveBucket1Hash);
+    CHECK(app->getBucketManager().getBucketByHashID(wantBucket0ID));
+    CHECK(app->getBucketManager().getBucketByHashID(wantBucket1ID));
+    CHECK(wantBucket0ID == haveBucket0ID);
+    CHECK(wantBucket1ID == haveBucket1ID);
 
     auto haveRootBalance = rootBalances.at(i);
     auto haveAliceBalance = aliceBalances.at(i);

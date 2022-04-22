@@ -310,7 +310,7 @@ class BucketLevel
 
   public:
     BucketLevel(uint32_t i);
-    uint256 getHash() const;
+    uint256 getHash(uint32_t protocolVersion) const;
     FutureBucket const& getNext() const;
     FutureBucket& getNext();
     std::shared_ptr<Bucket> getCurr() const;
@@ -400,7 +400,7 @@ class BucketList
     // Return a cumulative hash of the entire bucketlist; this is the hash of
     // the concatenation of each level's hash, each of which in turn is the hash
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
-    Hash getHash() const;
+    Hash getHash(uint32_t protocolVersion) const;
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a

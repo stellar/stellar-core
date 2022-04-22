@@ -23,9 +23,9 @@ struct MergeKey
              std::vector<std::shared_ptr<Bucket>> const& inputShadows);
 
     bool mKeepDeadEntries;
-    Hash mInputCurrBucket;
-    Hash mInputSnapBucket;
-    std::vector<Hash> mInputShadowBuckets;
+    HashID mInputCurrBucket;
+    HashID mInputSnapBucket;
+    std::vector<HashID> mInputShadowBuckets;
     bool operator==(MergeKey const& other) const;
 };
 

@@ -79,6 +79,29 @@ Bucket::addFile(std::filesystem::path const& file, Hash const& hash,
     }
 }
 
+void
+Bucket::dropFile(BucketSortOrder type)
+{
+    if (type == BucketSortOrder::SortByType)
+    {
+        mSortByTypeFilename = std::nullopt;
+        mSortByTypeHash = std::nullopt;
+    }
+    else
+    {
+        mSortByAccountFilename = std::nullopt;
+        mSortByAccountHash = std::nullopt;
+    }
+}
+
+BucketSortOrder
+Bucket::getValidType() const
+{
+    return hasFileWithSortOrder(BucketSortOrder::SortByType)
+               ? BucketSortOrder::SortByType
+               : BucketSortOrder::SortByAccount;
+}
+
 std::optional<Hash const> const&
 Bucket::getHash(BucketSortOrder type) const
 {
@@ -93,20 +116,34 @@ Bucket::getFilename(BucketSortOrder type) const
                                                : mSortByAccountFilename;
 }
 
-Hash const
-Bucket::getPrimaryHash() const
+HashID const
+Bucket::getHashID() const
 {
     if (mSortByAccountHash.has_value())
     {
-        return *mSortByAccountHash;
+        return HashID(*mSortByAccountHash);
     }
 
     if (mSortByTypeHash.has_value())
     {
-        return *mSortByTypeHash;
+        return HashID(*mSortByTypeHash);
     }
 
     return {};
+}
+
+Hash const
+Bucket::getHashByProtocol(uint32_t protocolVersion) const
+{
+    if (protocolVersionIsBefore(protocolVersion,
+                                FIRST_PROTOCOL_SORTED_BY_ACCOUNT))
+    {
+        return mSortByTypeHash.value_or(Hash{});
+    }
+    else
+    {
+        return mSortByAccountHash.value_or(Hash{});
+    }
 }
 
 bool
@@ -137,11 +174,27 @@ Bucket::hasFileWithSortOrder(BucketSortOrder type) const
 bool
 Bucket::containsBucketIdentity(BucketEntry const& id) const
 {
-    BucketInputIterator iter(shared_from_this(), BucketSortOrder::SortByType);
+    auto type = getValidType();
+    BucketInputIterator iter(shared_from_this(), type);
     while (iter)
     {
-        if (!(BucketEntryIdCmp<BucketSortOrder::SortByType>(*iter, id) ||
-              BucketEntryIdCmp<BucketSortOrder::SortByType>(id, *iter)))
+        auto conditional = [&]() {
+            if (type == BucketSortOrder::SortByType)
+            {
+                return !(
+                    BucketEntryIdCmp<BucketSortOrder::SortByType>(*iter, id) ||
+                    BucketEntryIdCmp<BucketSortOrder::SortByType>(id, *iter));
+            }
+            else
+            {
+                return !(BucketEntryIdCmp<BucketSortOrder::SortByAccount>(*iter,
+                                                                          id) ||
+                         BucketEntryIdCmp<BucketSortOrder::SortByAccount>(
+                             id, *iter));
+            }
+        };
+
+        if (conditional())
         {
             return true;
         }
@@ -172,7 +225,8 @@ std::vector<BucketEntry>
 Bucket::convertToBucketEntry(bool useInit,
                              std::vector<LedgerEntry> const& initEntries,
                              std::vector<LedgerEntry> const& liveEntries,
-                             std::vector<LedgerKey> const& deadEntries)
+                             std::vector<LedgerKey> const& deadEntries,
+                             uint32_t protocolVersion)
 {
     std::vector<BucketEntry> bucket;
     for (auto const& e : initEntries)
@@ -197,24 +251,41 @@ Bucket::convertToBucketEntry(bool useInit,
         bucket.push_back(ce);
     }
 
-    std::sort(bucket.begin(), bucket.end(),
-              BucketEntryIdCmp<BucketSortOrder::SortByType>);
-    releaseAssert(std::adjacent_find(
-                      bucket.begin(), bucket.end(),
-                      [](BucketEntry const& lhs, BucketEntry const& rhs) {
-                          return !BucketEntryIdCmp<BucketSortOrder::SortByType>(
-                              lhs, rhs);
-                      }) == bucket.end());
+    // Not sure if there is a better way to refactor this template param
+    auto type = protocolSortOrder(protocolVersion);
+    if (type == BucketSortOrder::SortByType)
+    {
+        std::sort(bucket.begin(), bucket.end(),
+                  BucketEntryIdCmp<BucketSortOrder::SortByType>);
+
+        releaseAssert(
+            std::adjacent_find(
+                bucket.begin(), bucket.end(),
+                [](BucketEntry const& lhs, BucketEntry const& rhs) {
+                    return !BucketEntryIdCmp<BucketSortOrder::SortByType>(lhs,
+                                                                          rhs);
+                }) == bucket.end());
+    }
+    else
+    {
+        std::sort(bucket.begin(), bucket.end(),
+                  BucketEntryIdCmp<BucketSortOrder::SortByAccount>);
+
+        releaseAssert(
+            std::adjacent_find(
+                bucket.begin(), bucket.end(),
+                [](BucketEntry const& lhs, BucketEntry const& rhs) {
+                    return !BucketEntryIdCmp<BucketSortOrder::SortByAccount>(
+                        lhs, rhs);
+                }) == bucket.end());
+    }
     return bucket;
 }
 
 BucketSortOrder
-Bucket::getFileType(std::filesystem::path filename)
+Bucket::protocolSortOrder(uint32_t protocolVersion)
 {
-    // Dummy bucket for convenience
-    auto bucket = std::make_shared<Bucket>(filename, Hash{});
-    BucketInputIterator it(bucket);
-    if (protocolVersionIsBefore(it.getMetadata().ledgerVersion,
+    if (protocolVersionIsBefore(protocolVersion,
                                 FIRST_PROTOCOL_SORTED_BY_ACCOUNT))
     {
         return BucketSortOrder::SortByType;
@@ -223,6 +294,16 @@ Bucket::getFileType(std::filesystem::path filename)
     {
         return BucketSortOrder::SortByAccount;
     }
+}
+
+BucketSortOrder
+Bucket::getFileType(std::filesystem::path filename)
+{
+    // Dummy bucket for convenience, type doesn't matter
+    auto type = BucketSortOrder::SortByType;
+    auto bucket = std::make_shared<Bucket>(filename, Hash{}, type);
+    BucketInputIterator it(bucket, type);
+    return protocolSortOrder(it.getMetadata().ledgerVersion);
 }
 
 std::shared_ptr<Bucket>
@@ -238,18 +319,19 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     // protocols, for compatibility sake, we mark both cases as LIVEENTRY.
     bool useInit = protocolVersionStartsFrom(
         protocolVersion, FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+    auto type = protocolSortOrder(protocolVersion);
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    auto entries =
-        convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
+    auto entries = convertToBucketEntry(useInit, initEntries, liveEntries,
+                                        deadEntries, protocolVersion);
 
     MergeCounters mc;
-    BucketOutputIterator sortByTypeOut(bucketManager.getTmpDir(), true, meta,
-                                       mc, ctx, doFsync);
+    BucketOutputIterator primaryOut(bucketManager.getTmpDir(), true, meta, mc,
+                                    ctx, doFsync);
     for (auto const& e : entries)
     {
-        sortByTypeOut.put(e);
+        primaryOut.put(e);
     }
 
     if (countMergeEvents)
@@ -257,7 +339,8 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
 
-    if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+    if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT &&
+        type != BucketSortOrder::SortByAccount)
     {
         // Re-sort the bucket in memory. This function is only called to create
         // new buckets at level 0, so bucket should be small enough that an in
@@ -275,20 +358,24 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
                         lhs, rhs);
                 }) == entries.end());
 
+        BucketMetadata sortByAccountMeta;
+        sortByAccountMeta.ledgerVersion =
+            std::max(protocolVersion,
+                     static_cast<uint32_t>(FIRST_PROTOCOL_SORTED_BY_ACCOUNT));
         BucketOutputIterator sortByAccountOut(bucketManager.getTmpDir(), true,
-                                              meta, mc, ctx, doFsync,
-                                              BucketSortOrder::SortByAccount);
+                                              sortByAccountMeta, mc, ctx,
+                                              doFsync);
         for (auto const& e : entries)
         {
             sortByAccountOut.put(e);
         }
 
-        return sortByTypeOut.getBucket(bucketManager, /*mergeKey=*/nullptr,
-                                       &sortByAccountOut);
+        return primaryOut.getBucket(bucketManager, /*mergeKey=*/nullptr,
+                                    &sortByAccountOut);
     }
     else
     {
-        return sortByTypeOut.getBucket(bucketManager, /*mergeKey=*/nullptr);
+        return primaryOut.getBucket(bucketManager, /*mergeKey=*/nullptr);
     }
 }
 
@@ -330,7 +417,7 @@ Bucket::checkProtocolLegality(BucketEntry const& entry,
 inline void
 maybePut(BucketEntryIdCmpProto const& cmp, BucketOutputIterator& out,
          BucketEntry const& entry,
-         std::vector<BucketInputIterator>& shadowIterators,
+         std::deque<BucketInputIterator>& shadowIterators,
          bool keepShadowedLifecycleEntries, MergeCounters& mc)
 {
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
@@ -382,7 +469,7 @@ maybePut(BucketEntryIdCmpProto const& cmp, BucketOutputIterator& out,
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
-        while (si && BucketEntryIdCmp<BucketSortOrder::SortByType>(*si, entry))
+        while (si && cmp(*si, entry))
         {
             ++mc.mShadowScanSteps;
             ++si;
@@ -478,8 +565,9 @@ static void
 calculateMergeProtocolVersion(
     MergeCounters& mc, uint32_t maxProtocolVersion,
     BucketInputIterator const& oi, BucketInputIterator const& ni,
-    std::vector<BucketInputIterator> const& shadowIterators,
-    uint32& protocolVersion, bool& keepShadowedLifecycleEntries)
+    std::deque<BucketInputIterator> const& shadowIterators,
+    uint32& protocolVersion, bool& keepShadowedLifecycleEntries,
+    bool isExperimental)
 {
     protocolVersion = std::max(oi.getMetadata().ledgerVersion,
                                ni.getMetadata().ledgerVersion);
@@ -502,7 +590,7 @@ calculateMergeProtocolVersion(
     CLOG_TRACE(Bucket, "Bucket merge protocolVersion={}, maxProtocolVersion={}",
                protocolVersion, maxProtocolVersion);
 
-    if (protocolVersion > maxProtocolVersion)
+    if (protocolVersion > maxProtocolVersion && !isExperimental)
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING(
@@ -527,18 +615,21 @@ calculateMergeProtocolVersion(
         ++mc.mPostInitEntryProtocolMerges;
     }
 
-    if (protocolVersionIsBefore(protocolVersion,
-                                Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+    if (!isExperimental)
     {
-        ++mc.mPreShadowRemovalProtocolMerges;
-    }
-    else
-    {
-        if (!shadowIterators.empty())
+        if (protocolVersionIsBefore(protocolVersion,
+                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
-            throw std::runtime_error("Shadows are not supported");
+            ++mc.mPreShadowRemovalProtocolMerges;
         }
-        ++mc.mPostShadowRemovalProtocolMerges;
+        else
+        {
+            if (!shadowIterators.empty())
+            {
+                throw std::runtime_error("Shadows are not supported");
+            }
+            ++mc.mPostShadowRemovalProtocolMerges;
+        }
     }
 }
 
@@ -550,7 +641,7 @@ static bool
 mergeCasesWithDefaultAcceptance(
     BucketEntryIdCmpProto const& cmp, MergeCounters& mc,
     BucketInputIterator& oi, BucketInputIterator& ni, BucketOutputIterator& out,
-    std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
+    std::deque<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
     bool keepShadowedLifecycleEntries)
 {
     if (!ni || (oi && ni && cmp(*oi, *ni)))
@@ -594,7 +685,7 @@ static void
 mergeCasesWithEqualKeys(BucketEntryIdCmpProto const& cmp, MergeCounters& mc,
                         BucketInputIterator& oi, BucketInputIterator& ni,
                         BucketOutputIterator& out,
-                        std::vector<BucketInputIterator>& shadowIterators,
+                        std::deque<BucketInputIterator>& shadowIterators,
                         uint32_t protocolVersion,
                         bool keepShadowedLifecycleEntries)
 {
@@ -730,20 +821,29 @@ writeMergeToIter(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 {
     BucketInputIterator oi(oldBucket, type);
     BucketInputIterator ni(newBucket, type);
-    std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
-                                                     shadows.end());
+    std::deque<BucketInputIterator> shadowIterators;
+    for (auto const& shadow : shadows)
+    {
+        shadowIterators.emplace_back(shadow, type);
+    }
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni,
-                                  shadowIterators, protocolVersion,
-                                  keepShadowedLifecycleEntries);
+    calculateMergeProtocolVersion(
+        mc, maxProtocolVersion, oi, ni, shadowIterators, protocolVersion,
+        keepShadowedLifecycleEntries,
+        bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT);
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    auto out = std::make_shared<BucketOutputIterator>(bucketManager.getTmpDir(),
-                                                      keepDeadEntries, meta, mc,
-                                                      ctx, doFsync, type);
+    if constexpr (type == BucketSortOrder::SortByAccount)
+    {
+        meta.ledgerVersion = std::max(
+            protocolVersion,
+            static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT));
+    }
+    auto out = std::make_shared<BucketOutputIterator>(
+        bucketManager.getTmpDir(), keepDeadEntries, meta, mc, ctx, doFsync);
 
     size_t iter = 0;
     while (oi || ni)
@@ -806,6 +906,14 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
     if (bucketManager.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
     {
+        releaseAssert(
+            oldBucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount) ==
+            oldBucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
+
+        releaseAssert(
+            newBucket->hasFileWithSortOrder(BucketSortOrder::SortByAccount) ==
+            newBucket->hasFileWithSortOrder(BucketSortOrder::SortByType));
+
         auto sortByAccountOut =
             writeMergeToIter<BucketSortOrder::SortByAccount>(
                 bucketManager, maxProtocolVersion, oldBucket, newBucket,
@@ -823,9 +931,9 @@ uint32_t
 Bucket::getBucketVersion(std::shared_ptr<Bucket const> bucket)
 {
     releaseAssert(bucket);
-    auto type = bucket->hasFileWithSortOrder(BucketSortOrder::SortByType)
-                    ? BucketSortOrder::SortByType
-                    : BucketSortOrder::SortByAccount;
+
+    // Check sortByType first to return lowest protocol version
+    auto type = bucket->getValidType();
     BucketInputIterator it(bucket, type);
     return it.getMetadata().ledgerVersion;
 }

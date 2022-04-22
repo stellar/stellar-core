@@ -32,8 +32,9 @@ TEST_CASE("XDROutputFileStream fail modes", "[xdrstream]")
         SHA256 hasher;
         size_t bytes = 0;
         auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(1);
+        // Just error testing, protocol version doesn't matter
         auto bucketEntries =
-            Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
+            Bucket::convertToBucketEntry(false, {}, ledgerEntries, {}, 0);
 
         REQUIRE_THROWS_AS(out.writeOne(bucketEntries[0], &hasher, &bytes),
                           std::runtime_error);
@@ -51,8 +52,8 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
 
     SHA256 hasher;
     auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(10000000);
-    auto bucketEntries =
-        Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
+    auto bucketEntries = Bucket::convertToBucketEntry(
+        false, {}, ledgerEntries, {}, cfg.LEDGER_PROTOCOL_VERSION);
 
     fs::mkpath(cfg.BUCKET_DIR_PATH);
 

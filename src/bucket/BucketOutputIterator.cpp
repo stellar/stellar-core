@@ -54,15 +54,14 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
                                            bool keepDeadEntries,
                                            BucketMetadata const& meta,
                                            MergeCounters& mc,
-                                           asio::io_context& ctx, bool doFsync,
-                                           BucketSortOrder type)
+                                           asio::io_context& ctx, bool doFsync)
     : mFilename(randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
-    , mType(type)
+    , mType(Bucket::protocolSortOrder(meta.ledgerVersion))
 {
     ZoneScoped;
     CLOG_TRACE(Bucket, "BucketOutputIterator opening file to write: {}",

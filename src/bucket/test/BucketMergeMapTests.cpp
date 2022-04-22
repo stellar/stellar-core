@@ -68,66 +68,65 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
     MergeKey m5{true, in5a, in5b, {}};
     MergeKey m6{true, in6a, in6b, {in1a}};
 
-    bmm.recordMerge(m1, out1->getPrimaryHash());
-    bmm.recordMerge(m2, out2->getPrimaryHash());
+    bmm.recordMerge(m1, out1->getHashID());
+    bmm.recordMerge(m2, out2->getHashID());
     // m3 produces same as m2
-    bmm.recordMerge(m3, out2->getPrimaryHash());
-    bmm.recordMerge(m4, out4->getPrimaryHash());
+    bmm.recordMerge(m3, out2->getHashID());
+    bmm.recordMerge(m4, out4->getHashID());
     // m5 isn't recorded
     // m6 reuses an input from m1
-    bmm.recordMerge(m6, out6->getPrimaryHash());
+    bmm.recordMerge(m6, out6->getHashID());
 
-    Hash t;
+    HashID t;
     REQUIRE(bmm.findMergeFor(m1, t));
-    REQUIRE(t == out1->getPrimaryHash());
+    REQUIRE(t == out1->getHashID());
     REQUIRE(bmm.findMergeFor(m2, t));
-    REQUIRE(t == out2->getPrimaryHash());
+    REQUIRE(t == out2->getHashID());
     REQUIRE(bmm.findMergeFor(m3, t));
-    REQUIRE(t == out2->getPrimaryHash());
+    REQUIRE(t == out2->getHashID());
     REQUIRE(bmm.findMergeFor(m4, t));
-    REQUIRE(t == out4->getPrimaryHash());
+    REQUIRE(t == out4->getHashID());
     REQUIRE(!bmm.findMergeFor(m5, t));
     REQUIRE(bmm.findMergeFor(m6, t));
-    REQUIRE(t == out6->getPrimaryHash());
+    REQUIRE(t == out6->getHashID());
 
-    std::set<Hash> outs;
-    bmm.getOutputsUsingInput(in1a->getPrimaryHash(), outs);
-    REQUIRE(outs ==
-            std::set<Hash>{out1->getPrimaryHash(), out6->getPrimaryHash()});
+    std::set<HashID> outs;
+    bmm.getOutputsUsingInput(in1a->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{out1->getHashID(), out6->getHashID()});
     outs.clear();
-    bmm.getOutputsUsingInput(in1b->getPrimaryHash(), outs);
-    REQUIRE(outs == std::set<Hash>{out1->getPrimaryHash()});
+    bmm.getOutputsUsingInput(in1b->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{out1->getHashID()});
     outs.clear();
-    bmm.getOutputsUsingInput(in1c->getPrimaryHash(), outs);
-    REQUIRE(outs == std::set<Hash>{out1->getPrimaryHash()});
+    bmm.getOutputsUsingInput(in1c->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{out1->getHashID()});
 
-    REQUIRE(bmm.forgetAllMergesProducing(out1->getPrimaryHash()) ==
+    REQUIRE(bmm.forgetAllMergesProducing(out1->getHashID()) ==
             UnorderedSet<MergeKey>{m1});
     REQUIRE(!bmm.findMergeFor(m1, t));
     outs.clear();
-    bmm.getOutputsUsingInput(in1a->getPrimaryHash(), outs);
-    REQUIRE(outs == std::set<Hash>{out6->getPrimaryHash()});
+    bmm.getOutputsUsingInput(in1a->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{out6->getHashID()});
 
-    REQUIRE(bmm.forgetAllMergesProducing(out2->getPrimaryHash()) ==
+    REQUIRE(bmm.forgetAllMergesProducing(out2->getHashID()) ==
             UnorderedSet<MergeKey>{m2, m3});
     REQUIRE(!bmm.findMergeFor(m2, t));
     REQUIRE(!bmm.findMergeFor(m3, t));
 
-    REQUIRE(bmm.forgetAllMergesProducing(out4->getPrimaryHash()) ==
+    REQUIRE(bmm.forgetAllMergesProducing(out4->getHashID()) ==
             UnorderedSet<MergeKey>{m4});
     REQUIRE(!bmm.findMergeFor(m4, t));
 
-    REQUIRE(bmm.forgetAllMergesProducing(out6->getPrimaryHash()) ==
+    REQUIRE(bmm.forgetAllMergesProducing(out6->getHashID()) ==
             UnorderedSet<MergeKey>{m6});
     REQUIRE(!bmm.findMergeFor(m6, t));
     outs.clear();
-    bmm.getOutputsUsingInput(in6a->getPrimaryHash(), outs);
-    REQUIRE(outs == std::set<Hash>{});
+    bmm.getOutputsUsingInput(in6a->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{});
     outs.clear();
-    bmm.getOutputsUsingInput(in1a->getPrimaryHash(), outs);
-    REQUIRE(outs == std::set<Hash>{});
+    bmm.getOutputsUsingInput(in1a->getHashID(), outs);
+    REQUIRE(outs == std::set<HashID>{});
 
     // Second forget produces empty set.
-    REQUIRE(bmm.forgetAllMergesProducing(out1->getPrimaryHash()) ==
+    REQUIRE(bmm.forgetAllMergesProducing(out1->getHashID()) ==
             UnorderedSet<MergeKey>{});
 }

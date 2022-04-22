@@ -4,12 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/HashID.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
+#include <optional>
 #include <string>
 
 namespace stellar
@@ -41,9 +43,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     size_t mSize{0};
 
   public:
-    static constexpr BucketSortOrder LEDGER_HASH_SORT_ORDER =
-        BucketSortOrder::SortByType;
-
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
@@ -52,7 +51,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
     Bucket(std::filesystem::path const& filename, Hash const& hash,
-           BucketSortOrder type = BucketSortOrder::SortByType);
+           BucketSortOrder type);
 
     // Associates a file with the given sort order and hash to the bucket.
     // Asserts that the file exists, but does not check that the hash is the
@@ -61,10 +60,26 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     void addFile(std::filesystem::path const& filename, Hash const& hash,
                  BucketSortOrder type);
 
+    // Drop reference to file of the given sort order, if it exists
+    // Note: This does not delete the file, BucketManager should handle that
+    void dropFile(BucketSortOrder type);
+
+    // Returns a valid sort order for the bucket
+    BucketSortOrder getValidType() const;
+
     std::optional<Hash const> const& getHash(BucketSortOrder type) const;
     std::optional<std::filesystem::path const> const&
     getFilename(BucketSortOrder type) const;
-    Hash const getPrimaryHash() const;
+
+    // Returns a hash to identify this bucket internally. Can be any hash type.
+    HashID const getHashID() const;
+
+    // Returns the bucket hash in whichever sort order is required by the given
+    // protocol version
+    Hash const getHashByProtocol(uint32_t protocolVersion) const;
+
+    // Returns true if the bucket does not have any hashes or files assocaited
+    // with it, false otherwise
     bool isEmpty() const;
 
     size_t getSize() const;
@@ -90,13 +105,17 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
 
-    static std::vector<BucketEntry>
-    convertToBucketEntry(bool useInit,
-                         std::vector<LedgerEntry> const& initEntries,
-                         std::vector<LedgerEntry> const& liveEntries,
-                         std::vector<LedgerKey> const& deadEntries);
+    static std::vector<BucketEntry> convertToBucketEntry(
+        bool useInit, std::vector<LedgerEntry> const& initEntries,
+        std::vector<LedgerEntry> const& liveEntries,
+        std::vector<LedgerKey> const& deadEntries, uint32_t protocolVersion);
 
+    // Returns sort order of given file
     static BucketSortOrder getFileType(std::filesystem::path filename);
+
+    // Returns sort order that should be used to calculate the LedgerHeader hash
+    // for the given protocol version
+    static BucketSortOrder protocolSortOrder(uint32_t protocolVersion);
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
@@ -134,6 +153,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
           bool doFsync);
 
+    // Returns oldest protocol number associated with bucket
     static uint32_t getBucketVersion(std::shared_ptr<Bucket const> bucket);
 };
 }

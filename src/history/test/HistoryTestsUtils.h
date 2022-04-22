@@ -192,8 +192,8 @@ class CatchupSimulation
     std::vector<uint32_t> mLedgerSeqs;
     std::vector<uint256> mLedgerHashes;
     std::vector<uint256> mBucketListHashes;
-    std::vector<uint256> mBucket0Hashes;
-    std::vector<uint256> mBucket1Hashes;
+    std::vector<HashID> mBucket0IDs;
+    std::vector<HashID> mBucket1IDs;
 
     std::vector<int64_t> rootBalances;
     std::vector<int64_t> aliceBalances;

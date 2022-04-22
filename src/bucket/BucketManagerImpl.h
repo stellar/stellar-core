@@ -42,7 +42,7 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<BucketList> mBucketList;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
-    std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+    std::map<HashID, std::shared_ptr<Bucket>> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::filesystem::path> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
@@ -50,7 +50,7 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
     MergeCounters mMergeCounters;
-    UnorderedMap<Hash, Hash> mAccountToTypeHashes;
+    UnorderedMap<HashID, HashID> mAccountToTypeHashes;
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -116,10 +116,9 @@ class BucketManagerImpl : public BucketManager
 
     std::filesystem::path resortFile(std::shared_ptr<Bucket> b,
                                      BucketSortOrder oldType,
-                                     BucketSortOrder newType,
                                      Hash& hash) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
-    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+    std::shared_ptr<Bucket> getBucketByHashID(HashID const& hash) override;
 
     std::shared_future<std::shared_ptr<Bucket>>
     getMergeFuture(MergeKey const& key) override;
@@ -146,11 +145,11 @@ class BucketManagerImpl : public BucketManager
 
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 
-    UnorderedMap<Hash, Hash> const&
+    UnorderedMap<HashID, HashID> const&
     getAccountToTypeHashesForTesting() const override;
 #endif
 
-    std::set<Hash> getReferencedBuckets() const override;
+    std::set<HashID> getReferencedBuckets() const override;
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has,

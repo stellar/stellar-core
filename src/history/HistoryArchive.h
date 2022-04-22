@@ -71,7 +71,8 @@ struct HistoryArchiveState
     HistoryArchiveState();
 
     HistoryArchiveState(uint32_t ledgerSeq, BucketList const& buckets,
-                        std::string const& networkPassphrase);
+                        std::string const& networkPassphrase,
+                        uint32_t protocolVersion);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();

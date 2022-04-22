@@ -29,15 +29,15 @@ BucketLevel::BucketLevel(uint32_t i)
 }
 
 uint256
-BucketLevel::getHash() const
+BucketLevel::getHash(uint32_t protocolVersion) const
 {
     SHA256 hsh;
-    auto const& curr = mCurr->getHash(Bucket::LEDGER_HASH_SORT_ORDER);
-    auto const& snap = mSnap->getHash(Bucket::LEDGER_HASH_SORT_ORDER);
+    auto curr = mCurr->getHashByProtocol(protocolVersion);
+    auto snap = mSnap->getHashByProtocol(protocolVersion);
 
     // Empty bucket effects hash, so add empty hash if option is null
-    hsh.add(curr.value_or(Hash{}));
-    hsh.add(snap.value_or(Hash{}));
+    hsh.add(curr);
+    hsh.add(snap);
 
     return hsh.finish();
 }
@@ -365,13 +365,13 @@ BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 }
 
 uint256
-BucketList::getHash() const
+BucketList::getHash(uint32_t portocolVersion) const
 {
     ZoneScoped;
     SHA256 hsh;
     for (auto const& lev : mLevels)
     {
-        hsh.add(lev.getHash());
+        hsh.add(lev.getHash(portocolVersion));
     }
     return hsh.finish();
 }

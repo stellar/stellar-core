@@ -176,7 +176,7 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
             for (auto const& b : has.allBuckets())
             {
                 auto bPtr =
-                    app->getBucketManager().getBucketByHash(hexToBin256(b));
+                    app->getBucketManager().getBucketByHashID(HashID(b));
                 releaseAssert(bPtr);
                 retained.insert(bPtr);
             }
@@ -421,7 +421,8 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     auto bucket = bm.mergeBuckets(has);
 
     using std::filesystem::path;
-    auto pathOp = bucket->getFilename(BucketSortOrder::SortByType);
+    auto sortType = Bucket::protocolSortOrder(cfg.LEDGER_PROTOCOL_VERSION);
+    auto pathOp = bucket->getFilename(sortType);
     releaseAssert(pathOp.has_value());
     path bpath(*pathOp);
     path outpath(outputDir);
@@ -481,7 +482,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     Application::pointer app = Application::create(clock, cfg, false);
 
     uint256 zero;
-    Bucket bucket(bucketFile, zero);
+    Bucket bucket(bucketFile, zero, Bucket::getFileType(bucketFile));
     bucket.apply(*app);
 }
 

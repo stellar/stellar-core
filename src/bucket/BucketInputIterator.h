@@ -49,7 +49,11 @@ class BucketInputIterator
 
     // Creates iterator for file of given sort order associated with the bucket
     BucketInputIterator(std::shared_ptr<Bucket const> bucket,
-                        BucketSortOrder type = BucketSortOrder::SortByType);
+                        BucketSortOrder type);
+
+    // Creates iterator for file of given sort order based on protocol version
+    BucketInputIterator(std::shared_ptr<Bucket const> bucket,
+                        uint32_t protocolVersion);
 
     ~BucketInputIterator();
 

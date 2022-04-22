@@ -1495,21 +1495,18 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             BucketTests::EntryCounts lev0CurrCounts(lev0Curr);
             BucketTests::EntryCounts lev0SnapCounts(lev0Snap);
             BucketTests::EntryCounts lev1CurrCounts(lev1Curr);
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
-            };
             switch (ledgerSeq)
             {
             default:
             case 8:
-                REQUIRE(getVers(lev1Curr) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev1Curr) == newProto);
                 REQUIRE(lev1CurrCounts.nInit != 0);
             case 7:
             case 6:
-                REQUIRE(getVers(lev0Snap) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Snap) == newProto);
                 REQUIRE(lev0SnapCounts.nInit != 0);
             case 5:
-                REQUIRE(getVers(lev0Curr) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Curr) == newProto);
                 REQUIRE(lev0CurrCounts.nInit != 0);
             }
         }
@@ -1583,14 +1580,11 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
             auto lev1Snap = lev1.getSnap();
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
-            };
             switch (ledgerSeq)
             {
             case 8:
-                REQUIRE(getVers(lev1Curr) == newProto);
-                REQUIRE(getVers(lev1Snap) == oldProto);
+                REQUIRE(Bucket::getBucketVersion(lev1Curr) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev1Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 6);
                 // One more old-style merge despite the upgrade
                 // At ledger 8, level 2 spills, and starts an old-style merge,
@@ -1598,20 +1592,20 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 7:
-                REQUIRE(getVers(lev0Snap) == newProto);
-                REQUIRE(getVers(lev1Curr) == oldProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Snap) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 4);
                 REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;
             case 6:
-                REQUIRE(getVers(lev0Snap) == newProto);
-                REQUIRE(getVers(lev1Curr) == oldProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Snap) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 3);
                 REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;
             case 5:
-                REQUIRE(getVers(lev0Curr) == newProto);
-                REQUIRE(getVers(lev0Snap) == oldProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Curr) == newProto);
+                REQUIRE(Bucket::getBucketVersion(lev0Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 1);
                 REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;

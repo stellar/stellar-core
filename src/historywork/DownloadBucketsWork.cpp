@@ -94,16 +94,22 @@ DownloadBucketsWork::yieldMoreWork()
         if (self)
         {
             auto bucketPath = ft.localPath_nogz();
+            auto fileType = Bucket::getFileType(bucketPath);
             auto b = app.getBucketManager().adoptFileAsBucket(
                 bucketPath, hexToBin256(hash),
                 /*objectsPut=*/0,
-                /*bytesPut=*/0, BucketSortOrder::SortByType);
-            if (app.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT)
+                /*bytesPut=*/0, fileType);
+
+            auto shouldResort = protocolVersionStartsFrom(
+                app.getConfig().LEDGER_PROTOCOL_VERSION,
+                Bucket::FIRST_PROTOCOL_SORTED_BY_ACCOUNT);
+            if ((app.getConfig().EXPERIMENTAL_BUCKETS_SORTED_BY_ACCOUNT &&
+                 fileType == BucketSortOrder::SortByType) ||
+                shouldResort)
             {
                 Hash resortedHash;
                 auto resortedFilename = app.getBucketManager().resortFile(
-                    b, BucketSortOrder::SortByType,
-                    BucketSortOrder::SortByAccount, resortedHash);
+                    b, BucketSortOrder::SortByType, resortedHash);
 
                 app.getBucketManager().addFileToBucket(
                     b, resortedFilename, resortedHash,

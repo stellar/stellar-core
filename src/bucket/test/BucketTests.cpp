@@ -86,7 +86,8 @@ for_versions_with_differing_initentry_logic(
 
 EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
 {
-    BucketInputIterator iter(bucket);
+    // Type of file doesn't matter
+    BucketInputIterator iter(bucket, bucket->getValidType());
     if (iter.seenMetadata())
     {
         ++nMeta;
@@ -167,7 +168,7 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
                     /*doFsync=*/true);
             }
         }
-        auto pathOp = b1->getFilename(BucketSortOrder::SortByType);
+        auto pathOp = b1->getFilename(b1->getValidType());
         REQUIRE(pathOp.has_value());
         auto sz = static_cast<size_t>(fileSize(*pathOp));
         CLOG_DEBUG(Bucket, "Spill file size: {}", sz);

@@ -108,6 +108,12 @@ BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket,
     }
 }
 
+BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket,
+                                         uint32_t protocolVersion)
+    : BucketInputIterator(bucket, Bucket::protocolSortOrder(protocolVersion))
+{
+}
+
 BucketInputIterator::~BucketInputIterator()
 {
     mIn.close();

@@ -39,6 +39,7 @@ FutureBucket::FutureBucket(Application& app,
     , mInputCurrBucket(curr)
     , mInputSnapBucket(snap)
     , mInputShadowBuckets(shadows)
+    , mProtocolVersion(app.getConfig().LEDGER_PROTOCOL_VERSION)
 {
     ZoneScoped;
     // Constructed with a bunch of inputs, _immediately_ commence merging
@@ -46,8 +47,8 @@ FutureBucket::FutureBucket(Application& app,
     // presence of inputs implies merging, and vice-versa.
     releaseAssert(curr);
     releaseAssert(snap);
-    mInputCurrBucketHash = binToHex(curr->getPrimaryHash());
-    mInputSnapBucketHash = binToHex(snap->getPrimaryHash());
+    mInputCurrBucketHash = binToHex(curr->getHashByProtocol(mProtocolVersion));
+    mInputSnapBucketHash = binToHex(snap->getHashByProtocol(mProtocolVersion));
     if (protocolVersionStartsFrom(Bucket::getBucketVersion(snap),
                                   Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
     {
@@ -59,7 +60,7 @@ FutureBucket::FutureBucket(Application& app,
     }
     for (auto const& b : mInputShadowBuckets)
     {
-        mInputShadowBucketHashes.push_back(binToHex(b->getPrimaryHash()));
+        mInputShadowBucketIDs.push_back(b->getHashID());
     }
     startMerge(app, maxProtocolVersion, countMergeEvents, level);
 }
@@ -69,15 +70,16 @@ FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 {
     ZoneScoped;
     mState = FB_LIVE_OUTPUT;
-    mOutputBucketHash = binToHex(output->getPrimaryHash());
+    mOutputBucketHash = binToHex(output->getHashByProtocol(mProtocolVersion));
     mOutputBucket = output;
     checkState();
 }
 
-static void
-checkHashEq(std::shared_ptr<Bucket> const& b, std::string const& h)
+void
+FutureBucket::checkHashEq(std::shared_ptr<Bucket> const& b,
+                          std::string const& h) const
 {
-    releaseAssert(b->getPrimaryHash() == hexToBin256(h));
+    releaseAssert(b->getHashByProtocol(mProtocolVersion) == hexToBin256(h));
 }
 
 void
@@ -87,11 +89,11 @@ FutureBucket::checkHashesMatch() const
     if (!mInputShadowBuckets.empty())
     {
         releaseAssert(mInputShadowBuckets.size() ==
-                      mInputShadowBucketHashes.size());
+                      mInputShadowBucketIDs.size());
         for (size_t i = 0; i < mInputShadowBuckets.size(); ++i)
         {
-            checkHashEq(mInputShadowBuckets.at(i),
-                        mInputShadowBucketHashes.at(i));
+            releaseAssert(mInputShadowBuckets.at(i)->getHashID() ==
+                          mInputShadowBucketIDs.at(i));
         }
     }
     if (mInputSnapBucket)
@@ -125,7 +127,7 @@ FutureBucket::checkState() const
         releaseAssert(!mInputCurrBucket);
         releaseAssert(!mOutputBucket);
         releaseAssert(!mOutputBucketFuture.valid());
-        releaseAssert(mInputShadowBucketHashes.empty());
+        releaseAssert(mInputShadowBucketIDs.empty());
         releaseAssert(mInputSnapBucketHash.empty());
         releaseAssert(mInputCurrBucketHash.empty());
         releaseAssert(mOutputBucketHash.empty());
@@ -181,7 +183,7 @@ FutureBucket::clearInputs()
     mInputSnapBucket.reset();
     mInputCurrBucket.reset();
 
-    mInputShadowBucketHashes.clear();
+    mInputShadowBucketIDs.clear();
     mInputSnapBucketHash.clear();
     mInputCurrBucketHash.clear();
 }
@@ -259,7 +261,8 @@ FutureBucket::resolve()
     {
         auto timer = LogSlowExecution("Resolving bucket");
         mOutputBucket = mOutputBucketFuture.get();
-        mOutputBucketHash = binToHex(mOutputBucket->getPrimaryHash());
+        mOutputBucketHash =
+            binToHex(mOutputBucket->getHashByProtocol(mProtocolVersion));
 
         // Explicitly reset shared_future to ensure destruction of shared state.
         // Some compilers store packaged_task lambdas in the shared state,
@@ -312,7 +315,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     // on entry, only on exit.
 
     releaseAssert(mState == FB_LIVE_INPUTS);
-
+    mProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     std::shared_ptr<Bucket> curr = mInputCurrBucket;
     std::shared_ptr<Bucket> snap = mInputSnapBucket;
     std::vector<std::shared_ptr<Bucket>> shadows = mInputShadowBuckets;
@@ -323,8 +326,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     releaseAssert(!mOutputBucket);
 
     CLOG_TRACE(Bucket, "Preparing merge of curr={} with snap={}",
-               hexAbbrev(curr->getPrimaryHash()),
-               hexAbbrev(snap->getPrimaryHash()));
+               hexAbbrev(curr->getHashByProtocol(mProtocolVersion)),
+               hexAbbrev(snap->getHashByProtocol(mProtocolVersion)));
 
     BucketManager& bm = app.getBucketManager();
     auto& timer = app.getMetrics().NewTimer(
@@ -341,20 +344,20 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     {
         CLOG_TRACE(Bucket,
                    "Re-attached to existing merge of curr={} with snap={}",
-                   hexAbbrev(curr->getPrimaryHash()),
-                   hexAbbrev(snap->getPrimaryHash()));
+                   hexAbbrev(curr->getHashByProtocol(mProtocolVersion)),
+                   hexAbbrev(snap->getHashByProtocol(mProtocolVersion)));
         mOutputBucketFuture = f;
         checkState();
         return;
     }
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
-         &timer, &app]() mutable {
+        [curr, snap, &bm, shadows, countMergeEvents, level, &timer, &app,
+         maxProtocolVersion, protocolVersion = mProtocolVersion]() mutable {
             auto timeScope = timer.TimeScope();
             CLOG_TRACE(Bucket, "Worker merging curr={} with snap={}",
-                       hexAbbrev(curr->getPrimaryHash()),
-                       hexAbbrev(snap->getPrimaryHash()));
+                       hexAbbrev(curr->getHashByProtocol(protocolVersion)),
+                       hexAbbrev(snap->getHashByProtocol(protocolVersion)));
 
             try
             {
@@ -369,10 +372,10 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
                 if (res)
                 {
-                    CLOG_TRACE(Bucket,
-                               "Worker finished merging curr={} with snap={}",
-                               hexAbbrev(curr->getPrimaryHash()),
-                               hexAbbrev(snap->getPrimaryHash()));
+                    CLOG_TRACE(
+                        Bucket, "Worker finished merging curr={} with snap={}",
+                        hexAbbrev(curr->getHashByProtocol(protocolVersion)),
+                        hexAbbrev(snap->getHashByProtocol(protocolVersion)));
 
                     std::chrono::duration<double> time(timeScope.Stop());
                     double timePct =
@@ -392,9 +395,9 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                 throw std::runtime_error(fmt::format(
                     FMT_STRING("Error merging bucket curr={} with snap={}: "
                                "{}. {}"),
-                    hexAbbrev(curr->getPrimaryHash()),
-                    hexAbbrev(snap->getPrimaryHash()), e.what(),
-                    POSSIBLY_CORRUPTED_LOCAL_FS));
+                    hexAbbrev(curr->getHashByProtocol(protocolVersion)),
+                    hexAbbrev(snap->getHashByProtocol(protocolVersion)),
+                    e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
             };
         });
 
@@ -413,30 +416,75 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
     checkState();
     releaseAssert(!isLive());
     releaseAssert(hasHashes());
+    mProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
-        setLiveOutput(bm.getBucketByHash(hexToBin256(getOutputHash())));
+        setLiveOutput(bm.getBucketByHashID(HashID(getOutputHash())));
     }
     else
     {
         releaseAssert(mState == FB_HASH_INPUTS);
-        mInputCurrBucket =
-            bm.getBucketByHash(hexToBin256(mInputCurrBucketHash));
-        mInputSnapBucket =
-            bm.getBucketByHash(hexToBin256(mInputSnapBucketHash));
+        mInputCurrBucket = bm.getBucketByHashID(HashID(mInputCurrBucketHash));
+        mInputSnapBucket = bm.getBucketByHashID(HashID(mInputSnapBucketHash));
         releaseAssert(mInputShadowBuckets.empty());
-        for (auto const& h : mInputShadowBucketHashes)
+        for (auto const& id : mInputShadowBucketIDs)
         {
-            auto b = bm.getBucketByHash(hexToBin256(h));
+            auto b = bm.getBucketByHashID(id);
             releaseAssert(b);
-            CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);
+            CLOG_DEBUG(Bucket, "Reconstituting shadow {}", id.toHex());
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;
         startMerge(app, maxProtocolVersion, /*countMergeEvents=*/true, level);
         releaseAssert(isLive());
     }
+}
+
+std::vector<HashID>
+FutureBucket::getBucketIDs() const
+{
+    ZoneScoped;
+    std::vector<HashID> hashes;
+    if (!mInputCurrBucketHash.empty())
+    {
+        if (mInputCurrBucket)
+        {
+            hashes.push_back(mInputCurrBucket->getHashID());
+        }
+        else
+        {
+            hashes.emplace_back(mInputCurrBucketHash);
+        }
+    }
+    if (!mInputSnapBucketHash.empty())
+    {
+        if (mInputSnapBucket)
+        {
+            hashes.push_back(mInputSnapBucket->getHashID());
+        }
+        else
+        {
+            hashes.emplace_back(mInputSnapBucketHash);
+        }
+    }
+    for (auto const& b : mInputShadowBuckets)
+    {
+        hashes.push_back(b->getHashID());
+    }
+    if (!mOutputBucketHash.empty())
+    {
+        if (mOutputBucket)
+        {
+            hashes.push_back(mOutputBucket->getHashID());
+        }
+        else
+        {
+            hashes.emplace_back(mOutputBucketHash);
+        }
+    }
+
+    return hashes;
 }
 
 std::vector<std::string>
@@ -452,9 +500,9 @@ FutureBucket::getHashes() const
     {
         hashes.push_back(mInputSnapBucketHash);
     }
-    for (auto h : mInputShadowBucketHashes)
+    for (auto b : mInputShadowBuckets)
     {
-        hashes.push_back(h);
+        hashes.push_back(binToHex(b->getHashByProtocol(mProtocolVersion)));
     }
     if (!mOutputBucketHash.empty())
     {

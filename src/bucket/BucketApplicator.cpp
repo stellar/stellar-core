@@ -21,7 +21,7 @@ BucketApplicator::BucketApplicator(Application& app,
                                    std::function<bool(LedgerEntryType)> filter)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
-    , mBucketIter(bucket)
+    , mBucketIter(bucket, Bucket::getBucketVersion(bucket))
     , mEntryTypeFilter(filter)
 {
     auto protocolVersion = mBucketIter.getMetadata().ledgerVersion;
