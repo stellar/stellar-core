@@ -176,8 +176,9 @@ PendingEnvelopes::updateMetrics()
     mReadyCount.set_count(ready);
 }
 
-TxSetFramePtr
-PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset)
+TxSetFrameConstPtr
+PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
+                           TxSetFrameConstPtr txset)
 {
     auto res = getKnownTxSet(hash, slot, true);
     if (!res)
@@ -192,12 +193,12 @@ PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset)
 // tries to find a txset in memory, setting touch also touches the LRU,
 // extending the lifetime of the result *and* updating the slot number
 // to a greater value if needed
-TxSetFramePtr
+TxSetFrameConstPtr
 PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 {
     // slot is only used when `touch` is set
     releaseAssert(touch || (slot == 0));
-    TxSetFramePtr res;
+    TxSetFrameConstPtr res;
     auto it = mKnownTxSets.find(hash);
     if (it != mKnownTxSets.end())
     {
@@ -223,7 +224,7 @@ PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 
 void
 PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
-                           TxSetFramePtr txset)
+                           TxSetFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
@@ -233,7 +234,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
 }
 
 bool
-PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
+PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
@@ -707,7 +708,7 @@ PendingEnvelopes::forceRebuildQuorum()
     mRebuildQuorum = true;
 }
 
-TxSetFramePtr
+TxSetFrameConstPtr
 PendingEnvelopes::getTxSet(Hash const& hash)
 {
     return getKnownTxSet(hash, 0, false);

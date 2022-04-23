@@ -640,7 +640,7 @@ TxSimApplyTransactionsWork::onReset()
 
         TransactionSet txSetXDR;
         txSetXDR.previousLedgerHash = lclHeader.hash;
-        auto txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
+        auto txSet = std::make_shared<TxSetFrame const>(mNetworkID, txSetXDR);
 
         sv.txSetHash = txSet->getContentsHash();
         sv.closeTime = mHeaderHistory.header.scpValue.closeTime;

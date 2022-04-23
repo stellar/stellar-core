@@ -833,11 +833,11 @@ TransactionQueue::isBanned(Hash const& hash) const
         });
 }
 
-std::shared_ptr<TxSetFrame>
+TxSetFrameConstPtr
 TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
 {
     ZoneScoped;
-    auto result = std::make_shared<TxSetFrame>(lcl.hash);
+    std::vector<TransactionFrameBasePtr> txs;
 
     uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;
     int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);
@@ -856,11 +856,11 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
             {
                 break;
             }
-            result->add(tx.mTx);
+            txs.emplace_back(tx.mTx);
         }
     }
 
-    return result;
+    return std::make_shared<TxSetFrame const>(lcl.hash, txs);
 }
 
 void

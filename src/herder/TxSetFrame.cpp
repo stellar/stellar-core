@@ -33,23 +33,26 @@ namespace stellar
 
 using namespace std;
 
+TxSetFrame::TxSetFrame(Hash const& previousLedgerHash,
+                       Transactions const& transactions)
+    : mPreviousLedgerHash(previousLedgerHash)
+    , mTxsInHashOrder(TxSetFrame::sortTxsInHashOrder(transactions))
+    , mHash(
+          TxSetFrame::computeContentsHash(previousLedgerHash, mTxsInHashOrder))
+{
+}
+
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
-    : mHash(std::nullopt)
-    , mValid(std::nullopt)
-    , mPreviousLedgerHash(previousLedgerHash)
+    : TxSetFrame(previousLedgerHash, Transactions{})
 {
 }
 
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
-    : mHash(std::nullopt), mValid(std::nullopt)
+    : mPreviousLedgerHash(xdrSet.previousLedgerHash)
+    , mTxsInHashOrder(TxSetFrame::sortTxsInHashOrder(networkID, xdrSet))
+    , mHash(
+          TxSetFrame::computeContentsHash(mPreviousLedgerHash, mTxsInHashOrder))
 {
-    ZoneScoped;
-    for (auto const& env : xdrSet.txs)
-    {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
-        mTransactions.push_back(tx);
-    }
-    mPreviousLedgerHash = xdrSet.previousLedgerHash;
 }
 
 static bool
@@ -63,13 +66,28 @@ HashTxSorter(TransactionFrameBasePtr const& tx1,
 
 // order the txset correctly
 // must take into account multiple tx from same account
-void
-TxSetFrame::sortForHash()
+TxSetFrame::Transactions
+TxSetFrame::sortTxsInHashOrder(TxSetFrame::Transactions const& transactions)
 {
     ZoneScoped;
-    std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter);
-    mHash.reset();
-    mValid.reset();
+    TxSetFrame::Transactions sortedTxs(transactions);
+    std::sort(sortedTxs.begin(), sortedTxs.end(), HashTxSorter);
+    return sortedTxs;
+}
+
+TxSetFrame::Transactions
+sortTxsInHashOrder(Hash const& networkID, TransactionSet const& xdrSet)
+{
+    ZoneScoped;
+    TxSetFrame::Transactions txs;
+    txs.reserve(xdrSet.txs.size());
+    std::transform(xdrSet.txs.cbegin(), xdrSet.txs.cend(),
+                   std::back_inserter(txs),
+                   [&](TransactionEnvelope const& env) {
+                       return TransactionFrameBase::makeTransactionFromWire(
+                           networkID, env);
+                   });
+    return TxSetFrame::sortTxsInHashOrder(txs);
 }
 
 // We want to XOR the tx hash with the set hash.
@@ -91,13 +109,6 @@ struct ApplyTxSorter
     }
 };
 
-static bool
-SeqSorter(TransactionFrameBasePtr const& tx1,
-          TransactionFrameBasePtr const& tx2)
-{
-    return tx1->getSeqNum() < tx2->getSeqNum();
-}
-
 /*
     Build a list of transaction ready to be applied to the last closed ledger,
     based on the transaction set.
@@ -106,16 +117,16 @@ SeqSorter(TransactionFrameBasePtr const& tx1,
     * transactions for an account are sorted by sequence number (ascending)
     * the order between accounts is randomized
 */
-std::vector<TransactionFrameBasePtr>
-TxSetFrame::sortForApply()
+TxSetFrame::Transactions
+TxSetFrame::getTxsInApplyOrder() const
 {
     ZoneScoped;
-    auto txQueues = buildAccountTxQueues();
+    auto txQueues = TxSetFrame::buildAccountTxQueues(*this);
 
     // build txBatches
     // txBatches i-th element contains each i-th transaction for accounts with a
     // transaction in the transaction set
-    std::list<std::deque<TransactionFrameBasePtr>> txBatches;
+    std::list<AccountTransactionQueue> txBatches;
 
     while (!txQueues.empty())
     {
@@ -139,8 +150,8 @@ TxSetFrame::sortForApply()
         }
     }
 
-    vector<TransactionFrameBasePtr> retList;
-    retList.reserve(mTransactions.size());
+    Transactions txsInApplyOrder;
+    txsInApplyOrder.reserve(mTxsInHashOrder.size());
     for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
@@ -149,11 +160,10 @@ TxSetFrame::sortForApply()
         std::sort(batch.begin(), batch.end(), s);
         for (auto const& tx : batch)
         {
-            retList.push_back(tx);
+            txsInApplyOrder.push_back(tx);
         }
     }
-
-    return retList;
+    return txsInApplyOrder;
 }
 
 struct SurgeCompare
@@ -192,17 +202,17 @@ struct SurgeCompare
 };
 
 UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
-TxSetFrame::buildAccountTxQueues()
+TxSetFrame::buildAccountTxQueues(TxSetFrame const& txSet)
 {
     ZoneScoped;
-    UnorderedMap<AccountID, AccountTransactionQueue> actTxQueueMap;
-    for (auto& tx : mTransactions)
+    UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue> actTxQueueMap;
+    for (auto const& tx : txSet.getTxsInHashOrder())
     {
         auto id = tx->getSourceID();
         auto it = actTxQueueMap.find(id);
         if (it == actTxQueueMap.end())
         {
-            auto d = std::make_pair(id, AccountTransactionQueue{});
+            auto d = std::make_pair(id, TxSetFrame::AccountTransactionQueue{});
             auto r = actTxQueueMap.insert(d);
             it = r.first;
         }
@@ -212,13 +222,17 @@ TxSetFrame::buildAccountTxQueues()
     for (auto& am : actTxQueueMap)
     {
         // sort each in sequence number order
-        std::sort(am.second.begin(), am.second.end(), SeqSorter);
+        std::sort(am.second.begin(), am.second.end(),
+                  [](TransactionFrameBasePtr const& tx1,
+                     TransactionFrameBasePtr const& tx2) {
+                      return tx1->getSeqNum() < tx2->getSeqNum();
+                  });
     }
     return actTxQueueMap;
 }
 
-void
-TxSetFrame::surgePricingFilter(Application& app)
+TxSetFrameConstPtr
+TxSetFrame::surgePricingFilter(TxSetFrameConstPtr txSet, Application& app)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -229,16 +243,18 @@ TxSetFrame::surgePricingFilter(Application& app)
 
     size_t opsLeft = app.getLedgerManager().getLastMaxTxSetSizeOps();
 
-    auto curSizeOps = maxIsOps ? sizeOp() : (sizeTx() * MAX_OPS_PER_TX);
+    auto curSizeOps =
+        maxIsOps ? txSet->sizeOp() : (txSet->sizeTx() * MAX_OPS_PER_TX);
     if (curSizeOps > opsLeft)
     {
         CLOG_WARNING(Herder, "surge pricing in effect! {} > {}", curSizeOps,
                      opsLeft);
 
-        auto actTxQueueMap = buildAccountTxQueues();
+        auto actTxQueueMap = buildAccountTxQueues(*txSet);
 
-        std::priority_queue<AccountTransactionQueue*,
-                            std::vector<AccountTransactionQueue*>, SurgeCompare>
+        std::priority_queue<TxSetFrame::AccountTransactionQueue*,
+                            std::vector<TxSetFrame::AccountTransactionQueue*>,
+                            SurgeCompare>
             surgeQueue;
 
         for (auto& am : actTxQueueMap)
@@ -246,8 +262,8 @@ TxSetFrame::surgePricingFilter(Application& app)
             surgeQueue.push(&am.second);
         }
 
-        std::vector<TransactionFrameBasePtr> updatedSet;
-        updatedSet.reserve(mTransactions.size());
+        TxSetFrame::Transactions updatedSet;
+        updatedSet.reserve(txSet->sizeTx());
         while (opsLeft > 0 && !surgeQueue.empty())
         {
             auto cur = surgeQueue.top();
@@ -274,16 +290,18 @@ TxSetFrame::surgePricingFilter(Application& app)
                 cur->clear();
             }
         }
-        mTransactions = std::move(updatedSet);
-        sortForHash();
+
+        return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(),
+                                                  updatedSet);
     }
+    return txSet;
 }
 
-bool
-TxSetFrame::checkOrTrim(Application& app,
-                        std::vector<TransactionFrameBasePtr>& trimmed,
-                        bool justCheck, uint64_t lowerBoundCloseTimeOffset,
-                        uint64_t upperBoundCloseTimeOffset)
+TxSetFrame::Transactions
+TxSetFrame::getInvalidTxList(Application& app, TxSetFrame const& txSet,
+                             uint64_t lowerBoundCloseTimeOffset,
+                             uint64_t upperBoundCloseTimeOffset,
+                             bool returnEarlyOnFirstInvalidTx)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -298,7 +316,9 @@ TxSetFrame::checkOrTrim(Application& app,
     }
 
     UnorderedMap<AccountID, int64_t> accountFeeMap;
-    auto accountTxMap = buildAccountTxQueues();
+    TxSetFrame::Transactions invalidTxs;
+
+    auto accountTxMap = buildAccountTxQueues(txSet);
     for (auto& kv : accountTxMap)
     {
         int64_t lastSeq = 0;
@@ -306,7 +326,6 @@ TxSetFrame::checkOrTrim(Application& app,
         while (iter != kv.second.end())
         {
             auto tx = *iter;
-
             // In addition to checkValid, we also want to make sure that all but
             // the transaction with the lowest seqNum on a given sourceAccount
             // do not have minSeqAge and minSeqLedgerGap set
@@ -317,7 +336,9 @@ TxSetFrame::checkOrTrim(Application& app,
                 !tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
                                 upperBoundCloseTimeOffset))
             {
-                if (justCheck)
+                invalidTxs.emplace_back(tx);
+                iter = kv.second.erase(iter);
+                if (returnEarlyOnFirstInvalidTx)
                 {
                     if (minSeqCheckIsInvalid)
                     {
@@ -333,18 +354,15 @@ TxSetFrame::checkOrTrim(Application& app,
                             Herder,
                             "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
                             "result: {}",
-                            hexAbbrev(mPreviousLedgerHash), lastSeq,
+                            hexAbbrev(txSet.previousLedgerHash()), lastSeq,
                             xdr_to_string(tx->getEnvelope(),
                                           "TransactionEnvelope"),
                             tx->getResultCode());
                     }
-                    return false;
+                    return invalidTxs;
                 }
-                trimmed.emplace_back(tx);
-                removeTx(tx);
-                iter = kv.second.erase(iter);
             }
-            else
+            else // update the account fee map
             {
                 lastSeq = tx->getSeqNum();
                 int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
@@ -372,20 +390,19 @@ TxSetFrame::checkOrTrim(Application& app,
             auto totFee = accountFeeMap[tx->getFeeSourceID()];
             if (getAvailableBalance(header, feeSource) < totFee)
             {
-                if (justCheck)
+                while (iter != kv.second.end())
+                {
+                    invalidTxs.emplace_back(*iter);
+                    ++iter;
+                }
+                if (returnEarlyOnFirstInvalidTx)
                 {
                     CLOG_DEBUG(Herder,
                                "Got bad txSet: {} account can't pay fee tx: {}",
-                               hexAbbrev(mPreviousLedgerHash),
+                               hexAbbrev(txSet.previousLedgerHash()),
                                xdr_to_string(tx->getEnvelope(),
                                              "TransactionEnvelope"));
-                    return false;
-                }
-                while (iter != kv.second.end())
-                {
-                    trimmed.emplace_back(*iter);
-                    removeTx(*iter);
-                    ++iter;
+                    return invalidTxs;
                 }
             }
             else
@@ -395,19 +412,7 @@ TxSetFrame::checkOrTrim(Application& app,
         }
     }
 
-    return true;
-}
-
-std::vector<TransactionFrameBasePtr>
-TxSetFrame::trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                        uint64_t upperBoundCloseTimeOffset)
-{
-    ZoneScoped;
-    std::vector<TransactionFrameBasePtr> trimmed;
-    sortForHash();
-    checkOrTrim(app, trimmed, false, lowerBoundCloseTimeOffset,
-                upperBoundCloseTimeOffset);
-    return trimmed;
+    return invalidTxs;
 }
 
 // need to make sure every account that is submitting a tx has enough to pay
@@ -415,20 +420,16 @@ TxSetFrame::trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 // check seq num
 bool
 TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                       uint64_t upperBoundCloseTimeOffset)
+                       uint64_t upperBoundCloseTimeOffset) const
 {
     ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    if (mValid && mValid->first == lcl.hash)
-    {
-        return mValid->second;
-    }
+
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {}, expected {}",
                    hexAbbrev(mPreviousLedgerHash), hexAbbrev(lcl.hash));
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
@@ -436,70 +437,95 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: too many txs {} > {}",
                    this->size(lcl.header), lcl.header.maxTxSetSize);
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
-    if (!std::is_sorted(mTransactions.begin(), mTransactions.end(),
+    if (!std::is_sorted(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
                         [](auto const& lhs, auto const& rhs) {
                             return lhs->getFullHash() < rhs->getFullHash();
                         }))
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {} not sorted correctly",
                    hexAbbrev(mPreviousLedgerHash));
-        mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
-    std::vector<TransactionFrameBasePtr> trimmed;
-    bool valid = checkOrTrim(app, trimmed, true, lowerBoundCloseTimeOffset,
-                             upperBoundCloseTimeOffset);
-    mValid = std::make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
-    return valid;
+    return TxSetFrame::getInvalidTxList(app, *this, lowerBoundCloseTimeOffset,
+                                        upperBoundCloseTimeOffset, true)
+        .empty();
 }
 
-void
-TxSetFrame::removeTx(TransactionFrameBasePtr tx)
+// Target use case is to remove a subset of invalid transactions from a TxSet.
+// I.e. txSet.size() >= txsToRemove.size()
+TxSetFrameConstPtr
+TxSetFrame::removeTxs(TxSetFrameConstPtr txSet,
+                      TxSetFrame::Transactions const& txsToRemove)
 {
-    auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
-    if (it != mTransactions.end())
-        mTransactions.erase(it);
-    mHash.reset();
-    mValid.reset();
+    // hashmap from the full txSet
+    std::unordered_map<Hash, TransactionFrameBasePtr> fullTxSetHashMap;
+    fullTxSetHashMap.reserve(txSet->sizeTx());
+    std::transform(txSet->getTxsInHashOrder().cbegin(),
+                   txSet->getTxsInHashOrder().cend(),
+                   std::inserter(fullTxSetHashMap, fullTxSetHashMap.end()),
+                   [](TransactionFrameBasePtr const& tx) {
+                       return std::pair<Hash, TransactionFrameBasePtr>{
+                           tx->getFullHash(), tx};
+                   });
+
+    // candidate tx hashes to be removed
+    std::unordered_set<Hash> removeTxHashSet;
+    removeTxHashSet.reserve(txsToRemove.size());
+    std::transform(
+        txsToRemove.cbegin(), txsToRemove.cend(),
+        std::inserter(removeTxHashSet, removeTxHashSet.end()),
+        [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
+
+    // remove txs
+    for (auto it = fullTxSetHashMap.begin(); it != fullTxSetHashMap.end();)
+    {
+        if (removeTxHashSet.find(it->first) != removeTxHashSet.end())
+        {
+            it = fullTxSetHashMap.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // get back remaining txs
+    TxSetFrame::Transactions txs;
+    txs.reserve(fullTxSetHashMap.size());
+    std::transform(fullTxSetHashMap.cbegin(), fullTxSetHashMap.cend(),
+                   std::back_inserter(txs),
+                   [](std::pair<Hash, TransactionFrameBasePtr> const& p) {
+                       return p.second;
+                   });
+
+    return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(), txs);
 }
 
-Hash const&
-TxSetFrame::getContentsHash()
+TxSetFrameConstPtr
+addTxs(TxSetFrameConstPtr txSet, TxSetFrame::Transactions const& newTxs)
+{
+    auto updated = txSet->getTxsInHashOrder();
+    updated.insert(updated.end(), newTxs.begin(), newTxs.end());
+    return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(),
+                                              updated);
+}
+
+Hash
+TxSetFrame::computeContentsHash(Hash const& previousLedgerHash,
+                                TxSetFrame::Transactions const& txsInHashOrder)
 {
     ZoneScoped;
-    if (!mHash)
+    SHA256 hasher;
+    hasher.add(previousLedgerHash);
+    for (unsigned int n = 0; n < txsInHashOrder.size(); n++)
     {
-        sortForHash();
-        SHA256 hasher;
-        hasher.add(mPreviousLedgerHash);
-        for (unsigned int n = 0; n < mTransactions.size(); n++)
-        {
-            hasher.add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
-        }
-        mHash = std::make_optional<Hash>(hasher.finish());
+        hasher.add(xdr::xdr_to_opaque(txsInHashOrder[n]->getEnvelope()));
     }
-    return *mHash;
-}
-
-Hash&
-TxSetFrame::previousLedgerHash()
-{
-    // Handing out a mutable reference means the caller might
-    // be mutating, so we treat this as an invalidation event.
-    mHash.reset();
-    mValid.reset();
-    return mPreviousLedgerHash;
-}
-
-Hash const&
-TxSetFrame::previousLedgerHash() const
-{
-    return mPreviousLedgerHash;
+    return hasher.finish();
 }
 
 size_t
@@ -514,7 +540,7 @@ size_t
 TxSetFrame::sizeOp() const
 {
     ZoneScoped;
-    return std::accumulate(mTransactions.begin(), mTransactions.end(),
+    return std::accumulate(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
                            size_t(0),
                            [](size_t a, TransactionFrameBasePtr const& tx) {
                                return a + tx->getNumOperations();
@@ -529,7 +555,7 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
     {
         size_t ops = 0;
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
-        for (auto& txPtr : mTransactions)
+        for (auto& txPtr : mTxsInHashOrder)
         {
             auto txOps = txPtr->getNumOperations();
             ops += txOps;
@@ -558,7 +584,7 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 {
     ZoneScoped;
     auto baseFee = getBaseFee(lh);
-    return std::accumulate(mTransactions.begin(), mTransactions.end(),
+    return std::accumulate(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
                            int64_t(0),
                            [&](int64_t t, TransactionFrameBasePtr const& tx) {
                                return t + tx->getFee(lh, baseFee, true);
@@ -566,15 +592,15 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 }
 
 void
-TxSetFrame::toXDR(TransactionSet& txSet)
+TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
-    releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
+    releaseAssert(std::is_sorted(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
                                  HashTxSorter));
-    txSet.txs.resize(xdr::size32(mTransactions.size()));
-    for (unsigned int n = 0; n < mTransactions.size(); n++)
+    txSet.txs.resize(xdr::size32(mTxsInHashOrder.size()));
+    for (unsigned int n = 0; n < mTxsInHashOrder.size(); n++)
     {
-        txSet.txs[n] = mTransactions[n]->getEnvelope();
+        txSet.txs[n] = mTxsInHashOrder[n]->getEnvelope();
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }

@@ -213,10 +213,10 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     mLastExternalize = mApp.getClock().now();
 
     // perform cleanups
-    TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
+    auto externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
     if (externalizedSet)
     {
-        updateTransactionQueue(externalizedSet->mTransactions);
+        updateTransactionQueue(externalizedSet->getTxsInHashOrder());
     }
 
     // Evict slots that are outside of our ledger validity bracket
@@ -265,7 +265,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
                      slotIndex, hexAbbrev(value.txSetHash));
     }
 
-    TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
+    TxSetFrameConstPtr externalizedSet =
+        mPendingEnvelopes.getTxSet(value.txSetHash);
 
     // save the SCP messages in the database
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
@@ -696,14 +697,14 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     ZoneScoped;
     mPendingEnvelopes.addTxSet(txset.getContentsHash(),
                                envelope.statement.slotIndex,
-                               std::make_shared<TxSetFrame>(txset));
+                               std::make_shared<TxSetFrame const>(txset));
     mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
     return recvSCPEnvelope(envelope);
 }
 
 void
-HerderImpl::externalizeValue(std::shared_ptr<TxSetFrame> txSet,
-                             uint32_t ledgerSeq, uint64_t closeTime,
+HerderImpl::externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
+                             uint64_t closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
                              std::optional<SecretKey> skToSignValue)
 {
@@ -961,7 +962,7 @@ bool
 HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
 {
     ZoneScoped;
-    auto txset = std::make_shared<TxSetFrame>(t);
+    auto txset = std::make_shared<TxSetFrame const>(t);
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
@@ -973,7 +974,7 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetFramePtr
+TxSetFrameConstPtr
 HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
@@ -1097,11 +1098,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
-    auto removed = proposedSet->trimInvalid(mApp, lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset);
-    mTransactionQueue.ban(removed);
+    auto invalidTxs = TxSetFrame::getInvalidTxList(
+        mApp, *proposedSet, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, false);
 
-    proposedSet->surgePricingFilter(mApp);
+    mTransactionQueue.ban(invalidTxs);
+    proposedSet = TxSetFrame::removeTxs(proposedSet, invalidTxs);
+    proposedSet = TxSetFrame::surgePricingFilter(proposedSet, mApp);
 
     // we not only check that the value is valid for consensus (offset=0) but
     // also that we performed the proper cleanup above
@@ -1597,7 +1600,7 @@ HerderImpl::persistSCPState(uint64 slot)
 
     // saves SCP messages and related data (transaction sets, quorum sets)
     xdr::xvector<SCPEnvelope> latestEnvs;
-    std::map<Hash, TxSetFramePtr> txSets;
+    std::map<Hash, TxSetFrameConstPtr> txSets;
     std::map<Hash, SCPQuorumSetPtr> quorumSets;
 
     for (auto const& e : getSCP().getLatestMessagesSend(slot))
@@ -1664,8 +1667,8 @@ HerderImpl::restoreSCPState()
 
             for (auto const& txset : latestTxSets)
             {
-                TxSetFramePtr cur =
-                    make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
+                TxSetFrameConstPtr cur =
+                    make_shared<TxSetFrame const>(mApp.getNetworkID(), txset);
                 Hash h = cur->getContentsHash();
                 mPendingEnvelopes.addTxSet(h, 0, cur);
             }
@@ -1791,10 +1794,11 @@ HerderImpl::updateTransactionQueue(
     lhhe.hash = HashUtils::random();
     auto txSet = mTransactionQueue.toTxSet(lhhe);
 
-    auto removed = txSet->trimInvalid(
-        mApp, 0,
-        getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
-    mTransactionQueue.ban(removed);
+    auto invalidTxs = TxSetFrame::getInvalidTxList(
+        mApp, *txSet, 0,
+        getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
+        false);
+    mTransactionQueue.ban(invalidTxs);
 
     mTransactionQueue.rebroadcast();
 }

@@ -17,8 +17,7 @@ namespace stellar
 class Application;
 
 class TxSetFrame;
-typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
-typedef std::shared_ptr<TxSetFrame const> TxSetFrameConstPtr;
+using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 
 class AbstractTxSetFrameForApply
 {
@@ -27,7 +26,7 @@ class AbstractTxSetFrameForApply
 
     virtual int64_t getBaseFee(LedgerHeader const& lh) const = 0;
 
-    virtual Hash const& getContentsHash() = 0;
+    virtual Hash const& getContentsHash() const = 0;
 
     virtual Hash const& previousLedgerHash() const = 0;
 
@@ -35,78 +34,97 @@ class AbstractTxSetFrameForApply
 
     virtual size_t sizeOp() const = 0;
 
-    virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
-    virtual void toXDR(TransactionSet& set) = 0;
+    // virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
+    virtual void toXDR(TransactionSet& set) const = 0;
 };
 
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
-    std::optional<Hash> mHash;
-
-    // mValid caches both the last app LCL that we checked
-    // vaidity for, and the result of that validity check.
-    std::optional<std::pair<Hash, bool>> mValid;
-
-    Hash mPreviousLedgerHash;
-
+  public:
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
+    using Transactions = std::vector<TransactionFrameBasePtr>;
 
-    bool checkOrTrim(Application& app,
-                     std::vector<TransactionFrameBasePtr>& trimmed,
-                     bool justCheck, uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset);
+  protected:
+    Hash const mPreviousLedgerHash;
 
-    UnorderedMap<AccountID, AccountTransactionQueue> buildAccountTxQueues();
+    Transactions const mTxsInHashOrder;
+
+    Hash const mHash;
+
+    static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
+    buildAccountTxQueues(TxSetFrame const& txSet);
+
     friend struct SurgeCompare;
 
   public:
-    std::vector<TransactionFrameBasePtr> mTransactions;
+    TxSetFrame(Hash const& previousLedgerHash,
+               Transactions const& transactions);
 
     TxSetFrame(Hash const& previousLedgerHash);
-
-    TxSetFrame(TxSetFrame const& other) = default;
 
     // make it from the wire
     TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet);
 
+    TxSetFrame(TxSetFrame const& other) = default;
+
     virtual ~TxSetFrame(){};
 
     // returns the hash of this tx set
-    Hash const& getContentsHash() override;
+    Hash const&
+    getContentsHash() const override
+    {
+        return mHash;
+    }
 
-    Hash& previousLedgerHash();
-    Hash const& previousLedgerHash() const override;
+    static Hash
+    computeContentsHash(Hash const& previousLedgerHash,
+                        TxSetFrame::Transactions const& txsInHashOrder);
 
-    virtual void sortForHash();
+    Hash const&
+    previousLedgerHash() const override
+    {
+        return mPreviousLedgerHash;
+    }
 
-    std::vector<TransactionFrameBasePtr> sortForApply() override;
+    Transactions const&
+    getTxsInHashOrder() const
+    {
+        return mTxsInHashOrder;
+    }
+
+    virtual Transactions getTxsInApplyOrder() const;
+
+    static Transactions
+    sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
+
+    static Transactions sortTxsInHashOrder(Hash const& networkID,
+                                           TransactionSet const& xdrSet);
 
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset);
+                    uint64_t upperBoundCloseTimeOffset) const;
 
-    // remove invalid transaction from this set and return those removed
-    // transactions
-    std::vector<TransactionFrameBasePtr>
-    trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                uint64_t upperBoundCloseTimeOffset);
-    void surgePricingFilter(Application& app);
+    static TxSetFrameConstPtr surgePricingFilter(TxSetFrameConstPtr txSet,
+                                                 Application& app);
 
-    void removeTx(TransactionFrameBasePtr tx);
+    static Transactions getInvalidTxList(Application& app,
+                                         TxSetFrame const& txSet,
+                                         uint64_t lowerBoundCloseTimeOffset,
+                                         uint64_t upperBoundCloseTimeOffset,
+                                         bool returnEarlyOnFirstInvalidTx);
 
-    void
-    add(TransactionFrameBasePtr tx)
-    {
-        mTransactions.push_back(tx);
-        mHash.reset();
-        mValid.reset();
-    }
+    static TxSetFrameConstPtr
+    removeTxs(TxSetFrameConstPtr txSet,
+              TxSetFrame::Transactions const& txsToRemove);
+
+    static TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
+                                     TxSetFrame::Transactions const& newTxs);
 
     size_t size(LedgerHeader const& lh) const;
 
     size_t
     sizeTx() const override
     {
-        return mTransactions.size();
+        return mTxsInHashOrder.size();
     }
 
     size_t sizeOp() const override;
@@ -116,6 +134,6 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     // return the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
-    void toXDR(TransactionSet& set) override;
+    void toXDR(TransactionSet& set) const override;
 };
 } // namespace stellar

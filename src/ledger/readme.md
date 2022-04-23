@@ -150,7 +150,7 @@ but when it comes to actually applying them, they need to be sorted such that
 transactions for a given account are applied in sequence number order and also
 randomized enough so that it becomes unfeasible to submit a transaction and
 guarantee that it will be executed before or after another transaction in the set.
-_See `TxSetFrame::sortForApply` for more detail._
+_See `TxSetFrame::getTxsInApplyOrder` for more detail._
 
 2. Once the list of transactions to apply is computed, each transaction is
 applied to the ledger.

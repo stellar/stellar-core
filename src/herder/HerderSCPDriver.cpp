@@ -106,7 +106,7 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
     HerderImpl& mHerder;
 
     SCPQuorumSetPtr mQSet;
-    std::vector<TxSetFramePtr> mTxSets;
+    std::vector<TxSetFrameConstPtr> mTxSets;
 
   public:
     explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder)
@@ -301,7 +301,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
     }
 
     Hash const& txSetHash = b.txSetHash;
-    TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    TxSetFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -790,7 +790,7 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
 
 void
 HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetFramePtr proposedSet,
+                          TxSetFrameConstPtr proposedSet,
                           StellarValue const& previousValue)
 {
     ZoneScoped;
@@ -801,7 +801,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
     CLOG_DEBUG(Herder,
                "HerderSCPDriver::triggerNextLedger txSet.size: {} "
                "previousLedgerHash: {} value: {} slot: {}",
-               proposedSet->mTransactions.size(),
+               proposedSet->sizeTx(),
                hexAbbrev(proposedSet->previousLedgerHash()),
                hexAbbrev(valueHash), slotIndex);
 
@@ -1084,7 +1084,7 @@ class SCPHerderValueWrapper : public ValueWrapper
 {
     HerderImpl& mHerder;
 
-    TxSetFramePtr mTxSet;
+    TxSetFrameConstPtr mTxSet;
 
   public:
     explicit SCPHerderValueWrapper(StellarValue const& sv, Value const& value,

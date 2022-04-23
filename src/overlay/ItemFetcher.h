@@ -25,7 +25,6 @@ namespace stellar
 class Tracker;
 class TxSetFrame;
 struct SCPQuorumSet;
-using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 using AskPeer = std::function<void(Peer::pointer, Hash)>;
 

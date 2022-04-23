@@ -14,9 +14,9 @@ using namespace std;
 namespace stellar
 {
 
-LedgerCloseData::LedgerCloseData(
-    uint32_t ledgerSeq, std::shared_ptr<AbstractTxSetFrameForApply> txSet,
-    StellarValue const& v, std::optional<Hash> const& expectedLedgerHash)
+LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFrameConstPtr txSet,
+                                 StellarValue const& v,
+                                 std::optional<Hash> const& expectedLedgerHash)
     : mLedgerSeq(ledgerSeq)
     , mTxSet(txSet)
     , mValue(v)
