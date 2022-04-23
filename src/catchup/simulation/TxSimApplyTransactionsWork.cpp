@@ -707,8 +707,8 @@ TxSimApplyTransactionsWork::onRun()
     // generating transactions to handle offer creation (mapping created offer
     // id to a simulated one). When simulating pre-generated transactions, we
     // already have relevant offer ids in transaction results
-    auto txSet = std::make_shared<TxSimTxSetFrame>(
-        mNetworkID, lclHeader.hash, transactions, mResults, mMultiplier);
+    auto txSet = makeSimTxSetFrame(mNetworkID, lclHeader.hash, transactions,
+                                   mResults, mMultiplier);
 
     StellarValue sv;
     sv.txSetHash = txSet->getContentsHash();

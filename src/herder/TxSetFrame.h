@@ -19,44 +19,13 @@ class Application;
 class TxSetFrame;
 using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 
-class AbstractTxSetFrameForApply
-{
-  public:
-    virtual ~AbstractTxSetFrameForApply(){};
-
-    virtual int64_t getBaseFee(LedgerHeader const& lh) const = 0;
-
-    virtual Hash const& getContentsHash() const = 0;
-
-    virtual Hash const& previousLedgerHash() const = 0;
-
-    virtual size_t sizeTx() const = 0;
-
-    virtual size_t sizeOp() const = 0;
-
-    // virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
-    virtual void toXDR(TransactionSet& set) const = 0;
-};
-
-class TxSetFrame : public AbstractTxSetFrameForApply
+// A wrapper for a set of transactions that maintains the hash order
+class TxSetFrame
 {
   public:
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
 
-  protected:
-    Hash const mPreviousLedgerHash;
-
-    Transactions const mTxsInHashOrder;
-
-    Hash const mHash;
-
-    static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
-    buildAccountTxQueues(TxSetFrame const& txSet);
-
-    friend struct SurgeCompare;
-
-  public:
     TxSetFrame(Hash const& previousLedgerHash,
                Transactions const& transactions);
 
@@ -71,7 +40,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     // returns the hash of this tx set
     Hash const&
-    getContentsHash() const override
+    getContentsHash() const
     {
         return mHash;
     }
@@ -81,7 +50,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
                         TxSetFrame::Transactions const& txsInHashOrder);
 
     Hash const&
-    previousLedgerHash() const override
+    previousLedgerHash() const
     {
         return mPreviousLedgerHash;
     }
@@ -122,18 +91,31 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     size_t size(LedgerHeader const& lh) const;
 
     size_t
-    sizeTx() const override
+    sizeTx() const
     {
         return mTxsInHashOrder.size();
     }
 
-    size_t sizeOp() const override;
+    size_t sizeOp() const;
 
     // return the base fee associated with this transaction set
-    int64_t getBaseFee(LedgerHeader const& lh) const override;
+    int64_t getBaseFee(LedgerHeader const& lh) const;
 
     // return the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
-    void toXDR(TransactionSet& set) const override;
+    void toXDR(TransactionSet& set) const;
+
+  protected:
+    Hash const mPreviousLedgerHash;
+
+    Transactions const mTxsInHashOrder;
+
+    Hash const mHash;
+
+    static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
+    buildAccountTxQueues(TxSetFrame const& txSet);
+
+    friend struct SurgeCompare;
 };
+
 } // namespace stellar

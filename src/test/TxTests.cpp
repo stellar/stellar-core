@@ -7,6 +7,7 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/simulation/TxSimTxSetFrame.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -508,7 +509,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
     if (strictOrder)
     {
-        txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(lclHash);
+        txSet = std::make_shared<txsimulation::SimApplyOrderTxSetFrame const>(
+            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
     }
     else
     {
