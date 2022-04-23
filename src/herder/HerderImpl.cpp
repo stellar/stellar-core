@@ -12,6 +12,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/QuorumIntersectionChecker.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -1098,13 +1099,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
-    auto invalidTxs = TxSetFrame::getInvalidTxList(
+    auto removed = TxSetUtils::getInvalidTxList(
         mApp, *proposedSet, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset, false);
 
-    mTransactionQueue.ban(invalidTxs);
-    proposedSet = TxSetFrame::removeTxs(proposedSet, invalidTxs);
-    proposedSet = TxSetFrame::surgePricingFilter(proposedSet, mApp);
+    mTransactionQueue.ban(removed);
+    proposedSet = TxSetUtils::removeTxs(proposedSet, removed);
+    proposedSet = TxSetUtils::surgePricingFilter(proposedSet, mApp);
 
     // we not only check that the value is valid for consensus (offset=0) but
     // also that we performed the proper cleanup above
@@ -1794,7 +1795,7 @@ HerderImpl::updateTransactionQueue(
     lhhe.hash = HashUtils::random();
     auto txSet = mTransactionQueue.toTxSet(lhhe);
 
-    auto invalidTxs = TxSetFrame::getInvalidTxList(
+    auto removed = TxSetUtils::getInvalidTxList(
         mApp, *txSet, 0,
         getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
         false);

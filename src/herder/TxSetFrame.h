@@ -7,10 +7,8 @@
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
-#include "util/UnorderedMap.h"
 #include <deque>
 #include <functional>
-#include <optional>
 
 namespace stellar
 {
@@ -45,10 +43,6 @@ class TxSetFrame
         return mHash;
     }
 
-    static Hash
-    computeContentsHash(Hash const& previousLedgerHash,
-                        TxSetFrame::Transactions const& txsInHashOrder);
-
     Hash const&
     previousLedgerHash() const
     {
@@ -63,30 +57,8 @@ class TxSetFrame
 
     virtual Transactions getTxsInApplyOrder() const;
 
-    static Transactions
-    sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
-
-    static Transactions sortTxsInHashOrder(Hash const& networkID,
-                                           TransactionSet const& xdrSet);
-
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) const;
-
-    static TxSetFrameConstPtr surgePricingFilter(TxSetFrameConstPtr txSet,
-                                                 Application& app);
-
-    static Transactions getInvalidTxList(Application& app,
-                                         TxSetFrame const& txSet,
-                                         uint64_t lowerBoundCloseTimeOffset,
-                                         uint64_t upperBoundCloseTimeOffset,
-                                         bool returnEarlyOnFirstInvalidTx);
-
-    static TxSetFrameConstPtr
-    removeTxs(TxSetFrameConstPtr txSet,
-              TxSetFrame::Transactions const& txsToRemove);
-
-    static TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
-                                     TxSetFrame::Transactions const& newTxs);
 
     size_t size(LedgerHeader const& lh) const;
 
@@ -111,9 +83,6 @@ class TxSetFrame
     Transactions const mTxsInHashOrder;
 
     Hash const mHash;
-
-    static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
-    buildAccountTxQueues(TxSetFrame const& txSet);
 
     friend struct SurgeCompare;
 };
