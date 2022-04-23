@@ -1000,15 +1000,15 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             auto stranger = TestAccount{
                 *a, txtest::getAccount(fmt::format("stranger{}", i))};
             auto& lm = a->getLedgerManager();
-            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-                lm.getLastClosedLedgerHeader().hash);
             uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
             uint64_t minBalance = lm.getLastMinBalance(5);
             uint64_t big = minBalance + ledgerSeq;
             uint64_t closeTime = 60 * 5 * ledgerSeq;
-            txSet->add(root.tx({txtest::createAccount(stranger, big)}));
-            // Provoke sortForHash and hash-caching:
-            txSet->getContentsHash();
+
+            TxSetFrameConstPtr txSet = std::make_shared<TxSetFrame const>(
+                lm.getLastClosedLedgerHeader().hash,
+                TxSetFrame::Transactions{
+                    root.tx({txtest::createAccount(stranger, big)})});
 
             // On first iteration of advance, perform a ledger-protocol version
             // upgrade to the new protocol, to activate INITENTRY behaviour.

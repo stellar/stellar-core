@@ -252,9 +252,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // create the transaction set containing this transaction
             auto const& lcl =
                 inApp->getLedgerManager().getLastClosedLedgerHeader();
-            TxSetFrame txSet(lcl.hash);
-            txSet.add(tx1);
-            txSet.sortForHash();
+            TxSetFrame txSet(lcl.hash, {tx1});
             auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message

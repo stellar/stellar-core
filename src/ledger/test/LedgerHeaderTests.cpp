@@ -70,7 +70,7 @@ TEST_CASE("ledgerheader", "[ledger]")
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto const& lastHash = lcl.hash;
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
+        TxSetFrameConstPtr txSet = make_shared<TxSetFrame const>(lastHash);
 
         // close this ledger
         StellarValue sv = app->getHerder().makeStellarValue(
