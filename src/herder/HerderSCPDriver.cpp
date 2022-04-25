@@ -33,6 +33,8 @@
 namespace stellar
 {
 
+uint32_t const TXSETVALID_CACHE_SIZE = 1000;
+
 Hash
 HerderSCPDriver::getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const
 {
@@ -79,6 +81,7 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mPrepareTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "prepare"})}
     , mLedgerSeqNominating(0)
+    , mTxSetValidCache(TXSETVALID_CACHE_SIZE)
 {
 }
 
@@ -314,7 +317,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(txSet, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -1123,5 +1126,26 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;
+}
+
+bool
+HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
+                                         uint64_t closeTimeOffset) const
+{
+    auto key = TxSetUtils::TxSetValidityKey{
+        mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
+        txSet->getContentsHash(), closeTimeOffset, closeTimeOffset};
+
+    bool* pRes = mTxSetValidCache.maybeGet(key);
+    if (pRes == nullptr)
+    {
+        bool res = txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset);
+        mTxSetValidCache.put(key, res);
+        return res;
+    }
+    else
+    {
+        return *pRes;
+    }
 }
 }

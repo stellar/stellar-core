@@ -8,6 +8,8 @@
 #include "xdr/Stellar-types.h"
 #include <deque>
 #include <herder/TxSetFrame.h>
+#include <ledger/LedgerHashUtils.h>
+#include <tuple>
 
 namespace stellar
 {
@@ -47,6 +49,24 @@ TxSetFrameConstPtr removeTxs(TxSetFrameConstPtr txSet,
 
 TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
                           TxSetFrame::Transactions const& newTxs);
+
+// For caching TxSet validity. Consist of {lcl.hash, txSetHash,
+// lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
+using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
+
+class TxSetValidityKeyHash
+{
+  public:
+    size_t
+    operator()(TxSetValidityKey const& key) const
+    {
+        size_t res = std::hash<Hash>()(std::get<0>(key));
+        hashMix(res, std::hash<Hash>()(std::get<1>(key)));
+        hashMix(res, std::get<2>(key));
+        hashMix(res, std::get<3>(key));
+        return res;
+    }
+};
 
 } // namespace TxSetUtils
 } // namespace stellar
