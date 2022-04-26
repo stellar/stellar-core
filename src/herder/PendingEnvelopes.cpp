@@ -286,6 +286,16 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
+    auto const& values = getStellarValues(envelope.statement);
+    if (std::any_of(values.begin(), values.end(), [](auto const& value) {
+            return value.ext.v() != STELLAR_VALUE_SIGNED;
+        }))
+    {
+        CLOG_TRACE(Herder, "Dropping envelope from {} (value not signed)",
+                   mApp.getConfig().toShortString(nodeID));
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
     // did we discard this envelope?
     // do we already have this envelope?
     // do we have the qset
