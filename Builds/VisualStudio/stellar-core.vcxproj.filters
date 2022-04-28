@@ -160,6 +160,12 @@
     <Filter Include="lib\spdlog">
       <UniqueIdentifier>{f296b651-5074-4b3c-9fec-1df4233f2fec}</UniqueIdentifier>
     </Filter>
+    <Filter Include="rust">
+      <UniqueIdentifier>{e85a896a-28e3-423b-b896-d7df4e8b8907}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="rust\generated">
+      <UniqueIdentifier>{11ca5d74-0517-4f8c-8dbc-ca69f1b0234d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -1224,6 +1230,9 @@
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="src\generated\rust\bridge.cpp">
+      <Filter>rust\generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2132,6 +2141,9 @@
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="src\generated\rust\bridge.h">
+      <Filter>rust\generated</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -2292,6 +2304,15 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\rust\Cargo.toml">
+      <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\rust\src\lib.rs">
+      <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
+      <Filter>rust</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
