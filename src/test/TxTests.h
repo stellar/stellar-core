@@ -96,7 +96,7 @@ closeLedgerOn(Application& app, int day, int month, int year,
               bool strictOrder = false);
 
 TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 

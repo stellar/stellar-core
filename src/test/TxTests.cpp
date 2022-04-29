@@ -493,7 +493,7 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
     auto lastCloseTime = app.getLedgerManager()

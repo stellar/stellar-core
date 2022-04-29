@@ -323,9 +323,9 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     SECTION("do not fetch if txsets are not signed")
     {
-        auto p = makeTxPair(transactions, 10, STELLAR_VALUE_BASIC);
+        auto p2 = makeTxPair(transactions, 10, STELLAR_VALUE_BASIC);
         auto envNoSign =
-            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
+            makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);
 
         // Make sure to discard the envelope
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(envNoSign) ==

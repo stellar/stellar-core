@@ -157,13 +157,13 @@ TestApplication::createInvariantManager()
     return std::make_unique<TestInvariantManager>(getMetrics());
 }
 
-time_t
+TimePoint
 getTestDate(int day, int month, int year)
 {
     auto tm = getTestDateTime(day, month, year, 0, 0, 0);
 
     VirtualClock::system_time_point tp = VirtualClock::tmToSystemPoint(tm);
-    time_t t = VirtualClock::to_time_t(tp);
+    TimePoint t = VirtualClock::to_time_t(tp);
 
     return t;
 }

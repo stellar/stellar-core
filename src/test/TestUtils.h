@@ -87,7 +87,7 @@ createTestApplication(VirtualClock& clock, Config const& cfg, Args&&... args,
     return app;
 }
 
-time_t getTestDate(int day, int month, int year);
+TimePoint getTestDate(int day, int month, int year);
 std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
                         int second);
 
