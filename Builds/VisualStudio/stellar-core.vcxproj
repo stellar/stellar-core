@@ -167,7 +167,7 @@ exit /b 0
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/generated/xdr/Stellar-overlay.h</Inputs>
+      <Inputs>src/generated/xdr/Stellar-overlay.h;src/generated/rust/bridge.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
@@ -1000,7 +1000,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger.h ../../src/xdr/Stellar-ledger.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
@@ -1018,7 +1018,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-transaction.h ../../src/xdr/Stellar-transaction.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
@@ -1036,7 +1036,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-types.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-types.h ../../src/xdr/Stellar-types.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
@@ -1057,7 +1057,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-overlay.h ../../src/xdr/Stellar-overlay.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
@@ -1075,7 +1075,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-ledger-entries.h ../../src/xdr/Stellar-ledger-entries.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
@@ -1093,7 +1093,7 @@ exit /b 0
     <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-SCP.h ../../src/xdr/Stellar-SCP.x</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-SCP.h ../../src/xdr/Stellar-SCP.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\$(Configuration)\xdrc.exe -hh -pedantic -o src/generated/xdr/Stellar-SCP.h ../../src/xdr/Stellar-SCP.x</Command>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running xdrc</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running xdrc</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-SCP.h</Outputs>
@@ -1153,9 +1153,6 @@ exit /b 0
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)..\..\src\rust\src\lib.rs;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\bridge.h
 $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\bridge.cpp</Command>

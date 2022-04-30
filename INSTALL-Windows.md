@@ -12,6 +12,12 @@
     * Windows 10 SDK
     * C++/CLI Support
 
+## Download and install rust
+
+Easiest is to use rustup, found on [rust-lang.org](https://www.rust-lang.org/tools/install).
+
+Install the x64 toolchain, and make sure that `rustc.exe` is in your `PATH`.
+
 ## Download and install PostgreSQL
 
 Note: if you do not want to use postgres you can select `DebugNoPostgres` as the build target.
