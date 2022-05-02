@@ -6,7 +6,7 @@ RUN apt-get update && \
                        git build-essential pkg-config autoconf automake libtool \
                        bison flex libpq-dev parallel libunwind-dev \
                        clang-10 libc++abi-10-dev libc++-10-dev \
-                       postgresql
+                       postgresql cargo rustc
 
 COPY . stellar-core/
 WORKDIR stellar-core

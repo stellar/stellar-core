@@ -425,6 +425,32 @@ else
   AC_MSG_NOTICE([not using libunwind as it was not requested])
 fi
 
+# When we shift to having Rust in the current protocol version, this block should be
+# made unconditional. For the time being Rust is still "in the next protocol".
+if test x"$enable_next_protocol_version_unsafe_for_production" = xyes; then
+  AC_PATH_PROG(CARGO, cargo)
+  if test x"$CARGO" = x; then
+    AC_MSG_ERROR([cannot find cargo, needed for rust code])
+  fi
+  CARGO_VERSION="$(${CARGO} --version)"
+  CARGO_VERSION="${CARGO_VERSION#cargo}"
+  AX_COMPARE_VERSION([${CARGO_VERSION}],[ge],[1.57],[],[
+    AC_MSG_ERROR([cargo version too old (need >= 1.57)])
+  ])
+  AC_ARG_VAR(CARGO)
+
+  AC_PATH_PROG(RUSTC, rustc)
+  if test x"$RUSTC" = x; then
+    AC_MSG_ERROR([cannot find rustc, needed for rust code])
+  fi
+  RUSTC_VERSION="$(${RUSTC} --version)"
+  RUSTC_VERSION="${RUSTC_VERSION#rustc}"
+  AX_COMPARE_VERSION([${RUSTC_VERSION}],[ge],[1.57],[],[
+    AC_MSG_ERROR([rustc version too old (need >= 1.57)])
+  ])
+  AC_ARG_VAR(RUSTC)
+fi
+
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {
     out=

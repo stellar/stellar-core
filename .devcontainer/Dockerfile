@@ -66,6 +66,8 @@ RUN apt-get -y install libstdc++-8-dev clang-format-10 ccache
 RUN apt-get -y install cpp-8 gcc-8 g++-8
 # clang
 RUN apt-get -y install clang-10 llvm-10
+# rust
+RUN apt-get -y install cargo rustc
 
 # clang by default
 ENV CC=clang-10
