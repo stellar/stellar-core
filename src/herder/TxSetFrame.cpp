@@ -37,9 +37,9 @@ using namespace std;
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash,
                        Transactions const& transactions)
     : mPreviousLedgerHash(previousLedgerHash)
-    , mTxsInHashOrder(TxSetUtils::sortTxsInHashOrder(transactions))
+    , mTxs(TxSetUtils::sortTxsInHashOrder(transactions))
     , mHash(
-          TxSetUtils::computeContentsHash(previousLedgerHash, mTxsInHashOrder))
+          TxSetUtils::computeContentsHash(previousLedgerHash, mTxs))
 {
 }
 
@@ -50,10 +50,27 @@ TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
 
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     : mPreviousLedgerHash(xdrSet.previousLedgerHash)
-    , mTxsInHashOrder(TxSetUtils::sortTxsInHashOrder(networkID, xdrSet))
-    , mHash(
-          TxSetUtils::computeContentsHash(mPreviousLedgerHash, mTxsInHashOrder))
+    , mTxs(TxSetUtils::sortTxsInHashOrder(
+          TxSetUtils::extractTxsFromXdrSet(networkID, xdrSet)))
 {
+}
+
+Hash const&
+TxSetFrame::getContentsHash() const
+{
+    return mHash;
+}
+
+Hash const&
+TxSetFrame::previousLedgerHash() const
+{
+    return mPreviousLedgerHash;
+}
+
+TxSetFrame::Transactions const&
+TxSetFrame::getTxsInHashOrder() const
+{
+    return mTxs;
 }
 
 // We want to XOR the tx hash with the set hash.
@@ -117,7 +134,7 @@ TxSetFrame::getTxsInApplyOrder() const
     }
 
     Transactions txsInApplyOrder;
-    txsInApplyOrder.reserve(mTxsInHashOrder.size());
+    txsInApplyOrder.reserve(mTxs.size());
     for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
@@ -157,7 +174,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         return false;
     }
 
-    if (!std::is_sorted(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
+    if (!std::is_sorted(mTxs.begin(), mTxs.end(),
                         [](auto const& lhs, auto const& rhs) {
                             return lhs->getFullHash() < rhs->getFullHash();
                         }))
@@ -184,8 +201,7 @@ size_t
 TxSetFrame::sizeOp() const
 {
     ZoneScoped;
-    return std::accumulate(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
-                           size_t(0),
+    return std::accumulate(mTxs.begin(), mTxs.end(), size_t(0),
                            [](size_t a, TransactionFrameBasePtr const& tx) {
                                return a + tx->getNumOperations();
                            });
@@ -199,7 +215,7 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
     {
         size_t ops = 0;
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
-        for (auto& txPtr : mTxsInHashOrder)
+        for (auto& txPtr : mTxs)
         {
             auto txOps = txPtr->getNumOperations();
             ops += txOps;
@@ -228,8 +244,7 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 {
     ZoneScoped;
     auto baseFee = getBaseFee(lh);
-    return std::accumulate(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
-                           int64_t(0),
+    return std::accumulate(mTxs.begin(), mTxs.end(), int64_t(0),
                            [&](int64_t t, TransactionFrameBasePtr const& tx) {
                                return t + tx->getFee(lh, baseFee, true);
                            });
@@ -239,12 +254,12 @@ void
 TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
-    releaseAssert(std::is_sorted(mTxsInHashOrder.begin(), mTxsInHashOrder.end(),
+    releaseAssert(std::is_sorted(mTxs.begin(), mTxs.end(),
                                  TxSetUtils::HashTxSorter));
-    txSet.txs.resize(xdr::size32(mTxsInHashOrder.size()));
-    for (unsigned int n = 0; n < mTxsInHashOrder.size(); n++)
+    txSet.txs.resize(xdr::size32(mTxs.size()));
+    for (unsigned int n = 0; n < mTxs.size(); n++)
     {
-        txSet.txs[n] = mTxsInHashOrder[n]->getEnvelope();
+        txSet.txs[n] = mTxs[n]->getEnvelope();
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }

@@ -14,10 +14,7 @@ namespace stellar
 {
 class Application;
 
-class TxSetFrame;
-using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
-
-// A wrapper for a set of transactions that maintains the hash order
+// A wrapper for a set of transactions that if valid, maintains the hash order
 class TxSetFrame
 {
   public:
@@ -37,23 +34,11 @@ class TxSetFrame
     virtual ~TxSetFrame(){};
 
     // returns the hash of this tx set
-    Hash const&
-    getContentsHash() const
-    {
-        return mHash;
-    }
+    Hash const& getContentsHash() const;
 
-    Hash const&
-    previousLedgerHash() const
-    {
-        return mPreviousLedgerHash;
-    }
+    Hash const& previousLedgerHash() const;
 
-    Transactions const&
-    getTxsInHashOrder() const
-    {
-        return mTxsInHashOrder;
-    }
+    Transactions const& getTxsInHashOrder() const;
 
     virtual Transactions getTxsInApplyOrder() const;
 
@@ -65,7 +50,7 @@ class TxSetFrame
     size_t
     sizeTx() const
     {
-        return mTxsInHashOrder.size();
+        return mTxs.size();
     }
 
     size_t sizeOp() const;
@@ -80,11 +65,13 @@ class TxSetFrame
   protected:
     Hash const mPreviousLedgerHash;
 
-    Transactions const mTxsInHashOrder;
+    Transactions const mTxs;
 
     Hash const mHash;
 
     friend struct SurgeCompare;
 };
+
+using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 
 } // namespace stellar
