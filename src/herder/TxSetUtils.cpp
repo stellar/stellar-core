@@ -34,29 +34,24 @@ namespace TxSetUtils
 {
 
 bool
-HashTxSorter(TransactionFrameBasePtr const& tx1,
-             TransactionFrameBasePtr const& tx2)
+TxSetUtils::HashTxSorter(TransactionFrameBasePtr const& tx1,
+                         TransactionFrameBasePtr const& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
     return tx1->getFullHash() < tx2->getFullHash();
 }
 
-// order the txset correctly
-// must take into account multiple tx from same account
-TxSetFrame::Transactions
-sortTxsInHashOrder(TxSetFrame::Transactions const& transactions)
+bool
+TxSetUtils::isValidHashOrder(TxSetFrame::Transactions const& txs)
 {
-    ZoneScoped;
-    TxSetFrame::Transactions sortedTxs(transactions);
-    std::sort(sortedTxs.begin(), sortedTxs.end(), HashTxSorter);
-    return sortedTxs;
+    return std::is_sorted(txs.begin(), txs.end(), hashTxSorter);
 }
 
 TxSetFrame::Transactions
-sortTxsInHashOrder(Hash const& networkID, TransactionSet const& xdrSet)
+TxSetUtils::extractTxsFromXdrSet(Hash const& networkID,
+                               TransactionSet const& xdrSet)
 {
-    ZoneScoped;
     TxSetFrame::Transactions txs;
     txs.reserve(xdrSet.txs.size());
     std::transform(xdrSet.txs.cbegin(), xdrSet.txs.cend(),
@@ -65,12 +60,23 @@ sortTxsInHashOrder(Hash const& networkID, TransactionSet const& xdrSet)
                        return TransactionFrameBase::makeTransactionFromWire(
                            networkID, env);
                    });
-    return sortTxsInHashOrder(txs);
+    return txs;
+}
+
+// order the txset correctly
+// must take into account multiple tx from same account
+TxSetFrame::Transactions
+TxSetUtils::sortTxsInHashOrder(TxSetFrame::Transactions const& transactions)
+{
+    ZoneScoped;
+    TxSetFrame::Transactions sortedTxs(transactions);
+    std::sort(sortedTxs.begin(), sortedTxs.end(), hashTxSorter);
+    return sortedTxs;
 }
 
 Hash
-computeContentsHash(Hash const& previousLedgerHash,
-                    TxSetFrame::Transactions const& txsInHashOrder)
+TxSetUtils::computeContentsHash(Hash const& previousLedgerHash,
+                                TxSetFrame::Transactions const& txsInHashOrder)
 {
     ZoneScoped;
     SHA256 hasher;
@@ -83,7 +89,7 @@ computeContentsHash(Hash const& previousLedgerHash,
 }
 
 UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
-buildAccountTxQueues(TxSetFrame const& txSet)
+TxSetUtils::buildAccountTxQueues(TxSetFrame const& txSet)
 {
     ZoneScoped;
     UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue> actTxQueueMap;
@@ -148,7 +154,7 @@ struct SurgeCompare
 };
 
 TxSetFrameConstPtr
-surgePricingFilter(TxSetFrameConstPtr txSet, Application& app)
+TxSetUtils::surgePricingFilter(TxSetFrameConstPtr txSet, Application& app)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -214,10 +220,10 @@ surgePricingFilter(TxSetFrameConstPtr txSet, Application& app)
 }
 
 TxSetFrame::Transactions
-getInvalidTxList(Application& app, TxSetFrame const& txSet,
-                 uint64_t lowerBoundCloseTimeOffset,
-                 uint64_t upperBoundCloseTimeOffset,
-                 bool returnEarlyOnFirstInvalidTx)
+TxSetUtils::getInvalidTxList(Application& app, TxSetFrame const& txSet,
+                             uint64_t lowerBoundCloseTimeOffset,
+                             uint64_t upperBoundCloseTimeOffset,
+                             bool returnEarlyOnFirstInvalidTx)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -334,7 +340,8 @@ getInvalidTxList(Application& app, TxSetFrame const& txSet,
 // Target use case is to remove a subset of invalid transactions from a TxSet.
 // I.e. txSet.size() >= txsToRemove.size()
 TxSetFrameConstPtr
-removeTxs(TxSetFrameConstPtr txSet, TxSetFrame::Transactions const& txsToRemove)
+TxSetUtils::removeTxs(TxSetFrameConstPtr txSet,
+                      TxSetFrame::Transactions const& txsToRemove)
 {
     // hashmap from the full txSet
     std::unordered_map<Hash, TransactionFrameBasePtr> fullTxSetHashMap;
@@ -378,15 +385,6 @@ removeTxs(TxSetFrameConstPtr txSet, TxSetFrame::Transactions const& txsToRemove)
                    });
 
     return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(), txs);
-}
-
-TxSetFrameConstPtr
-addTxs(TxSetFrameConstPtr txSet, TxSetFrame::Transactions const& newTxs)
-{
-    auto updated = txSet->getTxsInHashOrder();
-    updated.insert(updated.end(), newTxs.begin(), newTxs.end());
-    return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(),
-                                              updated);
 }
 
 } // namespace TxSetUtils
