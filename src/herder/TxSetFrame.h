@@ -67,6 +67,8 @@ class TxSetFrame
 
     Transactions const mTxs;
 
+    bool const mTxsIsValidHashOrder;
+
     Hash const mHash;
 
     friend struct SurgeCompare;

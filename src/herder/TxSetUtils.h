@@ -15,9 +15,6 @@ namespace stellar
 class TxSetUtils
 {
   public:
-    static bool HashTxSorter(TransactionFrameBasePtr const& tx1,
-                             TransactionFrameBasePtr const& tx2);
-
     static bool isValidHashOrder(TxSetFrame::Transactions const& txs);
 
     static TxSetFrame::Transactions

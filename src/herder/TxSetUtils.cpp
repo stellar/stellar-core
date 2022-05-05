@@ -30,16 +30,16 @@
 
 namespace stellar
 {
-namespace TxSetUtils
+namespace
 {
-
 bool
-TxSetUtils::HashTxSorter(TransactionFrameBasePtr const& tx1,
+hashTxSorter(TransactionFrameBasePtr const& tx1,
                          TransactionFrameBasePtr const& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
     return tx1->getFullHash() < tx2->getFullHash();
+}
 }
 
 bool

@@ -34,12 +34,15 @@ namespace stellar
 
 using namespace std;
 
+// Construct a valid TxSetFrame from a list of transactions (e.g. from the
+// TransactionQueue). We make sure the transactions are sorted in (and
+// maintains) hash order and computes the contents hash on contruction.
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash,
                        Transactions const& transactions)
     : mPreviousLedgerHash(previousLedgerHash)
     , mTxs(TxSetUtils::sortTxsInHashOrder(transactions))
-    , mHash(
-          TxSetUtils::computeContentsHash(previousLedgerHash, mTxs))
+    , mTxsIsValidHashOrder(true)
+    , mHash(TxSetUtils::computeContentsHash(previousLedgerHash, mTxs))
 {
 }
 
@@ -48,10 +51,14 @@ TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
 {
 }
 
+// Construct a TxSetFrame from an xdrSet, which may directly come from the
+// overlay and be invalid (in the incorrect order), in which case we mark
+// this set invalid and do not compute its hash.
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     : mPreviousLedgerHash(xdrSet.previousLedgerHash)
-    , mTxs(TxSetUtils::sortTxsInHashOrder(
-          TxSetUtils::extractTxsFromXdrSet(networkID, xdrSet)))
+    , mTxs(TxSetUtils::extractTxsFromXdrSet(networkID, xdrSet))
+    , mTxsIsValidHashOrder(TxSetUtils::isValidHashOrder(mTxs))
+    , mHash(TxSetUtils::computeContentsHash(mPreviousLedgerHash, mTxs))
 {
 }
 
@@ -70,6 +77,7 @@ TxSetFrame::previousLedgerHash() const
 TxSetFrame::Transactions const&
 TxSetFrame::getTxsInHashOrder() const
 {
+    releaseAssert(mTxsIsValidHashOrder);
     return mTxs;
 }
 
@@ -104,6 +112,7 @@ TxSetFrame::Transactions
 TxSetFrame::getTxsInApplyOrder() const
 {
     ZoneScoped;
+    releaseAssert(mTxsIsValidHashOrder);
     auto txQueues = TxSetUtils::buildAccountTxQueues(*this);
 
     // build txBatches
@@ -174,10 +183,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         return false;
     }
 
-    if (!std::is_sorted(mTxs.begin(), mTxs.end(),
-                        [](auto const& lhs, auto const& rhs) {
-                            return lhs->getFullHash() < rhs->getFullHash();
-                        }))
+    if (!mTxsIsValidHashOrder)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {} not sorted correctly",
                    hexAbbrev(mPreviousLedgerHash));
@@ -254,8 +260,6 @@ void
 TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
-    releaseAssert(std::is_sorted(mTxs.begin(), mTxs.end(),
-                                 TxSetUtils::HashTxSorter));
     txSet.txs.resize(xdr::size32(mTxs.size()));
     for (unsigned int n = 0; n < mTxs.size(); n++)
     {
