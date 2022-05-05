@@ -19,6 +19,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
+#include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -34,7 +35,7 @@ namespace
 {
 bool
 hashTxSorter(TransactionFrameBasePtr const& tx1,
-                         TransactionFrameBasePtr const& tx2)
+             TransactionFrameBasePtr const& tx2)
 {
     // need to use the hash of whole tx here since multiple txs could have
     // the same Contents
@@ -50,7 +51,7 @@ TxSetUtils::isValidHashOrder(TxSetFrame::Transactions const& txs)
 
 TxSetFrame::Transactions
 TxSetUtils::extractTxsFromXdrSet(Hash const& networkID,
-                               TransactionSet const& xdrSet)
+                                 TransactionSet const& xdrSet)
 {
     TxSetFrame::Transactions txs;
     txs.reserve(xdrSet.txs.size());
@@ -220,13 +221,14 @@ TxSetUtils::surgePricingFilter(TxSetFrameConstPtr txSet, Application& app)
 }
 
 TxSetFrame::Transactions
-TxSetUtils::getInvalidTxList(Application& app, TxSetFrame const& txSet,
+TxSetUtils::getInvalidTxList(TxSetFrame const& txSet, Application& app,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset,
                              bool returnEarlyOnFirstInvalidTx)
 {
     ZoneScoped;
-    LedgerTxn ltx(app.getLedgerTxnRoot());
+    LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   ProtocolVersion::V_19))
@@ -343,49 +345,35 @@ TxSetFrameConstPtr
 TxSetUtils::removeTxs(TxSetFrameConstPtr txSet,
                       TxSetFrame::Transactions const& txsToRemove)
 {
-    // hashmap from the full txSet
-    std::unordered_map<Hash, TransactionFrameBasePtr> fullTxSetHashMap;
-    fullTxSetHashMap.reserve(txSet->sizeTx());
-    std::transform(txSet->getTxsInHashOrder().cbegin(),
-                   txSet->getTxsInHashOrder().cend(),
-                   std::inserter(fullTxSetHashMap, fullTxSetHashMap.end()),
-                   [](TransactionFrameBasePtr const& tx) {
-                       return std::pair<Hash, TransactionFrameBasePtr>{
-                           tx->getFullHash(), tx};
-                   });
-
-    // candidate tx hashes to be removed
-    std::unordered_set<Hash> removeTxHashSet;
-    removeTxHashSet.reserve(txsToRemove.size());
+    UnorderedSet<Hash> txsToRemoveSet;
+    txsToRemoveSet.reserve(txsToRemove.size());
     std::transform(
         txsToRemove.cbegin(), txsToRemove.cend(),
-        std::inserter(removeTxHashSet, removeTxHashSet.end()),
+        std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
         [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
 
-    // remove txs
-    for (auto it = fullTxSetHashMap.begin(); it != fullTxSetHashMap.end();)
+    TxSetFrame::Transactions txs;
+    txs.reserve(txSet->sizeTx() - txsToRemove.size());
+    for (auto const& tx : txSet->getTxsInHashOrder())
     {
-        if (removeTxHashSet.find(it->first) != removeTxHashSet.end())
+        if (txsToRemoveSet.find(tx->getFullHash()) == txsToRemoveSet.end())
         {
-            it = fullTxSetHashMap.erase(it);
-        }
-        else
-        {
-            ++it;
+            txs.emplace_back(tx);
         }
     }
-
-    // get back remaining txs
-    TxSetFrame::Transactions txs;
-    txs.reserve(fullTxSetHashMap.size());
-    std::transform(fullTxSetHashMap.cbegin(), fullTxSetHashMap.cend(),
-                   std::back_inserter(txs),
-                   [](std::pair<Hash, TransactionFrameBasePtr> const& p) {
-                       return p.second;
-                   });
 
     return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(), txs);
 }
 
-} // namespace TxSetUtils
+TxSetFrameConstPtr
+TxSetUtils::trimInvalid(TxSetFrameConstPtr txSet, Application& app,
+                        uint64_t lowerBoundCloseTimeOffset,
+                        uint64_t upperBoundCloseTimeOffset,
+                        TxSetFrame::Transactions& invalidTxs)
+{
+    invalidTxs = getInvalidTxList(*txSet, app, lowerBoundCloseTimeOffset,
+                                  upperBoundCloseTimeOffset, false);
+    return removeTxs(txSet, invalidTxs);
+}
+
 } // namespace stellar

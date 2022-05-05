@@ -190,7 +190,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         return false;
     }
 
-    return TxSetUtils::getInvalidTxList(app, *this, lowerBoundCloseTimeOffset,
+    return TxSetUtils::getInvalidTxList(*this, app, lowerBoundCloseTimeOffset,
                                         upperBoundCloseTimeOffset, true)
         .empty();
 }

@@ -1099,12 +1099,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
-    auto removed = TxSetUtils::getInvalidTxList(
-        mApp, *proposedSet, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset, false);
+    TxSetFrame::Transactions invalidTxs;
+    proposedSet =
+        TxSetUtils::trimInvalid(proposedSet, mApp, lowerBoundCloseTimeOffset,
+                                upperBoundCloseTimeOffset, invalidTxs);
 
-    mTransactionQueue.ban(removed);
-    proposedSet = TxSetUtils::removeTxs(proposedSet, removed);
+    mTransactionQueue.ban(invalidTxs);
+
     proposedSet = TxSetUtils::surgePricingFilter(proposedSet, mApp);
 
     // we not only check that the value is valid for consensus (offset=0) but
@@ -1795,8 +1796,8 @@ HerderImpl::updateTransactionQueue(
     lhhe.hash = HashUtils::random();
     auto txSet = mTransactionQueue.toTxSet(lhhe);
 
-    auto removed = TxSetUtils::getInvalidTxList(
-        mApp, *txSet, 0,
+    auto invalidTxs = TxSetUtils::getInvalidTxList(
+        *txSet, mApp, 0,
         getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
         false);
     mTransactionQueue.ban(invalidTxs);

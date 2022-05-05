@@ -38,10 +38,16 @@ class TxSetUtils
     // transaction is found (instead of finding all of them), this is useful for
     // checking if a TxSet is valid.
     static TxSetFrame::Transactions
-    getInvalidTxList(Application& app, TxSetFrame const& txSet,
+    getInvalidTxList(TxSetFrame const& txSet, Application& app,
                      uint64_t lowerBoundCloseTimeOffset,
                      uint64_t upperBoundCloseTimeOffset,
                      bool returnEarlyOnFirstInvalidTx);
+
+    static TxSetFrameConstPtr trimInvalid(TxSetFrameConstPtr txSet,
+                                          Application& app,
+                                          uint64_t lowerBoundCloseTimeOffset,
+                                          uint64_t upperBoundCloseTimeOffset,
+                                          TxSetFrame::Transactions& invalidTxs);
 
     // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
     // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
