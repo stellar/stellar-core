@@ -7,115 +7,73 @@
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
-#include "util/UnorderedMap.h"
 #include <deque>
 #include <functional>
-#include <optional>
 
 namespace stellar
 {
 class Application;
 
-class TxSetFrame;
-typedef std::shared_ptr<TxSetFrame> TxSetFramePtr;
-typedef std::shared_ptr<TxSetFrame const> TxSetFrameConstPtr;
-
-class AbstractTxSetFrameForApply
+// A wrapper for a set of transactions that if valid, maintains the hash order
+class TxSetFrame
 {
   public:
-    virtual ~AbstractTxSetFrameForApply(){};
-
-    virtual int64_t getBaseFee(LedgerHeader const& lh) const = 0;
-
-    virtual Hash const& getContentsHash() = 0;
-
-    virtual Hash const& previousLedgerHash() const = 0;
-
-    virtual size_t sizeTx() const = 0;
-
-    virtual size_t sizeOp() const = 0;
-
-    virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
-    virtual void toXDR(TransactionSet& set) = 0;
-};
-
-class TxSetFrame : public AbstractTxSetFrameForApply
-{
-    std::optional<Hash> mHash;
-
-    // mValid caches both the last app LCL that we checked
-    // vaidity for, and the result of that validity check.
-    std::optional<std::pair<Hash, bool>> mValid;
-
-    Hash mPreviousLedgerHash;
-
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
+    using Transactions = std::vector<TransactionFrameBasePtr>;
 
-    bool checkOrTrim(Application& app,
-                     std::vector<TransactionFrameBasePtr>& trimmed,
-                     bool justCheck, uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset);
-
-    UnorderedMap<AccountID, AccountTransactionQueue> buildAccountTxQueues();
-    friend struct SurgeCompare;
-
-  public:
-    std::vector<TransactionFrameBasePtr> mTransactions;
+    TxSetFrame(Hash const& previousLedgerHash,
+               Transactions const& transactions);
 
     TxSetFrame(Hash const& previousLedgerHash);
-
-    TxSetFrame(TxSetFrame const& other) = default;
 
     // make it from the wire
     TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet);
 
+    TxSetFrame(TxSetFrame const& other) = default;
+
     virtual ~TxSetFrame(){};
 
     // returns the hash of this tx set
-    Hash const& getContentsHash() override;
+    Hash const& getContentsHash() const;
 
-    Hash& previousLedgerHash();
-    Hash const& previousLedgerHash() const override;
+    Hash const& previousLedgerHash() const;
 
-    virtual void sortForHash();
+    Transactions const& getTxsInHashOrder() const;
 
-    std::vector<TransactionFrameBasePtr> sortForApply() override;
+    virtual Transactions getTxsInApplyOrder() const;
 
     bool checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset);
-
-    // remove invalid transaction from this set and return those removed
-    // transactions
-    std::vector<TransactionFrameBasePtr>
-    trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
-                uint64_t upperBoundCloseTimeOffset);
-    void surgePricingFilter(Application& app);
-
-    void removeTx(TransactionFrameBasePtr tx);
-
-    void
-    add(TransactionFrameBasePtr tx)
-    {
-        mTransactions.push_back(tx);
-        mHash.reset();
-        mValid.reset();
-    }
+                    uint64_t upperBoundCloseTimeOffset) const;
 
     size_t size(LedgerHeader const& lh) const;
 
     size_t
-    sizeTx() const override
+    sizeTx() const
     {
-        return mTransactions.size();
+        return mTxs.size();
     }
 
-    size_t sizeOp() const override;
+    size_t sizeOp() const;
 
     // return the base fee associated with this transaction set
-    int64_t getBaseFee(LedgerHeader const& lh) const override;
+    int64_t getBaseFee(LedgerHeader const& lh) const;
 
     // return the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
-    void toXDR(TransactionSet& set) override;
+    void toXDR(TransactionSet& set) const;
+
+  protected:
+    Hash const mPreviousLedgerHash;
+
+    Transactions const mTxs;
+
+    bool const mTxsIsValidHashOrder;
+
+    Hash const mHash;
+
+    friend struct SurgeCompare;
 };
+
+using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
+
 } // namespace stellar

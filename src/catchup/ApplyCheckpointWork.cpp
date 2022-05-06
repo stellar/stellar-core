@@ -98,7 +98,7 @@ ApplyCheckpointWork::openInputFiles()
     mFilesOpen = true;
 }
 
-TxSetFramePtr
+TxSetFrameConstPtr
 ApplyCheckpointWork::getCurrentTxSet()
 {
     ZoneScoped;
@@ -124,13 +124,14 @@ ApplyCheckpointWork::getCurrentTxSet()
         {
             releaseAssert(mTxHistoryEntry.ledgerSeq == seq);
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
-            return std::make_shared<TxSetFrame>(mApp.getNetworkID(),
-                                                mTxHistoryEntry.txSet);
+            return std::make_shared<TxSetFrame const>(mApp.getNetworkID(),
+                                                      mTxHistoryEntry.txSet);
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    return std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+    return std::make_shared<TxSetFrame const>(
+        lm.getLastClosedLedgerHeader().hash);
 }
 
 std::shared_ptr<LedgerCloseData>

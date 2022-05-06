@@ -537,6 +537,12 @@
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\TxSetUtils.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\Upgrades.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -1654,6 +1660,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\TxSetUtils.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">
+      <Filter>herder\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\Upgrades.h">
       <Filter>herder</Filter>

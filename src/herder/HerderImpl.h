@@ -102,7 +102,7 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
-    void externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+    void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
@@ -121,7 +121,7 @@ class HerderImpl : public Herder
     bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
-    TxSetFramePtr getTxSet(Hash const& hash) override;
+    TxSetFrameConstPtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();

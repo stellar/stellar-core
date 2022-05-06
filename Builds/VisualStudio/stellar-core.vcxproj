@@ -319,6 +319,8 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\test\UpgradesTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxQueueLimiter.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
+    <ClCompile Include="..\..\src\herder\TxSetUtils.cpp" />
+    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
@@ -707,6 +709,8 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
     <ClInclude Include="..\..\src\herder\TxQueueLimiter.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
+    <ClCompile Include="..\..\src\herder\TxSetUtils.h" />
+    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />

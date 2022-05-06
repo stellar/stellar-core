@@ -56,7 +56,7 @@ testQuorumTracker()
     struct ValuesTxSet
     {
         Value mSignedV;
-        TxSetFramePtr mTxSet;
+        TxSetFrameConstPtr mTxSet;
     };
 
     auto recvEnvelope = [&](SCPEnvelope envelope, uint64 slotID,
@@ -109,7 +109,7 @@ testQuorumTracker()
     };
     auto makeValue = [&](int i) {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+        auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
         StellarValue sv = herder->makeStellarValue(
             txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
             emptyUpgradeSteps, valSigner);

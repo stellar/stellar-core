@@ -616,7 +616,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mLastClose = now;
     mLedgerAge.set_count(0);
 
-    std::shared_ptr<AbstractTxSetFrameForApply> txSet = ledgerData.getTxSet();
+    TxSetFrameConstPtr txSet = ledgerData.getTxSet();
 
     // If we do not support ledger version, we can't apply that ledger, fail!
     if (header.current().ledgerVersion >
@@ -685,7 +685,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
-    vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
+    std::vector<TransactionFrameBasePtr> txs = txSet->getTxsInApplyOrder();
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);

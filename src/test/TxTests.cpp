@@ -7,6 +7,7 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/simulation/TxSimTxSetFrame.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -464,21 +465,6 @@ closeLedgerOn(Application& app, int day, int month, int year,
                          strictOrder);
 }
 
-class TxSetFrameStrictOrderForTesting : public TxSetFrame
-{
-  public:
-    TxSetFrameStrictOrderForTesting(Hash const& previousLedgerHash)
-        : TxSetFrame(previousLedgerHash){};
-
-    std::vector<TransactionFrameBasePtr>
-    sortForApply() override
-    {
-        return mTransactions;
-    };
-
-    void sortForHash() override{};
-};
-
 TxSetResultMeta
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
             bool strictOrder)
@@ -504,25 +490,22 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         closeTime = lastCloseTime;
     }
 
-    std::shared_ptr<TxSetFrame> txSet;
-    auto lclHash = app.getLedgerManager().getLastClosedLedgerHeader().hash;
+    TxSetFrameConstPtr txSet;
     if (strictOrder)
     {
-        txSet = std::make_shared<TxSetFrameStrictOrderForTesting>(lclHash);
+        txSet = std::make_shared<txsimulation::SimApplyOrderTxSetFrame const>(
+            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
     }
     else
     {
-        txSet = std::make_shared<TxSetFrame>(lclHash);
+        txSet = std::make_shared<TxSetFrame const>(
+            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
     }
-
-    for (auto const& tx : txs)
-    {
-        txSet->add(tx);
-    }
-
-    txSet->sortForHash();
     if (!strictOrder)
     {
+        // `strictOrder` means the txs in the txSet will be applied in the exact
+        // same order as they were constructed. It could also imply the txs
+        // themselves maybe intentionally invalid for testing purpose.
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
@@ -1540,7 +1523,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 {
     auto& lm = app.getLedgerManager();
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+    auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
 
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
