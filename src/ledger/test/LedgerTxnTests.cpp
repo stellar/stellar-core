@@ -4208,3 +4208,95 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
         REQUIRE(kv.first.trustLine().accountID == a1.getPublicKey());
     }
 }
+
+TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
+                   "[ledgertxn]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto root = TestAccount::createRoot(*app);
+    auto const& lm = app->getLedgerManager();
+    auto a1 = root.create("a1", lm.getLastMinBalance(1));
+    auto b1 = root.create("b1", lm.getLastMinBalance(1));
+
+    for_versions_from(19, *app, [&] {
+        auto tx1 = txtest::transactionFrameFromOps(
+            app->getNetworkID(), root, {a1.op(txtest::accountMerge(root))},
+            {a1});
+        auto tx2 = txtest::transactionFrameFromOps(
+            app->getNetworkID(), root, {b1.op(txtest::accountMerge(root))},
+            {b1});
+        txtest::closeLedger(*app, {tx1});
+        txtest::closeLedger(*app, {tx2});
+    });
+}
+
+TEST_CASE("InMemoryLedgerTxn filtering", "[ledgertxn]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+
+    auto app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    auto a1 = root.create("a1", app->getLedgerManager().getLastMinBalance(1));
+
+    InternalLedgerEntry entry(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    entry.maxSeqNumToApplyEntry().sourceAccount = root;
+    entry.maxSeqNumToApplyEntry().maxSeqNum = 1;
+
+    InternalLedgerEntry entry2(InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+    entry2.maxSeqNumToApplyEntry().sourceAccount = a1;
+    entry2.maxSeqNumToApplyEntry().maxSeqNum = 1;
+
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+
+    SECTION("1 entry")
+    {
+        ltx.create(entry);
+        ltx.commit();
+
+        // MAX_SEQ_NUM_TO_APPLY was filtered out on commit to InMemoryLedgerTxn
+        LedgerTxn ltx2(app->getLedgerTxnRoot());
+        REQUIRE(!ltx2.load(entry.toKey()));
+    }
+
+    SECTION("two entries")
+    {
+        ltx.create(entry);
+        ltx.create(entry2);
+        ltx.commit();
+
+        LedgerTxn ltx2(app->getLedgerTxnRoot());
+        REQUIRE(!ltx2.load(entry.toKey()));
+        REQUIRE(!ltx2.load(entry2.toKey()));
+    }
+
+    SECTION("three entries, with one LEDGER_ENTRY")
+    {
+        ltx.create(entry);
+        ltx.create(le);
+        ltx.create(entry2);
+        ltx.commit();
+
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(!ltx1.load(entry.toKey()));
+        REQUIRE(!ltx1.load(entry2.toKey()));
+        REQUIRE(ltx1.load(LedgerEntryKey(le)));
+    }
+
+    SECTION("one LEDGER_ENTRY")
+    {
+        ltx.create(le);
+        ltx.commit();
+
+        LedgerTxn ltx2(app->getLedgerTxnRoot());
+        REQUIRE(ltx2.load(LedgerEntryKey(le)));
+    }
+}
