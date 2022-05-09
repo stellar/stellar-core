@@ -12,6 +12,66 @@
 namespace stellar
 {
 
+// Implementation of InMemoryLedgerTxn::FilteredEntryIteratorImpl
+// The LedgerTxnRoot backed LedgerTxn commit filters out non LEDGER_ENTRYs at
+// the top level in LedgerTxnRoot. This iterator imitates that behavior by
+// skipping the same entries.
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::FilteredEntryIteratorImpl(
+    EntryIterator const& begin)
+    : mIter(begin)
+{
+    if (mIter && mIter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
+    {
+        advance();
+    }
+}
+
+void
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::advance()
+{
+    while (++mIter &&
+           mIter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
+    {
+        // Do nothing
+    }
+}
+
+bool
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::atEnd() const
+{
+    return !mIter;
+}
+
+InternalLedgerEntry const&
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::entry() const
+{
+    return mIter.entry();
+}
+
+LedgerEntryPtr const&
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryPtr() const
+{
+    return mIter.entryPtr();
+}
+
+bool
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::entryExists() const
+{
+    return mIter.entryExists();
+}
+
+InternalLedgerKey const&
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::key() const
+{
+    return mIter.key();
+}
+
+std::unique_ptr<EntryIterator::AbstractImpl>
+InMemoryLedgerTxn::FilteredEntryIteratorImpl::clone() const
+{
+    return std::make_unique<FilteredEntryIteratorImpl>(mIter);
+}
+
 InMemoryLedgerTxn::InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent,
                                      Database& db)
     : LedgerTxn(parent), mDb(db)
@@ -84,6 +144,14 @@ InMemoryLedgerTxn::updateLedgerKeyMap(EntryIterator iter)
     }
 }
 
+EntryIterator
+InMemoryLedgerTxn::getFilteredEntryIterator(EntryIterator const& iter)
+{
+    auto filteredIterImpl =
+        std::make_unique<InMemoryLedgerTxn::FilteredEntryIteratorImpl>(iter);
+    return EntryIterator(std::move(filteredIterImpl));
+}
+
 void
 InMemoryLedgerTxn::commitChild(EntryIterator iter,
                                LedgerTxnConsistency cons) noexcept
@@ -94,9 +162,10 @@ InMemoryLedgerTxn::commitChild(EntryIterator iter,
     }
     try
     {
-        updateLedgerKeyMap(iter);
+        auto filteredIter = getFilteredEntryIterator(iter);
+        updateLedgerKeyMap(filteredIter);
 
-        LedgerTxn::commitChild(iter, cons);
+        LedgerTxn::commitChild(filteredIter, cons);
         mTransaction->commit();
         mTransaction.reset();
     }
