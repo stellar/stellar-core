@@ -50,6 +50,30 @@ class InMemoryLedgerTxn : public LedgerTxn
     void updateLedgerKeyMap(InternalLedgerKey const& genKey, bool add) noexcept;
     void updateLedgerKeyMap(EntryIterator iter);
 
+    class FilteredEntryIteratorImpl : public EntryIterator::AbstractImpl
+    {
+        EntryIterator mIter;
+
+      public:
+        explicit FilteredEntryIteratorImpl(EntryIterator const& begin);
+
+        void advance() override;
+
+        bool atEnd() const override;
+
+        InternalLedgerEntry const& entry() const override;
+
+        LedgerEntryPtr const& entryPtr() const override;
+
+        bool entryExists() const override;
+
+        InternalLedgerKey const& key() const override;
+
+        std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
+    };
+
+    EntryIterator getFilteredEntryIterator(EntryIterator const& iter);
+
   public:
     InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent, Database& db);
     virtual ~InMemoryLedgerTxn();
