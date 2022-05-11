@@ -16,7 +16,7 @@
 
 Easiest is to use rustup, found on [rust-lang.org](https://www.rust-lang.org/tools/install).
 
-Install the x64 toolchain, and make sure that `rustc.exe` is in your `PATH`.
+Install the x64 MSVC toolchain (`stable-x86_64-pc-windows-msvc`), and make sure that `rustc.exe` is in your `PATH`.
 
 ## Download and install PostgreSQL
 
