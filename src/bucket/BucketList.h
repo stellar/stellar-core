@@ -245,8 +245,22 @@ namespace stellar
 // Empirically, we see ledgers closing closer to once every 6 seconds than
 // 5 so the durations are longer, but at 6 seconds and stopping at level 10
 // (see section on degeneracy below) we observe that every bucket in the
-// bucketlist is rewritten about once every 36 days, so this is the duration
-// to assume for any upgrade that requires rewriting all buckets.
+// bucketlist is rewritten about once every 36 days.
+//
+// If you are going to do an upgrade to the BL, you may need to wait for a time
+// related to either of these two tables. If you do an upgrade driven by the
+// "trickling down" of protcol changes, you need to wait for the duration of a
+// new object post-upgrade to arrive in the lowest level, which is one ledger
+// beyond the age of the oldest object in the second-lowest level (or about 60
+// days).
+//
+// A more aggressive upgrade schedule involves switching any bucket when it is
+// merged, regardless of the merge input protocol numbers. If you time the
+// upgrade right you can do this in less than 2 cycles of the lowest level spill
+// frequency (i.e. 30 days) but in the worst case this takes about the same
+// length of time since if a merge has already started by the time you upgrade,
+// you may have to wait 2 spill cycles before it's complete (the merge already
+// running on the old protocol plus the next merge on the new protocol).
 //
 // Performance:
 // ------------
