@@ -138,8 +138,8 @@ namespace stellar
 //   5       0x200=[0x11_f2ac, 0x11_f4ab]     0x800=[0x11_eaac, 0x11_f2ab]
 //   6      0x2000=[0x11_caac, 0x11_eaab]    0x2000=[0x11_aaac, 0x11_caab]
 //   7      0x8000=[0x11_2aac, 0x11_aaab]    0x8000=[0x10_aaac, 0x11_2aab]
-//   8    0x2_0000=[ 0xe_aaac, 0x10_aaab]   0x20000=[ 0xc_aaac,  0xe_aaab]
-//   9    0x2_0000=[ 0xa_aaac,  0xc_aaab]   0x80000=[ 0x2_aaac,  0xa_aaab]
+//   8    0x2_0000=[ 0xe_aaac, 0x10_aaab]  0x2_0000=[ 0xc_aaac,  0xe_aaab]
+//   9    0x2_0000=[ 0xa_aaac,  0xc_aaab]  0x8_0000=[ 0x2_aaac,  0xa_aaab]
 //  10    0x2_aaab=[      0x1,  0x2_aaab]   ---------- empty -----------
 //
 // The sizes of the "snap" buckets _for levels that are full_ correspond exactly
@@ -199,8 +199,15 @@ namespace stellar
 // Time intuitions:
 // ----------------
 //
-// Assuming a ledger closes every 5 seconds, here are the timespans covered by
-// each level:
+// Assuming a ledger closes every 5 seconds, there are 2 interesting "time
+// periods" to think about:
+//
+//  (a) the oldest change in any given level, measured from present
+//  (b) the frequency of spills from one level to the next
+//
+// The oldest change in a level (thus time to completely flush all all changes
+// to the next level) will vary between 4 and 8x the age of the oldest change in
+// the previous. Maximum change ages look like this:
 //
 // L0:   20 seconds          (4 ledgers)
 // L1:   80 seconds         (16 ledgers)
@@ -217,6 +224,43 @@ namespace stellar
 // L12:  10 years   (67,108,864 ledgers)
 // L13:  42 years  (268,435,456 ledgers)
 //
+// Incoming-spill frequencies -- which is the longest one has to wait to see a
+// level's buckets merged/rewritten -- are lower, 1/8 the maximum age:
+//
+// L0:    5 seconds      (every ledger)
+// L1:   10 seconds         (2 ledgers)
+// L2:   40 seconds         (8 ledgers)
+// L3:  160 seconds        (32 ledgers)
+// L4:   10 minutes       (128 ledgers)
+// L5:   42 minutes       (512 ledgers)
+// L6:  170 minutes     (2,048 ledgers)
+// L7:   11 hours       (8,192 ledgers)
+// L8:   45 hours      (32,768 ledgers)
+// L9:    7 days      (131,072 ledgers)
+// L10:  30 days      (524,288 ledgers)
+// L11: 121 days    (2,097,152 ledgers)
+// L12: 485 days    (8,388,608 ledgers)
+// L13:   5 years  (33,554,432 ledgers)
+//
+// Empirically, we see ledgers closing closer to once every 6 seconds than
+// 5 so the durations are longer, but at 6 seconds and stopping at level 10
+// (see section on degeneracy below) we observe that every bucket in the
+// bucketlist is rewritten about once every 36 days.
+//
+// If you are going to do an upgrade to the BL, you may need to wait for a time
+// related to either of these two tables. If you do an upgrade driven by the
+// "trickling down" of protcol changes, you need to wait for the duration of a
+// new object post-upgrade to arrive in the lowest level, which is one ledger
+// beyond the age of the oldest object in the second-lowest level (or about 60
+// days).
+//
+// A more aggressive upgrade schedule involves switching any bucket when it is
+// merged, regardless of the merge input protocol numbers. If you time the
+// upgrade right you can do this in less than 2 cycles of the lowest level spill
+// frequency (i.e. 30 days) but in the worst case this takes about the same
+// length of time since if a merge has already started by the time you upgrade,
+// you may have to wait 2 spill cycles before it's complete (the merge already
+// running on the old protocol plus the next merge on the new protocol).
 //
 // Performance:
 // ------------
@@ -278,7 +322,9 @@ namespace stellar
 //
 // We therefore cut off at level 10. Level 11 doesn't exist: it's "the entire
 // database", which we update with a half-level-10 snapshot every 2-million
-// ledgers. Which is "every 4 months" (at 5s per ledger).
+// ledgers. Which is "every 4 months" (at 5s per ledger) for the oldest change
+// in the lowest level, and the lowest level is rewritten at about once every
+// month.
 //
 // Cutting off at a fixed level carries a minor design risk: that the database
 // might grow very large, relative to the transaction volume, and that we might
