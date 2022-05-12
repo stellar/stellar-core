@@ -37,6 +37,7 @@ herder.pending-txs.age2                  | counter   | number of gen2 pending tr
 herder.pending-txs.age3                  | counter   | number of gen3 pending transactions
 herder.pending-txs.banned                | counter   | number of transactions that got banned
 herder.pending-txs.delay                 | timer     | time for transactions to be included in a ledger
+herder.pending-txs.self-delay            | timer     | time for transactions submitted from this node to be included in a ledger
 history.check.failure                    | meter     | history archive status checks failed
 history.check.success                    | meter     | history archive status checks succeeded
 history.publish.failure                  | meter     | published failed

@@ -683,7 +683,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             // add it to our current set
             // and make sure it is valid
             TransactionQueue::AddResult status =
-                mApp.getHerder().recvTransaction(transaction);
+                mApp.getHerder().recvTransaction(transaction, true);
 
             output << "{"
                    << "\"status\": "
@@ -1008,7 +1008,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame);
+        auto status = mApp.getHerder().recvTransaction(txFrame, true);
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {

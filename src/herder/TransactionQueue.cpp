@@ -61,6 +61,8 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
           app.getMetrics().NewCounter({"herder", "arb-tx", "dropped"}))
     , mTransactionsDelay(
           app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
+    , mTransactionsSelfDelay(
+          app.getMetrics().NewTimer({"herder", "pending-txs", "self-delay"}))
     , mBroadcastTimer(app)
 {
     mTxQueueLimiter = std::make_unique<TxQueueLimiter>(poolLedgerMultiplier,
@@ -481,7 +483,7 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
     AccountStates::iterator stateIter;
@@ -502,12 +504,12 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     if (oldTxIter != stateIter->second.mTransactions.end())
     {
         prepareDropTransaction(stateIter->second, *oldTxIter);
-        *oldTxIter = {tx, false, mApp.getClock().now()};
+        *oldTxIter = {tx, false, mApp.getClock().now(), submittedFromSelf};
     }
     else
     {
         stateIter->second.mTransactions.push_back(
-            {tx, false, mApp.getClock().now()});
+            {tx, false, mApp.getClock().now(), submittedFromSelf});
         oldTxIter = --stateIter->second.mTransactions.end();
         mSizeByAge[stateIter->second.mAge]->inc();
     }
@@ -637,6 +639,10 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                         {
                             auto elapsed = now - it->mInsertionTime;
                             mTransactionsDelay.Update(elapsed);
+                            if (it->mSubmittedFromSelf)
+                            {
+                                mTransactionsSelfDelay.Update(elapsed);
+                            }
                         }
                     }
 
