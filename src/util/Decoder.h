@@ -8,7 +8,7 @@
 #include <lib/util/basen.h>
 #include <string>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/bridge.h"
+#include "rust/rust_bridge.h"
 #include <xdrpp/types.h>
 #endif
 
@@ -54,7 +54,7 @@ inline std::string
 encode_b64(std::vector<uint8_t> const& v)
 {
     std::string s;
-    bridge::to_base64(v, s);
+    rust_bridge::to_base64(v, s);
     return s;
 }
 
@@ -63,7 +63,7 @@ inline std::string
 encode_b64(xdr::opaque_vec<N> const& v)
 {
     std::string s;
-    bridge::to_base64(v, s);
+    rust_bridge::to_base64(v, s);
     return s;
 }
 #endif
@@ -92,7 +92,7 @@ inline void
 decode_b64(std::string const& v, std::vector<uint8_t>& out)
 {
     out.clear();
-    bridge::from_base64(v, out);
+    rust_bridge::from_base64(v, out);
 }
 #endif
 
