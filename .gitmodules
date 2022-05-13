@@ -23,3 +23,6 @@
 	path = lib/spdlog
 	url = https://github.com/gabime/spdlog
 	ignore = dirty
+[submodule "lib/rs-stellar-contract-env"]
+	path = lib/rs-stellar-contract-env
+	url = https://github.com/stellar/rs-stellar-contract-env
