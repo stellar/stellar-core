@@ -1230,7 +1230,7 @@
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="src\generated\rust\bridge.cpp">
+    <ClCompile Include="src\generated\rust\rust_bridge.cpp">
       <Filter>rust\generated</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
@@ -2147,7 +2147,7 @@
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="src\generated\rust\bridge.h">
+    <ClInclude Include="src\generated\rust\rust_bridge.h">
       <Filter>rust\generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">

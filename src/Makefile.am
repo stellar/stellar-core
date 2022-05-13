@@ -33,14 +33,14 @@ SUFFIXES = .x .h .rs
 	$(XDRC) -hh -pedantic -o $@ $<
 
 # Old automakes have buggy dependency tracking for conditional generated
-# sources. We work around this here by making rust/bridge.{cpp,h} generated in
-# all cases, and just empty in the non-rust case. Also because of the way old
+# sources. We work around this here by making rust/rust_bridge.{cpp,h} generated
+# in all cases, and just empty in the non-rust case. Also because of the way old
 # automake relies on horrible path-munging code in config.status to extract the
 # names of depfiles from the Makefile itself, we can't use any variables in the
 # SOURCES addition we're doing here, have to list unadorned paths.
 
-BUILT_SOURCES += rust/bridge.h rust/bridge.cpp
-stellar_core_SOURCES += rust/bridge.h rust/bridge.cpp
+BUILT_SOURCES += rust/rust_bridge.h rust/rust_bridge.cpp
+stellar_core_SOURCES += rust/rust_bridge.h rust/rust_bridge.cpp
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 RUST_BUILD_DIR=$(top_builddir)/src/rust
@@ -55,11 +55,11 @@ $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
 	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd
 
-rust/bridge.h: $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
+rust/rust_bridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-rust/bridge.cpp: $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
+rust/rust_bridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
@@ -68,10 +68,10 @@ $(LIBRUST_STELLAR_CORE): $(SRC_RUST_FILES) Makefile.am
 	ranlib $@
 else
 
-rust/bridge.cpp:
+rust/rust_bridge.cpp:
 	touch $@
 
-rust/bridge.h:
+rust/rust_bridge.h:
 	touch $@
 
 endif # ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
