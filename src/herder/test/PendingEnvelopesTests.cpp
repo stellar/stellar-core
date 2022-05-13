@@ -37,9 +37,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
     using TxPair = std::pair<Value, TxSetFrameConstPtr>;
-    auto makeTxPair =
-        [&](TxSetFrameConstPtr txSet, uint64_t closeTime, StellarValueType svt)
-    {
+    auto makeTxPair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime,
+                          StellarValueType svt) {
         StellarValue sv = herder.makeStellarValue(
             txSet->getContentsHash(), closeTime, emptyUpgradeSteps, s);
         sv.ext.v(svt);
@@ -47,8 +46,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&](TxPair const& p, Hash qSetHash, uint64_t slotIndex)
-    {
+    auto makeEnvelope = [&](TxPair const& p, Hash qSetHash,
+                            uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
@@ -62,23 +61,20 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         herder.signEnvelope(s, envelope);
         return envelope;
     };
-    auto makeTransactions = [&](Hash hash, int n)
-    {
+    auto makeTransactions = [&](Hash hash, int n) {
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),
                       [&]() { return root.tx({createAccount(a1, 10000000)}); });
         return TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     };
 
-    auto makePublicKey = [](int i)
-    {
+    auto makePublicKey = [](int i) {
         auto hash = sha256("NODE_SEED_" + std::to_string(i));
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getPublicKey();
     };
 
-    auto makeSingleton = [](const PublicKey& key)
-    {
+    auto makeSingleton = [](const PublicKey& key) {
         auto result = SCPQuorumSet{};
         result.threshold = 1;
         result.validators.push_back(key);

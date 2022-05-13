@@ -62,7 +62,8 @@ LedgerEntryPtr::LedgerEntryPtr(
     }
 }
 
-InternalLedgerEntry& LedgerEntryPtr::operator*() const
+InternalLedgerEntry&
+LedgerEntryPtr::operator*() const
 {
     if (!mEntryPtr)
     {
@@ -72,7 +73,8 @@ InternalLedgerEntry& LedgerEntryPtr::operator*() const
     return *mEntryPtr;
 }
 
-InternalLedgerEntry* LedgerEntryPtr::operator->() const
+InternalLedgerEntry*
+LedgerEntryPtr::operator->() const
 {
     if (!mEntryPtr)
     {

@@ -223,7 +223,7 @@ TxSetFrameConstPtr
 TxSetFrame::makeFromHistoryTransactions(Hash const& previousLedgerHash,
                                         Transactions const& txs)
 {
-    return std::make_shared<TxSetFrame>(false, previousLedgerHash, txs);    
+    return std::make_shared<TxSetFrame>(false, previousLedgerHash, txs);
 }
 
 TxSetFrameConstPtr
@@ -373,7 +373,7 @@ bool
 TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                        uint64_t upperBoundCloseTimeOffset) const
 {
-    ZoneScoped;    
+    ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
 
     // Start by checking previousLedgerHash

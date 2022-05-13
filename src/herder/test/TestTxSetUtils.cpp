@@ -19,7 +19,7 @@ TestTxSetUtils::makeNonValidatedTxSet(
 
 TransactionSet
 TestTxSetUtils::makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
-                               Hash const& previousLedgerHash)
+                             Hash const& previousLedgerHash)
 {
     auto normalizedTxs = TxSetUtils::sortTxsInHashOrder(txs);
     TransactionSet txSet;

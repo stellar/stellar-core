@@ -91,7 +91,7 @@ class TxSetFrame
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
 
-  //protected:
+    // protected:
     TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                Transactions const& txs);
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,

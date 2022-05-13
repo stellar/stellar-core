@@ -890,25 +890,22 @@ HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
     int numNodes = 0;
 
     auto qSet = getSCP().getLocalQuorumSet();
-    LocalNode::forAllNodes(qSet,
-                           [&](NodeID const& n)
-                           {
-                               auto lag = getExternalizeLag(n);
-                               if (lag > 0)
-                               {
-                                   if (!summary)
-                                   {
-                                       ret[toStrKey(n, fullKeys)] =
-                                           static_cast<Json::UInt64>(lag);
-                                   }
-                                   else
-                                   {
-                                       totalLag += lag;
-                                       numNodes++;
-                                   }
-                               }
-                               return true;
-                           });
+    LocalNode::forAllNodes(qSet, [&](NodeID const& n) {
+        auto lag = getExternalizeLag(n);
+        if (lag > 0)
+        {
+            if (!summary)
+            {
+                ret[toStrKey(n, fullKeys)] = static_cast<Json::UInt64>(lag);
+            }
+            else
+            {
+                totalLag += lag;
+                numNodes++;
+            }
+        }
+        return true;
+    });
 
     if (summary && numNodes > 0)
     {

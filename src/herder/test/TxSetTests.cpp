@@ -68,7 +68,7 @@ using namespace txtest;
 //     }
 // }
 
-//TEST_CASE("generalized tx set XDR conversion", "[txset]")
+// TEST_CASE("generalized tx set XDR conversion", "[txset]")
 //{
 //    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
 //                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
@@ -181,7 +181,7 @@ using namespace txtest;
 //    }*/
 //}
 
-//TEST_CASE("generalized tx set fees", "[txset]")
+// TEST_CASE("generalized tx set fees", "[txset]")
 //{
 //    VirtualClock clock;
 //    auto cfg = getTestConfig();

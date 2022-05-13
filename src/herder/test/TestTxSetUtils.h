@@ -14,12 +14,12 @@ class TestTxSetUtils
   public:
     static TxSetFrameConstPtr
     makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
-                            Hash const& networkID,
-                            Hash const& previousLedgerHash);
+                          Hash const& networkID,
+                          Hash const& previousLedgerHash);
 
     static TransactionSet
     makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
-                   Hash const& previousLedgerHash);
+                 Hash const& previousLedgerHash);
 
     static GeneralizedTransactionSet makeGeneralizedTxSetXDR(
         std::vector<std::pair<std::optional<int64_t>,

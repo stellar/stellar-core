@@ -520,8 +520,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     std::transform(
         z1.results.begin(), z1.results.end(), z2.begin(),
         std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2)
-        { return std::make_pair(r1, r2); });
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
+            return std::make_pair(r1, r2);
+        });
 
     return res;
 }
@@ -542,8 +543,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     std::transform(
         z1.results.begin(), z1.results.end(), z2.begin(),
         std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2)
-        { return std::make_pair(r1, r2); });
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
+            return std::make_pair(r1, r2);
+        });
 
     return res;
 }
@@ -898,8 +900,7 @@ applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
                        Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
-    auto getIdPool = [&]()
-    {
+    auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -982,8 +983,7 @@ applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
                     Price const& price, int64_t amount, SequenceNumber seq,
                     ManageOfferEffect expectedEffect)
 {
-    auto getIdPool = [&]()
-    {
+    auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -1050,8 +1050,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
 {
-    auto getIdPool = [&]()
-    {
+    auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -1580,8 +1579,7 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
 
-    auto deposit = [&](int64_t accNum, int64_t size)
-    {
+    auto deposit = [&](int64_t accNum, int64_t size) {
         auto acc = root.create(fmt::format("account{}", accNum),
                                app.getLedgerManager().getLastMinBalance(10));
         acc.changeTrust(cur1, INT64_MAX);
