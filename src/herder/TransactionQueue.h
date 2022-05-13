@@ -106,6 +106,7 @@ class TransactionQueue
         TransactionFrameBasePtr mTx;
         bool mBroadcasted;
         VirtualClock::time_point mInsertionTime;
+        bool mSubmittedFromSelf;
     };
     using TimestampedTransactions = std::vector<TimestampedTx>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
@@ -125,7 +126,7 @@ class TransactionQueue
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
-    AddResult tryAdd(TransactionFrameBasePtr tx);
+    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
     void removeApplied(Transactions const& txs);
     void ban(Transactions const& txs);
 
@@ -185,6 +186,7 @@ class TransactionQueue
     medida::Counter& mArbTxSeenCounter;
     medida::Counter& mArbTxDroppedCounter;
     medida::Timer& mTransactionsDelay;
+    medida::Timer& mTransactionsSelfDelay;
 
     UnorderedSet<OperationType> mFilteredTypes;
 

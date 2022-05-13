@@ -77,7 +77,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             VirtualTimer setupTimer(*app);
 
             auto feedTx = [&](TransactionFramePtr& tx) {
-                REQUIRE(app->getHerder().recvTransaction(tx) ==
+                REQUIRE(app->getHerder().recvTransaction(tx, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_PENDING);
             };
 
@@ -2950,9 +2950,9 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     // this will be invalid after tx1r gets applied
     auto tx2r = root.tx({payment(root, 1)});
 
-    herder.recvTransaction(tx1a);
-    herder.recvTransaction(tx1r);
-    herder.recvTransaction(tx2r);
+    herder.recvTransaction(tx1a, false);
+    herder.recvTransaction(tx1r, false);
+    herder.recvTransaction(tx2r, false);
 
     size_t numBroadcast = 0;
     tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
@@ -3056,7 +3056,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx) ==
+            REQUIRE(herder.recvTransaction(tx, false) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
             return tx;
         };
@@ -3318,7 +3318,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx) ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
     }
 
@@ -3333,7 +3333,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx) ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_FILTERED);
     }
 
@@ -3349,7 +3349,7 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx) ==
+        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
     }
 }

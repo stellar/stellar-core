@@ -1634,10 +1634,10 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     auto root = TestAccount::createRoot(*app);
     auto acc = root.create("A", lm.getLastMinBalance(2));
 
-    herder.recvTransaction(root.tx({payment(root, 1)}));
-    herder.recvTransaction(root.tx({payment(root, 2)}));
-    herder.recvTransaction(acc.tx({payment(acc, 1)}));
-    herder.recvTransaction(acc.tx({payment(acc, 2)}));
+    herder.recvTransaction(root.tx({payment(root, 1)}), false);
+    herder.recvTransaction(root.tx({payment(root, 2)}), false);
+    herder.recvTransaction(acc.tx({payment(acc, 1)}), false);
+    herder.recvTransaction(acc.tx({payment(acc, 2)}), false);
 
     auto txSet = herder.getTransactionQueue().toTxSet({});
     for (auto const& tx : txSet->getTxsInHashOrder())
