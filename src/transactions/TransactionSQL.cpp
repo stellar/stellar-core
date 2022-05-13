@@ -8,6 +8,7 @@
 #include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerHeaderUtils.h"
+#include "main/Application.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
@@ -162,18 +163,19 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     {
         throw std::runtime_error("Could not find ledger");
     }
-    TxSetFrame txSet(lh->previousLedgerHash, txs);
+    auto txSet =
+        TxSetFrame::makeFromHistoryTransactions(lh->previousLedgerHash, txs);
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
-    if (txSet.isGeneralizedTxSet())
-    {
-        hist.ext.v(1);
-        txSet.toXDR(hist.ext.generalizedTxSet());
-    }
-    else
-    {
-        txSet.toXDR(hist.txSet);
-    }
+    // if (txSet.isGeneralizedTxSet())
+    //{
+    //    hist.ext.v(1);
+    //    txSet.toXDR(hist.ext.generalizedTxSet());
+    //}
+    // else
+    //{
+    txSet->toXDR(hist.txSet);
+    //}
 
     txOut.writeOne(hist);
 
@@ -181,12 +183,13 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
 }
 
 size_t
-copyTransactionsToStream(Hash const& networkID, Database& db,
-                         soci::session& sess, uint32_t ledgerSeq,
-                         uint32_t ledgerCount, XDROutputFileStream& txOut,
+copyTransactionsToStream(Application& app, soci::session& sess,
+                         uint32_t ledgerSeq, uint32_t ledgerCount,
+                         XDROutputFileStream& txOut,
                          XDROutputFileStream& txResultOut)
 {
     ZoneScoped;
+    auto& db = app.getDatabase();
     auto timer = db.getSelectTimer("txhistory");
     std::string txBody, txResult, txMeta;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -239,8 +242,8 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
 
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
-        auto txFrame =
-            TransactionFrameBase::makeTransactionFromWire(networkID, tx);
+        auto txFrame = TransactionFrameBase::makeTransactionFromWire(
+            app.getNetworkID(), tx);
         txs.emplace_back(txFrame);
 
         xdr::xdr_get g2(&result.front(), &result.back() + 1);

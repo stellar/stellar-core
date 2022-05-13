@@ -494,13 +494,11 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     if (strictOrder)
     {
         txSet = std::make_shared<txsimulation::SimApplyOrderTxSetFrame const>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
+            app.getLedgerManager().getLastClosedLedgerHeader(), txs);
     }
     else
     {
-        txSet = std::make_shared<TxSetFrame const>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
-txSet->computeTxFees(lcl.header);
+        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
     }
     if (!strictOrder)
     {
@@ -522,16 +520,15 @@ txSet->computeTxFees(lcl.header);
     std::transform(
         z1.results.begin(), z1.results.end(), z2.begin(),
         std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
-            return std::make_pair(r1, r2);
-        });
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2)
+        { return std::make_pair(r1, r2); });
 
     return res;
 }
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
-              TxSetFramePtr txSet)
+              TxSetFrameConstPtr txSet)
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
@@ -545,9 +542,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     std::transform(
         z1.results.begin(), z1.results.end(), z2.begin(),
         std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
-            return std::make_pair(r1, r2);
-        });
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2)
+        { return std::make_pair(r1, r2); });
 
     return res;
 }
@@ -902,7 +898,8 @@ applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
                        Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
-    auto getIdPool = [&]() {
+    auto getIdPool = [&]()
+    {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -985,7 +982,8 @@ applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
                     Price const& price, int64_t amount, SequenceNumber seq,
                     ManageOfferEffect expectedEffect)
 {
-    auto getIdPool = [&]() {
+    auto getIdPool = [&]()
+    {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -1052,7 +1050,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
 {
-    auto getIdPool = [&]() {
+    auto getIdPool = [&]()
+    {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         return ltx.loadHeader().current().idPool;
     };
@@ -1526,44 +1525,6 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
 
-TxSetFramePtr
-createGeneralizedTxSet(
-    std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>> const&
-        txsPerBaseFee,
-    std::vector<TransactionFrameBasePtr> const& bidIsFeeTxs, Application& app)
-{
-    GeneralizedTransactionSet xdrSet(1);
-    xdrSet.v1TxSet().previousLedgerHash =
-        app.getLedgerManager().getLastClosedLedgerHeader().hash;
-    auto& phase = xdrSet.v1TxSet().phases.emplace_back();
-    if (!txsPerBaseFee.empty())
-    {
-        for (auto const& [baseFee, txs] : txsPerBaseFee)
-        {
-            auto& component = phase.v0Components().emplace_back(
-                TXSET_COMP_TXS_DISCOUNTED_FEE);
-            component.txsDiscountedFee().baseFee = baseFee;
-            auto& componentTxs = component.txsDiscountedFee().txs;
-            for (auto const& tx : txs)
-            {
-                componentTxs.emplace_back(tx->getEnvelope());
-            }
-        }
-    }
-    if (!bidIsFeeTxs.empty())
-    {
-        auto& component =
-            phase.v0Components().emplace_back(TXSET_COMP_TXS_BID_IS_FEE);
-        auto& componentTxs = component.txsBidIsFee();
-        for (auto const& tx : bidIsFeeTxs)
-        {
-            componentTxs.emplace_back(tx->getEnvelope());
-        }
-    }
-    REQUIRE(validateTxSetXDRStructure(xdrSet));
-    return std::make_shared<TxSetFrame>(app.getNetworkID(), xdrSet);
-}
-
 LedgerUpgrade
 makeBaseReserveUpgrade(int baseReserve)
 {
@@ -1585,9 +1546,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 {
     auto& lm = app.getLedgerManager();
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet =
-        std::make_shared<TxSetFrame const>(lcl.hash, lcl.header.ledgerVersion);
-    txSet->computeTxFees(lcl.header);
+    auto txSet = TxSetFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
                                      lastCloseTime, upgrades);
@@ -1621,7 +1580,8 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
         makeChangeTrustAssetPoolShare(cur1, cur2, LIQUIDITY_POOL_FEE_V18);
     auto pool12 = xdrSha256(share12.liquidityPool());
 
-    auto deposit = [&](int64_t accNum, int64_t size) {
+    auto deposit = [&](int64_t accNum, int64_t size)
+    {
         auto acc = root.create(fmt::format("account{}", accNum),
                                app.getLedgerManager().getLastMinBalance(10));
         acc.changeTrust(cur1, INT64_MAX);

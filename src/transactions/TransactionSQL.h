@@ -10,6 +10,7 @@
 
 namespace stellar
 {
+class Application;
 class XDROutputFileStream;
 
 void storeTransaction(Database& db, uint32_t ledgerSeq,
@@ -26,9 +27,8 @@ TransactionResultSet getTransactionHistoryResults(Database& db,
 std::vector<LedgerEntryChanges> getTransactionFeeMeta(Database& db,
                                                       uint32 ledgerSeq);
 
-size_t copyTransactionsToStream(Hash const& networkID, Database& db,
-                                soci::session& sess, uint32_t ledgerSeq,
-                                uint32_t ledgerCount,
+size_t copyTransactionsToStream(Application& app, soci::session& sess,
+                                uint32_t ledgerSeq, uint32_t ledgerCount,
                                 XDROutputFileStream& txOut,
                                 XDROutputFileStream& txResultOut);
 

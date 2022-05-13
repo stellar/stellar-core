@@ -57,7 +57,7 @@ LedgerCloseMetaFrame::scpInfo()
 }
 
 void
-LedgerCloseMetaFrame::populateTxSet(AbstractTxSetFrameForApply const& txSet)
+LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
 {
     if (mVersion == 0)
     {

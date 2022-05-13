@@ -310,6 +310,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
+    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp" />
     <ClCompile Include="..\..\src\herder\test\TxSetTests.cpp" />
     <ClCompile Include="..\..\src\herder\TransactionQueue.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
@@ -321,7 +322,6 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\TxQueueLimiter.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetUtils.cpp" />
-    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
@@ -707,12 +707,12 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h" />
     <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h" />
+    <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
     <ClInclude Include="..\..\src\herder\TxQueueLimiter.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
-    <ClCompile Include="..\..\src\herder\TxSetUtils.h" />
-    <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.h" />
+    <ClInclude Include="..\..\src\herder\TxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
@@ -948,7 +948,7 @@ exit /b 0
     <ClInclude Include="..\..\src\work\WorkScheduler.h" />
     <ClInclude Include="..\..\src\work\WorkSequence.h" />
     <ClInclude Include="..\..\src\work\WorkWithCallback.h" />
-	<ClInclude Include="src\generated\rust\bridge.h" />
+    <ClInclude Include="src\generated\rust\bridge.h" />
     <ClInclude Include="src\generated\xdr\Stellar-internal.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h" />

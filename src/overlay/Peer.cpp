@@ -1327,20 +1327,17 @@ void
 Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
-    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
+    auto frame = TxSetFrame::makeFromWire(mApp.getNetworkID(), msg.txSet());
+    mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
 void
 Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    if (!validateTxSetXDRStructure(msg.generalizedTxSet()))
-    {
-        return;
-    }
-    TxSetFrame frame(mApp.getNetworkID(), msg.generalizedTxSet());
-    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
+    auto frame =
+        TxSetFrame::makeFromWire(mApp.getNetworkID(), msg.generalizedTxSet());
+    mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
 void

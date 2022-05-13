@@ -22,7 +22,7 @@ class LedgerCloseMetaFrame
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
     xdr::xvector<SCPHistoryEntry>& scpInfo();
 
-    void populateTxSet(AbstractTxSetFrameForApply const& txSet);
+    void populateTxSet(TxSetFrame const& txSet);
 
     LedgerCloseMeta const& getXDR() const;
 

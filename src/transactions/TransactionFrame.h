@@ -187,7 +187,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
-  bool checkExtraSigners(SignatureChecker& signatureChecker);
+    bool checkExtraSigners(SignatureChecker& signatureChecker);
 
     bool checkValidWithOptionalFee(AbstractLedgerTxn& ltxOuter,
                                    SequenceNumber current, bool chargeFee,

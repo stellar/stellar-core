@@ -11,8 +11,18 @@ namespace stellar
 namespace txsimulation
 {
 
+SimApplyOrderTxSetFrame::SimApplyOrderTxSetFrame(
+    LedgerHeaderHistoryEntry const& lclHeader,
+    Transactions const& txsInApplyOrder)
+    : TxSetFrame(lclHeader, txsInApplyOrder), mTxsInApplyOrder(txsInApplyOrder)
+{
+    computeTxFees(lclHeader.header);
+    computeContentsHash();
+}
+
 TxSetFrameConstPtr
-makeSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
+makeSimTxSetFrame(Hash const& networkID,
+                  LedgerHeaderHistoryEntry const& lclHeader,
                   std::vector<TransactionEnvelope> const& transactions,
                   std::vector<TransactionResultPair> const& results,
                   uint32_t multiplier)
@@ -49,14 +59,8 @@ makeSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
     }
 
     assert(resultIter == results.end());
-    return std::make_shared<SimApplyOrderTxSetFrame const>(previousLedgerHash,
-                                                           txs);
+    return std::make_shared<SimApplyOrderTxSetFrame const>(lclHeader, txs);
 }
 
 }
-
-void
-TxSimTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
-{
-    releaseAssert(false);
 }

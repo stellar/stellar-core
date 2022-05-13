@@ -367,7 +367,9 @@ HerderImpl::outOfSyncRecovery()
     uint32_t maxSlotsAhead = Herder::LEDGER_VALIDITY_BRACKET;
     uint32 purgeSlot = 0;
     getSCP().processSlotsDescendingFrom(
-        std::numeric_limits<uint64>::max(), [&](uint64 seq) {
+        std::numeric_limits<uint64>::max(),
+        [&](uint64 seq)
+        {
             if (getSCP().gotVBlocking(seq))
             {
                 if (--maxSlotsAhead == 0)
@@ -420,7 +422,8 @@ HerderImpl::startOutOfSyncTimer()
     mOutOfSyncTimer.expires_from_now(Herder::OUT_OF_SYNC_RECOVERY_TIMER);
 
     mOutOfSyncTimer.async_wait(
-        [&]() {
+        [&]()
+        {
             outOfSyncRecovery();
             startOutOfSyncTimer();
         },
@@ -498,26 +501,32 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     StellarValue sv;
     // performs the most conservative check:
     // returns true if one of the values is valid
-    auto checkCTHelper = [&](std::vector<Value> const& values) {
-        return std::any_of(values.begin(), values.end(), [&](Value const& e) {
-            auto r = scpD.toStellarValue(e, sv);
-            // sv must be after cutoff
-            r = r && sv.closeTime >= ctCutoff;
-            if (r)
-            {
-                // statement received after the fact, only keep externalized
-                // value
-                r = (lastCloseIndex == envLedgerIndex &&
-                     lastCloseTime == sv.closeTime);
-                // for older messages, just ensure that they occurred before
-                r = r || (lastCloseIndex > envLedgerIndex &&
-                          lastCloseTime > sv.closeTime);
-                // for future message, perform the same validity check than
-                // within SCP
-                r = r || scpD.checkCloseTime(envLedgerIndex, lastCloseTime, sv);
-            }
-            return r;
-        });
+    auto checkCTHelper = [&](std::vector<Value> const& values)
+    {
+        return std::any_of(values.begin(), values.end(),
+                           [&](Value const& e)
+                           {
+                               auto r = scpD.toStellarValue(e, sv);
+                               // sv must be after cutoff
+                               r = r && sv.closeTime >= ctCutoff;
+                               if (r)
+                               {
+                                   // statement received after the fact, only
+                                   // keep externalized value
+                                   r = (lastCloseIndex == envLedgerIndex &&
+                                        lastCloseTime == sv.closeTime);
+                                   // for older messages, just ensure that they
+                                   // occurred before
+                                   r = r || (lastCloseIndex > envLedgerIndex &&
+                                             lastCloseTime > sv.closeTime);
+                                   // for future message, perform the same
+                                   // validity check than within SCP
+                                   r = r ||
+                                       scpD.checkCloseTime(envLedgerIndex,
+                                                           lastCloseTime, sv);
+                               }
+                               return r;
+                           });
     };
 
     bool b;
@@ -694,12 +703,11 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset, TxSetFrame txset)
+                            const SCPQuorumSet& qset, TxSetFrameConstPtr txset)
 {
     ZoneScoped;
-    mPendingEnvelopes.addTxSet(txset.getContentsHash(),
-                               envelope.statement.slotIndex,
-                               std::make_shared<TxSetFrame const>(txset));
+    mPendingEnvelopes.addTxSet(txset->getContentsHash(),
+                               envelope.statement.slotIndex, txset);
     mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
     return recvSCPEnvelope(envelope);
 }
@@ -725,27 +733,31 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     ZoneScoped;
     bool log = true;
     auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
-    getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
-        bool slotHadData = false;
-        getSCP().processCurrentState(
-            seq,
-            [&](SCPEnvelope const& e) {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                auto mPtr = std::make_shared<StellarMessage const>(m);
-                peer->sendMessage(mPtr, log);
-                log = false;
-                slotHadData = true;
-                return true;
-            },
-            false);
-        if (slotHadData)
+    getSCP().processSlotsAscendingFrom(
+        ledgerSeq,
+        [&](uint64 seq)
         {
-            --maxSlots;
-        }
-        return maxSlots != 0;
-    });
+            bool slotHadData = false;
+            getSCP().processCurrentState(
+                seq,
+                [&](SCPEnvelope const& e)
+                {
+                    StellarMessage m;
+                    m.type(SCP_MESSAGE);
+                    m.envelope() = e;
+                    auto mPtr = std::make_shared<StellarMessage const>(m);
+                    peer->sendMessage(mPtr, log);
+                    log = false;
+                    slotHadData = true;
+                    return true;
+                },
+                false);
+            if (slotHadData)
+            {
+                --maxSlots;
+            }
+            return maxSlots != 0;
+        });
 }
 
 void
@@ -844,7 +856,8 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
     // process any statements up to the next slot
     // this may cause it to externalize
     auto nextIndex = nextConsensusLedgerIndex();
-    auto processSCPQueueSomeMore = [this, nextIndex]() {
+    auto processSCPQueueSomeMore = [this, nextIndex]()
+    {
         if (mApp.isStopping())
         {
             return;
@@ -961,10 +974,9 @@ HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 }
 
 bool
-HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
+HerderImpl::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
 {
     ZoneScoped;
-    auto txset = std::make_shared<TxSetFrame const>(t);
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
@@ -1067,7 +1079,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // our first choice for this round's set is all the tx we have collected
     // during last few ledger closes
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    auto proposedSet = mTransactionQueue.toTxSet(lcl);
+    auto queueTxs = mTransactionQueue.getTransactions(lcl.header);
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
@@ -1101,22 +1113,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
     TxSetFrame::Transactions invalidTxs;
-    proposedSet =
-        TxSetUtils::trimInvalid(proposedSet, mApp, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, invalidTxs);
-
+    auto proposedSet = TxSetFrame::makeFromTransactions(
+        queueTxs, mApp, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        &invalidTxs);
     mTransactionQueue.ban(invalidTxs);
-    proposedSet->computeTxFees(lcl.header);
-
-    proposedSet = TxSetUtils::surgePricingFilter(proposedSet, mApp);
-
-    // we not only check that the value is valid for consensus (offset=0) but
-    // also that we performed the proper cleanup above
-    if (!proposedSet->checkValid(mApp, lowerBoundCloseTimeOffset,
-                                 upperBoundCloseTimeOffset))
-    {
-        throw std::runtime_error("wanting to emit an invalid txSet");
-    }
 
     auto txSetHash = proposedSet->getContentsHash();
 
@@ -1226,10 +1226,13 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
         {
             std::string arg = s.substr(1);
             getSCP().processSlotsDescendingFrom(
-                std::numeric_limits<uint64>::max(), [&](uint64_t seq) {
+                std::numeric_limits<uint64>::max(),
+                [&](uint64_t seq)
+                {
                     getSCP().processCurrentState(
                         seq,
-                        [&](SCPEnvelope const& e) {
+                        [&](SCPEnvelope const& e)
+                        {
                             std::string curK =
                                 KeyUtils::toStrKey(e.statement.nodeID);
                             if (curK.compare(0, arg.size(), arg) == 0)
@@ -1386,14 +1389,16 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
                         cur["qset"] =
                             getSCP().getLocalNode()->toJson(*qSet, fullKeys);
                     }
-                    LocalNode::forAllNodes(*qSet, [&](NodeID const& n) {
-                        auto b = visited.emplace(n);
-                        if (b.second)
-                        {
-                            next.emplace_back(n);
-                        }
-                        return true;
-                    });
+                    LocalNode::forAllNodes(*qSet,
+                                           [&](NodeID const& n)
+                                           {
+                                               auto b = visited.emplace(n);
+                                               if (b.second)
+                                               {
+                                                   next.emplace_back(n);
+                                               }
+                                               return true;
+                                           });
                 }
                 auto latest = getSCP().getLatestMessage(id);
                 if (latest)
@@ -1541,7 +1546,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app, &hState] {
+        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app, &hState]
+        {
             try
             {
                 ZoneScoped;
@@ -1558,7 +1564,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                                                       hState.mInterruptFlag);
                 }
                 app.postOnMainThread(
-                    [ok, curr, ledger, nNodes, split, critical, &hState] {
+                    [ok, curr, ledger, nNodes, split, critical, &hState]
+                    {
                         hState.mRecalculating = false;
                         hState.mInterruptFlag = false;
                         hState.mNumNodes = nNodes;
@@ -1579,7 +1586,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                 CLOG_DEBUG(Herder,
                            "Quorum transitive closure analysis interrupted.");
                 app.postOnMainThread(
-                    [&hState] {
+                    [&hState]
+                    {
                         hState.mRecalculating = false;
                         hState.mInterruptFlag = false;
                         hState.mCheckingQuorumMapHash = Hash{};
@@ -1715,8 +1723,7 @@ HerderImpl::restoreSCPStateFromState(std::string const& state)
 
         for (auto const& txset : latestTxSets)
         {
-            TxSetFramePtr cur =
-                make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
+            auto cur = TxSetFrame::makeFromWire(mApp.getNetworkID(), txset);
             Hash h = cur->getContentsHash();
             mPendingEnvelopes.addTxSet(h, 0, cur);
         }
@@ -1759,18 +1766,16 @@ HerderImpl::restoreSCPStateFromXDRState(std::string const& state)
 
         for (auto const& txSet : scpState.v0().txSets)
         {
-            TxSetFramePtr cur;
+            TxSetFrameConstPtr cur;
             if (txSet.v() == 0)
             {
-                TxSetFrameConstPtr cur =
-                    make_shared<TxSetFrame const>(mApp.getNetworkID(), txSet.txSet());
-                Hash h = cur->getContentsHash();
-                mPendingEnvelopes.addTxSet(h, 0, cur);
+                cur = TxSetFrame::makeFromWire(mApp.getNetworkID(),
+                                               txSet.txSet());
             }
             else
             {
-                cur = make_shared<TxSetFrame>(mApp.getNetworkID(),
-                                              txSet.generalizedTxSet());
+                cur = TxSetFrame::makeFromWire(mApp.getNetworkID(),
+                                               txSet.generalizedTxSet());
             }
 
             Hash h = cur->getContentsHash();
@@ -1895,10 +1900,10 @@ HerderImpl::updateTransactionQueue(
     // Generate a transaction set from a random hash and drop invalid
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
     lhhe.hash = HashUtils::random();
-    auto txSet = mTransactionQueue.toTxSet(lhhe);
+    auto txSet = mTransactionQueue.getTransactions(lhhe.header);
 
     auto invalidTxs = TxSetUtils::getInvalidTxList(
-        *txSet, mApp, 0,
+        txSet, mApp, 0,
         getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
         false);
     mTransactionQueue.ban(invalidTxs);

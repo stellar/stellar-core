@@ -519,18 +519,18 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
     {
         // Derive transaction apply order from the results
         UnorderedMap<Hash, TransactionEnvelope const*> transactions;
-        std::unique_ptr<TxSetFrame> txSetFrame;
+        TxSetFrameConstPtr txSetFrame;
         if (txHistoryEntry.ext.v() == 1)
         {
-            txSetFrame = std::make_unique<TxSetFrame>(
+            txSetFrame = TxSetFrame::makeFromWire(
                 mNetworkID, txHistoryEntry.ext.generalizedTxSet());
         }
         else
         {
             txSetFrame =
-                std::make_unique<TxSetFrame>(mNetworkID, txHistoryEntry.txSet);
+                TxSetFrame::makeFromWire(mNetworkID, txHistoryEntry.txSet);
         }
-        for (auto const& txFrame : txSetFrame->mTransactions)
+        for (auto const& txFrame : txSetFrame->getTxsInHashOrder())
         {
             transactions[txFrame->getContentsHash()] = &txFrame->getEnvelope();
         }
@@ -650,19 +650,19 @@ TxSimApplyTransactionsWork::onReset()
                                      opaqueUpgrade.end());
         }
 
-        std::shared_ptr<TxSetFrame const> txSet;
+        TxSetFrameConstPtr txSet;
         if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
                                       GENERALIZED_TX_SET_PROTOCOL_VERSION))
         {
             GeneralizedTransactionSet txSetXDR(1);
             txSetXDR.v1TxSet().previousLedgerHash = lclHeader.hash;
-            txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
+            txSet = TxSetFrame::makeFromWire(mNetworkID, txSetXDR);
         }
         else
         {
             TransactionSet txSetXDR;
             txSetXDR.previousLedgerHash = lclHeader.hash;
-            txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
+            txSet = TxSetFrame::makeFromWire(mNetworkID, txSetXDR);
         }
 
         sv.txSetHash = txSet->getContentsHash();
@@ -730,7 +730,7 @@ TxSimApplyTransactionsWork::onRun()
     // generating transactions to handle offer creation (mapping created offer
     // id to a simulated one). When simulating pre-generated transactions, we
     // already have relevant offer ids in transaction results
-    auto txSet = makeSimTxSetFrame(mNetworkID, lclHeader.hash, transactions,
+    auto txSet = makeSimTxSetFrame(mNetworkID, lclHeader, transactions,
                                    mResults, mMultiplier);
 
     StellarValue sv;

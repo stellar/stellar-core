@@ -250,9 +250,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 {createAccount(dest.getPublicKey(), txAmount)}, expectedSeq);
 
             // create the transaction set containing this transaction
-            auto const& lcl =
-                inApp->getLedgerManager().getLastClosedLedgerHeader();
-            TxSetFrame txSet(lcl.hash, {tx1});
+
+            auto txSet = TxSetFrame::makeFromTransactions({tx1}, *inApp, 0, 0);
             auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message
@@ -262,13 +261,14 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             qset.validators.emplace_back(sources[i]);
 
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
-
+            auto const& lcl =
+                inApp->getLedgerManager().getLastClosedLedgerHeader();
             // build an SCP message for the next ledger
             auto ct = std::max<uint64>(
                 lcl.header.scpValue.closeTime + 1,
                 VirtualClock::to_time_t(inApp->getClock().system_now()));
             StellarValue sv = herder.makeStellarValue(
-                txSet.getContentsHash(), ct, emptyUpgradeSteps, keys[0]);
+                txSet->getContentsHash(), ct, emptyUpgradeSteps, keys[0]);
 
             SCPEnvelope envelope;
 

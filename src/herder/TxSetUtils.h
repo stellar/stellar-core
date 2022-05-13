@@ -12,23 +12,21 @@
 
 namespace stellar
 {
+
 class TxSetUtils
 {
   public:
-    static bool isValidHashOrder(TxSetFrame::Transactions const& txs);
-
-    static TxSetFrame::Transactions
-    extractTxsFromXdrSet(Hash const& networkID, TransactionSet const& xdrSet);
+    static bool hashTxSorter(TransactionFrameBasePtr const& tx1,
+                             TransactionFrameBasePtr const& tx2);
 
     static TxSetFrame::Transactions
     sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
 
-    static Hash
-    computeContentsHash(Hash const& previousLedgerHash,
-                        TxSetFrame::Transactions const& txsInHashOrder);
+    static bool
+    isSortedInHashOrder(TxSetFrame::Transactions const& transactions);
 
     static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
-    buildAccountTxQueues(TxSetFrame const& txSet);
+    buildAccountTxQueues(TxSetFrame::Transactions const& txs);
 
     static TxSetFrameConstPtr surgePricingFilter(TxSetFrameConstPtr txSet,
                                                  Application& app);
@@ -38,38 +36,20 @@ class TxSetUtils
     // transaction is found (instead of finding all of them), this is useful for
     // checking if a TxSet is valid.
     static TxSetFrame::Transactions
-    getInvalidTxList(TxSetFrame const& txSet, Application& app,
+    getInvalidTxList(TxSetFrame::Transactions const& txs, Application& app,
                      uint64_t lowerBoundCloseTimeOffset,
                      uint64_t upperBoundCloseTimeOffset,
                      bool returnEarlyOnFirstInvalidTx);
 
-    static TxSetFrameConstPtr trimInvalid(TxSetFrameConstPtr txSet,
-                                          Application& app,
-                                          uint64_t lowerBoundCloseTimeOffset,
-                                          uint64_t upperBoundCloseTimeOffset,
-                                          TxSetFrame::Transactions& invalidTxs);
-
-    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
-    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
-    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
-
-    class TxSetValidityKeyHash
-    {
-      public:
-        size_t
-        operator()(TxSetValidityKey const& key) const
-        {
-            size_t res = std::hash<Hash>()(std::get<0>(key));
-            hashMix(res, std::hash<Hash>()(std::get<1>(key)));
-            hashMix(res, std::get<2>(key));
-            hashMix(res, std::get<3>(key));
-            return res;
-        }
-    };
+    static TxSetFrame::Transactions
+    trimInvalid(TxSetFrame::Transactions const& txs, Application& app,
+                uint64_t lowerBoundCloseTimeOffset,
+                uint64_t upperBoundCloseTimeOffset,
+                TxSetFrame::Transactions& invalidTxs);
 
   private:
-    static TxSetFrameConstPtr
-    removeTxs(TxSetFrameConstPtr txSet,
+    static TxSetFrame::Transactions
+    removeTxs(TxSetFrame::Transactions const& txs,
               TxSetFrame::Transactions const& txsToRemove);
 
     friend class TestTxSetUtils;

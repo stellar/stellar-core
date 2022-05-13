@@ -690,7 +690,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    processFeesSeqNums(txs, ltx, txSet, ledgerCloseMeta);
+    processFeesSeqNums(txs, ltx, *txSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
@@ -1048,7 +1048,7 @@ mergeOpInTx(std::vector<Operation> const& ops)
 void
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
-    TxSetFrameBaseConstPtr const& txSet,
+    TxSetFrame const& txSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
@@ -1056,14 +1056,15 @@ LedgerManagerImpl::processFeesSeqNums(
     try
     {
         LedgerTxn ltx(ltxOuter);
-        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+        auto header = ltx.loadHeader().current();
+        auto ledgerSeq = header.ledgerSeq;
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
         bool mergeSeen = false;
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, txSet->getTxBaseFee(tx));
+            tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header));
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,

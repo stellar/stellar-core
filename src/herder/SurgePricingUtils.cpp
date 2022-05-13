@@ -42,10 +42,9 @@ feeRate3WayCompare(int64 lFeeBid, uint32 lNbOps, int64 rFeeBid, uint32 rNbOps)
 }
 
 int
-feeRate3WayCompare(TransactionFrameBasePtr const& l,
-                   TransactionFrameBasePtr const& r)
+feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
 {
-    return feeRate3WayCompare(l->getFeeBid(), l->getNumOperations(),
-                              r->getFeeBid(), r->getNumOperations());
+    return feeRate3WayCompare(l.getFeeBid(), l.getNumOperations(),
+                              r.getFeeBid(), r.getNumOperations());
 }
 } // namespace stellar

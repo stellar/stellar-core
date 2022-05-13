@@ -8,18 +8,36 @@
 
 namespace stellar
 {
+
 class TestTxSetUtils
 {
   public:
-    static TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
-                                     TxSetFrame::Transactions const& newTxs);
-
     static TxSetFrameConstPtr
-    removeTxs(TxSetFrameConstPtr txSet,
-              TxSetFrame::Transactions const& txsToRemove);
+    makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
+                            Hash const& networkID,
+                            Hash const& previousLedgerHash);
 
-    static TxSetFrameConstPtr makeIllSortedTxSet(Hash const& networkID,
-                                                 TxSetFrameConstPtr goodTxSet);
+    static TransactionSet
+    makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
+                   Hash const& previousLedgerHash);
+
+    static GeneralizedTransactionSet makeGeneralizedTxSetXDR(
+        std::vector<std::pair<std::optional<int64_t>,
+                              std::vector<TransactionFrameBasePtr>>> const&
+            txsPerBaseFee,
+        Hash const& previousLedgerHash);
+    // static TxSetFrameConstPtr
+    // static TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
+    //                                  TxSetFrame::Transactions const&
+    // newTxs);
+
+    // static TxSetFrameConstPtr
+    // removeTxs(TxSetFrameConstPtr txSet,
+    //           TxSetFrame::Transactions const& txsToRemove);
+
+    // static TxSetFrameConstPtr makeIllSortedTxSet(Hash const& networkID,
+    //                                              TxSetFrameConstPtr
+    // goodTxSet);
 
 }; // class TestTxSetUtils
 } // namespace stellar

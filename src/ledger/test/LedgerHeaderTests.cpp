@@ -69,10 +69,8 @@ TEST_CASE("ledgerheader", "[ledger]")
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto const& lastHash = lcl.hash;
-        TxSetFramePtr txSet =
-            make_shared<TxSetFrame const>(lastHash, lcl.header.ledgerVersion);
-        txSet->computeTxFees(lcl.header);
+        auto txSet = TxSetFrame::makeEmpty(lcl);
+
         // close this ledger
         StellarValue sv = app->getHerder().makeStellarValue(
             txSet->getContentsHash(), 1, emptyUpgradeSteps,

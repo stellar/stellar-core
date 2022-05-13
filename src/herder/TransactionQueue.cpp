@@ -454,9 +454,10 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
 
     TarjanSCCCalculator tsc;
     tsc.calculateSCCs(graph.size(), [&graph](size_t i) -> BitSet const& {
-        // NB: this closure must be written with the explicit const&
-        // returning type signature, otherwise it infers wrong and
-        // winds up returning a dangling reference at its site of use.
+        // NB: this closure must be written with the explicit
+        // const& returning type signature, otherwise it
+        // infers wrong and winds up returning a dangling
+        // reference at its site of use.
         return graph.at(i);
     });
 
@@ -833,13 +834,13 @@ TransactionQueue::isBanned(Hash const& hash) const
         });
 }
 
-TxSetFrameConstPtr
-TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
+TxSetFrame::Transactions
+TransactionQueue::getTransactions(LedgerHeader const& lcl) const
 {
     ZoneScoped;
-    std::vector<TransactionFrameBasePtr> txs;
+    TxSetFrame::Transactions txs;
 
-    uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;
+    uint32_t const nextLedgerSeq = lcl.ledgerSeq + 1;
     int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);
     for (auto const& m : mAccountStates)
     {
@@ -860,7 +861,7 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
         }
     }
 
-    return std::make_shared<TxSetFrame const>(lcl.hash, txs);
+    return txs;
 }
 
 void

@@ -178,22 +178,19 @@ case METAENTRY:
 
 enum TxSetComponentType
 {
-  // txs with effective fee = bid
-  TXSET_COMP_TXS_BID_IS_FEE = 0,
-  // txs with effective fee <= bid derived from a base fee
-  TXSET_COMP_TXS_DISCOUNTED_FEE = 1
+  // txs with effective fee <= bid derived from a base fee (if any).
+  // If base fee is not specified, no discount is applied.
+  TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE = 0
 };
 
 union TxSetComponent switch (TxSetComponentType type)
 {
-case TXSET_COMP_TXS_BID_IS_FEE:
-    TransactionEnvelope txsBidIsFee<>;
-case TXSET_COMP_TXS_DISCOUNTED_FEE:
+case TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE:
   struct
   {
-    int64 baseFee;
+    int64* baseFee;
     TransactionEnvelope txs<>;
-  } txsDiscountedFee;
+  } txsMaybeDiscountedFee;
 };
 
 union TransactionPhase switch (int v)

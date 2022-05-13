@@ -126,22 +126,20 @@ ApplyCheckpointWork::getCurrentTxSet(LedgerHeader const& ledgerHeader)
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
             if (mTxHistoryEntry.ext.v() == 0)
             {
-                auto txSet = std::make_shared<TxSetFrame const>(
-                    mApp.getNetworkID(), mTxHistoryEntry.txSet);
-                txSet->computeTxFees(ledgerHeader);
-                return txSet;
+                return TxSetFrame::makeFromWire(mApp.getNetworkID(),
+                                                mTxHistoryEntry.txSet);
             }
-            return std::make_shared<TxSetFrame const>(
-                mApp.getNetworkID(), mTxHistoryEntry.ext.generalizedTxSet());
+            else
+            {
+                return TxSetFrame::makeFromWire(
+                    mApp.getNetworkID(),
+                    mTxHistoryEntry.ext.generalizedTxSet());
+            }
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    auto emptyTxSet = std::make_shared<TxSetFrame const>(
-        lm.getLastClosedLedgerHeader().hash,
-        lm.getLastClosedLedgerHeader().header.ledgerVersion);
-    emptyTxSet->computeTxFees(lm.getLastClosedLedgerHeader().header);
-    return emptyTxSet;
+    return TxSetFrame::makeEmpty(lm.getLastClosedLedgerHeader());
 }
 
 std::shared_ptr<LedgerCloseData>

@@ -305,13 +305,6 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
     Hash const& txSetHash = b.txSetHash;
     TxSetFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
-    // Finalize fees for legacy (non-generalized) tx sets. This can be removed
-    // after migration to generalized tx set.
-    if (!txSet->isGeneralizedTxSet() && !txSet->feesComputed())
-    {
-        txSet->computeTxFees(lcl);
-    }
-
     SCPDriver::ValidationLevel res;
 
     auto closeTimeOffset = b.closeTime - lastCloseTime;
@@ -897,22 +890,25 @@ HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
     int numNodes = 0;
 
     auto qSet = getSCP().getLocalQuorumSet();
-    LocalNode::forAllNodes(qSet, [&](NodeID const& n) {
-        auto lag = getExternalizeLag(n);
-        if (lag > 0)
-        {
-            if (!summary)
-            {
-                ret[toStrKey(n, fullKeys)] = static_cast<Json::UInt64>(lag);
-            }
-            else
-            {
-                totalLag += lag;
-                numNodes++;
-            }
-        }
-        return true;
-    });
+    LocalNode::forAllNodes(qSet,
+                           [&](NodeID const& n)
+                           {
+                               auto lag = getExternalizeLag(n);
+                               if (lag > 0)
+                               {
+                                   if (!summary)
+                                   {
+                                       ret[toStrKey(n, fullKeys)] =
+                                           static_cast<Json::UInt64>(lag);
+                                   }
+                                   else
+                                   {
+                                       totalLag += lag;
+                                       numNodes++;
+                                   }
+                               }
+                               return true;
+                           });
 
     if (summary && numNodes > 0)
     {
@@ -1151,7 +1147,7 @@ bool
 HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
                                          uint64_t closeTimeOffset) const
 {
-    auto key = TxSetUtils::TxSetValidityKey{
+    auto key = TxSetValidityKey{
         mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
         txSet->getContentsHash(), closeTimeOffset, closeTimeOffset};
 
@@ -1166,5 +1162,16 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
     {
         return *pRes;
     }
+}
+size_t
+HerderSCPDriver::TxSetValidityKeyHash::operator()(
+    TxSetValidityKey const& key) const
+{
+
+    size_t res = std::hash<Hash>()(std::get<0>(key));
+    hashMix(res, std::hash<Hash>()(std::get<1>(key)));
+    hashMix(res, std::get<2>(key));
+    hashMix(res, std::get<3>(key));
+    return res;
 }
 }

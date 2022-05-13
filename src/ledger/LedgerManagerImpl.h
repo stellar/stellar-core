@@ -67,7 +67,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void processFeesSeqNums(
         std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
-        TxSetFrameBaseConstPtr const& txSet,
+        TxSetFrame const& txSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void applyTransactions(
