@@ -63,7 +63,7 @@ rust/rust_bridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBR
 	$(RUST_CXXBRIDGE) $< --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-$(LIBRUST_STELLAR_CORE): $(SRC_RUST_FILES) Makefile.am
+$(LIBRUST_STELLAR_CORE): rust/Cargo.toml $(SRC_RUST_FILES) Makefile.am
 	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR))
 	ranlib $@
 else

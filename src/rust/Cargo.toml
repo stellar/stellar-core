@@ -2,12 +2,14 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 name = "rust_stellar_core"
-crate-type=["staticlib"]
+crate-type = ["staticlib"]
 
 [dependencies]
 cxx = "1.0"
 base64 = "0.13.0"
+stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "d0a4b13881fa95a7174390f685b18f9941c9094a", features = [
+    "vm",
+] }
