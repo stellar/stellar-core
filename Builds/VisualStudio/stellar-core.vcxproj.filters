@@ -1227,6 +1227,9 @@
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\contracts\ContractUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -2144,6 +2147,9 @@
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\transactions\contracts\ContractUtils.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
@@ -2155,6 +2161,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetUtils.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\rust\rust_vec_xdr_marshal.h">
+      <Filter>rust</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-contract.h">
+      <Filter>xdr\generated</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -2325,6 +2337,9 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\xdr\Stellar-contract.x">
+      <Filter>xdr</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
