@@ -4,6 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+// ASIO does platform-support feature autoconfig and if it's building on
+// libstdc++ this will only work if _some_ standard library component is
+// included before its autoconfig machinery, so that <bits/c++config.h> gets
+// pulled in and defines a bunch of _GLIBCXX_HAVE_FOO macros. We include
+// system_error here as the most trivial such component
+#include <system_error>
+
 #if defined(ASIO_WINDOWS_RUNTIME)
 // Empty.
 #elif defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_)
@@ -16,50 +23,6 @@
 
 #ifndef ASIO_STANDALONE
 #define ASIO_STANDALONE
-#endif
-
-#ifndef ASIO_HAS_STD_ARRAY
-#define ASIO_HAS_STD_ARRAY
-#endif
-
-#ifndef ASIO_HAS_STD_CHRONO
-#define ASIO_HAS_STD_CHRONO
-#endif
-
-#ifndef ASIO_HAS_STD_ADDRESSOF
-#define ASIO_HAS_STD_ADDRESSOF
-#endif
-
-#ifndef ASIO_HAS_STD_FUNCTION
-#define ASIO_HAS_STD_FUNCTION
-#endif
-
-#ifndef ASIO_HAS_STD_SHARED_PTR
-#define ASIO_HAS_STD_SHARED_PTR
-#endif
-
-#ifndef ASIO_HAS_STD_MUTEX_AND_CONDVAR
-#define ASIO_HAS_STD_MUTEX_AND_CONDVAR
-#endif
-
-#ifndef ASIO_HAS_STD_ATOMIC
-#define ASIO_HAS_STD_ATOMIC
-#endif
-
-#ifndef ASIO_HAS_STD_TYPE_TRAITS
-#define ASIO_HAS_STD_TYPE_TRAITS
-#endif
-
-#ifndef ASIO_HAS_CSTDINT
-#define ASIO_HAS_CSTDINT
-#endif
-
-#ifndef ASIO_HAS_STD_THREAD
-#define ASIO_HAS_STD_THREAD
-#endif
-
-#ifndef ASIO_HAS_STD_SYSTEM_ERROR
-#define ASIO_HAS_STD_SYSTEM_ERROR
 #endif
 
 #include <asio.hpp>
