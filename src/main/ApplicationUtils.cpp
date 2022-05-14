@@ -318,7 +318,7 @@ httpCommand(std::string const& command, unsigned short port)
     int code = http_request("127.0.0.1", path.str(), port, ret);
     if (code == 200)
     {
-        LOG_INFO(DEFAULT_LOG, "{}", ret);
+        std::cout << ret << std::endl;
     }
     else
     {
@@ -518,8 +518,8 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
         if (filename == "-")
         {
             LOG_INFO(DEFAULT_LOG, "*");
-            LOG_INFO(DEFAULT_LOG, "* Last history checkpoint {}",
-                     state.toString());
+            LOG_INFO(DEFAULT_LOG, "* Last history checkpoint");
+            std::cout << state.toString() << std::endl;
             LOG_INFO(DEFAULT_LOG, "*");
         }
         else
@@ -577,7 +577,8 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
     if (filename == "-")
     {
         LOG_INFO(DEFAULT_LOG, "*");
-        LOG_INFO(DEFAULT_LOG, "* Catchup info: {}", content);
+        LOG_INFO(DEFAULT_LOG, "* Catchup info:");
+        std::cout << content << std::endl;
         LOG_INFO(DEFAULT_LOG, "*");
     }
     else
