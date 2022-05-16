@@ -22,6 +22,7 @@
 // We therefore keep it in the same 'gsl' namespace it appeared in in the
 // original file.
 
+#include <utility>
 namespace gsl
 {
 
