@@ -78,16 +78,14 @@ HistoryArchiveStream::makeEmptyTransactionHistory()
 {
     TransactionHistoryEntry txhe;
     txhe.ledgerSeq = mHeaderHistory.header.ledgerSeq + 1;
-    if (protocolVersionStartsFrom(mHeaderHistory.header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    auto emptyTxSet = TxSetFrame::makeEmpty(mHeaderHistory);
+    if (emptyTxSet->isGeneralizedTxSet())
     {
-        txhe.ext.v(1);
-        txhe.ext.generalizedTxSet().v1TxSet().previousLedgerHash =
-            mHeaderHistory.hash;
+        emptyTxSet->toXDR(txhe.ext.generalizedTxSet());        
     }
     else
     {
-        txhe.txSet.previousLedgerHash = mHeaderHistory.hash;
+        emptyTxSet->toXDR(txhe.txSet);
     }
     return txhe;
 }
