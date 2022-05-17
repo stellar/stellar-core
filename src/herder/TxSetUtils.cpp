@@ -89,7 +89,6 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   ProtocolVersion::V_19))
     {

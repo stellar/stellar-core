@@ -2,24 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
+#include "herder/test/TestTxSetUtils.h"
+#include "util/ProtocolVersion.h"
 
 #include <map>
 
 namespace stellar
 {
-TxSetFrameConstPtr
-TestTxSetUtils::makeNonValidatedTxSet(
-    std::vector<TransactionFrameBasePtr> const& txs, Hash const& networkID,
-    Hash const& previousLedgerHash)
+namespace testtxset
 {
-    auto xdrTxSet = TestTxSetUtils::makeTxSetXDR(txs, previousLedgerHash);
-    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
-}
-
+namespace
+{
 TransactionSet
-TestTxSetUtils::makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
-                             Hash const& previousLedgerHash)
+makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
+             Hash const& previousLedgerHash)
 {
     auto normalizedTxs = TxSetUtils::sortTxsInHashOrder(txs);
     TransactionSet txSet;
@@ -32,7 +28,7 @@ TestTxSetUtils::makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 GeneralizedTransactionSet
-TestTxSetUtils::makeGeneralizedTxSetXDR(
+makeGeneralizedTxSetXDR(
     std::vector<std::pair<std::optional<int64_t>,
                           std::vector<TransactionFrameBasePtr>>> const&
         txsPerBaseFee,
@@ -64,33 +60,43 @@ TestTxSetUtils::makeGeneralizedTxSetXDR(
     }
     return xdrTxSet;
 }
-// TxSetFrameConstPtr
-// TestTxSetUtils::addTxs(TxSetFrameConstPtr txSet,
-//                        TxSetFrame::Transactions const& newTxs)
-//{
-//     //auto updated = txSet->getTxsInHashOrder();
-//     //updated.insert(updated.end(), newTxs.begin(), newTxs.end());
-//     //return TxSetFrame::makeFromTransactions(txSet->previousLedgerHash(),
-//     //                                        updated);
-// }
-//
-// TxSetFrameConstPtr
-// TestTxSetUtils::removeTxs(TxSetFrameConstPtr txSet,
-//                           TxSetFrame::Transactions const& txsToRemove)
-//{
-//     //return TxSetUtils::removeTxs(txSet, txsToRemove);
-// }
-//
-// TxSetFrameConstPtr
-// TestTxSetUtils::makeIllSortedTxSet(Hash const& networkID,
-//                                    TxSetFrameConstPtr goodTxSet)
-//{
-//     //TransactionSet xdrSet;
-//     //goodTxSet->toXDR(xdrSet);
-//     //// rearrange it out of order
-//     //releaseAssert(xdrSet.txs.size() >= 2);
-//     //std::swap(xdrSet.txs[0], xdrSet.txs[1]);
-//     //return std::make_shared<TxSetFrame const>(networkID, xdrSet);
-// }
 
+TxSetFrameConstPtr
+makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
+                      Hash const& networkID, Hash const& previousLedgerHash)
+{
+    auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
+    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
+}
+} // namespace
+
+TxSetFrameConstPtr
+makeNonValidatedGeneralizedTxSet(
+    std::vector<std::pair<std::optional<int64_t>,
+                          std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    Hash const& networkID, Hash const& previousLedgerHash)
+{
+    auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
+    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
+}
+
+TxSetFrameConstPtr
+makeNonValidatedTxSetBasedOnLedgerVersion(
+    uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
+    Hash const& networkID, Hash const& previousLedgerHash)
+{
+    if (protocolVersionStartsFrom(ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return makeNonValidatedGeneralizedTxSet({std::make_pair(100LL, txs)},
+                                                networkID, previousLedgerHash);
+    }
+    else
+    {
+        return makeNonValidatedTxSet(txs, networkID, previousLedgerHash);
+    }
+}
+
+} // namespace testtxset
 } // namespace stellar

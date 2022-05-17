@@ -73,9 +73,6 @@
     <Filter Include="bucket\tests">
       <UniqueIdentifier>{86be4089-9cdf-49d8-9d3f-4f8712a6560c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="herder\tests">
-      <UniqueIdentifier>{eda15f5e-847b-4167-93ae-e508b7fc009b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="scp">
       <UniqueIdentifier>{0cf920e3-5232-4c4e-8b79-25ec2c8f86ce}</UniqueIdentifier>
     </Filter>
@@ -165,6 +162,9 @@
     </Filter>
     <Filter Include="rust\generated">
       <UniqueIdentifier>{11ca5d74-0517-4f8c-8dbc-ca69f1b0234d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="herder\test">
+      <UniqueIdentifier>{eda15f5e-847b-4167-93ae-e508b7fc009b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -646,16 +646,16 @@
       <Filter>database\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TransactionQueueTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\UpgradesTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\history\test\HistoryTests.cpp">
       <Filter>history\tests</Filter>
@@ -970,7 +970,7 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\QuorumTrackerTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp">
       <Filter>herder</Filter>
@@ -991,7 +991,7 @@
       <Filter>util\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp">
       <Filter>herder</Filter>
@@ -1237,13 +1237,13 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TxSetTests.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetUtils.cpp">
       <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2166,7 +2166,7 @@
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">
-      <Filter>herder\tests</Filter>
+      <Filter>herder\test</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

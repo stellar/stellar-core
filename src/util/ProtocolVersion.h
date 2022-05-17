@@ -47,7 +47,6 @@ bool protocolVersionStartsFrom(uint32_t protocolVersion,
 bool protocolVersionEquals(uint32_t protocolVersion,
                            ProtocolVersion equalsVersion);
 
-// TODO: This is temporary, switch to v20 after merging v19 switch.
 constexpr ProtocolVersion GENERALIZED_TX_SET_PROTOCOL_VERSION =
-    ProtocolVersion::V_19;
+    ProtocolVersion::V_20;
 }

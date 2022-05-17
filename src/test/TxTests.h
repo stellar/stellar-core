@@ -272,11 +272,6 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond = std::nullopt);
 
-TxSetFrameConstPtr createGeneralizedTxSet(
-    std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>> const&
-        txsPerBaseFee,
-    std::vector<TransactionFrameBasePtr> const& bidIsFeeTxs, Application& app);
-
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 
 UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);

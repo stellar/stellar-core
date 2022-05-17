@@ -41,6 +41,11 @@ class TxSetFrame
     makeFromWire(Hash const& networkID,
                  GeneralizedTransactionSet const& xdrTxSet);
 
+    TxSetFrame(TxSetFrame const& other) = delete;
+    TxSetFrame(TxSetFrame&& other) = delete;    
+    TxSetFrame& operator=(TxSetFrame const& other) = delete;
+    TxSetFrame& operator=(TxSetFrame&& other) = delete;
+
     virtual ~TxSetFrame(){};
 
     // Returns the base fee for the transaction or std::nullopt when the
@@ -91,7 +96,7 @@ class TxSetFrame
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
 
-    // protected:
+  protected:
     TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                Transactions const& txs);
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
@@ -99,6 +104,8 @@ class TxSetFrame
 
     void computeTxFees(LedgerHeader const& lclHeader) const;
     void computeContentsHash();
+
+    std::optional<Hash> mHash;
 
   private:
     bool addTxsFromXdr(Hash const& networkID,
@@ -110,7 +117,6 @@ class TxSetFrame
 
     Hash const mPreviousLedgerHash;
     Transactions mTxs;
-    std::optional<Hash> mHash;
 
     mutable bool mFeesComputed = false;
     mutable std::unordered_map<TransactionFrameBaseConstPtr,

@@ -5,39 +5,20 @@
 #pragma once
 
 #include "herder/TxSetUtils.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
-
-class TestTxSetUtils
+namespace testtxset
 {
-  public:
-    static TxSetFrameConstPtr
-    makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
-                          Hash const& networkID,
-                          Hash const& previousLedgerHash);
+TxSetFrameConstPtr makeNonValidatedGeneralizedTxSet(
+    std::vector<std::pair<std::optional<int64_t>,
+                          std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    Hash const& networkID, Hash const& previousLedgerHash);
 
-    static TransactionSet
-    makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
-                 Hash const& previousLedgerHash);
-
-    static GeneralizedTransactionSet makeGeneralizedTxSetXDR(
-        std::vector<std::pair<std::optional<int64_t>,
-                              std::vector<TransactionFrameBasePtr>>> const&
-            txsPerBaseFee,
-        Hash const& previousLedgerHash);
-    // static TxSetFrameConstPtr
-    // static TxSetFrameConstPtr addTxs(TxSetFrameConstPtr txSet,
-    //                                  TxSetFrame::Transactions const&
-    // newTxs);
-
-    // static TxSetFrameConstPtr
-    // removeTxs(TxSetFrameConstPtr txSet,
-    //           TxSetFrame::Transactions const& txsToRemove);
-
-    // static TxSetFrameConstPtr makeIllSortedTxSet(Hash const& networkID,
-    //                                              TxSetFrameConstPtr
-    // goodTxSet);
-
-}; // class TestTxSetUtils
+TxSetFrameConstPtr makeNonValidatedTxSetBasedOnLedgerVersion(
+    uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
+    Hash const& networkID, Hash const& previousLedgerHash);
+} // namespace testtxset
 } // namespace stellar

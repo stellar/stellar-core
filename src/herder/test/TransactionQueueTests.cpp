@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
@@ -11,6 +10,7 @@
 #include "herder/TxQueueLimiter.h"
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"

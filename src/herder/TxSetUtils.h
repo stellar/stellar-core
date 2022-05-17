@@ -22,9 +22,6 @@ class TxSetUtils
     static TxSetFrame::Transactions
     sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
 
-    static bool
-    isSortedInHashOrder(TxSetFrame::Transactions const& transactions);
-
     static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
     buildAccountTxQueues(TxSetFrame::Transactions const& txs);
 
@@ -51,7 +48,5 @@ class TxSetUtils
     static TxSetFrame::Transactions
     removeTxs(TxSetFrame::Transactions const& txs,
               TxSetFrame::Transactions const& txsToRemove);
-
-    friend class TestTxSetUtils;
 }; // class TxSetUtils
 } // namespace stellar

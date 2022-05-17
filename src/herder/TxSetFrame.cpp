@@ -37,10 +37,10 @@ namespace
 class InvalidTxSetFrame : public TxSetFrame
 {
   public:
-    InvalidTxSetFrame(bool isGeneralized, Hash const& previousLedgerHash)
-        : TxSetFrame(isGeneralized, previousLedgerHash,
-                     TxSetFrame::Transactions{})
+    InvalidTxSetFrame(bool isGeneralized, Hash const& hash)
+        : TxSetFrame(isGeneralized, {}, TxSetFrame::Transactions{})
     {
+        mHash = hash;
     }
 
     bool
@@ -102,6 +102,26 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
         CLOG_DEBUG(Herder, "Got bad txSet: incorrect component order");
         return false;
     }
+
+    bool componentBaseFeesUnique =
+        std::adjacent_find(phase.v0Components().begin(),
+                           phase.v0Components().end(),
+                           [](auto const& c1, auto const& c2) {
+                               if (!c1.txsMaybeDiscountedFee().baseFee ||
+                                   !c2.txsMaybeDiscountedFee().baseFee)
+                               {
+                                   return !c1.txsMaybeDiscountedFee().baseFee &&
+                                          !c2.txsMaybeDiscountedFee().baseFee;
+                               }
+                               return *c1.txsMaybeDiscountedFee().baseFee ==
+                                      *c2.txsMaybeDiscountedFee().baseFee;
+                           }) == phase.v0Components().end();
+    if (!componentBaseFeesUnique)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: duplicate component base fees");
+        return false;
+    }
+
     return true;
 }
 
@@ -160,16 +180,15 @@ struct ApplyTxSorter
 };
 
 Hash
-computeNonGenericTxSetContentsHash(
-    Hash const& previousLedgerHash,
-    TxSetFrame::Transactions const& txsInHashOrder)
+computeNonGenericTxSetContentsHash(Hash const& previousLedgerHash,
+                                   TxSetFrame::Transactions const& txs)
 {
     ZoneScoped;
     SHA256 hasher;
     hasher.add(previousLedgerHash);
-    for (unsigned int n = 0; n < txsInHashOrder.size(); n++)
+    for (unsigned int n = 0; n < txs.size(); n++)
     {
-        hasher.add(xdr::xdr_to_opaque(txsInHashOrder[n]->getEnvelope()));
+        hasher.add(xdr::xdr_to_opaque(txs[n]->getEnvelope()));
     }
     return hasher.finish();
 }
@@ -207,7 +226,7 @@ TxSetFrame::makeFromTransactions(TxSetFrame::Transactions const& txs,
         TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
                                 upperBoundCloseTimeOffset, *invalidTxs);
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
-    auto txSet = std::make_shared<TxSetFrame>(lclHeader, validTxs);
+    std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(lclHeader, validTxs));
     txSet->surgePricingFilter(app.getLedgerManager().getLastMaxTxSetSizeOps());
     txSet->computeTxFees(lclHeader.header);
     txSet->computeContentsHash();
@@ -223,14 +242,15 @@ TxSetFrameConstPtr
 TxSetFrame::makeFromHistoryTransactions(Hash const& previousLedgerHash,
                                         Transactions const& txs)
 {
-    return std::make_shared<TxSetFrame>(false, previousLedgerHash, txs);
+    return std::shared_ptr<TxSetFrame>(
+        new TxSetFrame(false, previousLedgerHash, txs));
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
 {
-    auto txSet =
-        std::make_shared<TxSetFrame>(lclHeader, TxSetFrame::Transactions{});
+    std::shared_ptr<TxSetFrame> txSet(
+        new TxSetFrame(lclHeader, TxSetFrame::Transactions{}));
     txSet->computeTxFees(lclHeader.header);
     txSet->computeContentsHash();
     return txSet;
@@ -239,14 +259,22 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
 TxSetFrameConstPtr
 TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
 {
-    auto txSet = std::make_shared<TxSetFrame>(
-        false, xdrTxSet.previousLedgerHash, TxSetFrame::Transactions{});
+    ZoneScoped;
+    std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(
+        false, xdrTxSet.previousLedgerHash, TxSetFrame::Transactions{}));
     if (!txSet->addTxsFromXdr(networkID, xdrTxSet.txs, false, 0))
     {
         CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
                            "ordered correctly");
+        Transactions txs;
+        std::transform(xdrTxSet.txs.begin(), xdrTxSet.txs.end(),
+                       std::back_inserter(txs), [&networkID](auto const& env) {
+                           return TransactionFrameBase::makeTransactionFromWire(
+                               networkID, env);
+                       });
         return std::make_shared<InvalidTxSetFrame const>(
-            false, xdrTxSet.previousLedgerHash);
+            false, computeNonGenericTxSetContentsHash(
+                       xdrTxSet.previousLedgerHash, txs));
     }
     txSet->computeContentsHash();
     return txSet;
@@ -256,15 +284,17 @@ TxSetFrameConstPtr
 TxSetFrame::makeFromWire(Hash const& networkID,
                          GeneralizedTransactionSet const& xdrTxSet)
 {
+    ZoneScoped;
+    auto hash = sha256(xdr::xdr_to_opaque(xdrTxSet));
+    
     if (!validateTxSetXDRStructure(xdrTxSet))
     {
-        return std::make_shared<InvalidTxSetFrame const>(
-            true, xdrTxSet.v1TxSet().previousLedgerHash);
+        return std::make_shared<InvalidTxSetFrame const>(true, hash);
     }
 
-    auto txSet = std::make_shared<TxSetFrame>(
-        true, xdrTxSet.v1TxSet().previousLedgerHash,
-        TxSetFrame::Transactions{});
+    std::shared_ptr<TxSetFrame> txSet(
+        new TxSetFrame(true, xdrTxSet.v1TxSet().previousLedgerHash,
+                       TxSetFrame::Transactions{}));
     // Mark fees as already computed as we read them from the XDR.
     txSet->mFeesComputed = true;
     auto const& phases = xdrTxSet.v1TxSet().phases;
@@ -287,14 +317,14 @@ TxSetFrame::makeFromWire(Hash const& networkID,
                 {
                     CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
                                        "ordered correctly");
-                    return std::make_shared<InvalidTxSetFrame const>(
-                        true, xdrTxSet.v1TxSet().previousLedgerHash);
+                    return std::make_shared<InvalidTxSetFrame const>(true,
+                                                                     hash);
                 }
                 break;
             }
         }
     }
-    txSet->mHash = sha256(xdr::xdr_to_opaque(xdrTxSet));
+    txSet->mHash = hash;
     return txSet;
 }
 
@@ -381,6 +411,17 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: {}, expected {}",
                    hexAbbrev(mPreviousLedgerHash), hexAbbrev(lcl.hash));
+        return false;
+    }
+
+    bool needGeneralizedTxSet = protocolVersionStartsFrom(
+        lcl.header.ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    if (needGeneralizedTxSet != isGeneralizedTxSet())
+    {
+        CLOG_DEBUG(Herder,
+                   "Got bad txSet {}: need generalized '{}', expected '{}'",
+                   hexAbbrev(mPreviousLedgerHash), needGeneralizedTxSet,
+                   isGeneralizedTxSet());
         return false;
     }
 

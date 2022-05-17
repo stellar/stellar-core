@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "scp/SCP.h"
@@ -943,16 +943,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     {tx1, txInvalid}, *app, 0, 0, &removed);
                 REQUIRE(removed.back() == txInvalid);
 
-                // the highest minLedger can be is lcl + 1 because
-                // validation is done against the next ledger
-                
-                // TODO: figure out what's wrong with this test
-                //auto tx2 = transactionWithV2Precondition(
-                //    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum));
-                //removed.clear();
-                //txSet = TxSetFrame::makeFromTransactions({tx2}, *app, 0, 0,
-                //                                         &removed);
-                //REQUIRE(removed.empty());
+                // the lower maxLedger can be is lcl + 2, as the current
+                // ledger is lcl + 1 and maxLedger bound is exclusive.
+                auto tx2 = transactionWithV2Precondition(
+                    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum + 2));
+                removed.clear();
+                txSet = TxSetFrame::makeFromTransactions({tx1, tx2}, *app, 0, 0,
+                                                         &removed);
+                REQUIRE(removed.empty());
             }
         }
         SECTION("extraSigners")
@@ -1446,96 +1444,97 @@ TEST_CASE("surge pricing", "[herder][txset]")
     }
 }
 
-// TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
-//{
-//    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-//                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
-//    {
-//        return;
-//    }
-//
-//    Config cfg(getTestConfig());
-//    cfg.LEDGER_PROTOCOL_VERSION =
-//        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
-//    VirtualClock clock;
-//    Application::pointer app = createTestApplication(clock, cfg);
-//    auto root = TestAccount::createRoot(*app);
-//    int64 startingBalance =
-//        app->getLedgerManager().getLastMinBalance(0) + 10000000;
-//
-//    std::vector<TestAccount> accounts;
-//    int txCnt = 0;
-//
-//    auto addTx = [&](int nbOps, uint32_t fee) {
-//        auto account = root.create(std::to_string(txCnt++), startingBalance);
-//        accounts.push_back(account);
-//        return makeSelfPayment(account, nbOps, fee);
-//    };
-//
-//    auto checkFees = [&](TxSetFramePtr txSet,
-//                         std::vector<int64_t> const& expectedFeeCharged) {
-//        REQUIRE(txSet->checkValid(*app, 0, 0));
-//
-//        // fetch balances
-//        auto getBalances = [&]() {
-//            std::vector<int64_t> balances;
-//            std::transform(accounts.begin(), accounts.end(),
-//                           std::back_inserter(balances),
-//                           [](TestAccount& a) { return a.getBalance(); });
-//            return balances;
-//        };
-//        auto balancesBefore = getBalances();
-//
-//        closeLedgerOn(*app, 2, getTestDate(13, 4, 2022), txSet);
-//
-//        auto balancesAfter = getBalances();
-//        std::vector<int64_t> feeCharged;
-//        for (size_t i = 0; i < balancesAfter.size(); i++)
-//        {
-//            feeCharged.push_back(balancesBefore[i] - balancesAfter[i]);
-//        }
-//
-//        REQUIRE(feeCharged == expectedFeeCharged);
-//    };
-//
-//    SECTION("single discounted component")
-//    {
-//        auto txSet = createGeneralizedTxSet(
-//            {std::make_pair(
-//                1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-//                                                           addTx(2, 5000)})},
-//            {}, *app);
-//        checkFees(txSet, {3000, 2000});
-//    }
-//    SECTION("single non-discounted component")
-//    {
-//        auto txSet =
-//            createGeneralizedTxSet({}, {addTx(3, 3500), addTx(2, 5000)},
-//            *app);
-//        checkFees(txSet, {3500, 5000});
-//    }
-//    SECTION("multiple components")
-//    {
-//        std::vector<std::pair<int64_t, std::vector<TransactionFrameBasePtr>>>
-//            discounted = {
-//                std::make_pair(
-//                    1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-//                                                               addTx(2,
-//                                                               5000)}),
-//                std::make_pair(
-//                    500, std::vector<TransactionFrameBasePtr>{addTx(1, 501),
-//                                                              addTx(5,
-//                                                              10000)}),
-//                std::make_pair(2000,
-//                               std::vector<TransactionFrameBasePtr>{
-//                                   addTx(4, 15000),
-//                               }),
-//            };
-//        auto txSet = createGeneralizedTxSet(
-//            discounted, {addTx(5, 35000), addTx(1, 10000)}, *app);
-//        checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
-//    }
-//}
+TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
+{
+    Config cfg(getTestConfig());
+    cfg.LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    int64 startingBalance =
+        app->getLedgerManager().getLastMinBalance(0) + 10000000;
+
+    std::vector<TestAccount> accounts;
+    int txCnt = 0;
+    auto addTx = [&](int nbOps, uint32_t fee) {
+        auto account = root.create(std::to_string(txCnt++), startingBalance);
+        accounts.push_back(account);
+        return makeSelfPayment(account, nbOps, fee);
+    };
+
+    auto checkFees = [&](TxSetFrameConstPtr txSet,
+                         std::vector<int64_t> const& expectedFeeCharged) {
+        REQUIRE(txSet->checkValid(*app, 0, 0));
+
+        // fetch balances
+        auto getBalances = [&]() {
+            std::vector<int64_t> balances;
+            std::transform(accounts.begin(), accounts.end(),
+                           std::back_inserter(balances),
+                           [](TestAccount& a) { return a.getBalance(); });
+            return balances;
+        };
+        auto balancesBefore = getBalances();
+
+        closeLedgerOn(*app,
+                      app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                      getTestDate(13, 4, 2022), txSet);
+
+        auto balancesAfter = getBalances();
+        std::vector<int64_t> feeCharged;
+        for (size_t i = 0; i < balancesAfter.size(); i++)
+        {
+            feeCharged.push_back(balancesBefore[i] - balancesAfter[i]);
+        }
+
+        REQUIRE(feeCharged == expectedFeeCharged);
+    };
+
+    SECTION("single discounted component")
+    {
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            {std::make_pair(
+                1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
+                                                           addTx(2, 5000)})},
+            app->getNetworkID(),
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        checkFees(txSet, {3000, 2000});
+    }
+    SECTION("single non-discounted component")
+    {
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            {std::make_pair(std::nullopt,
+                            std::vector<TransactionFrameBasePtr>{
+                                addTx(3, 3500), addTx(2, 5000)})},
+            app->getNetworkID(),
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        checkFees(txSet, {3500, 5000});
+    }
+    SECTION("multiple components")
+    {
+        std::vector<std::pair<std::optional<int64_t>,
+                              std::vector<TransactionFrameBasePtr>>>
+            components = {
+                std::make_pair(
+                    1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
+                                                               addTx(2, 5000)}),
+                std::make_pair(
+                    500, std::vector<TransactionFrameBasePtr>{addTx(1, 501),
+                                                              addTx(5, 10000)}),
+                std::make_pair(2000,
+                               std::vector<TransactionFrameBasePtr>{
+                                   addTx(4, 15000),
+                               }),
+                std::make_pair(std::nullopt,
+                               std::vector<TransactionFrameBasePtr>{
+                                   addTx(5, 35000), addTx(1, 10000)})};
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            components, app->getNetworkID(),
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
+    }
+}
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
@@ -1836,8 +1835,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                             : tx->getEnvelope().v1().signatures;
             sig.clear();
             tx->addSignature(root.getSecretKey());
-            auto txSet = TestTxSetUtils::makeNonValidatedTxSet(
-                {tx}, app->getNetworkID(),
+            auto txSet = testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
+                protocolVersion, {tx}, app->getNetworkID(),
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
             // Build a StellarValue containing the transaction set we just
@@ -1855,7 +1854,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                                  : SCPDriver::kInvalidValue));
 
             // Confirm that getTxTrimList() as used by
-            // HerderImpl::triggerNextLedger() trims the transaction if and
+            // TxSetFrame::makeFromTransactions() trims the transaction if and
             // only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxSetFrame::Transactions removed;
@@ -1923,6 +1922,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto transactions1 = makeTransactions(5, 1, 100);
         auto transactions2 = makeTransactions(4, 1, 100);
+
         auto p1 = makeTxPair(herder, transactions1, 10);
         auto p2 = makeTxPair(herder, transactions1, 10);
         // use current + 1 to allow for any value (old values get filtered more)
@@ -1934,6 +1934,33 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         auto saneEnvelopeQ2T1 =
             makeEnvelope(herder, p1, saneQSet2Hash, lseq, true);
         auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash, lseq, true);
+
+        TxSetFrameConstPtr malformedTxSet;
+        if (transactions1->isGeneralizedTxSet())
+        {
+            GeneralizedTransactionSet xdrTxSet;
+            transactions1->toXDR(xdrTxSet);
+            auto& txs = xdrTxSet.v1TxSet()
+                            .phases[0]
+                            .v0Components()[0]
+                            .txsMaybeDiscountedFee()
+                            .txs;
+            std::swap(txs[0], txs[1]);
+            malformedTxSet =
+                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+        }
+        else
+        {
+            TransactionSet xdrTxSet;
+            transactions1->toXDR(xdrTxSet);
+            auto& txs = xdrTxSet.txs;
+            std::swap(txs[0], txs[1]);
+            malformedTxSet =
+                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+        }
+        auto malformedTxSetPair = makeTxPair(herder, malformedTxSet, 10);
+        auto malformedTxSetEnvelope =
+            makeEnvelope(herder, malformedTxSetPair, saneQSet1Hash, lseq, true);
 
         SECTION("return FETCHING until fetched")
         {
@@ -1993,6 +2020,21 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 REQUIRE(
                     !herder.recvTxSet(p1.second->getContentsHash(), p1.second));
             }
+
+            SECTION("when receiving envelope with malformed tx set")
+            {
+                REQUIRE(herder.recvSCPEnvelope(malformedTxSetEnvelope) ==
+                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(herder.recvTxSet(
+                    malformedTxSetPair.second->getContentsHash(),
+                    malformedTxSetPair.second));
+
+                REQUIRE(herder.recvSCPEnvelope(malformedTxSetEnvelope) ==
+                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(!herder.recvTxSet(
+                    malformedTxSetPair.second->getContentsHash(),
+                    malformedTxSetPair.second));
+            }
         }
 
         SECTION("do not accept unasked qset")
@@ -2043,11 +2085,35 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), p1.second));
         }
+
+        SECTION("accept malformed txset, but fail validation")
+        {
+            REQUIRE(herder.recvSCPEnvelope(malformedTxSetEnvelope) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(
+                herder.recvTxSet(malformedTxSetPair.second->getContentsHash(),
+                                 malformedTxSetPair.second));
+            REQUIRE(herder.getHerderSCPDriver().validateValue(
+                        herder.trackingConsensusLedgerIndex() + 1,
+                        malformedTxSetPair.first,
+                        false) == SCPDriver::kInvalidValue);
+        }
     }
 }
 
 TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
+    SECTION("before generalized tx set protocol")
+    {
+        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                          1,
+                      1000, 15);
+    }
+    SECTION("generalized tx set protocol")
+    {
+        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                      1000, 15);
+    }
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);

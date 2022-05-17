@@ -2455,40 +2455,31 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
     });
 }
 
-// TEST_CASE("upgrade to generic tx set", "[upgrades]")
-//{
-//     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-//                                 GENERALIZED_TX_SET_PROTOCOL_VERSION))
-//     {
-//         return;
-//     }
-//     VirtualClock clock;
-//     auto cfg = getTestConfig(0);
-//     cfg.USE_CONFIG_FOR_GENESIS = false;
-//
-//     auto app = createTestApplication(clock, cfg);
-//
-//     executeUpgrade(
-//         *app, makeProtocolVersionUpgrade(
-//                   static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-//                   1));
-//
-//     auto& lm = app->getLedgerManager();
-//     auto& herder = static_cast<HerderImpl&>(app->getHerder());
-//
-//     auto root = TestAccount::createRoot(*app);
-//
-//     herder.recvTransaction(root.tx({payment(root, 1)}));
-//
-//     auto txSet = herder.getTransactionQueue().getTransactions(
-//         lm.getLastClosedLedgerHeader());
-//
-//     REQUIRE(!txSet->isGeneralizedTxSet());
-//
-//     executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
-//                              GENERALIZED_TX_SET_PROTOCOL_VERSION)));
-//
-//     txSet = herder.getTransactionQueue().getTransactions(
-//         lm.getLastClosedLedgerHeader());
-//     REQUIRE(txSet->isGeneralizedTxSet());
-// }
+TEST_CASE("upgrade to generalized tx set", "[upgrades]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(
+        *app, makeProtocolVersionUpgrade(
+                  static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1));
+
+    auto root = TestAccount::createRoot(*app);
+    TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
+    auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+    REQUIRE(!txSet->isGeneralizedTxSet());
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
+                             GENERALIZED_TX_SET_PROTOCOL_VERSION)));
+
+    txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+    REQUIRE(txSet->isGeneralizedTxSet());
+}

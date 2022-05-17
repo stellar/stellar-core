@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "herder/PendingEnvelopes.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -323,19 +323,4 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(envNoSign) ==
                 Herder::ENVELOPE_STATUS_DISCARDED);
     }
-
-    /*SECTION("receiving malformed txset would crash but disabled check")
-    {
-        auto malformedTxSet =
-            TestTxSetUtils::makeIllSortedTxSet(app->getNetworkID(), txSet);
-        auto p2 = makeTxPair(malformedTxSet, 10, STELLAR_VALUE_SIGNED);
-        auto malformedEnvelope =
-            makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);
-        REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
-        REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
-        REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
-        REQUIRE(pendingEnvelopes.recvTxSet(p2.second->getContentsHash(),
-                                           p2.second));
-    }*/
 }
