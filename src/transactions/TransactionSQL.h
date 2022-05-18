@@ -5,6 +5,7 @@
 #pragma once
 
 #include "database/Database.h"
+#include "herder/TxSetFrame.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 
@@ -16,6 +17,8 @@ class XDROutputFileStream;
 void storeTransaction(Database& db, uint32_t ledgerSeq,
                       TransactionFrameBasePtr const& tx, TransactionMeta& tm,
                       TransactionResultSet const& resultSet);
+
+void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet);
 
 void storeTransactionFee(Database& db, uint32_t ledgerSeq,
                          TransactionFrameBasePtr const& tx,

@@ -695,6 +695,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
     applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
+    storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
+               *txSet);
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 

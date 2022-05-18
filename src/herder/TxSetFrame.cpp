@@ -285,7 +285,7 @@ TxSetFrame::makeFromWire(Hash const& networkID,
                          GeneralizedTransactionSet const& xdrTxSet)
 {
     ZoneScoped;
-    auto hash = sha256(xdr::xdr_to_opaque(xdrTxSet));
+    auto hash = xdrSha256(xdrTxSet);
     
     if (!validateTxSetXDRStructure(xdrTxSet))
     {
@@ -741,7 +741,7 @@ TxSetFrame::computeContentsHash()
     {
         GeneralizedTransactionSet xdrTxSet;
         toXDR(xdrTxSet);
-        mHash = sha256(xdr::xdr_to_opaque(xdrTxSet));
+        mHash = xdrSha256(xdrTxSet);
     }
 }
 
