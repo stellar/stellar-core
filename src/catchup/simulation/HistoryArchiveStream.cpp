@@ -81,7 +81,7 @@ HistoryArchiveStream::makeEmptyTransactionHistory()
     auto emptyTxSet = TxSetFrame::makeEmpty(mHeaderHistory);
     if (emptyTxSet->isGeneralizedTxSet())
     {
-        emptyTxSet->toXDR(txhe.ext.generalizedTxSet());        
+        emptyTxSet->toXDR(txhe.ext.generalizedTxSet());
     }
     else
     {

@@ -286,7 +286,7 @@ TxSetFrame::makeFromWire(Hash const& networkID,
 {
     ZoneScoped;
     auto hash = xdrSha256(xdrTxSet);
-    
+
     if (!validateTxSetXDRStructure(xdrTxSet))
     {
         return std::make_shared<InvalidTxSetFrame const>(true, hash);

@@ -32,8 +32,6 @@ class TxSetFrame
     makeFromHistoryTransactions(Hash const& previousLedgerHash,
                                 Transactions const& txs);
 
-
-
     static TxSetFrameConstPtr
     makeEmpty(LedgerHeaderHistoryEntry const& lclHeader);
 
@@ -44,7 +42,7 @@ class TxSetFrame
                  GeneralizedTransactionSet const& xdrTxSet);
 
     TxSetFrame(TxSetFrame const& other) = delete;
-    TxSetFrame(TxSetFrame&& other) = delete;    
+    TxSetFrame(TxSetFrame&& other) = delete;
     TxSetFrame& operator=(TxSetFrame const& other) = delete;
     TxSetFrame& operator=(TxSetFrame&& other) = delete;
 
