@@ -1247,15 +1247,6 @@ class StopAndRestartBucketMergesTest
             auto countersBeforeClose =
                 app->getBucketManager().readMergeCounters();
 
-            if (firstProtocol != secondProtocol &&
-                i + 1 == protocolSwitchLedger)
-            {
-                CLOG_INFO(
-                    Bucket,
-                    "Preparing to switch protocol version on next ledger");
-                cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
-            }
-
             if (firstProtocol != secondProtocol && i == protocolSwitchLedger)
             {
                 CLOG_INFO(Bucket,
@@ -1301,6 +1292,13 @@ class StopAndRestartBucketMergesTest
                 CLOG_INFO(Bucket,
                           "Stopping application after closing ledger {}", i);
                 app.reset();
+
+                // Prepare for protocol upgrade
+                if (firstProtocol != secondProtocol &&
+                    i == protocolSwitchLedger)
+                {
+                    cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
+                }
 
                 // Restart the application.
                 CLOG_INFO(Bucket, "Restarting application at ledger {}", i);
