@@ -234,8 +234,8 @@ readEncodedTxSets(Application& app, soci::session& sess, uint32_t ledgerSeq,
 
     while (st.got_data())
     {
-        auto& [ledgerSeq, encodedTxSet] = txSets.emplace_back();
-        ledgerSeq = curLedgerSeq;
+        auto& [txSetLedgerSeq, encodedTxSet] = txSets.emplace_back();
+        txSetLedgerSeq = curLedgerSeq;
         decoder::decode_b64(base64TxSet, encodedTxSet);
         st.fetch();
     }
@@ -598,14 +598,23 @@ copyTransactionsToStream(Application& app, soci::session& sess,
 }
 
 void
+createTxSetHistoryTable(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS txsethistory";
+    db.getSession() << "CREATE TABLE txsethistory ("
+                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+                       "txset       TEXT NOT NULL,"
+                       "PRIMARY KEY (ledgerseq)"
+                       ")";
+}
+
+void
 dropTransactionHistory(Database& db)
 {
     ZoneScoped;
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
     db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
-
-    db.getSession() << "DROP TABLE IF EXISTS txsethistory";
 
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
@@ -616,11 +625,7 @@ dropTransactionHistory(Database& db)
                        "txmeta      TEXT NOT NULL,"
                        "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
-    db.getSession() << "CREATE TABLE txsethistory ("
-                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
-                       "txset       TEXT NOT NULL,"
-                       "PRIMARY KEY (ledgerseq)"
-                       ")";
+
     db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
 
     db.getSession() << "CREATE TABLE txfeehistory ("
@@ -631,6 +636,8 @@ dropTransactionHistory(Database& db)
                        "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
     db.getSession() << "CREATE INDEX histfeebyseq ON txfeehistory (ledgerseq);";
+
+    createTxSetHistoryTable(db);
 }
 
 void

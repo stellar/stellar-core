@@ -25,9 +25,6 @@ class TxSetUtils
     static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
     buildAccountTxQueues(TxSetFrame::Transactions const& txs);
 
-    static TxSetFrameConstPtr surgePricingFilter(TxSetFrameConstPtr txSet,
-                                                 Application& app);
-
     // Returns transactions from a TxSet that are invalid. If
     // returnEarlyOnFirstInvalidTx is true, return immediately if an invalid
     // transaction is found (instead of finding all of them), this is useful for
@@ -43,10 +40,5 @@ class TxSetUtils
                 uint64_t lowerBoundCloseTimeOffset,
                 uint64_t upperBoundCloseTimeOffset,
                 TxSetFrame::Transactions& invalidTxs);
-
-  private:
-    static TxSetFrame::Transactions
-    removeTxs(TxSetFrame::Transactions const& txs,
-              TxSetFrame::Transactions const& txsToRemove);
 }; // class TxSetUtils
 } // namespace stellar

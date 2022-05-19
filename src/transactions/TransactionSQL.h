@@ -35,6 +35,8 @@ size_t copyTransactionsToStream(Application& app, soci::session& sess,
                                 XDROutputFileStream& txOut,
                                 XDROutputFileStream& txResultOut);
 
+void createTxSetHistoryTable(Database& db);
+
 void dropTransactionHistory(Database& db);
 
 void deleteOldTransactionHistoryEntries(Database& db, uint32_t ledgerSeq,

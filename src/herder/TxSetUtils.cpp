@@ -30,6 +30,34 @@
 
 namespace stellar
 {
+namespace
+{
+// Target use case is to remove a subset of invalid transactions from a TxSet.
+// I.e. txSet.size() >= txsToRemove.size()
+TxSetFrame::Transactions
+removeTxs(TxSetFrame::Transactions const& txs,
+          TxSetFrame::Transactions const& txsToRemove)
+{
+    UnorderedSet<Hash> txsToRemoveSet;
+    txsToRemoveSet.reserve(txsToRemove.size());
+    std::transform(
+        txsToRemove.cbegin(), txsToRemove.cend(),
+        std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
+        [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
+
+    TxSetFrame::Transactions newTxs;
+    newTxs.reserve(txs.size() - txsToRemove.size());
+    for (auto const& tx : txs)
+    {
+        if (txsToRemoveSet.find(tx->getFullHash()) == txsToRemoveSet.end())
+        {
+            newTxs.emplace_back(tx);
+        }
+    }
+
+    return newTxs;
+}
+} // namespace
 
 bool
 TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
@@ -195,32 +223,6 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     }
 
     return invalidTxs;
-}
-
-// Target use case is to remove a subset of invalid transactions from a TxSet.
-// I.e. txSet.size() >= txsToRemove.size()
-TxSetFrame::Transactions
-TxSetUtils::removeTxs(TxSetFrame::Transactions const& txs,
-                      TxSetFrame::Transactions const& txsToRemove)
-{
-    UnorderedSet<Hash> txsToRemoveSet;
-    txsToRemoveSet.reserve(txsToRemove.size());
-    std::transform(
-        txsToRemove.cbegin(), txsToRemove.cend(),
-        std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
-        [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
-
-    TxSetFrame::Transactions newTxs;
-    newTxs.reserve(txs.size() - txsToRemove.size());
-    for (auto const& tx : txs)
-    {
-        if (txsToRemoveSet.find(tx->getFullHash()) == txsToRemoveSet.end())
-        {
-            newTxs.emplace_back(tx);
-        }
-    }
-
-    return newTxs;
 }
 
 TxSetFrame::Transactions
