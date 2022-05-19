@@ -156,7 +156,8 @@ clearFutures(Application::pointer app, BucketList& bl)
 }
 
 static Hash
-closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
+closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
+            xdr::xvector<UpgradeType, 6> upgrades = emptyUpgradeSteps)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
@@ -166,8 +167,8 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
     auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
     app.getHerder().externalizeValue(txSet, ledgerNum,
-                                     lcl.header.scpValue.closeTime,
-                                     emptyUpgradeSteps, skToSignValue);
+                                     lcl.header.scpValue.closeTime, upgrades,
+                                     skToSignValue);
     return lm.getLastClosedLedgerHeader().hash;
 }
 
@@ -1245,7 +1246,24 @@ class StopAndRestartBucketMergesTest
             resolveAllMerges(app->getBucketManager().getBucketList());
             auto countersBeforeClose =
                 app->getBucketManager().readMergeCounters();
-            closeLedger(*app);
+
+            if (firstProtocol != secondProtocol && i == protocolSwitchLedger)
+            {
+                CLOG_INFO(Bucket,
+                          "Switching protocol at ledger {} from protocol {} "
+                          "to protocol {}",
+                          i, firstProtocol, secondProtocol);
+
+                auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+                ledgerUpgrade.newLedgerVersion() = secondProtocol;
+                closeLedger(*app, std::nullopt,
+                            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+                currProtocol = secondProtocol;
+            }
+            else
+            {
+                closeLedger(*app);
+            }
 
             assert(i == app->getLedgerManager()
                             .getLastClosedLedgerHeader()
@@ -1275,16 +1293,11 @@ class StopAndRestartBucketMergesTest
                           "Stopping application after closing ledger {}", i);
                 app.reset();
 
+                // Prepare for protocol upgrade
                 if (firstProtocol != secondProtocol &&
                     i == protocolSwitchLedger)
                 {
-                    CLOG_INFO(
-                        Bucket,
-                        "Switching protocol at ledger {} from protocol {} "
-                        "to protocol {}",
-                        i, firstProtocol, secondProtocol);
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                        secondProtocol;
+                    cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
                 }
 
                 // Restart the application.

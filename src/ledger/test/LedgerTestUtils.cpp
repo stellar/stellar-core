@@ -535,5 +535,13 @@ generateLedgerHeadersForCheckpoint(
     makeValid(res, firstLedger, state);
     return res;
 }
+
+UpgradeType
+toUpgradeType(LedgerUpgrade const& upgrade)
+{
+    auto v = xdr::xdr_to_opaque(upgrade);
+    auto result = UpgradeType{v.begin(), v.end()};
+    return result;
+}
 }
 }
