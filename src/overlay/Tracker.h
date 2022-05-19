@@ -55,6 +55,8 @@ class Tracker
     LogSlowExecution mFetchTime;
 
   public:
+    static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY;
+    static int const MAX_REBUILD_FETCH_LIST;
     /**
      * Create Tracker that tracks data identified by @p hash. @p askPeer
      * delegate is used to fetch the data.
