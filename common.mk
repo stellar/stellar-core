@@ -17,6 +17,12 @@ if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
 endif # USE_POSTGRES
 
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+AM_CPPFLAGS += -I"$(top_builddir)/src/protocol-next"
+else
+AM_CPPFLAGS += -I"$(top_builddir)/src/protocol-curr"
+endif
+
 # USE_TRACY and tracy_CFLAGS here represent the case of enabling
 # tracy at configure-time; but even when it is disabled we want
 # its includes in the CPPFLAGS above, so its (disabled) headers
