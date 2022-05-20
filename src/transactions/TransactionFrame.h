@@ -11,6 +11,7 @@
 #include "util/types.h"
 
 #include <memory>
+#include <optional>
 #include <set>
 
 namespace soci
@@ -154,8 +155,8 @@ class TransactionFrame : public TransactionFrameBase
         return getResult().result.code();
     }
 
-    void resetResults(LedgerHeader const& header, int64_t baseFee,
-                      bool applying);
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee, bool applying);
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
@@ -170,9 +171,8 @@ class TransactionFrame : public TransactionFrameBase
 
     int64_t getFeeBid() const override;
 
-    int64_t getMinFee(LedgerHeader const& header) const override;
-
-    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    virtual int64_t getFee(LedgerHeader const& header,
+                           std::optional<int64_t> baseFee,
                            bool applying) const override;
 
     void addSignature(SecretKey const& secretKey);
@@ -183,12 +183,13 @@ class TransactionFrame : public TransactionFrameBase
 
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
-
     bool checkExtraSigners(SignatureChecker& signatureChecker);
 
-    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
-                    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
-                    uint64_t upperBoundCloseTimeOffset);
+    bool checkValidWithOptionallyChargedFee(AbstractLedgerTxn& ltxOuter,
+                                            SequenceNumber current,
+                                            bool chargeFee,
+                                            uint64_t lowerBoundCloseTimeOffset,
+                                            uint64_t upperBoundCloseTimeOffset);
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
@@ -198,7 +199,8 @@ class TransactionFrame : public TransactionFrameBase
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee) override;
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

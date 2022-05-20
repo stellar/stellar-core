@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "util/UnorderedSet.h"
@@ -18,6 +20,8 @@ class OperationFrame;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
+using TransactionFrameBaseConstPtr =
+    std::shared_ptr<TransactionFrameBase const>;
 
 class TransactionFrameBase
 {
@@ -36,8 +40,8 @@ class TransactionFrameBase
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
     virtual int64_t getFeeBid() const = 0;
-    virtual int64_t getMinFee(LedgerHeader const& header) const = 0;
-    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    virtual int64_t getFee(LedgerHeader const& header,
+                           std::optional<int64_t> baseFee,
                            bool applying) const = 0;
 
     virtual Hash const& getContentsHash() const = 0;
@@ -60,7 +64,8 @@ class TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
+    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                                  std::optional<int64_t> baseFee) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;
 };
