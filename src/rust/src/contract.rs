@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+use crate::log::partition::TX;
+use log::info;
 use std::io::Cursor;
 
 use cxx::{CxxString, CxxVector};
@@ -26,6 +28,7 @@ pub(crate) fn invoke_contract(
     let mut host = Host::default();
     let vm = VM::new(&host, wasm.as_slice())?;
 
+    info!(target: TX, "Invoking contract function '{}'", func);
     let res = vm.invoke_function(&mut host, func_str, &arg_scvals)?;
 
     let mut ret_xdr_buf: Vec<u8> = Vec::new();
