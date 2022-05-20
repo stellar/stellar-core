@@ -5,16 +5,20 @@
 #pragma once
 
 #include "database/Database.h"
+#include "herder/TxSetFrame.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 
 namespace stellar
 {
+class Application;
 class XDROutputFileStream;
 
 void storeTransaction(Database& db, uint32_t ledgerSeq,
                       TransactionFrameBasePtr const& tx, TransactionMeta& tm,
                       TransactionResultSet const& resultSet);
+
+void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet);
 
 void storeTransactionFee(Database& db, uint32_t ledgerSeq,
                          TransactionFrameBasePtr const& tx,
@@ -26,11 +30,12 @@ TransactionResultSet getTransactionHistoryResults(Database& db,
 std::vector<LedgerEntryChanges> getTransactionFeeMeta(Database& db,
                                                       uint32 ledgerSeq);
 
-size_t copyTransactionsToStream(Hash const& networkID, Database& db,
-                                soci::session& sess, uint32_t ledgerSeq,
-                                uint32_t ledgerCount,
+size_t copyTransactionsToStream(Application& app, soci::session& sess,
+                                uint32_t ledgerSeq, uint32_t ledgerCount,
                                 XDROutputFileStream& txOut,
                                 XDROutputFileStream& txResultOut);
+
+void createTxSetHistoryTable(Database& db);
 
 void dropTransactionHistory(Database& db);
 

@@ -452,8 +452,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         if (rand_flip())
             txs.push_back(carol.tx({payment(bob, small)}));
     }
-    TxSetFrameConstPtr txSet = std::make_shared<TxSetFrame const>(
-        lm.getLastClosedLedgerHeader().hash, txs);
+    TxSetFrameConstPtr txSet =
+        TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
 
     CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
                ledgerSeq, txSet->sizeTx(), hexAbbrev(txSet->getContentsHash()));
@@ -501,10 +501,12 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 }
 
 void
-CatchupSimulation::setProto12UpgradeLedger(uint32_t ledger)
+CatchupSimulation::setUpgradeLedger(uint32_t ledger,
+                                    ProtocolVersion upgradeProtocolVersion)
 {
     REQUIRE(mApp.getLedgerManager().getLastClosedLedgerNum() < ledger);
-    mTestProtocolShadowsRemovedLedgerSeq = ledger;
+    mUpgradeLedgerSeq = ledger;
+    mUpgradeProtocolVersion = upgradeProtocolVersion;
 }
 
 void
@@ -515,11 +517,11 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
     while (lm.getLastClosedLedgerNum() < targetLedger)
     {
         auto lcl = lm.getLastClosedLedgerNum();
-        if (lcl + 1 == mTestProtocolShadowsRemovedLedgerSeq)
+        if (lcl + 1 == mUpgradeLedgerSeq)
         {
-            // Force proto 12 upgrade
+            // Force protocol upgrade
             generateRandomLedger(
-                static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED));
+                static_cast<uint32_t>(mUpgradeProtocolVersion));
         }
         else
         {
@@ -839,10 +841,8 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
               "force-externalizing LedgerCloseData for {} has txhash:{}",
               ledger, hexAbbrev(lcd.getTxSet()->getContentsHash()));
 
-    auto txSet = std::static_pointer_cast<TxSetFrame const>(lcd.getTxSet());
-
     herder.getPendingEnvelopes().putTxSet(lcd.getTxSet()->getContentsHash(),
-                                          lcd.getLedgerSeq(), txSet);
+                                          lcd.getLedgerSeq(), lcd.getTxSet());
     herder.getHerderSCPDriver().valueExternalized(
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
 }
