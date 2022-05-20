@@ -43,7 +43,8 @@ compile_commands.json
 /src/archtmp-*
 /src/main/StellarCoreVersion.cpp
 /src/testdata
-/src/xdr/*.h
+/src/protocol-curr/xdr/*.h
+/src/protocol-next/xdr/*.h
 /Makefile
 /Makefile.in
 /aclocal.m4
