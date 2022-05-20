@@ -6,8 +6,8 @@
 
 #include "transactions/contracts/ContractUtils.h"
 #include "crypto/Hex.h"
-#include "rust/rust_bridge.h"
-#include "rust/rust_vec_xdr_marshal.h"
+#include "rust/RustBridge.h"
+#include "rust/RustVecXdrMarshal.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"

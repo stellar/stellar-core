@@ -4,7 +4,7 @@
 
 #include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
-#include "rust/rust_bridge.h"
+#include "rust/RustBridge.h"
 #include "test/test.h"
 #include <autocheck/autocheck.hpp>
 #include <fmt/format.h>

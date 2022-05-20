@@ -167,7 +167,7 @@ exit /b 0
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/generated/xdr/Stellar-overlay.h;src/generated/rust/rust_bridge.h</Inputs>
+      <Inputs>src/generated/xdr/Stellar-overlay.h;src/generated/rust/RustBridge.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
@@ -644,7 +644,7 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
-    <ClCompile Include="src\generated\rust\rust_bridge.cpp" />
+    <ClCompile Include="src\generated\rust\RustBridge.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\catch.hpp" />
@@ -873,7 +873,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
-    <ClInclude Include="..\..\src\rust\rust_vec_xdr_marshal.h" />
+    <ClInclude Include="..\..\src\rust\RustVecXdrMarshal.h" />
     <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
     <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
@@ -948,7 +948,7 @@ exit /b 0
     <ClInclude Include="..\..\src\work\WorkScheduler.h" />
     <ClInclude Include="..\..\src\work\WorkSequence.h" />
     <ClInclude Include="..\..\src\work\WorkWithCallback.h" />
-    <ClInclude Include="src\generated\rust\rust_bridge.h" />
+    <ClInclude Include="src\generated\rust\RustBridge.h" />
     <ClInclude Include="src\generated\xdr\Stellar-contract.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h" />
@@ -1162,18 +1162,18 @@ exit /b 0
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\rust_bridge.h
-$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\rust_bridge.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\rust_bridge.h
-$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\rust_bridge.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\rust_bridge.h
-$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\rust_bridge.cpp</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running cxxbridge to generate rust_bridge.h and rust_bridge.cpp</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running cxxbridge to generate rust_bridge.h and rust_bridge.cpp</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running cxxbridge to generate rust_bridge.h and rust_bridge.cpp</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src\generated\rust\rust_bridge.h;src\generated\rust\rust_bridge.cpp</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src\generated\rust\rust_bridge.h;src\generated\rust\rust_bridge.cpp</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src\generated\rust\rust_bridge.h;src\generated\rust\rust_bridge.cpp</Outputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\RustBridge.h
+$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\RustBridge.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\RustBridge.h
+$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\RustBridge.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\generated\rust\RustBridge.h
+$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\generated\rust\RustBridge.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src\generated\rust\RustBridge.h;src\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ClInclude</OutputItemType>
       <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">ClInclude</OutputItemType>
       <OutputItemType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ClInclude</OutputItemType>

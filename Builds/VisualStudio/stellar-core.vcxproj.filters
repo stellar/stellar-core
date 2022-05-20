@@ -1233,7 +1233,7 @@
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="src\generated\rust\rust_bridge.cpp">
+    <ClCompile Include="src\generated\rust\RustBridge.cpp">
       <Filter>rust\generated</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
@@ -2153,7 +2153,7 @@
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="src\generated\rust\rust_bridge.h">
+    <ClInclude Include="src\generated\rust\RustBridge.h">
       <Filter>rust\generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">
@@ -2162,7 +2162,7 @@
     <ClInclude Include="..\..\src\herder\TxSetUtils.h">
       <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\rust\rust_vec_xdr_marshal.h">
+    <ClInclude Include="..\..\src\rust\RustVecXdrMarshal.h">
       <Filter>rust</Filter>
     </ClInclude>
     <ClInclude Include="src\generated\xdr\Stellar-contract.h">
