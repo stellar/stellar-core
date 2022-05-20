@@ -647,7 +647,7 @@ TxSimApplyTransactionsWork::onReset()
                                      opaqueUpgrade.end());
         }
 
-        TxSetFrameConstPtr txSet = TxSetFrame::makeEmpty(lclHeader);        
+        TxSetFrameConstPtr txSet = TxSetFrame::makeEmpty(lclHeader);
 
         sv.txSetHash = txSet->getContentsHash();
         sv.closeTime = mHeaderHistory.header.scpValue.closeTime;
