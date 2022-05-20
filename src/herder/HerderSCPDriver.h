@@ -192,10 +192,17 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
+    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
+    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
+    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
 
+    class TxSetValidityKeyHash
+    {
+      public:
+        size_t operator()(TxSetValidityKey const& key) const;
+    };
     // validity of txSet
-    mutable RandomEvictionCache<TxSetUtils::TxSetValidityKey, bool,
-                                TxSetUtils::TxSetValidityKeyHash>
+    mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
         mTxSetValidCache;
 
     SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,

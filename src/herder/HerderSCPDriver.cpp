@@ -552,25 +552,38 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     }
     auto lSize = l->size(header);
     auto rSize = r->size(header);
-    if (lSize < rSize)
+    if (lSize != rSize)
     {
-        return true;
+        return lSize < rSize;
     }
-    else if (lSize > rSize)
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        return false;
+        auto lBids = l->getTotalBids();
+        auto rBids = r->getTotalBids();
+        if (lBids != rBids)
+        {
+            return lBids < rBids;
+        }
     }
     if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
         auto lFee = l->getTotalFees(header);
         auto rFee = r->getTotalFees(header);
-        if (lFee < rFee)
+        if (lFee != rFee)
         {
-            return true;
+            return lFee < rFee;
         }
-        else if (lFee > rFee)
+    }
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        auto lEncodedSize = l->encodedSize();
+        auto rEncodedSize = r->encodedSize();
+        if (lEncodedSize != rEncodedSize)
         {
-            return false;
+            // Look for the smallest encoded size.
+            return lEncodedSize > rEncodedSize;
         }
     }
     return lessThanXored(lh, rh, s);
@@ -1132,7 +1145,7 @@ bool
 HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
                                          uint64_t closeTimeOffset) const
 {
-    auto key = TxSetUtils::TxSetValidityKey{
+    auto key = TxSetValidityKey{
         mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
         txSet->getContentsHash(), closeTimeOffset, closeTimeOffset};
 
@@ -1147,5 +1160,16 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
     {
         return *pRes;
     }
+}
+size_t
+HerderSCPDriver::TxSetValidityKeyHash::operator()(
+    TxSetValidityKey const& key) const
+{
+
+    size_t res = std::hash<Hash>()(std::get<0>(key));
+    hashMix(res, std::hash<Hash>()(std::get<1>(key)));
+    hashMix(res, std::get<2>(key));
+    hashMix(res, std::get<3>(key));
+    return res;
 }
 }

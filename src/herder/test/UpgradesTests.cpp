@@ -16,6 +16,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
+#include "simulation/Topologies.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -2462,7 +2463,8 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
     });
 }
 
-TEST_CASE("upgrade to generalized tx set", "[upgrades]")
+TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
+          "[upgrades]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                                 GENERALIZED_TX_SET_PROTOCOL_VERSION))
@@ -2489,4 +2491,119 @@ TEST_CASE("upgrade to generalized tx set", "[upgrades]")
 
     txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(txSet->isGeneralizedTxSet());
+}
+
+TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            cfg.MAX_SLOTS_TO_REMEMBER = 10;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+
+    // Wait for 3 ledgers in order to get to stable closing schedule (every 5s).
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
+    auto nodes = simulation->getNodes();
+    auto lclCloseTime =
+        VirtualClock::from_time_t(nodes[0]
+                                      ->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime);
+
+    for (auto node : nodes)
+    {
+        Upgrades::UpgradeParameters upgrades;
+        upgrades.mProtocolVersion = std::make_optional<uint32>(
+            static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+        // Upgrade to generalized tx set in 3 ledgers (4 ledgers before update
+        // is applied).
+        upgrades.mUpgradeTime =
+            lclCloseTime + Herder::EXP_LEDGER_TIMESPAN_SECONDS * 3;
+        node->getHerder().setUpgrades(upgrades);
+    }
+
+    auto& loadGen = nodes[0]->getLoadGenerator();
+    // Generate 8 ledgers worth of txs (40 / 5).
+    loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 40, 0, 0,
+                         /*txRate*/ 1,
+                         /*batchSize*/ 1, std::chrono::seconds(0), 0);
+    auto& loadGenDone =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+    std::optional<uint32_t> upgradeLedger;
+    simulation->crankUntil(
+        [&]() {
+            if (!upgradeLedger &&
+                nodes[0]->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.ledgerVersion ==
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+            {
+                upgradeLedger =
+                    nodes[0]->getLedgerManager().getLastClosedLedgerNum();
+            }
+            return loadGenDone.count() > currLoadGenCount;
+        },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Make sure upgrade has happened.
+    REQUIRE(upgradeLedger);
+    REQUIRE(*upgradeLedger < 11);
+
+    // Add a node and let it catchup.
+    auto addedKey = SecretKey::fromSeed(sha256("ADD_NODE"));
+    auto addedNode =
+        simulation->addNode(addedKey, nodes.back()->getConfig().QUORUM_SET);
+    addedNode->start();
+    for (auto const& nodeID : simulation->getNodeIDs())
+    {
+        simulation->addConnection(addedKey.getPublicKey(), nodeID);
+    }
+    // Let the network to externalize 1 more ledger.
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(12, 10); },
+        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
+
+    auto getLedgerTxSet = [](Application& node, uint32_t ledger) {
+        auto& herder = *static_cast<HerderImpl*>(&node.getHerder());
+        TxSetFrameConstPtr txSet;
+        for (auto const& env : herder.getSCP().getLatestMessagesSend(ledger))
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                auto& pe = herder.getPendingEnvelopes();
+                herder.getHerderSCPDriver().toStellarValue(
+                    env.statement.pledges.externalize().commit.value, sv);
+                return pe.getTxSet(sv.txSetHash);
+            }
+        }
+        return txSet;
+    };
+
+    // Make sure tx set format switches to generalized after upgrade.
+    for (uint32_t ledger = 4; ledger <= 11; ++ledger)
+    {
+        for (auto const& node : simulation->getNodes())
+        {
+            auto txSet = getLedgerTxSet(*node, ledger);
+            REQUIRE(txSet);
+            REQUIRE(txSet->sizeTx() > 0);
+            bool isGeneralized = ledger > *upgradeLedger;
+            REQUIRE(txSet->isGeneralizedTxSet() == isGeneralized);
+        }
+    }
 }

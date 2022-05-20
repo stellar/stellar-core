@@ -73,7 +73,7 @@ testQuorumTracker()
         herder->recvSCPQuorumSet(qSetH, qSet);
         for (auto& p : pp)
         {
-            herder->recvTxSet(p.mTxSet->getContentsHash(), *p.mTxSet);
+            herder->recvTxSet(p.mTxSet->getContentsHash(), p.mTxSet);
         }
     };
     auto recvNom = [&](uint64 slotID, SecretKey const& k,
@@ -109,7 +109,7 @@ testQuorumTracker()
     };
     auto makeValue = [&](int i) {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
+        auto txSet = TxSetFrame::makeEmpty(lcl);
         StellarValue sv = herder->makeStellarValue(
             txSet->getContentsHash(), lcl.header.scpValue.closeTime + i,
             emptyUpgradeSteps, valSigner);

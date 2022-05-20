@@ -13,9 +13,11 @@
 #include "overlay/TCPPeer.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "simulation/Simulation.h"
+#include "simulation/Topologies.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 #include "herder/HerderImpl.h"
@@ -1687,5 +1689,69 @@ TEST_CASE("peer is purged from database after few failures",
     simulation->crankForAtLeast(std::chrono::seconds{5}, true);
 
     REQUIRE(!peerManager.load(localhost(cfg2.PEER_PORT)).second);
+}
+
+TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
+          "[txset][overlay]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    auto runTest = [](bool hasNonUpgraded) {
+        int const nonUpgradedNodeIndex = 1;
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        auto simulation = Topologies::core(
+            4, 0.75, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                cfg.MAX_SLOTS_TO_REMEMBER = 10;
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+                if (hasNonUpgraded && i == nonUpgradedNodeIndex)
+                {
+                    cfg.OVERLAY_PROTOCOL_VERSION =
+                        Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET - 1;
+                }
+                return cfg;
+            });
+
+        simulation->startAllNodes();
+        auto nodeIDs = simulation->getNodeIDs();
+        auto node = simulation->getNode(nodeIDs[0]);
+
+        auto root = TestAccount::createRoot(*node);
+
+        int64_t const minBalance =
+            node->getLedgerManager().getLastMinBalance(0);
+        REQUIRE(node->getHerder().recvTransaction(
+                    root.tx({txtest::createAccount(
+                        txtest::getAccount("acc").getPublicKey(), minBalance)}),
+                    false) == TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        simulation->crankForAtLeast(Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        for (auto const& nodeID : simulation->getNodeIDs())
+        {
+            auto simNode = simulation->getNode(nodeID);
+            if (hasNonUpgraded && nodeID == nodeIDs[nonUpgradedNodeIndex])
+            {
+                REQUIRE(simNode->getLedgerManager().getLastClosedLedgerNum() ==
+                        1);
+            }
+            else
+            {
+                REQUIRE(simNode->getLedgerManager().getLastClosedLedgerNum() ==
+                        2);
+            }
+        }
+    };
+    SECTION("all nodes upgraded")
+    {
+        runTest(false);
+    }
+    SECTION("non upgraded node does not externalize")
+    {
+        runTest(true);
+    }
 }
 }
