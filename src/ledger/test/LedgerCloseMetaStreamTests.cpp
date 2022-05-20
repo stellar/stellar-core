@@ -193,12 +193,28 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     auto lcmsSafe = readLcms(pathSafe);
     // The "- 1" is because we don't stream meta for the genesis ledger.
     REQUIRE(lcms.size() == expectedLastWatcherLedger - 1);
-    REQUIRE(lcms.back().v0().ledgerHeader.hash == expectedLastUnsafeHash);
+    if (lcms.back().v() == 0)
+    {
+        REQUIRE(lcms.back().v0().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
+    else
+    {
+        REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
+
     // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
     // the meta for the latest ledger (or the latest ledger before the corrupt
     // one) yet.
     REQUIRE(lcmsSafe.size() == lcms.size() - 1);
-    REQUIRE(lcmsSafe.back().v0().ledgerHeader.hash == expectedLastSafeHash);
+
+    if (lcmsSafe.back().v() == 0)
+    {
+        REQUIRE(lcmsSafe.back().v0().ledgerHeader.hash == expectedLastSafeHash);
+    }
+    else
+    {
+        REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
+    }
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -294,7 +310,14 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     }
     // 5 checkpoints is ledger 0x13f
     REQUIRE(nLcm == 0x13f);
-    REQUIRE(lcm.v0().ledgerHeader.hash == hash);
+    if (lcm.v() == 0)
+    {
+        REQUIRE(lcm.v0().ledgerHeader.hash == hash);
+    }
+    else
+    {
+        REQUIRE(lcm.v1().ledgerHeader.hash == hash);
+    }
 }
 
 TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",

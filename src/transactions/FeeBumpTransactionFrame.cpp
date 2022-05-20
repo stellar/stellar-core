@@ -147,10 +147,15 @@ bool
 FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
-                                    uint64_t upperBoundCloseTimeOffset)
+                                    uint64_t upperBoundCloseTimeOffset,
+                                    std::optional<int64_t> baseFee)
 {
     LedgerTxn ltx(ltxOuter);
-    auto minBaseFee = ltx.loadHeader().current().baseFee;
+    int64_t minBaseFee = ltx.loadHeader().current().baseFee;
+    if (baseFee)
+    {
+        minBaseFee = std::max(minBaseFee, *baseFee);
+    }
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -167,9 +172,9 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
         return false;
     }
 
-    bool res =
-        mInnerTx->checkValid(ltx, current, false, lowerBoundCloseTimeOffset,
-                             upperBoundCloseTimeOffset);
+    bool res = mInnerTx->checkValidWithOptionalFee(
+        ltx, current, false, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset, baseFee);
     updateResult(getResult(), mInnerTx);
     return res;
 }
@@ -269,16 +274,27 @@ FeeBumpTransactionFrame::getFeeBid() const
 }
 
 int64_t
-FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header) const
+FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header,
+                                   std::optional<int64_t> baseFee) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
+    int64_t effectiveBaseFee = (int64_t)header.baseFee;
+    if (baseFee)
+    {
+        effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
+    }
+    return effectiveBaseFee * std::max<int64_t>(1, getNumOperations());
 }
 
 int64_t
-FeeBumpTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
+                                std::optional<int64_t> baseFee,
                                 bool applying) const
 {
-    int64_t adjustedFee = baseFee * std::max<int64_t>(1, getNumOperations());
+    if (!baseFee)
+    {
+        return getFeeBid();
+    }
+    int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {
         return std::min<int64_t>(getFeeBid(), adjustedFee);
@@ -393,7 +409,7 @@ FeeBumpTransactionFrame::insertKeysForTxApply(
 
 void
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                          int64_t baseFee)
+                                          std::optional<int64_t> baseFee)
 {
     resetResults(ltx.loadHeader().current(), baseFee, true);
 
@@ -440,7 +456,8 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
 
 void
 FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
-                                      int64_t baseFee, bool applying)
+                                      std::optional<int64_t> baseFee,
+                                      bool applying)
 {
     mInnerTx->resetResults(header, baseFee, applying);
     mResult.result.code(txFEE_BUMP_INNER_SUCCESS);

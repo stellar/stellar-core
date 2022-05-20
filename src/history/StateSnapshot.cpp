@@ -13,6 +13,7 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
@@ -84,9 +85,9 @@ StateSnapshot::writeHistoryBlocks() const
 
         nHeaders = LedgerHeaderUtils::copyToStream(mApp.getDatabase(), sess,
                                                    begin, count, ledgerOut);
-        size_t nTxs =
-            copyTransactionsToStream(mApp.getNetworkID(), mApp.getDatabase(),
-                                     sess, begin, count, txOut, txResultOut);
+
+        size_t nTxs = copyTransactionsToStream(mApp, sess, begin, count, txOut,
+                                               txResultOut);
         CLOG_DEBUG(History, "Wrote {} ledger headers to {}", nHeaders,
                    mLedgerSnapFile->localPath_nogz());
         CLOG_DEBUG(History, "Wrote {} transactions to {} and {}", nTxs,

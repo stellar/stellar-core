@@ -24,7 +24,7 @@ class TxSimApplyTransactionsWork : public BasicWork
 
     std::unique_ptr<HistoryArchiveStream> mStream;
     LedgerHeaderHistoryEntry mHeaderHistory;
-    TransactionHistoryEntry mTransactionHistory;
+    std::vector<TransactionEnvelope> mTransactionHistory;
     std::vector<TransactionEnvelope>::const_iterator mTransactionIter;
     TransactionHistoryResultEntry mResultHistory;
     std::vector<TransactionResultPair>::const_iterator mResultIter;

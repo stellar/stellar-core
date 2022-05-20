@@ -2,13 +2,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TransactionQueue.h"
 #include "herder/TxQueueLimiter.h"
+#include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -108,29 +110,29 @@ class TransactionQueueTest
     removeApplied(std::vector<TransactionFrameBasePtr> const& toRemove,
                   bool noChangeExpected = false)
     {
-        auto size = mTransactionQueue.toTxSet({})->sizeTx();
+        auto size = mTransactionQueue.getTransactions({}).size();
         mTransactionQueue.removeApplied(toRemove);
 
         if (noChangeExpected)
         {
-            REQUIRE(size == mTransactionQueue.toTxSet({})->sizeTx());
+            REQUIRE(size == mTransactionQueue.getTransactions({}).size());
         }
         else
         {
             REQUIRE(size - toRemove.size() >=
-                    mTransactionQueue.toTxSet({})->sizeTx());
+                    mTransactionQueue.getTransactions({}).size());
         }
     }
 
     void
     ban(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
-        auto txSetBefore = mTransactionQueue.toTxSet({});
+        auto txsBefore = mTransactionQueue.getTransactions({});
         // count the number of transactions from `toRemove` already included
         auto inPoolCount = std::count_if(
             toRemove.begin(), toRemove.end(),
             [&](TransactionFrameBasePtr const& tx) {
-                auto const& txs = txSetBefore->getTxsInHashOrder();
+                auto const& txs = txsBefore;
                 return std::any_of(txs.begin(), txs.end(),
                                    [&](TransactionFrameBasePtr const& tx2) {
                                        return tx2->getFullHash() ==
@@ -138,8 +140,8 @@ class TransactionQueueTest
                                    });
             });
         mTransactionQueue.ban(toRemove);
-        auto txSetAfter = mTransactionQueue.toTxSet({});
-        REQUIRE(txSetBefore->sizeTx() - inPoolCount >= txSetAfter->sizeTx());
+        auto txsAfter = mTransactionQueue.getTransactions({});
+        REQUIRE(txsBefore.size() - inPoolCount >= txsAfter.size());
     }
 
     void
@@ -169,8 +171,8 @@ class TransactionQueueTest
         }
 
         std::map<AccountID, int64_t> fees;
-        auto txSet = mTransactionQueue.toTxSet({});
-        for (auto const& tx : txSet->getTxsInHashOrder())
+        auto queueTxs = mTransactionQueue.getTransactions({});
+        for (auto const& tx : queueTxs)
         {
             auto& fee = fees[tx->getFeeSourceID()];
             if (INT64_MAX - fee > tx->getFeeBid())
@@ -185,7 +187,7 @@ class TransactionQueueTest
 
         REQUIRE(fees == expectedFees);
 
-        auto expectedTxSet = std::make_shared<TxSetFrame const>(Hash{});
+        TxSetFrame::Transactions expectedTxs;
         size_t totOps = 0;
         for (auto const& accountState : state.mAccountStates)
         {
@@ -202,15 +204,17 @@ class TransactionQueueTest
                     accountTransactionQueueInfo.mQueueSizeOps);
             totOps += accountTransactionQueueInfo.mQueueSizeOps;
 
-            expectedTxSet = TestTxSetUtils::addTxs(
-                expectedTxSet, accountState.mAccountTransactions);
+            expectedTxs.insert(expectedTxs.end(),
+                               accountState.mAccountTransactions.begin(),
+                               accountState.mAccountTransactions.end());
         }
 
-        REQUIRE(txSet->sizeOp() == mTransactionQueue.getQueueSizeOps());
         REQUIRE(totOps == mTransactionQueue.getQueueSizeOps());
 
-        REQUIRE(txSet->getTxsInApplyOrder() ==
-                expectedTxSet->getTxsInApplyOrder());
+        std::sort(queueTxs.begin(), queueTxs.end(), &TxSetUtils::hashTxSorter);
+        std::sort(expectedTxs.begin(), expectedTxs.end(),
+                  &TxSetUtils::hashTxSorter);
+        REQUIRE(queueTxs == expectedTxs);
         REQUIRE(state.mBannedState.mBanned0.size() ==
                 mTransactionQueue.countBanned(0));
         REQUIRE(state.mBannedState.mBanned1.size() ==
@@ -1150,9 +1154,9 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             REQUIRE(herder.recvTransaction(tx, false) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-            REQUIRE(tq.toTxSet({})->sizeTx() == 1);
+            REQUIRE(tq.getTransactions({}).size() == 1);
             closeLedger(*app);
-            REQUIRE(tq.toTxSet({})->sizeTx() == 0);
+            REQUIRE(tq.getTransactions({}).size() == 0);
             REQUIRE(tq.isBanned(tx->getFullHash()));
         }
     });
@@ -1292,7 +1296,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                     tx->getNumOperations(),
                     [&](TransactionFrameBasePtr const& evict) {
                         // can't evict cheaper transactions
-                        auto cmp3 = feeRate3WayCompare(evict, tx);
+                        auto cmp3 = feeRate3WayCompare(*evict, *tx);
                         REQUIRE(cmp3 < 0);
                         // can't evict self
                         bool same = evict->getSourceID() == tx->getSourceID();
@@ -1413,8 +1417,7 @@ TEST_CASE("transaction queue starting sequence boundary",
         auto checkTxSet = [&](uint32_t ledgerSeq) {
             auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
             lcl.header.ledgerSeq = ledgerSeq;
-            auto txSet = tq.toTxSet(lcl);
-            return !txSet->getTxsInHashOrder().empty();
+            return !tq.getTransactions(lcl.header).empty();
         };
 
         REQUIRE(checkTxSet(2));
@@ -1439,11 +1442,11 @@ TEST_CASE("transaction queue starting sequence boundary",
         auto checkTxSet = [&](uint32_t ledgerSeq, size_t size) {
             auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
             lcl.header.ledgerSeq = ledgerSeq;
-            auto txSet = tq.toTxSet(lcl);
-            REQUIRE(txSet->sizeTx() == size);
+            auto txSet = tq.getTransactions(lcl.header);
+            REQUIRE(txSet.size() == size);
             for (size_t i = 1; i <= size; ++i)
             {
-                REQUIRE(txSet->getTxsInApplyOrder()[i - 1]->getSeqNum() ==
+                REQUIRE(txSet[i - 1]->getSeqNum() ==
                         static_cast<int64_t>(startingSeq - 3 + i));
             }
         };
@@ -1932,8 +1935,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
         root.loadSequenceNumber();
-        auto txSet = std::make_shared<TxSetFrame const>(
-            lcl.hash, std::vector<TransactionFrameBasePtr>{tx1b, tx2});
+        auto txSet = TxSetFrame::makeFromTransactions({tx1b, tx2}, *app, 0, 0);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 
@@ -1945,10 +1947,10 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
                                                       xdr::xdr_to_opaque(sv));
     }
 
-    REQUIRE(tq.toTxSet({})->sizeTx() == 1);
+    REQUIRE(tq.getTransactions({}).size() == 1);
     REQUIRE(herder.recvTransaction(tx4, false) ==
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
-    REQUIRE(tq.toTxSet({})->sizeTx() == 2);
+    REQUIRE(tq.getTransactions({}).size() == 2);
 }
 
 static UnorderedSet<AssetPair, AssetPairHash>

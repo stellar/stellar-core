@@ -101,7 +101,7 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
-                                   TxSetFrame txset) override;
+                                   TxSetFrameConstPtr txset) override;
 
     void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
@@ -119,7 +119,7 @@ class HerderImpl : public Herder
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
-    bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
+    bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
     TxSetFrameConstPtr getTxSet(Hash const& hash) override;
@@ -227,6 +227,9 @@ class HerderImpl : public Herder
     void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState();
+
+    void restoreSCPStateFromState(std::string const& state);
+    void restoreSCPStateFromXDRState(std::string const& state);
 
     // saves upgrade parameters
     void persistUpgrades();

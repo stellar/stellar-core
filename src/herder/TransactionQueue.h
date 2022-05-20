@@ -143,7 +143,7 @@ class TransactionQueue
     size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
 
-    TxSetFrameConstPtr toTxSet(LedgerHeaderHistoryEntry const& lcl) const;
+    TxSetFrame::Transactions getTransactions(LedgerHeader const& lcl) const;
 
     struct ReplacedTransaction
     {

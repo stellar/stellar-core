@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "herder/PendingEnvelopes.h"
+#include "herder/test/TestTxSetUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -61,21 +61,11 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         herder.signEnvelope(s, envelope);
         return envelope;
     };
-    auto addTransactionsEx = [&](TxSetFrameConstPtr& txSet, int n,
-                                 TestAccount& t) {
+    auto makeTransactions = [&](Hash hash, int n) {
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),
-                      [&]() { return root.tx({createAccount(t, 10000000)}); });
-        txSet = std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(),
-                                                   txs);
-    };
-    auto addTransactions = std::bind(addTransactionsEx, std::placeholders::_1,
-                                     std::placeholders::_2, a1);
-
-    auto makeTransactions = [&](Hash hash, int n) {
-        auto result = std::make_shared<TxSetFrame const>(hash);
-        addTransactions(result, n);
-        return result;
+                      [&]() { return root.tx({createAccount(a1, 10000000)}); });
+        return TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     };
 
     auto makePublicKey = [](int i) {
@@ -332,20 +322,5 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         // Make sure to discard the envelope
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(envNoSign) ==
                 Herder::ENVELOPE_STATUS_DISCARDED);
-    }
-
-    SECTION("receiving malformed txset would crash but disabled check")
-    {
-        auto malformedTxSet =
-            TestTxSetUtils::makeIllSortedTxSet(app->getNetworkID(), txSet);
-        auto p2 = makeTxPair(malformedTxSet, 10, STELLAR_VALUE_SIGNED);
-        auto malformedEnvelope =
-            makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);
-        REQUIRE(pendingEnvelopes.recvSCPEnvelope(malformedEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
-        REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
-        REQUIRE(herder.getSCP().getLatestMessage(pk) == nullptr);
-        REQUIRE(pendingEnvelopes.recvTxSet(p2.second->getContentsHash(),
-                                           p2.second));
     }
 }

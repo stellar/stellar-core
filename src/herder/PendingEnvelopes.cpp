@@ -61,6 +61,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
     switch (type)
     {
     case TX_SET:
+    case GENERALIZED_TX_SET:
         mTxSetFetcher.doesntHave(itemID, peer);
         break;
     case SCP_QUORUMSET:
@@ -482,9 +483,18 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
             auto txSetPtr = getTxSet(v.txSetHash);
             if (txSetPtr)
             {
-                TransactionSet txSet;
-                txSetPtr->toXDR(txSet);
-                txSetSize = xdr::xdr_argpack_size(txSet);
+                if (txSetPtr->isGeneralizedTxSet())
+                {
+                    GeneralizedTransactionSet txSet;
+                    txSetPtr->toXDR(txSet);
+                    txSetSize = xdr::xdr_argpack_size(txSet);
+                }
+                else
+                {
+                    TransactionSet txSet;
+                    txSetPtr->toXDR(txSet);
+                    txSetSize = xdr::xdr_argpack_size(txSet);
+                }
                 mValueSizeCache.put(v.txSetHash, txSetSize);
             }
         }

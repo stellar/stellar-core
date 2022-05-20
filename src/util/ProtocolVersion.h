@@ -31,7 +31,8 @@ enum class ProtocolVersion : uint32_t
     V_16,
     V_17,
     V_18,
-    V_19
+    V_19,
+    V_20
 };
 
 // Checks whether provided protocolVersion is before (i.e. strictly lower than)
@@ -46,4 +47,6 @@ bool protocolVersionStartsFrom(uint32_t protocolVersion,
 bool protocolVersionEquals(uint32_t protocolVersion,
                            ProtocolVersion equalsVersion);
 
+constexpr ProtocolVersion GENERALIZED_TX_SET_PROTOCOL_VERSION =
+    ProtocolVersion::V_20;
 }

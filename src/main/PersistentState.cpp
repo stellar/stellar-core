@@ -19,7 +19,7 @@ using namespace std;
 std::string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "lastscpdata",
     "databaseschema",   "networkpassphrase",   "ledgerupgrades",
-    "rebuildledger"};
+    "rebuildledger",    "lastscpdataxdr"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
@@ -48,7 +48,8 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
         throw out_of_range("unknown entry");
     }
     auto res = mapping[n];
-    if ((n == kLastSCPData && subscript > 0) || n == kRebuildLedger)
+    if (((n == kLastSCPData || n == kLastSCPDataXDR) && subscript > 0) ||
+        n == kRebuildLedger)
     {
         res += std::to_string(subscript);
     }
@@ -70,18 +71,24 @@ PersistentState::setState(PersistentState::Entry entry,
     updateDb(getStoreStateName(entry), value);
 }
 
-std::vector<std::string>
+std::vector<std::pair<std::string, bool>>
 PersistentState::getSCPStateAllSlots()
 {
     ZoneScoped;
     // Collect all slots persisted
-    std::vector<std::string> states;
+    std::vector<std::pair<std::string, bool>> states;
     for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
     {
-        auto val = getFromDb(getStoreStateName(kLastSCPData, i));
+        bool useXDR = true;
+        auto val = getFromDb(getStoreStateName(kLastSCPDataXDR, i));
+        if (val.empty())
+        {
+            useXDR = false;
+            val = getFromDb(getStoreStateName(kLastSCPData, i));
+        }
         if (!val.empty())
         {
-            states.push_back(val);
+            states.emplace_back(val, useXDR);
         }
     }
 
@@ -89,12 +96,14 @@ PersistentState::getSCPStateAllSlots()
 }
 
 void
-PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
+PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value,
+                                    bool useXDR)
 {
     ZoneScoped;
     auto slotIdx = static_cast<uint32>(
         slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
-    updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
+    auto entry = useXDR ? kLastSCPDataXDR : kLastSCPData;
+    updateDb(getStoreStateName(entry, slotIdx), value);
 }
 
 bool

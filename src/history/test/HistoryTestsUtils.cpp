@@ -452,8 +452,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         if (rand_flip())
             txs.push_back(carol.tx({payment(bob, small)}));
     }
-    TxSetFrameConstPtr txSet = std::make_shared<TxSetFrame const>(
-        lm.getLastClosedLedgerHeader().hash, txs);
+    TxSetFrameConstPtr txSet =
+        TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
 
     CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
                ledgerSeq, txSet->sizeTx(), hexAbbrev(txSet->getContentsHash()));
@@ -839,10 +839,8 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
               "force-externalizing LedgerCloseData for {} has txhash:{}",
               ledger, hexAbbrev(lcd.getTxSet()->getContentsHash()));
 
-    auto txSet = std::static_pointer_cast<TxSetFrame const>(lcd.getTxSet());
-
     herder.getPendingEnvelopes().putTxSet(lcd.getTxSet()->getContentsHash(),
-                                          lcd.getLedgerSeq(), txSet);
+                                          lcd.getLedgerSeq(), lcd.getTxSet());
     herder.getHerderSCPDriver().valueExternalized(
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
 }

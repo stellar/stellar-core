@@ -15,12 +15,8 @@ namespace txsimulation
 class SimApplyOrderTxSetFrame : public TxSetFrame
 {
   public:
-    SimApplyOrderTxSetFrame(Hash const& previousLedgerHash,
-                            Transactions const& transactions)
-        : TxSetFrame(previousLedgerHash, transactions)
-        , mTxsInApplyOrder(transactions)
-    {
-    }
+    SimApplyOrderTxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
+                            Transactions const& txsInApplyOrder);
 
     Transactions
     getTxsInApplyOrder() const override
@@ -32,11 +28,10 @@ class SimApplyOrderTxSetFrame : public TxSetFrame
     Transactions mTxsInApplyOrder;
 };
 
-TxSetFrameConstPtr
-makeSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
-                  std::vector<TransactionEnvelope> const& transactions,
-                  std::vector<TransactionResultPair> const& results,
-                  uint32_t multiplier);
+TxSetFrameConstPtr makeSimTxSetFrame(
+    Hash const& networkID, LedgerHeaderHistoryEntry const& lclHeader,
+    std::vector<TransactionEnvelope> const& transactions,
+    std::vector<TransactionResultPair> const& results, uint32_t multiplier);
 
 }
 }

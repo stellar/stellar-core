@@ -2,38 +2,101 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestTxSetUtils.h"
+#include "herder/test/TestTxSetUtils.h"
+#include "util/ProtocolVersion.h"
+
+#include <map>
 
 namespace stellar
 {
-
-TxSetFrameConstPtr
-TestTxSetUtils::addTxs(TxSetFrameConstPtr txSet,
-                       TxSetFrame::Transactions const& newTxs)
+namespace testtxset
 {
-    auto updated = txSet->getTxsInHashOrder();
-    updated.insert(updated.end(), newTxs.begin(), newTxs.end());
-    return std::make_shared<TxSetFrame const>(txSet->previousLedgerHash(),
-                                              updated);
+namespace
+{
+TransactionSet
+makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
+             Hash const& previousLedgerHash)
+{
+    auto normalizedTxs = TxSetUtils::sortTxsInHashOrder(txs);
+    TransactionSet txSet;
+    txSet.previousLedgerHash = previousLedgerHash;
+    for (auto const& tx : txs)
+    {
+        txSet.txs.push_back(tx->getEnvelope());
+    }
+    return txSet;
+}
+
+GeneralizedTransactionSet
+makeGeneralizedTxSetXDR(
+    std::vector<std::pair<std::optional<int64_t>,
+                          std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    Hash const& previousLedgerHash)
+{
+    auto normalizedTxsPerBaseFee = txsPerBaseFee;
+    std::sort(normalizedTxsPerBaseFee.begin(), normalizedTxsPerBaseFee.end());
+    for (auto& [_, txs] : normalizedTxsPerBaseFee)
+    {
+        txs = TxSetUtils::sortTxsInHashOrder(txs);
+    }
+
+    GeneralizedTransactionSet xdrTxSet(1);
+    xdrTxSet.v1TxSet().previousLedgerHash = previousLedgerHash;
+    auto& phase = xdrTxSet.v1TxSet().phases.emplace_back();
+    for (auto const& [baseFee, txs] : normalizedTxsPerBaseFee)
+    {
+        auto& component = phase.v0Components().emplace_back(
+            TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+        if (baseFee)
+        {
+            component.txsMaybeDiscountedFee().baseFee.activate() = *baseFee;
+        }
+        auto& componentTxs = component.txsMaybeDiscountedFee().txs;
+        for (auto const& tx : txs)
+        {
+            componentTxs.emplace_back(tx->getEnvelope());
+        }
+    }
+    return xdrTxSet;
 }
 
 TxSetFrameConstPtr
-TestTxSetUtils::removeTxs(TxSetFrameConstPtr txSet,
-                          TxSetFrame::Transactions const& txsToRemove)
+makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
+                      Hash const& networkID, Hash const& previousLedgerHash)
 {
-    return TxSetUtils::removeTxs(txSet, txsToRemove);
+    auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
+    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
+}
+} // namespace
+
+TxSetFrameConstPtr
+makeNonValidatedGeneralizedTxSet(
+    std::vector<std::pair<std::optional<int64_t>,
+                          std::vector<TransactionFrameBasePtr>>> const&
+        txsPerBaseFee,
+    Hash const& networkID, Hash const& previousLedgerHash)
+{
+    auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
+    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
 }
 
 TxSetFrameConstPtr
-TestTxSetUtils::makeIllSortedTxSet(Hash const& networkID,
-                                   TxSetFrameConstPtr goodTxSet)
+makeNonValidatedTxSetBasedOnLedgerVersion(
+    uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
+    Hash const& networkID, Hash const& previousLedgerHash)
 {
-    TransactionSet xdrSet;
-    goodTxSet->toXDR(xdrSet);
-    // rearrange it out of order
-    releaseAssert(xdrSet.txs.size() >= 2);
-    std::swap(xdrSet.txs[0], xdrSet.txs[1]);
-    return std::make_shared<TxSetFrame const>(networkID, xdrSet);
+    if (protocolVersionStartsFrom(ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return makeNonValidatedGeneralizedTxSet({std::make_pair(100LL, txs)},
+                                                networkID, previousLedgerHash);
+    }
+    else
+    {
+        return makeNonValidatedTxSet(txs, networkID, previousLedgerHash);
+    }
 }
 
+} // namespace testtxset
 } // namespace stellar

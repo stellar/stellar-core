@@ -28,10 +28,11 @@ class TxSimTransactionFrame : public TransactionFrame
 
     bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const override;
 
-    int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+    int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
                    bool applying) const override;
 
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee) override;
     void processSeqNum(AbstractLedgerTxn& ltx) override;
 
   public:
