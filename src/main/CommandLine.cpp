@@ -806,6 +806,7 @@ runCatchup(CommandLineArgs const& args)
                         ps.setState(PersistentState::kLastClosedLedger, "");
                         ps.setState(PersistentState::kHistoryArchiveState, "");
                         ps.setState(PersistentState::kLastSCPData, "");
+                        ps.setState(PersistentState::kLastSCPDataXDR, "");
                         ps.setState(PersistentState::kLedgerUpgrades, "");
                     }
 
