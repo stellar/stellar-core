@@ -26,6 +26,9 @@
 #include <sodium/core.h>
 #include <system_error>
 #include <xdrpp/marshal.h>
+#ifdef USE_TRACY
+#include <tracy/TracyC.h>
+#endif
 
 namespace stellar
 {
@@ -249,7 +252,15 @@ main(int argc, char* const* argv)
     // At least print a backtrace in any circumstance
     // that would call std::terminate
     std::set_terminate(printBacktraceAndAbort);
-
+#ifdef USE_TRACY
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // The rust tracy client library is fussy about trying
+    // to own the tracy startup path.
+    rust_bridge::start_tracy();
+#else
+    ___tracy_startup_profiler();
+#endif
+#endif
     Logging::init();
     if (sodium_init() != 0)
     {
@@ -267,5 +278,9 @@ main(int argc, char* const* argv)
     checkXDRFileIdentity();
 #endif
 
-    return handleCommandLine(argc, argv);
+    int res = handleCommandLine(argc, argv);
+#ifdef USE_TRACY
+    ___tracy_shutdown_profiler();
+#endif
+    return res;
 }

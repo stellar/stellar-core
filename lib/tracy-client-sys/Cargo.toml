@@ -1,0 +1,24 @@
+# Note this is a local override of tracy-client-sys with its generated.rs file
+# manually regenerated from the in-tree copy of Tracy that we use.
+
+[package]
+name = "tracy-client-sys"
+version = "0.21.0"
+authors = ["Simonas Kazlauskas <tracy-client-sys@kazlauskas.me>"]
+license = "(MIT OR Apache-2.0) AND BSD-3-Clause"
+edition = "2018"
+repository = "https://github.com/nagisa/rust_tracy_client"
+homepage = "https://github.com/nagisa/rust_tracy_client"
+documentation = "https://docs.rs/tracy-client-sys"
+description = """
+Low level bindings to the client libraries for the Tracy profiler
+"""
+
+[features]
+default = [ "enable" ]
+enable = []
+broadcast = []
+code-transfer = []
+context-switch-tracing = []
+sampling = []
+system-tracing = []

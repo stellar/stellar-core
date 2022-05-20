@@ -9,7 +9,7 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/util"                   \
 	-isystem "$(top_srcdir)/lib/fmt/include"            \
 	-isystem "$(top_srcdir)/lib/soci/src/core"          \
-	-isystem "$(top_srcdir)/lib/tracy"                  \
+	-isystem "$(top_srcdir)/lib/tracy/public/tracy"     \
 	-isystem "$(top_srcdir)/lib/spdlog/include"         \
 	-isystem "$(top_srcdir)/rust/src"
 

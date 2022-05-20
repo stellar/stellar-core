@@ -12,6 +12,7 @@ use crate::{
 };
 use log::debug;
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
+use tracy_client::{span, Client};
 
 // This module (contract) is bound to _two separate locations_ in the module
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
@@ -424,6 +425,9 @@ fn invoke_host_function_or_maybe_panic(
     ledger_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
+    let _client = Client::start();
+    let _span = span!("invoke_host_function");
+
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
     let resources = xdr_from_cxx_buf::<SorobanResources>(&resources_buf)?;

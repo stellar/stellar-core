@@ -10,6 +10,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 log = "0.4.17"
+tracy-client = { version = "=0.15.2", features = ["enable"], default-features = false }
 cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"

@@ -150,6 +150,7 @@ mod rust_bridge {
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
+        fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> XDRHashesPair;
@@ -696,4 +697,8 @@ pub(crate) fn compute_write_fee_per_1kb(
         bucket_list_size,
         fee_config,
     ))
+}
+
+fn start_tracy() {
+    tracy_client::Client::start();
 }

@@ -77,7 +77,7 @@ RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
-RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.lock rust/src/host-dep-tree-curr.txt rust/src/host-dep-tree-prev.txt
+RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock rust/src/host-dep-tree-curr.txt rust/src/host-dep-tree-prev.txt
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
