@@ -2165,6 +2165,9 @@
     <ClInclude Include="..\..\src\rust\RustVecXdrMarshal.h">
       <Filter>rust</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\rust\CppShims.h">
+      <Filter>rust</Filter>
+    </ClInclude>
     <ClInclude Include="src\generated\xdr\Stellar-contract.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
