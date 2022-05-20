@@ -5,6 +5,7 @@
 use crate::log::partition::TX;
 use log::info;
 use std::io::Cursor;
+use tracy_client::{span, Client};
 
 use cxx::{CxxString, CxxVector};
 use std::error::Error;
@@ -22,6 +23,8 @@ pub(crate) fn invoke_contract(
     func: &CxxString,
     args: &CxxVector<u8>,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
+    let client = Client::start();
+    let _span = span!("invoke_contract");
     let arg_scvals = ScVec::read_xdr(&mut Cursor::new(args.as_slice()))?;
     let func_str = func.to_str()?;
 
@@ -29,6 +32,7 @@ pub(crate) fn invoke_contract(
     let vm = VM::new(&host, wasm.as_slice())?;
 
     info!(target: TX, "Invoking contract function '{}'", func);
+    let _span2 = span!("invoke_function");
     let res = vm.invoke_function(&mut host, func_str, &arg_scvals)?;
 
     let mut ret_xdr_buf: Vec<u8> = Vec::new();

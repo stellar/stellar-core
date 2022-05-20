@@ -9,8 +9,10 @@ crate-type = ["staticlib"]
 
 [dependencies]
 log = "0.4.17"
+tracy-client = { version = "=0.13.2", features = ["enable"], default-features = false }
 cxx = "1.0"
 base64 = "0.13.0"
 stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "d0a4b13881fa95a7174390f685b18f9941c9094a", features = [
     "vm",
 ] }
+

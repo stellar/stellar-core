@@ -335,7 +335,7 @@ AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
         [Enable 'tracy' profiler/tracer client stub]))
 AM_CONDITIONAL(USE_TRACY, [test x$enable_tracy = xyes])
-tracy_CFLAGS='-DTRACY_ENABLE -DTRACY_ON_DEMAND -DTRACY_NO_BROADCAST -DTRACY_ONLY_LOCALHOST -DTRACY_ONLY_IPV4'
+tracy_CFLAGS='-DTRACY_ENABLE -DTRACY_ON_DEMAND -DTRACY_NO_BROADCAST -DTRACY_ONLY_LOCALHOST -DTRACY_ONLY_IPV4 -DTRACY_DELAYED_INIT -DTRACY_MANUAL_LIFETIME'
 if test x"$enable_tracy" = xyes; then
     case "${host_os}" in
         *darwin*)

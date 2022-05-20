@@ -26,6 +26,7 @@ mod rust_bridge {
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
+        fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn invoke_contract(
@@ -59,3 +60,7 @@ use contract::invoke_contract;
 
 mod log;
 use crate::log::init_logging;
+
+fn start_tracy() {
+    tracy_client::Client::start();
+}

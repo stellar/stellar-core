@@ -1,2 +1,5 @@
 [workspace]
-members = ["src/rust"]
+members = ["src/rust", "lib/tracy-client-sys"]
+
+[patch.crates-io]
+tracy-client-sys = { path = "lib/tracy-client-sys" }
