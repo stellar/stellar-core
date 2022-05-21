@@ -15,16 +15,16 @@ namespace stellar
  * SCVals are (in WASM's case) stored in a tagged 64-bit word encoding. Most
  * signed 64-bit values in Stellar are actually signed positive values
  * (sequence numbers, timestamps, amounts), so we don't need the high bit
- * and can get away with 1-bit tagging and store them as "positive i64",
- * separate from everything else.
+ * and can get away with 1-bit tagging and store them as "unsigned 63bit",
+ * (u63) separate from everything else.
  *
  * We actually reserve the low _four_ bits, leaving 3 bits for 8 cases of
- * "non positive-i64 values", some of which have substructure of their own.
+ * "non-u63 values", some of which have substructure of their own.
  *
- *    0x_NNNN_NNNN_NNNN_NNNX  - positive i64, for any even X
+ *    0x_NNNN_NNNN_NNNN_NNNX  - u63, for any even X
  *    0x_0000_000N_NNNN_NNN1  - u32
  *    0x_0000_000N_NNNN_NNN3  - i32
- *    0x_NNNN_NNNN_NNNN_NNN5  - static: void, true, false, ...
+ *    0x_NNNN_NNNN_NNNN_NNN5  - static: void, true, false, ... (SCS_*)
  *    0x_IIII_IIII_TTTT_TTT7  - object: 32-bit index I, 28-bit type code T
  *    0x_NNNN_NNNN_NNNN_NNN9  - symbol: up to 10 6-bit identifier characters
  *    0x_NNNN_NNNN_NNNN_NNNb  - bitset: up to 60 bits
@@ -49,7 +49,7 @@ typedef string SCSymbol<10>;
 
 enum SCValType
 {
-    SCV_POS_I64 = 0,
+    SCV_U63 = 0,
     SCV_U32 = 1,
     SCV_I32 = 2,
     SCV_STATIC = 3,
@@ -85,8 +85,8 @@ case SST_UNKNOWN_ERROR:
 
 union SCVal switch (SCValType type)
 {
-case SCV_POS_I64:
-    int64 pos_i64;
+case SCV_U63:
+    int64 u63;
 case SCV_U32:
     uint32 u32;
 case SCV_I32:
