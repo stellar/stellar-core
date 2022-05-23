@@ -966,6 +966,116 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     return out.getBucket(*this);
 }
 
+static bool
+visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
+                     std::optional<int64_t> minLedger,
+                     std::function<bool(LedgerEntry const&)> const& filterEntry,
+                     std::function<bool(LedgerEntry const&)> const& acceptEntry,
+                     UnorderedSet<LedgerKey>& processedEntries)
+{
+    using namespace std::chrono;
+    medida::Timer timer;
+
+    UnorderedMap<LedgerKey, LedgerEntry> bucketEntries;
+    bool stopIteration = false;
+    timer.Time([&]() {
+        for (BucketInputIterator in(b); in; ++in)
+        {
+            BucketEntry const& e = *in;
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            {
+                if (minLedger &&
+                    e.liveEntry().lastModifiedLedgerSeq < *minLedger)
+                {
+                    stopIteration = true;
+                    continue;
+                }
+                if (!filterEntry(e.liveEntry()))
+                {
+                    continue;
+                }
+                auto key = LedgerEntryKey(e.liveEntry());
+                if (processedEntries.find(key) != processedEntries.end())
+                {
+                    continue;
+                }
+                bucketEntries[key] = e.liveEntry();
+            }
+            else
+            {
+                if (e.type() != DEADENTRY)
+                {
+                    std::string err = "Malformed bucket: unexpected "
+                                      "non-INIT/LIVE/DEAD entry.";
+                    CLOG_ERROR(Bucket, "{}", err);
+                    throw std::runtime_error(err);
+                }
+                bucketEntries.erase(e.deadEntry());
+                processedEntries.insert(e.deadEntry());
+            }
+        }
+        for (auto const& [key, entry] : bucketEntries)
+        {
+            processedEntries.insert(key);
+            if (!acceptEntry(entry))
+            {
+                stopIteration = true;
+                break;
+            }
+        }
+    });
+    nanoseconds ns =
+        timer.duration_unit() * static_cast<nanoseconds::rep>(timer.max());
+    milliseconds ms = duration_cast<milliseconds>(ns);
+    size_t bytesPerSec = (b->getSize() * 1000 / (1 + ms.count()));
+    CLOG_INFO(Bucket, "Processed {}-byte bucket file '{}' in {} ({}/s)",
+              b->getSize(), name, ms, formatSize(bytesPerSec));
+    return !stopIteration;
+}
+
+void
+BucketManagerImpl::visitLedgerEntries(
+    HistoryArchiveState const& has, std::optional<int64_t> minLedger,
+    std::function<bool(LedgerEntry const&)> const& filterEntry,
+    std::function<bool(LedgerEntry const&)> const& acceptEntry)
+{
+    UnorderedSet<LedgerKey> deletedEntries;
+    std::vector<std::pair<Hash, std::string>> hashes;
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        hashes.emplace_back(hexToBin256(hsb.curr),
+                            fmt::format(FMT_STRING("curr {:d}"), i));
+        hashes.emplace_back(hexToBin256(hsb.snap),
+                            fmt::format(FMT_STRING("snap {:d}"), i));
+    }
+    medida::Timer timer;
+    timer.Time([&]() {
+        for (auto const& pair : hashes)
+        {
+            if (isZero(pair.first))
+            {
+                continue;
+            }
+            auto b = getBucketByHash(pair.first);
+            if (!b)
+            {
+                throw std::runtime_error(std::string("missing bucket: ") +
+                                         binToHex(pair.first));
+            }
+            if (!visitEntriesInBucket(b, pair.second, minLedger, filterEntry,
+                                      acceptEntry, deletedEntries))
+            {
+                break;
+            }
+        }
+    });
+    auto ns = timer.duration_unit() *
+              static_cast<std::chrono::nanoseconds::rep>(timer.max());
+    CLOG_INFO(Bucket, "Total ledger processing time: {}",
+              std::chrono::duration_cast<std::chrono::milliseconds>(ns));
+}
+
 std::shared_ptr<BasicWork>
 BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
 {

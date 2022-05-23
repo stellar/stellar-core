@@ -25,6 +25,8 @@
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
+#include "util/xdrquery/XDRMatcher.h"
 #include "work/WorkScheduler.h"
 
 #include <filesystem>
@@ -434,6 +436,66 @@ mergeBucketList(Config cfg, std::string const& outputDir)
         LOG_ERROR(DEFAULT_LOG, "Writing bucket failed");
         return 1;
     }
+}
+
+int
+dumpLedger(Config cfg, std::string const& outputFile,
+           std::optional<std::string> filterQuery,
+           std::optional<uint32_t> lastModifiedLedgerCount,
+           std::optional<uint64_t> limit)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    app->getLedgerManager().loadLastKnownLedger(nullptr);
+    auto& lm = app->getLedgerManager();
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+    std::optional<uint32_t> minLedger;
+    if (lastModifiedLedgerCount)
+    {
+        uint32_t lclNum = lm.getLastClosedLedgerNum();
+        if (lclNum >= *lastModifiedLedgerCount)
+        {
+            minLedger = lclNum - *lastModifiedLedgerCount;
+        }
+        else
+        {
+            minLedger = 0;
+        }
+    }
+    std::optional<xdrquery::XDRMatcher> matcher;
+    if (filterQuery)
+    {
+        matcher.emplace(*filterQuery);
+    }
+    std::ofstream ofs(outputFile);
+    ofs << "{\"entries\": [";
+
+    auto& bm = app->getBucketManager();
+    uint64_t entryCount = 0;
+    try
+    {
+        bm.visitLedgerEntries(
+            has, minLedger,
+            [&](LedgerEntry const& entry) {
+                return !matcher || matcher->matchXDR(entry);
+            },
+            [&](LedgerEntry const& entry) {
+                if (entryCount != 0)
+                {
+                    ofs << "," << std::endl;
+                }
+                ofs << xdr_to_string(entry, "entry", true);
+                ++entryCount;
+                return !limit || entryCount < *limit;
+            });
+    }
+    catch (xdrquery::XDRQueryError& e)
+    {
+        LOG_ERROR(DEFAULT_LOG, "Filter query error: {}", e.what());
+    }
+    ofs << "]}";
+    return 0;
 }
 
 void

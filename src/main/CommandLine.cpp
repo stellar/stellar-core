@@ -357,21 +357,49 @@ inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
         "store working ledger in memory rather than database");
-};
+}
 
 clara::Opt
 startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
         "start in-memory run with replay from historical ledger number");
-};
+}
 
 clara::Opt
 startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
         "start in-memory run with replay from historical ledger hash");
-};
+}
+
+clara::Opt
+filterQueryParser(std::optional<std::string>& filterQuery)
+{
+    return clara::Opt{[&](std::string const& arg) { filterQuery = arg; },
+                      "FILTER-QUERY"}["--filter-query"](
+        "query to filter ledger entries");
+}
+
+clara::Opt
+lastModifiedLedgerCountParser(
+    std::optional<std::uint32_t>& lastModifiedLedgerCount)
+{
+    return clara::Opt{[&](std::string const& arg) {
+                          lastModifiedLedgerCount = std::stoul(arg);
+                      },
+                      "LAST-LEDGERS"}["--last-ledgers"](
+        "filter out ledger entries that were modified more than this many "
+        "ledgers ago");
+}
+
+clara::Opt
+limitParser(std::optional<std::uint64_t>& limit)
+{
+    return clara::Opt{[&](std::string const& arg) { limit = std::stoull(arg); },
+                      "LIMIT"}["--limit"](
+        "limit the output to this many ledger entries");
+}
 
 int
 runWithHelp(CommandLineArgs const& args,
@@ -1034,6 +1062,27 @@ runMergeBucketList(CommandLineArgs const& args)
 }
 
 int
+runDumpLedger(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string outputFile;
+    std::optional<std::string> filterQuery;
+    std::optional<uint32_t> lastModifiedLedgerCount;
+    std::optional<uint64_t> limit;
+    return runWithHelp(args,
+                       {configurationParser(configOption),
+                        outputFileParser(outputFile).required(),
+                        filterQueryParser(filterQuery),
+                        lastModifiedLedgerCountParser(lastModifiedLedgerCount),
+                        limitParser(limit)},
+                       [&] {
+                           return dumpLedger(configOption.getConfig(),
+                                             outputFile, filterQuery,
+                                             lastModifiedLedgerCount, limit);
+                       });
+}
+
+int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1631,6 +1680,8 @@ handleCommandLine(int argc, char* const* argv)
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"diag-bucket-stats", "reports statistics on the content of a bucket",
           diagBucketStats},
+         {"dump-ledger", "dumps the current ledger state as JSON for debugging",
+          runDumpLedger},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
          {"encode-asset", "Print an encoded asset in base 64 for debugging",
           runEncodeAsset},

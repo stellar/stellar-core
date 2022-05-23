@@ -23,6 +23,10 @@ void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
 int selfCheck(Config cfg);
 int mergeBucketList(Config cfg, std::string const& outputDir);
+int dumpLedger(Config cfg, std::string const& outputFile,
+               std::optional<std::string> filterQuery,
+               std::optional<uint32_t> lastModifiedLedgerCount,
+               std::optional<uint64_t> limit);
 void showOfflineInfo(Config cfg);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 #ifdef BUILD_TESTS

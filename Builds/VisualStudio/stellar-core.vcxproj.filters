@@ -172,6 +172,12 @@
     <Filter Include="rust\generated">
       <UniqueIdentifier>{57d45a48-6030-4dff-96ce-fd587f319529}</UniqueIdentifier>
     </Filter>
+    <Filter Include="util\xdrquery">
+      <UniqueIdentifier>{166a403b-4f13-4505-9953-97ea92e5d855}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util\xdrquery\tests">
+      <UniqueIdentifier>{60ef25c4-d908-4795-83cf-a348673fe4c4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -1248,6 +1254,21 @@
     <ClCompile Include="..\..\src\herder\TxSetUtils.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp">
+      <Filter>util\xdrquery</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp">
+      <Filter>util\xdrquery</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryParser.cpp">
+      <Filter>util\xdrquery</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryScanner.cpp">
+      <Filter>util\xdrquery</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\tests\XDRQueryTests.cpp">
+      <Filter>util\xdrquery\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2177,6 +2198,21 @@
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-types.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRMatcher.h">
+      <Filter>util\xdrquery</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRFieldResolver.h">
+      <Filter>util\xdrquery</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryEval.h">
+      <Filter>util\xdrquery</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryError.h">
+      <Filter>util\xdrquery</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryParser.h">
+      <Filter>util\xdrquery</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -2367,6 +2403,12 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-SCP.x">
       <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryParser.yy">
+      <Filter>util\xdrquery</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryScanner.ll">
+      <Filter>util\xdrquery</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
