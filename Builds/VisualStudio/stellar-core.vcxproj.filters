@@ -82,9 +82,6 @@
     <Filter Include="herder\docs">
       <UniqueIdentifier>{aa45d521-588a-4f8f-b737-d3667c7d9404}</UniqueIdentifier>
     </Filter>
-    <Filter Include="xdr\generated">
-      <UniqueIdentifier>{02035318-e72a-43b0-a250-8b3af9fb4bbf}</UniqueIdentifier>
-    </Filter>
     <Filter Include="scp\tests">
       <UniqueIdentifier>{34037c6d-2c07-471b-8dde-6b69003d4ca7}</UniqueIdentifier>
     </Filter>
@@ -165,6 +162,18 @@
     </Filter>
     <Filter Include="rust\generated">
       <UniqueIdentifier>{11ca5d74-0517-4f8c-8dbc-ca69f1b0234d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="xdr\next">
+      <UniqueIdentifier>{9a05704b-1f74-41a9-9fdb-7e76d91e0f7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="xdr\curr">
+      <UniqueIdentifier>{452dffd8-d0b1-4918-a8a5-f06e09b5b90f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="xdr\generated_curr">
+      <UniqueIdentifier>{cb0b1c45-7616-4585-83fc-f1bf5c84dffc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="xdr\generated_next">
+      <UniqueIdentifier>{3be84928-7d19-426f-9bc0-4c34254c559e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -1364,27 +1373,6 @@
     <ClInclude Include="..\..\lib\util\basen.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-contract.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-ledger.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-overlay.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-SCP.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-transaction.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
-    <ClInclude Include="src\generated\xdr\Stellar-types.h">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\catch.hpp">
       <Filter>lib</Filter>
     </ClInclude>
@@ -2171,6 +2159,45 @@
     <ClInclude Include="..\..\src\rust\RustVecXdrMarshal.h">
       <Filter>rust</Filter>
     </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-ledger.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-ledger-entries.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-overlay.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-SCP.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-transaction.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_curr\generated\xdr\Stellar-types.h">
+      <Filter>xdr\generated_curr</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-contract.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-ledger.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-ledger-entries.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-overlay.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-SCP.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-transaction.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
+    <ClInclude Include="src_next\generated\xdr\Stellar-types.h">
+      <Filter>xdr\generated_next</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -2312,25 +2339,25 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-overlay.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger-entries.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-SCP.x">
-      <Filter>xdr</Filter>
+      <Filter>xdr\next</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
@@ -2343,6 +2370,24 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <Filter>rust</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-transaction.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-types.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-overlay.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger-entries.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-SCP.x">
+      <Filter>xdr\curr</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
