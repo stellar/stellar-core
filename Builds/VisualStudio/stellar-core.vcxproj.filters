@@ -2296,22 +2296,22 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-transaction.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-types.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-overlay.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-overlay.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x">
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-SCP.x">
       <Filter>xdr</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
