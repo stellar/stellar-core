@@ -421,7 +421,8 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
     {
         clock.crank(false);
-        if (app->getWorkScheduler().allChildrenDone())
+        if (app->getWorkScheduler().allChildrenDone() &&
+            lm.getLastClosedLedgerNum() >= cfg.METADATA_DEBUG_LEDGERS)
         {
             auto files =
                 FlushAndRotateMetaDebugWork::listMetaDebugFiles(bucketDir);

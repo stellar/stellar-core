@@ -177,7 +177,8 @@ struct BucketListGenerator
                 {
                     out.put(*in);
                 }
-                auto b = out.getBucket(bmApply);
+                auto b =
+                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
             }
             {
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
@@ -187,7 +188,8 @@ struct BucketListGenerator
                 {
                     out.put(*in);
                 }
-                auto b = out.getBucket(bmApply);
+                auto b =
+                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
             }
         }
         return HistoryArchiveState(

@@ -128,7 +128,8 @@ class BucketManager : NonMovableOrCopyable
     virtual std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr) = 0;
+                      MergeKey* mergeKey = nullptr,
+                      std::unique_ptr<BucketIndex const> index = nullptr) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
@@ -137,6 +138,10 @@ class BucketManager : NonMovableOrCopyable
     // `FutureBucket` associated with the in-progress merge, allowing the merge
     // inputs to be GC'ed.
     virtual void noteEmptyMergeOutput(MergeKey const& mergeKey) = 0;
+
+    // Returns a bucket by hash if it exists and is currently managed by the
+    // bucket list.
+    virtual std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
     virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
@@ -205,10 +210,13 @@ class BucketManager : NonMovableOrCopyable
     virtual std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
-    // Restart from a saved state: find and attach all buckets in `has`, set
-    // current BL. Pass `maxProtocolVersion` to any restarted merges.
-    virtual void assumeState(HistoryArchiveState const& has,
-                             uint32_t maxProtocolVersion) = 0;
+    // Assume state from `has` in BucketList: find and attach all buckets in
+    // `has`, set current BL. Note: Does not restart merging
+    virtual void assumeState(HistoryArchiveState const& has) = 0;
+
+    // Restart BucketList Merges
+    virtual void restartMerges(HistoryArchiveState const& has,
+                               uint32_t maxProtocolVersion) = 0;
 
     virtual void shutdown() = 0;
 
@@ -257,5 +265,7 @@ class BucketManager : NonMovableOrCopyable
     // on background threads.
     virtual std::shared_ptr<BasicWork>
     scheduleVerifyReferencedBucketsWork() = 0;
+
+    virtual Config const& getConfig() const = 0;
 };
 }

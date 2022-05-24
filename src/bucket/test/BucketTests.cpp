@@ -11,11 +11,10 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/BucketTests.h"
 #include "bucket/Bucket.h"
-#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -30,9 +29,7 @@
 #include "xdrpp/autocheck.h"
 
 using namespace stellar;
-
-namespace BucketTests
-{
+using namespace BucketTestUtils;
 
 static std::ifstream::pos_type
 fileSize(std::string const& name)
@@ -44,34 +41,7 @@ fileSize(std::string const& name)
     return in.tellg();
 }
 
-uint32_t
-getAppLedgerVersion(Application& app)
-{
-    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    return lcl.header.ledgerVersion;
-}
-
-uint32_t
-getAppLedgerVersion(Application::pointer app)
-{
-    return getAppLedgerVersion(*app);
-}
-
-void
-for_versions_with_differing_bucket_logic(
-    Config const& cfg, std::function<void(Config const&)> const& f)
-{
-    for_versions(
-        {static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
-             1,
-         static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-         static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
-        cfg, f);
-}
-
-void
+static void
 for_versions_with_differing_initentry_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
@@ -83,45 +53,6 @@ for_versions_with_differing_initentry_logic(
              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)},
         cfg, f);
 }
-
-EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
-{
-    BucketInputIterator iter(bucket);
-    if (iter.seenMetadata())
-    {
-        ++nMeta;
-    }
-    while (iter)
-    {
-        switch ((*iter).type())
-        {
-        case INITENTRY:
-            ++nInit;
-            break;
-        case LIVEENTRY:
-            ++nLive;
-            break;
-        case DEADENTRY:
-            ++nDead;
-            break;
-        case METAENTRY:
-            // This should never happen: only the first record can be METAENTRY
-            // and it is counted above.
-            abort();
-        }
-        ++iter;
-    }
-}
-
-size_t
-countEntries(std::shared_ptr<Bucket> bucket)
-{
-    EntryCounts e(bucket);
-    return e.sum();
-}
-}
-
-using namespace BucketTests;
 
 TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
 {

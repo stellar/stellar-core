@@ -4,12 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/LedgerCmp.h"
+#include "bucket/BucketIndex.h"
 #include "crypto/Hex.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
+#include <optional>
 #include <string>
 
 namespace stellar
@@ -34,28 +35,65 @@ class Database;
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable
 {
-
-    std::string const mFilename;
+    std::filesystem::path const mFilename;
     Hash const mHash;
     size_t mSize{0};
+    bool mLazyIndex;
+
+    std::unique_ptr<BucketIndex const> mIndex{};
+
+    // Lazily-constructed and retained for read path.
+    std::unique_ptr<XDRInputFileStream> mStream;
 
   public:
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
 
+    // Returns true if bucket is indexed, false otherwise
+    bool isIndexed() const;
+
+    // Sets index, throws if index is already set
+    void setIndex(std::unique_ptr<BucketIndex const> index);
+
+    // Returns index, throws if index not yet initialized
+    BucketIndex const& getIndex(Config const& cfg);
+
+    // Returns (lazily-constructed) file stream for bucket file. Note
+    // this might be in some random position left over from a previous read --
+    // must be seek()'ed before use.
+    XDRInputFileStream& getStream();
+
+    // Loads the bucket entry for LedgerKey k. Starts at file offset pos and
+    // reads until key is found or the end of the page.
+    std::optional<BucketEntry>
+    getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
+
+    // Loads bucket entry for LedgerKey k.
+    std::optional<BucketEntry> getBucketEntry(LedgerKey const& k,
+                                              Config const& cfg);
+
     // Construct a bucket with a given filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
-    Bucket(std::string const& filename, Hash const& hash);
+    Bucket(std::string const& filename, Hash const& hash,
+           std::unique_ptr<BucketIndex const> index);
 
     Hash const& getHash() const;
-    std::string const& getFilename() const;
+    std::filesystem::path const& getFilename() const;
     size_t getSize() const;
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.
     bool containsBucketIdentity(BucketEntry const& id) const;
+
+    bool isEmpty() const;
+
+    void
+    freeIndex()
+    {
+        mIndex.reset(nullptr);
+    }
 
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.
@@ -73,6 +111,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& initEntries,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
+
+    static LedgerKey getBucketLedgerKey(BucketEntry const& be);
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,

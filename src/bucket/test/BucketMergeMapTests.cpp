@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketMergeMap.h"
-#include "bucket/BucketTests.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -24,11 +24,11 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
         {
             e = LedgerTestUtils::generateValidLedgerEntry(3);
         }
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(),
-                          BucketTests::getAppLedgerVersion(app), {}, live, {},
-                          /*countMergeEvents=*/true, clock.getIOContext(),
-                          /*doFsync=*/true);
+        std::shared_ptr<Bucket> b1 = Bucket::fresh(
+            app->getBucketManager(), BucketTestUtils::getAppLedgerVersion(app),
+            {}, live, {},
+            /*countMergeEvents=*/true, clock.getIOContext(),
+            /*doFsync=*/true);
         return b1;
     };
 

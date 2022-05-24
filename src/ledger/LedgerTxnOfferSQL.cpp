@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
@@ -37,14 +38,14 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
                       "ledgerext "
                       "FROM offers "
                       "WHERE sellerid= :id AND offerid= :offerid";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(actIDStrKey));
     st.exchange(soci::use(offerID));
 
     std::vector<LedgerEntry> offers;
     {
-        auto timer = mDatabase.getSelectTimer("offer");
+        auto timer = mApp.getDatabase().getSelectTimer("offer");
         offers = loadOffers(prep);
     }
 
@@ -59,11 +60,11 @@ LedgerTxnRoot::Impl::loadAllOffers() const
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified, extension, "
                       "ledgerext FROM offers";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
 
     std::vector<LedgerEntry> offers;
     {
-        auto timer = mDatabase.getSelectTimer("offer");
+        auto timer = mApp.getDatabase().getSelectTimer("offer");
         offers = loadOffers(prep);
     }
     return offers;
@@ -87,14 +88,14 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     buyingAsset = decoder::encode_b64(xdr::xdr_to_opaque(buying));
     sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
 
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(sellingAsset));
     st.exchange(soci::use(buyingAsset));
     st.exchange(soci::use(numOffers));
 
     {
-        auto timer = mDatabase.getSelectTimer("offer");
+        auto timer = mApp.getDatabase().getSelectTimer("offer");
         return loadOffers(prep, offers);
     }
 }
@@ -143,7 +144,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
         (double)worseThan.price.n / (double)worseThan.price.d;
     int64_t worseThanOfferID = worseThan.offerID + 1;
 
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(sellingAsset));
     st.exchange(soci::use(buyingAsset));
@@ -157,7 +158,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     st.exchange(soci::use(numOffers));
 
     {
-        auto timer = mDatabase.getSelectTimer("offer");
+        auto timer = mApp.getDatabase().getSelectTimer("offer");
         return loadOffers(prep, offers);
     }
 }
@@ -225,7 +226,7 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
     }
     std::string assetStr = decoder::encode_b64(xdr::xdr_to_opaque(asset));
 
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(accountStr));
     st.exchange(soci::use(assetStr));
@@ -233,7 +234,7 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
 
     std::vector<LedgerEntry> offers;
     {
-        auto timer = mDatabase.getSelectTimer("offer");
+        auto timer = mApp.getDatabase().getSelectTimer("offer");
         offers = loadOffers(prep);
     }
     return offers;
@@ -635,8 +636,8 @@ LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertOffersOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertOffersOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -645,50 +646,57 @@ LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteOffersOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteOffersOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropOffers()
+LedgerTxnRoot::Impl::dropOffers(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS offers;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS offers;";
-    mDatabase.getSession()
-        << "CREATE TABLE offers"
-        << "("
-        << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
-        << "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
-        << "sellingasset     TEXT " << coll << " NOT NULL,"
-        << "buyingasset      TEXT " << coll << " NOT NULL,"
-        << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
-           "pricen           INT              NOT NULL,"
-           "priced           INT              NOT NULL,"
-           "price            DOUBLE PRECISION NOT NULL,"
-           "flags            INT              NOT NULL,"
-           "lastmodified     INT              NOT NULL,"
-           "extension        TEXT             NOT NULL,"
-           "ledgerext        TEXT             NOT NULL,"
-           "PRIMARY KEY      (offerid)"
-           ");";
-    mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
-                              "(sellingasset,buyingasset,price,offerid);";
-    mDatabase.getSession() << "CREATE INDEX offerbyseller ON offers "
-                              "(sellerid);";
-    if (!mDatabase.isSqlite())
+    if (rebuild)
     {
-        mDatabase.getSession() << "ALTER TABLE offers "
-                               << "ALTER COLUMN sellerid "
-                               << "TYPE VARCHAR(56) COLLATE \"C\", "
-                               << "ALTER COLUMN buyingasset "
-                               << "TYPE TEXT COLLATE \"C\", "
-                               << "ALTER COLUMN sellingasset "
-                               << "TYPE TEXT COLLATE \"C\"";
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE offers"
+            << "("
+            << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
+            << "offerid          BIGINT           NOT NULL CHECK (offerid >= "
+               "0),"
+            << "sellingasset     TEXT " << coll << " NOT NULL,"
+            << "buyingasset      TEXT " << coll << " NOT NULL,"
+            << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+               "pricen           INT              NOT NULL,"
+               "priced           INT              NOT NULL,"
+               "price            DOUBLE PRECISION NOT NULL,"
+               "flags            INT              NOT NULL,"
+               "lastmodified     INT              NOT NULL,"
+               "extension        TEXT             NOT NULL,"
+               "ledgerext        TEXT             NOT NULL,"
+               "PRIMARY KEY      (offerid)"
+               ");";
+        mApp.getDatabase().getSession()
+            << "CREATE INDEX bestofferindex ON offers "
+               "(sellingasset,buyingasset,price,offerid);";
+        mApp.getDatabase().getSession()
+            << "CREATE INDEX offerbyseller ON offers "
+               "(sellerid);";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession()
+                << "ALTER TABLE offers "
+                << "ALTER COLUMN sellerid "
+                << "TYPE VARCHAR(56) COLLATE \"C\", "
+                << "ALTER COLUMN buyingasset "
+                << "TYPE TEXT COLLATE \"C\", "
+                << "ALTER COLUMN sellingasset "
+                << "TYPE TEXT COLLATE \"C\"";
+        }
     }
 }
 
@@ -825,9 +833,9 @@ LedgerTxnRoot::Impl::bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadOffersOperation op(mDatabase, keys);
+        BulkLoadOffersOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {

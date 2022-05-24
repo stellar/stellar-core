@@ -95,11 +95,12 @@ class BucketManagerImpl : public BucketManager
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
-    std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr) override;
+    std::shared_ptr<Bucket> adoptFileAsBucket(
+        std::string const& filename, uint256 const& hash, size_t nObjects,
+        size_t nBytes, MergeKey* mergeKey = nullptr,
+        std::unique_ptr<BucketIndex const> index = nullptr) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
+    std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 
     std::shared_future<std::shared_ptr<Bucket>>
@@ -131,8 +132,9 @@ class BucketManagerImpl : public BucketManager
     std::set<Hash> getReferencedBuckets() const override;
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has,
-                     uint32_t maxProtocolVersion) override;
+    void restartMerges(HistoryArchiveState const& has,
+                       uint32_t maxProtocolVersion) override;
+    void assumeState(HistoryArchiveState const& has) override;
     void shutdown() override;
 
     bool isShutdown() const override;
@@ -149,6 +151,8 @@ class BucketManagerImpl : public BucketManager
         std::function<bool(LedgerEntry const&)> const& acceptEntry) override;
 
     std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork() override;
+
+    Config const& getConfig() const override;
 };
 
 #define SKIP_1 50

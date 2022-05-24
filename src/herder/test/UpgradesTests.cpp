@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketTests.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
@@ -1453,8 +1453,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
             auto& lev = bm.getBucketList().getLevel(level);
-            BucketTests::EntryCounts currCounts(lev.getCurr());
-            BucketTests::EntryCounts snapCounts(lev.getSnap());
+            BucketTestUtils::EntryCounts currCounts(lev.getCurr());
+            BucketTestUtils::EntryCounts snapCounts(lev.getSnap());
             CLOG_INFO(
                 Bucket,
                 "post-ledger {} close, init counts: level {}, {} in curr, "
@@ -1488,9 +1488,9 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
             auto lev1Snap = lev1.getSnap();
-            BucketTests::EntryCounts lev0CurrCounts(lev0Curr);
-            BucketTests::EntryCounts lev0SnapCounts(lev0Snap);
-            BucketTests::EntryCounts lev1CurrCounts(lev1Curr);
+            BucketTestUtils::EntryCounts lev0CurrCounts(lev0Curr);
+            BucketTestUtils::EntryCounts lev0SnapCounts(lev0Snap);
+            BucketTestUtils::EntryCounts lev1CurrCounts(lev1Curr);
             auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
                 return BucketInputIterator(b).getMetadata().ledgerVersion;
             };

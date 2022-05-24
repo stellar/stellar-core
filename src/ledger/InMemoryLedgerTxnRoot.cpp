@@ -115,43 +115,43 @@ InMemoryLedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(
 }
 
 void
-InMemoryLedgerTxnRoot::dropAccounts()
+InMemoryLedgerTxnRoot::dropAccounts(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropData()
+InMemoryLedgerTxnRoot::dropData(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropOffers()
+InMemoryLedgerTxnRoot::dropOffers(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropTrustLines()
+InMemoryLedgerTxnRoot::dropTrustLines(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropClaimableBalances()
+InMemoryLedgerTxnRoot::dropClaimableBalances(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropLiquidityPools()
+InMemoryLedgerTxnRoot::dropLiquidityPools(bool rebuild)
 {
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-InMemoryLedgerTxnRoot::dropContractData()
+InMemoryLedgerTxnRoot::dropContractData(bool rebuild)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropConfigSettings()
+InMemoryLedgerTxnRoot::dropConfigSettings(bool rebuild)
 {
 }
 #endif

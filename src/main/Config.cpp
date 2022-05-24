@@ -138,6 +138,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
+    EXPERIMENTAL_BUCKET_KV_STORE = false;
+    EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX = false;
+    EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE = 16384; // 16 kb
+    EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF = 20000000; // 20 mb
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -971,6 +975,25 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "EXPERIMENTAL_PRECAUTION_DELAY_META")
             {
                 EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKET_KV_STORE")
+            {
+                EXPERIMENTAL_BUCKET_KV_STORE = readBool(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX")
+            {
+                EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX = readBool(item);
+            }
+            else if (item.first ==
+                     "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE")
+            {
+                EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE =
+                    readInt<size_t>(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF")
+            {
+                EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF =
+                    readInt<size_t>(item);
             }
             else if (item.first == "METADATA_DEBUG_LEDGERS")
             {

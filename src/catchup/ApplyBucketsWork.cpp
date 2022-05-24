@@ -271,8 +271,6 @@ ApplyBucketsWork::onRun()
     }
 
     CLOG_INFO(History, "ApplyBuckets : done, restarting merges");
-    mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
-
     return State::WORK_SUCCESS;
 }
 

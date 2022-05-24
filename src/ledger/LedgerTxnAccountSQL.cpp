@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "main/Application.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -36,7 +37,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     le.data.type(ACCOUNT);
     auto& account = le.data.account();
 
-    auto prep = mDatabase.getPreparedStatement(
+    auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT balance, seqnum, numsubentries, "
         "inflationdest, homedomain, thresholds, "
         "flags, lastmodified, "
@@ -57,7 +58,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     st.exchange(soci::use(actIDStrKey));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("account");
+        auto timer = mApp.getDatabase().getSelectTimer("account");
         st.execute(true);
     }
     if (!st.got_data())
@@ -103,7 +104,7 @@ LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
     InflationWinner w;
     std::string inflationDest;
 
-    auto prep = mDatabase.getPreparedStatement(
+    auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT sum(balance) AS votes, inflationdest"
         " FROM accounts WHERE inflationdest IS NOT NULL"
         " AND balance >= 1000000000 GROUP BY inflationdest"
@@ -443,8 +444,8 @@ LedgerTxnRoot::Impl::bulkUpsertAccounts(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertAccountsOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertAccountsOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -453,46 +454,49 @@ LedgerTxnRoot::Impl::bulkDeleteAccounts(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteAccountsOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteAccountsOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropAccounts()
+LedgerTxnRoot::Impl::dropAccounts(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS accounts;";
-    mDatabase.getSession() << "DROP TABLE IF EXISTS signers;";
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS accounts;";
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS signers;";
 
-    std::string coll = mDatabase.getSimpleCollationClause();
-
-    mDatabase.getSession()
-        << "CREATE TABLE accounts"
-        << "("
-        << "accountid          VARCHAR(56)  " << coll << " PRIMARY KEY,"
-        << "balance            BIGINT       NOT NULL CHECK (balance >= 0),"
-           "buyingliabilities  BIGINT CHECK (buyingliabilities >= 0),"
-           "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
-           "seqnum             BIGINT       NOT NULL,"
-           "numsubentries      INT          NOT NULL CHECK (numsubentries >= "
-           "0),"
-           "inflationdest      VARCHAR(56),"
-           "homedomain         VARCHAR(44)  NOT NULL,"
-           "thresholds         TEXT         NOT NULL,"
-           "flags              INT          NOT NULL,"
-           "signers            TEXT,"
-           "lastmodified       INT          NOT NULL,"
-           "extension          TEXT,"
-           "ledgerext          TEXT         NOT NULL"
-           ");";
-    if (!mDatabase.isSqlite())
+    if (rebuild)
     {
-        mDatabase.getSession() << "ALTER TABLE accounts "
-                               << "ALTER COLUMN accountid "
-                               << "TYPE VARCHAR(56) COLLATE \"C\"";
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE accounts"
+            << "("
+            << "accountid          VARCHAR(56)  " << coll << " PRIMARY KEY,"
+            << "balance            BIGINT       NOT NULL CHECK (balance >= 0),"
+               "buyingliabilities  BIGINT CHECK (buyingliabilities >= 0),"
+               "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
+               "seqnum             BIGINT       NOT NULL,"
+               "numsubentries      INT          NOT NULL CHECK (numsubentries "
+               ">= 0),"
+               "inflationdest      VARCHAR(56),"
+               "homedomain         VARCHAR(44)  NOT NULL,"
+               "thresholds         TEXT         NOT NULL,"
+               "flags              INT          NOT NULL,"
+               "signers            TEXT,"
+               "lastmodified       INT          NOT NULL,"
+               "extension          TEXT,"
+               "ledgerext          TEXT         NOT NULL"
+               ");";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession() << "ALTER TABLE accounts "
+                                            << "ALTER COLUMN accountid "
+                                            << "TYPE VARCHAR(56) COLLATE \"C\"";
+        }
     }
 }
 
@@ -661,9 +665,9 @@ LedgerTxnRoot::Impl::bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadAccountsOperation op(mDatabase, keys);
+        BulkLoadAccountsOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {

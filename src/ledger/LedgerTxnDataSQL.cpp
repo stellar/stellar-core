@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "main/Application.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -38,7 +39,7 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
                       "ledgerext "
                       "FROM accountdata "
                       "WHERE accountid= :id AND dataname= :dataname";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(dataValue, dataValueIndicator));
     st.exchange(soci::into(le.lastModifiedLedgerSeq));
@@ -301,8 +302,8 @@ LedgerTxnRoot::Impl::bulkUpsertAccountData(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertDataOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertDataOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -311,39 +312,42 @@ LedgerTxnRoot::Impl::bulkDeleteAccountData(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteDataOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteDataOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropData()
+LedgerTxnRoot::Impl::dropData(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS accountdata;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS accountdata;";
-    mDatabase.getSession() << "CREATE TABLE accountdata"
-                           << "("
-                           << "accountid    VARCHAR(56) " << coll
-                           << " NOT NULL,"
-                           << "dataname     VARCHAR(88) " << coll
-                           << " NOT NULL,"
-                           << "datavalue    VARCHAR(112) NOT NULL,"
-                              "lastmodified INT          NOT NULL,"
-                              "extension    TEXT,"
-                              "ledgerext    TEXT         NOT NULL,"
-                              "PRIMARY KEY  (accountid, dataname)"
-                              ");";
-    if (!mDatabase.isSqlite())
+    if (rebuild)
     {
-        mDatabase.getSession() << "ALTER TABLE accountdata "
-                               << "ALTER COLUMN accountid "
-                               << "TYPE VARCHAR(56) COLLATE \"C\", "
-                               << "ALTER COLUMN dataname "
-                               << "TYPE VARCHAR(88) COLLATE \"C\"";
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE accountdata"
+            << "("
+            << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
+            << "dataname     VARCHAR(88) " << coll << " NOT NULL,"
+            << "datavalue    VARCHAR(112) NOT NULL,"
+               "lastmodified INT          NOT NULL,"
+               "extension    TEXT,"
+               "ledgerext    TEXT         NOT NULL,"
+               "PRIMARY KEY  (accountid, dataname)"
+               ");";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession()
+                << "ALTER TABLE accountdata "
+                << "ALTER COLUMN accountid "
+                << "TYPE VARCHAR(56) COLLATE \"C\", "
+                << "ALTER COLUMN dataname "
+                << "TYPE VARCHAR(88) COLLATE \"C\"";
+        }
     }
 }
 
@@ -490,9 +494,9 @@ LedgerTxnRoot::Impl::bulkLoadData(UnorderedSet<LedgerKey> const& keys) const
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadDataOperation op(mDatabase, keys);
+        BulkLoadDataOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {

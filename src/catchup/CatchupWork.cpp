@@ -4,12 +4,15 @@
 
 #include "catchup/CatchupWork.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/ApplyBufferedLedgersWork.h"
 #include "catchup/ApplyCheckpointWork.h"
+#include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
+#include "catchup/IndexBucketsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
@@ -236,12 +239,27 @@ CatchupWork::downloadApplyBuckets()
         version = mVerifiedLedgerRangeStart.header.ledgerVersion;
     }
 
-    auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, *mBucketHAS, version);
-
+    std::shared_ptr<ApplyBucketsWork> applyBuckets;
+    if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+    {
+        // Only apply offers to SQL DB when BucketList lookup is enabled
+        auto filter = [](LedgerEntryType t) { return t == OFFER; };
+        applyBuckets = std::make_shared<ApplyBucketsWork>(
+            mApp, mBuckets, *mBucketHAS, version, filter);
+    }
+    else
+    {
+        applyBuckets = std::make_shared<ApplyBucketsWork>(mApp, mBuckets,
+                                                          *mBucketHAS, version);
+    }
     seq.push_back(applyBuckets);
-    return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
-                                          seq, RETRY_NEVER);
+
+    auto assumeStateWork =
+        std::make_shared<AssumeStateWork>(mApp, *mBucketHAS, version);
+    seq.push_back(assumeStateWork);
+
+    return std::make_shared<WorkSequence>(
+        mApp, "download-verify-apply-assume-buckets", seq, RETRY_NEVER);
 }
 
 void
@@ -600,6 +618,13 @@ CatchupWork::runCatchupStep()
                 // Step 4.2: Download, verify and apply buckets
                 mBucketVerifyApplySeq = downloadApplyBuckets();
                 seq.push_back(mBucketVerifyApplySeq);
+            }
+            // If there are no buckets to apply, still need to index BL before
+            // ledgers can be replayed
+            else if (mApp.getConfig().shouldIndex())
+            {
+                auto indexBuckets = std::make_shared<IndexBucketsWork>(mApp);
+                seq.push_back(indexBuckets);
             }
 
             if (catchupRange.replayLedgers())

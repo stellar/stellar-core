@@ -23,7 +23,7 @@ class BucketManager;
 class BucketOutputIterator
 {
   protected:
-    std::string mFilename;
+    std::filesystem::path mFilename;
     XDROutputFileStream mOut;
     BucketEntryIdCmp mCmp;
     std::unique_ptr<BucketEntry> mBuf;
@@ -50,6 +50,7 @@ class BucketOutputIterator
     void put(BucketEntry const& e);
 
     std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
+                                      bool shouldSynchronouslyIndex,
                                       MergeKey* mergeKey = nullptr);
 };
 }

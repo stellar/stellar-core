@@ -8,6 +8,7 @@
 #include "util/asio.h"
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
@@ -411,7 +412,8 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
-        setLiveOutput(bm.getBucketByHash(hexToBin256(getOutputHash())));
+        auto b = bm.getBucketByHash(hexToBin256(getOutputHash()));
+        setLiveOutput(b);
     }
     else
     {

@@ -8,6 +8,7 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -48,7 +49,7 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
 
     std::string trustLineEntryStr;
 
-    auto prep = mDatabase.getPreparedStatement(
+    auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT ledgerentry "
         " FROM trustlines "
         "WHERE accountid= :id AND asset= :asset");
@@ -58,7 +59,7 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     st.exchange(soci::use(asset));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("trust");
+        auto timer = mApp.getDatabase().getSelectTimer("trust");
         st.execute(true);
     }
     if (!st.got_data())
@@ -87,7 +88,7 @@ LedgerTxnRoot::Impl::loadPoolShareTrustLinesByAccountAndAsset(
 
     std::string trustLineEntryStr;
 
-    auto prep = mDatabase.getPreparedStatement(
+    auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT trustlines.ledgerentry "
         "FROM trustlines "
         "INNER JOIN liquiditypool "
@@ -101,7 +102,7 @@ LedgerTxnRoot::Impl::loadPoolShareTrustLinesByAccountAndAsset(
     st.exchange(soci::use(assetStr));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("trust");
+        auto timer = mApp.getDatabase().getSelectTimer("trust");
         st.execute(true);
     }
 
@@ -330,9 +331,9 @@ LedgerTxnRoot::Impl::bulkUpsertTrustLines(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertTrustLinesOperation op(mDatabase, entries,
+    BulkUpsertTrustLinesOperation op(mApp.getDatabase(), entries,
                                      mHeader->ledgerVersion);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -341,29 +342,32 @@ LedgerTxnRoot::Impl::bulkDeleteTrustLines(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteTrustLinesOperation op(mDatabase, cons, entries,
+    BulkDeleteTrustLinesOperation op(mApp.getDatabase(), cons, entries,
                                      mHeader->ledgerVersion);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropTrustLines()
+LedgerTxnRoot::Impl::dropTrustLines(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS trustlines;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS trustlines;";
-    mDatabase.getSession() << "CREATE TABLE trustlines"
-                           << "("
-                           << "accountid    VARCHAR(56) " << coll
-                           << " NOT NULL,"
-                           << "asset        TEXT " << coll << " NOT NULL,"
-                           << "ledgerentry  TEXT NOT NULL,"
-                           << "lastmodified INT  NOT NULL,"
-                           << "PRIMARY KEY  (accountid, asset));";
+    if (rebuild)
+    {
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE trustlines"
+            << "("
+            << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
+            << "asset        TEXT " << coll << " NOT NULL,"
+            << "ledgerentry  TEXT NOT NULL,"
+            << "lastmodified INT  NOT NULL,"
+            << "PRIMARY KEY  (accountid, asset));";
+    }
 }
 
 class BulkLoadTrustLinesOperation
@@ -504,9 +508,9 @@ LedgerTxnRoot::Impl::bulkLoadTrustLines(
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadTrustLinesOperation op(mDatabase, keys);
+        BulkLoadTrustLinesOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {

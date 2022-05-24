@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
@@ -12,6 +14,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
@@ -165,8 +168,9 @@ LedgerEntryPtr::isDeleted() const
     return mState == EntryPtrState::DELETED;
 }
 
+template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
+populateLoadedEntries(KeySetT const& keys,
                       std::vector<LedgerEntry> const& entries)
 {
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
@@ -194,6 +198,14 @@ populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
     }
     return res;
 }
+
+template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+populateLoadedEntries(LedgerKeySet const& keys,
+                      std::vector<LedgerEntry> const& entries);
+
+template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
+                      std::vector<LedgerEntry> const& entries);
 
 bool
 operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
@@ -1934,51 +1946,51 @@ LedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
 }
 
 void
-LedgerTxn::dropAccounts()
+LedgerTxn::dropAccounts(bool rebuild)
 {
     throw std::runtime_error("called dropAccounts on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropData()
+LedgerTxn::dropData(bool rebuild)
 {
     throw std::runtime_error("called dropData on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropOffers()
+LedgerTxn::dropOffers(bool rebuild)
 {
     throw std::runtime_error("called dropOffers on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropTrustLines()
+LedgerTxn::dropTrustLines(bool rebuild)
 {
     throw std::runtime_error("called dropTrustLines on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropClaimableBalances()
+LedgerTxn::dropClaimableBalances(bool rebuild)
 {
     throw std::runtime_error(
         "called dropClaimableBalances on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropLiquidityPools()
+LedgerTxn::dropLiquidityPools(bool rebuild)
 {
     throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-LedgerTxn::dropContractData()
+LedgerTxn::dropContractData(bool rebuild)
 {
     throw std::runtime_error("called dropContractData on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::dropConfigSettings()
+LedgerTxn::dropConfigSettings(bool rebuild)
 {
     throw std::runtime_error("called dropConfigSettings on non-root LedgerTxn");
 }
@@ -2379,14 +2391,14 @@ LedgerTxn::Impl::EntryIteratorImpl::clone() const
 // Implementation of LedgerTxnRoot ------------------------------------------
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
-LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
+LedgerTxnRoot::LedgerTxnRoot(Application& app, size_t entryCacheSize,
                              size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                              ,
                              bool bestOfferDebuggingEnabled
 #endif
                              )
-    : mImpl(std::make_unique<Impl>(db, entryCacheSize, prefetchBatchSize
+    : mImpl(std::make_unique<Impl>(app, entryCacheSize, prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                                    ,
                                    bestOfferDebuggingEnabled
@@ -2395,7 +2407,7 @@ LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
 {
 }
 
-LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
+LedgerTxnRoot::Impl::Impl(Application& app, size_t entryCacheSize,
                           size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                           ,
@@ -2405,7 +2417,7 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     : mMaxBestOffersBatchSize(
           std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
                    getMaxOffersToCross()))
-    , mDatabase(db)
+    , mApp(app)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
@@ -2459,8 +2471,8 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        mTransaction =
-            std::make_unique<soci::transaction>(mDatabase.getSession());
+        mTransaction = std::make_unique<soci::transaction>(
+            mApp.getDatabase().getSession());
     }
     else
     {
@@ -2499,11 +2511,23 @@ accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
 }
 
 void
-BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
+BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
+                                             bool isBucketKVStore)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
     if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
     {
+        return;
+    }
+
+    // Database only holds offers if BucketList KV lookup is enabled
+    if (isBucketKVStore)
+    {
+        if (iter.key().ledgerKey().type() == OFFER)
+        {
+            accum(iter, mOffersToUpsert, mOffersToDelete);
+        }
+
         return;
     }
 
@@ -2665,13 +2689,14 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
 
+    auto bucketKVStore = mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE;
     auto bleca = BulkLedgerEntryChangeAccumulator();
-    int64_t counter{0};
+    [[maybe_unused]] int64_t counter{0};
     try
     {
         while ((bool)iter)
         {
-            bleca.accumulate(iter);
+            bleca.accumulate(iter, bucketKVStore);
             ++iter;
             ++counter;
             size_t bufferThreshold =
@@ -2686,7 +2711,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
         // committing; on postgres this doesn't matter but on SQLite the passive
         // WAL-auto-checkpointing-at-commit behaviour will starve if there are
         // still prepared statements open at commit time.
-        mDatabase.clearPreparedStatementCache();
+        mApp.getDatabase().clearPreparedStatementCache();
         ZoneNamedN(commitZone, "SOCI commit", true);
         mTransaction->commit();
     }
@@ -2759,7 +2784,7 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let) const
     std::string query =
         "SELECT COUNT(*) FROM " + tableFromLedgerEntryType(let) + ";";
     uint64_t count = 0;
-    mDatabase.getSession() << query, into(count);
+    mApp.getDatabase().getSession() << query, into(count);
     return count;
 }
 
@@ -2783,7 +2808,8 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
     int limit = static_cast<int>(ledgers.limit());
-    mDatabase.getSession() << query, into(count), use(first), use(limit);
+    mApp.getDatabase().getSession() << query, into(count), use(first),
+        use(limit);
     return count;
 }
 
@@ -2806,57 +2832,57 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
         std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
                             " WHERE lastmodified >= :v1";
-        mDatabase.getSession() << query, use(ledger);
+        mApp.getDatabase().getSession() << query, use(ledger);
     }
 }
 
 void
-LedgerTxnRoot::dropAccounts()
+LedgerTxnRoot::dropAccounts(bool rebuild)
 {
-    mImpl->dropAccounts();
+    mImpl->dropAccounts(rebuild);
 }
 
 void
-LedgerTxnRoot::dropData()
+LedgerTxnRoot::dropData(bool rebuild)
 {
-    mImpl->dropData();
+    mImpl->dropData(rebuild);
 }
 
 void
-LedgerTxnRoot::dropOffers()
+LedgerTxnRoot::dropOffers(bool rebuild)
 {
-    mImpl->dropOffers();
+    mImpl->dropOffers(rebuild);
 }
 
 void
-LedgerTxnRoot::dropTrustLines()
+LedgerTxnRoot::dropTrustLines(bool rebuild)
 {
-    mImpl->dropTrustLines();
+    mImpl->dropTrustLines(rebuild);
 }
 
 void
-LedgerTxnRoot::dropClaimableBalances()
+LedgerTxnRoot::dropClaimableBalances(bool rebuild)
 {
-    mImpl->dropClaimableBalances();
+    mImpl->dropClaimableBalances(rebuild);
 }
 
 void
-LedgerTxnRoot::dropLiquidityPools()
+LedgerTxnRoot::dropLiquidityPools(bool rebuild)
 {
-    mImpl->dropLiquidityPools();
+    mImpl->dropLiquidityPools(rebuild);
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-LedgerTxnRoot::dropContractData()
+LedgerTxnRoot::dropContractData(bool rebuild)
 {
-    mImpl->dropContractData();
+    mImpl->dropContractData(rebuild);
 }
 
 void
-LedgerTxnRoot::dropConfigSettings()
+LedgerTxnRoot::dropConfigSettings(bool rebuild)
 {
-    mImpl->dropConfigSettings();
+    mImpl->dropConfigSettings(rebuild);
 }
 #endif
 
@@ -2872,17 +2898,6 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
     ZoneScoped;
     uint32_t total = 0;
 
-    UnorderedSet<LedgerKey> accounts;
-    UnorderedSet<LedgerKey> offers;
-    UnorderedSet<LedgerKey> trustlines;
-    UnorderedSet<LedgerKey> data;
-    UnorderedSet<LedgerKey> claimablebalance;
-    UnorderedSet<LedgerKey> liquiditypool;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    UnorderedSet<LedgerKey> contractdata;
-    UnorderedSet<LedgerKey> configSettings;
-#endif
-
     auto cacheResult =
         [&](UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> const&
                 res) {
@@ -2893,98 +2908,123 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             }
         };
 
-    auto insertIfNotLoaded = [&](UnorderedSet<LedgerKey>& keys,
-                                 LedgerKey const& key) {
+    auto insertIfNotLoaded = [&](auto& keys, LedgerKey const& key) {
         if (!mEntryCache.exists(key, false))
         {
             keys.insert(key);
         }
     };
 
-    for (auto const& key : keys)
+    if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
     {
-        switch (key.type())
+        LedgerKeySet keysToSearch;
+        for (auto const& key : keys)
         {
-        case ACCOUNT:
-            insertIfNotLoaded(accounts, key);
-            if (accounts.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadAccounts(accounts));
-                accounts.clear();
-            }
-            break;
-        case OFFER:
-            insertIfNotLoaded(offers, key);
-            if (offers.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadOffers(offers));
-                offers.clear();
-            }
-            break;
-        case TRUSTLINE:
-            insertIfNotLoaded(trustlines, key);
-            if (trustlines.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadTrustLines(trustlines));
-                trustlines.clear();
-            }
-            break;
-        case DATA:
-            insertIfNotLoaded(data, key);
-            if (data.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadData(data));
-                data.clear();
-            }
-            break;
-        case CLAIMABLE_BALANCE:
-            insertIfNotLoaded(claimablebalance, key);
-            if (claimablebalance.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadClaimableBalance(claimablebalance));
-                claimablebalance.clear();
-            }
-            break;
-        case LIQUIDITY_POOL:
-            insertIfNotLoaded(liquiditypool, key);
-            if (liquiditypool.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadLiquidityPool(liquiditypool));
-                liquiditypool.clear();
-            }
-            break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        case CONTRACT_DATA:
-            insertIfNotLoaded(contractdata, key);
-            if (contractdata.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadContractData(contractdata));
-                contractdata.clear();
-            }
-            break;
-        case CONFIG_SETTING:
-            insertIfNotLoaded(configSettings, key);
-            if (configSettings.size() == mBulkLoadBatchSize)
-            {
-                cacheResult(bulkLoadConfigSettings(configSettings));
-                configSettings.clear();
-            }
-            break;
-#endif
+            insertIfNotLoaded(keysToSearch, key);
         }
-    }
 
-    //  Prefetch whatever is remaining
-    cacheResult(bulkLoadAccounts(accounts));
-    cacheResult(bulkLoadOffers(offers));
-    cacheResult(bulkLoadTrustLines(trustlines));
-    cacheResult(bulkLoadData(data));
-    cacheResult(bulkLoadClaimableBalance(claimablebalance));
-    cacheResult(bulkLoadLiquidityPool(liquiditypool));
+        auto blLoad = mApp.getBucketManager().getBucketList().loadKeys(
+            keysToSearch, mApp.getConfig());
+        cacheResult(populateLoadedEntries(keysToSearch, blLoad));
+    }
+    else
+    {
+        UnorderedSet<LedgerKey> accounts;
+        UnorderedSet<LedgerKey> offers;
+        UnorderedSet<LedgerKey> trustlines;
+        UnorderedSet<LedgerKey> data;
+        UnorderedSet<LedgerKey> claimablebalance;
+        UnorderedSet<LedgerKey> liquiditypool;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    cacheResult(bulkLoadConfigSettings(configSettings));
-    cacheResult(bulkLoadContractData(contractdata));
+        UnorderedSet<LedgerKey> contractdata;
+        UnorderedSet<LedgerKey> configSettings;
 #endif
+
+        for (auto const& key : keys)
+        {
+            switch (key.type())
+            {
+            case ACCOUNT:
+                insertIfNotLoaded(accounts, key);
+                if (accounts.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadAccounts(accounts));
+                    accounts.clear();
+                }
+                break;
+            case OFFER:
+                insertIfNotLoaded(offers, key);
+                if (offers.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadOffers(offers));
+                    offers.clear();
+                }
+                break;
+            case TRUSTLINE:
+                insertIfNotLoaded(trustlines, key);
+                if (trustlines.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadTrustLines(trustlines));
+                    trustlines.clear();
+                }
+                break;
+            case DATA:
+                insertIfNotLoaded(data, key);
+                if (data.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadData(data));
+                    data.clear();
+                }
+                break;
+            case CLAIMABLE_BALANCE:
+                insertIfNotLoaded(claimablebalance, key);
+                if (claimablebalance.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadClaimableBalance(claimablebalance));
+                    claimablebalance.clear();
+                }
+                break;
+            case LIQUIDITY_POOL:
+                insertIfNotLoaded(liquiditypool, key);
+                if (liquiditypool.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadLiquidityPool(liquiditypool));
+                    liquiditypool.clear();
+                }
+                break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            case CONTRACT_DATA:
+                insertIfNotLoaded(contractdata, key);
+                if (contractdata.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadContractData(contractdata));
+                    contractdata.clear();
+                }
+                break;
+            case CONFIG_SETTING:
+                insertIfNotLoaded(configSettings, key);
+                if (configSettings.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadConfigSettings(configSettings));
+                    configSettings.clear();
+                }
+                break;
+#endif
+            }
+        }
+
+        //  Prefetch whatever is remaining
+        cacheResult(bulkLoadAccounts(accounts));
+        cacheResult(bulkLoadOffers(offers));
+        cacheResult(bulkLoadTrustLines(trustlines));
+        cacheResult(bulkLoadData(data));
+        cacheResult(bulkLoadClaimableBalance(claimablebalance));
+        cacheResult(bulkLoadLiquidityPool(liquiditypool));
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        cacheResult(bulkLoadConfigSettings(configSettings));
+        cacheResult(bulkLoadContractData(contractdata));
+#endif
+    }
 
     return total;
 }
@@ -3386,7 +3426,18 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     std::vector<LedgerEntry> trustLines;
     try
     {
-        trustLines = loadPoolShareTrustLinesByAccountAndAsset(account, asset);
+        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+        {
+            trustLines = mApp.getBucketManager()
+                             .getBucketList()
+                             .loadPoolShareTrustLinesByAccountAndAsset(
+                                 account, asset, mApp.getConfig());
+        }
+        else
+        {
+            trustLines =
+                loadPoolShareTrustLinesByAccountAndAsset(account, asset);
+        }
     }
     catch (NonSociRelatedException&)
     {
@@ -3413,6 +3464,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         auto le = std::make_shared<LedgerEntry const>(tl);
         putInEntryCache(key, le, LoadType::IMMEDIATE);
     }
+
     return res;
 }
 
@@ -3439,7 +3491,15 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        return loadInflationWinners(maxWinners, minVotes);
+        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+        {
+            return mApp.getBucketManager().getBucketList().loadInflationWinners(
+                maxWinners, minVotes);
+        }
+        else
+        {
+            return loadInflationWinners(maxWinners, minVotes);
+        }
     }
     catch (std::exception& e)
     {
@@ -3487,36 +3547,46 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     std::shared_ptr<LedgerEntry const> entry;
     try
     {
-        switch (key.type())
+
+        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE &&
+            key.type() != OFFER)
         {
-        case ACCOUNT:
-            entry = loadAccount(key);
-            break;
-        case DATA:
-            entry = loadData(key);
-            break;
-        case OFFER:
-            entry = loadOffer(key);
-            break;
-        case TRUSTLINE:
-            entry = loadTrustLine(key);
-            break;
-        case CLAIMABLE_BALANCE:
-            entry = loadClaimableBalance(key);
-            break;
-        case LIQUIDITY_POOL:
-            entry = loadLiquidityPool(key);
-            break;
+            entry = mApp.getBucketManager().getBucketList().getLedgerEntry(
+                key, mApp.getConfig());
+        }
+        else
+        {
+            switch (key.type())
+            {
+            case ACCOUNT:
+                entry = loadAccount(key);
+                break;
+            case DATA:
+                entry = loadData(key);
+                break;
+            case OFFER:
+                entry = loadOffer(key);
+                break;
+            case TRUSTLINE:
+                entry = loadTrustLine(key);
+                break;
+            case CLAIMABLE_BALANCE:
+                entry = loadClaimableBalance(key);
+                break;
+            case LIQUIDITY_POOL:
+                entry = loadLiquidityPool(key);
+                break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        case CONTRACT_DATA:
-            entry = loadContractData(key);
-            break;
-        case CONFIG_SETTING:
-            entry = loadConfigSetting(key);
-            break;
+            case CONTRACT_DATA:
+                entry = loadContractData(key);
+                break;
+            case CONFIG_SETTING:
+                entry = loadConfigSetting(key);
+                break;
 #endif
-        default:
-            throw std::runtime_error("Unknown key type");
+            default:
+                throw std::runtime_error("Unknown key type");
+            }
         }
     }
     catch (NonSociRelatedException&)

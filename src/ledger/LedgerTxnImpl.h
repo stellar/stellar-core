@@ -20,8 +20,9 @@ namespace stellar
 
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
+template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
+populateLoadedEntries(KeySetT const& keys,
                       std::vector<LedgerEntry> const& entries);
 
 class EntryIterator::AbstractImpl
@@ -175,7 +176,7 @@ class BulkLedgerEntryChangeAccumulator
     }
 #endif
 
-    void accumulate(EntryIterator const& iter);
+    void accumulate(EntryIterator const& iter, bool isBucketKVStore);
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety
@@ -711,7 +712,7 @@ class LedgerTxnRoot::Impl
     static size_t const MIN_BEST_OFFERS_BATCH_SIZE;
     size_t const mMaxBestOffersBatchSize;
 
-    Database& mDatabase;
+    Application& mApp;
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffers mBestOffers;
@@ -846,7 +847,7 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize
+    Impl(Application& app, size_t entryCacheSize, size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
          ,
          bool bestOfferDebuggingEnabled
@@ -870,15 +871,15 @@ class LedgerTxnRoot::Impl
 
     // dropAccounts, dropData, dropOffers, and dropTrustLines have no exception
     // safety guarantees.
-    void dropAccounts();
-    void dropData();
-    void dropOffers();
-    void dropTrustLines();
-    void dropClaimableBalances();
-    void dropLiquidityPools();
+    void dropAccounts(bool rebuild);
+    void dropData(bool rebuild);
+    void dropOffers(bool rebuild);
+    void dropTrustLines(bool rebuild);
+    void dropClaimableBalances(bool rebuild);
+    void dropLiquidityPools(bool rebuild);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void dropContractData();
-    void dropConfigSettings();
+    void dropContractData(bool rebuild);
+    void dropConfigSettings(bool rebuild);
 #endif
 
 #ifdef BUILD_TESTS

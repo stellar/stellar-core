@@ -15,7 +15,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/BucketTests.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
@@ -32,16 +32,11 @@
 #include <sstream>
 
 using namespace stellar;
-using namespace BucketTests;
+using namespace BucketTestUtils;
 
 namespace BucketListTests
 {
 
-uint32_t
-mask(uint32_t v, uint32_t m)
-{
-    return (v & ~(m - 1));
-}
 uint32_t
 size(uint32_t level)
 {
@@ -60,12 +55,12 @@ prev(uint32_t level)
 uint32_t
 lowBoundExclusive(uint32_t level, uint32_t ledger)
 {
-    return mask(ledger, size(level));
+    return roundDown(ledger, size(level));
 }
 uint32_t
 highBoundInclusive(uint32_t level, uint32_t ledger)
 {
-    return mask(ledger, prev(level));
+    return roundDown(ledger, prev(level));
 }
 
 void

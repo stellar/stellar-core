@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxnImpl.h"
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 
@@ -20,7 +21,7 @@ LedgerTxnRoot::Impl::loadClaimableBalance(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM claimablebalance "
                       "WHERE balanceid= :balanceid";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(claimableBalanceEntryStr));
     st.exchange(soci::use(balanceID));
@@ -141,9 +142,9 @@ LedgerTxnRoot::Impl::bulkLoadClaimableBalance(
 {
     if (!keys.empty())
     {
-        BulkLoadClaimableBalanceOperation op(mDatabase, keys);
+        BulkLoadClaimableBalanceOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {
@@ -231,8 +232,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteClaimableBalance(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteClaimableBalanceOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteClaimableBalanceOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 class BulkUpsertClaimableBalanceOperation
@@ -345,24 +346,27 @@ void
 LedgerTxnRoot::Impl::bulkUpsertClaimableBalance(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertClaimableBalanceOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertClaimableBalanceOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropClaimableBalances()
+LedgerTxnRoot::Impl::dropClaimableBalances(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS claimablebalance;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS claimablebalance;";
-    mDatabase.getSession() << "CREATE TABLE claimablebalance ("
-                           << "balanceid             VARCHAR(48) " << coll
-                           << " PRIMARY KEY, "
-                           << "ledgerentry TEXT NOT NULL, "
-                           << "lastmodified          INT NOT NULL);";
+    if (rebuild)
+    {
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE claimablebalance ("
+            << "balanceid             VARCHAR(48) " << coll << " PRIMARY KEY, "
+            << "ledgerentry TEXT NOT NULL, "
+            << "lastmodified          INT NOT NULL);";
+    }
 }
 }

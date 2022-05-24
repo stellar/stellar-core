@@ -261,6 +261,27 @@ class Config : public std::enable_shared_from_this<Config>
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
 
+    // A config parameter that when set uses the BucketList as the primary
+    // key-value store for LedgerEntry lookups
+    bool EXPERIMENTAL_BUCKET_KV_STORE;
+
+    // A config parameter that when set lazily initializes bucket indexes when
+    // needed. This lowers the bucket index memory usage, but significantly
+    // reduces lookup speed. Should never be set on a validator node, node will
+    // fall out of sync with network.
+    bool EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX;
+
+    // Page size used by BucketIndex when indexing ranges of BucketEntry's. If
+    // set to 0, BucketEntry's are individually indexed.
+    size_t EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
+
+    // Size, in bytes, determining whether a bucket should have an individual
+    // key index or a key range index. If bucket size is below this value, range
+    // based index will be used. If set to 0, all buckets are range indexed. If
+    // index page size == 0, value ingnored and all buckets have individual key
+    // index.
+    size_t EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF;
+
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY_MISC;
@@ -503,6 +524,13 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryModeWithoutMinimalDB() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
+
+    inline bool
+    shouldIndex() const
+    {
+        return EXPERIMENTAL_BUCKET_KV_STORE &&
+               !EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX;
+    }
 
     void logBasicInfo();
     void setNoListen();

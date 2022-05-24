@@ -5,6 +5,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -347,8 +348,12 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                     auto header = ltx.loadHeader();
                     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
                     {
-                        mApp.getBucketManager().assumeState(
-                            has, header.current().ledgerVersion);
+                        auto assumeStateWork =
+                            mApp.getWorkScheduler()
+                                .executeWork<AssumeStateWork>(
+                                    has, header.current().ledgerVersion);
+                        releaseAssertOrThrow(assumeStateWork->getState() ==
+                                             BasicWork::State::WORK_SUCCESS);
                         CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
                                   ledgerAbbrev(header.current()));
                     }

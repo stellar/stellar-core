@@ -4,6 +4,7 @@
 
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Random.h"
 #include "util/GlobalChecks.h"
@@ -113,6 +114,7 @@ BucketOutputIterator::put(BucketEntry const& e)
 
 std::shared_ptr<Bucket>
 BucketOutputIterator::getBucket(BucketManager& bucketManager,
+                                bool shouldSynchronouslyIndex,
                                 MergeKey* mergeKey)
 {
     ZoneScoped;
@@ -136,7 +138,24 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         }
         return std::make_shared<Bucket>();
     }
-    return bucketManager.adoptFileAsBucket(mFilename, mHasher.finish(),
-                                           mObjectsPut, mBytesPut, mergeKey);
+
+    auto hash = mHasher.finish();
+    std::unique_ptr<BucketIndex const> index{};
+
+    // If this bucket needs to be indexed and is not already indexed
+    if (shouldSynchronouslyIndex)
+    {
+        // Edge case: whenever a bucket merges with an empty bucket, the result
+        // has already been indexed so we don't need to index again
+        if (auto b = bucketManager.getBucketIfExists(hash);
+            !b || !b->isIndexed())
+        {
+            index =
+                BucketIndex::createIndex(bucketManager.getConfig(), mFilename);
+        }
+    }
+
+    return bucketManager.adoptFileAsBucket(
+        mFilename, hash, mObjectsPut, mBytesPut, mergeKey, std::move(index));
 }
 }

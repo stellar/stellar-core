@@ -10,6 +10,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
@@ -76,12 +77,34 @@ class XDRInputFileStream
         return mSize;
     }
 
-    size_t
+    std::streamoff
     pos()
     {
         releaseAssertOrThrow(!mIn.fail());
-
         return mIn.tellg();
+    }
+
+    void
+    seek(size_t pos)
+    {
+        releaseAssertOrThrow(!mIn.fail());
+        mIn.seekg(pos);
+    }
+
+    static inline uint32_t
+    getXDRSize(char* buf)
+    {
+        // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
+        // (high bit of high byte).
+        uint32_t sz = 0;
+        sz |= static_cast<uint8_t>(buf[0] & '\x7f');
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[1]);
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[2]);
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[3]);
+        return sz;
     }
 
     template <typename T>
@@ -92,20 +115,15 @@ class XDRInputFileStream
         char szBuf[4];
         if (!mIn.read(szBuf, 4))
         {
+            if (mIn.eof())
+            {
+                mIn.clear(std::ios_base::eofbit);
+            }
+
             return false;
         }
 
-        // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
-        // (high bit of high byte).
-        uint32_t sz = 0;
-        sz |= static_cast<uint8_t>(szBuf[0] & '\x7f');
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[1]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[2]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[3]);
-
+        auto sz = getXDRSize(szBuf);
         if (mSizeLimit != 0 && sz > mSizeLimit)
         {
             return false;
@@ -118,9 +136,77 @@ class XDRInputFileStream
         {
             throw xdr::xdr_runtime_error("malformed XDR file");
         }
+
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
         xdr::xdr_argpack_archive(g, out);
         return true;
+    }
+
+    template <typename T>
+    bool
+    readPage(T& out, LedgerKey const& key, size_t pageSize)
+    {
+        ZoneScoped;
+        if (mBuf.size() < pageSize)
+        {
+            mBuf.resize(pageSize);
+        }
+
+        if (!mIn.read(mBuf.data(), pageSize))
+        {
+            if (mIn.eof())
+            {
+                mIn.clear(std::ios_base::eofbit);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        auto bytesToRead = mIn.gcount();
+        char* curr = mBuf.data();
+        for (std::streamsize read = 0; read < bytesToRead;)
+        {
+            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+
+            uint32_t sz = getXDRSize(curr);
+            read += sizeof(sz);
+            curr += sizeof(sz);
+
+            // If entry continues past end of page
+            if (read + sz > bytesToRead)
+            {
+                if (mBuf.size() < sz)
+                {
+                    mBuf.resize(sz);
+                }
+
+                // Move undecoded bytes to front of buffer and read in the rest
+                // of the entry
+                auto bytesRemaining = bytesToRead - read;
+                memmove(mBuf.data(), curr, bytesRemaining);
+                if (!mIn.read(mBuf.data() + bytesRemaining,
+                              sz - bytesRemaining))
+                {
+                    throw xdr::xdr_runtime_error("malformed XDR file");
+                }
+
+                curr = mBuf.data();
+            }
+
+            xdr::xdr_get g(curr, curr + sz);
+            xdr::xdr_argpack_archive(g, out);
+            if (getBucketLedgerKey(out) == key)
+            {
+                return true;
+            }
+
+            curr += sz;
+            read += sz;
+        }
+
+        return false;
     }
 };
 

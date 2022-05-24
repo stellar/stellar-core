@@ -14,7 +14,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
-#include "bucket/BucketTests.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -33,83 +33,10 @@
 #include <thread>
 
 using namespace stellar;
-using namespace BucketTests;
+using namespace BucketTestUtils;
 
 namespace BucketManagerTests
 {
-
-class LedgerManagerForBucketTests : public LedgerManagerImpl
-{
-    bool mUseTestEntries{false};
-    std::vector<LedgerEntry> mTestInitEntries;
-    std::vector<LedgerEntry> mTestLiveEntries;
-    std::vector<LedgerKey> mTestDeadEntries;
-
-  protected:
-    void
-    transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                      uint32_t ledgerSeq,
-                                      uint32_t ledgerVers) override
-    {
-        if (mUseTestEntries)
-        {
-            // Seal the ltx but throw its entries away.
-            std::vector<LedgerEntry> init, live;
-            std::vector<LedgerKey> dead;
-            ltx.getAllEntries(init, live, dead);
-            // Use the testing values.
-            mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
-                                             mTestInitEntries, mTestLiveEntries,
-                                             mTestDeadEntries);
-            mUseTestEntries = false;
-        }
-        else
-        {
-            LedgerManagerImpl::transferLedgerEntriesToBucketList(ltx, ledgerSeq,
-                                                                 ledgerVers);
-        }
-    }
-
-  public:
-    void
-    setNextLedgerEntryBatchForBucketTesting(
-        std::vector<LedgerEntry> const& initEntries,
-        std::vector<LedgerEntry> const& liveEntries,
-        std::vector<LedgerKey> const& deadEntries)
-    {
-        mUseTestEntries = true;
-        mTestInitEntries = initEntries;
-        mTestLiveEntries = liveEntries;
-        mTestDeadEntries = deadEntries;
-    }
-
-    LedgerManagerForBucketTests(Application& app) : LedgerManagerImpl(app)
-    {
-    }
-};
-
-class BucketManagerTestApplication : public TestApplication
-{
-  public:
-    BucketManagerTestApplication(VirtualClock& clock, Config const& cfg)
-        : TestApplication(clock, cfg)
-    {
-    }
-
-    virtual LedgerManagerForBucketTests&
-    getLedgerManager() override
-    {
-        auto& lm = ApplicationImpl::getLedgerManager();
-        return static_cast<LedgerManagerForBucketTests&>(lm);
-    }
-
-  private:
-    virtual std::unique_ptr<LedgerManager>
-    createLedgerManager() override
-    {
-        return std::make_unique<LedgerManagerForBucketTests>(*this);
-    }
-};
 
 static void
 clearFutures(Application::pointer app, BucketList& bl)
@@ -153,28 +80,6 @@ clearFutures(Application::pointer app, BucketList& bl)
 
     // Tell the BucketManager to forget all about the futures it knows.
     app->getBucketManager().clearMergeFuturesForTesting();
-}
-
-static Hash
-closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
-            xdr::xvector<UpgradeType, 6> upgrades = emptyUpgradeSteps)
-{
-    auto& lm = app.getLedgerManager();
-    auto lcl = lm.getLastClosedLedgerHeader();
-    uint32_t ledgerNum = lcl.header.ledgerSeq + 1;
-    CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
-              ledgerNum, hexAbbrev(lcl.hash),
-              hexAbbrev(app.getBucketManager().getBucketList().getHash()));
-    app.getHerder().externalizeValue(TxSetFrame::makeEmpty(lcl), ledgerNum,
-                                     lcl.header.scpValue.closeTime, upgrades,
-                                     skToSignValue);
-    return lm.getLastClosedLedgerHeader().hash;
-}
-
-static Hash
-closeLedger(Application& app)
-{
-    return closeLedger(app, std::nullopt);
 }
 }
 
@@ -358,8 +263,7 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
     std::string someBucketFileName;
     {
         VirtualClock clock;
-        auto app =
-            createTestApplication<BucketManagerTestApplication>(clock, cfg);
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
         BucketManager& bm = app->getBucketManager();
         BucketList& bl = bm.getBucketList();
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
@@ -541,7 +445,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
         1;
 
-    auto app = createTestApplication<BucketManagerTestApplication>(clock, cfg);
+    auto app = createTestApplication<BucketTestApplication>(clock, cfg);
 
     BucketManager& bm = app->getBucketManager();
     BucketList& bl = bm.getBucketList();
@@ -1111,8 +1015,7 @@ class StopAndRestartBucketMergesTest
         CLOG_INFO(Bucket,
                   "Collecting control surveys in ledger range 2..{} = {:#x}",
                   finalLedger, finalLedger);
-        auto app =
-            createTestApplication<BucketManagerTestApplication>(clock, cfg);
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
 
         std::vector<LedgerKey> allKeys;
         std::map<LedgerKey, LedgerEntry> currLive;
@@ -1229,8 +1132,7 @@ class StopAndRestartBucketMergesTest
         uint32_t protocolSwitchLedger = *(std::next(
             mDesignatedLedgers.begin(), mDesignatedLedgers.size() / 2));
 
-        auto app =
-            createTestApplication<BucketManagerTestApplication>(*clock, cfg);
+        auto app = createTestApplication<BucketTestApplication>(*clock, cfg);
         uint32_t finalLedger2 = finalLedger;
         CLOG_INFO(Bucket,
                   "Running stop/restart test in ledger range 2..{} = {:#x}",
@@ -1302,8 +1204,8 @@ class StopAndRestartBucketMergesTest
                 // Restart the application.
                 CLOG_INFO(Bucket, "Restarting application at ledger {}", i);
                 clock = std::make_unique<VirtualClock>();
-                app = createTestApplication<BucketManagerTestApplication>(
-                    *clock, cfg, false);
+                app = createTestApplication<BucketTestApplication>(*clock, cfg,
+                                                                   false);
                 if (BucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {
                     // Confirm that the merge-in-progress was restarted.

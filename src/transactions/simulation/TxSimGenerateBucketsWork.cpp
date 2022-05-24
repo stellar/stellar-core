@@ -265,11 +265,11 @@ TxSimGenerateBucketsWork::startBucketGeneration(
         generateScaledDeadEntries(newDeadEntries, deadEntries, mPoolIDToParam,
                                   count);
 
-        mIntermediateBuckets.emplace_back(
-            Bucket::fresh(mApp.getBucketManager(), ledgerVersion,
-                          newInitEntries, newLiveEntries, newDeadEntries,
-                          /* countMergeEvents */ false,
-                          mApp.getClock().getIOContext(), /* doFsync */ false));
+        mIntermediateBuckets.emplace_back(Bucket::fresh(
+            mApp.getBucketManager(), ledgerVersion, newInitEntries,
+            newLiveEntries, newDeadEntries,
+            /* countMergeEvents */ false, mApp.getClock().getIOContext(),
+            /* doFsync */ false));
     }
 
     checkOrStartMerges();

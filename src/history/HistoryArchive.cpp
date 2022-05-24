@@ -290,7 +290,6 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     // This function assumes presence of required buckets to verify state
     uint32_t minBucketVersion = 0;
     bool nonEmptySeen = false;
-    Hash const emptyHash;
 
     auto validateBucketVersion = [&](uint32_t bucketVersion) {
         if (bucketVersion < minBucketVersion)
@@ -311,7 +310,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             app.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
         releaseAssert(bucket);
         int32_t version = 0;
-        if (bucket->getHash() != emptyHash)
+        if (!bucket->isEmpty())
         {
             version = Bucket::getBucketVersion(bucket);
             if (!nonEmptySeen)

@@ -4,15 +4,20 @@
 
 #include "BucketList.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
+#include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
+#include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -82,7 +87,8 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
     {
         // Round down the current ledger to when the merge was started, and
         // re-start the merge via prepare, mimicking the logic in `addBatch`
-        auto mergeStartLedger = mask(ledger, BucketList::levelHalf(level - 1));
+        auto mergeStartLedger =
+            roundDown(ledger, BucketList::levelHalf(level - 1));
 
         // Subtle: We're "preparing the next state" of this level's mCurr, which
         // is *either* mCurr merged with snap, or else just snap (if mCurr is
@@ -242,12 +248,6 @@ BucketList::levelHalf(uint32_t level)
 }
 
 uint32_t
-BucketList::mask(uint32_t v, uint32_t m)
-{
-    return v & ~(m - 1);
-}
-
-uint32_t
 BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
@@ -259,21 +259,22 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 
     auto const size = levelSize(level);
     auto const half = levelHalf(level);
-    if (level != BucketList::kNumLevels - 1 && mask(ledger, half) != 0)
+    if (level != BucketList::kNumLevels - 1 && roundDown(ledger, half) != 0)
     {
         uint32_t const sizeDelta = 1UL << (2 * level - 1);
-        if (mask(ledger, half) == ledger || mask(ledger, size) == ledger)
+        if (roundDown(ledger, half) == ledger ||
+            roundDown(ledger, size) == ledger)
         {
             return sizeDelta;
         }
 
         auto const prevSize = levelSize(level - 1);
         auto const prevHalf = levelHalf(level - 1);
-        uint32_t previousRelevantLedger =
-            std::max({mask(ledger - 1, prevHalf), mask(ledger - 1, prevSize),
-                      mask(ledger - 1, half), mask(ledger - 1, size)});
-        if (mask(ledger, prevHalf) == ledger ||
-            mask(ledger, prevSize) == ledger)
+        uint32_t previousRelevantLedger = std::max(
+            {roundDown(ledger - 1, prevHalf), roundDown(ledger - 1, prevSize),
+             roundDown(ledger - 1, half), roundDown(ledger - 1, size)});
+        if (roundDown(ledger, prevHalf) == ledger ||
+            roundDown(ledger, prevSize) == ledger)
         {
             return sizeOfCurr(previousRelevantLedger, level) + sizeDelta;
         }
@@ -303,7 +304,7 @@ BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
     {
         return 0;
     }
-    else if (mask(ledger, levelSize(level)) != 0)
+    else if (roundDown(ledger, levelSize(level)) != 0)
     {
         return levelHalf(level);
     }
@@ -371,9 +372,296 @@ BucketList::getHash() const
     return hsh.finish();
 }
 
-// levelShouldSpill is the set of boundaries at which each level should spill,
-// it's not-entirely obvious which numbers these are by inspection, so we list
-// the first 3 values it's true on each level here for reference:
+void
+BucketList::loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const
+{
+    for (size_t i = 0; i < mLevels.size(); ++i)
+    {
+        auto const& lev = mLevels[i];
+        std::array<std::shared_ptr<Bucket>, 2> buckets = {lev.getCurr(),
+                                                          lev.getSnap()};
+        for (auto b : buckets)
+        {
+            if (b->isEmpty())
+            {
+                continue;
+            }
+
+            if (f(b))
+            {
+                return;
+            }
+        }
+    }
+}
+
+std::shared_ptr<LedgerEntry>
+BucketList::getLedgerEntry(LedgerKey const& k, Config const& cfg) const
+{
+    ZoneScoped;
+    std::shared_ptr<LedgerEntry> result{};
+
+    auto f = [&](std::shared_ptr<Bucket> b) {
+        auto be = b->getBucketEntry(k, cfg);
+        if (be.has_value())
+        {
+            result =
+                be.value().type() == DEADENTRY
+                    ? nullptr
+                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    loopAllBuckets(f);
+    return result;
+}
+
+// Since the input is sorted, we do a binary search at each level for the first
+// key in keys. If we find the entry, we remove the found key from keys and do
+// another binary search for the next key starting where we left off. If we
+// don't find the entry, we do not remove it from keys so that it will be
+// searched for again at a lower level.
+// The next iteration will add sharding and threading to this function
+std::vector<LedgerEntry>
+BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                     Config const& cfg) const
+{
+    ZoneScoped;
+    std::vector<LedgerEntry> entries;
+
+    // Make a copy of the key set, this loop is destructive
+    auto keys = inKeys;
+    auto f = [&](std::shared_ptr<Bucket> b) {
+        auto currKeyIt = keys.begin();
+        auto const& index = b->getIndex(cfg);
+        auto indexIter = index.begin();
+        while (currKeyIt != keys.end() && indexIter != index.end())
+        {
+            auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
+            indexIter = newIndexIter;
+            if (offOp)
+            {
+                auto entryOp = b->getEntryAtOffset(
+                    *currKeyIt, *offOp, b->getIndex(cfg).getPageSize());
+                if (entryOp)
+                {
+                    if (entryOp->type() != DEADENTRY)
+                    {
+                        entries.push_back(entryOp->liveEntry());
+                    }
+
+                    currKeyIt = keys.erase(currKeyIt);
+                    continue;
+                }
+            }
+
+            ++currKeyIt;
+        }
+
+        return keys.empty();
+    };
+
+    loopAllBuckets(f);
+    return entries;
+}
+
+std::vector<LedgerEntry>
+BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                                     Asset const& asset,
+                                                     Config const& cfg) const
+{
+    ZoneScoped;
+    UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
+    UnorderedSet<LedgerKey> deadTrustlines;
+    LedgerKeySet liquidityPoolKeysToSearch;
+
+    // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
+    // poolshare trusline for the given accountID
+    auto trustlineCheck = [&accountID](auto const& entry) {
+        return entry.type() == TRUSTLINE &&
+               entry.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE &&
+               entry.trustLine().accountID.ed25519() == accountID.ed25519();
+    };
+
+    // First get all the poolshare trustlines for the given account
+    auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
+        // Get upper and lower bound for poolsahre trustline range associated
+        // with this account
+        auto searchRange =
+            b->getIndex(cfg).getPoolshareTrustlineRange(accountID);
+        if (searchRange.first == 0)
+        {
+            return false; // continue
+        }
+
+        BucketEntry be;
+        auto& stream = b->getStream();
+        stream.seek(searchRange.first);
+        while (stream && stream.pos() < searchRange.second &&
+               stream.readOne(be))
+        {
+            LedgerEntry entry;
+            switch (be.type())
+            {
+            case LIVEENTRY:
+            case INITENTRY:
+                entry = be.liveEntry();
+                break;
+            case DEADENTRY:
+            {
+                auto key = be.deadEntry();
+
+                // If we find a valid trustline key and we have not seen the
+                // key yet, mark it as dead so we do not load a shadowed version
+                // later
+                if (trustlineCheck(key))
+                {
+                    deadTrustlines.emplace(key);
+                }
+                continue;
+            }
+            case METAENTRY:
+            default:
+                throw std::invalid_argument("Indexed METAENTRY");
+            }
+
+            // If this is a pool share trustline that matches the accountID and
+            // is not shadowed
+            if (trustlineCheck(entry.data) &&
+                deadTrustlines.find(LedgerEntryKey(entry)) ==
+                    deadTrustlines.end())
+            {
+                auto const& poolshareID =
+                    entry.data.trustLine().asset.liquidityPoolID();
+
+                LedgerKey key;
+                key.type(LIQUIDITY_POOL);
+                key.liquidityPool().liquidityPoolID = poolshareID;
+
+                liquidityPoolToTrustline.emplace(key, entry);
+                liquidityPoolKeysToSearch.emplace(key);
+            }
+        }
+
+        return false; // continue
+    };
+
+    loopAllBuckets(trustLineLoop);
+
+    // Load all the LiquidityPool entries that the account has a trustline for.
+    auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch, cfg);
+
+    // Filter out liquidity pools that don't match the asset we're looking for
+    std::vector<LedgerEntry> result;
+    for (const auto& e : liquidityPoolEntries)
+    {
+        releaseAssert(e.data.type() == LIQUIDITY_POOL);
+        auto const& params =
+            e.data.liquidityPool().body.constantProduct().params;
+        if (compareAsset(params.assetA, asset) ||
+            compareAsset(params.assetB, asset))
+        {
+            auto trustlineIter =
+                liquidityPoolToTrustline.find(LedgerEntryKey(e));
+            releaseAssert(trustlineIter != liquidityPoolToTrustline.end());
+            result.emplace_back(trustlineIter->second);
+        }
+    }
+
+    return result;
+}
+
+std::vector<InflationWinner>
+BucketList::loadInflationWinners(size_t maxWinners, int64_t minBalance) const
+{
+    UnorderedMap<AccountID, int64_t> voteCount;
+    UnorderedSet<AccountID> seen;
+
+    auto countVotesInBucket = [&](std::shared_ptr<Bucket> b) {
+        for (BucketInputIterator in(b); in; ++in)
+        {
+            BucketEntry const& be = *in;
+            if (be.type() == DEADENTRY)
+            {
+                if (be.deadEntry().type() == ACCOUNT)
+                {
+                    seen.insert(be.deadEntry().account().accountID);
+                }
+                continue;
+            }
+
+            // Account are ordered first, so once we see a non-account entry, no
+            // other accounts are left in the bucket
+            LedgerEntry const& le = be.liveEntry();
+            if (le.data.type() != ACCOUNT)
+            {
+                break;
+            }
+
+            // Don't double count AccountEntry's seen in earlier levels
+            AccountEntry const& ae = le.data.account();
+            AccountID const& id = ae.accountID;
+            if (seen.find(id) != seen.end())
+            {
+                continue;
+            }
+
+            seen.insert(id);
+            if (ae.inflationDest && ae.balance >= 1000000000)
+            {
+                voteCount[*ae.inflationDest] += ae.balance;
+            }
+        }
+
+        return false;
+    };
+
+    loopAllBuckets(countVotesInBucket);
+    std::vector<InflationWinner> winners;
+
+    // Check if we need to sort the voteCount by number of votes
+    if (voteCount.size() > maxWinners)
+    {
+
+        // Sort Inflation winners by vote count in descending order
+        std::map<int64_t, UnorderedMap<AccountID, int64_t>::const_iterator,
+                 std::greater<int64_t>>
+            voteCountSortedByCount;
+        for (auto iter = voteCount.cbegin(); iter != voteCount.cend(); ++iter)
+        {
+            voteCountSortedByCount[iter->second] = iter;
+        }
+
+        // Insert first maxWinners entries that are larger thanminBalance
+        for (auto iter = voteCountSortedByCount.cbegin();
+             winners.size() < maxWinners && iter->first >= minBalance; ++iter)
+        {
+            // push back {AccountID, voteCount}
+            winners.push_back({iter->second->first, iter->first});
+        }
+    }
+    else
+    {
+        for (auto const& [id, count] : voteCount)
+        {
+            if (count >= minBalance)
+            {
+                winners.push_back({id, count});
+            }
+        }
+    }
+
+    return winners;
+}
+
+// levelShouldSpill is the set of boundaries at which each level should
+// spill, it's not-entirely obvious which numbers these are by inspection,
+// so we list the first 3 values it's true on each level here for reference:
 //
 // clang-format off
 //
@@ -399,8 +687,8 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
         return false;
     }
 
-    return (ledger == mask(ledger, levelHalf(level)) ||
-            ledger == mask(ledger, levelSize(level)));
+    return (ledger == roundDown(ledger, levelHalf(level)) ||
+            ledger == roundDown(ledger, levelSize(level)));
 }
 
 bool
@@ -519,9 +807,9 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 
         /*
         CLOG_DEBUG(Bucket, "curr={}, half(i-1)={}, size(i-1)={},
-        mask(curr,half)={}, mask(curr,size)={}", currLedger, levelHalf(i-1),
-        levelSize(i-1), mask(currLedger, levelHalf(i-1)), mask(currLedger,
-        levelSize(i-1)));
+        roundDown(curr,half)={}, roundDown(curr,size)={}", currLedger,
+        levelHalf(i-1), levelSize(i-1), roundDown(currLedger, levelHalf(i-1)),
+        roundDown(currLedger, levelSize(i-1)));
         */
         if (levelShouldSpill(currLedger, i - 1))
         {
@@ -622,7 +910,6 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             // spill, and after such spills, new merges are started with new
             // inputs.
             auto snap = mLevels[i - 1].getSnap();
-            Hash const emptyHash;
 
             // Exit early if a level has not been initialized yet;
             // There are two possibilities for empty buckets: it is either truly
@@ -632,7 +919,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             // 10-or-earlier bucket, it must have had an output published, and
             // would be handled in the previous `if` block. Therefore, we must
             // be dealing with an untouched level.
-            if (snap->getHash() == emptyHash)
+            if (snap->isEmpty())
             {
                 return;
             }
@@ -650,7 +937,8 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
 
             // Round down the current ledger to when the merge was started, and
             // re-start the merge via prepare, mimicking the logic in `addBatch`
-            auto mergeStartLedger = mask(ledger, BucketList::levelHalf(i - 1));
+            auto mergeStartLedger =
+                roundDown(ledger, BucketList::levelHalf(i - 1));
             level.prepare(
                 app, mergeStartLedger, version, snap, /* shadows= */ {},
                 !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);

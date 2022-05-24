@@ -147,19 +147,27 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 static void
 maybeRebuildLedger(Application& app, bool applyBuckets)
 {
+    std::set<LedgerEntryType> toDrop;
     std::set<LedgerEntryType> toRebuild;
     auto& ps = app.getPersistentState();
+    auto blEnabled = app.getConfig().EXPERIMENTAL_BUCKET_KV_STORE;
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        if (ps.shouldRebuildForType(t))
+
+        // Rebuild offer table even when bucketlist is enabled, otherwise only
+        // rebuild table if db is enabled
+        if (ps.shouldRebuildForType(t) && (!blEnabled || t == OFFER))
         {
-            toRebuild.emplace(t);
+            toRebuild.insert(t);
+            continue;
         }
-    }
-    if (toRebuild.empty())
-    {
-        return;
+
+        // If bucketlist is enabled, drop all tables except for offers
+        if (let != OFFER && blEnabled)
+        {
+            toDrop.emplace(t);
+        }
     }
 
     if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
@@ -167,50 +175,60 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
         app.getDatabase().clearPreparedStatementCache();
         soci::transaction tx(app.getDatabase().getSession());
 
-        for (auto let : toRebuild)
-        {
-            switch (let)
+        auto loopEntries = [&](auto const& entryTypeSet, bool shouldRebuild) {
+            for (auto let : entryTypeSet)
             {
-            case ACCOUNT:
-                LOG_INFO(DEFAULT_LOG, "Dropping accounts");
-                app.getLedgerTxnRoot().dropAccounts();
-                break;
-            case TRUSTLINE:
-                LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
-                app.getLedgerTxnRoot().dropTrustLines();
-                break;
-            case OFFER:
-                LOG_INFO(DEFAULT_LOG, "Dropping offers");
-                app.getLedgerTxnRoot().dropOffers();
-                break;
-            case DATA:
-                LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
-                app.getLedgerTxnRoot().dropData();
-                break;
-            case CLAIMABLE_BALANCE:
-                LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
-                app.getLedgerTxnRoot().dropClaimableBalances();
-                break;
-            case LIQUIDITY_POOL:
-                LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
-                app.getLedgerTxnRoot().dropLiquidityPools();
-                break;
+                switch (let)
+                {
+                case ACCOUNT:
+                    LOG_INFO(DEFAULT_LOG, "Dropping accounts");
+                    app.getLedgerTxnRoot().dropAccounts(shouldRebuild);
+                    break;
+                case TRUSTLINE:
+                    LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
+                    app.getLedgerTxnRoot().dropTrustLines(shouldRebuild);
+                    break;
+                case OFFER:
+                    LOG_INFO(DEFAULT_LOG, "Dropping offers");
+                    app.getLedgerTxnRoot().dropOffers(shouldRebuild);
+                    break;
+                case DATA:
+                    LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
+                    app.getLedgerTxnRoot().dropData(shouldRebuild);
+                    break;
+                case CLAIMABLE_BALANCE:
+                    LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
+                    app.getLedgerTxnRoot().dropClaimableBalances(shouldRebuild);
+                    break;
+                case LIQUIDITY_POOL:
+                    LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
+                    app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
+                    break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            case CONTRACT_DATA:
-                LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
-                app.getLedgerTxnRoot().dropContractData();
-                break;
-            case CONFIG_SETTING:
-                LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
-                app.getLedgerTxnRoot().dropConfigSettings();
-                break;
+                case CONTRACT_DATA:
+                    LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
+                    app.getLedgerTxnRoot().dropContractData(shouldRebuild);
+                    break;
+                case CONFIG_SETTING:
+                    LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
+                    app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
+                    break;
 #endif
-            default:
-                abort();
+                default:
+                    abort();
+                }
             }
-        }
+        };
 
+        loopEntries(toRebuild, true);
+        loopEntries(toDrop, false);
         tx.commit();
+
+        // Nothing to apply, exit early
+        if (toRebuild.empty())
+        {
+            return;
+        }
 
         // No transaction is needed. ApplyBucketsWork breaks the apply into many
         // small chunks, each of which has its own transaction. If it fails at
@@ -281,7 +299,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
                         mConfig.ENTRY_CACHE_SIZE);
         }
         mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-            *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
+            *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
 #ifdef BEST_OFFER_DEBUGGING
             ,
             mConfig.BEST_OFFER_DEBUGGING_ENABLED
@@ -653,6 +671,44 @@ ApplicationImpl::validateAndLogConfig()
             "Using a METADATA_OUTPUT_STREAM with "
             "EXPERIMENTAL_PRECAUTION_DELAY_META set to true "
             "requires --in-memory");
+    }
+
+    if (mConfig.EXPERIMENTAL_BUCKET_KV_STORE)
+    {
+        mPersistentState->setState(PersistentState::kDBBackend,
+                                   BucketIndex::DBBackendState);
+        auto pageSize = mConfig.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
+        if (pageSize != 0)
+        {
+            // If the page size is less than 256 bytes, it is essentially
+            // indexing individual keys, so page size should be set to 0
+            // instead.
+            if (pageSize < 256)
+            {
+                throw std::invalid_argument(
+                    "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE must "
+                    "be at least 256 bytes or set to 0 for individual entry "
+                    "indexing");
+            }
+
+            // Check if pageSize is a power of 2
+            // readPage uses pageSize to read from disk, so this check
+            // enforces better disk optimization
+            if ((pageSize & (pageSize - 1)) != 0)
+            {
+                throw std::invalid_argument(
+                    "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE must "
+                    "be a power of 2 or set to 0 for individual entry "
+                    "indexing");
+            }
+        }
+    }
+    else if (mPersistentState->getState(PersistentState::kDBBackend) ==
+             BucketIndex::DBBackendState)
+    {
+        throw std::invalid_argument(
+            "To downgrade from EXPERIMENTAL_BUCKET_KV_STORE, run "
+            "stellar-core new-db.");
     }
 
     if (isNetworkedValidator && mConfig.isInMemoryMode())

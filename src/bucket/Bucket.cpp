@@ -24,16 +24,50 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
-#include <fmt/format.h>
 #include <future>
 
 namespace stellar
 {
 
-Bucket::Bucket(std::string const& filename, Hash const& hash)
-    : mFilename(filename), mHash(hash)
+BucketIndex const&
+Bucket::getIndex(Config const& cfg)
+{
+    ZoneScoped;
+    releaseAssertOrThrow(!mFilename.empty());
+    if (cfg.EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX)
+    {
+        if (!mIndex)
+        {
+            mIndex = BucketIndex::createIndex(cfg, mFilename);
+        }
+    }
+    else
+    {
+        releaseAssertOrThrow(mIndex);
+    }
+
+    return *mIndex;
+}
+
+bool
+Bucket::isIndexed() const
+{
+    return static_cast<bool>(mIndex);
+}
+
+void
+Bucket::setIndex(std::unique_ptr<BucketIndex const> index)
+{
+    releaseAssertOrThrow(!mIndex);
+    mIndex = std::move(index);
+}
+
+Bucket::Bucket(std::string const& filename, Hash const& hash,
+               std::unique_ptr<BucketIndex const> index)
+    : mFilename(filename), mHash(hash), mIndex(std::move(index))
 {
     releaseAssert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
@@ -48,13 +82,25 @@ Bucket::Bucket()
 {
 }
 
+XDRInputFileStream&
+Bucket::getStream()
+{
+    if (!mStream)
+    {
+        mStream = std::make_unique<XDRInputFileStream>();
+        releaseAssertOrThrow(!mFilename.empty());
+        mStream->open(mFilename);
+    }
+    return *mStream;
+}
+
 Hash const&
 Bucket::getHash() const
 {
     return mHash;
 }
 
-std::string const&
+std::filesystem::path const&
 Bucket::getFilename() const
 {
     return mFilename;
@@ -80,6 +126,55 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
         ++iter;
     }
     return false;
+}
+
+bool
+Bucket::isEmpty() const
+{
+    if (mFilename.empty() || isZero(mHash))
+    {
+        releaseAssertOrThrow(mFilename.empty() && isZero(mHash));
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<BucketEntry>
+Bucket::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
+                         size_t pageSize)
+{
+    ZoneScoped;
+    auto& stream = getStream();
+    stream.seek(pos);
+
+    BucketEntry be;
+    if (pageSize == 0)
+    {
+        if (stream.readOne(be))
+        {
+            return std::make_optional(be);
+        }
+    }
+    else if (stream.readPage(be, k, pageSize))
+    {
+        return std::make_optional(be);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<BucketEntry>
+Bucket::getBucketEntry(LedgerKey const& k, Config const& cfg)
+{
+    ZoneScoped;
+    auto pos = getIndex(cfg).lookup(k);
+    if (pos.has_value())
+    {
+        return getEntryAtOffset(k, pos.value(), getIndex(cfg).getPageSize());
+    }
+
+    return std::nullopt;
 }
 
 #ifdef BUILD_TESTS
@@ -174,7 +269,9 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
-    return out.getBucket(bucketManager);
+
+    return out.getBucket(bucketManager,
+                         bucketManager.getConfig().shouldIndex());
 }
 
 static void
@@ -668,7 +765,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
-    return out.getBucket(bucketManager, &mk);
+    return out.getBucket(bucketManager, bucketManager.getConfig().shouldIndex(),
+                         &mk);
 }
 
 uint32_t
