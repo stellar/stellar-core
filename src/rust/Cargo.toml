@@ -8,6 +8,7 @@ name = "rust_stellar_core"
 crate-type = ["staticlib"]
 
 [dependencies]
+log = "0.4.17"
 cxx = "1.0"
 base64 = "0.13.0"
 stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "d0a4b13881fa95a7174390f685b18f9941c9094a", features = [

@@ -11,7 +11,7 @@
 // the rust bridge, since most Rust code is doing to produce a rust::Vec, not a
 // std::vector / CxxVector. Avoids more redundant byte-copies.
 
-#include "rust/rust_bridge.h"
+#include "rust/RustBridge.h"
 
 namespace xdr
 {

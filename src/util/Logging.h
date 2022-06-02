@@ -124,7 +124,7 @@ typedef void* LogPtr;
 namespace stellar
 {
 
-enum class LogLevel
+enum class LogLevel : uint8_t
 {
     LVL_FATAL = 0,
     LVL_ERROR = 1,
@@ -182,6 +182,9 @@ class Logging
     static std::string getStringFromLL(LogLevel level);
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
+    static bool isLogLevelAtLeast(std::string const& partition, LogLevel level);
+    static void logAtPartitionAndLevel(std::string const& partition,
+                                       LogLevel level, std::string const& msg);
     static void rotate();
     static std::string normalizePartition(std::string const& partition);
 

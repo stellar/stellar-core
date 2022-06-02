@@ -8,7 +8,7 @@
 #include <lib/util/basen.h>
 #include <string>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/rust_bridge.h"
+#include "rust/RustBridge.h"
 #include <xdrpp/types.h>
 #endif
 

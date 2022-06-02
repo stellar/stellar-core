@@ -5,9 +5,26 @@
 #![crate_type = "staticlib"]
 #![allow(non_snake_case)]
 
-// This module (mod rust_bridge) is the signature for this crate that's exported to C++
-#[cxx::bridge(namespace = "stellar::rust_bridge")]
+// The cxx::bridge attribute says that everything in mod rust_bridge is
+// interpreted by cxx.rs.
+#[cxx::bridge]
 mod rust_bridge {
+
+    // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
+    // understand.
+    #[namespace = "stellar"]
+    enum LogLevel {
+        #[allow(unused)]
+        LVL_FATAL = 0,
+        LVL_ERROR = 1,
+        LVL_WARNING = 2,
+        LVL_INFO = 3,
+        LVL_DEBUG = 4,
+        LVL_TRACE = 5,
+    }
+
+    // The extern "Rust" block declares rust stuff we're going to export to C++.
+    #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
@@ -16,6 +33,20 @@ mod rust_bridge {
             func: &CxxString,
             args: &CxxVector<u8>,
         ) -> Result<Vec<u8>>;
+        fn init_logging(maxLevel: LogLevel) -> Result<()>;
+    }
+
+    // And the extern "C++" block declares C++ stuff we're going to import to
+    // Rust.
+    #[namespace = "stellar"]
+    unsafe extern "C++" {
+        include!("rust/CppShims.h");
+        // This declares (and asserts) that the external C++ definition of
+        // stellar::LogLevel must match (in size and discriminant values) the
+        // shared type declared above.
+        type LogLevel;
+        fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> bool;
+        fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
     }
 }
 
@@ -25,3 +56,6 @@ use b64::{from_base64, to_base64};
 
 mod contract;
 use contract::invoke_contract;
+
+mod log;
+use crate::log::init_logging;
