@@ -1227,10 +1227,13 @@
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\contracts\ContractUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="src\generated\rust\bridge.cpp">
+    <ClCompile Include="src\generated\rust\rust_bridge.cpp">
       <Filter>rust\generated</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
@@ -1360,6 +1363,9 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\util\basen.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\generated\xdr\Stellar-contract.h">
+      <Filter>xdr\generated</Filter>
     </ClInclude>
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h">
       <Filter>xdr\generated</Filter>
@@ -2144,10 +2150,13 @@
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h">
       <Filter>transactions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\transactions\contracts\ContractUtils.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\util\ProtocolVersion.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="src\generated\rust\bridge.h">
+    <ClInclude Include="src\generated\rust\rust_bridge.h">
       <Filter>rust\generated</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">
@@ -2155,6 +2164,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetUtils.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\rust\rust_vec_xdr_marshal.h">
+      <Filter>rust</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -2296,6 +2308,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
       <Filter>xdr</Filter>
     </CustomBuild>
