@@ -33,14 +33,9 @@ jobs:
         with:
           path: |
             /home/runner/.ccache
-          # we do not include ${{ matrix.protocol }} in this cache key. That flag ultimately causes
-          # an altered -D define, which _does_ cause a ccache direct-mode miss, but only one file
-          # has any difference when preprocessed, so ccache still gets a fallback cpp-mode hit. The
-          # one file that does vary (that compiles-in the protocol version number) is small enough
-          # that we can tolerate a miss and/or hold both versions of it in cache.
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
