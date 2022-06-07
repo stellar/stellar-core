@@ -135,58 +135,47 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
 
     auto runTest = [&](std::vector<Config> expectedCfgs,
                        Peer::FlowControlState expectedState,
-                       bool sendIllegalSendMore) {
+                       bool sendIllegalSendMore = false) {
+        REQUIRE(expectedState != Peer::FlowControlState::DONT_KNOW);
         auto app1 = createTestApplication(clock, expectedCfgs[0]);
         auto app2 = createTestApplication(clock, expectedCfgs[1]);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
 
-        REQUIRE(conn.getInitiator()->isAuthenticated());
-        REQUIRE(conn.getAcceptor()->isAuthenticated());
-        REQUIRE(expectedState != Peer::FlowControlState::DONT_KNOW);
-
-        REQUIRE(conn.getInitiator()->flowControlEnabled() == expectedState);
-        REQUIRE(conn.getAcceptor()->flowControlEnabled() == expectedState);
-
-        // Ensure peer has correct outbound capacity: it should be equal to
-        // PEER_FLOOD_READING_CAPACITY of the peer it's connected to if flow
-        // control is enabled, or 0 otherwise
-        auto checkCapacity = [&](std::shared_ptr<LoopbackPeer> peer,
-                                 uint64_t expectedOutboundCap) {
-            if (expectedState == Peer::FlowControlState::ENABLED)
-            {
-                peer->checkCapacity(expectedOutboundCap);
-            }
-            else
-            {
-                peer->checkCapacity(0);
-            }
-        };
-
-        checkCapacity(conn.getInitiator(), cfg2.PEER_FLOOD_READING_CAPACITY);
-        checkCapacity(conn.getAcceptor(), cfg1.PEER_FLOOD_READING_CAPACITY);
-
-        if (sendIllegalSendMore)
+        if (expectedState == Peer::FlowControlState::ENABLED)
         {
-            // Ensure peer gets dropped if it sends an illegal send_more
-            // if flow control is enabled, ensure it can't be disabled
-            // If disabled, ensure it can't be disabled twice
-            conn.getInitiator()->sendSendMore(0);
-            testutil::crankSome(clock);
-            REQUIRE(!conn.getInitiator()->isConnected());
-            REQUIRE(!conn.getAcceptor()->isConnected());
-            if (cfg2.OVERLAY_PROTOCOL_VERSION <
-                Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
+            REQUIRE(conn.getInitiator()->isAuthenticated());
+            REQUIRE(conn.getAcceptor()->isAuthenticated());
+            REQUIRE(conn.getInitiator()->flowControlEnabled() == expectedState);
+            REQUIRE(conn.getAcceptor()->flowControlEnabled() == expectedState);
+            REQUIRE(conn.getInitiator()->checkCapacity(
+                cfg2.PEER_FLOOD_READING_CAPACITY));
+            REQUIRE(conn.getAcceptor()->checkCapacity(
+                cfg1.PEER_FLOOD_READING_CAPACITY));
+
+            if (sendIllegalSendMore)
             {
-                REQUIRE(conn.getAcceptor()->getDropReason() ==
-                        "does not support SEND_MORE");
-            }
-            else
-            {
+                // if flow control is enabled, ensure it can't be disabled, and
+                // the misbehaving peer gets dropped
+                conn.getInitiator()->sendSendMore(0);
+                testutil::crankSome(clock);
+                REQUIRE(!conn.getInitiator()->isConnected());
+                REQUIRE(!conn.getAcceptor()->isConnected());
                 REQUIRE(conn.getAcceptor()->getDropReason() ==
                         "unexpected SEND_MORE message");
             }
+        }
+        else
+        {
+            auto dropReason =
+                cfg2.OVERLAY_PROTOCOL_VERSION <
+                        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL
+                    ? "wrong protocol version"
+                    : "must enable flow control";
+            REQUIRE(!conn.getInitiator()->isConnected());
+            REQUIRE(!conn.getAcceptor()->isConnected());
+            REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
         }
 
         testutil::shutdownWorkScheduler(*app2);
@@ -195,56 +184,30 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
 
     SECTION("both enable")
     {
-        cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
-        cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
         SECTION("basic")
         {
+            // Successfully enabled flow control
             runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, false);
         }
         SECTION("bad peer")
         {
+            // Try to disable flow control after enabling
             runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, true);
         }
     }
     SECTION("one disables")
     {
-        cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
-        cfg2.ENABLE_OVERLAY_FLOW_CONTROL = false;
-        SECTION("basic")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, false);
-        }
-        SECTION("bad peer")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, true);
-        }
-    }
-    SECTION("both disable")
-    {
-        cfg1.ENABLE_OVERLAY_FLOW_CONTROL = false;
-        cfg2.ENABLE_OVERLAY_FLOW_CONTROL = false;
-        SECTION("basic")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, false);
-        }
-        SECTION("bad peer")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, true);
-        }
+        // Peer tries to disable flow control during auth
+        // Set capacity to 0 so that the peer sends SEND_MORE with numMessages=0
+        cfg2.PEER_FLOOD_READING_CAPACITY = 0;
+        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
     }
     SECTION("one does not support")
     {
-        cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
+        // Peer is not on minimum supported version
         cfg2.OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
-        SECTION("basic")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, false);
-        }
-        SECTION("bad peer")
-        {
-            runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED, true);
-        }
+        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
     }
 }
 
@@ -254,8 +217,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     Config cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
 
-    cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
-    cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
     // initiator can only accept 1 flood message at a time
     cfg1.PEER_FLOOD_READING_CAPACITY = 1;
     cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
@@ -299,8 +260,6 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
     Config cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
 
-    cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
-    cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
     cfg1.PEER_FLOOD_READING_CAPACITY = 1;
     cfg1.PEER_READING_CAPACITY = 1;
     // Incorrectly set batch size, so that the node does not send flood requests
@@ -344,9 +303,6 @@ TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
     VirtualClock clock;
     Config cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
-
-    cfg1.ENABLE_OVERLAY_FLOW_CONTROL = true;
-    cfg2.ENABLE_OVERLAY_FLOW_CONTROL = true;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
@@ -406,7 +362,6 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.ENABLE_OVERLAY_FLOW_CONTROL = true;
             cfg.MAX_SLOTS_TO_REMEMBER = 3;
             return cfg;
         });
@@ -1568,61 +1523,60 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         configs.push_back(cfg);
     }
 
+    Application::pointer node = nullptr;
+    auto setupSimulation = [&]() {
+        node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
+        simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
+        simulation->addNode(vNode3SecretKey, qSet, &configs[2]);
+
+        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+        simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
+        simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
+        simulation->startAllNodes();
+    };
+
     SECTION("enabled")
     {
-        configs[0].ENABLE_OVERLAY_FLOW_CONTROL = true;
-        configs[1].ENABLE_OVERLAY_FLOW_CONTROL = true;
-        configs[2].ENABLE_OVERLAY_FLOW_CONTROL = true;
+        setupSimulation();
+        simulation->crankUntil(
+            [&] { return simulation->haveAllExternalized(2, 1); },
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        // Generate a bit of load to flood transactions, make sure nodes can
+        // close ledgers properly
+        auto& loadGen = node->getLoadGenerator();
+        loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
+                             /*txRate*/ 1,
+                             /*batchSize*/ 1, std::chrono::seconds(0), 0);
+
+        auto& loadGenDone =
+            node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+        auto currLoadGenCount = loadGenDone.count();
+
+        simulation->crankUntil(
+            [&]() { return loadGenDone.count() > currLoadGenCount; },
+            15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
-    SECTION("disabled")
+    SECTION("one peer disables flow control")
     {
-        configs[0].ENABLE_OVERLAY_FLOW_CONTROL = false;
-        configs[1].ENABLE_OVERLAY_FLOW_CONTROL = false;
-        configs[2].ENABLE_OVERLAY_FLOW_CONTROL = false;
+        configs[2].PEER_FLOOD_READING_CAPACITY = 0;
+        setupSimulation();
+        REQUIRE_THROWS_AS(
+            simulation->crankUntil(
+                [&] { return simulation->haveAllExternalized(2, 1); },
+                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
+            std::runtime_error);
     }
-    SECTION("mix")
+    SECTION("one peer doesn't support flow control")
     {
-        configs[0].ENABLE_OVERLAY_FLOW_CONTROL = false;
-        configs[1].ENABLE_OVERLAY_FLOW_CONTROL = true;
-        configs[2].ENABLE_OVERLAY_FLOW_CONTROL = false;
-    }
-    SECTION("peer doesn't support flow control")
-    {
-        configs[0].ENABLE_OVERLAY_FLOW_CONTROL = true;
-        configs[1].ENABLE_OVERLAY_FLOW_CONTROL = true;
         configs[2].OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
+        setupSimulation();
+        REQUIRE_THROWS_AS(
+            simulation->crankUntil(
+                [&] { return simulation->haveAllExternalized(2, 1); },
+                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
+            std::runtime_error);
     }
-
-    auto node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
-    simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
-    simulation->addNode(vNode3SecretKey, qSet, &configs[2]);
-
-    simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
-    simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
-    simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
-
-    simulation->startAllNodes();
-
-    // Crank for a few ledgers so nodes get connected and become "synced"
-    simulation->crankUntil(
-        [&] { return simulation->haveAllExternalized(2, 1); },
-        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Generate a bit of load to flood transactions, make sure nodes can close
-    // ledgers properly
-    auto& loadGen = node->getLoadGenerator();
-    loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
-                         /*txRate*/ 1,
-                         /*batchSize*/ 1, std::chrono::seconds(0), 0);
-
-    auto& loadGenDone =
-        node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto currLoadGenCount = loadGenDone.count();
-
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        15 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 }
 
 PeerBareAddress
