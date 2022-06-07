@@ -808,22 +808,18 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         }
 
         cat = "CTRL";
-        // Set this once: peers aren't allowed to switch between modes
-        // Either set the flow control to "off" or continue processing the
-        // message and potentially send the next batch of items
-        if (mFlowControlState == Peer::FlowControlState::DONT_KNOW)
+
+        if (stellarMsg.sendMoreMessage().numMessages == 0)
         {
-            if (stellarMsg.sendMoreMessage().numMessages == 0)
-            {
-                mFlowControlState = Peer::FlowControlState::DISABLED;
-                // Done with the message
-                return;
-            }
-            else
-            {
-                mFlowControlState = Peer::FlowControlState::ENABLED;
-            }
+            auto msg = flowControlEnabled() == Peer::FlowControlState::ENABLED
+                           ? "unexpected SEND_MORE message"
+                           : "must enable flow control";
+            drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            return;
         }
+
+        mFlowControlState = Peer::FlowControlState::ENABLED;
 
         if (stellarMsg.sendMoreMessage().numMessages >
             UINT64_MAX - mOutboundCapacity)
@@ -833,6 +829,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
+
         mNoOutboundCapacity.reset();
         if (mOutboundCapacity == 0 &&
             stellarMsg.sendMoreMessage().numMessages != 0)
@@ -937,14 +934,7 @@ Peer::recvSendMore(StellarMessage const& msg)
     // Flow control must be "on"
     auto fc = flowControlEnabled();
     releaseAssert(fc != Peer::FlowControlState::DONT_KNOW);
-
-    if (msg.sendMoreMessage().numMessages == 0)
-    {
-        drop("unexpected SEND_MORE message",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
-        return;
-    }
+    releaseAssert(msg.sendMoreMessage().numMessages > 0);
 
     CLOG_TRACE(Overlay, "Peer {} sent SEND_MORE {}",
                mApp.getConfig().toShortString(getPeerID()),
@@ -973,8 +963,7 @@ Peer::flowControlEnabled() const
         return Peer::FlowControlState::DONT_KNOW;
     }
     if (mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL ||
-        !mApp.getConfig().ENABLE_OVERLAY_FLOW_CONTROL)
+        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
     {
         return Peer::FlowControlState::DISABLED;
     }
@@ -1596,7 +1585,8 @@ Peer::recvHello(Hello const& elo)
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
-        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION ||
+        mRemoteOverlayVersion < Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
     {
         CLOG_DEBUG(Overlay, "Protocol = [{},{}] expected: [{},{}]",
                    mRemoteOverlayMinVersion, mRemoteOverlayVersion,
@@ -1713,19 +1703,7 @@ Peer::recvAuth(StellarMessage const& msg)
         mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
     {
-        if (mApp.getConfig().ENABLE_OVERLAY_FLOW_CONTROL)
-        {
-            sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
-        }
-        else
-        {
-            // 0 indicates peer doesn't want to use flow control
-            sendSendMore(0);
-        }
-    }
-    else
-    {
-        mFlowControlState = Peer::FlowControlState::DISABLED;
+        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
     }
 
     // Ask for SCP data _after_ the flow control message
