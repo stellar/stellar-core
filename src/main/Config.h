@@ -233,18 +233,12 @@ class Config : public std::enable_shared_from_this<Config>
     // A config parameter that controls how many messages from a particular peer
     // core can process simultaneously. If core is at capacity, it temporarily
     // stops reading from a peer until it completes processing of at least one
-    // in-flight message. This config only takes effect if
-    // ENABLE_OVERLAY_FLOW_CONTROL=true.
+    // in-flight message
     uint32_t PEER_READING_CAPACITY;
 
     // A config parameter that controls how many flood messages (tx or SCP) from
-    // a particular peer core can process simultaneously. This config only takes
-    // effect if ENABLE_OVERLAY_FLOW_CONTROL=true.
+    // a particular peer core can process simultaneously
     uint32_t PEER_FLOOD_READING_CAPACITY;
-
-    // A config parameter that allows core to enable or disable flow control
-    // when communicating with peers.
-    bool ENABLE_OVERLAY_FLOW_CONTROL;
 
     // When flow control is enabled, peer asks for more data every time it
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE` messages
