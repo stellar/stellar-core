@@ -10,6 +10,13 @@
 #[cxx::bridge]
 mod rust_bridge {
 
+    // We want to pass around vectors of XDR buffers (CxxVector<CxxVector<...>>) or similar,
+    // but cxx.rs has some limits around this (eg. https://github.com/dtolnay/cxx/issues/671)
+    // So far this is the best approximate mechanism found.
+    struct XDRBuf {
+        data: UniquePtr<CxxVector<u8>>,
+    }
+
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
@@ -29,9 +36,11 @@ mod rust_bridge {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn invoke_contract(
-            wasm: &CxxVector<u8>,
+            contract_id: &XDRBuf,
             func: &CxxString,
-            args: &CxxVector<u8>,
+            args: &XDRBuf,
+            footprint: &XDRBuf,
+            ledger_entries: &Vec<XDRBuf>,
         ) -> Result<Vec<u8>>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
     }
