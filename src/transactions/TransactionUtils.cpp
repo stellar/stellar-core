@@ -15,6 +15,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -271,6 +272,25 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
     return key;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerKey
+configSettingKey(ConfigSettingID const& configSettingID)
+{
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID = configSettingID;
+    return key;
+}
+
+LedgerKey
+contractDataKey(Hash const& contractID, SCVal const& dataKey)
+{
+    LedgerKey key(CONTRACT_DATA);
+    key.contractData().contractID = contractID;
+    key.contractData().key = dataKey;
+    return key;
+}
+#endif
+
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
@@ -398,6 +418,16 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
     ZoneScoped;
     return ltx.load(liquidityPoolKey(poolID));
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerTxnEntry
+loadContractData(AbstractLedgerTxn& ltx, Hash const& contractID,
+                 SCVal const& dataKey)
+{
+    ZoneScoped;
+    return ltx.load(contractDataKey(contractID, dataKey));
+}
+#endif
 
 static void
 acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,

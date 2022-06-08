@@ -2257,7 +2257,13 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
         for_versions_from(18, *app, [&] {
             auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
                             DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
-                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
+                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                            | DISABLE_CONTRACT_CREATE |
+                            DISABLE_CONTRACT_UPDATE | DISABLE_CONTRACT_REMOVE |
+                            DISABLE_CONTRACT_INVOKE
+#endif
+                ;
             REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
 
             REQUIRE_THROWS(executeUpgrade(

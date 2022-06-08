@@ -130,14 +130,13 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
 
-        autocheck::generator<LedgerKey> deadGen;
         CLOG_DEBUG(Bucket, "Generating 10000 random ledger entries");
         std::vector<LedgerEntry> live(9000);
         std::vector<LedgerKey> dead(1000);
         for (auto& e : live)
             e = LedgerTestUtils::generateValidLedgerEntry(3);
         for (auto& e : dead)
-            e = deadGen(3);
+            e = LedgerTestUtils::generateLedgerKey(3);
         CLOG_DEBUG(Bucket, "Hashing entries");
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
@@ -151,7 +150,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
             for (auto& e : live)
                 e = LedgerTestUtils::generateValidLedgerEntry(3);
             for (auto& e : dead)
-                e = deadGen(3);
+                e = LedgerTestUtils::generateLedgerKey(3);
             {
                 b1 = Bucket::merge(
                     app->getBucketManager(),
@@ -214,6 +213,16 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.liquidityPool() =
                         LedgerTestUtils::generateValidLiquidityPoolEntry(10);
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case CONFIG_SETTING:
+                    liveEntry.data.configSetting() =
+                        LedgerTestUtils::generateValidConfigSettingEntry(10);
+                    break;
+                case CONTRACT_DATA:
+                    liveEntry.data.contractData() =
+                        LedgerTestUtils::generateValidContractDataEntry(10);
+                    break;
+#endif
                 default:
                     abort();
                 }
@@ -241,6 +250,10 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         checkDeadAnnihilatesLive(DATA);
         checkDeadAnnihilatesLive(CLAIMABLE_BALANCE);
         checkDeadAnnihilatesLive(LIQUIDITY_POOL);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        checkDeadAnnihilatesLive(CONFIG_SETTING);
+        checkDeadAnnihilatesLive(CONTRACT_DATA);
+#endif
 
         SECTION("random dead entries annihilates live entries")
         {

@@ -100,6 +100,21 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
             le.data.liquidityPool().liquidityPoolID =
                 leBase.data.liquidityPool().liquidityPoolID;
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONFIG_SETTING:
+            le.data.configSetting() =
+                LedgerTestUtils::generateValidConfigSettingEntry();
+            le.data.configSetting().configSettingID =
+                leBase.data.configSetting().configSettingID;
+            break;
+        case CONTRACT_DATA:
+            le.data.contractData() =
+                LedgerTestUtils::generateValidContractDataEntry();
+            le.data.contractData().contractID =
+                leBase.data.contractData().contractID;
+            le.data.contractData().key = leBase.data.contractData().key;
+            break;
+#endif
         default:
             REQUIRE(false);
         }
@@ -1392,7 +1407,8 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                     {
                         for (int i = 0; i < 1000; ++i)
                         {
-                            LedgerKey lk = autocheck::generator<LedgerKey>()(5);
+                            LedgerKey lk =
+                                LedgerTestUtils::generateLedgerKey(5);
 
                             try
                             {

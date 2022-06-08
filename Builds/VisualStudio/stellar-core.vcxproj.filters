@@ -1224,6 +1224,12 @@
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\Diagnostics.cpp">
       <Filter>main</Filter>
     </ClCompile>

@@ -11,6 +11,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 using namespace stellar;
 
@@ -201,9 +202,13 @@ computeMultiplier(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_SETTING:
+    case CONTRACT_DATA:
+#endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
-            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
+            "Invalid LedgerEntry type in SponsorshipUtils");
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }
@@ -221,9 +226,13 @@ isSubentry(LedgerEntry const& le)
     case OFFER:
     case DATA:
         return true;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONTRACT_DATA:
+    case CONFIG_SETTING:
+#endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
-            "LIQUIDITY_POOL is not valid in SponsorshipUtils");
+            "Invalid LedgerEntry type in SponsorshipUtils");
     default:
         throw std::runtime_error("Unknown LedgerEntry type");
     }

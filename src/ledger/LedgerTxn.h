@@ -472,7 +472,15 @@ class AbstractLedgerTxnParent
     // Delete all liquidity pool ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropLiquidityPools() = 0;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Delete all contract data ledger entries. Will throw when called on
+    // anything other than a (real or stub) root LedgerTxn.
+    virtual void dropContractData() = 0;
 
+    // Delete all config setting ledger entries. Will throw when called on
+    // anything other than a (real or stub) root LedgerTxn.
+    virtual void dropConfigSettings() = 0;
+#endif
     // Return the current cache hit rate for prefetched ledger entries, as a
     // fraction from 0.0 to 1.0. Will throw when called on anything other than a
     // (real or stub) root LedgerTxn.
@@ -770,6 +778,10 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropTrustLines() override;
     void dropClaimableBalances() override;
     void dropLiquidityPools() override;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void dropContractData() override;
+    void dropConfigSettings() override;
+#endif
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     void prepareNewObjects(size_t s) override;
@@ -828,6 +840,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropTrustLines() override;
     void dropClaimableBalances() override;
     void dropLiquidityPools() override;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void dropContractData() override;
+    void dropConfigSettings() override;
+#endif
 
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;

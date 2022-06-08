@@ -9,6 +9,7 @@
 #include "invariant/test/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/HashOfHash.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -387,6 +388,10 @@ generateScaledLiveEntries(
 
             break;
         }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONFIG_SETTING:
+        case CONTRACT_DATA:
+#endif
         default:
             abort();
         }
@@ -423,6 +428,10 @@ scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
             generateScaledClaimableBalanceID(
                 key.claimableBalance().balanceID.v0(), partition);
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_SETTING:
+    case CONTRACT_DATA:
+#endif
     default:
         throw std::runtime_error("invalid ledger key type");
     }
