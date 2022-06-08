@@ -108,12 +108,11 @@ enum SCObjectType
     // We have a few objects that represent non-stellar-specific concepts
     // like general-purpose maps, vectors, numbers, blobs.
 
-    SCO_BOX = 0,
-    SCO_VEC = 1,
-    SCO_MAP = 2,
-    SCO_U64 = 3,
-    SCO_I64 = 4,
-    SCO_BINARY = 5
+    SCO_VEC = 0,
+    SCO_MAP = 1,
+    SCO_U64 = 2,
+    SCO_I64 = 3,
+    SCO_BINARY = 4
 
     // TODO: add more
 };
@@ -129,8 +128,6 @@ typedef SCMapEntry SCMap<>;
 
 union SCObject switch (SCObjectType type)
 {
-case SCO_BOX:
-    SCVal box;
 case SCO_VEC:
     SCVec vec;
 case SCO_MAP:
