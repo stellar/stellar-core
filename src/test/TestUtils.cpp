@@ -143,6 +143,7 @@ void
 TestInvariantManager::handleInvariantFailure(
     std::shared_ptr<Invariant> invariant, std::string const& message) const
 {
+    CLOG_DEBUG(Invariant, "{}", message);
     throw InvariantDoesNotHold{message};
 }
 

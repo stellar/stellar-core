@@ -1092,9 +1092,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         }
         return success;
     }
-    catch (InvariantDoesNotHold&)
+    catch (InvariantDoesNotHold& e)
     {
-        printErrorAndAbort("Invariant failure while applying operations");
+        printErrorAndAbort("Invariant failure while applying operations: ",
+                           e.what());
     }
     catch (std::bad_alloc& e)
     {
