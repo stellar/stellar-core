@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 % #include "xdr/Stellar-types.h"
-% #include "xdr/Stellar-ledger-entries.h"
 namespace stellar
 {
 /*
@@ -65,7 +64,8 @@ enum SCStatic
 {
     SCS_VOID = 0,
     SCS_TRUE = 1,
-    SCS_FALSE = 2
+    SCS_FALSE = 2,
+    SCS_LEDGER_KEY_CONTRACT_CODE_WASM = 3
 };
 
 enum SCStatusType

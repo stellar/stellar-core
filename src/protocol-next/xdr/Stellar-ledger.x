@@ -47,13 +47,17 @@ struct StellarValue
     ext;
 };
 
-const MASK_LEDGER_HEADER_FLAGS = 0x7;
+const MASK_LEDGER_HEADER_FLAGS = 0x7F;
 
 enum LedgerHeaderFlags
 {
     DISABLE_LIQUIDITY_POOL_TRADING_FLAG = 0x1,
     DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG = 0x2,
-    DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG = 0x4
+    DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG = 0x4,
+    DISABLE_CONTRACT_CREATE = 0x8,
+    DISABLE_CONTRACT_UPDATE = 0x10,
+    DISABLE_CONTRACT_REMOVE = 0x20,
+    DISABLE_CONTRACT_INVOKE = 0x40
 };
 
 struct LedgerHeaderExtensionV1
@@ -122,7 +126,8 @@ enum LedgerUpgradeType
     LEDGER_UPGRADE_BASE_FEE = 2,
     LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3,
     LEDGER_UPGRADE_BASE_RESERVE = 4,
-    LEDGER_UPGRADE_FLAGS = 5
+    LEDGER_UPGRADE_FLAGS = 5,
+    LEDGER_UPGRADE_CONFIG = 6
 };
 
 union LedgerUpgrade switch (LedgerUpgradeType type)
@@ -137,6 +142,12 @@ case LEDGER_UPGRADE_BASE_RESERVE:
     uint32 newBaseReserve; // update baseReserve
 case LEDGER_UPGRADE_FLAGS:
     uint32 newFlags; // update flags
+case LEDGER_UPGRADE_CONFIG:
+    struct
+    {
+        ConfigSettingID id; // id to update
+        ConfigSetting setting; // new value
+    } configSetting;
 };
 
 /* Entries used to define the bucket list */

@@ -32,6 +32,13 @@ struct DecoratedSignature
     Signature signature; // actual signature
 };
 
+// Ledger key sets touched by a smart contract transaction.
+struct LedgerFootprint
+{
+    LedgerKey readOnly<>;
+    LedgerKey readWrite<>;
+};
+
 enum OperationType
 {
     CREATE_ACCOUNT = 0,
