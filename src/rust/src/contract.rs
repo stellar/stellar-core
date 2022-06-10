@@ -15,7 +15,7 @@ use stellar_contract_env_host::{
     storage::{self, AccessType, Storage},
     xdr,
     xdr::{
-        LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
+        HostFunction, LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
         LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScVec, WriteXdr,
     },
     Host, HostError,
@@ -117,4 +117,44 @@ fn build_xdr_ledger_entries_from_storage_map(
         }
     }
     Ok(res)
+}
+
+/// Deserializes an [`xdr::HostFunction`] host function identifier, an [`xdr::ScVec`] XDR object of
+/// arguments, an [`xdr::Footprint`] and a sequence of [`xdr::LedgerEntry`] entries containing all
+/// the data the invocation intends to read. Then calls the host function with the specified
+/// arguments, discards the [`xdr::ScVal`] return value, and returns the [`ReadWrite`] ledger
+/// entries in serialized form. Ledger entries not returned have been deleted.
+pub(crate) fn invoke_host_function(
+    hf_buf: &XDRBuf,
+    args_buf: &XDRBuf,
+    footprint_buf: &XDRBuf,
+    ledger_entries: &Vec<XDRBuf>,
+) -> Result<Vec<Bytes>, Box<dyn Error>> {
+    let hf = HostFunction::read_xdr(&mut Cursor::new(hf_buf.data.as_slice()))?;
+    let args = ScVec::read_xdr(&mut Cursor::new(args_buf.data.as_slice()))?;
+
+    let footprint = build_storage_footprint_from_xdr(footprint_buf)?;
+    let map = build_storage_map_from_xdr_ledger_entries(&footprint, ledger_entries)?;
+
+    let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
+    let mut host = Host::with_storage(storage);
+
+    match hf {
+        HostFunction::Call => {
+            info!(target: TX, "Invoking host function 'Call'");
+            host.invoke_function(hf, args)?;
+        }
+        HostFunction::CreateContract => {
+            info!(target: TX, "Invoking host function 'CreateContract'");
+            todo!();
+        }
+    };
+
+    let storage = host
+        .try_recover_storage()
+        .map_err(|_h| HostError::General("could not get storage from host"))?;
+    Ok(build_xdr_ledger_entries_from_storage_map(
+        &storage.footprint,
+        &storage.map,
+    )?)
 }

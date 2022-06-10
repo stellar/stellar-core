@@ -39,6 +39,12 @@ mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+        fn invoke_host_function(
+            hf_buf: &XDRBuf,
+            args: &XDRBuf,
+            footprint: &XDRBuf,
+            ledger_entries: &Vec<XDRBuf>,
+        ) -> Result<Vec<Bytes>>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
     }
 
@@ -61,6 +67,7 @@ mod b64;
 use b64::{from_base64, to_base64};
 
 mod contract;
+use contract::invoke_host_function;
 
 mod log;
 use crate::log::init_logging;
