@@ -69,6 +69,12 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
         }
         return delta;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONTRACT_DATA:
+        break;
+    case CONFIG_SETTING:
+        break;
+#endif
     }
     return 0;
 }

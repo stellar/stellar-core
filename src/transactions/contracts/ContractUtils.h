@@ -7,14 +7,16 @@
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 #include "xdr/Stellar-contract.h"
+#include "xdr/Stellar-transaction.h"
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace stellar
 {
-SCVal invokeContract(std::vector<uint8_t> const& wasmCode,
-                     std::string const& funcName, SCVec const& args);
+SCVal invokeContract(
+    Hash const& contract_id, std::string const& funcName, SCVec const& args,
+    LedgerFootprint const& footprint,
+    std::vector<std::unique_ptr<std::vector<uint8_t>>> ledgerEntries);
 }
-
 #endif

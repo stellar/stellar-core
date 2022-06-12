@@ -4,10 +4,12 @@
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
+#include "crypto/SecretKey.h"
 #include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
 #include "rust/RustBridge.h"
 #include "test/test.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <autocheck/autocheck.hpp>
 #include <fmt/format.h>
 #include <limits>
@@ -64,8 +66,41 @@ TEST_CASE("WASM test", "[wasm]")
     using clock = ch::high_resolution_clock;
     using usec = ch::microseconds;
 
+    Hash contract_id = HashUtils::pseudoRandomForTesting();
+
+    LedgerFootprint footprint;
+    LedgerEntry wasm_le;
+    LedgerKey wasm_lk;
+    SCVal wasm_key;
+    SCVal wasm_val;
+
+    wasm_key.type(SCValType::SCV_STATIC);
+    wasm_key.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE_WASM;
+
+    wasm_val.type(SCValType::SCV_OBJECT);
+    wasm_val.obj().activate();
+    wasm_val.obj()->type(SCO_BINARY);
+    wasm_val.obj()->bin().assign(add_i32_wasm.begin(), add_i32_wasm.end());
+
+    wasm_lk.type(CONTRACT_DATA);
+    wasm_lk.contractData().contractID = contract_id;
+    wasm_lk.contractData().key = wasm_key;
+
+    wasm_le.data.type(CONTRACT_DATA);
+    wasm_le.data.contractData().contractID = contract_id;
+    wasm_le.data.contractData().key = wasm_key;
+    wasm_le.data.contractData().val = wasm_val;
+
+    footprint.readOnly.emplace_back(wasm_lk);
+
+    std::unique_ptr<std::vector<uint8_t>> wasm_xdr_ptr =
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(wasm_le));
+    std::vector<std::unique_ptr<std::vector<uint8_t>>> xdr_buffers;
+    xdr_buffers.emplace_back(std::move(wasm_xdr_ptr));
+
     auto begin = clock::now();
-    auto res = invokeContract(add_i32_wasm, "add", args);
+    auto res = invokeContract(contract_id, "add", args, footprint,
+                              std::move(xdr_buffers));
     auto end = clock::now();
 
     auto us = ch::duration_cast<usec>(end - begin);

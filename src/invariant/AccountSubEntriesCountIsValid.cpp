@@ -100,6 +100,14 @@ updateChangedSubEntriesCount(
         // claimable balance and liquidity pools are not subentries
         break;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONTRACT_DATA:
+    case CONFIG_SETTING:
+    {
+        // contract entries are not subentries
+        break;
+    }
+#endif
     default:
         abort();
     }

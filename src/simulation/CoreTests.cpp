@@ -663,7 +663,6 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
     Config const& cfg = getTestConfig();
 
     Application::pointer app = Application::create(clock, cfg);
-    autocheck::generator<std::vector<LedgerKey>> deadGen;
 
     auto& obj =
         app->getMetrics().NewMeter({"bucket", "object", "insert"}, "object");
@@ -683,7 +682,8 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
         app->getBucketManager().addBatch(
             *app, i, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
             LedgerTestUtils::generateValidLedgerEntries(100),
-            LedgerTestUtils::generateValidLedgerEntries(20), deadGen(5));
+            LedgerTestUtils::generateValidLedgerEntries(20),
+            LedgerTestUtils::generateLedgerKeys(5));
 
         if ((i & 0xff) == 0xff)
         {

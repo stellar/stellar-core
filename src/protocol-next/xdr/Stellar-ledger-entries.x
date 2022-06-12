@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 %#include "xdr/Stellar-types.h"
+%#include "xdr/Stellar-contract.h"
 
 namespace stellar
 {
@@ -98,7 +99,9 @@ enum LedgerEntryType
     OFFER = 2,
     DATA = 3,
     CLAIMABLE_BALANCE = 4,
-    LIQUIDITY_POOL = 5
+    LIQUIDITY_POOL = 5,
+    CONTRACT_DATA = 6,
+    CONFIG_SETTING = 7
 };
 
 struct Signer
@@ -491,6 +494,41 @@ struct LiquidityPoolEntry
     body;
 };
 
+struct ContractDataEntry {
+    Hash contractID;
+    SCVal key;
+    SCVal val;
+};
+
+enum ConfigSettingType
+{
+    CONFIG_SETTING_TYPE_UINT32 = 0
+};
+
+union ConfigSetting switch (ConfigSettingType type)
+{
+case CONFIG_SETTING_TYPE_UINT32:
+    uint32 uint32Val;
+};
+
+enum ConfigSettingID
+{
+    CONFIG_SETTING_CONTRACT_MAX_SIZE = 0
+};
+
+struct ConfigSettingEntry
+{
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+
+    ConfigSettingID configSettingID;
+    ConfigSetting setting;
+};
+
 struct LedgerEntryExtensionV1
 {
     SponsorshipDescriptor sponsoringID;
@@ -521,6 +559,10 @@ struct LedgerEntry
         ClaimableBalanceEntry claimableBalance;
     case LIQUIDITY_POOL:
         LiquidityPoolEntry liquidityPool;
+    case CONTRACT_DATA:
+        ContractDataEntry contractData;
+    case CONFIG_SETTING:
+        ConfigSettingEntry configSetting;
     }
     data;
 
@@ -575,6 +617,17 @@ case LIQUIDITY_POOL:
     {
         PoolID liquidityPoolID;
     } liquidityPool;
+case CONTRACT_DATA:
+    struct
+    {
+        Hash contractID;
+        SCVal key;
+    } contractData;
+case CONFIG_SETTING:
+    struct
+    {
+        ConfigSettingID configSettingID;
+    } configSetting;
 };
 
 // list of all envelope types used in the application

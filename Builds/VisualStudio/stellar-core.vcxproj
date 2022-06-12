@@ -487,6 +487,8 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />

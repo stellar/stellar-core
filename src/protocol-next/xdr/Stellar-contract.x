@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 % #include "xdr/Stellar-types.h"
-% #include "xdr/Stellar-ledger-entries.h"
 namespace stellar
 {
 /*
@@ -15,16 +14,16 @@ namespace stellar
  * SCVals are (in WASM's case) stored in a tagged 64-bit word encoding. Most
  * signed 64-bit values in Stellar are actually signed positive values
  * (sequence numbers, timestamps, amounts), so we don't need the high bit
- * and can get away with 1-bit tagging and store them as "positive i64",
- * separate from everything else.
+ * and can get away with 1-bit tagging and store them as "unsigned 63bit",
+ * (u63) separate from everything else.
  *
  * We actually reserve the low _four_ bits, leaving 3 bits for 8 cases of
- * "non positive-i64 values", some of which have substructure of their own.
+ * "non-u63 values", some of which have substructure of their own.
  *
- *    0x_NNNN_NNNN_NNNN_NNNX  - positive i64, for any even X
+ *    0x_NNNN_NNNN_NNNN_NNNX  - u63, for any even X
  *    0x_0000_000N_NNNN_NNN1  - u32
  *    0x_0000_000N_NNNN_NNN3  - i32
- *    0x_NNNN_NNNN_NNNN_NNN5  - static: void, true, false, ...
+ *    0x_NNNN_NNNN_NNNN_NNN5  - static: void, true, false, ... (SCS_*)
  *    0x_IIII_IIII_TTTT_TTT7  - object: 32-bit index I, 28-bit type code T
  *    0x_NNNN_NNNN_NNNN_NNN9  - symbol: up to 10 6-bit identifier characters
  *    0x_NNNN_NNNN_NNNN_NNNb  - bitset: up to 60 bits
@@ -49,7 +48,7 @@ typedef string SCSymbol<10>;
 
 enum SCValType
 {
-    SCV_POS_I64 = 0,
+    SCV_U63 = 0,
     SCV_U32 = 1,
     SCV_I32 = 2,
     SCV_STATIC = 3,
@@ -65,7 +64,8 @@ enum SCStatic
 {
     SCS_VOID = 0,
     SCS_TRUE = 1,
-    SCS_FALSE = 2
+    SCS_FALSE = 2,
+    SCS_LEDGER_KEY_CONTRACT_CODE_WASM = 3
 };
 
 enum SCStatusType
@@ -85,8 +85,8 @@ case SST_UNKNOWN_ERROR:
 
 union SCVal switch (SCValType type)
 {
-case SCV_POS_I64:
-    int64 pos_i64;
+case SCV_U63:
+    int64 u63;
 case SCV_U32:
     uint32 u32;
 case SCV_I32:
@@ -108,12 +108,11 @@ enum SCObjectType
     // We have a few objects that represent non-stellar-specific concepts
     // like general-purpose maps, vectors, numbers, blobs.
 
-    SCO_BOX = 0,
-    SCO_VEC = 1,
-    SCO_MAP = 2,
-    SCO_U64 = 3,
-    SCO_I64 = 4,
-    SCO_BINARY = 5
+    SCO_VEC = 0,
+    SCO_MAP = 1,
+    SCO_U64 = 2,
+    SCO_I64 = 3,
+    SCO_BINARY = 4
 
     // TODO: add more
 };
@@ -124,13 +123,13 @@ struct SCMapEntry
     SCVal val;
 };
 
-typedef SCVal SCVec<>;
-typedef SCMapEntry SCMap<>;
+const SCVAL_LIMIT = 256000;
+
+typedef SCVal SCVec<SCVAL_LIMIT>;
+typedef SCMapEntry SCMap<SCVAL_LIMIT>;
 
 union SCObject switch (SCObjectType type)
 {
-case SCO_BOX:
-    SCVal box;
 case SCO_VEC:
     SCVec vec;
 case SCO_MAP:
@@ -140,6 +139,6 @@ case SCO_U64:
 case SCO_I64:
     int64 i64;
 case SCO_BINARY:
-    opaque bin<>;
+    opaque bin<SCVAL_LIMIT>;
 };
 }

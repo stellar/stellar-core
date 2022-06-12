@@ -63,7 +63,11 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 13;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+static unsigned long const SCHEMA_VERSION = 18;
+#else
 static unsigned long const SCHEMA_VERSION = 17;
+#endif
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -225,6 +229,12 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 17:
         mApp.getPersistentState().setRebuildForType(OFFER);
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case 18:
+        mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
+        mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
+        break;
+#endif
     default:
         throw std::runtime_error("Unknown DB schema version");
     }

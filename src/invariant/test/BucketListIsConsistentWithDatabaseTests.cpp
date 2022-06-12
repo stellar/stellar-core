@@ -22,6 +22,7 @@
 #include "util/UnorderedSet.h"
 #include "util/XDROperators.h"
 #include "work/WorkScheduler.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <random>
 #include <vector>
 
@@ -446,6 +447,32 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         entry.data.liquidityPool().liquidityPoolID = lp.liquidityPoolID;
     }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void
+    modifyConfigSettingEntry(LedgerEntry& entry)
+    {
+        ConfigSettingEntry const& cfg = mEntry.data.configSetting();
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
+        entry.data.configSetting() =
+            LedgerTestUtils::generateValidConfigSettingEntry(5);
+
+        entry.data.configSetting().configSettingID = cfg.configSettingID;
+    }
+
+    void
+    modifyContractDataEntry(LedgerEntry& entry)
+    {
+        ContractDataEntry const& cd = mEntry.data.contractData();
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
+        entry.data.contractData() =
+            LedgerTestUtils::generateValidContractDataEntry(5);
+
+        entry.data.contractData().contractID = cd.contractID;
+        entry.data.contractData().key = cd.key;
+    }
+
+#endif
+
   public:
     ApplyBucketsWorkModifyEntry(
         Application& app,
@@ -488,6 +515,14 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 case LIQUIDITY_POOL:
                     modifyLiquidityPoolEntry(entry.current());
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case CONFIG_SETTING:
+                    modifyConfigSettingEntry(entry.current());
+                    break;
+                case CONTRACT_DATA:
+                    modifyContractDataEntry(entry.current());
+                    break;
+#endif
                 default:
                     REQUIRE(false);
                 }

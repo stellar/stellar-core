@@ -69,6 +69,12 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mTrustLinesToDelete;
     std::vector<EntryIterator> mLiquidityPoolToUpsert;
     std::vector<EntryIterator> mLiquidityPoolToDelete;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    std::vector<EntryIterator> mContractDataToUpsert;
+    std::vector<EntryIterator> mContractDataToDelete;
+    std::vector<EntryIterator> mConfigSettingsToUpsert;
+    std::vector<EntryIterator> mConfigSettingsToDelete;
+#endif
 
   public:
     std::vector<EntryIterator>&
@@ -142,6 +148,32 @@ class BulkLedgerEntryChangeAccumulator
     {
         return mLiquidityPoolToDelete;
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    std::vector<EntryIterator>&
+    getConfigSettingsToUpsert()
+    {
+        return mConfigSettingsToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getConfigSettingsToDelete()
+    {
+        return mConfigSettingsToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getContractDataToUpsert()
+    {
+        return mContractDataToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getContractDataToDelete()
+    {
+        return mContractDataToDelete;
+    }
+#endif
 
     void accumulate(EntryIterator const& iter);
 };
@@ -724,6 +756,12 @@ class LedgerTxnRoot::Impl
     loadClaimableBalance(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadLiquidityPool(LedgerKey const& key) const;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    std::shared_ptr<LedgerEntry const>
+    loadContractData(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const>
+    loadConfigSetting(LedgerKey const& key) const;
+#endif
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -745,6 +783,14 @@ class LedgerTxnRoot::Impl
     void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
     void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
                                  LedgerTxnConsistency cons);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void bulkUpsertContractData(std::vector<EntryIterator> const& entries);
+    void bulkDeleteContractData(std::vector<EntryIterator> const& entries,
+                                LedgerTxnConsistency cons);
+    void bulkUpsertConfigSettings(std::vector<EntryIterator> const& entries);
+    void bulkDeleteConfigSettings(std::vector<EntryIterator> const& entries,
+                                  LedgerTxnConsistency cons);
+#endif
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -782,6 +828,12 @@ class LedgerTxnRoot::Impl
     bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadLiquidityPool(UnorderedSet<LedgerKey> const& keys) const;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadContractData(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadConfigSettings(UnorderedSet<LedgerKey> const& keys) const;
+#endif
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
@@ -824,6 +876,10 @@ class LedgerTxnRoot::Impl
     void dropTrustLines();
     void dropClaimableBalances();
     void dropLiquidityPools();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void dropContractData();
+    void dropConfigSettings();
+#endif
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

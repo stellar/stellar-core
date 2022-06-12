@@ -159,6 +159,12 @@ getShortKey(LedgerKey const& key)
         return getShortKey(key.claimableBalance().balanceID);
     case LIQUIDITY_POOL:
         return getShortKey(key.liquidityPool().liquidityPoolID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_SETTING:
+        return static_cast<uint8_t>(key.configSetting().configSettingID);
+    case CONTRACT_DATA:
+        return key.contractData().contractID.at(0);
+#endif
     }
     throw std::runtime_error("Unknown key type");
 }
@@ -236,7 +242,7 @@ generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
     // Generate unvalidated ledger entry keys.
     std::generate(firstUnvalidatedLedgerKey, end, []() {
         size_t const entrySize = 3;
-        return autocheck::generator<LedgerKey>()(entrySize);
+        return LedgerTestUtils::generateLedgerKey(entrySize);
     });
 }
 

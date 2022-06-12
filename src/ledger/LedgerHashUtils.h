@@ -7,6 +7,7 @@
 #include "crypto/ShortHash.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "util/HashOfHash.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 
@@ -140,6 +141,18 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(res, std::hash<stellar::uint256>()(
                                       lk.liquidityPool().liquidityPoolID));
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case stellar::CONTRACT_DATA:
+            stellar::hashMix(res, std::hash<stellar::uint256>()(
+                                      lk.contractData().contractID));
+            stellar::hashMix(
+                res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
+            break;
+        case stellar::CONFIG_SETTING:
+            stellar::hashMix(
+                res, std::hash<int32_t>()(lk.configSetting().configSettingID));
+            break;
+#endif
         default:
             abort();
         }

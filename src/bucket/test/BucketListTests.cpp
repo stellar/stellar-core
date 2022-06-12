@@ -140,7 +140,6 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
         for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
             BucketList bl;
-            autocheck::generator<std::vector<LedgerKey>> deadGen;
             CLOG_DEBUG(Bucket, "Adding batches to bucket list");
             for (uint32_t i = 1;
                  !app->getClock().getIOContext().stopped() && i < 130; ++i)
@@ -148,7 +147,7 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                 app->getClock().crank(false);
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {},
                             LedgerTestUtils::generateValidLedgerEntries(8),
-                            deadGen(5));
+                            LedgerTestUtils::generateLedgerKeys(5));
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
@@ -184,7 +183,6 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
         auto alice = LedgerTestUtils::generateValidAccountEntry(5);
         auto bob = LedgerTestUtils::generateValidAccountEntry(5);
 
-        autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG_DEBUG(Bucket, "Adding batches to bucket list");
 
         uint32_t const totalNumEntries = 1200;
@@ -209,7 +207,7 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
             liveBatch.push_back(BucketEntryBob.liveEntry());
 
             bl.addBatch(*app, i, getAppLedgerVersion(app), {}, liveBatch,
-                        deadGen(5));
+                        LedgerTestUtils::generateLedgerKeys(5));
             if (i % 100 == 0)
             {
                 CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
@@ -276,22 +274,23 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
         Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl;
         BucketManager& bm = app->getBucketManager();
-        autocheck::generator<std::vector<LedgerKey>> deadGen;
         auto& mergeTimer = bm.getMergeTimer();
         CLOG_INFO(Bucket, "Establishing random bucketlist");
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
-            level.setCurr(Bucket::fresh(
-                bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true));
-            level.setSnap(Bucket::fresh(
-                bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true, clock.getIOContext(),
-                /*doFsync=*/true));
+            level.setCurr(
+                Bucket::fresh(bm, getAppLedgerVersion(app), {},
+                              LedgerTestUtils::generateValidLedgerEntries(8),
+                              LedgerTestUtils::generateLedgerKeys(8),
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true));
+            level.setSnap(
+                Bucket::fresh(bm, getAppLedgerVersion(app), {},
+                              LedgerTestUtils::generateValidLedgerEntries(8),
+                              LedgerTestUtils::generateLedgerKeys(8),
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true));
         }
 
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -303,7 +302,7 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                 auto n = mergeTimer.count();
                 bl.addBatch(*app, j, getAppLedgerVersion(app), {},
                             LedgerTestUtils::generateValidLedgerEntries(8),
-                            deadGen(8));
+                            LedgerTestUtils::generateLedgerKeys(8));
                 app->getClock().crank(false);
                 for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
                 {
