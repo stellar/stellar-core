@@ -9,11 +9,11 @@ use std::io::Cursor;
 use im_rc::OrdMap;
 use std::error::Error;
 use stellar_contract_env_host::{
-    storage::{self, AccessType, Key, Storage},
+    storage::{self, AccessType, Storage},
     xdr,
     xdr::{
-        ContractDataEntry, LedgerEntry, LedgerEntryData, LedgerKey, ReadXdr, ScVal, ScVec,
-        WriteXdr,
+        LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
+        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScVec, WriteXdr,
     },
     Host, HostError,
 };
@@ -21,19 +21,17 @@ use stellar_contract_env_host::{
 /// Helper for [`build_storage_footprint_from_xdr`] that inserts a copy of some
 /// [`AccessType`] `ty` into a [`storage::Footprint`] for every [`LedgerKey`] in
 /// `keys`.
-fn populate_access_map_with_contract_data_keys(
-    access: &mut OrdMap<Key, AccessType>,
+fn populate_access_map(
+    access: &mut OrdMap<LedgerKey, AccessType>,
     keys: Vec<LedgerKey>,
     ty: AccessType,
 ) -> Result<(), HostError> {
     for lk in keys {
         match lk {
-            LedgerKey::ContractData(xdr::LedgerKeyContractData { contract_id, key }) => {
-                let sk = Key { contract_id, key };
-                access.insert(sk, ty.clone());
-            }
-            _ => return Err(HostError::General("unexpected ledger key type").into()),
-        }
+            LedgerKey::Account(_) | LedgerKey::Trustline(_) | LedgerKey::ContractData(_) => (),
+            _ => return Err(HostError::General("unexpected ledger entry type")),
+        };
+        access.insert(lk, ty.clone());
     }
     Ok(())
 }
@@ -48,17 +46,26 @@ fn build_storage_footprint_from_xdr(footprint: &XDRBuf) -> Result<storage::Footp
     } = xdr::LedgerFootprint::read_xdr(&mut Cursor::new(footprint.data.as_slice()))?;
     let mut access = OrdMap::new();
 
-    populate_access_map_with_contract_data_keys(
-        &mut access,
-        read_only.to_vec(),
-        AccessType::ReadOnly,
-    )?;
-    populate_access_map_with_contract_data_keys(
-        &mut access,
-        read_write.to_vec(),
-        AccessType::ReadWrite,
-    )?;
+    populate_access_map(&mut access, read_only.to_vec(), AccessType::ReadOnly)?;
+    populate_access_map(&mut access, read_write.to_vec(), AccessType::ReadWrite)?;
     Ok(storage::Footprint(access))
+}
+
+fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, HostError> {
+    match &le.data {
+        LedgerEntryData::Account(a) => Ok(LedgerKey::Account(LedgerKeyAccount {
+            account_id: a.account_id.clone(),
+        })),
+        LedgerEntryData::Trustline(tl) => Ok(LedgerKey::Trustline(LedgerKeyTrustLine {
+            account_id: tl.account_id.clone(),
+            asset: tl.asset.clone(),
+        })),
+        LedgerEntryData::ContractData(cd) => Ok(LedgerKey::ContractData(LedgerKeyContractData {
+            contract_id: cd.contract_id.clone(),
+            key: cd.key.clone(),
+        })),
+        _ => Err(HostError::General("unexpected ledger key")),
+    }
 }
 
 /// Deserializes a sequence of [`xdr::LedgerEntry`] structures from a vector of
@@ -68,24 +75,15 @@ fn build_storage_footprint_from_xdr(footprint: &XDRBuf) -> Result<storage::Footp
 fn build_storage_map_from_xdr_ledger_entries(
     footprint: &storage::Footprint,
     ledger_entries: &Vec<XDRBuf>,
-) -> Result<OrdMap<Key, Option<ScVal>>, HostError> {
+) -> Result<OrdMap<LedgerKey, Option<LedgerEntry>>, HostError> {
     let mut map = OrdMap::new();
     for buf in ledger_entries {
         let le = LedgerEntry::read_xdr(&mut Cursor::new(buf.data.as_slice()))?;
-        match le.data {
-            LedgerEntryData::ContractData(ContractDataEntry {
-                key,
-                val,
-                contract_id,
-            }) => {
-                let sk = Key { contract_id, key };
-                if !footprint.0.contains_key(&sk) {
-                    return Err(HostError::General("ledger entry not found in footprint").into());
-                }
-                map.insert(sk.clone(), Some(val));
-            }
-            _ => return Err(HostError::General("unexpected ledger entry type").into()),
+        let key = ledger_entry_to_ledger_key(&le)?;
+        if !footprint.0.contains_key(&key) {
+            return Err(HostError::General("ledger entry not found in footprint").into());
         }
+        map.insert(key, Some(le));
     }
     for k in footprint.0.keys() {
         if !map.contains_key(k) {
