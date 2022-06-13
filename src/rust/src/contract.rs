@@ -87,7 +87,7 @@ fn build_storage_map_from_xdr_ledger_entries(
     }
     for k in footprint.0.keys() {
         if !map.contains_key(k) {
-            return Err(HostError::General("ledger entry not found for footprint entry").into());
+            map.insert(k.clone(), None);
         }
     }
     Ok(map)
