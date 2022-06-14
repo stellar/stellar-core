@@ -2,7 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-use crate::{log::partition::TX, rust_bridge::XDRBuf};
+use crate::{
+    log::partition::TX,
+    rust_bridge::{Bytes, XDRBuf},
+};
 use log::info;
 use std::io::Cursor;
 
@@ -91,4 +94,27 @@ fn build_storage_map_from_xdr_ledger_entries(
         }
     }
     Ok(map)
+}
+
+/// Iterates over the storage map and serializes the read-write ledger entries
+/// back to XDR.
+fn build_xdr_ledger_entries_from_storage_map(
+    footprint: &storage::Footprint,
+    storage_map: &OrdMap<LedgerKey, Option<LedgerEntry>>,
+) -> Result<Vec<Bytes>, HostError> {
+    let mut res = Vec::new();
+    for (lk, ole) in storage_map {
+        let mut xdr_buf: Vec<u8> = Vec::new();
+        match footprint.0.get(lk) {
+            Some(AccessType::ReadOnly) => (),
+            Some(AccessType::ReadWrite) => {
+                if let Some(le) = ole {
+                    le.write_xdr(&mut Cursor::new(&mut xdr_buf))?;
+                    res.push(Bytes { vec: xdr_buf });
+                }
+            }
+            None => return Err(HostError::General("ledger entry not in footprint")),
+        }
+    }
+    Ok(res)
 }

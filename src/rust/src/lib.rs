@@ -17,6 +17,10 @@ mod rust_bridge {
         data: UniquePtr<CxxVector<u8>>,
     }
 
+    struct Bytes {
+        vec: Vec<u8>,
+    }
+
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
