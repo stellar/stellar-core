@@ -12,6 +12,6 @@ log = "0.4.17"
 cxx = "1.0"
 im-rc = "15.0.0"
 base64 = "0.13.0"
-stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "52c55339c72ebe36863fbe249caa427f49d5513c", features = [
+stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "9a783c26cbc022e0351538a3e9582a58510bc694", features = [
     "vm",
 ] }
