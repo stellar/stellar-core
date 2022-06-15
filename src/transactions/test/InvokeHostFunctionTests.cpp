@@ -138,16 +138,12 @@ TEST_CASE("invoke host function", "[tx][contract]")
             deployContract(*app, addI32Wasm.begin(), addI32Wasm.end());
         auto const& contractID = contract.contractData().contractID;
 
-        {
+        auto call = [&](SCVec const& parameters, bool success) {
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
             ihf.function = HOST_FN_CALL;
-            ihf.parameters.emplace_back(
-                makeBinary(contractID.begin(), contractID.end()));
-            ihf.parameters.emplace_back(makeSymbol("add"));
-            ihf.parameters.emplace_back(makeI32(7));
-            ihf.parameters.emplace_back(makeI32(16));
+            ihf.parameters = parameters;
             ihf.footprint.readOnly = {contract};
 
             auto tx =
@@ -155,9 +151,35 @@ TEST_CASE("invoke host function", "[tx][contract]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
+            if (success)
+            {
+                REQUIRE(tx->apply(*app, ltx, txm));
+            }
+            else
+            {
+                REQUIRE(!tx->apply(*app, ltx, txm));
+            }
             ltx.commit();
-        }
+        };
+
+        auto scContractID = makeBinary(contractID.begin(), contractID.end());
+        auto scFunc = makeSymbol("add");
+        auto sc7 = makeI32(7);
+        auto sc16 = makeI32(16);
+
+        // Too few parameters for call
+        call({}, false);
+        call({scContractID}, false);
+
+        // To few parameters for "add"
+        call({scContractID, scFunc}, false);
+        call({scContractID, scFunc, sc7}, false);
+
+        // Correct function call
+        call({scContractID, scFunc, sc7, sc16}, true);
+
+        // Too many parameters for "add"
+        call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
     }
 
     SECTION("contract data")
