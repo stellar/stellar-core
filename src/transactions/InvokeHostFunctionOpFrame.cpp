@@ -32,6 +32,12 @@ InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
 {
 }
 
+ThresholdLevel
+InvokeHostFunctionOpFrame::getThresholdLevel() const
+{
+    return ThresholdLevel::LOW;
+}
+
 bool
 InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 {
