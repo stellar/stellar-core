@@ -165,6 +165,7 @@ class Logging
     static bool mColor;
     static std::string mLastPattern;
     static std::string mLastFilenamePattern;
+    static bool mLogToConsole;
 #define LOG_PARTITION(name) static LogPtr name##LogPtr;
 #include "util/LogPartitions.def"
 #undef LOG_PARTITION
@@ -175,6 +176,7 @@ class Logging
     static void deinit();
     static void setFmt(std::string const& peerID, bool timestamps = true);
     static void setLoggingToFile(std::string const& filename);
+    static void setLoggingToConsole(bool console);
     static void setLoggingColor(bool color);
     static void setLogLevel(LogLevel level, const char* partition);
     static LogLevel getLLfromString(std::string const& levelName);
