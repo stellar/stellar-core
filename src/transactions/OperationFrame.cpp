@@ -15,6 +15,7 @@
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/LiquidityPoolDepositOpFrame.h"
 #include "transactions/LiquidityPoolWithdrawOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
@@ -113,6 +114,10 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     case LIQUIDITY_POOL_WITHDRAW:
         return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case INVOKE_HOST_FUNCTION:
+        return std::make_shared<InvokeHostFunctionOpFrame>(op, res, tx);
+#endif
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

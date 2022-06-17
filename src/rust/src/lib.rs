@@ -17,6 +17,10 @@ mod rust_bridge {
         data: UniquePtr<CxxVector<u8>>,
     }
 
+    struct Bytes {
+        vec: Vec<u8>,
+    }
+
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
@@ -35,13 +39,12 @@ mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
-        fn invoke_contract(
-            contract_id: &XDRBuf,
-            func: &CxxString,
+        fn invoke_host_function(
+            hf_buf: &XDRBuf,
             args: &XDRBuf,
             footprint: &XDRBuf,
             ledger_entries: &Vec<XDRBuf>,
-        ) -> Result<Vec<u8>>;
+        ) -> Result<Vec<Bytes>>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
     }
 
@@ -64,7 +67,7 @@ mod b64;
 use b64::{from_base64, to_base64};
 
 mod contract;
-use contract::invoke_contract;
+use contract::invoke_host_function;
 
 mod log;
 use crate::log::init_logging;
