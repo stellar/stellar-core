@@ -104,3 +104,6 @@ min-testcases/
 *.vcxproj.user
 **/.vs/*
 
+/src/util/xdrquery/XDRQueryScanner.cpp
+/src/util/xdrquery/XDRQueryParser.h
+/src/util/xdrquery/XDRQueryParser.cpp

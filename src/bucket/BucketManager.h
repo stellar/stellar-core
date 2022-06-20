@@ -10,6 +10,7 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 #include "medida/timer_context.h"
@@ -229,6 +230,28 @@ class BucketManager : NonMovableOrCopyable
     // consisting of only live entries, and return it.
     virtual std::shared_ptr<Bucket>
     mergeBuckets(HistoryArchiveState const& has) = 0;
+
+    // Visits all the active ledger entries or subset thereof.
+    //
+    // The order in which the entries are visited is not defined, but roughly
+    // goes from more fresh entries to the older ones.
+    //
+    // This accepts two visitors. `filterEntry` has to return `true`
+    // if the ledger entry can *potentially* be accepted. The passed entry isn't
+    // necessarily fresh or even alive. `acceptEntry` will only get the fresh
+    // alive entries that have passed the filter. If it returns `false` the
+    // iteration will immediately finish.
+    //
+    // When `minLedger` is specified, only entries that have been modified at
+    // `minLedger` or later are visited.
+    //
+    // When `filterEntry` and `acceptEntry` always return `true`, this is
+    // equivalent to iterating over `loadCompleteLedgerState`, so the same
+    // memory/runtime implications apply.
+    virtual void visitLedgerEntries(
+        HistoryArchiveState const& has, std::optional<int64_t> minLedger,
+        std::function<bool(LedgerEntry const&)> const& filterEntry,
+        std::function<bool(LedgerEntry const&)> const& acceptEntry) = 0;
 
     // Schedule a Work class that verifies the hashes of all referenced buckets
     // on background threads.

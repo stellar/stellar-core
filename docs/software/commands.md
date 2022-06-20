@@ -34,7 +34,33 @@ Command options can only by placed after command.
   private key. For example:
 
 `$ stellar-core convert-id SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
-
+* **dump-ledger**: Dumps the current ledger state from bucket files into
+    JSON **--output-file** with optional filtering. **--last-ledgers** option
+    allows to only dump the ledger entries that were last modified within that
+    many ledgers. **--limit** option limits the output to that many arbitrary
+    records. **--filter-query** allows to specify a filtering expression over
+    `LedgerEntry` XDR. Expression should evaluate to boolean and consist of
+    field paths, comparisons, literals, boolean operators (`&&`, ` ||`) and
+    parentheses. The field values are consistent with `print-xdr` JSON
+    representation: enums are represented as their name strings, account ids as
+    encoded strings, hashes as hex strings etc. Filtering is useful to minimize
+    the output JSON size and then optionally process it further with tools like
+    `jq`. Query examples:
+    
+    * `data.type == 'OFFER'` - dump only offers
+    * `data.account.accountID == 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' || 
+       data.trustLine.accountID == "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"`
+       - dump only account and trustline entries for the specified account.
+    * `data.account.inflationDest != NULL` - dump accounts that have an optional
+      `inflationDest` field set.
+    * `data.offer.selling.assetCode == 'FOOBAR' &&
+       data.offer.selling.issuer == 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'` -
+       dump offers that are selling the specified asset.
+    * `data.trustLine.ext.v1.liabilities.buying < data.trustLine.ext.v1.liabilities.selling` -
+      dump trustlines that have buying liabilites less than selling liabilites
+    * `(data.account.balance < 100000000 || data.account.balance >= 2000000000) 
+       && data.account.numSubEntries > 2` - dump accounts with certain balance 
+       and sub entries count, demonstrates more complex expression
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
 * **encode-asset --code <CODE> --issuer <ISSUER>**: Prints a base-64 encoded asset.
   Prints the native asset if neither `code` nor `issuer` is given.

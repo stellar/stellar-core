@@ -130,7 +130,7 @@
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -188,7 +188,7 @@ exit /b 0
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -247,7 +247,7 @@ exit /b 0
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -305,7 +305,7 @@ exit /b 0
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
@@ -363,7 +363,7 @@ exit /b 0
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/bigobj /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
@@ -543,6 +543,11 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\util\XDRCereal.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\tests\XDRQueryTests.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryParser.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQueryScanner.cpp" />
     <ClCompile Include="..\..\src\work\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
@@ -939,6 +944,11 @@ exit /b 0
     <ClInclude Include="..\..\src\util\UnorderedSet.h" />
     <ClInclude Include="..\..\src\util\XDRCereal.h" />
     <ClInclude Include="..\..\src\util\XDROperators.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRMatcher.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRFieldResolver.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryEval.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryError.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQueryParser.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
@@ -1444,6 +1454,20 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\ci-build.sh" />
     <None Include="..\..\src\util\LogPartitions.def" />
+    <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryParser.yy">
+      <FileType>Document</FileType>
+      <Command>bison --defines=../../src/util/xdrquery/XDRQueryParser.h  --output=../../src/util/xdrquery/XDRQueryParser.cpp ../../src/util/xdrquery/XDRQueryParser.yy</Command>
+      <Message>running bison for XDRQueryParser.yy</Message>
+      <Outputs>../../src/util/xdrquery/XDRQueryParser.h</Outputs>
+      <BuildInParallel>true</BuildInParallel>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryScanner.ll">
+      <FileType>Document</FileType>
+      <Command>flex --outfile=../../src/util/xdrquery/XDRQueryScanner.cpp ../../src/util/xdrquery/XDRQueryScanner.ll</Command>
+      <Message>running flex for XDRQueryScanner.ll</Message>
+      <Outputs>../../src/util/xdrquery/XDRQueryScanner.cpp</Outputs>
+      <BuildInParallel>true</BuildInParallel>
+    </CustomBuild>
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
