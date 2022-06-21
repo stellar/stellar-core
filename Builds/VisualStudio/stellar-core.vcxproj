@@ -543,7 +543,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\util\XDRCereal.cpp" />
-    <ClCompile Include="..\..\src\util\xdrquery\tests\XDRQueryTests.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\test\XDRQueryTests.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryParser.cpp" />
