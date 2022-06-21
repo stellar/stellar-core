@@ -829,6 +829,7 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
     <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp" />
+    <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\catch.hpp" />
@@ -1418,6 +1419,19 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
+    <CustomBuild Include="..\..\hash-xdrs.sh">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message>running hash-xdrs.sh</Message>
+      <Outputs>src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType>ClCompile</OutputItemType>
+    </CustomBuild>
+
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
