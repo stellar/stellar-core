@@ -21,6 +21,12 @@ mod rust_bridge {
         vec: Vec<u8>,
     }
 
+    // We return these from get_xdr_hashes below.
+    struct XDRFileHash {
+        file: String,
+        hash: String,
+    }
+
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
@@ -39,6 +45,7 @@ mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+        fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
             hf_buf: &XDRBuf,
             args: &XDRBuf,
@@ -91,6 +98,7 @@ use b64::{from_base64, to_base64};
 mod contract;
 use contract::invoke_host_function;
 use contract::preflight_host_function;
+use contract::get_xdr_hashes;
 
 mod log;
 use crate::log::init_logging;

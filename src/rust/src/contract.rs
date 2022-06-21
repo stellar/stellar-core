@@ -4,7 +4,7 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{Bytes, PreflightCallbacks, XDRBuf},
+    rust_bridge::{Bytes, PreflightCallbacks, XDRBuf, XDRFileHash},
 };
 use cxx::{CxxVector, UniquePtr};
 use log::info;
@@ -17,7 +17,7 @@ use soroban_env_host::{
     xdr::{
         HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
         LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode,
-        ScUnknownErrorCode, ScVec, WriteXdr,
+        ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256
     },
     Host, HostError,
 };
@@ -67,6 +67,20 @@ fn xdr_to_bytes<T: WriteXdr>(t: &T) -> Result<Bytes, HostError> {
 
 fn xdr_from_xdrbuf<T: ReadXdr>(buf: &XDRBuf) -> Result<T, HostError> {
     xdr_from_slice(buf.data.as_slice())
+}
+
+/// Returns a vec of [`XDRFileHash`] structs each representing one .x file
+/// that served as input to xdrgen, which created the XDR definitions used in
+/// the Rust crates visible here. This allows the C++ side of the bridge
+/// to confirm that the same definitions are compiled into the C++ code.
+pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
+    XDR_FILES_SHA256
+        .iter()
+        .map(|(file, hash)| XDRFileHash {
+            file: (*file).into(),
+            hash: (*hash).into(),
+        })
+        .collect()
 }
 
 /// Helper for [`build_storage_footprint_from_xdr`] that inserts a copy of some
