@@ -35,17 +35,17 @@ SUFFIXES = .x .h .rs
 BISON=bison
 FLEX=flex
 
-$(srcdir)/util/xdrquery/XDRQueryScanner.cpp: $(srcdir)/util/xdrquery/XDRQueryScanner.ll
+util/xdrquery/XDRQueryScanner.cpp: util/xdrquery/XDRQueryScanner.ll
 	$(FLEX) --outfile=$@ $<
 
-$(srcdir)/util/xdrquery/XDRQueryParser.cpp: $(srcdir)/util/xdrquery/XDRQueryParser.yy
-	$(BISON) --defines=$(srcdir)/util/xdrquery/XDRQueryParser.h  --output=$@ $<
+util/xdrquery/XDRQueryParser.cpp: util/xdrquery/XDRQueryParser.yy
+	$(BISON) --defines=util/xdrquery/XDRQueryParser.h  --output=$@ $<
 
-$(srcdir)/util/xdrquery/XDRQueryParser.h: $(srcdir)/util/xdrquery/XDRQueryParser.cpp
+util/xdrquery/XDRQueryParser.h: util/xdrquery/XDRQueryParser.cpp
 	touch $@
 
-BUILT_SOURCES += $(srcdir)/util/xdrquery/XDRQueryScanner.cpp $(srcdir)/util/xdrquery/XDRQueryParser.h $(srcdir)/util/xdrquery/XDRQueryParser.cpp
-stellar_core_SOURCES += $(srcdir)/util/xdrquery/XDRQueryScanner.cpp $(srcdir)/util/xdrquery/XDRQueryParser.h $(srcdir)/util/xdrquery/XDRQueryParser.cpp
+BUILT_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
+stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
 
 # Old automakes have buggy dependency tracking for conditional generated
 # sources. We work around this here by making rust/RustBridge.{cpp,h} generated
