@@ -503,6 +503,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\ClawbackOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ClawbackClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\FeeBumpTransactionFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\InvokeHostFunctionOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp" />
@@ -533,7 +534,6 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
-    <ClCompile Include="..\..\src\transactions\contracts\ContractUtils.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
@@ -543,7 +543,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\util\XDRCereal.cpp" />
-    <ClCompile Include="..\..\src\util\xdrquery\tests\XDRQueryTests.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\test\XDRQueryTests.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryParser.cpp" />
@@ -912,6 +912,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\ClawbackOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ClawbackClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\FeeBumpTransactionFrame.h" />
+    <ClInclude Include="..\..\src\transactions\InvokeHostFunctionOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h" />
@@ -933,7 +934,6 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
-    <ClInclude Include="..\..\src\transactions\contracts\ContractUtils.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
     <ClInclude Include="..\..\src\util\ProtocolVersion.h" />

@@ -55,6 +55,8 @@ NULL  { return xdrquery::XDRQueryParser::make_NULL(); }
 
 {WHITESPACE}+ /* discard */;
 
+<<EOF>> { return xdrquery::XDRQueryParser::make_END(); }
+
 .     { throw xdrquery::XDRQueryParser::syntax_error("Unexpected character: " + std::string(yytext)); }
 
 %%

@@ -41,7 +41,7 @@ class XDRMatcher
     bool matchInternal(FieldResolver const& fieldResolver);
 
     std::string const mQuery;
-    std::unique_ptr<BoolEvalNode> mEvalRoot;
+    std::shared_ptr<BoolEvalNode> mEvalRoot;
     bool mFirstMatch = true;
 };
 } // namespace xdrquery

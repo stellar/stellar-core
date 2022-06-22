@@ -159,8 +159,8 @@ BoolEvalNode::eval(FieldResolver const& fieldResolver) const
 }
 
 BoolOpNode::BoolOpNode(BoolOpNodeType nodeType,
-                       std::unique_ptr<BoolEvalNode> left,
-                       std::unique_ptr<BoolEvalNode> right)
+                       std::shared_ptr<BoolEvalNode> left,
+                       std::shared_ptr<BoolEvalNode> right)
     : mType(nodeType), mLeft(std::move(left)), mRight(std::move(right))
 {
 }
@@ -186,8 +186,8 @@ BoolOpNode::getType() const
 }
 
 ComparisonNode::ComparisonNode(ComparisonNodeType nodeType,
-                               std::unique_ptr<EvalNode> left,
-                               std::unique_ptr<EvalNode> right)
+                               std::shared_ptr<EvalNode> left,
+                               std::shared_ptr<EvalNode> right)
     : mType(nodeType), mLeft(std::move(left)), mRight(std::move(right))
 {
     // Keep the field as the left argument for simplicity of type check during
