@@ -117,8 +117,8 @@ enum class BoolOpNodeType
 // Node for binary bool operations.
 struct BoolOpNode : public BoolEvalNode
 {
-    BoolOpNode(BoolOpNodeType nodeType, std::unique_ptr<BoolEvalNode> left,
-               std::unique_ptr<BoolEvalNode> right);
+    BoolOpNode(BoolOpNodeType nodeType, std::shared_ptr<BoolEvalNode> left,
+               std::shared_ptr<BoolEvalNode> right);
 
     bool evalBool(FieldResolver const& fieldResolver) const override;
 
@@ -126,8 +126,8 @@ struct BoolOpNode : public BoolEvalNode
 
   private:
     BoolOpNodeType mType;
-    std::unique_ptr<BoolEvalNode> mLeft;
-    std::unique_ptr<BoolEvalNode> mRight;
+    std::shared_ptr<BoolEvalNode> mLeft;
+    std::shared_ptr<BoolEvalNode> mRight;
 };
 
 enum class ComparisonNodeType
@@ -143,8 +143,8 @@ enum class ComparisonNodeType
 // Node for comparing arbitrary values. Values have to have the same type.
 struct ComparisonNode : public BoolEvalNode
 {
-    ComparisonNode(ComparisonNodeType nodeType, std::unique_ptr<EvalNode> left,
-                   std::unique_ptr<EvalNode> right);
+    ComparisonNode(ComparisonNodeType nodeType, std::shared_ptr<EvalNode> left,
+                   std::shared_ptr<EvalNode> right);
 
     bool evalBool(FieldResolver const& fieldResolver) const override;
 
@@ -154,7 +154,7 @@ struct ComparisonNode : public BoolEvalNode
     bool compareNullFields(bool leftIsNull, bool rightIsNull) const;
 
     ComparisonNodeType mType;
-    std::unique_ptr<EvalNode> mLeft;
-    std::unique_ptr<EvalNode> mRight;
+    std::shared_ptr<EvalNode> mLeft;
+    std::shared_ptr<EvalNode> mRight;
 };
 } // namespace xdrquery
