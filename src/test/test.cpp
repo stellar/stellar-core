@@ -428,6 +428,14 @@ runTest(CommandLineArgs const& args)
     LOG_INFO(DEFAULT_LOG, "Logging to {}", logFile);
 
     auto r = session.run();
+    // In the 'list' modes Catch returns the number of tests listed. We don't
+    // want to treat this value as and error code.
+    if (session.configData().listTests ||
+        session.configData().listTestNamesOnly ||
+        session.configData().listTags || session.configData().listReporters)
+    {
+        r = 0;
+    }
     gTestRoots.clear();
     clearConfigs();
 
