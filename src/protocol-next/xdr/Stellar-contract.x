@@ -112,7 +112,10 @@ enum SCObjectType
     SCO_MAP = 1,
     SCO_U64 = 2,
     SCO_I64 = 3,
-    SCO_BINARY = 4
+    SCO_BINARY = 4,
+    SCO_BIG_INT = 5,
+    SCO_HASH = 6,
+    SCO_PUBLIC_KEY = 7
 
     // TODO: add more
 };
@@ -128,6 +131,33 @@ const SCVAL_LIMIT = 256000;
 typedef SCVal SCVec<SCVAL_LIMIT>;
 typedef SCMapEntry SCMap<SCVAL_LIMIT>;
 
+enum SCNumSign
+{
+    NEGATIVE = -1,
+    ZERO = 0,
+    POSITIVE = 1
+};
+
+union SCBigInt switch (SCNumSign sign)
+{
+case ZERO:
+    void;
+case POSITIVE:
+case NEGATIVE:
+    opaque magnitude<256000>;
+};
+
+enum SCHashType
+{
+    SCHASH_SHA256 = 0
+};
+
+union SCHash switch (SCHashType type)
+{
+case SCHASH_SHA256:
+    Hash sha256;
+};
+
 union SCObject switch (SCObjectType type)
 {
 case SCO_VEC:
@@ -140,5 +170,11 @@ case SCO_I64:
     int64 i64;
 case SCO_BINARY:
     opaque bin<SCVAL_LIMIT>;
+case SCO_BIG_INT:
+    SCBigInt bi;
+case SCO_HASH:
+    SCHash hash;
+case SCO_PUBLIC_KEY:
+    PublicKey publicKey;    
 };
 }
