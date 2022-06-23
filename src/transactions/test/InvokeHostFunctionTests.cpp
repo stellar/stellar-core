@@ -13,6 +13,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -125,31 +126,74 @@ makeSymbol(std::string const& str)
     return val;
 }
 
-template <typename T>
 static LedgerKey
-deployContract(AbstractLedgerTxn& ltx, T begin, T end)
+deployContract(Application& app, std::vector<uint8_t> const& contract,
+               uint256 const& salt, SecretKey const& key)
 {
+    // create signature
+    auto const& separator = "create_contract(nonce: u256, contract: Vec<u8>, "
+                            "salt: u256, key: u256, sig: Vec<u8>)";
+    SHA256 hasher;
+    hasher.add(separator);
+    hasher.add(salt);
+    hasher.add(contract);
+
+    auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+
+    // get contract id
+    auto const& pub = key.getPublicKey();
+
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519);
+    preImage.contractID().ed25519 = pub.ed25519();
+    preImage.contractID().salt = salt;
+    auto contractID = xdrSha256(preImage);
+
+    // Create operation
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp();
+    ihf.function = HOST_FN_CREATE_CONTRACT;
+
+    auto contractBin = makeBinary(contract.begin(), contract.end());
+    ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end()),
+                      makeBinary(pub.ed25519().begin(), pub.ed25519().end()),
+                      makeBinary(sig.begin(), sig.end())};
+
     SCVal wasmKey(SCValType::SCV_STATIC);
     wasmKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE_WASM;
 
-    LedgerEntry le;
-    le.data.type(CONTRACT_DATA);
-    le.data.contractData().contractID = HashUtils::pseudoRandomForTesting();
-    le.data.contractData().key = wasmKey;
-    le.data.contractData().val = makeBinary(begin, end);
+    LedgerKey lk;
+    lk.type(CONTRACT_DATA);
+    lk.contractData().contractID = contractID;
+    lk.contractData().key = wasmKey;
 
-    ltx.create(le);
-    return LedgerEntryKey(le);
+    ihf.footprint.readWrite = {lk};
+
+    // submit operation
+    auto root = TestAccount::createRoot(app);
+    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    TransactionMeta txm(2);
+    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(tx->apply(app, ltx, txm));
+    ltx.commit();
+
+    // verify contract code is correct
+    LedgerTxn ltx2(app.getLedgerTxnRoot());
+    auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
+    REQUIRE(ltxe2);
+    REQUIRE(ltxe2.current().data.contractData().val == contractBin);
+
+    return lk;
 }
 
-template <typename T>
 static LedgerKey
-deployContract(Application& app, T begin, T end)
+deployContract(Application& app, std::vector<uint8_t> const& contract)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto contract = deployContract(ltx, begin, end);
-    ltx.commit();
-    return contract;
+    uint256 salt = sha256("salt");
+    auto key = SecretKey::fromSeed(sha256("a1"));
+    return deployContract(app, contract, salt, key);
 }
 
 TEST_CASE("invoke host function", "[tx][contract]")
@@ -160,8 +204,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
 
     SECTION("add i32")
     {
-        auto contract =
-            deployContract(*app, addI32Wasm.begin(), addI32Wasm.end());
+        auto contract = deployContract(*app, addI32Wasm);
         auto const& contractID = contract.contractData().contractID;
 
         auto call = [&](SCVec const& parameters, bool success) {
@@ -210,8 +253,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
 
     SECTION("contract data")
     {
-        auto contract = deployContract(*app, contractDataWasm.begin(),
-                                       contractDataWasm.end());
+        auto contract = deployContract(*app, contractDataWasm);
         auto const& contractID = contract.contractData().contractID;
 
         auto checkContractData = [&](SCVal const& key, SCVal const* val) {
