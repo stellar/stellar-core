@@ -171,7 +171,7 @@ case SCO_I64:
 case SCO_BINARY:
     opaque bin<SCVAL_LIMIT>;
 case SCO_BIG_INT:
-    SCBigInt bi;
+    SCBigInt bigInt;
 case SCO_HASH:
     SCHash hash;
 case SCO_PUBLIC_KEY:
