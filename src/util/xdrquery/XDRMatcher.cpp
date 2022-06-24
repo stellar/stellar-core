@@ -4,29 +4,30 @@
 
 #include "util/xdrquery/XDRMatcher.h"
 
-#include "util/xdrquery/XDRQueryParser.h"
-
-#include <sstream>
-#include <stack>
-#include <unordered_map>
-
 namespace xdrquery
 {
 XDRMatcher::XDRMatcher(std::string const& query) : mQuery(query)
 {
 }
 
-bool
-XDRMatcher::matchInternal(FieldResolver const& fieldResolver)
+XDRFieldExtractor::XDRFieldExtractor(std::string const& query) : mQuery(query)
 {
-    // Lazily parse the query in order to simplify exception handling as we
-    // might throw XDRQueryError both during query parsing and query execution
-    // against XDR.
-    if (mEvalRoot == nullptr)
-    {
-        mEvalRoot = parseXDRQuery(mQuery);
-    }
-    return mEvalRoot->evalBool(fieldResolver);
+}
+
+std::vector<std::string>
+XDRFieldExtractor::getFieldNames() const
+{
+    return mFieldList->getFieldNames();
+}
+
+XDRAccumulator::XDRAccumulator(std::string const& query) : mQuery(query)
+{
+}
+
+std::vector<std::shared_ptr<Accumulator>> const&
+XDRAccumulator::getAccumulators() const
+{
+    return mAccumulatorList->getAccumulators();
 }
 
 } // namespace xdrquery

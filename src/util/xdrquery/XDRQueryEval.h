@@ -16,7 +16,7 @@
 // and XDR fields.
 namespace xdrquery
 {
-// This type represents an optional XDR fields that is not set.
+// This type represents an optional XDR field that is not set.
 struct NullField
 {
     bool operator==(NullField other) const;
@@ -44,6 +44,8 @@ using ResultType = std::optional<ResultValueType>;
 // A function that resolves the field path to an actual value.
 using FieldResolver =
     std::function<ResultType(std::vector<std::string> const&)>;
+
+std::string resultToString(ResultValueType const& result);
 
 enum class EvalNodeType
 {
@@ -157,4 +159,61 @@ struct ComparisonNode : public BoolEvalNode
     std::shared_ptr<EvalNode> mLeft;
     std::shared_ptr<EvalNode> mRight;
 };
+
+enum class AccumulatorType
+{
+    SUM,
+    AVERAGE,
+    COUNT,
+};
+
+using AccumulatorResultType = std::variant<uint64_t, double>;
+
+struct Accumulator
+{
+    explicit Accumulator(AccumulatorType nodeType);
+    Accumulator(AccumulatorType nodeType, std::shared_ptr<FieldNode> field);
+
+    void addEntry(FieldResolver const& fieldResolver);
+
+    AccumulatorResultType getValue() const;
+    std::string getName() const;
+
+  private:
+    AccumulatorType mType;
+    AccumulatorResultType mValue;
+    std::shared_ptr<FieldNode> mField;
+    uint64_t mCount = 0;
+};
+
+struct AccumulatorList
+{
+    explicit AccumulatorList(std::shared_ptr<Accumulator> accumulator);
+
+    void addAccumulator(std::shared_ptr<Accumulator> accumulator);
+
+    void addEntry(FieldResolver const& fieldResolver) const;
+
+    std::vector<std::shared_ptr<Accumulator>> const& getAccumulators() const;
+
+  private:
+    std::vector<std::shared_ptr<Accumulator>> mAccumulators;
+};
+
+struct FieldList
+{
+    explicit FieldList(std::shared_ptr<FieldNode> field);
+
+    void addField(std::shared_ptr<FieldNode> field);
+
+    std::vector<ResultType> getValues(FieldResolver const& fieldResolver) const;
+    std::vector<std::string> getFieldNames() const;
+
+  private:
+    std::vector<std::shared_ptr<FieldNode>> mFields;
+};
+
+using XDRQueryStatement =
+    std::variant<std::shared_ptr<BoolEvalNode>,
+                 std::shared_ptr<AccumulatorList>, std::shared_ptr<FieldList>>;
 } // namespace xdrquery

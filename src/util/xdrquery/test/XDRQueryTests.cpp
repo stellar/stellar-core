@@ -63,6 +63,19 @@ makeOfferEntry(std::string const& assetName)
     return offerEntry;
 }
 
+template <typename VariantT>
+void
+compareVariants(VariantT const& v1, VariantT const& v2)
+{
+    REQUIRE(v1.index() == v2.index());
+    std::visit(
+        [&v1](auto const& r) {
+            using T = std::decay_t<decltype(r)>;
+            REQUIRE(std::get<T>(v1) == r);
+        },
+        v2);
+}
+
 TEST_CASE("XDR field resolver", "[xdrquery]")
 {
     auto accountEntry = makeAccountEntry(123);
@@ -383,12 +396,12 @@ TEST_CASE("XDR matcher", "[xdrquery]")
         }
     }
 
-    auto runQuery = [&](std::string const& query) {
-        XDRMatcher matcher(query);
-        matcher.matchXDR(entries[0]);
-    };
     SECTION("query errors")
     {
+        auto runQuery = [&](std::string const& query) {
+            XDRMatcher matcher(query);
+            matcher.matchXDR(entries[0]);
+        };
         SECTION("syntax error")
         {
             REQUIRE_THROWS_AS(runQuery("data.type == 'ACCOUNT"), XDRQueryError);
@@ -435,6 +448,204 @@ TEST_CASE("XDR matcher", "[xdrquery]")
         {
             REQUIRE_THROWS_AS(runQuery("data.account.inflationDest <= NULL"),
                               XDRQueryError);
+        }
+    }
+}
+
+TEST_CASE("XDR field extractor", "[xdrquery]")
+{
+    std::vector<LedgerEntry> entries = {makeAccountEntry(100),
+                                        makeOfferEntry("foo")};
+
+    auto compareResults = [](ResultType const& r1, ResultType const& r2) {
+        REQUIRE(r1.has_value() == r2.has_value());
+        if (!r1.has_value())
+        {
+            return;
+        }
+        compareVariants(*r1, *r2);
+    };
+
+    auto testFieldExtraction =
+        [&](std::string const& query,
+            std::vector<std::vector<ResultType>> const& expectedMatches) {
+            XDRFieldExtractor extractor(query);
+            for (size_t i = 0; i < expectedMatches.size(); ++i)
+            {
+                auto fields = extractor.extractFields(entries[i]);
+                REQUIRE(fields.size() == expectedMatches[i].size());
+                for (size_t j = 0; j < fields.size(); ++j)
+                {
+                    compareResults(fields[j], expectedMatches[i][j]);
+                }
+            }
+        };
+
+    SECTION("single field")
+    {
+        SECTION("ints")
+        {
+            testFieldExtraction(
+                "data.account.balance",
+                {{std::make_optional<ResultValueType>(int64_t(100))},
+                 {std::nullopt}});
+        }
+        SECTION("strings")
+        {
+            testFieldExtraction(
+                "data.type",
+                {{std::make_optional<ResultValueType>(std::string("ACCOUNT"))},
+                 {std::make_optional<ResultValueType>(std::string("OFFER"))}});
+        }
+    }
+    SECTION("multiple fields")
+    {
+        testFieldExtraction(
+            "data.account.thresholds, "
+            "data.offer.selling.assetCode,data.account.balance",
+            {{std::make_optional<ResultValueType>(std::string("01000200")),
+              std::nullopt, std::make_optional<ResultValueType>(int64_t(100))},
+             {std::nullopt,
+              std::make_optional<ResultValueType>(std::string("foo")),
+              std::nullopt}});
+    }
+
+    SECTION("field names")
+    {
+        XDRFieldExtractor matcher(
+            "data.account.thresholds, "
+            "data.offer.selling.assetCode,data.account.balance");
+        matcher.extractFields(entries[0]);
+        REQUIRE(matcher.getFieldNames() ==
+                std::vector<std::string>{"data.account.thresholds",
+                                         "data.offer.selling.assetCode",
+                                         "data.account.balance"});
+    }
+
+    SECTION("query errors")
+    {
+        auto runQuery = [&](std::string const& query) {
+            XDRFieldExtractor matcher(query);
+            matcher.extractFields(entries[0]);
+        };
+        SECTION("syntax error")
+        {
+            REQUIRE_THROWS_AS(
+                runQuery(
+                    "data.account.thresholds data.offer.selling.assetCode"),
+                XDRQueryError);
+            REQUIRE_THROWS_AS(
+                runQuery(
+                    "data.account.thresholds . data.offer.selling.assetCode"),
+                XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("data.account.thresholds,"),
+                              XDRQueryError);
+        }
+        SECTION("field error")
+        {
+            REQUIRE_THROWS_AS(runQuery("data.account.threshold"),
+                              XDRQueryError);
+            REQUIRE_THROWS_AS(
+                runQuery("data.offer.selling.assetCode,data.accounts.balance"),
+                XDRQueryError);
+        }
+
+        SECTION("non-leaf field")
+        {
+            REQUIRE_THROWS_AS(runQuery("data.account"), XDRQueryError);
+        }
+    }
+}
+
+TEST_CASE("XDR accumulator", "[xdrquery]")
+{
+    std::vector<LedgerEntry> entries = {
+        makeAccountEntry(100), makeAccountEntry(500), makeAccountEntry(300),
+        makeAccountEntry(405)};
+
+    auto testAggregation =
+        [&](std::string const& query,
+            std::vector<AccumulatorResultType> const& expectedResults) {
+            XDRAccumulator accumulator(query);
+            for (auto const& entry : entries)
+            {
+                accumulator.addEntry(entry);
+            }
+            auto const& accumulators = accumulator.getAccumulators();
+            for (size_t i = 0; i < accumulators.size(); ++i)
+            {
+                compareVariants(accumulators[i]->getValue(),
+                                expectedResults[i]);
+            }
+        };
+
+    SECTION("single aggregation")
+    {
+        testAggregation("sum(data.account.balance)",
+                        {AccumulatorResultType(uint64_t(1305))});
+    }
+
+    SECTION("multiple aggregations")
+    {
+        testAggregation(
+            "avg(data.account.balance), sum(data.account.balance),count()",
+            {AccumulatorResultType(1305. / 4.),
+             AccumulatorResultType(uint64_t(1305)),
+             AccumulatorResultType(uint64_t(4))});
+    }
+
+    SECTION("field names")
+    {
+        XDRAccumulator accumulator(
+            "count(),avg(data.account.balance),sum(data.account.balance)");
+        accumulator.addEntry(entries[0]);
+        std::vector<std::string> accNames;
+        for (auto const& acc : accumulator.getAccumulators())
+        {
+            accNames.push_back(acc->getName());
+        }
+        REQUIRE(accNames ==
+                std::vector<std::string>{"count", "avg(data.account.balance)",
+                                         "sum(data.account.balance)"});
+    }
+
+    SECTION("query errors")
+    {
+        auto runQuery = [&](std::string const& query) {
+            XDRAccumulator accumulator(query);
+            accumulator.addEntry(entries[0]);
+        };
+        SECTION("syntax error")
+        {
+            REQUIRE_THROWS_AS(runQuery("data.account.balance"), XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("count("), XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("count(data.account.balance)"),
+                              XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("AVG(data.account.balance)"),
+                              XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("average(data.account.balance)"),
+                              XDRQueryError);
+            REQUIRE_THROWS_AS(
+                runQuery("sum(data.account.balance, data.account.balance)"),
+                XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("avg(data.account.balance),"),
+                              XDRQueryError);
+        }
+
+        SECTION("field name error")
+        {
+            REQUIRE_THROWS_AS(runQuery("avg(data.accounts.balance)"),
+                              XDRQueryError);
+        }
+
+        SECTION("non-leaf field")
+        {
+            REQUIRE_THROWS_AS(runQuery("avg(data.account)"), XDRQueryError);
+        }
+
+        SECTION("unsupported field type")
+        {
+            REQUIRE_THROWS_AS(runQuery("avg(data.type)"), XDRQueryError);
         }
     }
 }

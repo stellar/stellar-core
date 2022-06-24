@@ -30,6 +30,10 @@ WHITESPACE [ \t\r\n]
 
 NULL  { return xdrquery::XDRQueryParser::make_NULL(); }
 
+sum { return xdrquery::XDRQueryParser::make_SUM(); }
+avg { return xdrquery::XDRQueryParser::make_AVG(); }
+count { return xdrquery::XDRQueryParser::make_COUNT(); }
+
 {IDENTIFIER}  { return xdrquery::XDRQueryParser::make_ID(yytext); }
 {INT}         { return xdrquery::XDRQueryParser::make_INT(yytext); }
 
@@ -47,6 +51,7 @@ NULL  { return xdrquery::XDRQueryParser::make_NULL(); }
 ")"   { return xdrquery::XDRQueryParser::make_RPAREN(); }
 
 "."   { return xdrquery::XDRQueryParser::make_DOT(); }
+","   { return xdrquery::XDRQueryParser::make_COMMA(); }
 
 {STRING} { 
     std::string s(yytext + 1); 

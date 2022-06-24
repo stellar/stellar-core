@@ -85,8 +85,7 @@ LiteralNode::resolveIntType(ResultValueType const& fieldValue,
 {
     if (std::holds_alternative<std::string>(fieldValue))
     {
-        std::string valueStr =
-            std::visit([](auto&& v) { return fmt::to_string(v); }, *mValue);
+        std::string valueStr = resultToString(*mValue);
         throw XDRQueryError(fmt::format(
             FMT_STRING("String field '{}' is compared with int value: {}."),
             fmt::join(fieldPath, "."), valueStr));
@@ -256,11 +255,9 @@ ComparisonNode::evalBool(FieldResolver const& fieldResolver) const
 
     if (leftVal->index() != rightVal->index())
     {
-        auto valueToStr = [](auto&& v) { return fmt::to_string(v); };
         throw XDRQueryError(fmt::format(
             FMT_STRING("Type mismatch between values `{}` and `{}`."),
-            std::visit(valueToStr, *leftVal),
-            std::visit(valueToStr, *rightVal)));
+            resultToString(*leftVal), resultToString(*rightVal)));
     }
 
     switch (mType)
@@ -302,6 +299,174 @@ ComparisonNode::compareNullFields(bool leftIsNull, bool rightIsNull) const
         throw XDRQueryError(
             "Fields can only be compared with `NULL` using `==` and `!=`.");
     }
+}
+
+Accumulator::Accumulator(AccumulatorType nodeType)
+    : Accumulator(nodeType, nullptr)
+{
+}
+
+Accumulator::Accumulator(AccumulatorType nodeType,
+                         std::shared_ptr<FieldNode> field)
+    : mType(nodeType), mField(field)
+{
+    switch (mType)
+    {
+    case AccumulatorType::AVERAGE:
+        mValue.emplace<double>() = 0;
+        break;
+    case AccumulatorType::COUNT:
+    case AccumulatorType::SUM:
+        mValue.emplace<uint64_t>() = 0;
+        break;
+    }
+}
+
+void
+Accumulator::addEntry(FieldResolver const& fieldResolver)
+{
+    ResultType fieldValue;
+    if (mType != AccumulatorType::COUNT)
+    {
+        fieldValue = mField->eval(fieldResolver);
+        if (!fieldValue)
+        {
+            return;
+        }
+    }
+    ++mCount;
+    switch (mType)
+    {
+    case AccumulatorType::AVERAGE:
+    {
+        std::get<double>(mValue) += std::visit(
+            [](auto&& v) -> double {
+                using T = std::decay_t<decltype(v)>;
+                if constexpr (std::is_integral_v<T>)
+                {
+                    return static_cast<double>(v);
+                }
+                throw XDRQueryError("Encountered non-aggregatable field.");
+            },
+            *fieldValue);
+    }
+    break;
+    case AccumulatorType::SUM:
+        std::get<uint64_t>(mValue) += std::visit(
+            [](auto&& v) -> uint64_t {
+                using T = std::decay_t<decltype(v)>;
+                if constexpr (std::is_integral_v<T>)
+                {
+                    return static_cast<uint64_t>(v);
+                }
+                throw XDRQueryError("Encountered non-aggregatable field.");
+            },
+            *fieldValue);
+        break;
+    case AccumulatorType::COUNT:
+        break;
+    }
+}
+
+AccumulatorResultType
+Accumulator::getValue() const
+{
+    if (mType == AccumulatorType::COUNT)
+    {
+        return mCount;
+    }
+    if (mType == AccumulatorType::AVERAGE)
+    {
+        if (mCount == 0)
+        {
+            return AccumulatorResultType(0.0);
+        }
+        return std::get<double>(mValue) / mCount;
+    }
+    return mValue;
+}
+
+std::string
+Accumulator::getName() const
+{
+    switch (mType)
+    {
+    case AccumulatorType::AVERAGE:
+        return fmt::format(FMT_STRING("avg({})"),
+                           fmt::join(mField->mFieldPath, "."));
+    case AccumulatorType::SUM:
+        return fmt::format(FMT_STRING("sum({})"),
+                           fmt::join(mField->mFieldPath, "."));
+    case AccumulatorType::COUNT:
+        return "count";
+    }
+}
+
+AccumulatorList::AccumulatorList(std::shared_ptr<Accumulator> accumulator)
+{
+    mAccumulators.emplace_back(accumulator);
+}
+
+void
+AccumulatorList::addAccumulator(std::shared_ptr<Accumulator> accumulator)
+{
+    mAccumulators.emplace_back(accumulator);
+}
+
+void
+AccumulatorList::addEntry(FieldResolver const& fieldResolver) const
+{
+    for (auto const& accumulator : mAccumulators)
+    {
+        accumulator->addEntry(fieldResolver);
+    }
+}
+
+std::vector<std::shared_ptr<Accumulator>> const&
+AccumulatorList::getAccumulators() const
+{
+    return mAccumulators;
+}
+
+FieldList::FieldList(std::shared_ptr<FieldNode> field)
+{
+    mFields.emplace_back(field);
+}
+
+void
+FieldList::addField(std::shared_ptr<FieldNode> field)
+{
+    mFields.emplace_back(field);
+}
+
+std::vector<ResultType>
+FieldList::getValues(FieldResolver const& fieldResolver) const
+{
+    std::vector<ResultType> res;
+    res.reserve(mFields.size());
+    for (auto const& field : mFields)
+    {
+        res.emplace_back(field->eval(fieldResolver));
+    }
+    return res;
+}
+
+std::vector<std::string>
+FieldList::getFieldNames() const
+{
+    std::vector<std::string> names;
+    names.reserve(mFields.size());
+    for (auto const& field : mFields)
+    {
+        names.emplace_back(fmt::to_string(fmt::join(field->mFieldPath, ".")));
+    }
+    return names;
+}
+
+std::string
+resultToString(ResultValueType const& result)
+{
+    return std::visit([](auto&& v) { return fmt::to_string(v); }, result);
 }
 
 } // namespace xdrquery
