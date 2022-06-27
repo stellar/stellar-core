@@ -574,6 +574,18 @@ case ENVELOPE_TYPE_POOL_REVOKE_OP_ID:
         PoolID liquidityPoolID;
         Asset asset;
     } revokeID;
+case ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519:
+    struct
+    {
+        uint256 ed25519;
+        uint256 salt;
+    } contractID;
+case ENVELOPE_TYPE_CONTRACT_ID_FROM_CONTRACT:
+    struct
+    {
+        Hash contractID; //contractID of parent contract
+        uint256 salt;
+    } childContractID;
 };
 
 enum MemoType
