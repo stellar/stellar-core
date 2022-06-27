@@ -12,6 +12,7 @@
 #else
 #include <unistd.h>
 #endif
+#define register
 
 #include "util/xdrquery/XDRQueryParser.h"
 %}
