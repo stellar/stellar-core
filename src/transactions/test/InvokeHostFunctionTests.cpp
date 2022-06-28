@@ -127,22 +127,10 @@ makeSymbol(std::string const& str)
 }
 
 static LedgerKey
-deployContract(Application& app, std::vector<uint8_t> const& contract,
-               uint256 const& salt, SecretKey const& key)
+createContract(Application& app, std::vector<uint8_t> const& contract,
+               uint256 const& salt, PublicKey const& pub, Signature const& sig,
+               bool expectSuccess, bool expectEntry)
 {
-    // create signature
-    auto const& separator = "create_contract(nonce: u256, contract: Vec<u8>, "
-                            "salt: u256, key: u256, sig: Vec<u8>)";
-    SHA256 hasher;
-    hasher.add(separator);
-    hasher.add(salt);
-    hasher.add(contract);
-
-    auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
-
-    // get contract id
-    auto const& pub = key.getPublicKey();
-
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519);
     preImage.contractID().ed25519 = pub.ed25519();
@@ -176,14 +164,15 @@ deployContract(Application& app, std::vector<uint8_t> const& contract,
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMeta txm(2);
     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-    REQUIRE(tx->apply(app, ltx, txm));
+    REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
     ltx.commit();
 
     // verify contract code is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
-    REQUIRE(ltxe2);
-    REQUIRE(ltxe2.current().data.contractData().val == contractBin);
+    REQUIRE((bool)ltxe2 == expectEntry);
+    REQUIRE((!expectEntry ||
+             ltxe2.current().data.contractData().val == contractBin));
 
     return lk;
 }
@@ -193,7 +182,18 @@ deployContract(Application& app, std::vector<uint8_t> const& contract)
 {
     uint256 salt = sha256("salt");
     auto key = SecretKey::fromSeed(sha256("a1"));
-    return deployContract(app, contract, salt, key);
+
+    // create signature
+    auto const& separator = "create_contract(nonce: u256, contract: Vec<u8>, "
+                            "salt: u256, key: u256, sig: Vec<u8>)";
+    SHA256 hasher;
+    hasher.add(separator);
+    hasher.add(salt);
+    hasher.add(contract);
+
+    auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+    return createContract(app, contract, salt, key.getPublicKey(), sig, true,
+                          true);
 }
 
 TEST_CASE("invoke host function", "[tx][contract]")
@@ -372,6 +372,79 @@ TEST_CASE("invoke host function", "[tx][contract]")
 
         del("key1");
         del("key2");
+    }
+
+    SECTION("create contract failures")
+    {
+        // create signature
+        auto const& separator =
+            "create_contract(nonce: u256, contract: Vec<u8>, "
+            "salt: u256, key: u256, sig: Vec<u8>)";
+        uint256 salt = sha256("salt");
+        auto key = SecretKey::fromSeed(sha256("a1"));
+
+        {
+            SHA256 hasher;
+            hasher.add(separator);
+            hasher.add(salt);
+            hasher.add(addI32Wasm);
+            auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+
+            // public key is different than the one that created the signature
+            auto new_pub = SecretKey::fromSeed(sha256("a2"));
+            createContract(*app, addI32Wasm, salt, new_pub.getPublicKey(), sig,
+                           false, false);
+        }
+
+        {
+            // bad separator
+            SHA256 hasher;
+            hasher.add("bad_separator");
+            hasher.add(salt);
+            hasher.add(addI32Wasm);
+            auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+
+            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
+                           false, false);
+        }
+
+        {
+            // Incorrect salt was hashed
+            SHA256 hasher;
+            hasher.add(separator);
+            hasher.add(sha256("wrong_salt"));
+            hasher.add(addI32Wasm);
+            auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+
+            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
+                           false, false);
+        }
+
+        {
+            // Incorrect contract was hashed
+            SHA256 hasher;
+            hasher.add(separator);
+            hasher.add(salt);
+            hasher.add(contractDataWasm);
+            auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+
+            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
+                           false, false);
+        }
+
+        {
+            // duplicate contract
+            SHA256 hasher;
+            hasher.add(separator);
+            hasher.add(salt);
+            hasher.add(addI32Wasm);
+
+            auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
+                           true, true);
+            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
+                           false, true);
+        }
     }
 }
 
