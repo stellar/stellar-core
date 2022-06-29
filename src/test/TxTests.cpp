@@ -495,12 +495,11 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     if (strictOrder)
     {
         txSet = std::make_shared<txsimulation::SimApplyOrderTxSetFrame const>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
+            app.getLedgerManager().getLastClosedLedgerHeader(), txs);
     }
     else
     {
-        txSet = std::make_shared<TxSetFrame const>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash, txs);
+        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
     }
     if (!strictOrder)
     {
@@ -510,6 +509,29 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
+    app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
+                                     emptyUpgradeSteps);
+
+    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
+
+    REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
+
+    TxSetResultMeta res;
+    std::transform(
+        z1.results.begin(), z1.results.end(), z2.begin(),
+        std::back_inserter(res),
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
+            return std::make_pair(r1, r2);
+        });
+
+    return res;
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+              TxSetFrameConstPtr txSet)
+{
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
 
@@ -1516,8 +1538,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades)
 {
     auto& lm = app.getLedgerManager();
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = std::make_shared<TxSetFrame const>(lcl.hash);
-
+    auto txSet = TxSetFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
                                      lastCloseTime, upgrades);

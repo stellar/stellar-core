@@ -24,6 +24,7 @@ class PersistentState
         kNetworkPassphrase,
         kLedgerUpgrades,
         kRebuildLedger,
+        kLastSCPDataXDR,
         kLastEntry,
     };
 
@@ -39,6 +40,10 @@ class PersistentState
     bool shouldRebuildForType(LedgerEntryType let);
     void clearRebuildForType(LedgerEntryType let);
     void setRebuildForType(LedgerEntryType let);
+
+    // Upgrades storage from kLastSCPData to kLastSCPDataXDR entry format.
+    // Should only be called during the respective database schema upgrade.
+    void upgradeSCPDataFormat();
 
   private:
     static std::string kSQLCreateStatement;

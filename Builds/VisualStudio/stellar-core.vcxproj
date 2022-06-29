@@ -146,7 +146,7 @@
       </Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Stellar-internal.h;src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
@@ -468,6 +468,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp" />
+    <ClCompile Include="..\..\src\herder\test\TxSetTests.cpp" />
     <ClCompile Include="..\..\src\herder\TransactionQueue.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp" />
@@ -485,6 +486,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
@@ -900,6 +902,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
@@ -1138,6 +1141,7 @@ exit /b 0
     <ClInclude Include="..\..\src\work\WorkWithCallback.h" />
     <ClInclude Include="src\$(Configuration)\generated\rust\RustBridge.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-contract.h" />
+    <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h" />    
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-ledger-entries.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-ledger.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-overlay.h" />
@@ -1208,6 +1212,21 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-internal.x">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-next/xdr/Stellar-internal.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-next/xdr/Stellar-internal.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-next/xdr/Stellar-internal.x</Command>
+      <Message>running xdrc</Message>
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
+      <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
+      <OutputItemType>ClInclude</OutputItemType>
+    </CustomBuild>    
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
@@ -1299,6 +1318,20 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-internal.x">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
+      <Message>running xdrc</Message>
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>      
+      <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
+      <OutputItemType>ClInclude</OutputItemType>
+    </CustomBuild>    
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>

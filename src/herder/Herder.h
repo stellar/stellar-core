@@ -114,7 +114,7 @@ class Herder
 
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
-    virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
+    virtual bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
@@ -130,7 +130,7 @@ class Herder
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
-                                           TxSetFrame txset) = 0;
+                                           TxSetFrameConstPtr txset) = 0;
 
     virtual void
     externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,

@@ -6,6 +6,7 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
+#include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
@@ -62,24 +63,25 @@ class LedgerManagerImpl : public LedgerManager
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
     medida::Timer& mCatchupDuration;
 
-    std::unique_ptr<LedgerCloseMeta> mNextMetaToEmit;
+    std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
-    void
-    processFeesSeqNums(std::vector<TransactionFrameBasePtr>& txs,
-                       AbstractLedgerTxn& ltxOuter, int64_t baseFee,
-                       std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta);
+    void processFeesSeqNums(
+        std::vector<TransactionFrameBasePtr> const& txs,
+        AbstractLedgerTxn& ltxOuter, TxSetFrame const& txSet,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
-    void
-    applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
-                      AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
-                      std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta,
-                      int64 curBaseFee);
+    void applyTransactions(
+        TxSetFrame const& txSet,
+        std::vector<TransactionFrameBasePtr> const& txs, AbstractLedgerTxn& ltx,
+        TransactionResultSet& txResultSet,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
-    void prefetchTransactionData(std::vector<TransactionFrameBasePtr>& txs);
-    void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr>& txs);
+    void
+    prefetchTransactionData(std::vector<TransactionFrameBasePtr> const& txs);
+    void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr> const& txs);
     void closeLedgerIf(LedgerCloseData const& ledgerData);
 
     State mState;

@@ -64,9 +64,9 @@ bool Database::gDriversRegistered = false;
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 13;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-static unsigned long const SCHEMA_VERSION = 18;
+static unsigned long const SCHEMA_VERSION = 19;
 #else
-static unsigned long const SCHEMA_VERSION = 17;
+static unsigned long const SCHEMA_VERSION = 18;
 #endif
 
 // These should always match our compiled version precisely, since we are
@@ -229,8 +229,12 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 17:
         mApp.getPersistentState().setRebuildForType(OFFER);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 18:
+        createTxSetHistoryTable(*this);
+        mApp.getPersistentState().upgradeSCPDataFormat();
+        break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case 19:
         mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
         mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
         break;

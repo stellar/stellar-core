@@ -9,7 +9,9 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
+
 #include <algorithm>
+#include <optional>
 
 namespace stellar
 {
@@ -22,6 +24,7 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class InternalLedgerKey;
+class TransactionFrameBase;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -291,4 +294,7 @@ int64_t getPoolWithdrawalAmount(int64_t amountPoolShares,
 
 void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
                                          LedgerTxnEntry& account);
+
+int64_t getMinFee(TransactionFrameBase const& tx, LedgerHeader const& header,
+                  std::optional<int64_t> baseFee = std::nullopt);
 }

@@ -150,7 +150,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                     uint64_t upperBoundCloseTimeOffset)
 {
     LedgerTxn ltx(ltxOuter);
-    auto minBaseFee = ltx.loadHeader().current().baseFee;
+    int64_t minBaseFee = ltx.loadHeader().current().baseFee;
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -167,9 +167,9 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
         return false;
     }
 
-    bool res =
-        mInnerTx->checkValid(ltx, current, false, lowerBoundCloseTimeOffset,
-                             upperBoundCloseTimeOffset);
+    bool res = mInnerTx->checkValidWithOptionallyChargedFee(
+        ltx, current, false, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset);
     updateResult(getResult(), mInnerTx);
     return res;
 }
@@ -188,18 +188,18 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (getFeeBid() < getMinFee(header.current()))
+    if (getFeeBid() < getMinFee(*this, header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     auto const& lh = header.current();
-    uint128_t v1 = bigMultiply(getFeeBid(), mInnerTx->getMinFee(lh));
-    uint128_t v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(lh));
+    uint128_t v1 = bigMultiply(getFeeBid(), getMinFee(*mInnerTx, lh));
+    uint128_t v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(*this, lh));
     if (v1 < v2)
     {
-        if (!bigDivide128(getResult().feeCharged, v2, mInnerTx->getMinFee(lh),
+        if (!bigDivide128(getResult().feeCharged, v2, getMinFee(*mInnerTx, lh),
                           Rounding::ROUND_UP))
         {
             getResult().feeCharged = INT64_MAX;
@@ -269,16 +269,15 @@ FeeBumpTransactionFrame::getFeeBid() const
 }
 
 int64_t
-FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header) const
-{
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
-}
-
-int64_t
-FeeBumpTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
+                                std::optional<int64_t> baseFee,
                                 bool applying) const
 {
-    int64_t adjustedFee = baseFee * std::max<int64_t>(1, getNumOperations());
+    if (!baseFee)
+    {
+        return getFeeBid();
+    }
+    int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {
         return std::min<int64_t>(getFeeBid(), adjustedFee);
@@ -393,7 +392,7 @@ FeeBumpTransactionFrame::insertKeysForTxApply(
 
 void
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                          int64_t baseFee)
+                                          std::optional<int64_t> baseFee)
 {
     resetResults(ltx.loadHeader().current(), baseFee, true);
 
@@ -440,7 +439,8 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
 
 void
 FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
-                                      int64_t baseFee, bool applying)
+                                      std::optional<int64_t> baseFee,
+                                      bool applying)
 {
     mInnerTx->resetResults(header, baseFee, applying);
     mResult.result.code(txFEE_BUMP_INNER_SUCCESS);

@@ -9,6 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "xdr/Stellar-internal.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -19,7 +20,7 @@ using namespace std;
 std::string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "lastscpdata",
     "databaseschema",   "networkpassphrase",   "ledgerupgrades",
-    "rebuildledger"};
+    "rebuildledger",    "lastscpdataxdr"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
@@ -48,7 +49,8 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
         throw out_of_range("unknown entry");
     }
     auto res = mapping[n];
-    if ((n == kLastSCPData && subscript > 0) || n == kRebuildLedger)
+    if (((n == kLastSCPData || n == kLastSCPDataXDR) && subscript > 0) ||
+        n == kRebuildLedger)
     {
         res += std::to_string(subscript);
     }
@@ -78,7 +80,7 @@ PersistentState::getSCPStateAllSlots()
     std::vector<std::string> states;
     for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
     {
-        auto val = getFromDb(getStoreStateName(kLastSCPData, i));
+        auto val = getFromDb(getStoreStateName(kLastSCPDataXDR, i));
         if (!val.empty())
         {
             states.push_back(val);
@@ -94,7 +96,7 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
     ZoneScoped;
     auto slotIdx = static_cast<uint32>(
         slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
-    updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
+    updateDb(getStoreStateName(kLastSCPDataXDR, slotIdx), value);
 }
 
 bool
@@ -116,6 +118,56 @@ PersistentState::setRebuildForType(LedgerEntryType let)
 {
     ZoneScoped;
     updateDb(getStoreStateName(kRebuildLedger, let), "1");
+}
+
+void
+PersistentState::upgradeSCPDataFormat()
+{
+    for (uint32_t i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
+    {
+        // Read the state in old (opaque) format and convert it to
+        // PersistedSCPState XDR.
+        std::string oldStateName = getStoreStateName(kLastSCPData, i);
+        auto val = getFromDb(oldStateName);
+        if (val.empty())
+        {
+            continue;
+        }
+        std::vector<uint8_t> buffer;
+        decoder::decode_b64(val, buffer);
+
+        PersistedSCPState scpState;
+        try
+        {
+            xdr::xvector<TransactionSet> txSets;
+            xdr::xdr_from_opaque(buffer, scpState.v0().scpEnvelopes, txSets,
+                                 scpState.v0().quorumSets);
+
+            for (auto const& txSet : txSets)
+            {
+                scpState.v0().txSets.emplace_back(0).txSet() = txSet;
+            }
+            auto encodedScpState =
+                decoder::encode_b64(xdr::xdr_to_opaque(scpState));
+            setSCPStateForSlot(i, encodedScpState);
+        }
+        catch (std::exception& e)
+        {
+            CLOG_WARNING(Herder,
+                         "Error while restoring old scp messages, during the "
+                         "database schema upgrade: {}",
+                         e.what());
+        }
+
+        // Remove the old SCP state row.
+        auto prep = mApp.getDatabase().getPreparedStatement(
+            "DELETE FROM storestate WHERE statename = :n;");
+
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldStateName));
+        st.define_and_bind();
+        st.execute(true);
+    }
 }
 
 void

@@ -1801,6 +1801,18 @@ maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
     }
 }
 
+int64_t
+getMinFee(TransactionFrameBase const& tx, LedgerHeader const& header,
+          std::optional<int64_t> baseFee)
+{
+    int64_t effectiveBaseFee = header.baseFee;
+    if (baseFee)
+    {
+        effectiveBaseFee = std::max(effectiveBaseFee, *baseFee);
+    }
+    return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
+}
+
 namespace detail
 {
 struct MuxChecker

@@ -74,6 +74,7 @@ struct PeerAddress
     uint32 numFailures;
 };
 
+// Next ID: 18
 enum MessageType
 {
     ERROR_MSG = 0,
@@ -85,6 +86,7 @@ enum MessageType
 
     GET_TX_SET = 6, // gets a particular txset by hash
     TX_SET = 7,
+    GENERALIZED_TX_SET = 17,
 
     TRANSACTION = 8, // pass on a tx you have heard about
 
@@ -202,6 +204,8 @@ case GET_TX_SET:
     uint256 txSetHash;
 case TX_SET:
     TransactionSet txSet;
+case GENERALIZED_TX_SET:
+    GeneralizedTransactionSet generalizedTxSet;
 
 case TRANSACTION:
     TransactionEnvelope transaction;

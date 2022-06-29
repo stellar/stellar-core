@@ -60,12 +60,10 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     a1.pay(b1, 1000);
 
     auto tx1 = b1.tx({accountMerge(a1)});
-    auto tx2 = a1.tx({b1.op(payment(root, 110)), root.op(payment(a1, 101))});
+    auto tx2 = a1.tx({a1.op(payment(root, 112)), a1.op(payment(root, 101))});
 
-    Hash h;
-    h[0] = 2;
-    auto txSet = std::make_shared<TxSetFrame const>(
-        h, TxSetFrame::Transactions{tx1, tx2});
+    auto txSet = TxSetFrame::makeFromTransactions(
+        TxSetFrame::Transactions{tx1, tx2}, *app, 0, 0);
 
     // Sort for apply re-orders transaction set
     auto txs = txSet->getTxsInApplyOrder();
@@ -1864,9 +1862,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         TransactionFramePtr txFrame;
         auto setup = [&]() {
             txFrame = root.tx({createAccount(a1, paymentAmount)});
-            auto txSet = std::make_shared<TxSetFrame const>(
-                app->getLedgerManager().getLastClosedLedgerHeader().hash,
-                TxSetFrame::Transactions{txFrame});
+            auto txSet =
+                TxSetFrame::makeFromTransactions({txFrame}, *app, 0, 0);
 
             // Close this ledger
             auto lastCloseTime = app->getLedgerManager()

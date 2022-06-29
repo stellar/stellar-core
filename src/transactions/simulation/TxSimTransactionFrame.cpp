@@ -93,14 +93,16 @@ TxSimTransactionFrame::isBadSeq(LedgerTxnHeader const& header,
 }
 
 int64_t
-TxSimTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+TxSimTransactionFrame::getFee(LedgerHeader const& header,
+                              std::optional<int64_t> baseFee,
                               bool applying) const
 {
     return mSimulationResult.feeCharged;
 }
 
 void
-TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
+TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
+                                        std::optional<int64_t> baseFee)
 {
     mCachedAccount.reset();
 

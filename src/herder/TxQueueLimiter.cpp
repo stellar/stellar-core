@@ -151,7 +151,7 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     auto id = newTx->getSourceID();
     for (auto it = mTxs->begin(); it != mTxs->end(); ++it)
     {
-        if (feeRate3WayCompare(*it, newTx) >= 0)
+        if (feeRate3WayCompare(*(*it), *newTx) >= 0)
         {
             auto minFee = computeBetterFee(newTx, (*it)->getFeeBid(),
                                            (*it)->getNumOperations());
@@ -240,7 +240,7 @@ bool
 lessThanXored(TransactionFrameBasePtr const& l,
               TransactionFrameBasePtr const& r, size_t seed)
 {
-    auto cmp3 = feeRate3WayCompare(l, r);
+    auto cmp3 = feeRate3WayCompare(*l, *r);
     if (cmp3 != 0)
     {
         return cmp3 < 0;
