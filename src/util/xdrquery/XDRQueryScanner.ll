@@ -11,8 +11,8 @@
 #define fileno _fileno
 #else
 #include <unistd.h>
-#endif
 #define register
+#endif
 
 #include "util/xdrquery/XDRQueryParser.h"
 %}
