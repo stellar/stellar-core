@@ -11,16 +11,28 @@ crate-type = ["staticlib"]
 [dependencies]
 log = "0.4.17"
 cxx = "1.0"
-im-rc = "15.0.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
 
-[dependencies.soroban-env-host]
+[dependencies.soroban-env-host-lo]
+version = "0.0.14"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "75b21696b0636bd145b7acb47a6fed4621b05978"
+features = ["vm"]
+
+[dependencies.soroban-env-host-hi]
 version = "0.0.15"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ef87058f07ad67eeba4c350a6b6af82bd17f916"
+package = "soroban-env-host"
+rev = "3b7bc2cc1db24c7877a585721f9c0ffc7eeefd83"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ef87058f07ad67eeba4c350a6b6af82bd17f916"
+rev = "3b7bc2cc1db24c7877a585721f9c0ffc7eeefd83"
+
+[dependencies.cargo-lock]
+git = "https://github.com/rustsec/rustsec"
+rev = "dcc72b697e10a2d1e3d1ce70d7d7b0d5cbc41dc4"
+features = ["dependency-tree"]

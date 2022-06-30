@@ -8,12 +8,17 @@ use crate::{
         CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, PreflightCallbacks,
         PreflightHostFunctionOutput, RustBuf, XDRFileHash,
     },
+    SetHostLogicVersion,
 };
 use cxx::{CxxVector, UniquePtr};
 use log::debug;
 use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
-use soroban_env_host::{
+// This module (contract) is bound to _two separate locations_ in the module
+// tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
+// hi) version-specific definition of stellar_env_host. We therefore
+// import it from our _parent_ module rather than from the crate root.
+use super::soroban_env_host::{
     budget::Budget,
     events::{DebugError, DebugEvent, Event, Events},
     storage::{self, AccessType, Footprint, FootprintMap, SnapshotSource, Storage, StorageMap},
@@ -294,6 +299,7 @@ fn log_debug_events(events: &Events) {
 /// result, events and modified ledger entries. Ledger entries not returned have
 /// been deleted.
 pub(crate) fn invoke_host_function(
+    host_logic_version: u32,
     enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
@@ -304,6 +310,7 @@ pub(crate) fn invoke_host_function(
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
+            host_logic_version,
             enable_diagnostics,
             hf_buf,
             footprint_buf,
@@ -320,6 +327,7 @@ pub(crate) fn invoke_host_function(
 }
 
 fn invoke_host_function_or_maybe_panic(
+    host_logic_version: u32,
     enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
@@ -337,6 +345,7 @@ fn invoke_host_function_or_maybe_panic(
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let auth_entries = build_contract_auth_entries_from_xdr(contract_auth_entries)?;
     let host = Host::with_storage_and_budget(storage, budget);
+    host.set_logic_version(host_logic_version);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
     host.set_authorization_entries(auth_entries)?;
@@ -472,13 +481,20 @@ fn storage_footprint_to_ledger_footprint(
 }
 
 pub(crate) fn preflight_host_function(
+    host_logic_version: u32,
     hf_buf: &CxxVector<u8>,
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        preflight_host_function_or_maybe_panic(hf_buf, source_account_buf, ledger_info, cb)
+        preflight_host_function_or_maybe_panic(
+            host_logic_version,
+            hf_buf,
+            source_account_buf,
+            ledger_info,
+            cb,
+        )
     }));
     match res {
         Err(_) => Err(CoreHostError::General("contract host panicked").into()),
@@ -487,6 +503,7 @@ pub(crate) fn preflight_host_function(
 }
 
 fn preflight_host_function_or_maybe_panic(
+    host_logic_version: u32,
     hf_buf: &CxxVector<u8>,
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
@@ -499,6 +516,7 @@ fn preflight_host_function_or_maybe_panic(
     let storage = Storage::with_recording_footprint(src);
     let budget = Budget::default();
     let host = Host::with_storage_and_budget(storage, budget);
+    host.set_logic_version(host_logic_version);
 
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
@@ -549,26 +567,5 @@ fn preflight_host_function_or_maybe_panic(
         storage_footprint,
         cpu_insns: budget.get_cpu_insns_count(),
         mem_bytes: budget.get_mem_bytes_count(),
-    })
-}
-
-// Accessors for test wasms, compiled into soroban-test-wasms crate.
-pub(crate) fn get_test_wasm_add_i32() -> Result<RustBuf, Box<dyn Error>> {
-    Ok(RustBuf {
-        data: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
-    })
-}
-pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn Error>> {
-    Ok(RustBuf {
-        data: soroban_test_wasms::CONTRACT_STORAGE
-            .iter()
-            .cloned()
-            .collect(),
-    })
-}
-
-pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn Error>> {
-    Ok(RustBuf {
-        data: soroban_test_wasms::COMPLEX.iter().cloned().collect(),
     })
 }

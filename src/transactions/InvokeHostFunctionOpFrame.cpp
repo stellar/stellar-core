@@ -5,6 +5,8 @@
 // clang-format off
 // This needs to be included first
 #include "util/GlobalChecks.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include <cstdint>
 #include <json/json.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
@@ -45,6 +47,27 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
         info.network_id.push_back(static_cast<unsigned char>(c));
     }
     return info;
+}
+
+uint32_t
+getHostLogicVersion(AbstractLedgerTxn& ltx)
+{
+    LedgerKey hostLogicVersionLedgerKey;
+    hostLogicVersionLedgerKey.type(CONFIG_SETTING);
+    hostLogicVersionLedgerKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_HOST_LOGIC_VERSION;
+    auto hostLogicVersionConfigEntry =
+        ltx.loadWithoutRecord(hostLogicVersionLedgerKey);
+    if (hostLogicVersionConfigEntry)
+    {
+        return hostLogicVersionConfigEntry.current()
+            .data.configSetting()
+            .contractHostLogicVersion();
+    }
+    // Default host logic version is the 'hi' host version
+    // wired-in to the current binary
+    return static_cast<uint32_t>(
+        rust_bridge::get_soroban_host_logic_versions().hi);
 }
 
 template <typename T>
@@ -257,6 +280,8 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     HostFunctionMetrics metrics(metricsReg, mInvokeHostFunction.function.type(),
                                 false);
 
+    uint32_t hostLogicVersion = getHostLogicVersion(ltx);
+
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
     ledgerEntryCxxBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
@@ -303,7 +328,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         auto timeScope = metrics.getExecTimer();
         out = rust_bridge::invoke_host_function(
-            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
+            hostLogicVersion, cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
             contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
@@ -433,6 +458,7 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
 
     Json::Value root;
     CxxLedgerInfo li;
+    uint32_t hostLogicVersion{1};
 
     // Scope our use of an ltx to a block here so that a new one can be opened
     // later in the preflight callbacks.
@@ -440,6 +466,7 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         root["ledger"] = ltx.loadHeader().current().ledgerSeq;
         li = getLedgerInfo(ltx, app.getConfig());
+        hostLogicVersion = getHostLogicVersion(ltx);
     }
 
     try
@@ -448,7 +475,8 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         {
             auto timeScope = metrics.getExecTimer();
             out = rust_bridge::preflight_host_function(
-                toVec(op.function), toVec(sourceAccount), li, std::move(cb));
+                hostLogicVersion, toVec(op.function), toVec(sourceAccount), li,
+                std::move(cb));
             metrics.mSuccess = true;
         }
         SCVal result_value;

@@ -71,6 +71,7 @@ RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
+RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.lock rust/src/host-dep-tree-lo.txt rust/src/host-dep-tree-hi.txt
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
@@ -86,7 +87,7 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRI
 	$(RUST_CXXBRIDGE) $< --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-$(LIBRUST_STELLAR_CORE): rust/Cargo.toml $(SRC_RUST_FILES) Makefile.am
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile.am
 	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR))
 	ranlib $@
 else

@@ -163,7 +163,7 @@ void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
-    rust::Vec<XDRFileHash> rustHashes = get_xdr_hashes();
+    rust::Vec<XDRFileHash> rustHashes = get_xdr_hashes().hi;
     for (auto const& cpp : stellar::XDR_FILES_SHA256)
     {
         if (cpp.first.empty())
@@ -232,6 +232,7 @@ main(int argc, char* const* argv)
     randHash::initialize();
     xdr::marshaling_stack_limit = 1000;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    rust_bridge::check_lockfile_has_expected_dep_trees();
     checkXDRFileIdentity();
 #endif
 
