@@ -146,12 +146,12 @@ pub(crate) fn invoke_host_function(
         }
         HostFunction::CreateContract => {
             info!(target: TX, "Invoking host function 'CreateContract'");
-            todo!();
+            host.invoke_function(hf, args)?;
         }
     };
 
     let storage = host
-        .try_recover_storage()
+        .recover_storage()
         .map_err(|_h| HostError::General("could not get storage from host"))?;
     Ok(build_xdr_ledger_entries_from_storage_map(
         &storage.footprint,
