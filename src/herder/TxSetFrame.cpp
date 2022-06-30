@@ -235,11 +235,13 @@ TxSetFrame::TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
 {
 }
 
+#ifdef BUILD_TESTS
 bool
 TxSetFrame::checkValidStructure() const
 {
     return true;
 }
+#endif
 
 TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                        Transactions const& txs)
