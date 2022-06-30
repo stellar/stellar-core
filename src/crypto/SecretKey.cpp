@@ -27,6 +27,10 @@
 #include <sanitizer/msan_interface.h>
 #endif
 
+#ifdef BUILD_TESTS
+#include "lib/catch.hpp"
+#endif
+
 namespace stellar
 {
 
@@ -229,8 +233,9 @@ SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
 }
 
 #ifdef BUILD_TESTS
+template <typename Rng>
 static std::vector<uint8_t>
-getPRNGBytes(size_t n, stellar_default_random_engine& engine)
+getPRNGBytes(size_t n, Rng& engine)
 {
     std::vector<uint8_t> bytes;
     for (size_t i = 0; i < n; ++i)
@@ -240,8 +245,9 @@ getPRNGBytes(size_t n, stellar_default_random_engine& engine)
     return bytes;
 }
 
+template <typename Rng>
 static SecretKey
-pseudoRandomForTestingFromPRNG(stellar_default_random_engine& engine)
+pseudoRandomForTestingFromPRNG(Rng& engine)
 {
     return SecretKey::fromSeed(getPRNGBytes(crypto_sign_SEEDBYTES, engine));
 }
@@ -252,7 +258,7 @@ SecretKey::pseudoRandomForTesting()
     // Reminder: this is not cryptographic randomness or even particularly hard
     // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
     // "slightly random-ish" keys, for test-data generation.
-    return pseudoRandomForTestingFromPRNG(gRandomEngine);
+    return pseudoRandomForTestingFromPRNG(Catch::rng());
 }
 
 SecretKey

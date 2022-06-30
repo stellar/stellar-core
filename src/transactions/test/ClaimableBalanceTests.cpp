@@ -53,7 +53,7 @@ randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
                       xdr::xvector<ClaimPredicate, 2>& vec)
 {
     stellar::uniform_int_distribution<size_t> dist(0, 1);
-    bool randBool = dist(gRandomEngine);
+    bool randBool = dist(Catch::rng());
 
     auto const& firstPred = randBool ? pred1 : pred2;
     auto const& secondPred = randBool ? pred2 : pred1;
@@ -324,7 +324,6 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
     auto simplePred = makeSimplePredicate(3); // validPredicate
 
     xdr::xvector<Claimant, 10> validClaimants{makeClaimant(acc2, simplePred)};
-
     SECTION("not supported before version 14")
     {
         for_versions_to(13, *app, [&] {

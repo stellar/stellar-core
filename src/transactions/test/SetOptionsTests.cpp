@@ -471,7 +471,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 ops.emplace_back(root.op(setOptions(setSigner(signer))));
 
                 stellar::uniform_int_distribution<size_t> dist(0, 1);
-                if (dist(gRandomEngine))
+                if (dist(Catch::rng()))
                 {
                     auto sk = SecretKey::pseudoRandomForTesting();
                     keys.emplace_back(sk);
@@ -517,7 +517,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 // 67% change to add, 33% chance to remove
                 while (signers.size() < MAX_SIGNERS)
                 {
-                    if (dist(gRandomEngine))
+                    if (dist(Catch::rng()))
                     {
                         addSigner();
                     }
@@ -530,7 +530,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 // 33% change to add, 67% chance to remove
                 while (!signers.empty())
                 {
-                    if (dist(gRandomEngine))
+                    if (dist(Catch::rng()))
                     {
                         removeSigner();
                     }

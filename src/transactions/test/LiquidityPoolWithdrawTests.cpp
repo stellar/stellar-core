@@ -400,10 +400,10 @@ TEST_CASE_VERSIONS("liquidity pool withdraw", "[tx][liquiditypool]")
                 SECTION(fmt::format("deposit amount = {}", i))
                 {
                     std::vector<std::pair<bool, int64_t>> trades;
-                    int64_t numTrades = dist(gRandomEngine);
+                    int64_t numTrades = dist(Catch::rng());
                     for (int j = 0; j < numTrades; ++j)
                     {
-                        int64_t tradeSize = dist(gRandomEngine);
+                        int64_t tradeSize = dist(Catch::rng());
                         trades.emplace_back(tradeSize % 2 == 0, tradeSize);
                     }
 
