@@ -531,24 +531,50 @@ TEST_CASE("sums of nanoseconds do not overflow", "[medida_math]")
     }
 }
 
+// It is possible that `std::this_thread::sleep_for` sleeps
+// much more than the predefined duration.
+// By sleeping a much shorter amount of time,
+// we reduce the chance of sleeping too much.
+void
+sleep(std::chrono::seconds const& duration)
+{
+    auto const threshold = std::chrono::milliseconds(10);
+    auto end = std::chrono::system_clock::now() + duration;
+    while (std::chrono::system_clock::now() + threshold < end)
+    {
+        std::this_thread::sleep_for(threshold);
+    }
+}
+
 template <typename Dist, typename... Args>
 void
 testCKMSSample(int const count, Args... args)
 {
     auto const windowSize = std::chrono::seconds(1);
-    medida::Histogram hist{medida::SamplingInterface::kCKMS, windowSize};
 
     double const error = 0.001;
     auto const percentiles = {0.5, 0.75, 0.9, 0.99};
 
-    std::vector<int64_t> values;
+    // Generate random numbers before creating an CKMS object.
+    std::vector<int64_t> values, sortedValues;
     values.reserve(count);
+    sortedValues.reserve(count);
     Dist dist(std::forward<Args>(args)...);
     for (int i = 0; i < count; i++)
     {
         auto x = static_cast<int64_t>(dist(stellar::gRandomEngine));
         values.push_back(x);
-        hist.Update(x);
+        sortedValues.push_back(x);
+    }
+    // Sort the values before generating the CKMS object.
+    // This is used to find the exact percentiles.
+    std::sort(sortedValues.begin(), sortedValues.end());
+
+    medida::Histogram hist{medida::SamplingInterface::kCKMS, windowSize};
+    // Add the values in the order that they were generated.
+    for (auto value : values)
+    {
+        hist.Update(value);
     }
 
     {
@@ -565,24 +591,22 @@ testCKMSSample(int const count, Args... args)
     // There is no easy way to fast-forward time in Medida.
     // We need to wait for 1 second so that the window with `count`
     // samples are in the previous window, not in the current window.
-    std::this_thread::sleep_for(windowSize);
+    sleep(windowSize);
     {
         // Now all the samples we added are in the previous window
         // which CKMSSample reports.
-        std::sort(values.begin(), values.end());
         auto s = hist.GetSnapshot();
         for (auto const q : percentiles)
         {
-            auto lowerbound = values[int((1 - error) * q * count)];
-            auto upperbound = values[int((1 + error) * q * count)];
+            auto lowerbound = sortedValues[int((1 - error) * q * count)];
+            auto upperbound = sortedValues[int((1 + error) * q * count)];
             auto got = s.getValue(q);
             REQUIRE(lowerbound <= got);
             REQUIRE(got <= upperbound);
         }
     }
 
-    std::this_thread::sleep_for(windowSize);
-
+    sleep(windowSize);
     {
         // Now all the samples are two windows ago.
         // In other words, they must have been thrown out.
