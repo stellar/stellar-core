@@ -165,8 +165,11 @@ Operation bumpSequence(SequenceNumber to);
 
 Operation createAccount(PublicKey const& dest, int64_t amount);
 
+Operation payment(PublicKey const& to, int64_t amount, Application& app);
 Operation payment(PublicKey const& to, int64_t amount);
 
+Operation payment(PublicKey const& to, Asset const& asset, int64_t amount,
+                  Application& app);
 Operation payment(PublicKey const& to, Asset const& asset, int64_t amount);
 
 Operation createClaimableBalance(Asset const& asset, int64_t amount,

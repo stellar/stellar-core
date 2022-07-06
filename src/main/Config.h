@@ -231,6 +231,10 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
     std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
 
+    // Additional number of bytes to add to every payment operation in loadgen
+    std::vector<uint32> LOADGEN_OP_SIZE_FOR_TESTING;
+    std::vector<uint32> LOADGEN_OP_SIZE_DISTRIBUTION_FOR_TESTING;
+
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
 

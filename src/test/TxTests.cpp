@@ -762,6 +762,24 @@ createAccount(PublicKey const& dest, int64_t amount)
     return op;
 }
 
+void
+addPaymenData(Application& app, Operation& op)
+{
+    auto const& cfg = app.getConfig();
+    if (!cfg.LOADGEN_OP_SIZE_FOR_TESTING.empty())
+    {
+        std::discrete_distribution<uint32> distribution(
+            cfg.LOADGEN_OP_SIZE_DISTRIBUTION_FOR_TESTING.begin(),
+            cfg.LOADGEN_OP_SIZE_DISTRIBUTION_FOR_TESTING.end());
+        auto words =
+            cfg.LOADGEN_OP_SIZE_FOR_TESTING[distribution(gRandomEngine)];
+        while (op.body.paymentOp().data.size() < words)
+        {
+            op.body.paymentOp().data.emplace_back(0);
+        }
+    }
+}
+
 Operation
 payment(PublicKey const& to, int64_t amount)
 {
@@ -781,6 +799,23 @@ payment(PublicKey const& to, Asset const& asset, int64_t amount)
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().destination = toMuxedAccount(to);
     op.body.paymentOp().asset = asset;
+    return op;
+}
+
+Operation
+payment(PublicKey const& to, int64_t amount, Application& app)
+{
+    Operation op = payment(to, amount);
+    addPaymenData(app, op);
+    return op;
+}
+
+Operation
+payment(PublicKey const& to, Asset const& asset, int64_t amount,
+        Application& app)
+{
+    Operation op = payment(to, asset, amount);
+    addPaymenData(app, op);
     return op;
 }
 

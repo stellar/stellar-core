@@ -87,6 +87,7 @@ struct PaymentOp
     MuxedAccount destination; // recipient of the payment
     Asset asset;              // what they end up with
     int64 amount;             // amount they end up with
+    uint32 data<>;
 };
 
 /* PathPaymentStrictReceive
