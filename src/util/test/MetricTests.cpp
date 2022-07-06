@@ -28,6 +28,47 @@ using uniform_u64 = stellar::uniform_int_distribution<uint64_t>;
 // how much data to keep in memory when comparing datasets
 static std::chrono::seconds const sampleCutoff(60 * 5);
 
+void
+sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
+{
+    // Medida doesn't support any virtual clock.
+    // Therefore, the following tests use the real time.
+    // This makes tests flaky as they will fail when it's too close to the end
+    // of a bucket. For instance, if a test starts at 11:59:59.998, then the
+    // first event it records might go into [11:59:30, 12:00:00] but the next
+    // event might go into [12:00:00, 12:00:30] even if they occur within 0.003
+    // seconds. This function makes sure that we'll be in the first `threshold`
+    // milliseconds of the window.
+
+    auto const threshold = std::chrono::milliseconds(100);
+    for (;;)
+    {
+        auto offset =
+            std::chrono::system_clock::now().time_since_epoch() %
+            std::chrono::duration_cast<
+                medida::SystemClock::time_point::duration>(windowSize);
+        if (offset < threshold)
+        {
+            break;
+        }
+        // Sleep half of `threshold` until we get to the first `threshold`
+        // milliseconds of the time window.
+        std::this_thread::sleep_for(threshold / 2);
+    }
+}
+void
+sleepAtLeast(std::chrono::seconds const& duration)
+{
+    // By sleeping a shorter amount repeatedly,
+    // we reduce the risk of sleeping too much.
+    auto const threshold = std::chrono::milliseconds(10);
+    auto end = std::chrono::system_clock::now() + duration;
+    while (std::chrono::system_clock::now() < end)
+    {
+        std::this_thread::sleep_for(threshold);
+    }
+}
+
 // Helper for diagnostics.
 void
 printDistribution(std::vector<double> const& dist, size_t nbuckets = 10)
@@ -535,12 +576,13 @@ template <typename Dist, typename... Args>
 void
 testCKMSSample(int const count, Args... args)
 {
-    auto const windowSize = std::chrono::seconds(1);
+    auto const windowSize = std::chrono::seconds(5);
     medida::Histogram hist{medida::SamplingInterface::kCKMS, windowSize};
 
     double const error = 0.001;
     auto const percentiles = {0.5, 0.75, 0.9, 0.99};
 
+    sleepTillNextBucketIfNecessary(windowSize);
     std::vector<int64_t> values;
     values.reserve(count);
     Dist dist(std::forward<Args>(args)...);
@@ -563,9 +605,10 @@ testCKMSSample(int const count, Args... args)
     }
 
     // There is no easy way to fast-forward time in Medida.
-    // We need to wait for 1 second so that the window with `count`
+    // We need to wait for windowSize seconds so that the window with `count`
     // samples are in the previous window, not in the current window.
-    std::this_thread::sleep_for(windowSize);
+    sleepAtLeast(windowSize);
+
     {
         // Now all the samples we added are in the previous window
         // which CKMSSample reports.
@@ -581,7 +624,7 @@ testCKMSSample(int const count, Args... args)
         }
     }
 
-    std::this_thread::sleep_for(windowSize);
+    sleepAtLeast(windowSize);
 
     {
         // Now all the samples are two windows ago.
