@@ -44,7 +44,9 @@ sleepTillNextBucketIfNecessary(std::chrono::seconds const& windowSize)
     for (;;)
     {
         auto offset =
-            std::chrono::system_clock::now().time_since_epoch() % windowSize;
+            std::chrono::system_clock::now().time_since_epoch() %
+            std::chrono::duration_cast<
+                medida::SystemClock::time_point::duration>(windowSize);
         if (offset < threshold)
         {
             break;
