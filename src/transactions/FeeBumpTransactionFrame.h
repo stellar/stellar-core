@@ -97,5 +97,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     static TransactionEnvelope
     convertInnerTxToV1(TransactionEnvelope const& envelope);
+
+    bool hasDexOperations() const override;
 };
 }

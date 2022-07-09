@@ -46,6 +46,14 @@ PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
 }
 
 bool
+PathPaymentOpFrameBase::isDexOperation() const
+{
+    auto const& src = getSourceAsset();
+    auto const& dest = getDestAsset();
+    return !getPath().empty() || !(src == dest);
+}
+
+bool
 PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset)
 {
     if (asset.type() != ASSET_TYPE_NATIVE)

@@ -538,6 +538,12 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
     return true;
 }
 
+bool
+ManageOfferOpFrameBase::isDexOperation() const
+{
+    return !isDeleteOffer();
+}
+
 int64_t
 ManageOfferOpFrameBase::generateNewOfferID(LedgerTxnHeader& header)
 {

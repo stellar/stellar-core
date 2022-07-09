@@ -33,6 +33,12 @@ FeeBumpTransactionFrame::convertInnerTxToV1(TransactionEnvelope const& envelope)
     return e;
 }
 
+bool
+FeeBumpTransactionFrame::hasDexOperations() const
+{
+    return mInnerTx->hasDexOperations();
+}
+
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)

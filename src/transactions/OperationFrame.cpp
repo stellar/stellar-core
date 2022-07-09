@@ -268,6 +268,12 @@ OperationFrame::resetResultSuccess()
     mResult.tr().type(mOperation.body.type());
 }
 
+bool
+OperationFrame::isDexOperation() const
+{
+    return false;
+}
+
 void
 OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {
