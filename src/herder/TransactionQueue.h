@@ -194,10 +194,11 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
-    uint32_t mBroadcastOpCarryover = 0;
+    std::vector<uint32_t> mBroadcastOpCarryover;
     VirtualTimer mBroadcastTimer;
 
-    uint32_t getMaxOpsToFloodThisPeriod() const;
+    std::pair<uint32_t, std::optional<uint32_t>>
+    getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -212,7 +213,7 @@ class TransactionQueue
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
                      TimestampedTransactions::iterator& oldTxIter,
-                     std::vector<TxStackPtr>& txsToEvict);
+                     std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
