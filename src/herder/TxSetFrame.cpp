@@ -567,7 +567,25 @@ TxSetFrame::encodedSize() const
 }
 
 void
-TxSetFrame::computeTxFees(LedgerHeader const& lclHeader) const
+TxSetFrame::computeTxFeesForNonGeneralizedSet(
+    LedgerHeader const& lclHeader) const
+{
+    ZoneScoped;
+    auto ledgerVersion = lclHeader.ledgerVersion;
+    int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
+    for (auto& txPtr : mTxs)
+    {
+        int64_t txBaseFee = computePerOpFee(*txPtr, ledgerVersion);
+        lowBaseFee = std::min(lowBaseFee, txBaseFee);
+    }
+    computeTxFeesForNonGeneralizedSet(lclHeader, lowBaseFee,
+                                      /* enableLogging */ false);
+}
+
+void
+TxSetFrame::computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
+                                              int64_t lowestBaseFee,
+                                              bool enableLogging) const
 {
     ZoneScoped;
     auto ledgerVersion = lclHeader.ledgerVersion;
@@ -615,6 +633,54 @@ TxSetFrame::computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
     mFeesComputed = true;
 }
 
+void
+TxSetFrame::computeTxFees(LedgerHeader const& ledgerHeader,
+                          SurgePricingLaneConfig const& surgePricingConfig,
+                          std::vector<int64_t> const& lowestLaneFee,
+                          std::vector<bool> const& hadTxNotFittingLane)
+{
+    releaseAssert(!mFeesComputed);
+    releaseAssert(isGeneralizedTxSet());
+    releaseAssert(lowestLaneFee.size() == hadTxNotFittingLane.size());
+    std::vector<int64_t> laneBaseFee(lowestLaneFee.size(),
+                                     ledgerHeader.baseFee);
+    auto minBaseFee =
+        *std::min_element(lowestLaneFee.begin(), lowestLaneFee.end());
+    for (size_t lane = 0; lane < laneBaseFee.size(); ++lane)
+    {
+        // If generic lane is full, then any transaction had to compete with not
+        // included transactions and independently of the lane they need to have
+        // at least the minimum fee in the tx set applied.
+        if (hadTxNotFittingLane[SurgePricingPriorityQueue::GENERIC_LANE])
+        {
+            laneBaseFee[lane] = minBaseFee;
+        }
+        // If limited lane is full, then the transactions in this lane also had
+        // to compete with each other and have a base fee associated with this
+        // lane only.
+        if (lane != SurgePricingPriorityQueue::GENERIC_LANE &&
+            hadTxNotFittingLane[lane])
+        {
+            laneBaseFee[lane] = lowestLaneFee[lane];
+        }
+        if (laneBaseFee[lane] > ledgerHeader.baseFee)
+        {
+            CLOG_WARNING(
+                Herder,
+                "surge pricing for '{}' lane is in effect with base fee={}",
+                lane == SurgePricingPriorityQueue::GENERIC_LANE ? "generic"
+                                                                : "DEX",
+                laneBaseFee[lane]);
+        }
+    }
+
+    for (auto const& tx : mTxs)
+    {
+        mTxBaseFee[tx] = laneBaseFee[surgePricingConfig.getLane(*tx)];
+    }
+    mFeesComputed = true;
+}
+
 std::optional<int64_t>
 TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
                          LedgerHeader const& lclHeader) const
@@ -622,7 +688,7 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     if (!mFeesComputed)
     {
         releaseAssert(!isGeneralizedTxSet());
-        computeTxFees(lclHeader);
+        computeTxFeesForNonGeneralizedSet(lclHeader);
     }
     auto it = mTxBaseFee.find(tx);
     if (it == mTxBaseFee.end())
@@ -799,22 +865,46 @@ TxSetFrame::applySurgePricing(Application& app)
         static_cast<uint32_t>(app.getLedgerManager().getLastMaxTxSetSizeOps());
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
+    std::optional<uint32_t> dexOpsLimit;
+    if (isGeneralizedTxSet())
+    {
+        // DEX operations limit implies that DEX transactions should compete
+        // with each other in in a separate fee lane, which is only possible
+        // with generalized tx set.
+        dexOpsLimit = app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+    }
 
     auto actTxQueues = TxSetUtils::buildAccountTxQueues(mTxs);
+    auto surgePricingLaneConfig =
+        std::make_shared<DexLimitingLaneConfig>(maxOps, dexOpsLimit);
 
-    auto includedTxs = SurgePricingPriorityQueue::getMostTopTxsWithinLimit(
+    std::vector<bool> hadTxNotFittingLane;
+    auto includedTxs = SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
         std::vector<TxStackPtr>(actTxQueues.begin(), actTxQueues.end()),
-        maxOps);
+        surgePricingLaneConfig, hadTxNotFittingLane);
 
-    int64_t lowestFee = std::numeric_limits<int64_t>::max();
+    size_t laneCount = surgePricingLaneConfig->getLaneOpsLimits().size();
+    std::vector<int64_t> lowestLaneFee(laneCount,
+                                       std::numeric_limits<int64_t>::max());
     for (auto const& tx : includedTxs)
     {
+        size_t lane = surgePricingLaneConfig->getLane(*tx);
         auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
-        lowestFee = std::min(lowestFee, perOpFee);
+        lowestLaneFee[lane] = std::min(lowestLaneFee[lane], perOpFee);
     }
+
     mTxs = includedTxs;
-    computeTxFees(lclHeader, lowestFee,
-                  /* enableLogging */ true);
+    if (isGeneralizedTxSet())
+    {
+        computeTxFees(lclHeader, *surgePricingLaneConfig, lowestLaneFee,
+                      hadTxNotFittingLane);
+    }
+    else
+    {
+        computeTxFeesForNonGeneralizedSet(
+            lclHeader, lowestLaneFee[SurgePricingPriorityQueue::GENERIC_LANE],
+            /* enableLogging */ true);
+    }
 }
 
 void
