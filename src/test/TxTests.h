@@ -100,6 +100,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
+TxSetResultMeta closeLedger(Application& app, TxSetFrameConstPtr txSet);
+
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
                               time_t closeTime, TxSetFrameConstPtr txSet);
 
@@ -180,6 +182,9 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
+
+TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
+                                      int nbOps, uint32_t fee);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
