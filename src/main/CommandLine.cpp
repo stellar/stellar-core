@@ -64,6 +64,7 @@ class CommandLine
         LogLevel mLogLevel{LogLevel::LVL_INFO};
         std::vector<std::string> mMetrics;
         std::string mConfigFile;
+        bool mConsoleLog{false};
 
         Config getConfig(bool logToFile = true) const;
     };
@@ -101,7 +102,8 @@ const std::vector<std::pair<std::string, bool>>
     CommandLine::ConfigOption::COMMON_OPTIONS{{"--conf", true},
                                               {"--ll", true},
                                               {"--metric", true},
-                                              {"--help", false}};
+                                              {"--help", false},
+                                              {"--console", false}};
 
 class ParserWithValidation
 {
@@ -204,6 +206,12 @@ logLevelParser(LogLevel& value)
 }
 
 clara::Opt
+consoleParser(bool& console)
+{
+    return clara::Opt{console}["--console"]("enable logging to console");
+}
+
+clara::Opt
 metricsParser(std::vector<std::string>& value)
 {
     return clara::Opt{value, "METRIC-NAME"}["--metric"](
@@ -275,6 +283,7 @@ configurationParser(CommandLine::ConfigOption& configOption)
 {
     return logLevelParser(configOption.mLogLevel) |
            metricsParser(configOption.mMetrics) |
+           consoleParser(configOption.mConsoleLog) |
            clara::Opt{configOption.mConfigFile,
                       "FILE-NAME"}["--conf"](fmt::format(
                FMT_STRING("specify a config file ('{}' for STDIN, default "
@@ -515,12 +524,20 @@ CommandLine::ConfigOption::getConfig(bool logToFile) const
 
     if (logToFile)
     {
-        if (config.LOG_FILE_PATH.size())
+        if (!config.LOG_FILE_PATH.empty())
+        {
             Logging::setLoggingToFile(config.LOG_FILE_PATH);
+        }
         if (config.LOG_COLOR)
+        {
             Logging::setLoggingColor(true);
-        Logging::setLogLevel(mLogLevel, nullptr);
+        }
     }
+
+    bool consoleLogging =
+        !logToFile || config.LOG_FILE_PATH.empty() || mConsoleLog;
+    Logging::setLoggingToConsole(consoleLogging);
+    Logging::setLogLevel(mLogLevel, nullptr);
 
     config.REPORT_METRICS = mMetrics;
     return config;
@@ -1620,12 +1637,14 @@ runFuzz(CommandLineArgs const& args)
     std::string fileName;
     std::string outputFile;
     int processID = 0;
+    bool consoleLog = false;
     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
     std::string fuzzerModeArg = "overlay";
 
     return runWithHelp(args,
                        {logLevelParser(logLevel), metricsParser(metrics),
-                        fileNameParser(fileName), outputFileParser(outputFile),
+                        consoleParser(consoleLog), fileNameParser(fileName),
+                        outputFileParser(outputFile),
                         processIDParser(processID),
                         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
                        [&] {

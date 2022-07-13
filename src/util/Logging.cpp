@@ -37,6 +37,7 @@ bool Logging::mInitialized = false;
 bool Logging::mColor = false;
 std::string Logging::mLastPattern;
 std::string Logging::mLastFilenamePattern;
+bool Logging::mLogToConsole = true;
 #endif
 
 // Right now this is hard-coded to log messages at least as important as INFO
@@ -94,13 +95,16 @@ Logging::init(bool truncate)
         using namespace spdlog::sinks;
         using std::make_shared;
         using std::shared_ptr;
+        std::vector<shared_ptr<sink>> sinks;
 
-        auto console = (mColor ? static_cast<shared_ptr<sink>>(
-                                     make_shared<stderr_color_sink_mt>())
-                               : static_cast<shared_ptr<sink>>(
-                                     make_shared<stderr_sink_mt>()));
-
-        std::vector<shared_ptr<sink>> sinks{console};
+        if (mLogToConsole)
+        {
+            auto console = (mColor ? static_cast<shared_ptr<sink>>(
+                                         make_shared<stderr_color_sink_mt>())
+                                   : static_cast<shared_ptr<sink>>(
+                                         make_shared<stderr_sink_mt>()));
+            sinks.emplace_back(console);
+        }
 
         if (!mLastFilenamePattern.empty())
         {
@@ -232,6 +236,17 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
 }
 
 void
+Logging::setLoggingToConsole(bool console)
+{
+#if defined(USE_SPDLOG)
+    std::lock_guard<std::recursive_mutex> guard(mLogMutex);
+    mLogToConsole = console;
+    deinit();
+    init();
+#endif
+}
+
+void
 Logging::setLoggingToFile(std::string const& filename)
 {
 #if defined(USE_SPDLOG)
@@ -247,6 +262,7 @@ Logging::setLoggingToFile(std::string const& filename)
         // Could not initialize logging to file, fallback on
         // console-only logging and throw
         mLastFilenamePattern.clear();
+        mLogToConsole = true;
         deinit();
         init();
         throw;
