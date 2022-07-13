@@ -989,7 +989,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32_t>(map, "maxfeerate");
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
-
+        // Only for MIXED_TX mode; fraction of DEX transactions.
+        cfg.dexTxPercent =
+            parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
         if (cfg.batchSize > 100)
         {
             cfg.batchSize = 100;
