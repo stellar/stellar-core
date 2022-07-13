@@ -107,3 +107,4 @@ min-testcases/
 /src/util/xdrquery/XDRQueryScanner.cpp
 /src/util/xdrquery/XDRQueryParser.h
 /src/util/xdrquery/XDRQueryParser.cpp
+/src/util/xdrquery/stack.hh
