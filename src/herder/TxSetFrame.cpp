@@ -521,6 +521,13 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         return false;
     }
 
+    if (!std::is_sorted(mTxs.begin(), mTxs.end(), &TxSetUtils::hashTxSorter))
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: {} is not in hash order",
+                   hexAbbrev(mPreviousLedgerHash));
+        return false;
+    }
+
     if (std::adjacent_find(mTxs.begin(), mTxs.end(),
                            [](auto const& lhs, auto const& rhs) {
                                return lhs->getFullHash() == rhs->getFullHash();
@@ -840,7 +847,7 @@ TxSetFrame::surgePricingFilter(uint32_t opsLeft)
             cur->clear();
         }
     }
-    mTxs = filteredTxs;
+    mTxs = TxSetUtils::sortTxsInHashOrder(filteredTxs);
 }
 
 void
