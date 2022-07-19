@@ -403,11 +403,27 @@ lastModifiedLedgerCountParser(
 }
 
 clara::Opt
+groupByParser(std::optional<std::string>& groupBy)
+{
+    return clara::Opt{[&](std::string const& arg) { groupBy = arg; },
+                      "GROUP-BY-EXPR"}["--group-by"](
+        "comma-separated fields to group the results by");
+}
+
+clara::Opt
+aggregateParser(std::optional<std::string>& aggregate)
+{
+    return clara::Opt{[&](std::string const& arg) { aggregate = arg; },
+                      "AGGREGATE-EXPR"}["--agg"](
+        "comma-separated aggregate expressions");
+}
+
+clara::Opt
 limitParser(std::optional<std::uint64_t>& limit)
 {
     return clara::Opt{[&](std::string const& arg) { limit = std::stoull(arg); },
                       "LIMIT"}["--limit"](
-        "limit the output to this many ledger entries");
+        "process only this many recent ledger entries (not *most* recent)");
 }
 
 int
@@ -1087,16 +1103,20 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<std::string> filterQuery;
     std::optional<uint32_t> lastModifiedLedgerCount;
     std::optional<uint64_t> limit;
+    std::optional<std::string> groupBy;
+    std::optional<std::string> aggregate;
     return runWithHelp(args,
                        {configurationParser(configOption),
                         outputFileParser(outputFile).required(),
                         filterQueryParser(filterQuery),
                         lastModifiedLedgerCountParser(lastModifiedLedgerCount),
-                        limitParser(limit)},
+                        limitParser(limit), groupByParser(groupBy),
+                        aggregateParser(aggregate)},
                        [&] {
                            return dumpLedger(configOption.getConfig(),
                                              outputFile, filterQuery,
-                                             lastModifiedLedgerCount, limit);
+                                             lastModifiedLedgerCount, limit,
+                                             groupBy, aggregate);
                        });
 }
 
