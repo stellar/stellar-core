@@ -45,7 +45,7 @@ Command options can only by placed after command.
     representation: enums are represented as their name strings, account ids as
     encoded strings, hashes as hex strings etc. Filtering is useful to minimize
     the output JSON size and then optionally process it further with tools like
-    `jq`. Query examples:
+    `jq`. Query filter examples:
     
     * `data.type == 'OFFER'` - dump only offers
     * `data.account.accountID == 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' || 
@@ -61,6 +61,19 @@ Command options can only by placed after command.
     * `(data.account.balance < 100000000 || data.account.balance >= 2000000000) 
        && data.account.numSubEntries > 2` - dump accounts with certain balance 
        and sub entries count, demonstrates more complex expression
+   
+   This command may also be used to aggregate ledger data to a CSV table using all 
+   the above options in combination with **--agg** and (optionally) **--group-by**.
+   **--agg** supports the following aggregation functions: `sum`, `avg` and `count`.
+   For example:
+
+   * `--group-by "data.type" --agg "count()"` - find the count of entries per type.
+   * `--group-by "data.offer.selling.assetCode, data.offer.selling.issuer" 
+      --agg "sum(data.offer.amount), avg(data.offer.amount)"` - find the total offer
+      amount and average offer amount per selling offer asset name and issuer.
+   
+   See more examples in [ledger_query_examples.md](ledger_query_examples.md).
+
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
 * **encode-asset --code <CODE> --issuer <ISSUER>**: Prints a base-64 encoded asset.
   Prints the native asset if neither `code` nor `issuer` is given.
