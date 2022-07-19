@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "util/types.h"
 #include "util/xdrquery/XDRFieldResolver.h"
-#include "util/xdrquery/XDRMatcher.h"
+#include "util/xdrquery/XDRQuery.h"
 #include "xdr/Stellar-ledger-entries.h"
 
 #include <algorithm>

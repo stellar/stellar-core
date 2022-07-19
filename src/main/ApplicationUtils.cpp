@@ -26,7 +26,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
-#include "util/xdrquery/XDRMatcher.h"
+#include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
 #include <filesystem>
