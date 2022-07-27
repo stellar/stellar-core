@@ -1590,9 +1590,10 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         // Generate a bit of load to flood transactions, make sure nodes can
         // close ledgers properly
         auto& loadGen = node->getLoadGenerator();
-        loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
-                             /*txRate*/ 1,
-                             /*batchSize*/ 1, std::chrono::seconds(0), 0);
+        loadGen.generateLoad(
+            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 10,
+                                                    /* txRate */ 1,
+                                                    /* batchSize */ 1));
 
         auto& loadGenDone =
             node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -2204,9 +2205,10 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     // Create 5 txns each creating one new account.
     // Set a really high tx rate so we create the txns right away.
     auto const numAccounts = 5;
-    loadGen.generateLoad(LoadGenMode::CREATE, numAccounts, 0, 0,
-                         /*txRate*/ 1000,
-                         /*batchSize*/ 1, std::chrono::seconds(0), 0);
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ numAccounts,
+        /* txRate */ 1000,
+        /* batchSize */ 1));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than

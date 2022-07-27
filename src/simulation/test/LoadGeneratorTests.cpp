@@ -37,8 +37,10 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
     auto& app = *nodes[0]; // pick a node to generate load
 
     auto& loadGen = app.getLoadGenerator();
-    loadGen.generateLoad(LoadGenMode::CREATE, 3, 0, 0, 10, 100,
-                         std::chrono::seconds(0), 0);
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 3,
+        /* txRate */ 10,
+        /* batchSize */ 100));
     try
     {
         simulation->crankUntil(
@@ -49,8 +51,8 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        loadGen.generateLoad(LoadGenMode::PRETEND, 3, 0, 5, 10, 100,
-                             std::chrono::seconds(0), 0);
+        loadGen.generateLoad(
+            GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND, 3, 5, 10, 100));
 
         simulation->crankUntil(
             [&]() {

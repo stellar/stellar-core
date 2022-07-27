@@ -946,41 +946,37 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     {
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
-
-        LoadGenMode mode = LoadGenerator::getMode(
+        GeneratedLoadConfig cfg;
+        cfg.mode = LoadGenerator::getMode(
             parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
-        bool isCreate = mode == LoadGenMode::CREATE;
+        bool isCreate = cfg.mode == LoadGenMode::CREATE;
 
-        uint32_t nAccounts =
+        cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
-        uint32_t nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
-        uint32_t txRate =
-            parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
-        uint32_t batchSize = parseOptionalParamOrDefault<uint32_t>(
+        cfg.nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
+        cfg.txRate = parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
+        cfg.batchSize = parseOptionalParamOrDefault<uint32_t>(
             map, "batchsize", 100); // Only for account creations
-        uint32_t offset =
-            parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
+        cfg.offset = parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
         uint32_t spikeIntervalInt =
             parseOptionalParamOrDefault<uint32_t>(map, "spikeinterval", 0);
-        std::chrono::seconds spikeInterval(spikeIntervalInt);
-        uint32_t spikeSize =
+        cfg.spikeInterval = std::chrono::seconds(spikeIntervalInt);
+        cfg.spikeSize =
             parseOptionalParamOrDefault<uint32_t>(map, "spikesize", 0);
 
-        uint32_t numItems = isCreate ? nAccounts : nTxs;
-        std::string itemType = isCreate ? "accounts" : "txs";
-
-        if (batchSize > 100)
+        if (cfg.batchSize > 100)
         {
-            batchSize = 100;
+            cfg.batchSize = 100;
             retStr = "Setting batch size to its limit of 100.";
         }
 
-        mApp.generateLoad(mode, nAccounts, offset, nTxs, txRate, batchSize,
-                          spikeInterval, spikeSize);
+        uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
+        std::string itemType = isCreate ? "accounts" : "txs";
 
         retStr +=
             fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
-                        numItems, itemType, txRate);
+                        numItems, itemType, cfg.txRate);
+        mApp.generateLoad(cfg);
     }
     else
     {

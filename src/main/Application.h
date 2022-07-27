@@ -45,6 +45,7 @@ class StatusManager;
 class AbstractLedgerTxnParent;
 class BasicWork;
 enum class LoadGenMode;
+struct GeneratedLoadConfig;
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
@@ -260,11 +261,7 @@ class Application
 #ifdef BUILD_TESTS
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
     // against the current application.
-    virtual void generateLoad(LoadGenMode mode, uint32_t nAccounts,
-                              uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                              uint32_t batchSize,
-                              std::chrono::seconds spikeInterval,
-                              uint32_t spikeSize) = 0;
+    virtual void generateLoad(GeneratedLoadConfig cfg) = 0;
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;

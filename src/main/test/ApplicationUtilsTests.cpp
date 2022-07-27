@@ -277,9 +277,10 @@ TEST_CASE("application setup", "[applicationutils]")
 
         // Generate a bit of load, and crank for some time
         auto& loadGen = validator->getLoadGenerator();
-        loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
-                             /*txRate*/ 1,
-                             /*batchSize*/ 1, std::chrono::seconds(0), 0);
+        loadGen.generateLoad(
+            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 10,
+                                                    /* txRate */ 1,
+                                                    /* batchSize */ 1));
 
         auto& loadGenDone = validator->getMetrics().NewMeter(
             {"loadgen", "run", "complete"}, "run");
@@ -383,10 +384,10 @@ TEST_CASE("application setup", "[applicationutils]")
                                           .mCheckpointsDownloaded;
 
                     // Generate a bit of load, and crank for some time
-                    loadGen.generateLoad(
-                        LoadGenMode::PAY, /* nAccounts */ 10, 0, 10,
+                    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                        LoadGenMode::PAY, /* nAccounts */ 10, /* nTxs */ 10,
                         /*txRate*/ 1,
-                        /*batchSize*/ 1, std::chrono::seconds(0), 0);
+                        /*batchSize*/ 1));
 
                     auto currLoadGenCount = loadGenDone.count();
 

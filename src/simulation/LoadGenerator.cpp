@@ -162,11 +162,7 @@ LoadGenerator::reset()
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
 void
-LoadGenerator::scheduleLoadGeneration(LoadGenMode mode, uint32_t nAccounts,
-                                      uint32_t offset, uint32_t nTxs,
-                                      uint32_t txRate, uint32_t batchSize,
-                                      std::chrono::seconds spikeInterval,
-                                      uint32_t spikeSize)
+LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 {
     // If previously scheduled step of load did not succeed, fail this loadgen
     // run.
@@ -188,13 +184,8 @@ LoadGenerator::scheduleLoadGeneration(LoadGenMode mode, uint32_t nAccounts,
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait(
-            [this, nAccounts, offset, nTxs, txRate, batchSize, mode,
-             spikeInterval, spikeSize]() {
-                this->generateLoad(mode, nAccounts, offset, nTxs, txRate,
-                                   batchSize, spikeInterval, spikeSize);
-            },
-            &VirtualTimer::onFailureNoop);
+        mLoadTimer->async_wait([this, cfg]() { this->generateLoad(cfg); },
+                               &VirtualTimer::onFailureNoop);
     }
     else
     {
@@ -204,12 +195,7 @@ LoadGenerator::scheduleLoadGeneration(LoadGenMode mode, uint32_t nAccounts,
             mApp.getState());
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait(
-            [this, nAccounts, offset, nTxs, txRate, batchSize, mode,
-             spikeInterval, spikeSize]() {
-                this->scheduleLoadGeneration(mode, nAccounts, offset, nTxs,
-                                             txRate, batchSize, spikeInterval,
-                                             spikeSize);
-            },
+            [this, cfg]() { this->scheduleLoadGeneration(cfg); },
             &VirtualTimer::onFailureNoop);
     }
 }
@@ -219,14 +205,10 @@ LoadGenerator::scheduleLoadGeneration(LoadGenMode mode, uint32_t nAccounts,
 // If work remains after the current step, call scheduleLoadGeneration()
 // with the remainder.
 void
-LoadGenerator::generateLoad(LoadGenMode mode, uint32_t nAccounts,
-                            uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                            uint32_t batchSize,
-                            std::chrono::seconds spikeInterval,
-                            uint32_t spikeSize)
+LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
 {
-    bool isCreate = mode == LoadGenMode::CREATE;
+    bool isCreate = cfg.mode == LoadGenMode::CREATE;
     if (!mStartTime)
     {
         mStartTime =
@@ -236,7 +218,7 @@ LoadGenerator::generateLoad(LoadGenMode mode, uint32_t nAccounts,
     createRootAccount();
 
     // Finish if no more txs need to be created.
-    if ((isCreate && nAccounts == 0) || (!isCreate && nTxs == 0))
+    if ((isCreate && cfg.nAccounts == 0) || (!isCreate && cfg.nTxs == 0))
     {
         // Done submitting the load, now ensure it propagates to the DB.
         waitTillComplete(isCreate);
@@ -244,16 +226,16 @@ LoadGenerator::generateLoad(LoadGenMode mode, uint32_t nAccounts,
     }
 
     updateMinBalance();
-    if (txRate == 0)
+    if (cfg.txRate == 0)
     {
-        txRate = 1;
+        cfg.txRate = 1;
     }
-    if (batchSize == 0)
+    if (cfg.batchSize == 0)
     {
-        batchSize = 1;
+        cfg.batchSize = 1;
     }
 
-    auto txPerStep = getTxPerStep(txRate, spikeInterval, spikeSize);
+    auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
@@ -262,24 +244,26 @@ LoadGenerator::generateLoad(LoadGenMode mode, uint32_t nAccounts,
 
     for (int64_t i = 0; i < txPerStep; ++i)
     {
-        switch (mode)
+        switch (cfg.mode)
         {
         case LoadGenMode::CREATE:
-            nAccounts =
-                submitCreationTx(nAccounts, offset, batchSize, ledgerNum);
+            cfg.nAccounts = submitCreationTx(cfg.nAccounts, cfg.offset,
+                                             cfg.batchSize, ledgerNum);
             break;
         case LoadGenMode::PAY:
-            nTxs = submitPaymentOrPretendTx(nAccounts, offset, batchSize,
-                                            ledgerNum, nTxs, 1, mode);
+            cfg.nTxs = submitPaymentOrPretendTx(cfg.nAccounts, cfg.offset,
+                                                cfg.batchSize, ledgerNum,
+                                                cfg.nTxs, 1, cfg.mode);
             break;
         case LoadGenMode::PRETEND:
             auto opCount = chooseOpCount(mApp.getConfig());
-            nTxs = submitPaymentOrPretendTx(nAccounts, offset, batchSize,
-                                            ledgerNum, nTxs, opCount, mode);
+            cfg.nTxs = submitPaymentOrPretendTx(cfg.nAccounts, cfg.offset,
+                                                cfg.batchSize, ledgerNum,
+                                                cfg.nTxs, opCount, cfg.mode);
             break;
         }
 
-        if (nAccounts == 0 || (!isCreate && nTxs == 0))
+        if (cfg.nAccounts == 0 || (!isCreate && cfg.nTxs == 0))
         {
             // Nothing to do for the rest of the step
             break;
@@ -293,13 +277,13 @@ LoadGenerator::generateLoad(LoadGenMode mode, uint32_t nAccounts,
     // Emit a log message once per second.
     if (now != mLastSecond)
     {
-        logProgress(submit, mode, nAccounts, nTxs, batchSize, txRate);
+        logProgress(submit, cfg.mode, cfg.nAccounts, cfg.nTxs, cfg.batchSize,
+                    cfg.txRate);
     }
 
     mLastSecond = now;
     mTotalSubmitted += txPerStep;
-    scheduleLoadGeneration(mode, nAccounts, offset, nTxs, txRate, batchSize,
-                           spikeInterval, spikeSize);
+    scheduleLoadGeneration(cfg);
 }
 
 uint32_t
@@ -765,5 +749,30 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     }
 
     return status;
+}
+
+GeneratedLoadConfig
+GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate,
+                                        uint32_t batchSize)
+{
+    GeneratedLoadConfig cfg;
+    cfg.mode = LoadGenMode::CREATE;
+    cfg.nAccounts = nAccounts;
+    cfg.txRate = txRate;
+    cfg.batchSize = batchSize;
+    return cfg;
+}
+
+GeneratedLoadConfig
+GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
+                            uint32_t txRate, uint32_t batchSize)
+{
+    GeneratedLoadConfig cfg;
+    cfg.mode = mode;
+    cfg.nAccounts = nAccounts;
+    cfg.nTxs = nTxs;
+    cfg.txRate = txRate;
+    cfg.batchSize = batchSize;
+    return cfg;
 }
 }

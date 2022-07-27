@@ -32,6 +32,30 @@ enum class LoadGenMode
     PRETEND
 };
 
+struct GeneratedLoadConfig
+{
+    static GeneratedLoadConfig
+    createAccountsLoad(uint32_t nAccounts, uint32_t txRate, uint32_t batchSize);
+
+    static GeneratedLoadConfig txLoad(LoadGenMode mode, uint32_t nAccounts,
+                                      uint32_t nTxs, uint32_t txRate,
+                                      uint32_t batchSize);
+
+    LoadGenMode mode = LoadGenMode::CREATE;
+    uint32_t nAccounts = 0;
+    uint32_t offset = 0;
+    uint32_t nTxs = 0;
+    // The number of transactions per second when there is no spike.
+    uint32_t txRate = 0;
+    uint32_t batchSize = 0;
+    // A spike will occur every spikeInterval seconds.
+    // Set this to 0 if no spikes are needed.
+    std::chrono::seconds spikeInterval = std::chrono::seconds(0);
+    // The number of transactions a spike injects on top of the
+    // steady rate.
+    uint32_t spikeSize = 0;
+};
+
 class LoadGenerator
 {
   public:
@@ -41,17 +65,11 @@ class LoadGenerator
     static LoadGenMode getMode(std::string const& mode);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
-    // given target number of accounts and txs, and a given target tx/s rate.
-    // If work remains after the current step, call scheduleLoadGeneration()
+    // given target number of accounts and txs, a given target tx/s rate, and
+    // according to the other parameters provided in configuration.
+    // If work remains after the current step, calls scheduleLoadGeneration()
     // with the remainder.
-    // txRate: The number of transactions per second when there is no spike.
-    // spikeInterval: A spike will occur every spikeInterval seconds.
-    //                Set this to 0 if no spikes are needed.
-    // spikeSize: The number of transactions a spike injects on top of the
-    // steady rate.
-    void generateLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t offset,
-                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
-                      std::chrono::seconds spikeInterval, uint32_t spikeSize);
+    void generateLoad(GeneratedLoadConfig cfg);
 
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
@@ -118,11 +136,7 @@ class LoadGenerator
                          uint32_t spikeSize);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
-    void scheduleLoadGeneration(LoadGenMode mode, uint32_t nAccounts,
-                                uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                                uint32_t batchSize,
-                                std::chrono::seconds spikeInterval,
-                                uint32_t spikeSize);
+    void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
