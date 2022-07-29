@@ -54,6 +54,15 @@ struct GeneratedLoadConfig
     // The number of transactions a spike injects on top of the
     // steady rate.
     uint32_t spikeSize = 0;
+    // When present, generate the transaction fees randomly with the fee rate up
+    // to this value.
+    // Does not affect account creation.
+    std::optional<uint32_t> maxGeneratedFeeRate;
+    // When true, skips when they're not accepted by Herder due to low fee (due
+    // to `TxQueueLimiter` limiting the operation count per ledger). Otherwise,
+    // the load generation will fail after a couple of retries.
+    // Does not affect account creation.
+    bool skipLowFeeTxs = false;
 };
 
 class LoadGenerator
@@ -104,13 +113,15 @@ class LoadGenerator
                                         LoadGenMode mode,
                                         TransactionResultCode& code,
                                         int32_t batchSize);
-    TransactionFramePtr createTransactionFramePtr(TestAccountPtr from,
-                                                  std::vector<Operation> ops,
-                                                  LoadGenMode mode);
+    TransactionFramePtr
+    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
+                              LoadGenMode mode,
+                              std::optional<uint32_t> maxGeneratedFeeRate);
 
     static const uint32_t STEP_MSECS;
     static const uint32_t TX_SUBMIT_MAX_TRIES;
     static const uint32_t TIMEOUT_NUM_LEDGERS;
+    static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
@@ -149,11 +160,13 @@ class LoadGenerator
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
     std::pair<TestAccountPtr, TransactionFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t sourceAccount);
+                       uint32_t ledgerNum, uint64_t sourceAccount,
+                       std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFramePtr>
     pretendTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
-                       uint32_t opCount);
+                       uint32_t opCount,
+                       std::optional<uint32_t> maxGeneratedFeeRate);
     void maybeHandleFailedTx(TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,
                              TransactionResultCode code);
@@ -166,11 +179,10 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t batchSize, uint32_t ledgerNum);
-    uint32_t submitPaymentOrPretendTx(uint32_t nAccounts, uint32_t offset,
-                                      uint32_t batchSize, uint32_t ledgerNum,
-                                      uint32_t nTxs, uint32_t opCount,
-                                      LoadGenMode mode);
+    uint32_t submitPaymentOrPretendTx(GeneratedLoadConfig const& cfg,
+                                      uint32_t ledgerNum, uint32_t opCount);
     void waitTillComplete(bool isCreate);
+    void waitTillCompleteWithoutChecks();
 
     void updateMinBalance();
 

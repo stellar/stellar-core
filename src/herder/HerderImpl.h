@@ -168,7 +168,7 @@ class HerderImpl : public Herder
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
 
-    TransactionQueue& getTransactionQueue();
+    TransactionQueue& getTransactionQueue() override;
 #endif
 
     // helper function to verify envelopes are signed

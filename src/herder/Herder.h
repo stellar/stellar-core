@@ -141,6 +141,8 @@ class Herder
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
+
+    virtual TransactionQueue& getTransactionQueue() = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;

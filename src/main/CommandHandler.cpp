@@ -224,6 +224,20 @@ parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
     }
 }
 
+template <>
+bool
+parseOptionalParamOrDefault<bool>(std::map<std::string, std::string> const& map,
+                                  std::string const& key,
+                                  bool const& defaultValue)
+{
+    auto paramStr = parseOptionalParam<std::string>(map, key);
+    if (!paramStr)
+    {
+        return defaultValue;
+    }
+    return *paramStr == "true";
+}
+
 // Return a value only if the key exists and the value parses.
 // Otherwise, this throws an error.
 template <typename T>
@@ -963,11 +977,25 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         cfg.spikeInterval = std::chrono::seconds(spikeIntervalInt);
         cfg.spikeSize =
             parseOptionalParamOrDefault<uint32_t>(map, "spikesize", 0);
+        cfg.maxGeneratedFeeRate =
+            parseOptionalParam<uint32_t>(map, "maxfeerate");
+        cfg.skipLowFeeTxs =
+            parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
 
         if (cfg.batchSize > 100)
         {
             cfg.batchSize = 100;
             retStr = "Setting batch size to its limit of 100.";
+        }
+        if (cfg.maxGeneratedFeeRate)
+        {
+            auto baseFee = mApp.getLedgerManager().getLastTxFee();
+            if (baseFee > *cfg.maxGeneratedFeeRate)
+            {
+                retStr = "maxfeerate is smaller than minimum base fee, load "
+                         "generation skipped.";
+                return;
+            }
         }
 
         uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;

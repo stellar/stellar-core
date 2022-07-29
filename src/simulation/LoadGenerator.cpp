@@ -49,6 +49,10 @@ const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
 // ledger.
 const uint32_t LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
 
+// After successfully submitting desired load, wait for this many ledgers
+// without checking for account consistency.
+const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
+
 LoadGenerator::LoadGenerator(Application& app)
     : mMinBalance(0)
     , mLastSecond(0)
@@ -221,7 +225,17 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     if ((isCreate && cfg.nAccounts == 0) || (!isCreate && cfg.nTxs == 0))
     {
         // Done submitting the load, now ensure it propagates to the DB.
-        waitTillComplete(isCreate);
+        if (!isCreate && cfg.skipLowFeeTxs)
+        {
+            // skipLowFeeTxs allows triggering tx queue limiter, which makes it
+            // hard to track the final seq nums. Hence just wait
+            // unconditionally.
+            waitTillCompleteWithoutChecks();
+        }
+        else
+        {
+            waitTillComplete(isCreate);
+        }
         return;
     }
 
@@ -251,15 +265,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                                              cfg.batchSize, ledgerNum);
             break;
         case LoadGenMode::PAY:
-            cfg.nTxs = submitPaymentOrPretendTx(cfg.nAccounts, cfg.offset,
-                                                cfg.batchSize, ledgerNum,
-                                                cfg.nTxs, 1, cfg.mode);
+            cfg.nTxs = submitPaymentOrPretendTx(cfg, ledgerNum, 1);
             break;
         case LoadGenMode::PRETEND:
             auto opCount = chooseOpCount(mApp.getConfig());
-            cfg.nTxs = submitPaymentOrPretendTx(cfg.nAccounts, cfg.offset,
-                                                cfg.batchSize, ledgerNum,
-                                                cfg.nTxs, opCount, cfg.mode);
+            cfg.nTxs = submitPaymentOrPretendTx(cfg, ledgerNum, opCount);
             break;
         }
 
@@ -331,28 +341,43 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
 }
 
 uint32_t
-LoadGenerator::submitPaymentOrPretendTx(uint32_t nAccounts, uint32_t offset,
-                                        uint32_t batchSize, uint32_t ledgerNum,
-                                        uint32_t nTxs, uint32_t opCount,
-                                        LoadGenMode mode)
+LoadGenerator::submitPaymentOrPretendTx(GeneratedLoadConfig const& cfg,
+                                        uint32_t ledgerNum, uint32_t opCount)
 {
-    auto sourceAccountId = rand_uniform<uint64_t>(0, nAccounts - 1) + offset;
+    auto sourceAccountId =
+        rand_uniform<uint64_t>(0, cfg.nAccounts - 1) + cfg.offset;
     TransactionFramePtr tx;
     TestAccountPtr from;
-    bool usePaymentOp = mode == LoadGenMode::PAY;
+    bool usePaymentOp = cfg.mode == LoadGenMode::PAY;
     std::tie(from, tx) =
         usePaymentOp
-            ? paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId)
-            : pretendTransaction(nAccounts, offset, ledgerNum, sourceAccountId,
-                                 opCount);
+            ? paymentTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
+                                 sourceAccountId, cfg.maxGeneratedFeeRate)
+            : pretendTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
+                                 sourceAccountId, opCount,
+                                 cfg.maxGeneratedFeeRate);
 
     TransactionResultCode code;
     TransactionQueue::AddResult status;
     uint32_t numTries = 0;
 
-    while ((status = execute(tx, mode, code, batchSize)) !=
+    while ((status = execute(tx, cfg.mode, code, cfg.batchSize)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
+
+        if (cfg.skipLowFeeTxs &&
+            (status ==
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER ||
+             status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
+                 code == txINSUFFICIENT_FEE))
+        {
+            // Rollback the seq num of the test account as we regenerate the
+            // transaction.
+            from->setSequenceNumber(from->getLastSequenceNumber() - 1);
+            CLOG_INFO(LoadGen, "skipped low fee tx with fee {}",
+                      tx->getFeeBid());
+            return cfg.nTxs;
+        }
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
             status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
@@ -365,14 +390,15 @@ LoadGenerator::submitPaymentOrPretendTx(uint32_t nAccounts, uint32_t offset,
 
         // Regenerate a new payment tx
         std::tie(from, tx) =
-            usePaymentOp ? paymentTransaction(nAccounts, offset, ledgerNum,
-                                              sourceAccountId)
-                         : pretendTransaction(nAccounts, offset, ledgerNum,
-                                              sourceAccountId, opCount);
+            usePaymentOp
+                ? paymentTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
+                                     sourceAccountId, cfg.maxGeneratedFeeRate)
+                : pretendTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
+                                     sourceAccountId, opCount,
+                                     cfg.maxGeneratedFeeRate);
     }
 
-    nTxs -= 1;
-    return nTxs;
+    return cfg.nTxs - 1;
 }
 
 void
@@ -414,8 +440,9 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
 {
     vector<Operation> creationOps =
         createAccounts(startAccount, numItems, ledgerNum);
-    return std::make_pair(mRoot, createTransactionFramePtr(
-                                     mRoot, creationOps, LoadGenMode::CREATE));
+    return std::make_pair(mRoot, createTransactionFramePtr(mRoot, creationOps,
+                                                           LoadGenMode::CREATE,
+                                                           std::nullopt));
 }
 
 void
@@ -519,7 +546,8 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
-                                  uint32_t ledgerNum, uint64_t sourceAccount)
+                                  uint32_t ledgerNum, uint64_t sourceAccount,
+                                  std::optional<uint32_t> maxGeneratedFeeRate)
 {
     TestAccountPtr to, from;
     uint64_t amount = 1;
@@ -527,14 +555,16 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
         pickAccountPair(numAccounts, offset, ledgerNum, sourceAccount);
     vector<Operation> paymentOps = {
         txtest::payment(to->getPublicKey(), amount)};
-    return std::make_pair(
-        from, createTransactionFramePtr(from, paymentOps, LoadGenMode::PAY));
+    return std::make_pair(from, createTransactionFramePtr(from, paymentOps,
+                                                          LoadGenMode::PAY,
+                                                          maxGeneratedFeeRate));
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t sourceAccount,
-                                  uint32_t opCount)
+                                  uint32_t opCount,
+                                  std::optional<uint32_t> maxGeneratedFeeRate)
 {
     vector<Operation> ops;
     ops.reserve(opCount);
@@ -556,8 +586,9 @@ LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
         }
         ops.push_back(txtest::setOptions(args));
     }
-    return std::make_pair(
-        acc, createTransactionFramePtr(acc, ops, LoadGenMode::PRETEND));
+    return std::make_pair(acc, createTransactionFramePtr(acc, ops,
+                                                         LoadGenMode::PRETEND,
+                                                         maxGeneratedFeeRate));
 }
 
 void
@@ -570,6 +601,14 @@ LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
     if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
+        auto const& txQueue = mApp.getHerder().getTransactionQueue();
+        auto txQueueSeqNum =
+            txQueue.getInQueueSeqNum(sourceAccount->getPublicKey());
+        if (txQueueSeqNum)
+        {
+            sourceAccount->setSequenceNumber(*txQueueSeqNum);
+            return;
+        }
         if (!loadAccount(sourceAccount, mApp))
         {
             CLOG_ERROR(LoadGen, "Unable to reload account {}",
@@ -657,6 +696,34 @@ LoadGenerator::waitTillComplete(bool isCreate)
     }
 }
 
+void
+LoadGenerator::waitTillCompleteWithoutChecks()
+{
+    if (!mLoadTimer)
+    {
+        mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
+    }
+    if (++mWaitTillCompleteForLedgers == COMPLETION_TIMEOUT_WITHOUT_CHECKS)
+    {
+        auto inconsistencies = checkAccountSynced(mApp, /* isCreate */ false);
+        CLOG_INFO(LoadGen, "Load generation complete.");
+        if (!inconsistencies.empty())
+        {
+            CLOG_INFO(
+                LoadGen,
+                "{} account seq nums are not in sync with db; this is expected "
+                "for high traffic due to tx queue limiter evictions.",
+                inconsistencies.size());
+        }
+        mLoadgenComplete.Mark();
+        reset();
+        return;
+    }
+    mLoadTimer->expires_from_now(mApp.getConfig().getExpectedLedgerCloseTime());
+    mLoadTimer->async_wait([this]() { this->waitTillCompleteWithoutChecks(); },
+                           &VirtualTimer::onFailureNoop);
+}
+
 LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mAccountCreated(m.NewMeter({"loadgen", "account", "created"}, "account"))
     , mNativePayment(m.NewMeter({"loadgen", "payment", "native"}, "payment"))
@@ -684,12 +751,31 @@ LoadGenerator::TxMetrics::report()
 }
 
 TransactionFramePtr
-LoadGenerator::createTransactionFramePtr(TestAccountPtr from,
-                                         std::vector<Operation> ops,
-                                         LoadGenMode mode)
+LoadGenerator::createTransactionFramePtr(
+    TestAccountPtr from, std::vector<Operation> ops, LoadGenMode mode,
+    std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto txf = from->tx(ops);
+    int fee = 0;
 
+    if (maxGeneratedFeeRate)
+    {
+        auto baseFee = mApp.getLedgerManager().getLastTxFee();
+        auto feeRateDistr =
+            uniform_int_distribution<uint32_t>(baseFee, *maxGeneratedFeeRate);
+        // Add a bit more fee to get non-integer fee rates, such that
+        // `floor(fee / ops.size()) == feeRate`, but
+        // `fee / ops.size() >= feeRate`.
+        // This is to create a bit more realistic fee structure: in reality not
+        // every transaction would necessarily have the `fee == ops_count *
+        // some_int`. This also would exercise more code paths/logic during the
+        // transaction comparisons.
+        auto fractionalFeeDistr =
+            uniform_int_distribution<uint32_t>(0, ops.size() - 1);
+        fee = ops.size() * feeRateDistr(gRandomEngine) +
+              fractionalFeeDistr(gRandomEngine);
+    }
+    auto txf = transactionFromOperations(mApp, from->getSecretKey(),
+                                         from->nextSequenceNumber(), ops, fee);
     if (mode == LoadGenMode::PRETEND)
     {
         Memo memo(MEMO_TEXT);
@@ -722,6 +808,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
         break;
     case LoadGenMode::PRETEND:
         txm.mPretendOps.Mark(txf->getNumOperations());
+        break;
     }
 
     txm.mTxnAttempted.Mark();

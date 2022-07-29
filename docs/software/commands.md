@@ -320,24 +320,33 @@ format.
   is started
 
 ### The following HTTP commands are exposed on test instances
-* **generateload**
-  `generateload[?mode=(create|pay|pretend)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L&spikesize=S&spikeinterval=I]`<br>
-  Artificially generate load for testing; must be used with
-  `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
-  * `create` mode creates new accounts.
-    Additionally, allows batching up to 100 account creations per transaction via 'batchsize'.
+* **generateload** `generateload[?mode=
+    (create|pay|pretend)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)]`
+
+    Artificially generate load for testing; must be used with
+    `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
+  * `create` mode creates new accounts. Additionally, allows batching up to 100
+    account creations per transaction via `batchsize`.
   * `pay` mode generates `PaymentOp` transactions on accounts specified
     (where the number of accounts can be offset).
-  * `pretend` mode generates transactions on accounts specified
-    (where the number of accounts can be offset). Operations in `pretend` mode are
-    designed to have a realistic size to help users "pretend" that they have real traffic.
+  * `pretend` mode generates transactions on accounts specified(where the number
+    of accounts can be offset). Operations in `pretend` mode are designed to
+    have a realistic size to help users "pretend" that they have real traffic.
     You can add optional configs `LOADGEN_OP_COUNT_FOR_TESTING` and
     `LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING` in the config file to specify
-    the # of ops / tx and how often they appear. More specifically, the probability
-    that a transaction contains `COUNT[i]` ops is
-    `DISTRIBUTION[i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...)`.
+    the # of ops / tx and how often they appear. More specifically, the
+    probability that a transaction contains `COUNT[i]` ops is `DISTRIBUTION
+    [i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...)`.
 
-  For `pay` and `pretend`, when a nonzero I is given, a spike will occur every I seconds injecting S transactions on top of `txrate`.
+  Non-`create` load generation makes use of the additional parameters:
+  * when a nonzero `spikeinterval` is given, a spike will occur every
+    `spikeinterval` seconds injecting `spikesize` transactions on top of
+    `txrate`
+  * `maxfeerate` defines the maximum per-operation fee for generated
+    transactions (when not specified only minimum base fee is used)
+  * when `skiplowfeetxs` is set to `true` the transactions that are not accepted by
+    the node due to having too low fee to pass the rate limiting are silently
+    skipped. Otherwise (by default), such transactions would cause load generation to fail.
 
 * **manualclose**
   If MANUAL_CLOSE is set to true in the .cfg file, this will cause the current
