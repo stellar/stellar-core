@@ -43,6 +43,7 @@ while [[ -n "$1" ]]; do
             fi
             export TEST_SPEC='[tx]'
             export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --record-test-tx-meta ${PWD}/test-tx-meta-baseline/${PROTOCOL}"
+            export BATCHSIZE=500
             PARTITIONS_ENABLED=0
             ;;
     "--protocol")
