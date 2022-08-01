@@ -236,7 +236,7 @@ Then, running:
 ## Running and updating TxMeta checks
 
 The `stellar-core test` unit tests can be run in two special modes that hash the
-TxMeta of each transaction executed. These two modes can increase confidence
+TxMeta of each transaction executed during tests. These two modes can increase confidence
 that a change to stellar-core does not alter the semantics of any transactions.
 The two modes are:
 
@@ -245,21 +245,35 @@ The two modes are:
 
 Continuous integration tests automatically run the `--check-test-tx-meta` mode
 against a pair of captured baseline directories stored in the repository, called
-`test-tx-meta-baseline-current` (for the current protocol) and
-`text-tx-meta-baseline-next` (for the next protocol). If you make _intentional_
-changes to the semantics of any transactions, or add any new transactions that
-need to have their hashes recorded, you can re-record the baseline using a
-command like:
+`test-tx-meta-baseline/current` (for the current protocol) and
+`text-tx-meta-baseline/next` (for the next protocol).
 
-    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline-current
 
-for a build with only the current protocol enabled, and:
-
-    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline-next
-
-for a build configured with `--enable-next-protocol-version-unsafe-for-production`.
+If you make _intentional_changes to the semantics of any transaction, or modify
+ tests, you can re-record the baseline in two ways.
 
 These commands will rewrite the baseline files, which are human-readable JSON
 files. You should then inspect to see that only the transactions you expected to
 see change did so. If so, commit the changes as a new set of baselines for
 future tests.
+
+### having automation push to your branch in Github (easiest)
+
+For this, all you need to do is push the latest `master` branch from upstream to your `master` branch in your fork (running something like `git push origin master:master`), and ensure that "Github actions" are enabled (they should be by default) in your fork.
+
+After that, commits authored by "github-actions-bot" get automatically added to branches in your fork as needed.
+If you want to keep those changes and continue to work on your branch, you'll have to "pull" them back to your local branch (`git pull origin myBranch`), otherwise you can (after fixing your code) discard them by force pushing your branch (`git push -f origin myBranch`), but this will associate "meta changes" to your Github user, which is probably not what you want.
+
+### generate changes manually
+
+For this, you will need two builds: one compiled normally, and the other "next" configured with the future protocol version enabled.
+
+Using a command like:
+
+    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline/current
+
+for a build with only the current protocol enabled, and:
+
+    stellar-core test [tx] --all-versions --rng-seed 12345 --record-test-tx-meta test-tx-meta-baseline/next
+
+for a build configured with `--enable-next-protocol-version-unsafe-for-production`.
