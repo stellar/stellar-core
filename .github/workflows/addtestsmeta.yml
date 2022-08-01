@@ -1,0 +1,82 @@
+name: AddTestMeta
+
+on:
+  push:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  genMeta:
+    if: github.repository_owner != 'stellar'
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      # need to run in sequence to avoid conflicts when pushing commits
+      max-parallel: 1
+      matrix:
+        toolchain: [ "clang"]
+        protocol: ["current", "next"]
+        scenario: ["--record-test-tx-meta"]
+    steps:
+      - name: Compute cache key
+        # this step works around a limitation in actions/cache
+        # that does not allow updating a cache
+        # so what we do here instead is
+        #  1. generate a new id that gets refreshed every hour
+        #   the limit is to reduce the chance of hitting the
+        #   global 5GB limit per repo
+        #  2. use that id as part of the cache identifier
+        #  3. fallback (restore-keys) to the most recent cache
+        id: cache_extra_id
+        run: |
+          echo "::set-output name=id::$(( $(date +'%s') / 60 / 60 ))"
+      - name: Cache
+        uses: actions/cache@v2.1.4
+        with:
+          path: |
+            /home/runner/.ccache
+          # we do not include ${{ matrix.protocol }} in this cache key. That flag ultimately causes
+          # an altered -D define, which _does_ cause a ccache direct-mode miss, but only one file
+          # has any difference when preprocessed, so ccache still gets a fallback cpp-mode hit. The
+          # one file that does vary (that compiles-in the protocol version number) is small enough
+          # that we can tolerate a miss and/or hold both versions of it in cache.
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 200
+          submodules: true
+      - name: install core packages
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
+      - name: install tool chain
+        run: |
+          sudo apt-get -y install libstdc++-8-dev clang-format-10 ccache
+          if test "${{ matrix.toolchain }}" = "gcc" ; then
+            sudo apt-get -y install cpp-8 gcc-8 g++-8
+          else
+            sudo apt-get -y install clang-10 llvm-10
+          fi
+      - name: install dependencies
+        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
+      - name: Build
+        run: |
+          if test "${{ matrix.toolchain }}" = "gcc" ; then
+            export CC='gcc'
+            export CXX='g++'
+          else
+            export CC='clang'
+            export CXX='clang++'
+          fi
+          echo Build with $CC and $CXX
+          ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
+      - name: Commit Changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          default_author: github_actions
+          message: 'Adjust meta for tests ${{ matrix.protocol }}'
+          add: '-A test-tx-meta-baseline'
+          pull: '--rebase --autostash'
