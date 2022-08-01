@@ -13,6 +13,8 @@ export TEMP_POSTGRES=0
 
 PROTOCOL_CONFIG=""
 
+PARTITIONS_ENABLED=1
+
 while [[ -n "$1" ]]; do
     COMMAND="$1"
     shift
@@ -33,6 +35,15 @@ while [[ -n "$1" ]]; do
             fi
             export TEST_SPEC='[tx]'
             export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --check-test-tx-meta ${PWD}/test-tx-meta-baseline/${PROTOCOL}"
+            ;;
+    "--record-test-tx-meta")
+            if [[ -z "${PROTOCOL}" ]]; then
+                echo 'must specify --protocol before --record-test-tx-meta'
+                exit 1
+            fi
+            export TEST_SPEC='[tx]'
+            export STELLAR_CORE_TEST_PARAMS="--ll fatal -r simple --all-versions --rng-seed 12345 --record-test-tx-meta ${PWD}/test-tx-meta-baseline/${PROTOCOL}"
+            PARTITIONS_ENABLED=0
             ;;
     "--protocol")
             PROTOCOL="$1"
@@ -175,8 +186,16 @@ if [ $TEMP_POSTGRES -eq 0 ] ; then
 fi
 
 export ALL_VERSIONS=1
-export NUM_PARTITIONS=$((NPROCS*2))
-export RUN_PARTITIONS
+if [ $PARTITIONS_ENABLED -eq 1 ] ; then
+    export NUM_PARTITIONS=$((NPROCS*2))
+    export RUN_PARTITIONS
+else
+    unset NUM_PARTITIONS
+    unset RUN_PARTITIONS
+fi
+
+echo "NUM_PARTITIONS=$NUM_PARTITIONS ; RUN_PARTITIONS=$RUN_PARTITIONS"
+
 ulimit -n 256
 time make check
 
