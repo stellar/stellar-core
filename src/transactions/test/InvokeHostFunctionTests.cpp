@@ -184,7 +184,7 @@ deployContract(Application& app, std::vector<uint8_t> const& contract)
     auto key = SecretKey::fromSeed(sha256("a1"));
 
     // create signature
-    auto const& separator = "create_contract(nonce: u256, contract: Vec<u8>, "
+    auto const& separator = "create_contract_from_ed25519(contract: Vec<u8>, "
                             "salt: u256, key: u256, sig: Vec<u8>)";
     SHA256 hasher;
     hasher.add(separator);
@@ -378,7 +378,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
     {
         // create signature
         auto const& separator =
-            "create_contract(nonce: u256, contract: Vec<u8>, "
+            "create_contract_from_ed25519(contract: Vec<u8>, "
             "salt: u256, key: u256, sig: Vec<u8>)";
         uint256 salt = sha256("salt");
         auto key = SecretKey::fromSeed(sha256("a1"));
