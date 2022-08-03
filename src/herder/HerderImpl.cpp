@@ -219,7 +219,7 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     auto externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
     if (externalizedSet)
     {
-        updateTransactionQueue(externalizedSet->getTxsInHashOrder());
+        updateTransactionQueue(externalizedSet->getTxs());
     }
 
     // Evict slots that are outside of our ledger validity bracket

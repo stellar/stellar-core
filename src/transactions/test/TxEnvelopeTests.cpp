@@ -2377,12 +2377,12 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     auto r = closeLedgerOn(*app, 1, 2, 2016, {tx1, tx2});
 
-                    REQUIRE(tx1->getResultCode() == txSUCCESS);
-                    REQUIRE(tx2->getResultCode() == txFAILED);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txFAILED);
                     REQUIRE(PaymentOpFrame::getInnerCode(
-                                getFirstResult(*tx2)) == PAYMENT_SUCCESS);
-                    REQUIRE(tx2->getOperations()[1]->getResultCode() ==
-                            opBAD_AUTH);
+                                r[1].first.result.result.results()[0]) ==
+                            PAYMENT_SUCCESS);
+                    REQUIRE(r[1].first.result.result.code() == opBAD_AUTH);
                 });
             }
         }

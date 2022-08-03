@@ -1133,7 +1133,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         auto balancesBefore = getBalances();
 
         // apply this
-        closeLedger(*app, txSet->getTxsInHashOrder());
+        closeLedger(*app, txSet->getTxs());
 
         auto balancesAfter = getBalances();
         int64_t lowFee = INT64_MAX, highFee = 0;
@@ -1341,7 +1341,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxsInHashOrder())
+        for (auto const& tx : txSet->getTxs())
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1365,7 +1365,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxsInHashOrder())
+        for (auto const& tx : txSet->getTxs())
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1870,8 +1870,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxSetFrame::Transactions removed;
-            TxSetUtils::trimInvalid(txSet->getTxsInHashOrder(), *app,
-                                    closeTimeOffset, closeTimeOffset, removed);
+            TxSetUtils::trimInvalid(txSet->getTxs(), *app, closeTimeOffset,
+                                    closeTimeOffset, removed);
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 
@@ -3169,7 +3169,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto txs = tq.getTransactions(lhhe.header);
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(txSet->sizeTx() == 1);
-    REQUIRE(txSet->getTxsInHashOrder().front()->getContentsHash() ==
+    REQUIRE(txSet->getTxs().front()->getContentsHash() ==
             tx1a->getContentsHash());
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }

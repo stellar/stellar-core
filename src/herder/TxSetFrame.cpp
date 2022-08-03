@@ -213,15 +213,14 @@ struct ApplyTxSorter
 };
 
 Hash
-computeNonGenericTxSetContentsHash(Hash const& previousLedgerHash,
-                                   TxSetFrame::Transactions const& txs)
+computeNonGenericTxSetContentsHash(TransactionSet const& xdrTxSet)
 {
     ZoneScoped;
     SHA256 hasher;
-    hasher.add(previousLedgerHash);
-    for (unsigned int n = 0; n < txs.size(); n++)
+    hasher.add(xdrTxSet.previousLedgerHash);
+    for (auto const& tx : xdrTxSet.txs)
     {
-        hasher.add(xdr::xdr_to_opaque(txs[n]->getEnvelope()));
+        hasher.add(xdr::xdr_to_opaque(tx));
     }
     return hasher.finish();
 }
@@ -231,7 +230,7 @@ TxSetFrame::TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
                        Transactions const& txs)
     : mIsGeneralized(isGeneralized)
     , mPreviousLedgerHash(previousLedgerHash)
-    , mTxs(TxSetUtils::sortTxsInHashOrder(txs))
+    , mTxs(txs)
 {
 }
 
@@ -273,13 +272,31 @@ TxSetFrame::makeFromTransactions(TxSetFrame::Transactions const& txs,
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(lclHeader, validTxs));
     txSet->surgePricingFilter(app.getLedgerManager().getLastMaxTxSetSizeOps());
     txSet->computeTxFees(lclHeader.header);
-    txSet->computeContentsHash();
-    if (!txSet->checkValid(app, lowerBoundCloseTimeOffset,
-                           upperBoundCloseTimeOffset))
+
+    // Do the roundtrip through XDR to ensure we never build an incorrect tx set
+    // for nomination.
+    TxSetFrameConstPtr outputTxSet;
+    if (txSet->isGeneralizedTxSet())
+    {
+        GeneralizedTransactionSet xdrTxSet;
+        txSet->toXDR(xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+    }
+    else
+    {
+        TransactionSet xdrTxSet;
+        txSet->toXDR(xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+    }
+    // Make sure no transactions were lost during the roundtrip and the output
+    // tx set is valid.
+    if (txSet->getTxs().size() != outputTxSet->getTxs().size() ||
+        !outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
+                                 upperBoundCloseTimeOffset))
     {
         throw std::runtime_error("Created invalid tx set frame");
     }
-    return txSet;
+    return outputTxSet;
 }
 
 TxSetFrameConstPtr
@@ -317,16 +334,8 @@ TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
     {
         CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
                            "ordered correctly");
-        Transactions txs;
-        std::transform(xdrTxSet.txs.begin(), xdrTxSet.txs.end(),
-                       std::back_inserter(txs), [&networkID](auto const& env) {
-                           return TransactionFrameBase::makeTransactionFromWire(
-                               networkID, env);
-                       });
         return std::make_shared<InvalidTxSetFrame const>(
-            xdrTxSet,
-            computeNonGenericTxSetContentsHash(xdrTxSet.previousLedgerHash,
-                                               txs),
+            xdrTxSet, computeNonGenericTxSetContentsHash(xdrTxSet),
             encodedSize);
     }
     txSet->computeContentsHash();
@@ -380,11 +389,6 @@ TxSetFrame::makeFromWire(Hash const& networkID,
             }
         }
     }
-    // Every component is sorted, but we do not merge-sort them during the
-    // insertion and just sort them after everything is added. Currently this
-    // doesn't really matter, but it's needed to maintain the
-    // `getTxsInHashOrder` invariant.
-    txSet->mTxs = TxSetUtils::sortTxsInHashOrder(txSet->mTxs);
     return txSet;
 }
 
@@ -420,7 +424,7 @@ TxSetFrame::previousLedgerHash() const
 }
 
 TxSetFrame::Transactions const&
-TxSetFrame::getTxsInHashOrder() const
+TxSetFrame::getTxs() const
 {
     return mTxs;
 }
@@ -536,23 +540,6 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         CLOG_DEBUG(Herder, "Got bad txSet: too many txs {} > {}",
                    this->size(lcl.header), lcl.header.maxTxSetSize);
-        return false;
-    }
-
-    if (!std::is_sorted(mTxs.begin(), mTxs.end(), &TxSetUtils::hashTxSorter))
-    {
-        CLOG_DEBUG(Herder, "Got bad txSet: {} is not in hash order",
-                   hexAbbrev(mPreviousLedgerHash));
-        return false;
-    }
-
-    if (std::adjacent_find(mTxs.begin(), mTxs.end(),
-                           [](auto const& lhs, auto const& rhs) {
-                               return lhs->getFullHash() == rhs->getFullHash();
-                           }) != mTxs.end())
-    {
-        CLOG_DEBUG(Herder, "Got bad txSet: {} has duplicate transactions",
-                   hexAbbrev(mPreviousLedgerHash));
         return false;
     }
 
@@ -737,9 +724,10 @@ TxSetFrame::toXDR(TransactionSet& txSet) const
     ZoneScoped;
     releaseAssert(!isGeneralizedTxSet());
     txSet.txs.resize(xdr::size32(mTxs.size()));
-    for (unsigned int n = 0; n < mTxs.size(); n++)
+    auto sortedTxs = TxSetUtils::sortTxsInHashOrder(mTxs);
+    for (unsigned int n = 0; n < sortedTxs.size(); n++)
     {
-        txSet.txs[n] = mTxs[n]->getEnvelope();
+        txSet.txs[n] = sortedTxs[n]->getEnvelope();
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }
@@ -778,8 +766,8 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
         componentPerBid[fee] = &discountedFeeComponent.txs;
         componentPerBid[fee]->reserve(txCount);
     }
-
-    for (auto const& tx : mTxs)
+    auto sortedTxs = TxSetUtils::sortTxsInHashOrder(mTxs);
+    for (auto const& tx : sortedTxs)
     {
         componentPerBid[mTxBaseFee.find(tx)->second]->push_back(
             tx->getEnvelope());
@@ -865,7 +853,7 @@ TxSetFrame::surgePricingFilter(uint32_t opsLeft)
             cur->clear();
         }
     }
-    mTxs = TxSetUtils::sortTxsInHashOrder(filteredTxs);
+    mTxs = filteredTxs;
 }
 
 void
@@ -875,7 +863,9 @@ TxSetFrame::computeContentsHash()
     releaseAssert(!mHash);
     if (!isGeneralizedTxSet())
     {
-        mHash = computeNonGenericTxSetContentsHash(mPreviousLedgerHash, mTxs);
+        TransactionSet xdrTxSet;
+        toXDR(xdrTxSet);
+        mHash = computeNonGenericTxSetContentsHash(xdrTxSet);
     }
     else
     {
