@@ -26,16 +26,68 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
-#include "util/xdrquery/XDRMatcher.h"
+#include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
 #include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>
+#include <map>
 #include <optional>
 
 namespace stellar
 {
+namespace
+{
+void
+writeLedgerAggregationTable(
+    std::ofstream& ofs,
+    std::optional<xdrquery::XDRFieldExtractor> const& groupByExtractor,
+    std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator> const&
+        accumulators)
+{
+    std::vector<std::string> keyFields;
+    if (groupByExtractor)
+    {
+        keyFields = groupByExtractor->getFieldNames();
+        for (auto const& keyField : keyFields)
+        {
+            ofs << keyField << ",";
+        }
+    }
+    if (!accumulators.empty())
+    {
+        auto const& [_, accumulator] = *accumulators.begin();
+        for (auto const& acc : accumulator.getAccumulators())
+        {
+            ofs << acc->getName() << ",";
+        }
+    }
+    ofs << std::endl;
+
+    for (auto const& [key, accumulator] : accumulators)
+    {
+        if (!key.empty())
+        {
+            for (size_t i = 0; i < key.size(); ++i)
+            {
+                if (key[i])
+                {
+                    ofs << xdrquery::resultToString(*key[i]);
+                }
+                ofs << ",";
+            }
+        }
+        for (auto const& acc : accumulator.getAccumulators())
+        {
+            ofs << std::visit([](auto&& v) { return fmt::to_string(v); },
+                              acc->getValue())
+                << ",";
+        }
+        ofs << std::endl;
+    }
+}
+} // namespace
 
 const std::string MINIMAL_DB_NAME = "minimal.db";
 
@@ -442,8 +494,14 @@ int
 dumpLedger(Config cfg, std::string const& outputFile,
            std::optional<std::string> filterQuery,
            std::optional<uint32_t> lastModifiedLedgerCount,
-           std::optional<uint64_t> limit)
+           std::optional<uint64_t> limit, std::optional<std::string> groupBy,
+           std::optional<std::string> aggregate)
 {
+    if (groupBy && !aggregate)
+    {
+        LOG_FATAL(DEFAULT_LOG, "--group-by without --agg is not allowed.");
+    }
+
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
@@ -468,8 +526,17 @@ dumpLedger(Config cfg, std::string const& outputFile,
     {
         matcher.emplace(*filterQuery);
     }
+
+    std::optional<xdrquery::XDRFieldExtractor> groupByExtractor;
+    if (groupBy)
+    {
+        groupByExtractor.emplace(*groupBy);
+    }
+
+    std::map<std::vector<xdrquery::ResultType>, xdrquery::XDRAccumulator>
+        accumulators;
+
     std::ofstream ofs(outputFile);
-    ofs << "{\"entries\": [";
 
     auto& bm = app->getBucketManager();
     uint64_t entryCount = 0;
@@ -481,11 +548,27 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 return !matcher || matcher->matchXDR(entry);
             },
             [&](LedgerEntry const& entry) {
-                if (entryCount != 0)
+                if (aggregate)
                 {
-                    ofs << "," << std::endl;
+                    std::vector<xdrquery::ResultType> key;
+                    if (groupByExtractor)
+                    {
+                        key = groupByExtractor->extractFields(entry);
+                    }
+                    auto it = accumulators.find(key);
+                    if (it == accumulators.end())
+                    {
+                        it = accumulators
+                                 .emplace(key,
+                                          xdrquery::XDRAccumulator(*aggregate))
+                                 .first;
+                    }
+                    it->second.addEntry(entry);
                 }
-                ofs << xdr_to_string(entry, "entry", true);
+                else
+                {
+                    ofs << xdr_to_string(entry, "entry", true) << std::endl;
+                }
                 ++entryCount;
                 return !limit || entryCount < *limit;
             });
@@ -494,7 +577,14 @@ dumpLedger(Config cfg, std::string const& outputFile,
     {
         LOG_ERROR(DEFAULT_LOG, "Filter query error: {}", e.what());
     }
-    ofs << "]}";
+
+    if (aggregate)
+    {
+        writeLedgerAggregationTable(ofs, groupByExtractor, accumulators);
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Finished running query, processed {} entries.",
+             entryCount);
     return 0;
 }
 

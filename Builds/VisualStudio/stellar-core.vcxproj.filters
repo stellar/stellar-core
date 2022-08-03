@@ -171,7 +171,7 @@
     </Filter>
     <Filter Include="herder\test">
       <UniqueIdentifier>{eda15f5e-847b-4167-93ae-e508b7fc009b}</UniqueIdentifier>
-    </Filter>    
+    </Filter>
     <Filter Include="util\xdrquery">
       <UniqueIdentifier>{166a403b-4f13-4505-9953-97ea92e5d855}</UniqueIdentifier>
     </Filter>
@@ -1262,8 +1262,8 @@
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\TestTxSetUtils.cpp">
       <Filter>herder\test</Filter>
-    </ClCompile>    
-    <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp">
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQuery.cpp">
       <Filter>util\xdrquery</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp">
@@ -2212,8 +2212,8 @@
     </ClInclude>
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h">
       <Filter>xdr\generated</Filter>
-    </ClInclude>    
-    <ClInclude Include="..\..\src\util\xdrquery\XDRMatcher.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQuery.h">
       <Filter>util\xdrquery</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\xdrquery\XDRFieldResolver.h">
@@ -2369,6 +2369,9 @@
     <None Include="..\..\docs\stellar-core_testnet_validator.cfg">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\software\ledger_query_examples.md">
+      <Filter>docs\software</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
@@ -2394,7 +2397,7 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-internal.x">
       <Filter>xdr\next</Filter>
-    </CustomBuild>    
+    </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
     </CustomBuild>

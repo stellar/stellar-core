@@ -546,7 +546,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\util\XDRCereal.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\test\XDRQueryTests.cpp" />
-    <ClCompile Include="..\..\src\util\xdrquery\XDRMatcher.cpp" />
+    <ClCompile Include="..\..\src\util\xdrquery\XDRQuery.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryEval.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryParser.cpp" />
     <ClCompile Include="..\..\src\util\xdrquery\XDRQueryScanner.cpp" />
@@ -947,7 +947,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\UnorderedSet.h" />
     <ClInclude Include="..\..\src\util\XDRCereal.h" />
     <ClInclude Include="..\..\src\util\XDROperators.h" />
-    <ClInclude Include="..\..\src\util\xdrquery\XDRMatcher.h" />
+    <ClInclude Include="..\..\src\util\xdrquery\XDRQuery.h" />
     <ClInclude Include="..\..\src\util\xdrquery\XDRFieldResolver.h" />
     <ClInclude Include="..\..\src\util\xdrquery\XDRQueryEval.h" />
     <ClInclude Include="..\..\src\util\xdrquery\XDRQueryError.h" />
@@ -1141,7 +1141,7 @@ exit /b 0
     <ClInclude Include="..\..\src\work\WorkWithCallback.h" />
     <ClInclude Include="src\$(Configuration)\generated\rust\RustBridge.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-contract.h" />
-    <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h" />    
+    <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-ledger-entries.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-ledger.h" />
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-overlay.h" />
@@ -1170,6 +1170,7 @@ exit /b 0
     <None Include="..\..\docs\software\admin.md" />
     <None Include="..\..\docs\software\commands.md" />
     <None Include="..\..\docs\software\core-data-flow.pdf" />
+    <None Include="..\..\docs\software\ledger_query_examples.md" />
     <None Include="..\..\docs\software\performance.md" />
     <None Include="..\..\docs\software\security-protocol-release-notes.md" />
     <None Include="..\..\docs\software\testnet.md" />
@@ -1226,7 +1227,7 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
-    </CustomBuild>    
+    </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
@@ -1328,10 +1329,10 @@ exit /b 0
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-internal.h ../../src/protocol-curr/xdr/Stellar-internal.x</Command>
       <Message>running xdrc</Message>
-      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>      
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h</AdditionalInputs>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-internal.h</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
-    </CustomBuild>    
+    </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-ledger.x">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>

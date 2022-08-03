@@ -26,7 +26,9 @@ int mergeBucketList(Config cfg, std::string const& outputDir);
 int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<std::string> filterQuery,
                std::optional<uint32_t> lastModifiedLedgerCount,
-               std::optional<uint64_t> limit);
+               std::optional<uint64_t> limit,
+               std::optional<std::string> groupBy,
+               std::optional<std::string> aggregate);
 void showOfflineInfo(Config cfg);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 #ifdef BUILD_TESTS

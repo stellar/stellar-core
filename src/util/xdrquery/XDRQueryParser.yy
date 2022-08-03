@@ -19,7 +19,7 @@ YY_DECL;
 
 namespace xdrquery
 {
-std::shared_ptr<BoolEvalNode>
+XDRQueryStatement
 parseXDRQuery(std::string const& query);
 }  // namespace xdrquery
 }
@@ -30,13 +30,16 @@ parseXDRQuery(std::string const& query);
 %define api.token.prefix {TOKEN_}
 %define api.token.constructor
 
-%parse-param { std::shared_ptr<BoolEvalNode>& root }
+%parse-param { XDRQueryStatement& root }
 
 %token <std::string> ID
 %token <std::string> INT
 %token <std::string> STR
 
 %token NULL
+%token SUM
+%token AVG
+%token COUNT
 
 %token AND "&&"
 %token OR "||"
@@ -52,6 +55,7 @@ parseXDRQuery(std::string const& query);
 %token RPAREN ")"
 
 %token DOT "."
+%token COMMA ","
 
 %token END 0
 
@@ -63,9 +67,16 @@ parseXDRQuery(std::string const& query);
 %type <std::shared_ptr<BoolEvalNode>> comparison_expr logic_expr
 %type <std::shared_ptr<FieldNode>> field
 
+%type <std::shared_ptr<Accumulator>> accumulator
+%type <std::shared_ptr<AccumulatorList>> accumulator_list
+
+%type <std::shared_ptr<FieldList>> field_list
+
 %%
 
 statement: logic_expr { root = std::move($1); }
+         | accumulator_list { root = std::move($1); }
+         | field_list { root = std::move($1); }
 
 logic_expr: comparison_expr { $$ = std::move($1); }
           | "(" logic_expr ")" { $$ = std::move($2); }
@@ -105,6 +116,24 @@ literal: INT { $$ = std::make_shared<LiteralNode>(LiteralNodeType::INT, $1); }
 field: ID { $$ = std::make_shared<FieldNode>($1); }
      | field "." ID { $1->mFieldPath.push_back($3); $$ = std::move($1); }
 
+
+accumulator_list: accumulator { $$ = std::make_shared<AccumulatorList>(std::move($1)); }
+                | accumulator_list "," accumulator { $1->addAccumulator($3); $$ = std::move($1); }
+
+accumulator: COUNT "(" ")" { 
+                $$ = std::make_shared<Accumulator>(AccumulatorType::COUNT); }
+           | SUM "(" field ")" {
+                $$ = std::make_shared<Accumulator>(
+                    AccumulatorType::SUM, std::move($3));
+           }
+           | AVG "(" field ")" {
+                $$ = std::make_shared<Accumulator>(
+                    AccumulatorType::AVERAGE, std::move($3));
+           }
+
+field_list: field { $$ = std::make_shared<FieldList>(std::move($1)); }
+          | field_list "," field { $1->addField($3); $$ = std::move($1); }
+
 %%
 
 #ifdef __has_feature
@@ -132,7 +161,7 @@ XDRQueryParser::error(std::string const& error)
     throw XDRQueryError("Parsing error: '" + error + "'.");
 }
 
-std::shared_ptr<BoolEvalNode>
+XDRQueryStatement
 parseXDRQuery(std::string const& query)
 {
     // LeakSantizer (likely) incorrectly identifies some small leaks in 
@@ -143,13 +172,13 @@ parseXDRQuery(std::string const& query)
     __lsan_disable();
 #endif    
     beginScan(query.c_str());
-    std::shared_ptr<BoolEvalNode> root;
+    XDRQueryStatement root;
     XDRQueryParser parser(root);
     parser.parse();
     endScan();
 #ifdef ASAN_ENABLED
     __lsan_enable();
-#endif    
+#endif
     return root;
 }
 }  // namespace xdrquery
