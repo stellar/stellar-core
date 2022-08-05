@@ -34,13 +34,15 @@ TEST_CASE_VERSIONS("transaction envelope bridge", "[commandhandler]")
     auto& ch = app->getCommandHandler();
     auto baseFee = app->getLedgerManager().getLastTxFee();
 
-    std::string const PENDING_RESULT = "{\"status\": \"PENDING\"}";
+    std::string const PENDING_RESULT = "{\"status\":\"PENDING\"}\n";
     auto errorResult = [](TransactionResultCode resultCode, int64_t fee) {
         TransactionResult txRes;
         txRes.feeCharged = fee;
         txRes.result.code(resultCode);
         auto inner = decoder::encode_b64(xdr::xdr_to_opaque(txRes));
-        return "{\"status\": \"ERROR\" , \"error\": \"" + inner + "\"}";
+        return
+
+            std::string("{\"error\":\"") + inner + "\",\"status\":\"ERROR\"}\n";
     };
 
     auto sign = [&](auto& signatures, SecretKey const& key, auto... input) {

@@ -4,18 +4,20 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{Bytes, XDRBuf},
+    rust_bridge::{Bytes, PreflightCallbacks, XDRBuf},
 };
+use cxx::{CxxVector, UniquePtr};
 use log::info;
-use std::{fmt::Display, io::Cursor};
+use std::{cell::RefCell, fmt::Display, io::Cursor, pin::Pin, rc::Rc};
 
 use im_rc::OrdMap;
 use soroban_env_host::{
-    storage::{self, AccessType, Storage},
+    storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
-        HostFunction, LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
-        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScUnknownErrorCode, ScVec, WriteXdr,
+        HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
+        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode,
+        ScUnknownErrorCode, ScVec, WriteXdr,
     },
     Host, HostError,
 };
@@ -46,6 +48,26 @@ impl From<xdr::Error> for ContractError {
 }
 
 impl std::error::Error for ContractError {}
+
+fn xdr_from_slice<T: ReadXdr>(v: &[u8]) -> Result<T, HostError> {
+    Ok(T::read_xdr(&mut Cursor::new(v)).map_err(|_| ScUnknownErrorCode::Xdr)?)
+}
+
+fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
+    let mut vec: Vec<u8> = Vec::new();
+    t.write_xdr(&mut Cursor::new(&mut vec))
+        .map_err(|_| ScUnknownErrorCode::Xdr)?;
+    Ok(vec)
+}
+
+fn xdr_to_bytes<T: WriteXdr>(t: &T) -> Result<Bytes, HostError> {
+    let vec = xdr_to_vec_u8(t)?;
+    Ok(Bytes { vec })
+}
+
+fn xdr_from_xdrbuf<T: ReadXdr>(buf: &XDRBuf) -> Result<T, HostError> {
+    xdr_from_slice(buf.data.as_slice())
+}
 
 /// Helper for [`build_storage_footprint_from_xdr`] that inserts a copy of some
 /// [`AccessType`] `ty` into a [`storage::Footprint`] for every [`LedgerKey`] in
@@ -109,7 +131,7 @@ fn build_storage_map_from_xdr_ledger_entries(
 ) -> Result<OrdMap<LedgerKey, Option<LedgerEntry>>, ContractError> {
     let mut map = OrdMap::new();
     for buf in ledger_entries {
-        let le = LedgerEntry::read_xdr(&mut Cursor::new(buf.data.as_slice()))?;
+        let le = xdr_from_xdrbuf::<LedgerEntry>(buf)?;
         let key = ledger_entry_to_ledger_key(&le)?;
         if !footprint.0.contains_key(&key) {
             return Err(ContractError::General(
@@ -134,13 +156,11 @@ fn build_xdr_ledger_entries_from_storage_map(
 ) -> Result<Vec<Bytes>, ContractError> {
     let mut res = Vec::new();
     for (lk, ole) in storage_map {
-        let mut xdr_buf: Vec<u8> = Vec::new();
         match footprint.0.get(lk) {
             Some(AccessType::ReadOnly) => (),
             Some(AccessType::ReadWrite) => {
                 if let Some(le) = ole {
-                    le.write_xdr(&mut Cursor::new(&mut xdr_buf))?;
-                    res.push(Bytes { vec: xdr_buf });
+                    res.push(xdr_to_bytes(le)?)
                 }
             }
             None => return Err(ContractError::General("ledger entry not in footprint")),
@@ -160,8 +180,8 @@ pub(crate) fn invoke_host_function(
     footprint_buf: &XDRBuf,
     ledger_entries: &Vec<XDRBuf>,
 ) -> Result<Vec<Bytes>, Box<dyn Error>> {
-    let hf = HostFunction::read_xdr(&mut Cursor::new(hf_buf.data.as_slice()))?;
-    let args = ScVec::read_xdr(&mut Cursor::new(args_buf.data.as_slice()))?;
+    let hf = xdr_from_xdrbuf::<HostFunction>(&hf_buf)?;
+    let args = xdr_from_xdrbuf::<ScVec>(&args_buf)?;
 
     let footprint = build_storage_footprint_from_xdr(footprint_buf)?;
     let map = build_storage_map_from_xdr_ledger_entries(&footprint, ledger_entries)?;
@@ -187,4 +207,87 @@ pub(crate) fn invoke_host_function(
         &storage.footprint,
         &storage.map,
     )?)
+}
+
+// Pfc here exists just to translate a mess of irrelevant ownership and access
+// quirks between UniquePtr<PreflightCallbacks>, Rc<dyn SnapshotSource> and
+// Pin<&mut PreflightCallbacks>. They're all pointers to the same thing (or
+// perhaps indirected through an Rc or RefCell) but unfortunately, as you know,
+// type systems.
+struct Pfc(RefCell<UniquePtr<PreflightCallbacks>>);
+
+impl Pfc {
+    fn with_cb<T, F>(&self, f: F) -> Result<T, HostError>
+    where
+        F: FnOnce(Pin<&mut PreflightCallbacks>) -> Result<T, ::cxx::Exception>,
+    {
+        if let Some(cb) = self
+            .0
+            .try_borrow_mut()
+            .map_err(|_| ScHostContextErrorCode::UnknownError)?
+            .as_mut()
+        {
+            f(cb).map_err(|_| ScHostContextErrorCode::UnknownError.into())
+        } else {
+            Err(ScHostContextErrorCode::UnknownError.into())
+        }
+    }
+}
+
+impl SnapshotSource for Pfc {
+    fn get(&self, key: &LedgerKey) -> Result<LedgerEntry, HostError> {
+        let kv = xdr_to_vec_u8(key)?;
+        let lev = self.with_cb(|cb| cb.get_ledger_entry(&kv))?;
+        xdr_from_xdrbuf(&lev)
+    }
+
+    fn has(&self, key: &LedgerKey) -> Result<bool, HostError> {
+        let kv = xdr_to_vec_u8(key)?;
+        self.with_cb(|cb| cb.has_ledger_entry(&kv))
+    }
+}
+
+fn storage_footprint_to_ledger_footprint(
+    foot: &storage::Footprint,
+) -> Result<LedgerFootprint, xdr::Error> {
+    let mut read_only = Vec::new();
+    let mut read_write = Vec::new();
+    for (k, v) in foot.0.iter() {
+        match v {
+            AccessType::ReadOnly => read_only.push(k.clone()),
+            AccessType::ReadWrite => read_write.push(k.clone()),
+        }
+    }
+    Ok(LedgerFootprint {
+        read_only: read_only.try_into()?,
+        read_write: read_write.try_into()?,
+    })
+}
+
+pub(crate) fn preflight_host_function(
+    hf_buf: &CxxVector<u8>,
+    args_buf: &CxxVector<u8>,
+    cb: UniquePtr<PreflightCallbacks>,
+) -> Result<(), Box<dyn Error>> {
+    let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
+    let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
+    let pfc = Rc::new(Pfc(RefCell::new(cb)));
+    let src: Rc<dyn SnapshotSource> = pfc.clone() as Rc<dyn SnapshotSource>;
+    let storage = Storage::with_recording_footprint(src);
+    let host = Host::with_storage(storage);
+    let val = host.invoke_function(hf, args)?;
+
+    // Recover, convert and return the storage footprint and other values to C++.
+    let (cpu_insns, mem_bytes) =
+        host.get_budget(|budget| (budget.cpu_insns.get_count(), budget.mem_bytes.get_count()));
+    let storage = host
+        .recover_storage()
+        .map_err(|_| ContractError::General("could not get storage from host"))?;
+    let val_vec = xdr_to_vec_u8(&val)?;
+    let foot_vec = xdr_to_vec_u8(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
+    pfc.with_cb(|cb| cb.set_result_value(&val_vec))?;
+    pfc.with_cb(|cb| cb.set_result_footprint(&foot_vec))?;
+    pfc.with_cb(|cb| cb.set_result_cpu_insns(cpu_insns))?;
+    pfc.with_cb(|cb| cb.set_result_mem_bytes(mem_bytes))?;
+    Ok(())
 }

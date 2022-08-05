@@ -18,6 +18,11 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "ledger/InternalLedgerEntry.h"
+#include "ledger/LedgerTxnImpl.h"
+#include "transactions/InvokeHostFunctionOpFrame.h"
+#endif
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -30,6 +35,8 @@
 #include "util/Decoder.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
 
 #include "ExternalQueue.h"
@@ -108,6 +115,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    addRoute("preflight", &CommandHandler::preflight);
+    addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
+#endif
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("self-check", &CommandHandler::selfCheck);
 
@@ -652,17 +663,83 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+CommandHandler::preflight(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::string> paramMap;
+    http::server::server::parseParams(params, paramMap);
+    std::string blob = paramMap["blob"];
+    if (!blob.empty())
+    {
+        InvokeHostFunctionOp op;
+        std::vector<uint8_t> binBlob;
+        fromOpaqueBase64(op, blob);
+        root = InvokeHostFunctionOpFrame::preflight(mApp, op);
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify an InvokeHostFunctionOp blob: preflight?blob=<op in "
+            "base64 XDR format>");
+    }
+    retStr = Json::FastWriter().write(root);
+}
+
+void
+CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::string> paramMap;
+    http::server::server::parseParams(params, paramMap);
+    std::string key = paramMap["key"];
+    if (!key.empty())
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
+
+        LedgerKey k;
+        fromOpaqueBase64(k, key);
+        auto le = ltx.loadWithoutRecord(k);
+        if (le)
+        {
+            root["state"] = "live";
+            root["entry"] = toOpaqueBase64(le.current());
+        }
+        else
+        {
+            root["state"] = "dead";
+        }
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify ledger key: getLedgerEntry?key=<LedgerKey in base64 "
+            "XDR format>");
+    }
+    retStr = Json::FastWriter().write(root);
+}
+
+#endif
+
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
-    std::ostringstream output;
+    Json::Value root;
 
-    const std::string prefix("?blob=");
-    if (params.compare(0, prefix.size(), prefix) == 0)
+    std::map<std::string, std::string> paramMap;
+    http::server::server::parseParams(params, paramMap);
+    std::string blob = paramMap["blob"];
+
+    if (!blob.empty())
     {
         TransactionEnvelope envelope;
-        std::string blob = params.substr(prefix.size());
         std::vector<uint8_t> binBlob;
         decoder::decode_b64(blob, binBlob);
         xdr::xdr_from_opaque(binBlob, envelope);
@@ -680,15 +757,11 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             mApp.getNetworkID(), envelope);
         if (transaction)
         {
-            // add it to our current set
-            // and make sure it is valid
+            // Add it to our current set and make sure it is valid.
             TransactionQueue::AddResult status =
                 mApp.getHerder().recvTransaction(transaction, true);
 
-            output << "{"
-                   << "\"status\": "
-                   << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
-                   << "\"";
+            root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
             if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
@@ -696,19 +769,17 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
-
-                output << " , \"error\": \"" << resultBase64 << "\"";
+                root["error"] = resultBase64;
             }
-            output << "}";
         }
     }
     else
     {
         throw std::invalid_argument("Must specify a tx blob: tx?blob=<tx in "
-                                    "xdr format>\"}");
+                                    "xdr format>");
     }
 
-    retStr = output.str();
+    retStr = Json::FastWriter().write(root);
 }
 
 void
