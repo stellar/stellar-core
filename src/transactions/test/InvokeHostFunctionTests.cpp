@@ -38,6 +38,21 @@ get_testdata(std::string const& filename)
     return std::vector<uint8_t>{std::istreambuf_iterator<char>(in), {}};
 }
 
+// Example WASM files are, for the time being, compiled from the SDK repo
+// and then copied into this repo. They need to be regenerated anytime
+// the environment interface version number changes, at minimum.
+//
+// To regenerate, check out the SDK, install a nightly toolchain with
+// the rust-src component (to enable the 'tiny' build) using the following:
+//
+//  $ rustup component add rust-src --toolchain nightly
+//
+// clang-format off
+// then do:
+// $ make -C $SDK build
+// $ cp $SDK/target-tiny/wasm32-unknown-unknown/release/example_*.wasm $CORE/src/testdata/
+// clang-format on
+
 std::vector<uint8_t>
 get_example_i32_wasm()
 {
