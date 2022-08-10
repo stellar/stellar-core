@@ -5,6 +5,7 @@
 #include "util/Timer.h"
 
 #include "autocheck/autocheck.hpp"
+#include "herder/Herder.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -89,6 +90,8 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     Config cfg(getTestConfig());
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);
+    // cancel the timer
+    appPtr->getHerder().shutdown();
     Application& app = *appPtr;
 
     size_t eventsDispatched = 0;
@@ -195,6 +198,8 @@ TEST_CASE("timer cancels", "[timer]")
 {
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, getTestConfig(0));
+    // cancel the timer
+    app->getHerder().shutdown();
 
     int timerFired = 0;
     int timerCancelled = 0;

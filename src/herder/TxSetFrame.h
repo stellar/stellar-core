@@ -8,6 +8,7 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
 #include "util/NonCopyable.h"
+#include "xdr/Stellar-internal.h"
 
 #include <deque>
 #include <functional>
@@ -56,6 +57,12 @@ class TxSetFrame : public NonMovableOrCopyable
     static TxSetFrameConstPtr
     makeFromWire(Hash const& networkID,
                  GeneralizedTransactionSet const& xdrTxSet);
+
+    // Creates a TxSetFrame from StoredTransactionSet (internally persisted tx
+    // set format).
+    static TxSetFrameConstPtr
+    makeFromStoredTxSet(StoredTransactionSet const& storedSet,
+                        Application& app);
 
     virtual ~TxSetFrame(){};
 

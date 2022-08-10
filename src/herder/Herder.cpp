@@ -16,4 +16,5 @@ std::chrono::seconds const Herder::NODE_EXPIRATION_SECONDS(240);
 uint32 const Herder::LEDGER_VALIDITY_BRACKET = 100;
 std::chrono::nanoseconds const Herder::TIMERS_THRESHOLD_NANOSEC(5000000);
 uint32 const Herder::SCP_EXTRA_LOOKBACK_LEDGERS = 3u;
+std::chrono::minutes const Herder::TX_SET_GC_DELAY(1);
 }

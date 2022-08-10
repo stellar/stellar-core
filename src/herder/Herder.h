@@ -65,6 +65,8 @@ class Herder
     // this is to help recover potential missing SCP messages for other nodes
     static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
 
+    static std::chrono::minutes const TX_SET_GC_DELAY;
+
     enum State
     {
         // Starting up, no state is known

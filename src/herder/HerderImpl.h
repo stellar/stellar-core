@@ -162,6 +162,8 @@ class HerderImpl : public Herder
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
+    void startTxSetGCTimer();
+
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
@@ -198,6 +200,7 @@ class HerderImpl : public Herder
     void processSCPQueueUpToIndex(uint64 slotIndex);
     void safelyProcessSCPQueue(bool synchronous);
     void newSlotExternalized(bool synchronous, StellarValue const& value);
+    void purgeOldPersistedTxSets();
 
     TransactionQueue mTransactionQueue;
 
@@ -240,6 +243,8 @@ class HerderImpl : public Herder
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mOutOfSyncTimer;
+
+    VirtualTimer mTxSetGarbageCollectTimer;
 
     Application& mApp;
     LedgerManager& mLedgerManager;
