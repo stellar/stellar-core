@@ -12,6 +12,6 @@ log = "0.4.17"
 cxx = "1.0"
 im-rc = "15.0.0"
 base64 = "0.13.0"
-stellar-contract-env-host = { git = "https://github.com/stellar/rs-stellar-contract-env", rev = "8e6c6a2", features = [
+soroban-env-host = { git = "https://github.com/stellar/rs-soroban-env", rev = "86926179", features = [
     "vm",
 ] }
