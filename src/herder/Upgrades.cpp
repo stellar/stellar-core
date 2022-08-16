@@ -252,6 +252,11 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
                            upgrade.newBaseReserve());
     case LEDGER_UPGRADE_FLAGS:
         return fmt::format(FMT_STRING("flags={:d}"), upgrade.newFlags());
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case LEDGER_UPGRADE_CONFIG:
+        return fmt::format(FMT_STRING(
+            "cfgupgradesethash={}", hexAbbrev(upgrade.configUpgradeSetHash())));
+#endif
     default:
         return "<unsupported>";
     }
@@ -1029,4 +1034,108 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
         prepareLiabilities(ltx, header);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+ConfigUpgradeSetFrame::makeFromWire(ConfigUpgradeSet const& upgradeSetXDR)
+{
+    // Cannot use `make_shared` here due to private constructor.
+    return std::shared_ptr<ConfigUpgradeSetFrame>(
+        new ConfigUpgradeSetFrame(upgradeSetXDR));
+}
+
+ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(
+    ConfigUpgradeSet const& upgradeSetXDR)
+    : mConfigUpgradeSet(upgradeSetXDR)
+    , mHash(xdrSha256(upgradeSetXDR))
+    , mValidXDR(isValidXDR(upgradeSetXDR))
+{
+}
+
+bool
+ConfigUpgradeSetFrame::isValidXDR(ConfigUpgradeSet const& upgradeSetXDR) const
+{
+    if (!std::is_sorted(
+            upgradeSetXDR.updatedEntry.begin(),
+            upgradeSetXDR.updatedEntry.end(),
+            [](ConfigSettingEntry const& a, ConfigSettingEntry const& b) {
+                return a.configSettingID() < b.configSettingID();
+            }))
+    {
+        CLOG_DEBUG(Herder,
+                   "Got bad configUpgradeSet {}: the entries are not ordered",
+                   hexAbbrev(mHash));
+        return false;
+    }
+    if (std::adjacent_find(
+            upgradeSetXDR.updatedEntry.begin(),
+            upgradeSetXDR.updatedEntry.end(),
+            [](ConfigSettingEntry const& a, ConfigSettingEntry const& b) {
+                return a.configSettingID() == b.configSettingID();
+            }) != upgradeSetXDR.updatedEntry.end())
+    {
+        CLOG_DEBUG(Herder, "Got bad configUpgradeSet {}: duplicate entry",
+                   hexAbbrev(mHash));
+        return false;
+    }
+    return true;
+}
+
+ConfigUpgradeSet const&
+ConfigUpgradeSetFrame::toXDR() const
+{
+    return mConfigUpgradeSet;
+}
+
+Hash const&
+ConfigUpgradeSetFrame::getHash() const
+{
+    return mHash;
+}
+
+void
+ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx) const
+{
+    for (auto const& configEntry : mConfigUpgradeSet.updatedEntry)
+    {
+        LedgerKey key(LedgerEntryType::CONFIG_SETTING);
+        key.configSetting().configSettingID = configEntry.configSettingID();
+        ltx.load(key).current().data.configSetting() = configEntry;
+    }
+}
+
+bool
+ConfigUpgradeSetFrame::isConsistentWith(
+    ConfigUpgradeSetFrame const& scheduledUpgrade) const
+{
+    // If needed, this can be extended to handle arbitrary conditions for
+    // upgrade consistency on per-entry basis (e.g. allow some value to be
+    // within 1% of the scheduled upgrade value).
+    return mHash == scheduledUpgrade.getHash();
+}
+
+Upgrades::UpgradeValidity
+ConfigUpgradeSetFrame::isValidForApply() const
+{
+    if (!mValidXDR)
+    {
+        return Upgrades::UpgradeValidity::XDR_INVALID;
+    }
+    for (auto const& configEntry : mConfigUpgradeSet.updatedEntry)
+    {
+        bool valid = false;
+        switch (configEntry.configSettingID())
+        {
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+            valid = configEntry.contractMaxSizeBytes() > 0;
+            break;
+        }
+        if (!valid)
+        {
+            return Upgrades::UpgradeValidity::INVALID;
+        }
+    }
+    return Upgrades::UpgradeValidity::VALID;
+}
+#endif
 }

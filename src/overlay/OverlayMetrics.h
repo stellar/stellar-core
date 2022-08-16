@@ -50,6 +50,8 @@ struct OverlayMetrics
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
     medida::Timer& mRecvGetSCPStateTimer;
+    medida::Timer& mRecvGetConfigUpgradeSetTimer;
+    medida::Timer& mRecvConfigUpgradeSetTimer;
     medida::Timer& mRecvSendMoreTimer;
 
     medida::Timer& mRecvSCPPrepareTimer;
@@ -89,6 +91,8 @@ struct OverlayMetrics
     medida::Meter& mSendSCPMessageSetMeter;
     medida::Meter& mSendGetSCPStateMeter;
     medida::Meter& mSendSendMoreMeter;
+    medida::Meter& mSendGetConfigUpgradeSetMeter;
+    medida::Meter& mSendConfigUpgradeSetMeter;
 
     medida::Meter& mSendSurveyRequestMeter;
     medida::Meter& mSendSurveyResponseMeter;

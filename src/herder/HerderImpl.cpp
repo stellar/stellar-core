@@ -968,6 +968,14 @@ HerderImpl::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+HerderImpl::recvConfigUpgradeSet(ConfigUpgradeSetFrameConstPtr configUpgradeSet)
+{
+    return mPendingEnvelopes.recvConfigUpgradeSet(configUpgradeSet);
+}
+#endif
+
 void
 HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
                            Peer::pointer peer)
@@ -987,6 +995,14 @@ HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mHerderSCPDriver.getQSet(qSetHash);
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+HerderImpl::getConfigUpgradeSet(Hash const& hash)
+{
+    return mPendingEnvelopes.getConfigUpgradeSet(hash);
+}
+#endif
 
 uint32
 HerderImpl::getMinLedgerSeqToAskPeers() const

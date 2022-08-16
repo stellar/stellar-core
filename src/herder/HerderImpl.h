@@ -120,10 +120,17 @@ class HerderImpl : public Herder
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
     bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) override;
+
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
     TxSetFrameConstPtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConfigUpgradeSetFrameConstPtr
+    getConfigUpgradeSet(Hash const& hash) override;
+    bool recvConfigUpgradeSet(
+        ConfigUpgradeSetFrameConstPtr configUpgradeSet) override;
+#endif
 
     void processSCPQueue();
 

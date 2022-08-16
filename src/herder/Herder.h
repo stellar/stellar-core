@@ -117,6 +117,7 @@ class Herder
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
     virtual bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) = 0;
+
     // We are learning about a new transaction.
     virtual TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
@@ -124,6 +125,13 @@ class Herder
                                 uint256 const& itemID, Peer::pointer peer) = 0;
     virtual TxSetFrameConstPtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    virtual ConfigUpgradeSetFrameConstPtr
+    getConfigUpgradeSet(Hash const& hash) = 0;
+    virtual bool
+    recvConfigUpgradeSet(ConfigUpgradeSetFrameConstPtr configUpgradeSet) = 0;
+#endif
 
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;

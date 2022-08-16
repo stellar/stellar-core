@@ -60,11 +60,21 @@ class PendingEnvelopes
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
-    using TxSetFramCacheItem = std::pair<uint64, TxSetFrameConstPtr>;
+    using TxSetFrameCacheItem = std::pair<uint64, TxSetFrameConstPtr>;
     // recent txsets
-    RandomEvictionCache<Hash, TxSetFramCacheItem> mTxSetCache;
+    RandomEvictionCache<Hash, TxSetFrameCacheItem> mTxSetCache;
     // weak references to all known txsets
     UnorderedMap<Hash, std::weak_ptr<TxSetFrame const>> mKnownTxSets;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ItemFetcher mConfigUpgradeSetFetcher;
+    // recent config upgrade sets
+    RandomEvictionCache<Hash, ConfigUpgradeSetFrameConstPtr>
+        mConfigUpgradeSetCache;
+    // weak references to all known config upgrade sets
+    UnorderedMap<Hash, std::weak_ptr<ConfigUpgradeSetFrame const>>
+        mKnownConfigUpgradeSets;
+#endif
 
     // keep track of txset/qset hash -> size pairs for quick access
     RandomEvictionCache<Hash, size_t> mValueSizeCache;
@@ -79,6 +89,9 @@ class PendingEnvelopes
     medida::Timer& mFetchDuration;
     medida::Timer& mFetchTxSetTimer;
     medida::Timer& mFetchQsetTimer;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    medida::Timer& mFetchConfigUpgradeSetTimer;
+#endif
     // Tracked cost per slot
     medida::Histogram& mCostPerSlot;
 
@@ -104,6 +117,11 @@ class PendingEnvelopes
     // tries to find a txset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
     TxSetFrameConstPtr getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConfigUpgradeSetFrameConstPtr
+    getKnownConfigUpgradeSet(Hash const& hash, bool touch);
+#endif
 
     void cleanKnownData();
 
@@ -189,6 +207,12 @@ class PendingEnvelopes
 
     TxSetFrameConstPtr getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void addConfigUpgradeSet(ConfigUpgradeSetFrameConstPtr txset);
+    bool recvConfigUpgradeSet(ConfigUpgradeSetFrameConstPtr configUpgradeSet);
+    ConfigUpgradeSetFrameConstPtr getConfigUpgradeSet(Hash const& hash);
+#endif
 
     // returns true if we think that the node is in the transitive quorum for
     // sure

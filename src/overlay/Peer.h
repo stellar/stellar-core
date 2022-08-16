@@ -263,6 +263,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void recvGetConfigUpgradeSet(StellarMessage const& msg);
+    void recvConfigUpgradeSet(StellarMessage const& msg);
+#endif
     void recvGeneralizedTxSet(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
@@ -352,6 +356,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void sendGetConfigUpgradeSet(uint256 const& setID);
+#endif
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message,

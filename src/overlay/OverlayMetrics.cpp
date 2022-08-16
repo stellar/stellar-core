@@ -57,6 +57,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
     , mRecvGetSCPStateTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-state"}))
+    , mRecvGetConfigUpgradeSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "get-cfg-upgrade-set"}))
+    , mRecvConfigUpgradeSetTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "cfg-upgrade-set"}))
     , mRecvSendMoreTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "send-more"}))
 
@@ -128,6 +132,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "get-scp-state"}, "message"))
     , mSendSendMoreMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "send-more"}, "message"))
+    , mSendGetConfigUpgradeSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "get-cfg-upgrade-set"}, "message"))
+    , mSendConfigUpgradeSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "cfg-upgrade-set"}, "message"))
     , mSendSurveyRequestMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "survey-request"}, "message"))
     , mSendSurveyResponseMeter(app.getMetrics().NewMeter(

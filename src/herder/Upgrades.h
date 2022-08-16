@@ -20,6 +20,10 @@ class Database;
 struct LedgerHeader;
 struct LedgerUpgrade;
 
+class ConfigUpgradeSetFrame;
+using ConfigUpgradeSetFrameConstPtr =
+    std::shared_ptr<ConfigUpgradeSetFrame const>;
+
 class Upgrades
 {
   public:
@@ -51,6 +55,9 @@ class Upgrades
         std::optional<uint32> mMaxTxSetSize;
         std::optional<uint32> mBaseReserve;
         std::optional<uint32> mFlags;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        ConfigUpgradeSetFrameConstPtr mConfigUpgradeSet;
+#endif
 
         std::string toJson() const;
         void fromJson(std::string const& s);
@@ -134,4 +141,35 @@ class Upgrades
     static void applyReserveUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t newReserve);
 };
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+class ConfigUpgradeSetFrame
+{
+  public:
+    static ConfigUpgradeSetFrameConstPtr
+    makeFromWire(ConfigUpgradeSet const& upgradeSetXDR);
+
+    /*static ConfigUpgradeSetFrameConstPtr
+    makeFromConfigUpgrades(std::vector<LedgerEntry> const& upgradeEntries);*/
+
+    ConfigUpgradeSet const& toXDR() const;
+
+    Hash const& getHash() const;
+
+    void applyTo(AbstractLedgerTxn& ltx) const;
+
+    bool isConsistentWith(ConfigUpgradeSetFrame const& scheduledUpgrade) const;
+
+    Upgrades::UpgradeValidity isValidForApply() const;
+
+  private:
+    ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR);
+
+    bool isValidXDR(ConfigUpgradeSet const& upgradeSetXDR) const;
+
+    ConfigUpgradeSet mConfigUpgradeSet;
+    Hash mHash;
+    bool mValidXDR;
+};
+#endif
 }

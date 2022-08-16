@@ -462,6 +462,20 @@ Peer::sendGetQuorumSet(uint256 const& setID)
     sendMessage(msgPtr);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+Peer::sendGetConfigUpgradeSet(uint256 const& setID)
+{
+    ZoneScoped;
+    StellarMessage newMsg;
+    newMsg.type(GET_CONFIG_UPGRADE_SET);
+    newMsg.configUgradeSetHash() = setID;
+
+    auto msgPtr = std::make_shared<StellarMessage const>(newMsg);
+    sendMessage(msgPtr);
+}
+#endif
+
 void
 Peer::sendGetPeers()
 {
@@ -563,6 +577,13 @@ Peer::msgSummary(StellarMessage const& msg)
                            hexAbbrev(msg.qSetHash()));
     case SCP_QUORUMSET:
         return "SCP_QSET";
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case GET_CONFIG_UPGRADE_SET:
+        return fmt::format(FMT_STRING("GET_CONFIG_UPGRADE_SET {}"),
+                           hexAbbrev(msg.configUgradeSetHash()));
+    case CONFIG_UPGRADE_SET:
+        return "CONFIG_UPGRADE_SET";
+#endif
     case SCP_MESSAGE:
     {
         std::string t;
@@ -663,6 +684,14 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     case SCP_QUORUMSET:
         getOverlayMetrics().mSendSCPQuorumSetMeter.Mark();
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case GET_CONFIG_UPGRADE_SET:
+        getOverlayMetrics().mSendGetConfigUpgradeSetMeter.Mark();
+        break;
+    case CONFIG_UPGRADE_SET:
+        getOverlayMetrics().mSendConfigUpgradeSetMeter.Mark();
+        break;
+#endif
     case SCP_MESSAGE:
         getOverlayMetrics().mSendSCPMessageSetMeter.Mark();
         break;
@@ -888,6 +917,9 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_TX_SET:
     case GET_SCP_QUORUMSET:
     case GET_SCP_STATE:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case GET_CONFIG_UPGRADE_SET:
+#endif
         cat = "SCPQ";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
         break;
@@ -898,6 +930,9 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GENERALIZED_TX_SET:
     case SCP_QUORUMSET:
     case SCP_MESSAGE:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_UPGRADE_SET:
+#endif
         cat = "SCP";
         break;
 
@@ -1335,7 +1370,21 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         recvSCPQuorumSet(stellarMsg);
     }
     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case GET_CONFIG_UPGRADE_SET:
+    {
+        auto t = getOverlayMetrics().mRecvGetConfigUpgradeSetTimer.TimeScope();
+        recvGetConfigUpgradeSet(stellarMsg);
+    }
+    break;
 
+    case CONFIG_UPGRADE_SET:
+    {
+        auto t = getOverlayMetrics().mRecvConfigUpgradeSetTimer.TimeScope();
+        recvConfigUpgradeSet(stellarMsg);
+    }
+    break;
+#endif
     case SCP_MESSAGE:
     {
         auto t = getOverlayMetrics().mRecvSCPMessageTimer.TimeScope();
@@ -1446,6 +1495,35 @@ Peer::recvTxSet(StellarMessage const& msg)
     auto frame = TxSetFrame::makeFromWire(mApp.getNetworkID(), msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+Peer::recvGetConfigUpgradeSet(StellarMessage const& msg)
+{
+    ZoneScoped;
+    if (auto configUpgradeSet =
+            mApp.getHerder().getConfigUpgradeSet(msg.configUgradeSetHash()))
+    {
+        StellarMessage newMsg(CONFIG_UPGRADE_SET);
+        newMsg.configUpgradeSet() = configUpgradeSet->toXDR();
+        sendMessage(std::make_shared<StellarMessage const>(newMsg));
+    }
+    else
+    {
+        CLOG_TRACE(Overlay, "No config upgrade set: {}",
+                   hexAbbrev(msg.configUgradeSetHash()));
+        sendDontHave(CONFIG_UPGRADE_SET, msg.configUgradeSetHash());
+    }
+}
+
+void
+Peer::recvConfigUpgradeSet(StellarMessage const& msg)
+{
+    ZoneScoped;
+    mApp.getHerder().recvConfigUpgradeSet(
+        ConfigUpgradeSetFrame::makeFromWire(msg.configUpgradeSet()));
+}
+#endif
 
 void
 Peer::recvGeneralizedTxSet(StellarMessage const& msg)

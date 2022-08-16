@@ -13,16 +13,57 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"
+
 #include <Tracy.hpp>
+#include <optional>
 #include <xdrpp/marshal.h>
-
-using namespace std;
-
-#define QSET_CACHE_SIZE 10000
-#define TXSET_CACHE_SIZE 10000
 
 namespace stellar
 {
+
+namespace
+{
+constexpr size_t QSET_CACHE_SIZE = 10000;
+constexpr size_t TXSET_CACHE_SIZE = 10000;
+
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+constexpr size_t CONFIG_UPGRADE_SET_CACHE_SIZE = 100;
+
+std::optional<Hash>
+getConfigUpgradeSetHash(StellarValue const& v)
+{
+    for (auto const& encodedUpgrade : v.upgrades)
+    {
+        LedgerUpgrade upgrade;
+        xdr::xdr_from_opaque(encodedUpgrade, upgrade);
+        if (upgrade.type() == LEDGER_UPGRADE_CONFIG)
+        {
+            return std::make_optional(upgrade.configUpgradeSetHash());
+        }
+    }
+    return std::nullopt;
+}
+
+std::vector<Hash>
+getConfigUpgradeSetHashes(SCPEnvelope const& envelope)
+{
+    auto values = getStellarValues(envelope.statement);
+    std::vector<Hash> hashes;
+    for (auto const& v : values)
+    {
+        if (auto hash = getConfigUpgradeSetHash(v))
+        {
+            hashes.push_back(*hash);
+        }
+    }
+    return hashes;
+}
+#else
+constexpr size_t CONFIG_UPGRADE_SET_CACHE_SIZE = 0;
+#endif
+
+} // namespace
 
 PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     : mApp(app)
@@ -33,7 +74,13 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
-    , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE)
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    , mConfigUpgradeSetFetcher(app, [](Peer::pointer peer, Hash hash)
+                               { peer->sendGetConfigUpgradeSet(hash); })
+    , mConfigUpgradeSetCache(CONFIG_UPGRADE_SET_CACHE_SIZE)
+#endif
+    , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE +
+                      CONFIG_UPGRADE_SET_CACHE_SIZE)
     , mRebuildQuorum(true)
     , mQuorumTracker(mApp.getConfig().NODE_SEED.getPublicKey())
     , mProcessedCount(
@@ -46,6 +93,10 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "envelope"}))
     , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
     , mFetchQsetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "qset"}))
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    , mFetchConfigUpgradeSetTimer(
+          app.getMetrics().NewTimer({"overlay", "fetch", "cfg-upgrade-set"}))
+#endif
     , mCostPerSlot(app.getMetrics().NewHistogram({"scp", "cost", "per-slot"}))
 {
 }
@@ -67,6 +118,11 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
     case SCP_QUORUMSET:
         mQuorumSetFetcher.doesntHave(itemID, peer);
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_UPGRADE_SET:
+        mConfigUpgradeSetFetcher.doesntHave(itemID, peer);
+        break;
+#endif
     default:
         CLOG_INFO(Herder, "Unknown Type in peerDoesntHave: {}", type);
         break;
@@ -223,6 +279,26 @@ PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
     return res;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+PendingEnvelopes::getKnownConfigUpgradeSet(Hash const& hash, bool touch)
+{
+    ConfigUpgradeSetFrameConstPtr res;
+    auto it = mKnownConfigUpgradeSets.find(hash);
+    if (it != mKnownConfigUpgradeSets.end())
+    {
+        res = it->second.lock();
+    }
+
+    // refresh the cache for this key
+    if (res && touch)
+    {
+        mConfigUpgradeSetCache.put(hash, res);
+    }
+    return res;
+}
+#endif
+
 void
 PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFrameConstPtr txset)
@@ -249,6 +325,45 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
     addTxSet(hash, lastSeenSlotIndex, txset);
     return true;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+PendingEnvelopes::addConfigUpgradeSet(
+    ConfigUpgradeSetFrameConstPtr configUpgradeSet)
+{
+    ZoneScoped;
+    auto const& hash = configUpgradeSet->getHash();
+    CLOG_TRACE(Herder, "Add ConfigUpgradeSet {}", hexAbbrev(hash));
+
+    auto res = getKnownConfigUpgradeSet(hash, true);
+    if (!res)
+    {
+        res = configUpgradeSet;
+        mKnownConfigUpgradeSets[hash] = configUpgradeSet;
+        mConfigUpgradeSetCache.put(hash, res);
+    }
+    mConfigUpgradeSetFetcher.recv(hash, mFetchConfigUpgradeSetTimer);
+}
+
+bool
+PendingEnvelopes::recvConfigUpgradeSet(
+    ConfigUpgradeSetFrameConstPtr configUpgradeSet)
+{
+    ZoneScoped;
+    auto const& hash = configUpgradeSet->getHash();
+    CLOG_TRACE(Herder, "Got ConfigUpgradeSet {}", hexAbbrev(hash));
+
+    auto lastSeenSlotIndex =
+        mConfigUpgradeSetFetcher.getLastSeenSlotIndex(hash);
+    if (lastSeenSlotIndex == 0)
+    {
+        return false;
+    }
+
+    addConfigUpgradeSet(configUpgradeSet);
+    return true;
+}
+#endif
 
 bool
 PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
@@ -422,30 +537,26 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
 void
 PendingEnvelopes::cleanKnownData()
 {
-    auto it = mKnownQSets.begin();
-    while (it != mKnownQSets.end())
-    {
-        if (it->second.expired())
+    auto cleanKnownSets = [](auto& knownSets) {
+        auto it = knownSets.begin();
+        while (it != knownSets.end())
         {
-            it = mKnownQSets.erase(it);
+            if (it->second.expired())
+            {
+                it = knownSets.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
-        else
-        {
-            ++it;
-        }
-    }
-    auto it2 = mKnownTxSets.begin();
-    while (it2 != mKnownTxSets.end())
-    {
-        if (it2->second.expired())
-        {
-            it2 = mKnownTxSets.erase(it2);
-        }
-        else
-        {
-            ++it2;
-        }
-    }
+    };
+
+    cleanKnownSets(mKnownQSets);
+    cleanKnownSets(mKnownTxSets);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    cleanKnownSets(mKnownConfigUpgradeSets);
+#endif
 }
 
 #ifdef BUILD_TESTS
@@ -471,44 +582,52 @@ PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
     size_t totalReceivedBytes = 0;
     totalReceivedBytes += xdr::xdr_argpack_size(env);
 
+    // Helper function to get the value size from cache or get the value and if
+    // present put its size into cache and return it.
+    auto getSizeAndUpdateCache = [this](Hash const& valueHash,
+                                        auto getValueByHash,
+                                        auto getValueSize) -> size_t {
+        if (mValueSizeCache.exists(valueHash))
+        {
+            return mValueSizeCache.get(valueHash);
+        }
+
+        if (auto value = getValueByHash(valueHash))
+        {
+            size_t size = getValueSize(*value);
+            mValueSizeCache.put(valueHash, size);
+            return size;
+        }
+        return 0;
+    };
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     for (auto const& v : getStellarValues(env.statement))
     {
-        size_t txSetSize = 0;
-        if (mValueSizeCache.exists(v.txSetHash))
-        {
-            txSetSize = mValueSizeCache.get(v.txSetHash);
-        }
-        else
-        {
-            auto txSetPtr = getTxSet(v.txSetHash);
-            if (txSetPtr)
-            {
-                txSetSize = txSetPtr->encodedSize();
-                mValueSizeCache.put(v.txSetHash, txSetSize);
-            }
-        }
+        totalReceivedBytes += getSizeAndUpdateCache(
+            v.txSetHash,
+            std::bind(&PendingEnvelopes::getTxSet, this, std::placeholders::_1),
+            [](auto const& txSet) { return txSet.encodedSize(); });
 
-        totalReceivedBytes += txSetSize;
+        auto configUpgradeSetHash = getConfigUpgradeSetHash(v);
+        if (configUpgradeSetHash)
+        {
+            totalReceivedBytes += getSizeAndUpdateCache(
+                *configUpgradeSetHash,
+                std::bind(&PendingEnvelopes::getConfigUpgradeSet, this,
+                          std::placeholders::_1),
+                [](auto const& configUpgradeSet) {
+                    return xdr::xdr_argpack_size(configUpgradeSet.toXDR());
+                });
+        }
     }
+#endif
 
     auto qSetHash = Slot::getCompanionQuorumSetHashFromStatement(env.statement);
-    size_t qSetSize = 0;
 
-    if (mValueSizeCache.exists(qSetHash))
-    {
-        qSetSize = mValueSizeCache.get(qSetHash);
-    }
-    else
-    {
-        auto qSetPtr = getQSet(qSetHash);
-        if (qSetPtr)
-        {
-            qSetSize = xdr::xdr_argpack_size(*qSetPtr);
-            mValueSizeCache.put(qSetHash, qSetSize);
-        }
-    }
-
-    totalReceivedBytes += qSetSize;
+    totalReceivedBytes += getSizeAndUpdateCache(
+        qSetHash,
+        std::bind(&PendingEnvelopes::getQSet, this, std::placeholders::_1),
+        [](auto const& qSet) { return xdr::xdr_argpack_size(qSet); });
 
     if (totalReceivedBytes > 0)
     {
@@ -556,10 +675,23 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
     }
 
     auto txSetHashes = getTxSetHashes(envelope);
-    return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
+    if (!std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
+                     [&](Hash const& txSetHash) {
+                         return getKnownTxSet(txSetHash, 0, false);
+                     }))
+    {
+        return false;
+    }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto configUpgradeSetHashes = getConfigUpgradeSetHashes(envelope);
+    return std::all_of(configUpgradeSetHashes.begin(),
+                       configUpgradeSetHashes.end(),
                        [&](Hash const& txSetHash) {
-                           return getKnownTxSet(txSetHash, 0, false);
+                           return getKnownConfigUpgradeSet(txSetHash, false);
                        });
+#else
+    return true;
+#endif
 }
 
 void
@@ -583,7 +715,16 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
             needSomething = true;
         }
     }
-
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    for (auto const& h2 : getConfigUpgradeSetHashes(envelope))
+    {
+        if (!getKnownConfigUpgradeSet(h2, false))
+        {
+            mConfigUpgradeSetFetcher.fetch(h2, envelope);
+            needSomething = true;
+        }
+    }
+#endif
     if (needSomething)
     {
         CLOG_TRACE(Herder, "StartFetch env {} i:{} t:{}",
@@ -604,6 +745,13 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
         mTxSetFetcher.stopFetch(h2, envelope);
     }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    for (auto const& h2 : getConfigUpgradeSetHashes(envelope))
+    {
+        mConfigUpgradeSetFetcher.stopFetch(h2, envelope);
+    }
+#endif
+
     CLOG_TRACE(Herder, "StopFetch env {} i:{} t:{}",
                hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
                envelope.statement.pledges.type());
@@ -620,6 +768,12 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
     {
         getKnownTxSet(h, envelope.statement.slotIndex, true);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    for (auto const& h : getConfigUpgradeSetHashes(envelope))
+    {
+        getKnownConfigUpgradeSet(h, true);
+    }
+#endif
 }
 
 SCPEnvelopeWrapperPtr
@@ -642,10 +796,10 @@ PendingEnvelopes::pop(uint64 slotIndex)
     return nullptr;
 }
 
-vector<uint64>
+std::vector<uint64>
 PendingEnvelopes::readySlots()
 {
-    vector<uint64> result;
+    std::vector<uint64> result;
     for (auto const& entry : mEnvelopes)
     {
         if (!entry.second.mReadyEnvelopes.empty())
@@ -674,7 +828,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 
     // 0 is special mark for data that we do not know the slot index
     // it is used for state loaded from database
-    mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
+    mTxSetCache.erase_if([&](TxSetFrameCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
 
@@ -698,6 +852,9 @@ PendingEnvelopes::stopAllBelow(uint64 slotIndex)
     }
     mTxSetFetcher.stopFetchingBelow(slotIndex);
     mQuorumSetFetcher.stopFetchingBelow(slotIndex);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mConfigUpgradeSetFetcher.stopFetchingBelow(slotIndex);
+#endif
 }
 
 void
@@ -725,7 +882,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     auto& scp = mHerder.getSCP();
     if (hash == scp.getLocalNode()->getQuorumSetHash())
     {
-        qset = make_shared<SCPQuorumSet>(scp.getLocalQuorumSet());
+        qset = std::make_shared<SCPQuorumSet>(scp.getLocalQuorumSet());
     }
     else
     {
@@ -738,6 +895,14 @@ PendingEnvelopes::getQSet(Hash const& hash)
     }
     return qset;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+PendingEnvelopes::getConfigUpgradeSet(Hash const& hash)
+{
+    return getKnownConfigUpgradeSet(hash, false);
+}
+#endif
 
 Json::Value
 PendingEnvelopes::getJsonInfo(size_t limit)
