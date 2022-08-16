@@ -96,6 +96,8 @@ class CatchupManager
     virtual std::optional<LedgerCloseData>
     maybeGetNextBufferedLedgerToApply() = 0;
 
+    virtual std::optional<LedgerCloseData> maybeGetLargestBufferedLedger() = 0;
+
     // This returns the largest ledger sequence that CatchupManager has ever
     // heard of.
     virtual uint32_t getLargestLedgerSeqHeard() const = 0;
