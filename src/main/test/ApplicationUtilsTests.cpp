@@ -89,6 +89,7 @@ class TemporarySQLiteDBDamager : public TemporaryFileDamager
         ltx.commit();
     }
 };
+
 TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
 {
     // Step 1: set up history archives and publish to them.
