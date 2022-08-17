@@ -59,6 +59,48 @@ removeTxs(TxSetFrame::Transactions const& txs,
 }
 } // namespace
 
+AccountTransactionQueue::AccountTransactionQueue(
+    std::vector<TransactionFrameBasePtr> const& accountTxs)
+    : mTxs(accountTxs.begin(), accountTxs.end())
+{
+    std::sort(mTxs.begin(), mTxs.end(),
+              [](TransactionFrameBasePtr const& tx1,
+                 TransactionFrameBasePtr const& tx2) {
+                  return tx1->getSeqNum() < tx2->getSeqNum();
+              });
+    for (auto const& tx : accountTxs)
+    {
+        mNumOperations += tx->getNumOperations();
+    }
+}
+
+TransactionFrameBasePtr
+AccountTransactionQueue::getTopTx() const
+{
+    releaseAssert(!mTxs.empty());
+    return mTxs.front();
+}
+
+bool
+AccountTransactionQueue::empty() const
+{
+    return mTxs.empty();
+}
+
+void
+AccountTransactionQueue::popTopTx()
+{
+    releaseAssert(!mTxs.empty());
+    mNumOperations -= mTxs.front()->getNumOperations();
+    mTxs.pop_front();
+}
+
+uint32_t
+AccountTransactionQueue::getNumOperations() const
+{
+    return mNumOperations;
+}
+
 bool
 TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
                          TransactionFrameBasePtr const& tx2)
@@ -77,34 +119,26 @@ TxSetUtils::sortTxsInHashOrder(TxSetFrame::Transactions const& transactions)
     return sortedTxs;
 }
 
-UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
+std::vector<std::shared_ptr<AccountTransactionQueue>>
 TxSetUtils::buildAccountTxQueues(TxSetFrame::Transactions const& txs)
 {
     ZoneScoped;
-    UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue> actTxQueueMap;
-    for (auto const& tx : txs)
+    UnorderedMap<AccountID, std::vector<TransactionFrameBasePtr>> actTxMap;
+
+    for (auto& tx : txs)
     {
         auto id = tx->getSourceID();
-        auto it = actTxQueueMap.find(id);
-        if (it == actTxQueueMap.end())
-        {
-            auto d = std::make_pair(id, TxSetFrame::AccountTransactionQueue{});
-            auto r = actTxQueueMap.insert(d);
-            it = r.first;
-        }
+        auto it =
+            actTxMap.emplace(id, std::vector<TransactionFrameBasePtr>()).first;
         it->second.emplace_back(tx);
     }
 
-    for (auto& am : actTxQueueMap)
+    std::vector<std::shared_ptr<AccountTransactionQueue>> queues;
+    for (auto const& [_, actTxs] : actTxMap)
     {
-        // sort each in sequence number order
-        std::sort(am.second.begin(), am.second.end(),
-                  [](TransactionFrameBasePtr const& tx1,
-                     TransactionFrameBasePtr const& tx2) {
-                      return tx1->getSeqNum() < tx2->getSeqNum();
-                  });
+        queues.emplace_back(std::make_shared<AccountTransactionQueue>(actTxs));
     }
-    return actTxQueueMap;
+    return queues;
 }
 
 TxSetFrame::Transactions
@@ -129,26 +163,26 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     UnorderedMap<AccountID, int64_t> accountFeeMap;
     TxSetFrame::Transactions invalidTxs;
 
-    auto accountTxMap = buildAccountTxQueues(txs);
-    for (auto& kv : accountTxMap)
+    auto accountTxQueues = buildAccountTxQueues(txs);
+    for (auto& accountQueue : accountTxQueues)
     {
         int64_t lastSeq = 0;
-        auto iter = kv.second.begin();
-        while (iter != kv.second.end())
+        auto iter = accountQueue->mTxs.begin();
+        while (iter != accountQueue->mTxs.end())
         {
             auto tx = *iter;
             // In addition to checkValid, we also want to make sure that all but
             // the transaction with the lowest seqNum on a given sourceAccount
             // do not have minSeqAge and minSeqLedgerGap set
             bool minSeqCheckIsInvalid =
-                iter != kv.second.begin() &&
+                iter != accountQueue->mTxs.begin() &&
                 (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0);
             if (minSeqCheckIsInvalid ||
                 !tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
                                 upperBoundCloseTimeOffset))
             {
                 invalidTxs.emplace_back(tx);
-                iter = kv.second.erase(iter);
+                iter = accountQueue->mTxs.erase(iter);
                 if (returnEarlyOnFirstInvalidTx)
                 {
                     if (minSeqCheckIsInvalid)
@@ -191,17 +225,17 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     }
 
     auto header = ltx.loadHeader();
-    for (auto& kv : accountTxMap)
+    for (auto& accountQueue : accountTxQueues)
     {
-        auto iter = kv.second.begin();
-        while (iter != kv.second.end())
+        auto iter = accountQueue->mTxs.begin();
+        while (iter != accountQueue->mTxs.end())
         {
             auto tx = *iter;
             auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
             auto totFee = accountFeeMap[tx->getFeeSourceID()];
             if (getAvailableBalance(header, feeSource) < totFee)
             {
-                while (iter != kv.second.end())
+                while (iter != accountQueue->mTxs.end())
                 {
                     invalidTxs.emplace_back(*iter);
                     ++iter;

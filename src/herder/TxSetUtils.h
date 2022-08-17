@@ -13,6 +13,23 @@
 namespace stellar
 {
 
+class AccountTransactionQueue : public TxStack
+{
+  public:
+    AccountTransactionQueue(
+        std::vector<TransactionFrameBasePtr> const& accountTxs);
+
+    TransactionFrameBasePtr getTopTx() const override;
+    bool empty() const override;
+    void popTopTx() override;
+    uint32_t getNumOperations() const override;
+
+    std::deque<TransactionFrameBasePtr> mTxs;
+
+  private:
+    uint32_t mNumOperations = 0;
+};
+
 class TxSetUtils
 {
   public:
@@ -22,7 +39,7 @@ class TxSetUtils
     static TxSetFrame::Transactions
     sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
 
-    static UnorderedMap<AccountID, TxSetFrame::AccountTransactionQueue>
+    static std::vector<std::shared_ptr<AccountTransactionQueue>>
     buildAccountTxQueues(TxSetFrame::Transactions const& txs);
 
     // Returns transactions from a TxSet that are invalid. If

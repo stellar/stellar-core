@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
@@ -12,6 +13,7 @@
 
 #include <deque>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 
 namespace stellar
@@ -23,7 +25,6 @@ using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class TxSetFrame : public NonMovableOrCopyable
 {
   public:
-    using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
 
     // Creates a valid TxSetFrame from the provided transactions.
@@ -155,7 +156,10 @@ class TxSetFrame : public NonMovableOrCopyable
     bool addTxsFromXdr(Hash const& networkID,
                        xdr::xvector<TransactionEnvelope> const& txs,
                        bool useBaseFee, std::optional<int64_t> baseFee);
-    void surgePricingFilter(uint32_t opsLeft);
+    void applySurgePricing(Application& app);
+
+    void computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
+                       bool enableLogging) const;
 
     bool const mIsGeneralized;
 
