@@ -18,6 +18,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
+#include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
 
 #include <chrono>
@@ -1241,8 +1242,6 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
     {
         TxQueueLimiter limiter(3, app->getLedgerManager());
 
-        REQUIRE(limiter.maxQueueSizeOps() == 12);
-
         struct SetupElement
         {
             TestAccount& account;
@@ -1261,8 +1260,10 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                 {
                     auto tx = transaction(*app, e.account, seq++, 1,
                                           opsFee.second, opsFee.first);
-                    bool can = limiter.canAddTx(tx, noTx).first;
+                    std::vector<TxStackPtr> txsToEvict;
+                    bool can = limiter.canAddTx(tx, noTx, txsToEvict).first;
                     REQUIRE(can);
+                    REQUIRE(txsToEvict.empty());
                     limiter.addTransaction(tx);
                     txs.emplace_back(tx);
                 }
@@ -1271,35 +1272,40 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         };
         // act \ base fee   400 300 200  100
         //  1                2   1    0   0
-        //  2                1   1    2   0
+        //  2                3   1    0   0
         //  3                0   1    1   0
         //  4                0   0    1   0
         //  5                0   0    0   1
-        // total             3   3    4   1 --> 11 (free = 1)
+        // total             5   3    2   1 --> 11 (free = 1)
         setup({{account1, 1, {{1, 400}, {1, 300}, {1, 400}}},
                {account2, 1, {{1, 400}, {1, 300}, {2, 400}}},
                {account3, 1, {{1, 300}, {1, 200}}},
                {account4, 1, {{1, 200}}},
                {account5, 1, {{1, 100}}}});
         auto checkAndAddTx = [&](bool expected, TestAccount& account, int ops,
-                                 int fee, int64 expFeeOnFailed) {
+                                 int fee, int64 expFeeOnFailed,
+                                 int expEvictedOpsOnSuccess) {
             auto tx = transaction(*app, account, 1000, 1, fee, ops);
-            auto can = limiter.canAddTx(tx, noTx);
+            std::vector<TxStackPtr> txsToEvict;
+            auto can = limiter.canAddTx(tx, noTx, txsToEvict);
             REQUIRE(expected == can.first);
             if (can.first)
             {
-                bool evicted = limiter.evictTransactions(
-                    tx->getNumOperations(),
-                    [&](TransactionFrameBasePtr const& evict) {
+                int evictedOps = 0;
+                limiter.evictTransactions(
+                    txsToEvict, ops, [&](TransactionFrameBasePtr const& evict) {
                         // can't evict cheaper transactions
-                        auto cmp3 = feeRate3WayCompare(*evict, *tx);
+                        auto cmp3 = feeRate3WayCompare(
+                            evict->getFeeBid(), evict->getNumOperations(),
+                            tx->getFeeBid(), tx->getNumOperations());
                         REQUIRE(cmp3 < 0);
                         // can't evict self
                         bool same = evict->getSourceID() == tx->getSourceID();
                         REQUIRE(!same);
+                        evictedOps += evict->getNumOperations();
                         limiter.removeTransaction(evict);
                     });
-                REQUIRE(evicted);
+                REQUIRE(evictedOps == expEvictedOpsOnSuccess);
                 limiter.addTransaction(tx);
                 limiter.removeTransaction(tx);
             }
@@ -1312,74 +1318,87 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         // can add ops operations,
         // but not add ops+1 at the same basefee
         // that would require evicting a transaction with basefee
-        auto checkTxBoundary = [&](TestAccount& account, int ops, int bfee) {
+        auto checkTxBoundary = [&](TestAccount& account, int ops, int bfee,
+                                   int expEvicted) {
             auto txFee1 = bfee * (ops + 1);
-            checkAndAddTx(false, account, ops + 1, txFee1, txFee1 + 1);
-            checkAndAddTx(true, account, ops, bfee * ops, 0);
+            checkAndAddTx(false, account, ops + 1, txFee1, txFee1 + 1, 0);
+            checkAndAddTx(true, account, ops, bfee * ops, 0, expEvicted);
         };
-        auto getBaseFeeRate = [](TxQueueLimiter const& limiter) {
-            auto fr = limiter.getMinFeeNeeded();
-            return fr.second == 0 ? 0ll
-                                  : bigDivideOrThrow(fr.first, 1, fr.second,
-                                                     Rounding::ROUND_UP);
+
+        // Check that 1 operation transaction with `minFee` cannot be added to
+        // the limiter, but with `minFee + 1` can be added. Use for checking
+        // that fee threshold is applied even when there is enough space in
+        // the limiter, but some transactions were evicted before.
+        auto checkMinFeeToFitWithNoEvict = [&](int64_t minFee) {
+            std::vector<TxStackPtr> txsToEvict;
+            // 0 fee is a special case as transaction shouldn't have 0 fee.
+            // Hence we only check that fee of 1 allows transaction to be added.
+            if (minFee == 0)
+            {
+                REQUIRE(limiter
+                            .canAddTx(transaction(*app, account1, 1000, 1, 1),
+                                      noTx, txsToEvict)
+                            .first);
+                return;
+            }
+            auto feeTx = transaction(*app, account1, 1000, 1, minFee);
+            auto [canAdd, feeNeeded] =
+                limiter.canAddTx(feeTx, noTx, txsToEvict);
+            REQUIRE(canAdd == false);
+            REQUIRE(feeNeeded == minFee + 1);
+
+            auto increasedFeeTx =
+                transaction(*app, account1, 1000, 1, minFee + 1);
+            REQUIRE(limiter.canAddTx(increasedFeeTx, noTx, txsToEvict).first);
         };
 
         SECTION("evict nothing")
         {
-            checkTxBoundary(account1, 1, 100);
-            REQUIRE(limiter.size() == 11);
-            REQUIRE(getBaseFeeRate(limiter) == 0);
+            checkTxBoundary(account1, 1, 100, 0);
             // can't evict transaction with the same base fee
-            checkAndAddTx(false, account1, 2, 100 * 2, 2 * 100 + 1);
-            REQUIRE(limiter.size() == 11);
-            REQUIRE(getBaseFeeRate(limiter) == 0);
+            checkAndAddTx(false, account1, 2, 100 * 2, 2 * 100 + 1, 0);
         }
         SECTION("evict 100s")
         {
-            checkTxBoundary(account1, 2, 200);
-            REQUIRE(limiter.size() == 10);
+            checkTxBoundary(account1, 2, 200, 1);
         }
         SECTION("evict 100s and 200s")
         {
-            checkTxBoundary(account6, 6, 300);
-            REQUIRE(limiter.size() == 6);
-            REQUIRE(getBaseFeeRate(limiter) == 200);
+            checkTxBoundary(account6, 6, 300, 5);
+            checkMinFeeToFitWithNoEvict(200);
+            SECTION("and add empty tx")
+            {
+                // Empty transaction can be added from the limiter standpoint
+                // (as it contains 0 ops and cannot exceed the operation limits)
+                // and hence should be rejected by the validation logic.
+                checkAndAddTx(true, account1, 0, 100, 0, 0);
+            }
         }
         SECTION("evict 100s and 200s, can't evict self")
         {
-            checkAndAddTx(false, account2, 6, 6 * 300, 0);
+            checkAndAddTx(false, account2, 6, 6 * 300, 0, 0);
         }
         SECTION("evict all")
         {
-            checkAndAddTx(true, account6, 12, 12 * 500, 0);
-            REQUIRE(limiter.size() == 0);
-            REQUIRE(getBaseFeeRate(limiter) == 400);
-            limiter.resetMinFeeNeeded();
-            REQUIRE(getBaseFeeRate(limiter) == 0);
+            checkAndAddTx(true, account6, 12, 12 * 500, 0, 11);
+            checkMinFeeToFitWithNoEvict(400);
+            limiter.resetEvictionState();
+            checkMinFeeToFitWithNoEvict(0);
         }
         SECTION("enforce limit")
         {
-            REQUIRE(getBaseFeeRate(limiter) == 0);
-            checkAndAddTx(true, account1, 2, 2 * 200, 0);
-            REQUIRE(limiter.size() == 10);
+            checkMinFeeToFitWithNoEvict(0);
+            checkAndAddTx(true, account1, 2, 2 * 200, 0, 1);
             // at this point as a transaction of base fee 100 was evicted
             // no transactions of base fee 100 can be accepted
-            REQUIRE(getBaseFeeRate(limiter) == 100);
-            checkAndAddTx(false, account1, 1, 100, 101);
-            // but higher fee can
-            checkAndAddTx(true, account1, 1, 200, 0);
-            REQUIRE(limiter.size() == 10);
-            REQUIRE(getBaseFeeRate(limiter) == 100);
+            checkMinFeeToFitWithNoEvict(100);
             // evict some more (300s)
-            checkAndAddTx(true, account6, 8, 300 * 8 + 1, 0);
-            REQUIRE(limiter.size() == 4);
-            REQUIRE(getBaseFeeRate(limiter) == 300);
-            checkAndAddTx(false, account1, 1, 300, 301);
+            checkAndAddTx(true, account6, 8, 300 * 8 + 1, 0, 6);
+            checkMinFeeToFitWithNoEvict(300);
 
             // now, reset the min fee requirement
-            limiter.resetMinFeeNeeded();
-            REQUIRE(getBaseFeeRate(limiter) == 0);
-            checkAndAddTx(true, account1, 1, 100, 0);
+            limiter.resetEvictionState();
+            checkMinFeeToFitWithNoEvict(0);
         }
     }
 }
