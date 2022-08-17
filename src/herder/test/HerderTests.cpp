@@ -3277,7 +3277,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         }
 
         std::map<AccountID, SequenceNumber> bcastTracker;
-        TransactionFrameBasePtr lastTx;
+        size_t numBroadcast = 0;
         tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
             // ensure that sequence numbers are correct per account
             auto expected = tx->getSeqNum();
@@ -3290,6 +3290,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             // check if we have the expected fee
             REQUIRE(tx->getFeeBid() == fees.front());
             fees.pop_front();
+            ++numBroadcast;
         };
 
         REQUIRE(tq.getTransactions({}).size() == numTx);
@@ -3298,11 +3299,6 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         // re-broadcasted during externalize
         fees.pop_front();
         fees.pop_front();
-
-        size_t numBroadcast = 0;
-        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) {
-            ++numBroadcast;
-        };
 
         externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r}, *app);
 
