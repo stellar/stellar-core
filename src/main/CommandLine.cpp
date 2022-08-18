@@ -911,44 +911,16 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
 
             auto app = Application::create(clock, cfg, false);
             app->start();
-            auto const& lm = app->getLedgerManager();
-            auto const& hm = app->getHistoryManager();
+
             auto& io = clock.getIOContext();
             asio::io_context::work mainWork(io);
             LedgerNumHashPair authPair;
-            auto tryCheckpoint = [&](uint32_t seq, Hash h) {
-                if (hm.isLastLedgerInCheckpoint(seq))
-                {
-                    LOG_INFO(
-                        DEFAULT_LOG,
-                        "Found authenticated checkpoint hash {} for ledger {}",
-                        hexAbbrev(h), seq);
-                    authPair.first = seq;
-                    authPair.second = std::make_optional<Hash>(h);
-                }
-                else if (authPair.first != seq)
-                {
-                    authPair.first = seq;
-                    LOG_INFO(DEFAULT_LOG,
-                             "Ledger {} is not a checkpoint boundary, waiting.",
-                             seq);
-                }
-            };
-
-            if (startLedger != 0 && !startHash.empty())
-            {
-                Hash h = hexToBin256(startHash);
-                tryCheckpoint(startLedger, h);
-            }
 
             while (!(io.stopped() || authPair.second))
             {
                 clock.crank();
-                if (lm.isSynced())
-                {
-                    auto const& lhe = lm.getLastClosedLedgerHeader();
-                    tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
-                }
+                setAuthenticatedLedgerHashPair(app, authPair, startLedger,
+                                               startHash);
             }
             if (authPair.second)
             {

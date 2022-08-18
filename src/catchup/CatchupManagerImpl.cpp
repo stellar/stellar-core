@@ -328,6 +328,20 @@ CatchupManagerImpl::maybeGetNextBufferedLedgerToApply()
     }
 }
 
+std::optional<LedgerCloseData>
+CatchupManagerImpl::maybeGetLargestBufferedLedger()
+{
+    if (!mSyncingLedgers.empty())
+    {
+        return std::make_optional<LedgerCloseData>(
+            mSyncingLedgers.crbegin()->second);
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
 uint32_t
 CatchupManagerImpl::getLargestLedgerSeqHeard() const
 {

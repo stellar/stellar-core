@@ -89,6 +89,56 @@ class TemporarySQLiteDBDamager : public TemporaryFileDamager
         ltx.commit();
     }
 };
+
+TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    SIMULATION_CREATE_NODE(Node1); // Validator
+    SIMULATION_CREATE_NODE(Node2); // Captive core
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    Config cfg1 = getTestConfig(1);
+    Config cfg2 = getTestConfig(2);
+    cfg2.FORCE_SCP = false;
+    cfg2.NODE_IS_VALIDATOR = false;
+    cfg2.setInMemoryMode();
+    cfg2.MODE_DOES_CATCHUP = false;
+
+    auto validator = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
+    Application::pointer watcher;
+
+    SECTION("in sync with the network")
+    {
+        watcher = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
+        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+        simulation->startAllNodes();
+    }
+    SECTION("buffer ledgers")
+    {
+        simulation->startAllNodes();
+        simulation->crankForAtLeast(std::chrono::minutes(2), false);
+        watcher = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
+        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+        simulation->startAllNodes();
+    }
+
+    LedgerNumHashPair authPair;
+    while (!authPair.second)
+    {
+        simulation->crankForAtMost(std::chrono::seconds(1), false);
+        setAuthenticatedLedgerHashPair(watcher, authPair, 0, "");
+    }
+
+    REQUIRE(authPair.second);
+    REQUIRE(authPair.first);
+}
+
 TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
 {
     // Step 1: set up history archives and publish to them.

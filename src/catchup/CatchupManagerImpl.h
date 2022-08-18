@@ -73,6 +73,7 @@ class CatchupManagerImpl : public CatchupManager
     void logAndUpdateCatchupStatus(bool contiguous) override;
 
     std::optional<LedgerCloseData> maybeGetNextBufferedLedgerToApply() override;
+    std::optional<LedgerCloseData> maybeGetLargestBufferedLedger() override;
     uint32_t getLargestLedgerSeqHeard() const override;
 
     void syncMetrics() override;

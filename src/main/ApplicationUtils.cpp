@@ -381,6 +381,59 @@ httpCommand(std::string const& command, unsigned short port)
     }
 }
 
+void
+setAuthenticatedLedgerHashPair(Application::pointer app,
+                               LedgerNumHashPair& authPair,
+                               uint32_t startLedger, std::string startHash)
+{
+    auto const& lm = app->getLedgerManager();
+    auto const& hm = app->getHistoryManager();
+
+    auto tryCheckpoint = [&](uint32_t seq, Hash h) {
+        if (hm.isLastLedgerInCheckpoint(seq))
+        {
+            LOG_INFO(DEFAULT_LOG,
+                     "Found authenticated checkpoint hash {} for ledger {}",
+                     hexAbbrev(h), seq);
+            authPair.first = seq;
+            authPair.second = std::make_optional<Hash>(h);
+            return true;
+        }
+        else if (authPair.first != seq)
+        {
+            authPair.first = seq;
+            LOG_INFO(DEFAULT_LOG,
+                     "Ledger {} is not a checkpoint boundary, waiting.", seq);
+        }
+        return false;
+    };
+
+    if (startLedger != 0 && !startHash.empty())
+    {
+        Hash h = hexToBin256(startHash);
+        if (tryCheckpoint(startLedger, h))
+        {
+            return;
+        }
+    }
+
+    if (lm.isSynced())
+    {
+        auto const& lhe = lm.getLastClosedLedgerHeader();
+        tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
+    }
+    else
+    {
+        auto lcd = app->getCatchupManager().maybeGetLargestBufferedLedger();
+        if (lcd)
+        {
+            uint32_t seq = lcd->getLedgerSeq() - 1;
+            Hash hash = lcd->getTxSet()->previousLedgerHash();
+            tryCheckpoint(seq, hash);
+        }
+    }
+}
+
 int
 selfCheck(Config cfg)
 {
