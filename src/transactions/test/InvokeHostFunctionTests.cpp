@@ -70,7 +70,7 @@ SCVal
 makeBinary(T begin, T end)
 {
     SCVal val(SCValType::SCV_OBJECT);
-    val.obj().activate().type(SCO_BINARY);
+    val.obj().activate().type(SCO_BYTES);
     val.obj()->bin().assign(begin, end);
     return val;
 }
@@ -98,8 +98,8 @@ createContract(Application& app, std::vector<uint8_t> const& contract,
 {
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519);
-    preImage.contractID().ed25519 = pub.ed25519();
-    preImage.contractID().salt = salt;
+    preImage.ed25519ContractID().ed25519 = pub.ed25519();
+    preImage.ed25519ContractID().salt = salt;
     auto contractID = xdrSha256(preImage);
 
     // Create operation
@@ -114,7 +114,7 @@ createContract(Application& app, std::vector<uint8_t> const& contract,
                       makeBinary(sig.begin(), sig.end())};
 
     SCVal wasmKey(SCValType::SCV_STATIC);
-    wasmKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE_WASM;
+    wasmKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
 
     LedgerKey lk;
     lk.type(CONTRACT_DATA);

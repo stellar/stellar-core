@@ -16,6 +16,7 @@
 
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "herder/HerderUtils.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -33,6 +34,7 @@
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 
+#include "crypto/Hex.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
@@ -2153,19 +2155,68 @@ TEST_CASE("SCP State", "[herder][acceptance]")
     // After changing node ids generated here from random to deterministics
     // this problem goes away, as the leader selection protocol uses node id
     // and round id for selecting leader.
-    for (int i = 0; i < 3; i++)
-    {
-        nodeKeys[i] = SecretKey::fromSeed(sha256("Node_" + std::to_string(i)));
-        nodeIDs[i] = nodeKeys[i].getPublicKey();
-        nodeCfgs[i] =
-            getTestConfig(i + 1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
-    }
+    auto configure = [&](Config::TestDbMode mode) {
+        for (int i = 0; i < 3; i++)
+        {
+            nodeKeys[i] =
+                SecretKey::fromSeed(sha256("Node_" + std::to_string(i)));
+            nodeIDs[i] = nodeKeys[i].getPublicKey();
+            nodeCfgs[i] = getTestConfig(i + 1, mode);
+        }
+    };
 
     LedgerHeaderHistoryEntry lcl;
     uint32_t numLedgers = 5;
     uint32_t expectedLedger = LedgerManager::GENESIS_LEDGER_SEQ + numLedgers;
+    std::unordered_set<Hash> knownTxSetHashes;
+
+    auto checkTxSetHashesPersisted =
+        [&](Application::pointer app,
+            std::optional<
+                std::unordered_map<uint32_t, std::vector<SCPEnvelope>>>
+                expectedSCPState) {
+            // Check that node0 restored state correctly
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+            auto limit = app->getHerder().getMinLedgerSeqToRemember();
+
+            std::unordered_set<Hash> hashes;
+            for (auto i = app->getHerder().trackingConsensusLedgerIndex();
+                 i >= limit; --i)
+            {
+                if (i == LedgerManager::GENESIS_LEDGER_SEQ)
+                {
+                    continue;
+                }
+                auto msgs = herder.getSCP().getLatestMessagesSend(i);
+                if (expectedSCPState.has_value())
+                {
+                    auto state = *expectedSCPState;
+                    REQUIRE(state.find(i) != state.end());
+                    REQUIRE(msgs == state[i]);
+                }
+                for (auto const& msg : msgs)
+                {
+                    for (auto const& h : getTxSetHashes(msg))
+                    {
+                        REQUIRE(herder.getPendingEnvelopes().getTxSet(h));
+                        REQUIRE(app->getPersistentState().hasTxSet(h));
+                        hashes.insert(h);
+                    }
+                }
+            }
+
+            return hashes;
+        };
 
     auto doTest = [&](bool forceSCP) {
+        SECTION("sqlite")
+        {
+            configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
+        }
+        SECTION("postgres")
+        {
+            configure(Config::TestDbMode::TESTDB_POSTGRESQL);
+        }
         // add node0 and node1, in lockstep
         {
             SCPQuorumSet qSet;
@@ -2201,6 +2252,22 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         {
             nodeCfgs[i] = sim->getNode(nodeIDs[i])->getConfig();
             nodeCfgs[i].FORCE_SCP = forceSCP;
+        }
+
+        std::unordered_map<uint32_t, std::vector<SCPEnvelope>> nodeSCPState;
+        auto lclNum = sim->getNode(nodeIDs[0])
+                          ->getHerder()
+                          .trackingConsensusLedgerIndex();
+        // Save node's state before restart
+        auto limit =
+            sim->getNode(nodeIDs[0])->getHerder().getMinLedgerSeqToRemember();
+        {
+            auto& herder =
+                static_cast<HerderImpl&>(sim->getNode(nodeIDs[0])->getHerder());
+            for (auto i = lclNum; i > limit; --i)
+            {
+                nodeSCPState[i] = herder.getSCP().getLatestMessagesSend(i);
+            }
         }
 
         // restart simulation
@@ -2240,6 +2307,11 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
+
+        // Check that node0 restored state correctly
+        knownTxSetHashes =
+            checkTxSetHashesPersisted(sim->getNode(nodeIDs[0]), nodeSCPState);
+
         if (forceSCP)
         {
             REQUIRE(sim->getNode(nodeIDs[0])->getState() ==
@@ -2257,6 +2329,7 @@ TEST_CASE("SCP State", "[herder][acceptance]")
 
         sim->addConnection(nodeIDs[0], nodeIDs[2]);
         sim->addConnection(nodeIDs[1], nodeIDs[2]);
+        sim->addConnection(nodeIDs[0], nodeIDs[1]);
     };
 
     SECTION("Force SCP")
@@ -2326,6 +2399,41 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         // Verify that the app is not synced anymore
         REQUIRE(sim->getNode(nodeIDs[2])->getState() ==
                 Application::State::APP_ACQUIRING_CONSENSUS_STATE);
+    }
+    SECTION("SCP State Persistence")
+    {
+        doTest(true);
+        // Remove last node so node0 and node1 are guaranteed to end up at
+        // `expectedLedger + MAX_SLOTS_TO_REMEMBER + 1`
+        sim->removeNode(nodeIDs[2]);
+        // Crank for MAX_SLOTS_TO_REMEMBER + 1, so that purging logic kicks in
+        sim->crankUntil(
+            [&]() {
+                // One extra ledger because tx sets are purged whenever new slot
+                // is started
+                return sim->haveAllExternalized(
+                    expectedLedger + nodeCfgs[0].MAX_SLOTS_TO_REMEMBER + 1, 1);
+            },
+            2 * nodeCfgs[0].MAX_SLOTS_TO_REMEMBER *
+                Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+            false);
+
+        // Remove node1 so node0 can't make progress
+        sim->removeNode(nodeIDs[1]);
+        // Crank until tx set GC kick in
+        sim->crankForAtLeast(Herder::TX_SET_GC_DELAY * 2, false);
+
+        // First,  check that node removed all persisted state for ledgers <=
+        // expectedLedger
+        auto app = sim->getNode(nodeIDs[0]);
+
+        for (auto const& txSetHash : knownTxSetHashes)
+        {
+            REQUIRE(!app->getPersistentState().hasTxSet(txSetHash));
+        }
+
+        // Now, ensure all new tx sets have been persisted
+        checkTxSetHashesPersisted(app, std::nullopt);
     }
 }
 

@@ -85,6 +85,7 @@ HerderImpl::HerderImpl(Application& app)
     , mLastExternalize(app.getClock().now())
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
+    , mTxSetGarbageCollectTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -248,6 +249,7 @@ HerderImpl::shutdown()
         mLastQuorumMapIntersectionState.mInterruptFlag = true;
     }
     mTransactionQueue.shutdown();
+    mTxSetGarbageCollectTimer.cancel();
 }
 
 void
@@ -1589,8 +1591,9 @@ HerderImpl::persistSCPState(uint64 slot)
     mLastSlotSaved = slot;
     // saves SCP messages and related data (transaction sets, quorum sets)
     PersistedSCPState scpState;
+    scpState.v(1);
 
-    auto& latestEnvs = scpState.v0().scpEnvelopes;
+    auto& latestEnvs = scpState.v1().scpEnvelopes;
     std::map<Hash, TxSetFrameConstPtr> txSets;
     std::map<Hash, SCPQuorumSetPtr> quorumSets;
 
@@ -1602,7 +1605,7 @@ HerderImpl::persistSCPState(uint64 slot)
         for (auto const& h : getTxSetHashes(e))
         {
             auto txSet = mPendingEnvelopes.getTxSet(h);
-            if (txSet)
+            if (txSet && !mApp.getPersistentState().hasTxSet(h))
             {
                 txSets.insert(std::make_pair(h, txSet));
             }
@@ -1615,7 +1618,7 @@ HerderImpl::persistSCPState(uint64 slot)
         }
     }
 
-    auto& latestQSets = scpState.v0().quorumSets;
+    auto& latestQSets = scpState.v1().quorumSets;
     for (auto it : quorumSets)
     {
         latestQSets.emplace_back(*it.second);
@@ -1623,25 +1626,29 @@ HerderImpl::persistSCPState(uint64 slot)
 
     stellar::Value latestSCPData;
 
-    auto& latestTxSets = scpState.v0().txSets;
+    std::unordered_map<Hash, std::string> txSetsToPersist;
     for (auto it : txSets)
     {
-        latestTxSets.emplace_back();
+        StoredTransactionSet tempTxSet;
         if (it.second->isGeneralizedTxSet())
         {
-            latestTxSets.back().v(1);
-            it.second->toXDR(latestTxSets.back().generalizedTxSet());
+            tempTxSet.v(1);
+            it.second->toXDR(tempTxSet.generalizedTxSet());
         }
         else
         {
-            it.second->toXDR(latestTxSets.back().txSet());
+            it.second->toXDR(tempTxSet.txSet());
         }
+        txSetsToPersist.emplace(
+            it.first, decoder::encode_b64(xdr::xdr_to_opaque(tempTxSet)));
     }
+
     latestSCPData = xdr::xdr_to_opaque(scpState);
 
     std::string encodedScpState = decoder::encode_b64(latestSCPData);
 
-    mApp.getPersistentState().setSCPStateForSlot(slot, encodedScpState);
+    mApp.getPersistentState().setSCPStateV1ForSlot(slot, encodedScpState,
+                                                   txSetsToPersist);
 }
 
 void
@@ -1649,41 +1656,56 @@ HerderImpl::restoreSCPState()
 {
     ZoneScoped;
 
-    // load saved state from database
-    auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
-    for (auto const& state : latest64)
-    {
-        std::vector<uint8_t> buffer;
-        decoder::decode_b64(state, buffer);
+    // Delete any old tx sets
+    purgeOldPersistedTxSets();
 
-        PersistedSCPState scpState;
+    // Load all known tx sets
+    auto latestTxSets = mApp.getPersistentState().getTxSetsForAllSlots();
+    for (auto const& txSet : latestTxSets)
+    {
         try
         {
+            std::vector<uint8_t> buffer;
+            decoder::decode_b64(txSet, buffer);
+
+            StoredTransactionSet storedSet;
+            xdr::xdr_from_opaque(buffer, storedSet);
+            TxSetFrameConstPtr cur =
+                TxSetFrame::makeFromStoredTxSet(storedSet, mApp);
+
+            Hash h = cur->getContentsHash();
+            mPendingEnvelopes.addTxSet(h, 0, cur);
+        }
+        catch (std::exception& e)
+        {
+            // we may have exceptions when upgrading the protocol
+            // this should be the only time we get exceptions decoding old
+            // messages.
+            CLOG_INFO(Herder,
+                      "Error while restoring old tx sets, "
+                      "proceeding without them : {}",
+                      e.what());
+        }
+    }
+
+    // load saved state from database
+    auto latest64 = mApp.getPersistentState().getSCPStateAllSlots();
+
+    for (auto const& state : latest64)
+    {
+        try
+        {
+            std::vector<uint8_t> buffer;
+            decoder::decode_b64(state, buffer);
+
+            PersistedSCPState scpState;
             xdr::xdr_from_opaque(buffer, scpState);
-
-            for (auto const& txSet : scpState.v0().txSets)
-            {
-                TxSetFrameConstPtr cur;
-                if (txSet.v() == 0)
-                {
-                    cur = TxSetFrame::makeFromWire(mApp.getNetworkID(),
-                                                   txSet.txSet());
-                }
-                else
-                {
-                    cur = TxSetFrame::makeFromWire(mApp.getNetworkID(),
-                                                   txSet.generalizedTxSet());
-                }
-
-                Hash h = cur->getContentsHash();
-                mPendingEnvelopes.addTxSet(h, 0, cur);
-            }
-            for (auto const& qset : scpState.v0().quorumSets)
+            for (auto const& qset : scpState.v1().quorumSets)
             {
                 Hash hash = xdrSha256(qset);
                 mPendingEnvelopes.addSCPQuorumSet(hash, qset);
             }
-            for (auto const& e : scpState.v0().scpEnvelopes)
+            for (auto const& e : scpState.v1().scpEnvelopes)
             {
                 auto envW = getHerderSCPDriver().wrapEnvelope(e);
                 getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
@@ -1764,6 +1786,56 @@ HerderImpl::start()
     // make sure that the transaction queue is setup against
     // the lcl that we have right now
     mTransactionQueue.maybeVersionUpgraded();
+
+    startTxSetGCTimer();
+}
+
+void
+HerderImpl::startTxSetGCTimer()
+{
+    mTxSetGarbageCollectTimer.expires_from_now(TX_SET_GC_DELAY);
+    mTxSetGarbageCollectTimer.async_wait(
+        [this]() { purgeOldPersistedTxSets(); }, &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::purgeOldPersistedTxSets()
+{
+    try
+    {
+        auto hashesToDelete =
+            mApp.getPersistentState().getTxSetHashesForAllSlots();
+        for (auto const& state :
+             mApp.getPersistentState().getSCPStateAllSlots())
+        {
+            try
+            {
+                std::vector<uint8_t> buffer;
+                decoder::decode_b64(state, buffer);
+
+                PersistedSCPState scpState;
+                xdr::xdr_from_opaque(buffer, scpState);
+                for (auto const& e : scpState.v1().scpEnvelopes)
+                {
+                    for (auto const& hash : getTxSetHashes(e))
+                    {
+                        hashesToDelete.erase(hash);
+                    }
+                }
+            }
+            catch (std::exception& e)
+            {
+                CLOG_ERROR(Herder, "Error while deleting old tx sets: {}",
+                           e.what());
+            }
+        }
+        mApp.getPersistentState().deleteTxSets(hashesToDelete);
+        startTxSetGCTimer();
+    }
+    catch (std::exception& e)
+    {
+        CLOG_ERROR(Herder, "Error while deleting old tx sets: {}", e.what());
+    }
 }
 
 void

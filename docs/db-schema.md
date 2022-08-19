@@ -198,7 +198,7 @@ Defined in [`src/main/PersistentState.cpp`](/src/main/PersistentState.cpp)
 
 Field | Type | Description
 ------|------|---------------
-statename | CHARACTER(32) PRIMARY KEY | Key
+statename | CHARACTER(70) PRIMARY KEY | Key
 state | TEXT | Value
 
 ## peers

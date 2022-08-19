@@ -388,6 +388,24 @@ TxSetFrame::makeFromWire(Hash const& networkID,
     return txSet;
 }
 
+TxSetFrameConstPtr
+TxSetFrame::makeFromStoredTxSet(StoredTransactionSet const& storedSet,
+                                Application& app)
+{
+    TxSetFrameConstPtr cur;
+    if (storedSet.v() == 0)
+    {
+        cur = TxSetFrame::makeFromWire(app.getNetworkID(), storedSet.txSet());
+    }
+    else
+    {
+        cur = TxSetFrame::makeFromWire(app.getNetworkID(),
+                                       storedSet.generalizedTxSet());
+    }
+
+    return cur;
+}
+
 Hash const&
 TxSetFrame::getContentsHash() const
 {
