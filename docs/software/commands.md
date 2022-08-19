@@ -171,10 +171,6 @@ format.
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 
-* **checkpoint**
-  Triggers the instance to write an immediate history checkpoint. And uploads
-  it to the archive.
-
 * **connect**
   `connect?peer=NAME&port=NNN`<br>
   Triggers the instance to connect to peer NAME at port NNN.
