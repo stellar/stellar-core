@@ -22,7 +22,7 @@ std::string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "lastscpdata",
     "databaseschema",   "networkpassphrase",   "ledgerupgrades",
     "rebuildledger",    "lastscpdataxdr",      "txset",
-    "dbbackend"};
+    "dbbackend", "configupgradeset"};
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("

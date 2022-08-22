@@ -29,6 +29,7 @@ class PersistentState
         kLastSCPDataXDR,
         kTxSet,
         kDBBackend,
+        kConfigUpgradeSet,
         kLastEntry,
     };
 

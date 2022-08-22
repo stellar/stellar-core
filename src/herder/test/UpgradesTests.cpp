@@ -228,6 +228,9 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     cfg.TESTING_UPGRADE_RESERVE = 100000000;
     cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
     auto header = LedgerHeader{};
     header.ledgerVersion = cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
@@ -246,7 +249,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(
+            header, LedgerTxn(app->getLedgerTxnRoot()));
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -256,7 +260,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
+        auto upgrades =
+            Upgrades{cfg}.createUpgradesFor(header, LedgerTxn(app->getLedgerTxnRoot()));
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -266,7 +271,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(
+            header, LedgerTxn(app->getLedgerTxnRoot()));
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -276,7 +282,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(
+            header, LedgerTxn(app->getLedgerTxnRoot()));
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -289,7 +296,8 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(
+            header, LedgerTxn(app->getLedgerTxnRoot()));
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
@@ -311,6 +319,9 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     cfg.TESTING_UPGRADE_RESERVE = 100000000;
     cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
     auto checkTime = VirtualClock::to_time_t(genesis(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
 
@@ -323,7 +334,7 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         SECTION("invalid upgrade data")
         {
             REQUIRE(!Upgrades{cfg}.isValid(UpgradeType{}, ledgerUpgradeType,
-                                           nomination, cfg, baseLH));
+                                           nomination, *app, baseLH));
         }
 
         SECTION("version")
@@ -333,18 +344,18 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeProtocolVersionUpgrade(10)),
-                            ledgerUpgradeType, nomination, cfg, baseLH));
+                            ledgerUpgradeType, nomination, *app, baseLH));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeProtocolVersionUpgrade(10)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
             }
             // 10 is queued, so this upgrade is only valid when not nominating
             bool v9Upgrade = Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(9)), ledgerUpgradeType,
-                nomination, cfg, baseLH);
+                nomination, *app, baseLH);
             if (nomination)
             {
                 REQUIRE(!v9Upgrade);
@@ -356,11 +367,11 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
             // rollback not allowed
             REQUIRE(!Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(7)), ledgerUpgradeType,
-                nomination, cfg, baseLH));
+                nomination, *app, baseLH));
             // version is not supported
             REQUIRE(!Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(11)),
-                ledgerUpgradeType, nomination, cfg, baseLH));
+                ledgerUpgradeType, nomination, *app, baseLH));
         }
 
         SECTION("base fee")
@@ -370,28 +381,28 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeBaseFeeUpgrade(100)),
-                            ledgerUpgradeType, nomination, cfg, baseLH));
+                            ledgerUpgradeType, nomination, *app, baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(99)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(101)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(100)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(99)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(101)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
             }
             REQUIRE(!Upgrades{cfg}.isValid(toUpgradeType(makeBaseFeeUpgrade(0)),
-                                           ledgerUpgradeType, nomination, cfg,
+                                           ledgerUpgradeType, nomination, *app,
                                            baseLH));
         }
 
@@ -401,32 +412,32 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
             {
                 REQUIRE(canBeValid == Upgrades{cfg}.isValid(
                                           toUpgradeType(makeTxCountUpgrade(50)),
-                                          ledgerUpgradeType, nomination, cfg,
+                                          ledgerUpgradeType, nomination, *app,
                                           baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(49)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(51)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(50)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(49)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(51)), ledgerUpgradeType,
-                    nomination, cfg, baseLH));
+                    nomination, *app, baseLH));
             }
             auto cfg0TxSize = cfg;
             cfg0TxSize.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
             REQUIRE(canBeValid == Upgrades{cfg0TxSize}.isValid(
                                       toUpgradeType(makeTxCountUpgrade(0)),
-                                      ledgerUpgradeType, nomination, cfg,
+                                      ledgerUpgradeType, nomination, *app,
                                       baseLH));
         }
 
@@ -437,29 +448,29 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeBaseReserveUpgrade(100000000)),
-                            ledgerUpgradeType, nomination, cfg, baseLH));
+                            ledgerUpgradeType, nomination, *app, baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(99999999)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000001)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000000)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(99999999)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000001)),
-                    ledgerUpgradeType, nomination, cfg, baseLH));
+                    ledgerUpgradeType, nomination, *app, baseLH));
             }
             REQUIRE(!Upgrades{cfg}.isValid(
                 toUpgradeType(makeBaseReserveUpgrade(0)), ledgerUpgradeType,
-                nomination, cfg, baseLH));
+                nomination, *app, baseLH));
         }
     };
     checkWith(true);
@@ -2353,7 +2364,7 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     }
 })";
     Upgrades::UpgradeParameters up;
-    up.fromJson(in);
+    up.deserialize(in, "");
     REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
     REQUIRE(up.mProtocolVersion.has_value());
     REQUIRE(up.mProtocolVersion.value() == 17);

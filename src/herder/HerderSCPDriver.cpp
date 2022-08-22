@@ -366,7 +366,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         {
             LedgerUpgradeType thisUpgradeType;
             if (!mUpgrades.isValid(b.upgrades[i], thisUpgradeType, nomination,
-                                   mApp.getConfig(), lcl.header))
+                                   mApp, lcl.header))
             {
                 CLOG_TRACE(
                     Herder,
@@ -421,7 +421,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp.getConfig(),
+            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp,
                                    lcl.header))
             {
                 it = b.upgrades.erase(it);
@@ -1199,8 +1199,8 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
     }
 }
 size_t
-HerderSCPDriver::TxSetValidityKeyHash::operator()(
-    TxSetValidityKey const& key) const
+HerderSCPDriver::TxSetValidityKeyHash::
+operator()(TxSetValidityKey const& key) const
 {
 
     size_t res = std::hash<Hash>()(std::get<0>(key));

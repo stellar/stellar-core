@@ -1143,7 +1143,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     auto newUpgrades = emptyUpgradeSteps;
 
     // see if we need to include some upgrades
-    auto upgrades = mUpgrades.createUpgradesFor(lcl.header);
+    auto upgrades = mUpgrades.createUpgradesFor(
+        lcl.header, LedgerTxn(mApp.getLedgerTxnRoot()));
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
@@ -1181,6 +1182,13 @@ void
 HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 {
     mUpgrades.setParameters(upgrades, mApp.getConfig());
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (mUpgrades.getParameters().mConfigUpgradeSet != nullptr)
+    {
+        mPendingEnvelopes.addConfigUpgradeSet(
+            mUpgrades.getParameters().mConfigUpgradeSet);
+    }
+#endif
     persistUpgrades();
 
     auto desc = mUpgrades.toString();
@@ -1209,7 +1217,8 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 std::string
 HerderImpl::getUpgradesJson()
 {
-    return mUpgrades.getParameters().toJson();
+    return mUpgrades.getParameters().toJson(
+        /* includeConfigUpgradesForDebug */ true);
 }
 
 void
@@ -1747,20 +1756,29 @@ void
 HerderImpl::persistUpgrades()
 {
     ZoneScoped;
-    auto s = mUpgrades.getParameters().toJson();
-    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
+    std::string upgradesJson, encodedConfigUpgradeSet;
+    mUpgrades.getParameters().serialize(upgradesJson, encodedConfigUpgradeSet);
+    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades,
+                                       upgradesJson);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mApp.getPersistentState().setState(PersistentState::kConfigUpgradeSet,
+                                       encodedConfigUpgradeSet);
+#endif
 }
 
 void
 HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
-    std::string s =
+    std::string upgradesJson =
         mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
-    if (!s.empty())
+    std::string encodedConfigUpgradeSet =
+        mApp.getPersistentState().getState(PersistentState::kConfigUpgradeSet);
+    if (!upgradesJson.empty() || !encodedConfigUpgradeSet.empty())
     {
         Upgrades::UpgradeParameters p;
-        p.fromJson(s);
+        p.deserialize(upgradesJson, encodedConfigUpgradeSet);
+
         try
         {
             // use common code to set status
@@ -1769,8 +1787,9 @@ HerderImpl::restoreUpgrades()
         catch (std::exception& e)
         {
             CLOG_INFO(Herder,
-                      "Error restoring upgrades '{}' with upgrades '{}'",
-                      e.what(), s);
+                      "Error restoring upgrades '{}' with upgrades '{}' and "
+                      "config upgrades '{}'",
+                      e.what(), upgradesJson, encodedConfigUpgradeSet);
         }
     }
 }

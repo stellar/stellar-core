@@ -568,6 +568,22 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32>(retMap, "protocolversion");
         p.mFlags = parseOptionalParam<uint32>(retMap, "flags");
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // This is an initial implementation for a single config parameter. We
+        // may reconsider the approach when more configuration is needed.
+        auto contractMaxSizeBytes =
+            parseOptionalParam<uint32>(retMap, "contractmaxsizebytes");
+        if (contractMaxSizeBytes)
+        {
+            ConfigUpgradeSet configUpgradeSet;
+            configUpgradeSet.updatedEntry.emplace_back(
+                CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+            configUpgradeSet.updatedEntry.back().contractMaxSizeBytes() =
+                *contractMaxSizeBytes;
+            p.mConfigUpgradeSet =
+                ConfigUpgradeSetFrame::makeFromWire(configUpgradeSet);
+        }
+#endif
         mApp.getHerder().setUpgrades(p);
     }
     else if (s == "clear")

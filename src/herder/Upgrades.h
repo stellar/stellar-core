@@ -6,6 +6,7 @@
 
 #include "xdr/Stellar-ledger.h"
 
+#include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"
 #include <optional>
@@ -58,9 +59,11 @@ class Upgrades
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         ConfigUpgradeSetFrameConstPtr mConfigUpgradeSet;
 #endif
-
-        std::string toJson() const;
-        void fromJson(std::string const& s);
+        std::string toJson(bool includeConfigUpgradesForDebug) const;
+        void serialize(std::string& upgradesJson,
+                       std::string& encodedConfigUpgradeSet) const;
+        void deserialize(std::string const& upgradesJson,
+                         std::string const& encodedConfigUpgradeSet);
     };
 
     Upgrades()
@@ -73,11 +76,12 @@ class Upgrades
     UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade>
-    createUpgradesFor(LedgerHeader const& header) const;
+    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& header,
+                                                 AbstractLedgerTxn& ltx) const;
 
     // apply upgrade to ledger header
-    static void applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx);
+    static void applyTo(LedgerUpgrade const& upgrade, Application& app,
+                        AbstractLedgerTxn& ltx);
 
     // convert upgrade value to string
     static std::string toString(LedgerUpgrade const& upgrade);
@@ -96,13 +100,13 @@ class Upgrades
     // If the upgrade could be deserialized then lupgrade is set
     static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
                                            LedgerUpgrade& lupgrade,
-                                           LedgerHeader const& header,
-                                           uint32_t maxLedgerVersion);
+                                           Application& app,
+                                           LedgerHeader const& header);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                 bool nomination, Config const& cfg,
+                 bool nomination, Application& app,
                  LedgerHeader const& header) const;
 
     // constructs a human readable string that represents
@@ -132,7 +136,7 @@ class Upgrades
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
-    bool isValidForNomination(LedgerUpgrade const& upgrade,
+    bool isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
                               LedgerHeader const& header) const;
 
     static void applyVersionUpgrade(AbstractLedgerTxn& ltx,
@@ -149,18 +153,25 @@ class ConfigUpgradeSetFrame
     static ConfigUpgradeSetFrameConstPtr
     makeFromWire(ConfigUpgradeSet const& upgradeSetXDR);
 
-    /*static ConfigUpgradeSetFrameConstPtr
-    makeFromConfigUpgrades(std::vector<LedgerEntry> const& upgradeEntries);*/
+    static ConfigUpgradeSetFrameConstPtr
+    makeFromEncodedString(std::string const& encodedStr);
 
     ConfigUpgradeSet const& toXDR() const;
 
     Hash const& getHash() const;
 
+    bool upgradeNeeded(AbstractLedgerTxn& ltx) const;
+
     void applyTo(AbstractLedgerTxn& ltx) const;
 
-    bool isConsistentWith(ConfigUpgradeSetFrame const& scheduledUpgrade) const;
+    bool isConsistentWith(
+        ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;
 
     Upgrades::UpgradeValidity isValidForApply() const;
+
+    std::string encodeAsString() const;
+
+    std::string toJson() const;
 
   private:
     ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR);
