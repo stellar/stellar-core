@@ -45,6 +45,11 @@ mod rust_bridge {
             footprint: &XDRBuf,
             ledger_entries: &Vec<XDRBuf>,
         ) -> Result<Vec<Bytes>>;
+        fn preflight_host_function(
+            hf_buf: &CxxVector<u8>,
+            args: &CxxVector<u8>,
+            cb: UniquePtr<PreflightCallbacks>,
+        ) -> Result<()>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
     }
 
@@ -59,6 +64,23 @@ mod rust_bridge {
         type LogLevel;
         fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> bool;
         fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
+
+        // This declares a type used by Rust to call back to C++ to access
+        // a ledger snapshot and record other information related to a preflight
+        // request.
+        type PreflightCallbacks;
+        fn get_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<XDRBuf>;
+        fn has_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<bool>;
+        // Since we're already passing a callback handle for the snapshot
+        // access, we use this to convey all the structured return-values from
+        // the preflight request as well.
+        fn set_result_value(self: Pin<&mut PreflightCallbacks>, value: &Vec<u8>) -> Result<()>;
+        fn set_result_footprint(
+            self: Pin<&mut PreflightCallbacks>,
+            footprint: &Vec<u8>,
+        ) -> Result<()>;
+        fn set_result_cpu_insns(self: Pin<&mut PreflightCallbacks>, cpu: u64) -> Result<()>;
+        fn set_result_mem_bytes(self: Pin<&mut PreflightCallbacks>, mem: u64) -> Result<()>;
     }
 }
 
@@ -68,6 +90,7 @@ use b64::{from_base64, to_base64};
 
 mod contract;
 use contract::invoke_host_function;
+use contract::preflight_host_function;
 
 mod log;
 use crate::log::init_logging;

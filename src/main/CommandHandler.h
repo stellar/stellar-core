@@ -54,6 +54,10 @@ class CommandHandler
     void getcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void preflight(std::string const& params, std::string& retStr);
+    void getLedgerEntry(std::string const& params, std::string& retStr);
+#endif
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
     void surveyTopology(std::string const&, std::string& retStr);
