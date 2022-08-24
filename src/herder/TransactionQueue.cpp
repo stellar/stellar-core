@@ -366,6 +366,7 @@ TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
     auto ops = tstx.mTx->getNumOperations();
     as.mQueueSizeOps -= ops;
     mTxQueueLimiter->removeTransaction(tstx.mTx);
+    mKnownTxHashes.erase(tstx.mTx->getFullHash());
     if (!tstx.mBroadcasted)
     {
         as.mBroadcastQueueOps -= ops;
@@ -530,6 +531,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
             "Invalid queue state, could not evict transactions");
     }
     mTxQueueLimiter->addTransaction(tx);
+    mKnownTxHashes[tx->getFullHash()] = tx;
 
     broadcast(false);
 
@@ -869,6 +871,21 @@ TransactionQueue::getTransactions(LedgerHeader const& lcl) const
     return txs;
 }
 
+TransactionFrameBaseConstPtr
+TransactionQueue::getTx(Hash const& hash) const
+{
+    ZoneScoped;
+    auto it = mKnownTxHashes.find(hash);
+    if (it != mKnownTxHashes.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 void
 TransactionQueue::clearAll()
 {
@@ -878,6 +895,7 @@ TransactionQueue::clearAll()
         b.clear();
     }
     mTxQueueLimiter->reset();
+    mKnownTxHashes.clear();
 }
 
 void
@@ -1006,7 +1024,9 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
         // work from other sources.
         return BroadcastStatus::BROADCAST_STATUS_SKIPPED;
     }
-    return mApp.getOverlayManager().broadcastMessage(tx.mTx->toStellarMessage())
+    return mApp.getOverlayManager().broadcastMessage(
+               tx.mTx->toStellarMessage(), false,
+               std::make_optional<Hash>(tx.mTx->getFullHash()))
                ? BroadcastStatus::BROADCAST_STATUS_SUCCESS
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }
@@ -1237,4 +1257,11 @@ TransactionQueue::getQueueSizeOps() const
     return mTxQueueLimiter->size();
 }
 #endif
+
+size_t
+TransactionQueue::getMaxQueueSizeOps() const
+{
+    return mTxQueueLimiter->maxQueueSizeOps();
+}
+
 }

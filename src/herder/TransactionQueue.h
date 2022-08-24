@@ -142,6 +142,7 @@ class TransactionQueue
 
     size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
 
     TxSetFrame::Transactions getTransactions(LedgerHeader const& lcl) const;
 
@@ -156,6 +157,7 @@ class TransactionQueue
     void rebroadcast();
 
     void shutdown();
+    size_t getMaxQueueSizeOps() const;
 
   private:
     /**
@@ -224,6 +226,8 @@ class TransactionQueue
 
     std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
     UnorderedMap<AssetPair, uint32_t, AssetPairHash> mArbitrageFloodDamping;
+
+    UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
 
     size_t mBroadcastSeed;
 
