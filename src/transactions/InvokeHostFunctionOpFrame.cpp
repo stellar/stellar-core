@@ -107,10 +107,10 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
         }
     }
 
-    rust::Vec<Bytes> retBufs;
+    InvokeHostFunctionOutput out;
     try
     {
-        retBufs = rust_bridge::invoke_host_function(
+        out = rust_bridge::invoke_host_function(
             toXDRBuf(mInvokeHostFunction.function),
             toXDRBuf(mInvokeHostFunction.parameters),
             toXDRBuf(mInvokeHostFunction.footprint), toXDRBuf(getSourceID()),
@@ -124,7 +124,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
 
     // Create or update every entry returned
     std::unordered_set<LedgerKey> keys;
-    for (auto const& buf : retBufs)
+    for (auto const& buf : out.modified_ledger_entries)
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.vec, le);
@@ -156,6 +156,9 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
         }
     }
 
+    // TODO: plumb contract events out to the txmeta when it is updated to
+    // accept them.
+
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     return true;
 }
@@ -176,14 +179,6 @@ InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
-
-struct PreflightResults
-{
-    LedgerFootprint mFootprint;
-    SCVal mResult;
-    uint64_t mCpuInsns;
-    uint64_t mMemBytes;
-};
 
 XDRBuf
 PreflightCallbacks::get_ledger_entry(rust::Vec<uint8_t> const& key)
@@ -210,47 +205,39 @@ PreflightCallbacks::has_ledger_entry(rust::Vec<uint8_t> const& key)
     auto lte = ltx.load(lk);
     return (bool)lte;
 }
-void
-PreflightCallbacks::set_result_footprint(rust::Vec<uint8_t> const& footprint)
-{
-    xdr::xdr_from_opaque(footprint, mRes.mFootprint);
-}
-void
-PreflightCallbacks::set_result_value(rust::Vec<uint8_t> const& value)
-{
-    xdr::xdr_from_opaque(value, mRes.mResult);
-}
-void
-PreflightCallbacks::set_result_cpu_insns(uint64_t cpu)
-{
-    mRes.mCpuInsns = cpu;
-}
-void
-PreflightCallbacks::set_result_mem_bytes(uint64_t mem)
-{
-    mRes.mMemBytes = mem;
-}
 
 Json::Value
 InvokeHostFunctionOpFrame::preflight(Application& app,
                                      InvokeHostFunctionOp const& op,
                                      AccountID const& sourceAccount)
 {
-    PreflightResults res;
-    auto cb = std::make_unique<PreflightCallbacks>(app, res);
+    auto cb = std::make_unique<PreflightCallbacks>(app);
     Json::Value root;
     try
     {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        rust_bridge::preflight_host_function(
-            toXDRVec(op.function), toXDRVec(op.parameters),
-            toXDRVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()),
-            std::move(cb));
+       LedgerTxn ltx(app.getLedgerTxnRoot()); 
+        PreflightHostFunctionOutput out = rust_bridge::preflight_host_function(
+            toXDRVec(op.function), toXDRVec(op.parameters), toXDRVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()), std::move(cb));
+        SCVal result_value;
+        LedgerFootprint storage_footprint;
+        xdr::xdr_from_opaque(out.result_value.vec, result_value);
+        xdr::xdr_from_opaque(out.storage_footprint.vec, storage_footprint);
         root["status"] = "OK";
-        root["result"] = toOpaqueBase64(res.mResult);
-        root["footprint"] = toOpaqueBase64(res.mFootprint);
-        root["cpu_insns"] = Json::UInt64(res.mCpuInsns);
-        root["mem_bytes"] = Json::UInt64(res.mMemBytes);
+        root["result"] = toOpaqueBase64(result_value);
+        Json::Value events(Json::ValueType::arrayValue);
+        for (auto const& e : out.contract_events)
+        {
+            // TODO: possibly change this to a single XDR-array-of-events rather
+            // than a JSON array of separate XDR events; requires changing the
+            // XDR if we want to do this.
+            ContractEvent evt;
+            xdr::xdr_from_opaque(e.vec, evt);
+            events.append(Json::Value(toOpaqueBase64(evt)));
+        }
+        root["events"] = events;
+        root["footprint"] = toOpaqueBase64(storage_footprint);
+        root["cpu_insns"] = Json::UInt64(out.cpu_insns);
+        root["mem_bytes"] = Json::UInt64(out.mem_bytes);
     }
     catch (std::exception& e)
     {

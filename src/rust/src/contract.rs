@@ -4,7 +4,9 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{Bytes, CxxLedgerInfo, PreflightCallbacks, XDRBuf, XDRFileHash},
+    rust_bridge::{
+        Bytes, CxxLedgerInfo, InvokeHostFunctionOutput, PreflightCallbacks, PreflightHostFunctionOutput, XDRBuf, XDRFileHash
+    },
 };
 use cxx::{CxxVector, UniquePtr};
 use log::info;
@@ -12,6 +14,7 @@ use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
 use soroban_env_host::{
     budget::Budget,
+    events::{Events, HostEvent},
     storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
@@ -197,6 +200,17 @@ fn build_xdr_ledger_entries_from_storage_map(
     Ok(res)
 }
 
+fn extract_contract_events(events: &Events) -> Result<Vec<Bytes>, HostError> {
+    events
+        .0
+        .iter()
+        .filter_map(|e| match e {
+            HostEvent::Contract(ce) => Some(xdr_to_bytes(ce)),
+            HostEvent::Debug(_) => None,
+        })
+        .collect()
+}
+
 /// Deserializes an [`xdr::HostFunction`] host function identifier, an [`xdr::ScVec`] XDR object of
 /// arguments, an [`xdr::Footprint`] and a sequence of [`xdr::LedgerEntry`] entries containing all
 /// the data the invocation intends to read. Then calls the host function with the specified
@@ -210,7 +224,7 @@ pub(crate) fn invoke_host_function(
     source_account_buf: &XDRBuf,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<XDRBuf>,
-) -> Result<Vec<Bytes>, Box<dyn Error>> {
+) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
             hf_buf,
@@ -234,7 +248,7 @@ fn invoke_host_function_or_maybe_panic(
     source_account_buf: &XDRBuf,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<XDRBuf>,
-) -> Result<Vec<Bytes>, Box<dyn Error>> {
+) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let budget = Budget::default();
     let hf = xdr_from_xdrbuf::<HostFunction>(&hf_buf)?;
     let args = xdr_from_xdrbuf::<ScVec>(&args_buf)?;
@@ -252,13 +266,16 @@ fn invoke_host_function_or_maybe_panic(
     info!(target: TX, "Invoking host function {}", hf.to_string());
     host.invoke_function(hf, args)?;
 
-    let (storage, _budget, _events) = host
+    let (storage, _budget, events) = host
         .try_finish()
-        .map_err(|_h| CoreHostError::General("could not get storage from host"))?;
-    Ok(build_xdr_ledger_entries_from_storage_map(
-        &storage.footprint,
-        &storage.map,
-    )?)
+        .map_err(|_h| CoreHostError::General("could not finalize host"))?;
+    let modified_ledger_entries =
+        build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
+    let contract_events = extract_contract_events(&events)?;
+    Ok(InvokeHostFunctionOutput {
+        contract_events,
+        modified_ledger_entries,
+    })
 }
 
 // Pfc here exists just to translate a mess of irrelevant ownership and access
@@ -322,7 +339,7 @@ pub(crate) fn preflight_host_function(
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         preflight_host_function_or_maybe_panic(hf_buf, args_buf, source_account_buf, ledger_info, cb)
     }));
@@ -338,7 +355,7 @@ fn preflight_host_function_or_maybe_panic(
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
     let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
     let source_account = xdr_from_slice::<AccountId>(source_account_buf.as_slice())?;
@@ -352,17 +369,21 @@ fn preflight_host_function_or_maybe_panic(
     let val = host.invoke_function(hf, args)?;
 
     // Recover, convert and return the storage footprint and other values to C++.
-    let (storage, budget, _events) = host
+    let (storage, budget, events) = host
         .try_finish()
-        .map_err(|_| CoreHostError::General("could not get storage from host"))?;
-    let (cpu_insns, mem_bytes) = (budget.get_cpu_insns_count(), budget.get_mem_bytes_count());
-    let val_vec = xdr_to_vec_u8(&val)?;
-    let foot_vec = xdr_to_vec_u8(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
-    pfc.with_cb(|cb| cb.set_result_value(&val_vec))?;
-    pfc.with_cb(|cb| cb.set_result_footprint(&foot_vec))?;
-    pfc.with_cb(|cb| cb.set_result_cpu_insns(cpu_insns))?;
-    pfc.with_cb(|cb| cb.set_result_mem_bytes(mem_bytes))?;
-    Ok(())
+        .map_err(|_| CoreHostError::General("could not finalize host"))?;
+    let storage_footprint =
+        xdr_to_bytes(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
+    let contract_events = extract_contract_events(&events)?;
+    let result_value = xdr_to_bytes(&val)?;
+
+    Ok(PreflightHostFunctionOutput {
+        result_value,
+        contract_events,
+        storage_footprint,
+        cpu_insns: budget.get_cpu_insns_count(),
+        mem_bytes: budget.get_mem_bytes_count(),
+    })
 }
 
 // Accessors for test wasms, compiled into soroban-test-wasms crate.

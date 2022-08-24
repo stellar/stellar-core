@@ -17,6 +17,9 @@ mod rust_bridge {
         data: UniquePtr<CxxVector<u8>>,
     }
 
+    // When we want to return owned data _from_ Rust, we typically want to do
+    // the opposite: allocate on the Rust side as a Vec<> and then let the C++
+    // side parse the data out of it and then drop it.
     struct Bytes {
         vec: Vec<u8>,
     }
@@ -25,6 +28,19 @@ mod rust_bridge {
     struct XDRFileHash {
         file: String,
         hash: String,
+    }
+    
+    struct InvokeHostFunctionOutput {
+        contract_events: Vec<Bytes>,
+        modified_ledger_entries: Vec<Bytes>,
+    }
+
+    struct PreflightHostFunctionOutput {
+        result_value: Bytes,
+        contract_events: Vec<Bytes>,
+        storage_footprint: Bytes,
+        cpu_insns: u64,
+        mem_bytes: u64,
     }
 
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
@@ -61,14 +77,14 @@ mod rust_bridge {
             source_account: &XDRBuf,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<XDRBuf>,
-        ) -> Result<Vec<Bytes>>;
+        ) -> Result<InvokeHostFunctionOutput>;
         fn preflight_host_function(
             hf_buf: &CxxVector<u8>,
             args: &CxxVector<u8>,
             source_account: &CxxVector<u8>,
             ledger_info: CxxLedgerInfo,
             cb: UniquePtr<PreflightCallbacks>,
-        ) -> Result<()>;
+        ) -> Result<PreflightHostFunctionOutput>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
@@ -97,16 +113,6 @@ mod rust_bridge {
         type PreflightCallbacks;
         fn get_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<XDRBuf>;
         fn has_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<bool>;
-        // Since we're already passing a callback handle for the snapshot
-        // access, we use this to convey all the structured return-values from
-        // the preflight request as well.
-        fn set_result_value(self: Pin<&mut PreflightCallbacks>, value: &Vec<u8>) -> Result<()>;
-        fn set_result_footprint(
-            self: Pin<&mut PreflightCallbacks>,
-            footprint: &Vec<u8>,
-        ) -> Result<()>;
-        fn set_result_cpu_insns(self: Pin<&mut PreflightCallbacks>, cpu: u64) -> Result<()>;
-        fn set_result_mem_bytes(self: Pin<&mut PreflightCallbacks>, mem: u64) -> Result<()>;
     }
 }
 
