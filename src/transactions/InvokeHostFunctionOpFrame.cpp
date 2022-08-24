@@ -44,16 +44,16 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
 
 template <typename T>
 std::vector<uint8_t>
-toXDRVec(T const& t)
+toVec(T const& t)
 {
     return std::vector<uint8_t>(xdr::xdr_to_opaque(t));
 }
 
 template <typename T>
-XDRBuf
-toXDRBuf(T const& t)
+CxxBuf
+toCxxBuf(T const& t)
 {
-    return XDRBuf{std::make_unique<std::vector<uint8_t>>(toXDRVec(t))};
+    return CxxBuf{std::make_unique<std::vector<uint8_t>>(toVec(t))};
 }
 
 InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
@@ -86,8 +86,8 @@ bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
 {
     // Get the entries for the footprint
-    rust::Vec<XDRBuf> ledgerEntryXdrBufs;
-    ledgerEntryXdrBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
+    rust::Vec<CxxBuf> ledgerEntryCxxBufs;
+    ledgerEntryCxxBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
                                mInvokeHostFunction.footprint.readWrite.size());
     for (auto const& lk : mInvokeHostFunction.footprint.readOnly)
     {
@@ -95,7 +95,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
         auto ltxe = ltx.loadWithoutRecord(lk);
         if (ltxe)
         {
-            ledgerEntryXdrBufs.emplace_back(toXDRBuf(ltxe.current()));
+            ledgerEntryCxxBufs.emplace_back(toCxxBuf(ltxe.current()));
         }
     }
     for (auto const& lk : mInvokeHostFunction.footprint.readWrite)
@@ -103,7 +103,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
         auto ltxe = ltx.load(lk);
         if (ltxe)
         {
-            ledgerEntryXdrBufs.emplace_back(toXDRBuf(ltxe.current()));
+            ledgerEntryCxxBufs.emplace_back(toCxxBuf(ltxe.current()));
         }
     }
 
@@ -111,10 +111,10 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
     try
     {
         out = rust_bridge::invoke_host_function(
-            toXDRBuf(mInvokeHostFunction.function),
-            toXDRBuf(mInvokeHostFunction.parameters),
-            toXDRBuf(mInvokeHostFunction.footprint), toXDRBuf(getSourceID()),
-            getLedgerInfo(ltx, cfg), ledgerEntryXdrBufs);
+            toCxxBuf(mInvokeHostFunction.function),
+            toCxxBuf(mInvokeHostFunction.parameters),
+            toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
+            getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
     }
     catch (std::exception&)
     {
@@ -127,7 +127,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
     for (auto const& buf : out.modified_ledger_entries)
     {
         LedgerEntry le;
-        xdr::xdr_from_opaque(buf.vec, le);
+        xdr::xdr_from_opaque(buf.data, le);
         auto lk = LedgerEntryKey(le);
 
         auto ltxe = ltx.load(lk);
@@ -180,7 +180,7 @@ InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
 {
 }
 
-XDRBuf
+CxxBuf
 PreflightCallbacks::get_ledger_entry(rust::Vec<uint8_t> const& key)
 {
     LedgerKey lk;
@@ -189,7 +189,7 @@ PreflightCallbacks::get_ledger_entry(rust::Vec<uint8_t> const& key)
     auto lte = ltx.load(lk);
     if (lte)
     {
-        return toXDRBuf(lte.current());
+        return toCxxBuf(lte.current());
     }
     else
     {
@@ -217,11 +217,11 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
     {
        LedgerTxn ltx(app.getLedgerTxnRoot()); 
         PreflightHostFunctionOutput out = rust_bridge::preflight_host_function(
-            toXDRVec(op.function), toXDRVec(op.parameters), toXDRVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()), std::move(cb));
+            toVec(op.function), toVec(op.parameters), toVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()), std::move(cb));
         SCVal result_value;
         LedgerFootprint storage_footprint;
-        xdr::xdr_from_opaque(out.result_value.vec, result_value);
-        xdr::xdr_from_opaque(out.storage_footprint.vec, storage_footprint);
+        xdr::xdr_from_opaque(out.result_value.data, result_value);
+        xdr::xdr_from_opaque(out.storage_footprint.data, storage_footprint);
         root["status"] = "OK";
         root["result"] = toOpaqueBase64(result_value);
         Json::Value events(Json::ValueType::arrayValue);
@@ -231,7 +231,7 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
             // than a JSON array of separate XDR events; requires changing the
             // XDR if we want to do this.
             ContractEvent evt;
-            xdr::xdr_from_opaque(e.vec, evt);
+            xdr::xdr_from_opaque(e.data, evt);
             events.append(Json::Value(toOpaqueBase64(evt)));
         }
         root["events"] = events;

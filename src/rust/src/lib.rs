@@ -10,18 +10,23 @@
 #[cxx::bridge]
 mod rust_bridge {
 
-    // We want to pass around vectors of XDR buffers (CxxVector<CxxVector<...>>) or similar,
-    // but cxx.rs has some limits around this (eg. https://github.com/dtolnay/cxx/issues/671)
-    // So far this is the best approximate mechanism found.
-    struct XDRBuf {
+    // When we want to pass owned data _from_ C++, we typically want to pass it
+    // as a C++-allocated std::vector<uint8_t>, because that's most-compatible
+    // with all the C++ functions we're likely to be using to build it.
+    //
+    // Unfortunately cxx.rs has some limits around this (eg.
+    // https://github.com/dtolnay/cxx/issues/671) So we need to embed it in a
+    // struct that, itself, holds a unique_ptr. It's a bit silly but seems
+    // harmless enough.
+    struct CxxBuf {
         data: UniquePtr<CxxVector<u8>>,
     }
 
     // When we want to return owned data _from_ Rust, we typically want to do
-    // the opposite: allocate on the Rust side as a Vec<> and then let the C++
+    // the opposite: allocate on the Rust side as a Vec<u8> and then let the C++
     // side parse the data out of it and then drop it.
-    struct Bytes {
-        vec: Vec<u8>,
+    struct RustBuf {
+        data: Vec<u8>,
     }
 
     // We return these from get_xdr_hashes below.
@@ -31,14 +36,14 @@ mod rust_bridge {
     }
     
     struct InvokeHostFunctionOutput {
-        contract_events: Vec<Bytes>,
-        modified_ledger_entries: Vec<Bytes>,
+        contract_events: Vec<RustBuf>,
+        modified_ledger_entries: Vec<RustBuf>,
     }
 
     struct PreflightHostFunctionOutput {
-        result_value: Bytes,
-        contract_events: Vec<Bytes>,
-        storage_footprint: Bytes,
+        result_value: RustBuf,
+        contract_events: Vec<RustBuf>,
+        storage_footprint: RustBuf,
         cpu_insns: u64,
         mem_bytes: u64,
     }
@@ -71,12 +76,12 @@ mod rust_bridge {
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
-            hf_buf: &XDRBuf,
-            args: &XDRBuf,
-            footprint: &XDRBuf,
-            source_account: &XDRBuf,
+            hf_buf: &CxxBuf,
+            args: &CxxBuf,
+            footprint: &CxxBuf,
+            source_account: &CxxBuf,
             ledger_info: CxxLedgerInfo,
-            ledger_entries: &Vec<XDRBuf>,
+            ledger_entries: &Vec<CxxBuf>,
         ) -> Result<InvokeHostFunctionOutput>;
         fn preflight_host_function(
             hf_buf: &CxxVector<u8>,
@@ -88,8 +93,8 @@ mod rust_bridge {
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
-        fn get_test_wasm_add_i32() -> Result<Bytes>;
-        fn get_test_wasm_contract_data() -> Result<Bytes>;
+        fn get_test_wasm_add_i32() -> Result<RustBuf>;
+        fn get_test_wasm_contract_data() -> Result<RustBuf>;
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
@@ -111,7 +116,7 @@ mod rust_bridge {
         // a ledger snapshot and record other information related to a preflight
         // request.
         type PreflightCallbacks;
-        fn get_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<XDRBuf>;
+        fn get_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<CxxBuf>;
         fn has_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<bool>;
     }
 }
