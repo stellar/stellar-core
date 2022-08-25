@@ -969,11 +969,18 @@ HerderImpl::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+HerderImpl::getConfigUpgradeSet(Hash const& hash)
+{
+    return mPendingEnvelopes.getConfigUpgradeSet(hash);
+}
+
 bool
 HerderImpl::recvConfigUpgradeSet(ConfigUpgradeSetFrameConstPtr configUpgradeSet)
 {
     return mPendingEnvelopes.recvConfigUpgradeSet(configUpgradeSet);
 }
+
 #endif
 
 void
@@ -995,14 +1002,6 @@ HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mHerderSCPDriver.getQSet(qSetHash);
 }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-ConfigUpgradeSetFrameConstPtr
-HerderImpl::getConfigUpgradeSet(Hash const& hash)
-{
-    return mPendingEnvelopes.getConfigUpgradeSet(hash);
-}
-#endif
 
 uint32
 HerderImpl::getMinLedgerSeqToAskPeers() const
@@ -1143,8 +1142,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     auto newUpgrades = emptyUpgradeSteps;
 
     // see if we need to include some upgrades
-    auto upgrades = mUpgrades.createUpgradesFor(
-        lcl.header, LedgerTxn(mApp.getLedgerTxnRoot()));
+    std::vector<LedgerUpgrade> upgrades;
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, ltx);
+    }
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
@@ -1217,8 +1219,7 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 std::string
 HerderImpl::getUpgradesJson()
 {
-    return mUpgrades.getParameters().toJson(
-        /* includeConfigUpgradesForDebug */ true);
+    return mUpgrades.getParameters().toDebugJson();
 }
 
 void

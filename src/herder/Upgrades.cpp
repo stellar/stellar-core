@@ -36,8 +36,7 @@ namespace cereal
 {
 template <class Archive>
 void
-save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p,
-     bool includeConfigUpgradesForDebug)
+save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
 {
     // NB: See 'rewriteOptionalFieldKeys' below before adding any new fields to
     // this type, and in particular avoid using field names "has" or "val",
@@ -48,12 +47,6 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p,
     ar(make_nvp("maxtxsize", p.mMaxTxSetSize));
     ar(make_nvp("reserve", p.mBaseReserve));
     ar(make_nvp("flags", p.mFlags));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (includeConfigUpgradesForDebug && p.mConfigUpgradeSet != nullptr)
-    {
-        ar(make_nvp("config_upgrades", p.mConfigUpgradeSet->toJson()));
-    }
-#endif
 }
 
 template <class Archive>
@@ -102,21 +95,42 @@ loadConfigUpgradeSet(Hash const& hash, Application& app)
 std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
 
 std::string
-Upgrades::UpgradeParameters::toJson(bool includeConfigUpgradesForDebug) const
+Upgrades::UpgradeParameters::toJson() const
 {
     std::ostringstream out;
     {
         cereal::JSONOutputArchive ar(out);
-        cereal::save(ar, *this, includeConfigUpgradesForDebug);
+        cereal::save(ar, *this);
     }
     return out.str();
+}
+
+std::string
+Upgrades::UpgradeParameters::toDebugJson() const
+{
+    Json::Value upgradesJson;
+    Json::Reader reader;
+    reader.parse(toJson(), upgradesJson);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (mConfigUpgradeSet != nullptr)
+    {
+
+        Json::Value configUpgradeSetJson;
+        Json::Reader reader;
+        reader.parse(mConfigUpgradeSet->toJson(), configUpgradeSetJson);
+        upgradesJson["configUpgrades"] = configUpgradeSetJson;
+    }
+#endif
+    Json::StyledWriter writer;
+    return writer.write(upgradesJson);
 }
 
 void
 Upgrades::UpgradeParameters::serialize(
     std::string& upgradesJson, std::string& encodedConfigUpgradeSet) const
 {
-    upgradesJson = toJson(false);
+    upgradesJson = toJson();
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (mConfigUpgradeSet != nullptr)
@@ -329,17 +343,21 @@ Upgrades::toString() const
     std::stringstream r;
     bool first = true;
 
+    auto maybePrintUpgradeTime = [&]() {
+        if (first)
+        {
+            r << fmt::format(
+                FMT_STRING("upgradetime={}"),
+                VirtualClock::systemPointToISOString(mParams.mUpgradeTime));
+            first = false;
+        }
+    };
+
     auto appendInfo = [&](std::string const& s,
                           std::optional<uint32> const& o) {
         if (o)
         {
-            if (first)
-            {
-                r << fmt::format(
-                    FMT_STRING("upgradetime={}"),
-                    VirtualClock::systemPointToISOString(mParams.mUpgradeTime));
-                first = false;
-            }
+            maybePrintUpgradeTime();
             r << fmt::format(FMT_STRING(", {}={:d}"), s, *o);
         }
     };
@@ -348,7 +366,15 @@ Upgrades::toString() const
     appendInfo("basereserve", mParams.mBaseReserve);
     appendInfo("maxtxsetsize", mParams.mMaxTxSetSize);
     appendInfo("flags", mParams.mFlags);
-
+    appendInfo("cfgupgradesethash", mParams.mFlags);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (mParams.mConfigUpgradeSet != nullptr)
+    {
+        maybePrintUpgradeTime();
+        r << fmt::format(FMT_STRING(", cfgupgradesethash={}"),
+                         hexAbbrev(mParams.mConfigUpgradeSet->getHash()));
+    }
+#endif
     return r.str();
 }
 
@@ -1083,22 +1109,33 @@ upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                         AbstractLedgerTxn& ltx)
+                         AbstractLedgerTxn& ltxRoot)
 {
     LedgerEntry e;
     e.data.type(CONFIG_SETTING);
     e.data.configSetting() = configSetting;
+    LedgerTxn ltx(ltxRoot);
     ltx.create(e);
+    ltx.commit();
 }
 
 static void
-initializeConfigsV20(AbstractLedgerTxn& ltx)
+initializeConfigs(AbstractLedgerTxn& ltx)
 {
     ConfigSettingEntry contractMaxSize(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     contractMaxSize.contractMaxSizeBytes() = 16384;
     createConfigSettingEntry(contractMaxSize, ltx);
 }
+
 #endif
+
+static bool
+needUpgradeToVersion(ProtocolVersion targetVersion, uint32_t prevVersion,
+                     uint32_t newVersion)
+{
+    return protocolVersionIsBefore(prevVersion, targetVersion) &&
+           protocolVersionStartsFrom(newVersion, targetVersion);
+}
 
 void
 Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
@@ -1107,24 +1144,23 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
     uint32_t prevVersion = header.current().ledgerVersion;
 
     header.current().ledgerVersion = newVersion;
-    if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                  ProtocolVersion::V_10) &&
-        protocolVersionIsBefore(prevVersion, ProtocolVersion::V_10))
+    if (needUpgradeToVersion(ProtocolVersion::V_10, prevVersion, newVersion))
     {
         prepareLiabilities(ltx, header);
     }
-    else if (protocolVersionEquals(header.current().ledgerVersion,
-                                   ProtocolVersion::V_16) &&
-             protocolVersionEquals(prevVersion, ProtocolVersion::V_15))
+    if (protocolVersionEquals(header.current().ledgerVersion,
+                              ProtocolVersion::V_16) &&
+        protocolVersionEquals(prevVersion, ProtocolVersion::V_15))
     {
         upgradeFromProtocol15To16(ltx);
     }
-    else if (protocolVersionEquals(header.current().ledgerVersion,
-                                   ProtocolVersion::V_20) &&
-             protocolVersionEquals(prevVersion, ProtocolVersion::V_19))
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (needUpgradeToVersion(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION,
+                             prevVersion, newVersion))
     {
-        initializeConfigsV20(ltx);
+        initializeConfigs(ltx);
     }
+#endif
 }
 
 void
@@ -1183,6 +1219,12 @@ ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(
 bool
 ConfigUpgradeSetFrame::isValidXDR(ConfigUpgradeSet const& upgradeSetXDR) const
 {
+    if (upgradeSetXDR.updatedEntry.empty())
+    {
+        CLOG_DEBUG(Herder, "Got bad configUpgradeSet {}: no entries updated",
+                   hexAbbrev(mHash));
+        return false;
+    }
     if (!std::is_sorted(
             upgradeSetXDR.updatedEntry.begin(),
             upgradeSetXDR.updatedEntry.end(),

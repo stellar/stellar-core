@@ -1105,6 +1105,12 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
+void
+ApplicationImpl::resetState()
+{
+    mStarted = false;
+    mStopping = false;
+}
 #endif
 
 void

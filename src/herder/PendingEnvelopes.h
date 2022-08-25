@@ -119,8 +119,8 @@ class PendingEnvelopes
     TxSetFrameConstPtr getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    ConfigUpgradeSetFrameConstPtr
-    getKnownConfigUpgradeSet(Hash const& hash, bool touch);
+    ConfigUpgradeSetFrameConstPtr getKnownConfigUpgradeSet(Hash const& hash,
+                                                           bool touch);
 #endif
 
     void cleanKnownData();

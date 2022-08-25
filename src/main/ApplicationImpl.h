@@ -106,6 +106,7 @@ class ApplicationImpl : public Application
     virtual void generateLoad(GeneratedLoadConfig cfg) override;
 
     virtual LoadGenerator& getLoadGenerator() override;
+    void resetState() override;
 #endif
 
     virtual void applyCfgCommands() override;

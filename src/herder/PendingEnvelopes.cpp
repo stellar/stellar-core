@@ -26,7 +26,6 @@ namespace
 constexpr size_t QSET_CACHE_SIZE = 10000;
 constexpr size_t TXSET_CACHE_SIZE = 10000;
 
-
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 constexpr size_t CONFIG_UPGRADE_SET_CACHE_SIZE = 100;
 
@@ -75,8 +74,10 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    , mConfigUpgradeSetFetcher(app, [](Peer::pointer peer, Hash hash)
-                               { peer->sendGetConfigUpgradeSet(hash); })
+    , mConfigUpgradeSetFetcher(app,
+                               [](Peer::pointer peer, Hash hash) {
+                                   peer->sendGetConfigUpgradeSet(hash);
+                               })
     , mConfigUpgradeSetCache(CONFIG_UPGRADE_SET_CACHE_SIZE)
 #endif
     , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE +

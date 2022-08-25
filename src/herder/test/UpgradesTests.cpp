@@ -217,6 +217,36 @@ makeFlagsUpgrade(int flags)
     return result;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+makeTestConfigUpgradeSet(uint32_t maxContractSizeBytes)
+{
+    ConfigUpgradeSet configUpgradeSet;
+    auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
+    configEntry.configSettingID(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+    configEntry.contractMaxSizeBytes() = maxContractSizeBytes;
+    return ConfigUpgradeSetFrame::makeFromWire(configUpgradeSet);
+}
+
+LedgerUpgrade
+makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+    result.configUpgradeSetHash() = configUpgradeSet.getHash();
+    return result;
+}
+
+LedgerKey
+getMaxContractSizeKey()
+{
+    LedgerKey maxContractSizeKey(CONFIG_SETTING);
+    maxContractSizeKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
+    return maxContractSizeKey;
+}
+
+#endif
+
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                  bool shouldListAny)
@@ -245,12 +275,11 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     auto baseReserveUpgrade =
         makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
-
+    LedgerTxn ltx(app->getLedgerTxnRoot());
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(
-            header, LedgerTxn(app->getLedgerTxnRoot()));
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -260,8 +289,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades =
-            Upgrades{cfg}.createUpgradesFor(header, LedgerTxn(app->getLedgerTxnRoot()));
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -271,8 +299,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(
-            header, LedgerTxn(app->getLedgerTxnRoot()));
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -282,8 +309,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(
-            header, LedgerTxn(app->getLedgerTxnRoot()));
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -296,8 +322,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(
-            header, LedgerTxn(app->getLedgerTxnRoot()));
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
@@ -563,6 +588,342 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
         REQUIRE(header.baseReserve == 1000);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("config upgrade validation", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+
+    auto headerTime = VirtualClock::to_time_t(genesis(0, 2));
+
+    LedgerHeader header;
+    header.ledgerVersion =
+        static_cast<uint32_t>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION);
+    header.scpValue.closeTime = headerTime;
+
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime = genesis(0, 1);
+    scheduledUpgrades.mConfigUpgradeSet = makeTestConfigUpgradeSet(32768);
+    app->getHerder().setUpgrades(scheduledUpgrades);
+
+    auto addConfigUpgradeSet =
+        [&](ConfigUpgradeSetFrameConstPtr configUpgradeSet) {
+            HerderImpl& herderImpl =
+                *static_cast<HerderImpl*>(&app->getHerder());
+            herderImpl.getPendingEnvelopes().addConfigUpgradeSet(
+                configUpgradeSet);
+        };
+
+    auto makeAndAddConfigUpgradeSet = [&](uint32_t maxContractSizeBytes) {
+        auto newConfigUpgradeSet =
+            makeTestConfigUpgradeSet(maxContractSizeBytes);
+        addConfigUpgradeSet(newConfigUpgradeSet);
+        return newConfigUpgradeSet;
+    };
+
+    SECTION("validate for apply")
+    {
+        LedgerUpgrade outUpgrade;
+        SECTION("valid")
+        {
+            ConfigUpgradeSetFrameConstPtr validConfigUpgradeSet;
+            SECTION("scheduled upgrade")
+            {
+                validConfigUpgradeSet = scheduledUpgrades.mConfigUpgradeSet;
+            }
+            SECTION("external upgrade")
+            {
+                validConfigUpgradeSet = makeAndAddConfigUpgradeSet(12345);
+            }
+            REQUIRE(Upgrades::isValidForApply(toUpgradeType(makeConfigUpgrade(
+                                                  *validConfigUpgradeSet)),
+                                              outUpgrade, *app, header) ==
+                    Upgrades::UpgradeValidity::VALID);
+            REQUIRE(outUpgrade.configUpgradeSetHash() ==
+                    validConfigUpgradeSet->getHash());
+        }
+        SECTION("unknown upgrade")
+        {
+            REQUIRE_THROWS_AS(Upgrades::isValidForApply(
+                                  toUpgradeType(makeConfigUpgrade(
+                                      *makeTestConfigUpgradeSet(12345))),
+                                  outUpgrade, *app, header),
+                              std::runtime_error);
+        }
+        SECTION("not valid")
+        {
+            SECTION("bad XDR")
+            {
+                ConfigUpgradeSet badConfigUpgradeSet;
+                SECTION("no updated entries")
+                {
+                }
+                SECTION("duplicate entries")
+                {
+                    badConfigUpgradeSet.updatedEntry.emplace_back(
+                        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+                    badConfigUpgradeSet.updatedEntry.emplace_back(
+                        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+                }
+
+                auto configUpgradeSetFrame =
+                    ConfigUpgradeSetFrame::makeFromWire(badConfigUpgradeSet);
+                REQUIRE(configUpgradeSetFrame->isValidForApply() ==
+                        Upgrades::UpgradeValidity::XDR_INVALID);
+                addConfigUpgradeSet(configUpgradeSetFrame);
+                REQUIRE(Upgrades::isValidForApply(
+                            toUpgradeType(
+                                makeConfigUpgrade(*configUpgradeSetFrame)),
+                            outUpgrade, *app,
+                            header) == Upgrades::UpgradeValidity::XDR_INVALID);
+            }
+        }
+        SECTION("bad value")
+        {
+            REQUIRE(Upgrades::isValidForApply(
+                        toUpgradeType(
+                            makeConfigUpgrade(*makeAndAddConfigUpgradeSet(0))),
+                        outUpgrade, *app,
+                        header) == Upgrades::UpgradeValidity::INVALID);
+        }
+    }
+
+    SECTION("validate for nomination")
+    {
+        LedgerUpgradeType outUpgradeType;
+        SECTION("valid")
+        {
+            REQUIRE(Upgrades(scheduledUpgrades)
+                        .isValid(toUpgradeType(makeConfigUpgrade(
+                                     *makeTestConfigUpgradeSet(32768))),
+                                 outUpgradeType, true, *app, header));
+        }
+        SECTION("not valid")
+        {
+            SECTION("no upgrade scheduled")
+            {
+                REQUIRE(!Upgrades().isValid(
+                    toUpgradeType(
+                        makeConfigUpgrade(*makeAndAddConfigUpgradeSet(32768))),
+                    outUpgradeType, true, *app, header));
+            }
+            SECTION("inconsistent value")
+            {
+                REQUIRE(!Upgrades(scheduledUpgrades)
+                             .isValid(toUpgradeType(makeConfigUpgrade(
+                                          *makeAndAddConfigUpgradeSet(12345))),
+                                      outUpgradeType, true, *app, header));
+            }
+        }
+    }
+}
+
+TEST_CASE("config upgrades applied to ledger", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) - 1;
+    auto app = createTestApplication(clock, cfg);
+
+    // Need to actually execute the upgrade to v20 to get the config
+    // entries initialized.
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
+                             CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION)));
+
+    auto configUpgradeSet = makeTestConfigUpgradeSet(32768);
+
+    SECTION("unknown config upgrade set results in exception")
+    {
+        REQUIRE_THROWS_AS(
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet)),
+            std::runtime_error);
+    }
+
+    SECTION("known config upgrade set is applied")
+    {
+        HerderImpl& herderImpl = *static_cast<HerderImpl*>(&app->getHerder());
+        herderImpl.getPendingEnvelopes().addConfigUpgradeSet(configUpgradeSet);
+
+        executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto maxContractSizeEntry =
+            ltx.load(getMaxContractSizeKey()).current().data.configSetting();
+        REQUIRE(maxContractSizeEntry.configSettingID() ==
+                CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+        REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() == 32768);
+    }
+}
+
+TEST_CASE("config upgrade in network", "[upgrades][overlay]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            // cfg.TESTING_UPGRADE_DATETIME
+            cfg.TESTING_UPGRADE_DATETIME = VirtualClock::system_time_point();
+            cfg.USE_CONFIG_FOR_GENESIS = false;
+            /*cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                static_cast<uint32_t>(
+                    CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) -
+                1;*/
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(2, 1); },
+        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
+
+    auto nodes = simulation->getNodes();
+
+    auto checkNodeConfigs =
+        [&](std::optional<uint32_t> expectedContractMaxSize) {
+            for (auto node : nodes)
+            {
+                LedgerTxn ltx(node->getLedgerTxnRoot());
+                if (expectedContractMaxSize)
+                {
+                    REQUIRE(ltx.load(getMaxContractSizeKey())
+                                .current()
+                                .data.configSetting()
+                                .contractMaxSizeBytes() ==
+                            *expectedContractMaxSize);
+                }
+                else
+                {
+                    REQUIRE(!ltx.load(getMaxContractSizeKey()));
+                }
+            }
+        };
+
+    checkNodeConfigs(std::nullopt);
+
+    auto lclCloseTime =
+        VirtualClock::from_time_t(nodes[0]
+                                      ->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime);
+    // At first upgrade to the next version to make sure configuration has been
+    // created.
+    for (auto node : nodes)
+    {
+        Upgrades::UpgradeParameters upgrades;
+        upgrades.mProtocolVersion = std::make_optional<uint32>(
+            static_cast<uint32>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION));
+        upgrades.mUpgradeTime =
+            lclCloseTime + Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+        node->getHerder().setUpgrades(upgrades);
+    }
+
+    std::optional<uint32_t> upgradeLedger;
+    simulation->crankUntil(
+        [&]() {
+            if (!upgradeLedger &&
+                nodes[0]->getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.ledgerVersion ==
+                    static_cast<uint32_t>(
+                        CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION))
+            {
+                upgradeLedger =
+                    nodes[0]->getLedgerManager().getLastClosedLedgerNum();
+            }
+            return upgradeLedger.has_value();
+        },
+        5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Make sure version upgrade has happened and config entries are created.
+    REQUIRE(upgradeLedger);
+    checkNodeConfigs(std::make_optional<uint32_t>(16384));
+
+    lclCloseTime = VirtualClock::from_time_t(nodes[0]
+                                                 ->getLedgerManager()
+                                                 .getLastClosedLedgerHeader()
+                                                 .header.scpValue.closeTime);
+    auto lclSeq = nodes[0]
+                      ->getLedgerManager()
+                      .getLastClosedLedgerHeader()
+                      .header.ledgerSeq;
+    auto scheduleConfigUpgrade = [&](auto node, uint32_t maxContractSize) {
+        Upgrades::UpgradeParameters upgrades;
+        upgrades.mConfigUpgradeSet = makeTestConfigUpgradeSet(maxContractSize);
+        upgrades.mUpgradeTime = lclCloseTime;
+        node->getHerder().setUpgrades(upgrades);
+    };
+    auto scheduleConfigUpgrades = [&](uint32_t maxContractSize) {
+        for (auto node : nodes)
+        {
+            scheduleConfigUpgrade(node, maxContractSize);
+        }
+    };
+    auto waitForConfigUpgrade = [&]() {
+        simulation->crankUntil(
+            [&]() { return simulation->haveAllExternalized(lclSeq + 2, 1); },
+            Herder::EXP_LEDGER_TIMESPAN_SECONDS * 20, false);
+    };
+    SECTION("upgrade with consensus")
+    {
+        scheduleConfigUpgrades(12345);
+        waitForConfigUpgrade();
+        checkNodeConfigs(std::make_optional<uint32_t>(12345));
+        SECTION("then catchup a new node")
+        {
+            // Close a few more ledgers.
+            simulation->crankUntil(
+                [&]() {
+                    return simulation->haveAllExternalized(lclSeq + 5, 1);
+                },
+                Herder::EXP_LEDGER_TIMESPAN_SECONDS * 10, false);
+            // Add a node and let it catchup.
+            auto addedKey = SecretKey::fromSeed(sha256("ADD_NODE"));
+            auto addedNode = simulation->addNode(
+                addedKey, nodes.back()->getConfig().QUORUM_SET);
+            addedNode->start();
+            for (auto const& nodeID : simulation->getNodeIDs())
+            {
+                simulation->addConnection(addedKey.getPublicKey(), nodeID);
+            }
+            nodes.push_back(addedNode);
+            // Let the network to externalize 1 more ledger and catchup the new
+            // node.
+            simulation->crankUntil(
+                [&]() {
+                    return simulation->haveAllExternalized(lclSeq + 6,
+                                                           lclSeq + 5);
+                },
+                Herder::EXP_LEDGER_TIMESPAN_SECONDS * 5, false);
+            checkNodeConfigs(std::make_optional<uint32_t>(12345));
+        }
+    }
+    SECTION("upgrade with partial consensus")
+    {
+        scheduleConfigUpgrades(12345);
+        scheduleConfigUpgrade(nodes[1], 54321);
+        waitForConfigUpgrade();
+        checkNodeConfigs(std::make_optional<uint32_t>(12345));
+    }
+    SECTION("no upgrade with no consensus")
+    {
+        scheduleConfigUpgrades(12345);
+        scheduleConfigUpgrade(nodes[1], 54321);
+        scheduleConfigUpgrade(nodes[2], 54321);
+        waitForConfigUpgrade();
+        checkNodeConfigs(std::make_optional<uint32_t>(16384));
+    }
+    SECTION("no upgrade with invalid value")
+    {
+        scheduleConfigUpgrades(0);
+        waitForConfigUpgrade();
+        checkNodeConfigs(std::make_optional<uint32_t>(16384));
+    }
+}
+#endif
 
 TEST_CASE("upgrade to version 10", "[upgrades]")
 {
@@ -1679,6 +2040,36 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<uint32_t>(
+                                 CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) -
+                             1));
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(!ltx.load(getMaxContractSizeKey()));
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
+                             CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION)));
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    auto maxContractSizeEntry =
+        ltx.load(getMaxContractSizeKey()).current().data.configSetting();
+    REQUIRE(maxContractSizeEntry.configSettingID() ==
+            CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+    REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() == 16384);
+}
+#endif
+
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
@@ -2363,6 +2754,7 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
         "has": false
     }
 })";
+
     Upgrades::UpgradeParameters up;
     up.deserialize(in, "");
     REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
@@ -2373,6 +2765,83 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(up.mMaxTxSetSize.value() == 10000);
     REQUIRE(!up.mBaseReserve.has_value());
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
+{
+    Upgrades::UpgradeParameters initUpgrades;
+    initUpgrades.mUpgradeTime = VirtualClock::tmToSystemPoint(
+        getTestDateTime(22, 10, 2022, 18, 53, 32));
+    initUpgrades.mBaseFee = std::make_optional<uint32>(10000);
+    initUpgrades.mProtocolVersion = std::make_optional<uint32>(20);
+    initUpgrades.mConfigUpgradeSet = makeTestConfigUpgradeSet(32768);
+
+    std::string upgradesJson, encodedConfigUpgradeSet;
+    initUpgrades.serialize(upgradesJson, encodedConfigUpgradeSet);
+
+    SECTION("direct deserialize")
+    {
+        Upgrades::UpgradeParameters restoredUpgrades;
+        restoredUpgrades.deserialize(upgradesJson, encodedConfigUpgradeSet);
+        REQUIRE(restoredUpgrades.mUpgradeTime == initUpgrades.mUpgradeTime);
+        REQUIRE(*restoredUpgrades.mBaseFee == 10000);
+        REQUIRE(*restoredUpgrades.mProtocolVersion == 20);
+        REQUIRE(!restoredUpgrades.mMaxTxSetSize);
+        REQUIRE(!restoredUpgrades.mBaseReserve);
+
+        REQUIRE(!restoredUpgrades.mFlags);
+
+        REQUIRE(restoredUpgrades.mConfigUpgradeSet->toXDR() ==
+                initUpgrades.mConfigUpgradeSet->toXDR());
+    }
+    SECTION("restore upgrades for app")
+    {
+        auto cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+        cfg.TESTING_UPGRADE_DATETIME = VirtualClock::system_time_point();
+        cfg.USE_CONFIG_FOR_GENESIS = false;
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+        app->getHerder().setUpgrades(initUpgrades);
+        app->gracefulStop();
+        while (clock.crank(true))
+            ;
+        app->resetState();
+        app->start();
+        auto upgradesJson = app->getHerder().getUpgradesJson();
+        REQUIRE(upgradesJson == R"({
+   "configUpgrades" : {
+      "updatedEntry" : [
+         {
+            "configSettingID" : 0,
+            "contractMaxSizeBytes" : 32768
+         }
+      ]
+   },
+   "fee" : {
+      "data" : 10000,
+      "nullopt" : false
+   },
+   "flags" : {
+      "nullopt" : true
+   },
+   "maxtxsize" : {
+      "nullopt" : true
+   },
+   "reserve" : {
+      "nullopt" : true
+   },
+   "time" : 1666464812,
+   "version" : {
+      "data" : 20,
+      "nullopt" : false
+   }
+}
+)");
+    }
+}
+
+#endif
 
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {

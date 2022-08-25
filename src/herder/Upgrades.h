@@ -59,11 +59,14 @@ class Upgrades
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         ConfigUpgradeSetFrameConstPtr mConfigUpgradeSet;
 #endif
-        std::string toJson(bool includeConfigUpgradesForDebug) const;
+        std::string toDebugJson() const;
         void serialize(std::string& upgradesJson,
                        std::string& encodedConfigUpgradeSet) const;
         void deserialize(std::string const& upgradesJson,
                          std::string const& encodedConfigUpgradeSet);
+
+      private:
+        std::string toJson() const;
     };
 
     Upgrades()

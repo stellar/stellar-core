@@ -1199,8 +1199,8 @@ HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
     }
 }
 size_t
-HerderSCPDriver::TxSetValidityKeyHash::
-operator()(TxSetValidityKey const& key) const
+HerderSCPDriver::TxSetValidityKeyHash::operator()(
+    TxSetValidityKey const& key) const
 {
 
     size_t res = std::hash<Hash>()(std::get<0>(key));

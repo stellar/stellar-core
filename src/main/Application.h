@@ -265,6 +265,7 @@ class Application
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
+    virtual void resetState() = 0;
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS
