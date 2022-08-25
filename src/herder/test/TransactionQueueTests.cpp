@@ -668,6 +668,74 @@ TEST_CASE("TransactionQueue base", "[herder][transactionqueue]")
     }
 }
 
+TEST_CASE("TransactionQueue hitting the rate limit",
+          "[herder][transactionqueue]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
+    cfg.FLOOD_TX_PERIOD_MS = 100;
+    auto app = createTestApplication(clock, cfg);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+
+    auto root = TestAccount::createRoot(*app);
+    auto account1 = root.create("a1", minBalance2);
+    auto account2 = root.create("a2", minBalance2);
+    auto account3 = root.create("a3", minBalance2);
+
+    TransactionQueueTest testQueue{*app};
+    std::vector<TransactionFrameBasePtr> txs;
+    auto addTx = [&](TransactionFrameBasePtr tx) {
+        txs.push_back(tx);
+        testQueue.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    };
+    // Fill the queue/limiter with 8 ops (2 * 4) - any further ops should result
+    // in eviction (limit is 2 * 4=TESTING_UPGRADE_MAX_TX_SET_SIZE).
+    addTx(transaction(*app, account1, 1, 1, 200 * 1, 1));
+    addTx(transaction(*app, account1, 2, 1, 400 * 2, 2));
+    addTx(transaction(*app, account1, 3, 1, 100 * 1, 1));
+    addTx(transaction(*app, account2, 1, 1, 300 * 4, 4));
+
+    SECTION("cannot add low fee tx")
+    {
+        auto tx = transaction(*app, account3, 1, 1, 300 * 3, 3);
+        testQueue.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
+        REQUIRE(tx->getResult().feeCharged == 300 * 3 + 1);
+    }
+    SECTION("add high fee tx with eviction")
+    {
+        auto tx = transaction(*app, account3, 1, 1, 300 * 3 + 1, 3);
+        testQueue.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        // Evict all txs from `account1` as `tx[2]` can't be applied
+        // after `tx[1]` is evicted.
+        testQueue.check(
+            {{{account1}, {account2, 0, {txs[3]}}, {account3, 0, {tx}}},
+             {{txs[0], txs[1], txs[2]}, {}}});
+
+        SECTION("then cannot add tx with lower fee than evicted")
+        {
+            auto nextTx = transaction(*app, account3, 2, 1, 200, 1);
+            testQueue.add(nextTx,
+                          TransactionQueue::AddResult::ADD_STATUS_ERROR);
+            REQUIRE(nextTx->getResult().result.code() == txINSUFFICIENT_FEE);
+            REQUIRE(nextTx->getResult().feeCharged == 201);
+        }
+        SECTION("then add tx with higher fee than evicted")
+        {
+            // The last evicted fee rate we accounted for was 200 (tx with fee
+            // rate 400 is evicted due to seq num and is not accounted for).
+            auto nextTx = transaction(*app, account3, 2, 1, 201, 1);
+            testQueue.add(nextTx,
+                          TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            testQueue.check({{{account1},
+                              {account2, 0, {txs[3]}},
+                              {account3, 0, {tx, nextTx}}},
+                             {{txs[0], txs[1], txs[2]}, {}}});
+        }
+    }
+}
+
 TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
                    "[herder][transactionqueue]")
 {
