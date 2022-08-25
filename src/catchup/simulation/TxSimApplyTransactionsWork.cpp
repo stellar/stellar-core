@@ -527,7 +527,7 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
             txSetFrame =
                 TxSetFrame::makeFromWire(mNetworkID, txHistoryEntry.txSet);
         }
-        for (auto const& txFrame : txSetFrame->getTxsInHashOrder())
+        for (auto const& txFrame : txSetFrame->getTxs())
         {
             transactions[txFrame->getContentsHash()] = &txFrame->getEnvelope();
         }

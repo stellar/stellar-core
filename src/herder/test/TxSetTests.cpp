@@ -416,9 +416,6 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     auto checkXdrRoundtrip = [&](GeneralizedTransactionSet const& txSetXdr) {
         auto frame = TxSetFrame::makeFromWire(app->getNetworkID(), txSetXdr);
         REQUIRE(frame->checkValid(*app, 0, 0));
-        REQUIRE(std::is_sorted(frame->getTxsInHashOrder().begin(),
-                               frame->getTxsInHashOrder().end(),
-                               &TxSetUtils::hashTxSorter));
         GeneralizedTransactionSet newXdr;
         frame->toXDR(newXdr);
         REQUIRE(newXdr == txSetXdr);
@@ -572,7 +569,7 @@ TEST_CASE("generalized tx set fees", "[txset]")
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
         std::vector<std::optional<int64_t>> fees;
-        for (auto const& tx : txSet->getTxsInHashOrder())
+        for (auto const& tx : txSet->getTxs())
         {
             fees.push_back(txSet->getTxBaseFee(
                 tx,

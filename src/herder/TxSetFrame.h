@@ -32,6 +32,9 @@ class TxSetFrame : public NonMovableOrCopyable
     // there are too many remaining transactions surge pricing is applied.
     // The result is guaranteed to pass `checkValid` check with the same
     // arguments as in this method, so additional validation is not needed.
+    //
+    // **Note**: the output `TxSetFrame` will *not* contain the input
+    // transaction pointers.
     static TxSetFrameConstPtr
     makeFromTransactions(Transactions const& txs, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,
@@ -76,9 +79,8 @@ class TxSetFrame : public NonMovableOrCopyable
 
     Hash const& previousLedgerHash() const;
 
-    // Gets all the transactions belonging to this frame sorted by their full
-    // hashes.
-    Transactions const& getTxsInHashOrder() const;
+    // Gets all the transactions belonging to this frame in arbitrary order.
+    Transactions const& getTxs() const;
 
     /*
     Build a list of transaction ready to be applied to the last closed ledger,

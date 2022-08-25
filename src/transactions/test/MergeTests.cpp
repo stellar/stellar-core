@@ -643,8 +643,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
 
-                REQUIRE(tx1->getResult()
-                            .result.results()[0]
+                REQUIRE(r[0].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
@@ -665,8 +664,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 auto r = closeLedger(*app, {tx1, tx2, tx3, txMinSeqNumSrc});
 
-                REQUIRE(tx1->getResult()
-                            .result.results()[0]
+                REQUIRE(r[0].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
@@ -684,8 +682,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 auto r = closeLedger(*app, {tx1, tx2}, true);
 
                 checkTx(0, r, txSUCCESS);
-                REQUIRE(tx2->getResult()
-                            .result.results()[0]
+                REQUIRE(r[1].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
