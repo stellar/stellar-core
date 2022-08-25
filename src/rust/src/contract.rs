@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use cxx::{CxxVector, UniquePtr};
-use log::info;
+use log::debug;
 use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
 use soroban_env_host::{
@@ -211,6 +211,15 @@ fn extract_contract_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
         .collect()
 }
 
+fn log_debug_events(events: &Events) {
+    for e in events.0.iter() {
+        match e {
+            HostEvent::Contract(_) => (),
+            HostEvent::Debug(de) => debug!("contract HostEvent::Debug: {}", de),
+        }
+    }
+}
+
 /// Deserializes an [`xdr::HostFunction`] host function identifier, an [`xdr::ScVec`] XDR object of
 /// arguments, an [`xdr::Footprint`] and a sequence of [`xdr::LedgerEntry`] entries containing all
 /// the data the invocation intends to read. Then calls the host function with the specified
@@ -263,12 +272,19 @@ fn invoke_host_function_or_maybe_panic(
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
 
-    info!(target: TX, "Invoking host function {}", hf.to_string());
-    host.invoke_function(hf, args)?;
-
+    debug!(target: TX, "invoking host function '{}'", HostFunction::name(&hf));
+    let res = host.invoke_function(hf, args);
     let (storage, _budget, events) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
+    log_debug_events(&events);
+    match res {
+        Ok(_) => (),
+        Err(err) => {
+            debug!(target: TX, "invocation failed: {}", err);
+            return Err(err.into());
+        }
+    }
     let modified_ledger_entries =
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
     let contract_events = extract_contract_events(&events)?;
@@ -366,12 +382,27 @@ fn preflight_host_function_or_maybe_panic(
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
-    let val = host.invoke_function(hf, args)?;
+
+    debug!(
+        target: TX,
+        "preflight execution of host function '{}'",
+        HostFunction::name(&hf)
+    );
+    let res = host.invoke_function(hf, args);
 
     // Recover, convert and return the storage footprint and other values to C++.
     let (storage, budget, events) = host
         .try_finish()
         .map_err(|_| CoreHostError::General("could not finalize host"))?;
+    log_debug_events(&events);
+    let val = match res {
+        Ok(val) => val,
+        Err(err) => {
+            debug!(target: TX, "preflight failed: {}", err);
+            return Err(err.into());
+        }
+    };
+
     let storage_footprint =
         xdr_to_rust_buf(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
     let contract_events = extract_contract_events(&events)?;
