@@ -309,3 +309,15 @@ pub(crate) fn preflight_host_function(
     pfc.with_cb(|cb| cb.set_result_mem_bytes(mem_bytes))?;
     Ok(())
 }
+
+// Accessors for test wasms, compiled into soroban-test-wasms crate.
+pub(crate) fn get_test_wasm_add_i32() -> Result<Bytes, Box<dyn Error>> {
+    Ok(Bytes {
+        vec: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
+    })
+}
+pub(crate) fn get_test_wasm_contract_data() -> Result<Bytes, Box<dyn Error>> {
+    Ok(Bytes {
+        vec: soroban_test_wasms::CONTRACT_DATA.iter().cloned().collect(),
+    })
+}

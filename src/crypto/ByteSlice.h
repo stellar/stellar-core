@@ -9,6 +9,10 @@
 #include <xdrpp/message.h>
 #include <xdrpp/types.h>
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
+
 namespace stellar
 {
 
@@ -71,6 +75,15 @@ class ByteSlice
         : mData(bytes.data()), mSize(bytes.size())
     {
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ByteSlice(Bytes const& buf) : mData(buf.vec.data()), mSize(buf.vec.size())
+    {
+    }
+    ByteSlice(XDRBuf const& buf)
+        : mData(buf.data->data()), mSize(buf.data->size())
+    {
+    }
+#endif
     ByteSlice(char const* str) : ByteSlice((void const*)str, strlen(str))
     {
     }
