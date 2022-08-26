@@ -197,9 +197,13 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v0().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-    else
+    else if (lcms.back().v() == 1)
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
+    else
+    {
+        REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
     }
 
     // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
@@ -211,9 +215,13 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v0().ledgerHeader.hash == expectedLastSafeHash);
     }
-    else
+    else if (lcmsSafe.back().v() == 1)
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
+    }
+    else
+    {
+        REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
     }
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
@@ -314,9 +322,13 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v0().ledgerHeader.hash == hash);
     }
-    else
+    else if (lcm.v() == 1)
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
+    }
+    else
+    {
+        REQUIRE(lcm.v2().ledgerHeader.hash == hash);
     }
 }
 

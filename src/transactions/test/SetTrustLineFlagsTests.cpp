@@ -1148,7 +1148,8 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMeta txm(2);
+                                TransactionMetaFrame txm(
+                                    ltx.loadHeader().current().ledgerVersion);
                                 REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                                 REQUIRE(tx->apply(*app, ltx, txm));
                                 REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1244,7 +1245,8 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            TransactionMeta txm(2);
+                            TransactionMetaFrame txm(
+                                ltx.loadHeader().current().ledgerVersion);
                             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                             REQUIRE(tx->apply(*app, ltx, txm) == success);
 
@@ -1510,7 +1512,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                             {acc1});
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMeta txm(2);
+                        TransactionMetaFrame txm(
+                            ltx.loadHeader().current().ledgerVersion);
                         REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         REQUIRE(tx->apply(*app, ltx, txm));
                         REQUIRE(tx->getResultCode() == txSUCCESS);

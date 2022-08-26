@@ -75,7 +75,7 @@ submitOpToCreateContract(Application& app, Operation const& op,
     auto root = TestAccount::createRoot(app);
     auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    TransactionMeta txm(2);
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
     REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
     ltx.commit();
@@ -227,7 +227,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 auto tx = transactionFrameFromOps(app->getNetworkID(), root,
                                                   {op}, {});
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMeta txm(2);
+                TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
                 REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                 if (success)
                 {
@@ -314,7 +314,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             auto tx =
                 transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             if (success)
             {
@@ -355,7 +355,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             auto tx =
                 transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             if (success)
             {

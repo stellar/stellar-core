@@ -4442,7 +4442,7 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
@@ -4834,7 +4834,8 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                     {payor, mm});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMeta txm(2);
+                TransactionMetaFrame txm(
+                    ltx.loadHeader().current().ledgerVersion);
                 REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();

@@ -23,6 +23,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
@@ -30,6 +31,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
@@ -98,6 +100,14 @@ TransactionFrame::clearCached()
     mContentsHash = zero;
     mFullHash = zero;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+TransactionFrame::pushContractEvent(ContractEvent const& evt)
+{
+    mEvents.emplace_back(evt);
+}
+#endif
 
 TransactionEnvelope const&
 TransactionFrame::getEnvelope() const
@@ -998,14 +1008,14 @@ TransactionFrame::markResultFailed()
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx)
 {
-    TransactionMeta tm(2);
+    TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
     return apply(app, ltx, tm);
 }
 
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMeta& outerMeta)
+                                  TransactionMetaFrame& outerMeta)
 {
     ZoneScoped;
     auto& internalErrorCounter = app.getMetrics().NewCounter(
@@ -1015,8 +1025,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     {
         bool success = true;
 
-        TransactionMeta newMeta(2);
-        newMeta.v2().operations.reserve(getNumOperations());
+        xdr::xvector<OperationMeta> operationMetas;
+        operationMetas.reserve(getNumOperations());
 
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
@@ -1047,7 +1057,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
                 // The operation meta will be empty if the transaction doesn't
                 // succeed so we may as well not do any work in that case
-                newMeta.v2().operations.emplace_back(ltxOp.getChanges());
+                operationMetas.emplace_back(ltxOp.getChanges());
             }
 
             if (txRes ||
@@ -1059,6 +1069,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         if (success)
         {
+            LedgerEntryChanges changesAfter;
+
             if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
             {
                 if (!signatureChecker.checkAllSignaturesUsed())
@@ -1073,7 +1085,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // to remove that signer
                 LedgerTxn ltxAfter(ltxTx);
                 removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
-                newMeta.v2().txChangesAfter = ltxAfter.getChanges();
+                changesAfter = ltxAfter.getChanges();
                 ltxAfter.commit();
             }
             else if (protocolVersionStartsFrom(ledgerVersion,
@@ -1086,9 +1098,11 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
             ltxTx.commit();
             // commit -> propagate the meta to the outer scope
-            std::swap(outerMeta.v2().operations, newMeta.v2().operations);
-            std::swap(outerMeta.v2().txChangesAfter,
-                      newMeta.v2().txChangesAfter);
+            outerMeta.pushOperationMetas(operationMetas);
+            outerMeta.pushTxChangesAfter(changesAfter);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            outerMeta.pushContractEvents(mEvents);
+#endif
         }
         else
         {
@@ -1158,14 +1172,14 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     }
 
     // operations and txChangesAfter should already be empty at this point
-    outerMeta.v2().operations.clear();
-    outerMeta.v2().txChangesAfter.clear();
+    outerMeta.clearOperationMetas();
+    outerMeta.clearTxChangesAfter();
     return false;
 }
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMeta& meta, bool chargeFee)
+                        TransactionMetaFrame& meta, bool chargeFee)
 {
     ZoneScoped;
     try
@@ -1188,18 +1202,22 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
         bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
 
-        auto changes = ltxTx.getChanges();
-        std::move(changes.begin(), changes.end(),
-                  std::back_inserter(meta.v2().txChangesBefore));
+        meta.pushTxChangesBefore(ltxTx.getChanges());
         ltxTx.commit();
 
-        bool valid = signaturesValid && cv == ValidationType::kMaybeValid;
+        bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
         try
         {
             // This should only throw if the logging during exception handling
             // for applyOperations throws. In that case, we may not have the
             // correct TransactionResult so we must crash.
-            return valid && applyOperations(signatureChecker, app, ltx, meta);
+            if (ok)
+            {
+                ok = applyOperations(signatureChecker, app, ltx, meta);
+            }
+            meta.setTxResult(mResult);
+            meta.finalizeHashes();
+            return ok;
         }
         catch (std::exception& e)
         {
@@ -1226,7 +1244,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMeta& meta)
+                        TransactionMetaFrame& meta)
 {
     return apply(app, ltx, meta, true);
 }

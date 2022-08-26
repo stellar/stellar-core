@@ -8,6 +8,7 @@
 
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "util/UnorderedSet.h"
 #include <optional>
 
@@ -31,7 +32,7 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMeta& meta) = 0;
+                       TransactionMetaFrame& meta) = 0;
 
     virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,

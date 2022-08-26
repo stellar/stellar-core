@@ -157,7 +157,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             // else, leave feeCharged as per checkValid
             try
             {
-                TransactionMeta cleanTm(2);
+                TransactionMetaFrame cleanTm(
+                    ltxCleanTx.loadHeader().current().ledgerVersion);
                 checkedTxApplyRes = checkedTx->apply(app, ltxCleanTx, cleanTm);
             }
             catch (...)
@@ -222,7 +223,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMeta tm(2);
+        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
         try
         {
             res = tx->apply(app, ltxTx, tm);
@@ -241,7 +242,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
         if (!res || tx->getResultCode() != txSUCCESS)
         {
-            REQUIRE(tm.v2().operations.size() == 0);
+            REQUIRE(tm.getNumOperations() == 0);
         }
         // checks that the failure is the same if pre checks failed
         if (!check)
@@ -359,7 +360,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
-        recordOrCheckGlobalTestTxMetadata(tm);
+        recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }
 
     ltx.commit();

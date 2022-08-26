@@ -14,6 +14,7 @@
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
@@ -83,15 +84,13 @@ updateResult(TransactionResult& outerRes, TransactionFrameBasePtr innerTx)
 
 bool
 FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                               TransactionMeta& meta)
+                               TransactionMetaFrame& meta)
 {
     try
     {
         LedgerTxn ltxTx(ltx);
         removeOneTimeSignerKeyFromFeeSource(ltxTx);
-
-        auto& txChanges = meta.v2().txChangesBefore;
-        txChanges = ltxTx.getChanges();
+        meta.pushTxChangesBefore(ltxTx.getChanges());
         ltxTx.commit();
     }
     catch (std::exception& e)

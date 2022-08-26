@@ -156,8 +156,14 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
         }
     }
 
-    // TODO: plumb contract events out to the txmeta when it is updated to
-    // accept them.
+    // Append events to the enclosing TransactionFrame, where
+    // they'll be picked up and transferred to the TxMeta.
+    for (auto const& buf : out.contract_events)
+    {
+        ContractEvent evt;
+        xdr::xdr_from_opaque(buf.data, evt);
+        mParentTx.pushContractEvent(evt);
+    }
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     return true;

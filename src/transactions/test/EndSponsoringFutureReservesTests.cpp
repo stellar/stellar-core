@@ -62,7 +62,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
                 {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(!tx->apply(*app, ltx, txm));
 

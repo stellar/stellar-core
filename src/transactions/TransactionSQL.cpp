@@ -349,7 +349,7 @@ writeTxSetToStream(
 
 void
 storeTransaction(Database& db, uint32_t ledgerSeq,
-                 TransactionFrameBasePtr const& tx, TransactionMeta& tm,
+                 TransactionFrameBasePtr const& tx, TransactionMeta const& tm,
                  TransactionResultSet const& resultSet)
 {
     ZoneScoped;

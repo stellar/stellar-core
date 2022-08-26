@@ -18,9 +18,14 @@ class LedgerCloseMetaFrame
     LedgerCloseMetaFrame(uint32_t protocolVersion);
 
     LedgerHeaderHistoryEntry& ledgerHeader();
-    xdr::xvector<TransactionResultMeta>& txProcessing();
+    void reserveTxProcessing(size_t n);
+    void pushTxProcessingEntry();
+    void
+    setLastTxProcessingFeeProcessingChanges(LedgerEntryChanges const& changes);
+    void setLastTxProcessingMetaAndResultPair(TransactionMeta const& tm,
+                                              TransactionResultPair const& rp);
+
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
-    xdr::xvector<SCPHistoryEntry>& scpInfo();
 
     void populateTxSet(TxSetFrame const& txSet);
 

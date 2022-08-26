@@ -1430,7 +1430,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMeta txm(2);
+                                TransactionMetaFrame txm(
+                                    ltx.loadHeader().current().ledgerVersion);
                                 REQUIRE(
                                     insideSignerTx->checkValid(ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(*app, ltx, txm));
@@ -1448,7 +1449,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMeta txm(2);
+                                TransactionMetaFrame txm(
+                                    ltx.loadHeader().current().ledgerVersion);
                                 REQUIRE(
                                     outsideSignerTx->checkValid(ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(*app, ltx, txm));
