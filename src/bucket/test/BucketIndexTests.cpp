@@ -57,7 +57,14 @@ class BucketIndexTest
         do
         {
             ++ledger;
-            auto entries = LedgerTestUtils::generateValidLedgerEntries(10);
+            auto entries =
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                        CONFIG_SETTING
+#endif
+                    },
+                    10);
             f(entries);
             closeLedger(*mApp);
         } while (!BucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
@@ -198,10 +205,16 @@ class BucketIndexTest
             if (rand_flip())
             {
                 // Add keys not in bucket list as well
-                for (size_t j = 0; j < 10; ++j)
-                {
-                    searchSubset.emplace(LedgerTestUtils::generateLedgerKey(3));
-                }
+                auto addKeys =
+                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                            CONFIG_SETTING
+#endif
+                        },
+                        10);
+
+                searchSubset.insert(addKeys.begin(), addKeys.end());
             }
 
             auto blLoad = getBM().loadKeys(searchSubset);
@@ -213,7 +226,14 @@ class BucketIndexTest
     testInvalidKeys()
     {
         // Load should return empty vector for keys not in bucket list
-        auto keysNotInBL = LedgerTestUtils::generateLedgerKeys(10);
+        auto keysNotInBL =
+            LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    CONFIG_SETTING
+#endif
+                },
+                10);
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load

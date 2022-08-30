@@ -214,7 +214,8 @@ BucketApplicator::Counters::getRates(
     uint64_t& tu_sec, uint64_t& td_sec, uint64_t& ou_sec, uint64_t& od_sec,
     uint64_t& du_sec, uint64_t& dd_sec, uint64_t& cu_sec, uint64_t& cd_sec,
     uint64_t& lu_sec, uint64_t& ld_sec, uint64_t& cdu_sec, uint64_t& cdd_sec,
-    uint64_t& ccu_sec, uint64_t& ccd_sec, uint64_t& csu_sec,     uint64_t& T_sec, uint64_t& total)
+    uint64_t& ccu_sec, uint64_t& ccd_sec, uint64_t& csu_sec, uint64_t& T_sec,
+    uint64_t& total)
 {
     VirtualClock::duration dur = now - mStarted;
     auto usec = std::chrono::duration_cast<std::chrono::microseconds>(dur);
