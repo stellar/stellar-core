@@ -5,9 +5,11 @@
 #include "LedgerTestUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerHashUtils.h"
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/UnorderedSet.h"
 #include "util/types.h"
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
@@ -123,8 +125,9 @@ randomlyModifyEntry(LedgerEntry& e)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     {
-        e.data.configSetting().setting.type(CONFIG_SETTING_TYPE_UINT32);
-        e.data.configSetting().setting.uint32Val() =
+        e.data.configSetting().configSettingID(
+            CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+        e.data.configSetting().contractMaxSizeBytes() =
             autocheck::generator<uint32_t>{}();
         makeValid(e.data.configSetting());
         break;
@@ -326,8 +329,8 @@ void
 makeValid(ConfigSettingEntry& ce)
 {
     auto ids = xdr::xdr_traits<ConfigSettingID>::enum_values();
-    ce.configSettingID =
-        static_cast<ConfigSettingID>(ids.at(ce.configSettingID % ids.size()));
+    ce.configSettingID(static_cast<ConfigSettingID>(
+        ids.at(ce.configSettingID() % ids.size())));
 }
 
 void
@@ -401,7 +404,7 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
     }
 }
 
-static auto validLedgerEntryGeneratorMaybeIncludingConfig = autocheck::map(
+static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
         le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
@@ -441,20 +444,6 @@ static auto validLedgerEntryGeneratorMaybeIncludingConfig = autocheck::map(
         return std::move(le);
     },
     autocheck::generator<LedgerEntry>());
-
-// When compiling the next protocol version we might be able to generate
-// CONFIG_SETTING entries, but we explicitly exclude them from the default
-// generator here because they violate an assumption that the rest of the
-// machinery here makes: that randomly generated keys are (statistically)
-// guaranteed to be disjoint.
-static auto validLedgerEntryGenerator =
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    autocheck::such_that(
-        [](LedgerEntry const& le) { return le.data.type() != CONFIG_SETTING; },
-        validLedgerEntryGeneratorMaybeIncludingConfig);
-#else
-    validLedgerEntryGeneratorMaybeIncludingConfig;
-#endif
 
 static auto ledgerKeyGenerator =
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -536,6 +525,17 @@ generateValidLedgerEntry(size_t b)
     return validLedgerEntryGenerator(b);
 }
 
+LedgerEntry
+generateValidLedgerEntryOfType(LedgerEntryType type)
+{
+    auto entry = generateValidLedgerEntry();
+    while (entry.data.type() != type)
+    {
+        entry = generateValidLedgerEntry();
+    }
+    return entry;
+}
+
 std::vector<LedgerEntry>
 generateValidLedgerEntries(size_t n)
 {
@@ -543,17 +543,65 @@ generateValidLedgerEntries(size_t n)
     return vecgen(n);
 }
 
-LedgerKey
-generateLedgerKey(size_t n)
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntries(size_t n)
 {
-    return ledgerKeyGenerator(n);
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerEntry> entries;
+    while (entries.size() < n)
+    {
+        auto entry = generateValidLedgerEntry();
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+        keys.insert(key);
+        entries.push_back(entry);
+    }
+    return entries;
+}
+
+LedgerEntry
+generateValidLedgerEntryWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b)
+{
+    while (true)
+    {
+        auto entry = generateValidLedgerEntry(b);
+        if (excludedTypes.find(entry.data.type()) == excludedTypes.end())
+        {
+            return entry;
+        }
+    }
+}
+
+std::vector<LedgerEntry>
+generateValidLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+{
+    std::vector<LedgerEntry> res;
+    res.reserve(n);
+    for (int i = 0; i < n; ++i)
+    {
+        res.push_back(generateValidLedgerEntryWithExclusions(excludedTypes));
+    }
+    return res;
 }
 
 std::vector<LedgerKey>
-generateLedgerKeys(size_t n)
+generateValidLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
-    static auto vecgen = autocheck::list_of(ledgerKeyGenerator);
-    return vecgen(n);
+    auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+        excludedTypes, n);
+    std::vector<LedgerKey> keys;
+    keys.reserve(entries.size());
+    for (auto const& entry : entries)
+    {
+        keys.push_back(LedgerEntryKey(entry));
+    }
+    return keys;
 }
 
 AccountEntry
