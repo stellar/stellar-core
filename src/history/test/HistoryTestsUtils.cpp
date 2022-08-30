@@ -136,7 +136,7 @@ std::pair<std::string, uint256>
 BucketOutputIteratorForTesting::writeTmpTestBucket()
 {
     auto ledgerEntries =
-        LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
+        LedgerTestUtils::generateValidUniqueLedgerEntries(NUM_ITEMS_PER_BUCKET);
     auto bucketEntries =
         Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
     for (auto const& bucketEntry : bucketEntries)
