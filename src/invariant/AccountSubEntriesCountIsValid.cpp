@@ -96,19 +96,14 @@ updateChangedSubEntriesCount(
     }
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
-    {
-        // claimable balance and liquidity pools are not subentries
-        break;
-    }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case CONFIG_SETTING:
-    {
-        // contract entries are not subentries
-        break;
-    }
 #endif
+        // Claimable balances, liquidity pools, contract data and configuration
+        // settings are not subentries
+        break;
     default:
         abort();
     }

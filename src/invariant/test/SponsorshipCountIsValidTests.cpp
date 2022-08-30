@@ -72,6 +72,11 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
             le.data.claimableBalance() =
                 LedgerTestUtils::generateValidClaimableBalanceEntry();
             break;
+        case LIQUIDITY_POOL:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONTRACT_DATA:
+        case CONFIG_SETTING:
+#endif
         default:
             abort();
         }
