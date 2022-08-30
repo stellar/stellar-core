@@ -391,6 +391,8 @@ generateScaledLiveEntries(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONFIG_SETTING:
         case CONTRACT_DATA:
+            // Don't do anything for now.
+            break;
 #endif
         default:
             abort();
