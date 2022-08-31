@@ -97,7 +97,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 TCPPeer::~TCPPeer()
 {
     assertThreadIsMain();
-    mRecurringTimer.cancel();
+    Peer::shutdown();
     if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events

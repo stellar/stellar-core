@@ -110,7 +110,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     mDropReason = reason;
     mState = CLOSING;
-    mRecurringTimer.cancel();
+    Peer::shutdown();
     getApp().getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();
