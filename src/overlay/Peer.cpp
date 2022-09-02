@@ -1033,7 +1033,6 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     {
         msgQInd = 2;
         size_t s = msg->floodDemand().txHashes.size();
-        releaseAssert(s <= INT32_MAX - mDemandQueueTxHashCount);
         mDemandQueueTxHashCount += s;
     }
     break;
@@ -1041,7 +1040,6 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     {
         msgQInd = 3;
         size_t s = msg->floodAdvert().txHashes.size();
-        releaseAssert(s <= INT32_MAX - mAdvertQueueTxHashCount);
         mAdvertQueueTxHashCount += s;
     }
     break;

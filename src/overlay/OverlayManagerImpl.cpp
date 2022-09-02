@@ -1154,7 +1154,7 @@ size_t
 OverlayManagerImpl::getMaxAdvertSize() const
 {
     auto const& cfg = mApp.getConfig();
-    long ledgerCloseTime =
+    auto ledgerCloseTime =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             cfg.getExpectedLedgerCloseTime())
             .count();
@@ -1178,7 +1178,7 @@ size_t
 OverlayManagerImpl::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
-    long ledgerCloseTime =
+    auto ledgerCloseTime =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             cfg.getExpectedLedgerCloseTime())
             .count();

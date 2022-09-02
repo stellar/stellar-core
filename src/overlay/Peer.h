@@ -324,8 +324,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // How many _hashes_ in total are queued?
     // NB: Each advert & demand contains a _vector_ of tx hashes.
-    uint32_t mAdvertQueueTxHashCount{0};
-    uint32_t mDemandQueueTxHashCount{0};
+    size_t mAdvertQueueTxHashCount{0};
+    size_t mDemandQueueTxHashCount{0};
 
     // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
     // of flood messages, then periodically flush the advert and await a
