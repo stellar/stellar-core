@@ -12,6 +12,7 @@ log = "0.4.17"
 cxx = "1.0"
 im-rc = "15.0.0"
 base64 = "0.13.0"
-soroban-env-host = { git = "https://github.com/stellar/rs-soroban-env", rev = "86926179", features = [
+soroban-env-host = { git = "https://github.com/stellar/rs-soroban-env", rev = "3e9bd46", features = [
     "vm",
 ] }
+soroban-test-wasms = { git = "https://github.com/stellar/rs-soroban-env", rev = "3e9bd46" }

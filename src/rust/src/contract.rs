@@ -10,16 +10,16 @@ use cxx::{CxxVector, UniquePtr};
 use log::info;
 use std::{cell::RefCell, fmt::Display, io::Cursor, pin::Pin, rc::Rc};
 
-use im_rc::OrdMap;
 use soroban_env_host::{
+    budget::Budget,
     storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
         HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
         LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode,
-        ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256
+        ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256,
     },
-    Host, HostError,
+    Host, HostError, MeteredOrdMap,
 };
 use std::error::Error;
 
@@ -87,7 +87,7 @@ pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
 /// [`AccessType`] `ty` into a [`storage::Footprint`] for every [`LedgerKey`] in
 /// `keys`.
 fn populate_access_map(
-    access: &mut OrdMap<LedgerKey, AccessType>,
+    access: &mut MeteredOrdMap<LedgerKey, AccessType>,
     keys: Vec<LedgerKey>,
     ty: AccessType,
 ) -> Result<(), ContractError> {
@@ -96,7 +96,7 @@ fn populate_access_map(
             LedgerKey::Account(_) | LedgerKey::Trustline(_) | LedgerKey::ContractData(_) => (),
             _ => return Err(ContractError::General("unexpected ledger entry type")),
         };
-        access.insert(lk, ty.clone());
+        access.insert(lk, ty.clone())?;
     }
     Ok(())
 }
@@ -105,13 +105,14 @@ fn populate_access_map(
 /// its entries to an [`OrdMap`], and returns a [`storage::Footprint`]
 /// containing that map.
 fn build_storage_footprint_from_xdr(
+    budget: Budget,
     footprint: &XDRBuf,
 ) -> Result<storage::Footprint, ContractError> {
     let xdr::LedgerFootprint {
         read_only,
         read_write,
     } = xdr::LedgerFootprint::read_xdr(&mut Cursor::new(footprint.data.as_slice()))?;
-    let mut access = OrdMap::new();
+    let mut access = MeteredOrdMap::new(budget)?;
 
     populate_access_map(&mut access, read_only.to_vec(), AccessType::ReadOnly)?;
     populate_access_map(&mut access, read_write.to_vec(), AccessType::ReadWrite)?;
@@ -140,23 +141,24 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, ContractErr
 /// additionally keyed by the provided contract ID, checks that the entries
 /// match the provided [`storage::Footprint`], and returns the constructed map.
 fn build_storage_map_from_xdr_ledger_entries(
+    budget: Budget,
     footprint: &storage::Footprint,
     ledger_entries: &Vec<XDRBuf>,
-) -> Result<OrdMap<LedgerKey, Option<LedgerEntry>>, ContractError> {
-    let mut map = OrdMap::new();
+) -> Result<MeteredOrdMap<LedgerKey, Option<LedgerEntry>>, ContractError> {
+    let mut map = MeteredOrdMap::new(budget)?;
     for buf in ledger_entries {
         let le = xdr_from_xdrbuf::<LedgerEntry>(buf)?;
         let key = ledger_entry_to_ledger_key(&le)?;
-        if !footprint.0.contains_key(&key) {
+        if !footprint.0.contains_key(&key)? {
             return Err(ContractError::General(
                 "ledger entry not found in footprint",
             ));
         }
-        map.insert(key, Some(le));
+        map.insert(key, Some(le))?;
     }
-    for k in footprint.0.keys() {
-        if !map.contains_key(k) {
-            map.insert(k.clone(), None);
+    for k in footprint.0.keys()? {
+        if !map.contains_key(k)? {
+            map.insert(k.clone(), None)?;
         }
     }
     Ok(map)
@@ -166,11 +168,11 @@ fn build_storage_map_from_xdr_ledger_entries(
 /// back to XDR.
 fn build_xdr_ledger_entries_from_storage_map(
     footprint: &storage::Footprint,
-    storage_map: &OrdMap<LedgerKey, Option<LedgerEntry>>,
+    storage_map: &MeteredOrdMap<LedgerKey, Option<LedgerEntry>>,
 ) -> Result<Vec<Bytes>, ContractError> {
     let mut res = Vec::new();
     for (lk, ole) in storage_map {
-        match footprint.0.get(lk) {
+        match footprint.0.get(lk)? {
             Some(AccessType::ReadOnly) => (),
             Some(AccessType::ReadWrite) => {
                 if let Some(le) = ole {
@@ -194,14 +196,16 @@ pub(crate) fn invoke_host_function(
     footprint_buf: &XDRBuf,
     ledger_entries: &Vec<XDRBuf>,
 ) -> Result<Vec<Bytes>, Box<dyn Error>> {
+    let budget = Budget::default();
     let hf = xdr_from_xdrbuf::<HostFunction>(&hf_buf)?;
     let args = xdr_from_xdrbuf::<ScVec>(&args_buf)?;
 
-    let footprint = build_storage_footprint_from_xdr(footprint_buf)?;
-    let map = build_storage_map_from_xdr_ledger_entries(&footprint, ledger_entries)?;
+    let footprint = build_storage_footprint_from_xdr(budget.clone(), footprint_buf)?;
+    let map =
+        build_storage_map_from_xdr_ledger_entries(budget.clone(), &footprint, ledger_entries)?;
 
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
-    let host = Host::with_storage(storage);
+    let host = Host::with_storage_and_budget(storage, budget);
 
     match hf {
         HostFunction::Call => {
@@ -214,8 +218,8 @@ pub(crate) fn invoke_host_function(
         }
     };
 
-    let storage = host
-        .recover_storage()
+    let (storage, _budget, _events) = host
+        .try_finish()
         .map_err(|_h| ContractError::General("could not get storage from host"))?;
     Ok(build_xdr_ledger_entries_from_storage_map(
         &storage.footprint,
@@ -288,15 +292,15 @@ pub(crate) fn preflight_host_function(
     let pfc = Rc::new(Pfc(RefCell::new(cb)));
     let src: Rc<dyn SnapshotSource> = pfc.clone() as Rc<dyn SnapshotSource>;
     let storage = Storage::with_recording_footprint(src);
-    let host = Host::with_storage(storage);
+    let budget = Budget::default();
+    let host = Host::with_storage_and_budget(storage, budget);
     let val = host.invoke_function(hf, args)?;
 
     // Recover, convert and return the storage footprint and other values to C++.
-    let (cpu_insns, mem_bytes) =
-        host.get_budget(|budget| (budget.cpu_insns.get_count(), budget.mem_bytes.get_count()));
-    let storage = host
-        .recover_storage()
+    let (storage, budget, _events) = host
+        .try_finish()
         .map_err(|_| ContractError::General("could not get storage from host"))?;
+    let (cpu_insns, mem_bytes) = (budget.get_cpu_insns_count(), budget.get_mem_bytes_count());
     let val_vec = xdr_to_vec_u8(&val)?;
     let foot_vec = xdr_to_vec_u8(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
     pfc.with_cb(|cb| cb.set_result_value(&val_vec))?;
