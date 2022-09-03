@@ -2213,6 +2213,9 @@
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
+    <ClInclude Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\util\xdrquery\XDRQuery.h">
       <Filter>util\xdrquery</Filter>
     </ClInclude>

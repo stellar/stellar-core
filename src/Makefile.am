@@ -9,10 +9,18 @@ include $(srcdir)/src.mk
 noinst_HEADERS = $(SRC_H_FILES)
 
 if BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
 else # !BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp $(SRC_CXX_FILES)
+stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile.am $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+else
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile.am $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
+endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
@@ -25,7 +33,7 @@ TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-co
              $(TESTDATA_DIR)/stellar-core_testnet_validator.cfg $(TESTDATA_DIR)/stellar-core_example_validators.cfg \
              $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json
 
-BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp $(TEST_FILES)
+BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h .rs

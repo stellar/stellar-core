@@ -16,6 +16,7 @@
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/XDRCereal.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <autocheck/autocheck.hpp>
@@ -27,44 +28,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-std::vector<uint8_t>
-get_testdata(std::string const& filename)
-{
-    std::filesystem::path fnPath("testdata");
-    fnPath /= filename;
-    std::ifstream in(fnPath);
-    REQUIRE(in);
-    in.exceptions(std::ios::badbit);
-    return std::vector<uint8_t>{std::istreambuf_iterator<char>(in), {}};
-}
-
-// Example WASM files are, for the time being, compiled from the SDK repo
-// and then copied into this repo. They need to be regenerated anytime
-// the environment interface version number changes, at minimum.
-//
-// To regenerate, check out the SDK, install a nightly toolchain with
-// the rust-src component (to enable the 'tiny' build) using the following:
-//
-//  $ rustup component add rust-src --toolchain nightly
-//
-// clang-format off
-// then do:
-// $ make -C $SDK build
-// $ cp $SDK/target-tiny/wasm32-unknown-unknown/release/example_*.wasm $CORE/src/testdata/
-// clang-format on
-
-std::vector<uint8_t>
-get_example_i32_wasm()
-{
-    return get_testdata("example_add_i32.wasm");
-}
-
-std::vector<uint8_t>
-get_example_contract_data_wasm()
-{
-    return get_testdata("example_contract_data.wasm");
-}
-
 template <typename T>
 SCVal
 makeBinary(T begin, T end)
@@ -72,6 +35,17 @@ makeBinary(T begin, T end)
     SCVal val(SCValType::SCV_OBJECT);
     val.obj().activate().type(SCO_BYTES);
     val.obj()->bin().assign(begin, end);
+    return val;
+}
+
+template <typename T>
+SCVal
+makeContract(T begin, T end)
+{
+    SCVal val(SCValType::SCV_OBJECT);
+    val.obj().activate().type(stellar::SCO_CONTRACT_CODE);
+    val.obj()->contractCode().type(stellar::SCCONTRACT_CODE_WASM);
+    val.obj()->contractCode().wasm().assign(begin, end);
     return val;
 }
 
@@ -92,9 +66,9 @@ makeSymbol(std::string const& str)
 }
 
 static LedgerKey
-createContract(Application& app, std::vector<uint8_t> const& contract,
-               uint256 const& salt, PublicKey const& pub, Signature const& sig,
-               bool expectSuccess, bool expectEntry)
+createContract(Application& app, Bytes const& contract, uint256 const& salt,
+               PublicKey const& pub, Signature const& sig, bool expectSuccess,
+               bool expectEntry)
 {
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519);
@@ -108,7 +82,9 @@ createContract(Application& app, std::vector<uint8_t> const& contract,
     auto& ihf = op.body.invokeHostFunctionOp();
     ihf.function = HOST_FN_CREATE_CONTRACT;
 
-    auto contractBin = makeBinary(contract.begin(), contract.end());
+    auto contractCodeObj =
+        makeContract(contract.vec.begin(), contract.vec.end());
+    auto contractBin = makeBinary(contract.vec.begin(), contract.vec.end());
     ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end()),
                       makeBinary(pub.ed25519().begin(), pub.ed25519().end()),
                       makeBinary(sig.begin(), sig.end())};
@@ -136,14 +112,17 @@ createContract(Application& app, std::vector<uint8_t> const& contract,
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
     REQUIRE((bool)ltxe2 == expectEntry);
+    // FIXME: it's a little weird that we put a contractBin in and get a
+    // contractCodeObj out. This is probably a residual error from before an API
+    // change. See https://github.com/stellar/rs-soroban-env/issues/369
     REQUIRE((!expectEntry ||
-             ltxe2.current().data.contractData().val == contractBin));
+             ltxe2.current().data.contractData().val == contractCodeObj));
 
     return lk;
 }
 
 static LedgerKey
-deployContract(Application& app, std::vector<uint8_t> const& contract)
+deployContract(Application& app, Bytes const& contract)
 {
     uint256 salt = sha256("salt");
     auto key = SecretKey::fromSeed(sha256("a1"));
@@ -167,8 +146,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
 
-    auto const addI32Wasm = get_example_i32_wasm();
-    auto const contractDataWasm = get_example_contract_data_wasm();
+    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
+    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
     SECTION("add i32")
     {

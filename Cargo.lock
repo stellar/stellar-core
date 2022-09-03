@@ -205,6 +205,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90e5c1c8368803113bf0c9584fc495a58b86dc8a29edbf8fe877d21d9507e797"
+
+[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -249,6 +255,15 @@ dependencies = [
  "sized-chunks",
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9a9d19fa1e79b6215ff29b9d6880b706147f16e9b1dbb1e4e5947b5b02bc5e3"
+dependencies = [
+ "either",
 ]
 
 [[package]]
@@ -499,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-common"
-version = "0.0.3"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f2a07a2f4c8f684b5e0bc1013937339300d6c8112b76c6c46bbefc47bdd5905"
+checksum = "a81f987a86e74a5bacb3514a71faa6f93837c53770b4d957f7dcfa89ff41f37a"
 dependencies = [
  "soroban-env-macros",
  "soroban-wasmi",
@@ -511,8 +526,8 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-host"
-version = "0.0.3"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=86926179#86926179a0f063cad09129e5825712f56011f2ce"
+version = "0.0.4"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=3e9bd46#3e9bd4632c9a5b860d1e961f2fb9645a8b2dceca"
 dependencies = [
  "backtrace",
  "dyn-fmt",
@@ -526,23 +541,41 @@ dependencies = [
  "parity-wasm",
  "sha2 0.10.2",
  "soroban-env-common",
+ "soroban-native-sdk-macros",
  "soroban-wasmi",
  "static_assertions",
- "thiserror",
  "tinyvec",
 ]
 
 [[package]]
 name = "soroban-env-macros"
-version = "0.0.3"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92e07a8cf5452fce96ce19df1ba6874e6f92b2dc64302c71aa8460349c08cedc"
+checksum = "1a0c8bacf4c42da79ccfd6ded455e10f94260bee69faca3b6e63bfe8f32c5dac"
 dependencies = [
+ "itertools",
  "proc-macro2",
  "quote",
  "stellar-xdr",
  "syn",
 ]
+
+[[package]]
+name = "soroban-native-sdk-macros"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d215e296e6e9ca60fc4d315ef8f3d985b43ce1ab63e4afc001bd0daa07e17640"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "soroban-test-wasms"
+version = "0.0.4"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=3e9bd46#3e9bd4632c9a5b860d1e961f2fb9645a8b2dceca"
 
 [[package]]
 name = "soroban-wasmi"
@@ -593,13 +626,17 @@ dependencies = [
  "im-rc",
  "log",
  "soroban-env-host",
+ "soroban-test-wasms",
 ]
 
 [[package]]
 name = "stellar-xdr"
-version = "0.0.1"
+version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "015594b09942b9f9cbe6972ba8c7de3a05a25c4994bbc7282f5f2fa6d28a81c4"
+checksum = "39e86631f8eb830e3ef9cc62e2f242f22eb8e359fa838e5c0dd08aedffc02beb"
+dependencies = [
+ "base64",
+]
 
 [[package]]
 name = "subtle"
@@ -628,26 +665,6 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
-]
-
-[[package]]
-name = "thiserror"
-version = "1.0.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd829fe32373d27f76265620b5309d0340cb8550f523c1dda251d6298069069a"
-dependencies = [
- "thiserror-impl",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "1.0.31"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0396bc89e626244658bef819e22d0cc459e795a5ebe878e6ec336d1674a8d79a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

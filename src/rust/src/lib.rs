@@ -21,6 +21,12 @@ mod rust_bridge {
         vec: Vec<u8>,
     }
 
+    // We return these from get_xdr_hashes below.
+    struct XDRFileHash {
+        file: String,
+        hash: String,
+    }
+
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
@@ -39,6 +45,7 @@ mod rust_bridge {
     extern "Rust" {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
+        fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
             hf_buf: &XDRBuf,
             args: &XDRBuf,
@@ -51,6 +58,10 @@ mod rust_bridge {
             cb: UniquePtr<PreflightCallbacks>,
         ) -> Result<()>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
+
+        // Accessors for test wasms, compiled into soroban-test-wasms crate.
+        fn get_test_wasm_add_i32() -> Result<Bytes>;
+        fn get_test_wasm_contract_data() -> Result<Bytes>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -89,6 +100,9 @@ mod b64;
 use b64::{from_base64, to_base64};
 
 mod contract;
+use contract::get_test_wasm_add_i32;
+use contract::get_test_wasm_contract_data;
+use contract::get_xdr_hashes;
 use contract::invoke_host_function;
 use contract::preflight_host_function;
 
