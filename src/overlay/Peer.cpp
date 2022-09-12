@@ -2106,6 +2106,8 @@ Peer::sendTxDemand(TxDemandVector&& demands)
         CLOG_TRACE(Overlay, "Peer::sendTxDemand -- demanding {} txns from {}",
                    msg->floodDemand().txHashes.size(),
                    mApp.getConfig().toShortString(getPeerID()));
+        getOverlayMetrics().mMessagesDemanded.Mark(
+            msg->floodDemand().txHashes.size());
         mApp.postOnMainThread(
             [weak, msg = std::move(msg)]() {
                 auto strong = weak.lock();
@@ -2115,7 +2117,6 @@ Peer::sendTxDemand(TxDemandVector&& demands)
                 }
             },
             "sendTxDemand");
-        getOverlayMetrics().mMessagesDemanded.Mark(demands.size());
         ++mPeerMetrics.mTxDemandSent;
     }
 }
