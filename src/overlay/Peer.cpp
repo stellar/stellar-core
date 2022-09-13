@@ -66,6 +66,8 @@ Peer::Peer(Application& app, PeerRole role)
     , mFlowControlState(Peer::FlowControlState::DONT_KNOW)
     , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
                 app.getConfig().PEER_READING_CAPACITY}
+    , mTxAdvertQueue(app)
+    , mAdvertTimer(app)
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
@@ -300,6 +302,12 @@ Peer::getFlowControlJsonInfo(bool compact) const
         res["outbound_queue_delay_txs_p75"] = static_cast<Json::UInt64>(
             mPeerMetrics.mOutboundQueueDelayTxs.GetSnapshot()
                 .get75thPercentile());
+        res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
+                .get75thPercentile());
+        res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
+                .get75thPercentile());
     }
 
     return res;
@@ -315,6 +323,7 @@ Peer::getJsonInfo(bool compact) const
     res["ver"] = getRemoteVersion();
     res["olver"] = (int)getRemoteOverlayVersion();
     res["flow_control"] = getFlowControlJsonInfo(compact);
+    res["pull_mode"] = isPullModeEnabled();
     if (!compact)
     {
         res["message_read"] =
@@ -357,6 +366,10 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
+    if (mApp.getConfig().ENABLE_PULL_MODE)
+    {
+        msg.auth().flags = AUTH_MSG_FLAG_PULL_MODE_REQUESTED;
+    }
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -365,6 +378,18 @@ std::string const&
 Peer::toString()
 {
     return mAddress.toString();
+}
+
+void
+Peer::shutdown()
+{
+    if (mShuttingDown)
+    {
+        return;
+    }
+    mShuttingDown = true;
+    mRecurringTimer.cancel();
+    mAdvertTimer.cancel();
 }
 
 void
@@ -566,6 +591,10 @@ Peer::msgSummary(StellarMessage const& msg)
         return SurveyManager::getMsgSummary(msg);
     case SEND_MORE:
         return "SENDMORE";
+    case FLOOD_ADVERT:
+        return "FLODADVERT";
+    case FLOOD_DEMAND:
+        return "FLOODDEMAND";
     }
     return "UNKNOWN";
 }
@@ -643,6 +672,12 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         break;
     case SEND_MORE:
         getOverlayMetrics().mSendSendMoreMeter.Mark();
+        break;
+    case FLOOD_ADVERT:
+        getOverlayMetrics().mSendFloodAdvertMeter.Mark();
+        break;
+    case FLOOD_DEMAND:
+        getOverlayMetrics().mSendFloodDemandMeter.Mark();
         break;
     };
 
@@ -981,18 +1016,50 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 
     releaseAssert(msg);
     auto type = msg->type();
-    auto& queue = type == SCP_MESSAGE ? mOutboundQueues[0] : mOutboundQueues[1];
+    size_t msgQInd = 0;
+    switch (type)
+    {
+    case SCP_MESSAGE:
+    {
+        msgQInd = 0;
+    }
+    break;
+    case TRANSACTION:
+    {
+        msgQInd = 1;
+    }
+    break;
+    case FLOOD_DEMAND:
+    {
+        msgQInd = 2;
+        size_t s = msg->floodDemand().txHashes.size();
+        mDemandQueueTxHashCount += s;
+    }
+    break;
+    case FLOOD_ADVERT:
+    {
+        msgQInd = 3;
+        size_t s = msg->floodAdvert().txHashes.size();
+        mAdvertQueueTxHashCount += s;
+    }
+    break;
+    default:
+        abort();
+    }
+    auto& queue = mOutboundQueues[msgQInd];
+
     queue.emplace_back(QueuedOutboundMessage{msg, mApp.getClock().now()});
 
     size_t dropped = 0;
 
+    uint32_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     if (type == TRANSACTION)
     {
-        uint32_t limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
         if (queue.size() > limit)
         {
             dropped = queue.size() - limit;
             queue.erase(queue.begin(), queue.begin() + dropped);
+            getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
         }
     }
     else if (type == SCP_MESSAGE)
@@ -1028,12 +1095,37 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
                 ++it;
             }
         }
+        getOverlayMetrics().mOutboundQueueDropSCP.Mark(dropped);
+    }
+    else if (type == FLOOD_ADVERT)
+    {
+        while (mAdvertQueueTxHashCount > limit)
+        {
+            dropped++;
+            size_t s = queue.front().mMessage->floodAdvert().txHashes.size();
+            releaseAssert(mAdvertQueueTxHashCount >= s);
+            mAdvertQueueTxHashCount -= s;
+            queue.pop_front();
+        }
+        getOverlayMetrics().mOutboundQueueDropAdvert.Mark(dropped);
+    }
+    else if (type == FLOOD_DEMAND)
+    {
+        while (mDemandQueueTxHashCount > limit)
+        {
+            dropped++;
+            size_t s = queue.front().mMessage->floodDemand().txHashes.size();
+            releaseAssert(mDemandQueueTxHashCount >= s);
+            mDemandQueueTxHashCount -= s;
+            queue.pop_front();
+        }
+        getOverlayMetrics().mOutboundQueueDropDemand.Mark(dropped);
     }
 
     if (dropped && Logging::logTrace("Overlay"))
     {
         CLOG_TRACE(Overlay, "Dropped {} {} messages to peer {}", dropped,
-                   (type == TRANSACTION ? "tx" : "SCP"),
+                   xdr::xdr_traits<MessageType>::enum_name(type),
                    mApp.getConfig().toShortString(getPeerID()));
     }
 }
@@ -1054,16 +1146,44 @@ Peer::maybeSendNextBatch()
             auto& front = queue.front();
             sendAuthenticatedMessage(*(front.mMessage));
             auto& om = mApp.getOverlayManager().getOverlayMetrics();
-            auto& aggregateTimer = front.mMessage->type() == SCP_MESSAGE
-                                       ? om.mOutboundQueueDelaySCP
-                                       : om.mOutboundQueueDelayTxs;
-            auto& peerTimer = front.mMessage->type() == SCP_MESSAGE
-                                  ? mPeerMetrics.mOutboundQueueDelaySCP
-                                  : mPeerMetrics.mOutboundQueueDelayTxs;
+
             auto const& diff = mApp.getClock().now() - front.mTimeEmplaced;
-            aggregateTimer.Update(diff);
-            peerTimer.Update(diff);
             mOutboundCapacity--;
+            switch (front.mMessage->type())
+            {
+            case TRANSACTION:
+            {
+                om.mOutboundQueueDelayTxs.Update(diff);
+                mPeerMetrics.mOutboundQueueDelayTxs.Update(diff);
+            }
+            break;
+            case SCP_MESSAGE:
+            {
+                om.mOutboundQueueDelaySCP.Update(diff);
+                mPeerMetrics.mOutboundQueueDelaySCP.Update(diff);
+            }
+            break;
+            case FLOOD_DEMAND:
+            {
+                om.mOutboundQueueDelayDemand.Update(diff);
+                mPeerMetrics.mOutboundQueueDelayDemand.Update(diff);
+                size_t s = front.mMessage->floodDemand().txHashes.size();
+                releaseAssert(mDemandQueueTxHashCount >= s);
+                mDemandQueueTxHashCount -= s;
+            }
+            break;
+            case FLOOD_ADVERT:
+            {
+                om.mOutboundQueueDelayAdvert.Update(diff);
+                mPeerMetrics.mOutboundQueueDelayAdvert.Update(diff);
+                size_t s = front.mMessage->floodAdvert().txHashes.size();
+                releaseAssert(mAdvertQueueTxHashCount >= s);
+                mAdvertQueueTxHashCount -= s;
+            }
+            break;
+            default:
+                abort();
+            }
             if (mOutboundCapacity == 0)
             {
                 CLOG_DEBUG(Overlay, "No outbound capacity for peer {}",
@@ -1265,6 +1385,19 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         recvSendMore(stellarMsg);
     }
     break;
+
+    case FLOOD_ADVERT:
+    {
+        auto t = getOverlayMetrics().mRecvFloodAdvertTimer.TimeScope();
+        recvFloodAdvert(stellarMsg);
+    }
+    break;
+
+    case FLOOD_DEMAND:
+    {
+        auto t = getOverlayMetrics().mRecvFloodDemandTimer.TimeScope();
+        recvFloodDemand(stellarMsg);
+    }
     }
 }
 
@@ -1366,6 +1499,15 @@ Peer::recvTransaction(StellarMessage const& msg)
         Hash msgID;
         mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
                                                   msgID);
+
+        if (isPullModeEnabled())
+        {
+            // It does not make sense to record the latency if the transaction
+            // is coming from a node that we didn't demand it from.
+            // Peers with pull mode enabled should send txns only if demanded.
+            mApp.getOverlayManager().recordTxPullLatency(
+                transaction->getFullHash());
+        }
 
         // add it to our current set
         // and make sure it is valid
@@ -1765,6 +1907,15 @@ Peer::recvAuth(StellarMessage const& msg)
         sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
     }
 
+    if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
+        mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
+            Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
+        msg.auth().flags == AUTH_MSG_FLAG_PULL_MODE_REQUESTED &&
+        mApp.getConfig().ENABLE_PULL_MODE)
+    {
+        mPullModeEnabled = true;
+    }
+
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
     sendGetScpState(low);
@@ -1840,6 +1991,18 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
         msg, shared_from_this());
 }
 
+void
+Peer::recvFloodAdvert(StellarMessage const& msg)
+{
+    mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
+}
+
+void
+Peer::recvFloodDemand(StellarMessage const& msg)
+{
+    fulfillDemand(msg.floodDemand());
+}
+
 Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     : mMessageRead(0)
     , mMessageWrite(0)
@@ -1860,6 +2023,12 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mOutboundQueueDelayTxs(medida::Timer(PEER_METRICS_DURATION_UNIT,
                                            PEER_METRICS_RATE_UNIT,
                                            PEER_METRICS_WINDOW_SIZE))
+    , mOutboundQueueDelayAdvert(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                              PEER_METRICS_RATE_UNIT,
+                                              PEER_METRICS_WINDOW_SIZE))
+    , mOutboundQueueDelayDemand(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                              PEER_METRICS_RATE_UNIT,
+                                              PEER_METRICS_WINDOW_SIZE))
     , mUniqueFloodBytesRecv(0)
     , mDuplicateFloodBytesRecv(0)
     , mUniqueFetchBytesRecv(0)
@@ -1868,7 +2037,156 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mDuplicateFloodMessageRecv(0)
     , mUniqueFetchMessageRecv(0)
     , mDuplicateFetchMessageRecv(0)
+    , mTxHashReceived(0)
     , mConnectedTime(connectedTime)
+    , mMessagesFulfilled(0)
+    , mBannedMessageUnfulfilled(0)
+    , mUnknownMessageUnfulfilled(0)
 {
 }
+
+bool
+Peer::isPullModeEnabled() const
+{
+    return mPullModeEnabled;
+}
+
+void
+Peer::queueTxHashToAdvertise(Hash const& txHash)
+{
+    if (mTxHashesToAdvertise.empty())
+    {
+        startAdvertTimer();
+    }
+
+    if (mTxHashesToAdvertise.size() == TX_ADVERT_VECTOR_MAX_SIZE)
+    {
+        CLOG_TRACE(Overlay,
+                   "mTxHashesToAdvertise is full, dropping the txn hash");
+        return;
+    }
+
+    mTxHashesToAdvertise.emplace_back(txHash);
+
+    // Flush adverts at the earliest of the following two conditions:
+    // 1. The number of hashes reaches the threshold.
+    // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
+    if (mTxHashesToAdvertise.size() ==
+        mApp.getOverlayManager().getMaxAdvertSize())
+    {
+        flushAdvert();
+    }
+}
+
+void
+Peer::startAdvertTimer()
+{
+    if (shouldAbort())
+    {
+        return;
+    }
+    mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
+    mAdvertTimer.async_wait([this](asio::error_code const& error) {
+        if (!error)
+        {
+            flushAdvert();
+        }
+    });
+}
+
+void
+Peer::sendTxDemand(TxDemandVector&& demands)
+{
+    if (demands.size() > 0)
+    {
+        auto msg = std::make_shared<StellarMessage>();
+        msg->type(FLOOD_DEMAND);
+        msg->floodDemand().txHashes = std::move(demands);
+        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+        CLOG_TRACE(Overlay, "Peer::sendTxDemand -- demanding {} txns from {}",
+                   msg->floodDemand().txHashes.size(),
+                   mApp.getConfig().toShortString(getPeerID()));
+        getOverlayMetrics().mMessagesDemanded.Mark(
+            msg->floodDemand().txHashes.size());
+        mApp.postOnMainThread(
+            [weak, msg = std::move(msg)]() {
+                auto strong = weak.lock();
+                if (strong)
+                {
+                    strong->sendMessage(msg);
+                }
+            },
+            "sendTxDemand");
+        ++mPeerMetrics.mTxDemandSent;
+    }
+}
+
+void
+Peer::flushAdvert()
+{
+    if (mTxHashesToAdvertise.size() > 0)
+    {
+        StellarMessage adv;
+        adv.type(FLOOD_ADVERT);
+
+        adv.floodAdvert().txHashes = std::move(mTxHashesToAdvertise);
+        mTxHashesToAdvertise.clear();
+        auto msg = std::make_shared<StellarMessage>(adv);
+        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+        CLOG_TRACE(Overlay, "Peer::flushAdvert -- flushing {} tx hashes to {}",
+                   msg->floodAdvert().txHashes.size(),
+                   mApp.getConfig().toShortString(getPeerID()));
+        mApp.postOnMainThread(
+            [weak, msg = std::move(msg)]() {
+                auto strong = weak.lock();
+                if (strong)
+                {
+                    strong->sendMessage(msg);
+                }
+            },
+            "flushAdvert");
+    }
+}
+
+void
+Peer::fulfillDemand(FloodDemand const& dmd)
+{
+    ZoneScoped;
+    auto& herder = mApp.getHerder();
+
+    for (auto const& h : dmd.txHashes)
+    {
+        auto tx = herder.getTx(h);
+        if (tx)
+        {
+            // The tx exists
+            CLOG_TRACE(Overlay, "fulfilled demand for {} demanded by {}",
+                       hexAbbrev(h), KeyUtils::toShortString(getPeerID()));
+            mPeerMetrics.mMessagesFulfilled++;
+            getOverlayMetrics().mMessagesFulfilledMeter.Mark();
+            auto smsg =
+                std::make_shared<StellarMessage>(tx->toStellarMessage());
+            sendMessage(smsg);
+        }
+        else
+        {
+            auto banned = herder.isBannedTx(h);
+            CLOG_TRACE(Overlay,
+                       "can't fulfill demand for {} hash {} demanded by {}",
+                       banned ? "banned" : "unknown", hexAbbrev(h),
+                       KeyUtils::toShortString(getPeerID()));
+            if (banned)
+            {
+                getOverlayMetrics().mBannedMessageUnfulfilledMeter.Mark();
+                mPeerMetrics.mBannedMessageUnfulfilled++;
+            }
+            else
+            {
+                getOverlayMetrics().mUnknownMessageUnfulfilledMeter.Mark();
+                mPeerMetrics.mUnknownMessageUnfulfilled++;
+            }
+        }
+    }
+}
+
 }

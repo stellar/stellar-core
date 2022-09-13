@@ -70,6 +70,7 @@ overlay.async.read                       | meter     | number of async read requ
 overlay.async.write                      | meter     | number of async write requests issued
 overlay.connection.authenticated         | counter   | number of authenticated peers
 overlay.flow-control.percentage          | counter   | percentage of authenticated connections that enable flow control
+overlay.pull-mode.percentage             | counter   | percentage of authenticated connections that enable pull mode
 overlay.connection.latency               | timer     | estimated latency between peers
 overlay.connection.pending               | counter   | number of pending connections
 overlay.delay.async-write                | timer     | time between each message's async write issue and completion
@@ -78,6 +79,13 @@ overlay.error.read                       | meter     | error while receiving a m
 overlay.error.write                      | meter     | error while sending a message
 overlay.fetch.txset                      | timer     | time to complete fetching of a txset
 overlay.fetch.qset                       | timer     | time to complete fetching of a qset
+overlay.flood.advertised                 | meter     | transactions advertised through pull mode
+overlay.flood.demanded                   | meter     | transactions demanded through pull mode
+overlay.flood.fulfilled                  | meter     | demanded transactions fulfilled through pull mode
+overlay.flood.unfulfilled-banned         | meter     | transactions we failed to fulfilled since they are banned
+overlay.flood.unfulfilled-unknown        | meter     | transactions we failed to fulfilled since they are unknown
+overlay.flood.tx-pull-latency            | timer     | time between the first demand and the first time we receive the txn
+overlay.flood.abandoned-demands          | meter     | tx hash pull demands that no peers responded
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
 overlay.flood.duplicate_recv             | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                | meter     | number of bytes of flooded messages that have not yet been received
@@ -85,8 +93,8 @@ overlay.inbound.attempt                  | meter     | inbound connection attemp
 overlay.inbound.drop                     | meter     | inbound connection dropped
 overlay.inbound.establish                | meter     | inbound connection established (added to pending)
 overlay.inbound.reject                   | meter     | inbound connection rejected
-overlay.outbound-queue.scp               | timer     | time SCP traffic sits in flow-controlled queues
-overlay.outbound-queue.tx                | timer     | time tx traffic sits in flow-controlled queues
+overlay.outbound-queue.<X>               | timer     | time <X> traffic sits in flow-controlled queues
+overlay.outbound-queue.drop-<X>          | meter     | number of <X> messages dropped from flow-controlled queues
 overlay.item-fetcher.next-peer           | meter     | ask for item past the first one
 overlay.memory.flood-known               | counter   | number of known flooded entries
 overlay.message.broadcast                | meter     | message broadcasted

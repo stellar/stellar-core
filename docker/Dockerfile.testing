@@ -17,7 +17,7 @@ ARG CC=clang-10
 ARG CXX=clang++-10
 ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
 ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
-ARG CONFIGURE_FLAGS
+ARG CONFIGURE_FLAGS='--enable-tracy'
 
 RUN ./autogen.sh
 RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" ${CONFIGURE_FLAGS}

@@ -1982,4 +1982,22 @@ HerderImpl::isNewerNominationOrBallotSt(SCPStatement const& oldSt,
     return getSCP().isNewerNominationOrBallotSt(oldSt, newSt);
 }
 
+size_t
+HerderImpl::getMaxQueueSizeOps() const
+{
+    return mTransactionQueue.getMaxQueueSizeOps();
+}
+
+bool
+HerderImpl::isBannedTx(Hash const& hash) const
+{
+    return mTransactionQueue.isBanned(hash);
+}
+
+TransactionFrameBaseConstPtr
+HerderImpl::getTx(Hash const& hash) const
+{
+    return mTransactionQueue.getTx(hash);
+}
+
 }

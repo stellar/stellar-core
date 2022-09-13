@@ -48,6 +48,7 @@ class Floodgate
     Application& mApp;
     medida::Counter& mFloodMapSize;
     medida::Meter& mSendFromBroadcast;
+    medida::Meter& mMessagesAdvertised;
     bool mShuttingDown;
 
   public:
@@ -60,7 +61,9 @@ class Floodgate
                    Hash& msgID);
 
     // returns true if msg was sent to at least one peer
-    bool broadcast(StellarMessage const& msg, bool force);
+    // The hash required for transactions
+    bool broadcast(StellarMessage const& msg, bool force,
+                   std::optional<Hash> const& hash = std::nullopt);
 
     // returns the list of peers that sent us the item with hash `msgID`
     // NB: `msgID` is the hash of a `StellarMessage`

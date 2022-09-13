@@ -981,6 +981,9 @@
     <ClCompile Include="..\..\src\overlay\Tracker.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\test\QuorumTrackerTests.cpp">
       <Filter>herder\test</Filter>
     </ClCompile>
@@ -1280,6 +1283,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\InvokeHostFunctionOpFrame.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp">
+      <Filter>overlay\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1938,6 +1944,9 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Tracker.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\QuorumTracker.h">

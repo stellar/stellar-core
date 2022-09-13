@@ -179,6 +179,10 @@ class HerderImpl : public Herder
     // helper function to verify SCPValues are signed
     bool verifyStellarValueSignature(StellarValue const& sv);
 
+    size_t getMaxQueueSizeOps() const override;
+    bool isBannedTx(Hash const& hash) const override;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
+
   private:
     // return true if values referenced by envelope have a valid close time:
     // * it's within the allowed range (using lcl if possible)

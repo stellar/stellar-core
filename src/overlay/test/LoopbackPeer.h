@@ -112,7 +112,7 @@ class LoopbackPeer : public Peer
         return mDropReason;
     }
 
-    std::array<std::deque<QueuedOutboundMessage>, 2>&
+    std::array<std::deque<QueuedOutboundMessage>, 4>&
     getQueues()
     {
         return mOutboundQueues;

@@ -498,6 +498,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\SurveyMessageLimiter.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp" />
@@ -729,6 +730,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\test\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
+    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
@@ -1062,6 +1064,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h" />
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
+    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
     <ClInclude Include="..\..\src\rust\CppShims.h" />

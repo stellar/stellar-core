@@ -244,6 +244,9 @@ class Config : public std::enable_shared_from_this<Config>
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE` messages
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
 
+    // Used to flood transactions lazily by first flooding their hashes.
+    bool ENABLE_PULL_MODE;
+
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;
@@ -393,6 +396,10 @@ class Config : public std::enable_shared_from_this<Config>
     int FLOOD_TX_PERIOD_MS;
     int32_t FLOOD_ARB_TX_BASE_ALLOWANCE;
     double FLOOD_ARB_TX_DAMPING_FACTOR;
+
+    std::chrono::milliseconds FLOOD_DEMAND_PERIOD_MS;
+    std::chrono::milliseconds FLOOD_ADVERT_PERIOD_MS;
+    std::chrono::milliseconds FLOOD_DEMAND_BACKOFF_DELAY_MS;
     static constexpr size_t const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr size_t const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
