@@ -1691,10 +1691,19 @@ Peer::updatePeerRecordAfterEcho()
 {
     releaseAssert(!getAddress().isEmpty());
 
-    auto type = mApp.getOverlayManager().isPreferred(this)
-                    ? PeerType::PREFERRED
-                    : mRole == WE_CALLED_REMOTE ? PeerType::OUTBOUND
-                                                : PeerType::INBOUND;
+    PeerType type;
+    if (mApp.getOverlayManager().isPreferred(this))
+    {
+        type = PeerType::PREFERRED;
+    }
+    else if (mRole == WE_CALLED_REMOTE)
+    {
+        type = PeerType::OUTBOUND;
+    }
+    else
+    {
+        type = PeerType::INBOUND;
+    }
     // Now that we've done authentication, we know whether this peer is
     // preferred or not
     mApp.getOverlayManager().getPeerManager().update(
