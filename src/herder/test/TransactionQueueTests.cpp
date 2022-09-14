@@ -601,36 +601,57 @@ TEST_CASE("TransactionQueue base", "[herder][transactionqueue]")
     SECTION("multiple good sequence numbers, different accounts, with remove")
     {
         TransactionQueueTest test{*app};
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
-        test.add(txSeqA2T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
-        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}},
-                     {account2, 0, {txSeqA2T1}}}});
-        test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}},
-                     {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
-        test.shift();
-        test.check({{{account1, 1, {txSeqA1T1, txSeqA1T2}},
-                     {account2, 1, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeApplied({txSeqA1T1, txSeqA2T2});
-        test.check({{{account1, 0, {txSeqA1T2}}, {account2}}});
-        test.removeApplied({txSeqA1T2});
-        test.check({{{account1}, {account2}}});
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
-        test.add(txSeqA2T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
-        test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}},
-                     {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeApplied({txSeqA2T1});
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T2}}}});
-        test.removeApplied({txSeqA2T2});
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
-        test.removeApplied({txSeqA1T1});
-        test.check({{{account1}, {account2}}});
+        SECTION("with shift and remove")
+        {
+            test.add(txSeqA1T1,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
+            test.add(txSeqA2T1,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check(
+                {{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
+            test.add(txSeqA1T2,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}},
+                         {account2, 0, {txSeqA2T1}}}});
+            test.add(txSeqA2T2,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}},
+                         {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
+            test.shift();
+            test.check({{{account1, 1, {txSeqA1T1, txSeqA1T2}},
+                         {account2, 1, {txSeqA2T1, txSeqA2T2}}}});
+            test.removeApplied({txSeqA1T1, txSeqA2T2});
+            test.check({{{account1, 0, {txSeqA1T2}}, {account2}},
+                        {{txSeqA1T1, txSeqA2T2}, {}}});
+            test.removeApplied({txSeqA1T2});
+            test.check({{{account1}, {account2}},
+                        {{txSeqA1T1, txSeqA2T2, txSeqA1T2}, {}}});
+        }
+        SECTION("with remove")
+        {
+            test.add(txSeqA1T1,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
+            test.add(txSeqA2T1,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check(
+                {{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
+            test.add(txSeqA2T2,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {txSeqA1T1}},
+                         {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
+            test.removeApplied({txSeqA2T1});
+            test.check(
+                {{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T2}}},
+                 {{txSeqA2T1}, {}}});
+            test.removeApplied({txSeqA2T2});
+            test.check({{{account1, 0, {txSeqA1T1}}, {account2}},
+                        {{txSeqA2T1, txSeqA2T2}, {}}});
+            test.removeApplied({txSeqA1T1});
+            test.check({{{account1}, {account2}},
+                        {{txSeqA2T1, txSeqA2T2, txSeqA1T1}, {}}});
+        }
     }
 
     SECTION("multiple good sequence numbers, different accounts, with ban")
@@ -772,30 +793,35 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             {
                 // seqNum=2 and below should be removed here
                 test.removeApplied({txSeqA1S2});
-                test.check(
-                    {{{account1, 0, {fb, txSeqA1S6, fb2}}, {account2}}, {}});
+                test.check({{{account1, 0, {fb, txSeqA1S6, fb2}}, {account2}},
+                            {{txSeqA1S2}, {}}});
 
                 // seqNum=4. No change
                 test.removeApplied({txSeqA1S4MinSeqNum}, true);
-                test.check(
-                    {{{account1, 0, {fb, txSeqA1S6, fb2}}, {account2}}, {}});
+                test.check({{{account1, 0, {fb, txSeqA1S6, fb2}}, {account2}},
+                            {{txSeqA1S2, txSeqA1S4MinSeqNum}, {}}});
 
                 // seqNum=5 and below should be removed here
                 test.removeApplied({fb});
-                test.check({{{account1, 0, {txSeqA1S6, fb2}}, {account2}}, {}});
+                test.check({{{account1, 0, {txSeqA1S6, fb2}}, {account2}},
+                            {{txSeqA1S2, txSeqA1S4MinSeqNum, fb}, {}}});
 
                 SECTION("removeApplied last tx")
                 {
                     // seqNum=8 and below should be removed here
                     test.removeApplied({fb2});
-                    test.check({{{account1, 0, {}}, {account2}}, {}});
+                    test.check(
+                        {{{account1, 0, {}}, {account2}},
+                         {{txSeqA1S2, txSeqA1S4MinSeqNum, fb, fb2}, {}}});
                 }
                 SECTION("removeApplied past last tx")
                 {
                     // seqNum=9 and below should be removed here
                     auto txSeqA1S9 = transaction(*app, account1, 9, 1, 200);
                     test.removeApplied({txSeqA1S9});
-                    test.check({{{account1, 0, {}}, {account2}}, {}});
+                    test.check(
+                        {{{account1, 0, {}}, {account2}},
+                         {{txSeqA1S2, txSeqA1S4MinSeqNum, fb, txSeqA1S9}, {}}});
                 }
             }
             SECTION("ban")
@@ -1616,12 +1642,14 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         SECTION("remove first")
         {
             test.removeApplied({fb1});
-            test.check({{{account1, 0, {fb2}}, {account2}, {account3}}, {}});
+            test.check(
+                {{{account1, 0, {fb2}}, {account2}, {account3}}, {{fb1}, {}}});
         }
         SECTION("remove second")
         {
             test.removeApplied({fb1, fb2});
-            test.check({{{account1}, {account2}, {account3}}, {}});
+            test.check(
+                {{{account1}, {account2}, {account3}}, {{fb1, fb2}, {}}});
         }
     }
 
@@ -1658,12 +1686,14 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         SECTION("remove first")
         {
             test.removeApplied({fb1});
-            test.check({{{account1, 0, {fb2}}, {account2}, {account3}}, {}});
+            test.check(
+                {{{account1, 0, {fb2}}, {account2}, {account3}}, {{fb1}, {}}});
         }
         SECTION("remove second")
         {
             test.removeApplied({fb1, fb2});
-            test.check({{{account1}, {account2}, {account3}}, {}});
+            test.check(
+                {{{account1}, {account2}, {account3}}, {{fb1, fb2}, {}}});
         }
     }
 
