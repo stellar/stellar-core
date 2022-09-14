@@ -62,6 +62,9 @@ mod rust_bridge {
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
         fn get_test_wasm_add_i32() -> Result<Bytes>;
         fn get_test_wasm_contract_data() -> Result<Bytes>;
+
+        // Return the rustc version used to build this binary.
+        fn get_rustc_version() -> String;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -108,3 +111,7 @@ use contract::preflight_host_function;
 
 mod log;
 use crate::log::init_logging;
+
+fn get_rustc_version() -> String {
+    rustc_simple_version::RUSTC_VERSION.to_string()
+}
