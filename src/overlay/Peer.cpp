@@ -270,22 +270,8 @@ Peer::getFlowControlJsonInfo(bool compact) const
 {
     Json::Value res;
     std::string stateStr;
-    bool reportCapacity = false;
-    switch (flowControlEnabled())
-    {
-    case Peer::FlowControlState::ENABLED:
-        stateStr = "enabled";
-        reportCapacity = true;
-        break;
-    case Peer::FlowControlState::DISABLED:
-        stateStr = "disabled";
-        break;
-    case Peer::FlowControlState::DONT_KNOW:
-        stateStr = "don't know";
-        break;
-    };
-
-    res["state"] = stateStr;
+    bool reportCapacity =
+        flowControlEnabled() == Peer::FlowControlState::ENABLED;
     if (reportCapacity)
     {
         res["local_capacity"]["reading"] =
@@ -302,12 +288,15 @@ Peer::getFlowControlJsonInfo(bool compact) const
         res["outbound_queue_delay_txs_p75"] = static_cast<Json::UInt64>(
             mPeerMetrics.mOutboundQueueDelayTxs.GetSnapshot()
                 .get75thPercentile());
-        res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
-            mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
-                .get75thPercentile());
-        res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
-            mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
-                .get75thPercentile());
+        if (mPullModeEnabled)
+        {
+            res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
+                mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
+                    .get75thPercentile());
+            res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
+                mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
+                    .get75thPercentile());
+        }
     }
 
     return res;
