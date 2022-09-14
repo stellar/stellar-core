@@ -1,3 +1,4 @@
 *.sln    text -merge eol=crlf
 *.vcxproj text -merge eol=crlf
 *.vcxproj.filters text -merge eol=crlf
+*.sh text -merge eol=lf
