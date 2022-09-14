@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/TxQueueLimiter.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionFrame.h"
@@ -30,7 +31,6 @@ namespace stellar
 {
 
 class Application;
-class TxQueueLimiter;
 
 /**
  * TransactionQueue keeps received transactions that are valid and have not yet
@@ -194,10 +194,10 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
-    size_t mBroadcastOpCarryover{0};
+    uint32_t mBroadcastOpCarryover = 0;
     VirtualTimer mBroadcastTimer;
 
-    size_t getMaxOpsToFloodThisPeriod() const;
+    uint32_t getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -211,7 +211,8 @@ class TransactionQueue
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
-                     TimestampedTransactions::iterator& oldTxIter);
+                     TimestampedTransactions::iterator& oldTxIter,
+                     std::vector<TxStackPtr>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
@@ -231,7 +232,7 @@ class TransactionQueue
 
     size_t mBroadcastSeed;
 
-    friend struct TxQueueTracker;
+    friend class TxQueueTracker;
 
 #ifdef BUILD_TESTS
   public:

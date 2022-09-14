@@ -157,42 +157,6 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
     }
     return true;
 }
-
-struct SurgeCompare
-{
-    Hash mSeed;
-    SurgeCompare() : mSeed(HashUtils::random())
-    {
-    }
-
-    // return true if tx1 < tx2
-    bool
-    operator()(TxSetFrame::AccountTransactionQueue const* tx1,
-               TxSetFrame::AccountTransactionQueue const* tx2) const
-    {
-        if (tx1 == nullptr || tx1->empty())
-        {
-            return tx2 ? !tx2->empty() : false;
-        }
-        if (tx2 == nullptr || tx2->empty())
-        {
-            return false;
-        }
-
-        auto const& top1 = tx1->front();
-        auto const& top2 = tx2->front();
-
-        auto cmp3 = feeRate3WayCompare(*top1, *top2);
-
-        if (cmp3 != 0)
-        {
-            return cmp3 < 0;
-        }
-        // use hash of transaction as a tie breaker
-        return lessThanXored(top1->getFullHash(), top2->getFullHash(), mSeed);
-    }
-};
-
 // We want to XOR the tx hash with the set hash.
 // This way people can't predict the order that txs will be applied in
 struct ApplyTxSorter
@@ -224,6 +188,19 @@ computeNonGenericTxSetContentsHash(TransactionSet const& xdrTxSet)
     }
     return hasher.finish();
 }
+
+int64_t
+computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
+{
+    auto rounding = protocolVersionStartsFrom(
+                        ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                        ? Rounding::ROUND_DOWN
+                        : Rounding::ROUND_UP;
+    auto txOps = tx.getNumOperations();
+    return bigDivideOrThrow(tx.getFeeBid(), 1, static_cast<int64_t>(txOps),
+                            rounding);
+}
+
 } // namespace
 
 TxSetFrame::TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
@@ -270,8 +247,7 @@ TxSetFrame::makeFromTransactions(TxSetFrame::Transactions const& txs,
     // This may cause leaks in case of exceptions, so keep the constructors
     // simple and exception-safe.
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(lclHeader, validTxs));
-    txSet->surgePricingFilter(app.getLedgerManager().getLastMaxTxSetSizeOps());
-    txSet->computeTxFees(lclHeader.header);
+    txSet->applySurgePricing(app);
 
     // Do the roundtrip through XDR to ensure we never build an incorrect tx set
     // for nomination.
@@ -318,7 +294,7 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
     // simple and exception-safe.
     std::shared_ptr<TxSetFrame> txSet(
         new TxSetFrame(lclHeader, TxSetFrame::Transactions{}));
-    txSet->computeTxFees(lclHeader.header);
+    txSet->mFeesComputed = true;
     txSet->computeContentsHash();
     return txSet;
 }
@@ -438,7 +414,7 @@ TxSetFrame::getTxsInApplyOrder() const
     // build txBatches
     // txBatches i-th element contains each i-th transaction for accounts with a
     // transaction in the transaction set
-    std::list<AccountTransactionQueue> txBatches;
+    std::vector<std::vector<TransactionFrameBasePtr>> txBatches;
 
     while (!txQueues.empty())
     {
@@ -447,23 +423,23 @@ TxSetFrame::getTxsInApplyOrder() const
         // go over all users that still have transactions
         for (auto it = txQueues.begin(); it != txQueues.end();)
         {
-            auto& h = it->second.front();
-            curBatch.emplace_back(h);
-            it->second.pop_front();
-            if (it->second.empty())
+            auto& txQueue = *it;
+            curBatch.emplace_back(txQueue->getTopTx());
+            txQueue->popTopTx();
+            if (txQueue->empty())
             {
                 // done with that user
                 it = txQueues.erase(it);
             }
             else
             {
-                it++;
+                ++it;
             }
         }
     }
 
-    Transactions txsInApplyOrder;
-    txsInApplyOrder.reserve(mTxs.size());
+    std::vector<TransactionFrameBasePtr> retList;
+    retList.reserve(mTxs.size());
     for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
@@ -472,10 +448,11 @@ TxSetFrame::getTxsInApplyOrder() const
         std::sort(batch.begin(), batch.end(), s);
         for (auto const& tx : batch)
         {
-            txsInApplyOrder.push_back(tx);
+            retList.push_back(tx);
         }
     }
-    return txsInApplyOrder;
+
+    return retList;
 }
 
 // need to make sure every account that is submitting a tx has enough to pay
@@ -593,44 +570,49 @@ void
 TxSetFrame::computeTxFees(LedgerHeader const& lclHeader) const
 {
     ZoneScoped;
+    auto ledgerVersion = lclHeader.ledgerVersion;
+    int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
+    for (auto& txPtr : mTxs)
+    {
+        int64_t txBaseFee = computePerOpFee(*txPtr, ledgerVersion);
+        lowBaseFee = std::min(lowBaseFee, txBaseFee);
+    }
+    computeTxFees(lclHeader, lowBaseFee,
+                  /* enableLogging */ false);
+}
+
+void
+TxSetFrame::computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
+                          bool enableLogging) const
+{
+    ZoneScoped;
     releaseAssert(!mFeesComputed);
     int64_t baseFee = lclHeader.baseFee;
+
     if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
                                   ProtocolVersion::V_11))
     {
-        size_t ops = 0;
-        int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
-        auto rounding =
-            protocolVersionStartsFrom(lclHeader.ledgerVersion,
-                                      GENERALIZED_TX_SET_PROTOCOL_VERSION)
-                ? Rounding::ROUND_DOWN
-                : Rounding::ROUND_UP;
-        for (auto& txPtr : mTxs)
-        {
-            auto txOps = txPtr->getNumOperations();
-            ops += txOps;
-            int64_t txBaseFee = bigDivideOrThrow(
-                txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps), rounding);
-            lowBaseFee = std::min(lowBaseFee, txBaseFee);
-        }
-        // if surge pricing was in action, use the lowest base fee bid from the
-        // transaction set
         size_t surgeOpsCutoff = 0;
         if (lclHeader.maxTxSetSize >= MAX_OPS_PER_TX)
         {
             surgeOpsCutoff = lclHeader.maxTxSetSize - MAX_OPS_PER_TX;
         }
-        if (ops > surgeOpsCutoff)
+        if (sizeOp() > surgeOpsCutoff)
         {
-            baseFee = lowBaseFee;
+            baseFee = lowestBaseFee;
+            if (enableLogging)
+            {
+                CLOG_WARNING(Herder, "surge pricing in effect! {} > {}",
+                             sizeOp(), surgeOpsCutoff);
+            }
         }
     }
-    mFeesComputed = true;
-    // Currently we apply the same base fee to all the transactions.
+
     for (auto const& tx : mTxs)
     {
         mTxBaseFee[tx] = baseFee;
     }
+    mFeesComputed = true;
 }
 
 std::optional<int64_t>
@@ -803,57 +785,35 @@ TxSetFrame::addTxsFromXdr(Hash const& networkID,
 }
 
 void
-TxSetFrame::surgePricingFilter(uint32_t opsLeft)
+TxSetFrame::applySurgePricing(Application& app)
 {
     ZoneScoped;
-    auto curSizeOps = sizeOp();
-    if (curSizeOps <= opsLeft)
+
+    if (mTxs.empty())
     {
+        mFeesComputed = true;
         return;
     }
-    CLOG_WARNING(Herder, "surge pricing in effect! {} > {}", curSizeOps,
-                 opsLeft);
 
-    auto actTxQueueMap = TxSetUtils::buildAccountTxQueues(mTxs);
+    size_t maxOps = app.getLedgerManager().getLastMaxTxSetSizeOps();
+    auto const& lclHeader =
+        app.getLedgerManager().getLastClosedLedgerHeader().header;
 
-    std::priority_queue<TxSetFrame::AccountTransactionQueue*,
-                        std::vector<TxSetFrame::AccountTransactionQueue*>,
-                        SurgeCompare>
-        surgeQueue;
+    auto actTxQueues = TxSetUtils::buildAccountTxQueues(mTxs);
 
-    for (auto& am : actTxQueueMap)
+    auto includedTxs = SurgePricingPriorityQueue::getMostTopTxsWithinLimit(
+        std::vector<TxStackPtr>(actTxQueues.begin(), actTxQueues.end()),
+        maxOps);
+
+    int64_t lowestFee = std::numeric_limits<int64_t>::max();
+    for (auto const& tx : includedTxs)
     {
-        surgeQueue.push(&am.second);
+        auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
+        lowestFee = std::min(lowestFee, perOpFee);
     }
-
-    TxSetFrame::Transactions filteredTxs;
-    filteredTxs.reserve(sizeTx());
-    while (opsLeft > 0 && !surgeQueue.empty())
-    {
-        auto cur = surgeQueue.top();
-        surgeQueue.pop();
-        // inspect the top candidate queue
-        auto& curTopTx = cur->front();
-        auto opsCount = curTopTx->getNumOperations();
-        if (opsCount <= opsLeft)
-        {
-            // pop from this one
-            filteredTxs.emplace_back(curTopTx);
-            cur->pop_front();
-            opsLeft -= opsCount;
-            // if there are more transactions, put it back
-            if (!cur->empty())
-            {
-                surgeQueue.push(cur);
-            }
-        }
-        else
-        {
-            // drop this transaction -> we need to drop the others
-            cur->clear();
-        }
-    }
-    mTxs = filteredTxs;
+    mTxs = includedTxs;
+    computeTxFees(lclHeader, lowestFee,
+                  /* enableLogging */ true);
 }
 
 void

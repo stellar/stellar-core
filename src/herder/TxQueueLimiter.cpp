@@ -10,42 +10,65 @@
 
 namespace stellar
 {
-
-// comparator for TransactionFrameBasePtr
-// that sorts by base fee, and breaks ties using pointers
-struct QueueLimiterTxComparator
+namespace
 {
-    size_t mSeed;
-    QueueLimiterTxComparator(size_t seed) : mSeed(seed)
+class SingleTxStack : public TxStack
+{
+  public:
+    SingleTxStack(TransactionFrameBasePtr tx) : mTx(tx)
     {
+    }
+
+    TransactionFrameBasePtr
+    getTopTx() const override
+    {
+        releaseAssert(mTx);
+        return mTx;
+    }
+
+    void
+    popTopTx() override
+    {
+        releaseAssert(mTx);
+        mTx = nullptr;
     }
 
     bool
-    operator()(TransactionFrameBasePtr const& l,
-               TransactionFrameBasePtr const& r) const
+    empty() const override
     {
-        return lessThanXored(l, r, mSeed);
+        return mTx == nullptr;
     }
+
+    uint32_t
+    getNumOperations() const override
+    {
+        releaseAssert(mTx);
+        return mTx->getNumOperations();
+    }
+
+  private:
+    TransactionFrameBasePtr mTx;
 };
 
-class QueueLimiterTxMap
-    : public std::set<TransactionFrameBasePtr, QueueLimiterTxComparator>,
-      NonMovableOrCopyable
+int64_t
+computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
+                 TransactionFrameBase const& tx)
 {
-  public:
-    QueueLimiterTxMap()
-        : std::set<TransactionFrameBasePtr, QueueLimiterTxComparator>(
-              QueueLimiterTxComparator(
-                  rand_uniform<uint64>(0, std::numeric_limits<uint64>::max())))
+    if (evictedBid.second != 0 &&
+        feeRate3WayCompare(evictedBid.first, evictedBid.second, tx.getFeeBid(),
+                           tx.getNumOperations()) >= 0)
     {
+        return computeBetterFee(tx, evictedBid.first, evictedBid.second);
     }
-};
+    return 0;
+}
+
+}
 
 TxQueueLimiter::TxQueueLimiter(uint32 multiplier, LedgerManager& lm)
     : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
 {
-    mTxs = std::make_unique<QueueLimiterTxMap>();
-    mMinFeeNeeded = {0, 0};
+    mEvictedFeeBid = {0, 0};
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -53,10 +76,18 @@ TxQueueLimiter::~TxQueueLimiter()
     // empty destructor allows deleting TxQueueLimiter from other source files
 }
 
+#ifdef BUILD_TESTS
 size_t
+TxQueueLimiter::size() const
+{
+    return mTxs->sizeOps();
+}
+#endif
+
+uint32_t
 TxQueueLimiter::maxQueueSizeOps() const
 {
-    size_t maxOpsLedger = mLedgerManager.getLastMaxTxSetSizeOps();
+    uint32_t maxOpsLedger = mLedgerManager.getLastMaxTxSetSizeOps();
     maxOpsLedger *= mPoolLedgerMultiplier;
     return maxOpsLedger;
 }
@@ -64,190 +95,96 @@ TxQueueLimiter::maxQueueSizeOps() const
 void
 TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
-    auto newTotOps = mQueueSizeOps;
-    auto txOps = tx->getNumOperations();
-    newTotOps += txOps;
-    if (newTotOps > maxQueueSizeOps())
-    {
-        throw std::logic_error("invalid state adding tx in TxQueueLimiter");
-    }
-    mTxs->emplace(tx);
-    mQueueSizeOps = newTotOps;
+    auto txStack = std::make_shared<SingleTxStack>(tx);
+    mStackForTx[tx] = txStack;
+    mTxs->add(txStack);
 }
 
 void
 TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 {
-    auto txOps = tx->getNumOperations();
-    if (mQueueSizeOps < txOps)
+    auto txStackIt = mStackForTx.find(tx);
+    if (txStackIt == mStackForTx.end())
     {
         throw std::logic_error(
-            "invalid state (queue size) removing tx in TxQueueLimiter");
+            "invalid state (missing tx) while removing tx in TxQueueLimiter");
     }
-    if (mTxs->erase(tx) == 0)
-    {
-        throw std::logic_error(
-            "invalid state (missing tx) removing tx in TxQueueLimiter");
-    }
-    mQueueSizeOps -= txOps;
-}
-
-// compute the fee bid that `tx` should have in order to beat
-// a transaction `ref` with fee bid `refFeeBid` and `refNbOps` operations
-int64
-computeBetterFee(TransactionFrameBasePtr const& tx, int64 refFeeBid,
-                 uint32 refNbOps)
-{
-    constexpr auto m = std::numeric_limits<int64>::max();
-
-    int64 minFee = m;
-    int64 v;
-    if (bigDivide(v, refFeeBid, tx->getNumOperations(), refNbOps,
-                  Rounding::ROUND_DOWN) &&
-        v < m)
-    {
-        minFee = v + 1;
-    }
-    return minFee;
+    mTxs->erase(txStackIt->second);
 }
 
 std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
-                         TransactionFrameBasePtr const& oldTx) const
+                         TransactionFrameBasePtr const& oldTx,
+                         std::vector<TxStackPtr>& txsToEvict)
 {
-    // enforce min fee if needed
-    if (mMinFeeNeeded.second != 0)
+    // We cannot normally initialize transaction queue in the constructor
+    // because `maxQueueSizeOps()` may not be initialized. Hence we initialize
+    // lazily during the add/reset.
+    if (mTxs == nullptr)
     {
-        auto cmp3Min =
-            feeRate3WayCompare(newTx->getFeeBid(), newTx->getNumOperations(),
-                               mMinFeeNeeded.first, mMinFeeNeeded.second);
-        if (cmp3Min <= 0)
-        {
-            auto minFee = computeBetterFee(newTx, mMinFeeNeeded.first,
-                                           mMinFeeNeeded.second);
-            return std::make_pair(false, minFee);
-        }
+        resetTxs();
     }
 
-    auto newOps = mQueueSizeOps;
+    int64_t minFeeToBeatEvicted = computeBetterFee(mEvictedFeeBid, *newTx);
+    if (minFeeToBeatEvicted > 0)
+    {
+        return std::make_pair(false, minFeeToBeatEvicted);
+    }
+
+    uint32_t txOpsDiscount = 0;
     if (oldTx)
     {
-        // oldTx is currently tracked by the queue,
-        // so this should always hold
-        releaseAssert(oldTx->getNumOperations() <= newOps);
-        newOps -= oldTx->getNumOperations();
+        auto newTxOps = newTx->getNumOperations();
+        auto oldTxOps = oldTx->getNumOperations();
+        // Bump transactions must have at least the old amount of operations.
+        releaseAssert(oldTxOps <= newTxOps);
+        txOpsDiscount = newTxOps - oldTxOps;
     }
-    newOps += newTx->getNumOperations();
-
-    // if there is enough space, return
-    if (newOps <= maxQueueSizeOps())
-    {
-        return std::make_pair(true, 0ll);
-    }
-
-    // need to see if we could be added by kicking out cheaper transactions
-    // starting with the cheapest one
-    auto neededOps = newOps - maxQueueSizeOps();
-    auto id = newTx->getSourceID();
-    for (auto it = mTxs->begin(); it != mTxs->end(); ++it)
-    {
-        if (feeRate3WayCompare(*(*it), *newTx) >= 0)
-        {
-            auto minFee = computeBetterFee(newTx, (*it)->getFeeBid(),
-                                           (*it)->getNumOperations());
-            return std::make_pair(false, minFee);
-        }
-        // ensure that this transaction is not from the same account
-        auto& tx = *it;
-        if (tx->getSourceID() == id)
-        {
-            return std::make_pair(false, 0ll);
-        }
-        auto curOps = tx->getNumOperations();
-        if (neededOps <= curOps)
-        {
-            return std::make_pair(true, 0ll);
-        }
-        neededOps -= curOps;
-    }
-
-    // we reach this point if the queue doesn't have capacity for that
-    // transaction even when empty. Combination of multiplier and max ledger
-    // size is too small for whatever reason
-    static size_t lastMax = std::numeric_limits<size_t>::max();
-    if (lastMax != maxQueueSizeOps())
-    {
-        lastMax = maxQueueSizeOps();
-        CLOG_WARNING(Herder,
-                     "Transaction Queue limiter configured with {} operations: "
-                     "node won't be able to accept all transactions",
-                     lastMax);
-    }
-
-    return std::make_pair(false, 0ll);
+    return mTxs->canFitWithEviction(*newTx, txOpsDiscount, txsToEvict);
 }
 
-TransactionFrameBasePtr
-TxQueueLimiter::getWorstTransaction()
-{
-    auto it = mTxs->begin();
-    if (it == mTxs->end())
-    {
-        throw std::logic_error(
-            "invalid state getting worst tx in TxQueueLimiter");
-    }
-    return *it;
-}
-
-bool
+void
 TxQueueLimiter::evictTransactions(
-    size_t ops, std::function<void(TransactionFrameBasePtr const&)> evict)
+    std::vector<TxStackPtr> const& txsToEvict, uint32_t opsToFit,
+    std::function<void(TransactionFrameBasePtr const&)> evict)
 {
-    while (size() + ops > maxQueueSizeOps())
+    uint32_t maxOps = maxQueueSizeOps();
+    for (auto const& evictedStack : txsToEvict)
     {
-        if (size() == 0)
+        auto tx = evictedStack->getTopTx();
+        mEvictedFeeBid = {tx->getFeeBid(), tx->getNumOperations()};
+        evict(tx);
+        // While we guarantee `txsToEvict` to have enough operations to fit new
+        // operations, the eviction itself may remove transactions with high seq
+        // nums and hence make space sooner than expected.
+        if (mTxs->sizeOps() + opsToFit <= maxOps)
         {
-            return false;
+            break;
         }
-        auto evictTx = getWorstTransaction();
-        mMinFeeNeeded = {evictTx->getFeeBid(), evictTx->getNumOperations()};
-        evict(evictTx);
     }
-    return true;
+    // It should be guaranteed to fit the required operations after the
+    // eviction.
+    releaseAssert(mTxs->sizeOps() + opsToFit <= maxOps);
 }
 
 void
 TxQueueLimiter::reset()
 {
-    mTxs = std::make_unique<QueueLimiterTxMap>();
-    mQueueSizeOps = 0;
-    resetMinFeeNeeded();
-}
-
-std::pair<int64, uint32>
-TxQueueLimiter::getMinFeeNeeded() const
-{
-    return mMinFeeNeeded;
+    resetTxs();
+    resetEvictionState();
 }
 
 void
-TxQueueLimiter::resetMinFeeNeeded()
+TxQueueLimiter::resetEvictionState()
 {
-    mMinFeeNeeded = {0ll, 0};
+    mEvictedFeeBid = {0, 0};
 }
 
-bool
-lessThanXored(TransactionFrameBasePtr const& l,
-              TransactionFrameBasePtr const& r, size_t seed)
+void
+TxQueueLimiter::resetTxs()
 {
-    auto cmp3 = feeRate3WayCompare(*l, *r);
-    if (cmp3 != 0)
-    {
-        return cmp3 < 0;
-    }
-    // break tie with pointer arithmetic
-    auto lx = reinterpret_cast<size_t>(l.get()) ^ seed;
-    auto rx = reinterpret_cast<size_t>(r.get()) ^ seed;
-    return lx < rx;
+    mTxs = std::make_unique<SurgePricingPriorityQueue>(
+        /* isHighestPriority */ false, maxQueueSizeOps(),
+        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
 }
 }
