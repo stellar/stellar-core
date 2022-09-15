@@ -6,7 +6,7 @@ RUN apt-get update && \
                        git build-essential pkg-config autoconf automake libtool \
                        bison flex libpq-dev parallel libunwind-dev \
                        clang-10 libc++abi-10-dev libc++-10-dev \
-                       postgresql cargo rustc
+                       postgresql curl
 
 COPY . stellar-core/
 WORKDIR stellar-core
@@ -17,9 +17,11 @@ ARG CC=clang-10
 ARG CXX=clang++-10
 ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
 ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
-ARG CONFIGURE_FLAGS='--enable-tracy'
+ARG CONFIGURE_FLAGS='--enable-tracy --enable-sdfprefs --enable-next-protocol-version-unsafe-for-production'
 
 RUN ./autogen.sh
+RUN ./install-rust.sh
+ENV PATH "/root/.cargo/bin:$PATH"
 RUN ./configure CC="${CC}" CXX="${CXX}" CFLAGS="${CFLAGS}" CXXFLAGS="${CXXFLAGS}" ${CONFIGURE_FLAGS}
 RUN sh -c 'make -j $(nproc)'
 RUN make install

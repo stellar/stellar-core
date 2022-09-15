@@ -57,7 +57,7 @@ RUN apt-get update \
 #    && apt-get update
 
 # Install common compilation tools
-RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
+RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev curl
 
 # Update compiler tools
 RUN apt-get -y install libstdc++-8-dev clang-format-10 ccache
@@ -67,7 +67,8 @@ RUN apt-get -y install cpp-8 gcc-8 g++-8
 # clang
 RUN apt-get -y install clang-10 llvm-10
 # rust
-RUN apt-get -y install cargo rustc
+RUN ./install-rust.sh
+ENV PATH "/root/.cargo/bin:$PATH"
 
 # clang by default
 ENV CC=clang-10

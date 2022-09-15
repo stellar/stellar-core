@@ -22,6 +22,9 @@ make docker-build
 
 This is a Dockerfile for one-off builds of stellar-core during development.
 
+It enables the protocol-next by default, assuming you're using it for
+testing features that are not yet ready for production.
+
 It's intended to be run from the stellar-core source directory of a
 developer's workstation to make a test buid that can be run in kubernetes
 without passing through any of the normal CI process. As such it is as small
