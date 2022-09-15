@@ -170,17 +170,8 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
 Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
 
-Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.57 or later.
-Currently we recommend using the system packages provided on Ubuntu, and the rust project's `rustup` installer on other systems.
+Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.63 or later.
 
-    # On Ubuntu
-    $ sudo apt-get install cargo
+Currently we recommend installing Rust using the Rust project's `rustup` installer, which can be found on [rustup.rs](https://rustup.rs).
 
-    # On MacOS
-    $ brew install rustup-init
-    $ rustup-init
-
-To use an IDE with `rust-analyzer`, additional packages are required on Ubuntu:
-
-    # On Ubuntu
-    $ sudo apt-get install rust-src
+We also include a script in the repository `install-rust.sh` that downloads and runs a known version of `rustup` on x64-linux hosts, such as those used for CI and packaging.
