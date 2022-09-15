@@ -124,6 +124,9 @@ class SurgePricingPriorityQueue
     // Returns total number of operations in all the stacks in this queue.
     uint32_t sizeOps() const;
 
+    // Sets the queue ops limit to `newLimit`.
+    void updateOpsLimit(uint32_t newLimit);
+
   private:
     class TxStackComparator
     {
