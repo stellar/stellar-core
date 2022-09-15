@@ -159,9 +159,6 @@ class OverlayManager
     // Return number of authenticated peers
     virtual int getAuthenticatedPeersCount() const = 0;
 
-    // Return the number of flow-contolled peers
-    virtual int64_t getFlowControlPercentage() const = 0;
-
     // Return the percentage [0,100] of connections with pull-mode enabled
     virtual int64_t getPullModePercentage() const = 0;
 

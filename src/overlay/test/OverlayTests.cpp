@@ -1821,12 +1821,6 @@ auto numTxHashesAdvertised = [](std::shared_ptr<Application> app) {
         .count();
 };
 
-auto numAdvertSent = [](std::shared_ptr<Application> app) {
-    return app->getOverlayManager()
-        .getOverlayMetrics()
-        .mSendFloodAdvertMeter.count();
-};
-
 TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 {
     VirtualClock clock;

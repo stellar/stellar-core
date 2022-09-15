@@ -653,6 +653,14 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
             }
         }
     }
+
+    for (auto const& h : appliedHashes)
+    {
+        auto& bannedFront = mBannedTransactions.front();
+        bannedFront.emplace(h);
+        // do not mark metric for banning as this is the result of normal flow
+        // of operations
+    }
 }
 
 static void

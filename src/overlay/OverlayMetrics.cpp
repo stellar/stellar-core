@@ -154,8 +154,6 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewCounter({"overlay", "connection", "pending"}))
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
-    , mFlowControlPercent(app.getMetrics().NewCounter(
-          {"overlay", "flow-control", "percentage"}))
     , mPullModePercent(
           app.getMetrics().NewCounter({"overlay", "pull-mode", "percentage"}))
     , mUniqueFloodBytesRecv(app.getMetrics().NewMeter(

@@ -105,7 +105,6 @@ struct OverlayMetrics
     medida::Meter& mMessagesBroadcast;
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
-    medida::Counter& mFlowControlPercent;
     medida::Counter& mPullModePercent;
 
     medida::Meter& mUniqueFloodBytesRecv;
