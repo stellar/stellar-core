@@ -140,6 +140,9 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
         releaseAssert(oldTxOps <= newTxOps);
         txOpsDiscount = newTxOps - oldTxOps;
     }
+    // Update the operation limits in case upgrade happened. This is cheap
+    // enough to happen unconditionally without relying on upgrade triggers.
+    mTxs->updateOpsLimit(maxQueueSizeOps());
     return mTxs->canFitWithEviction(*newTx, txOpsDiscount, txsToEvict);
 }
 

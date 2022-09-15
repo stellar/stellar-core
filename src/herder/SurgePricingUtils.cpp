@@ -354,6 +354,12 @@ SurgePricingPriorityQueue::sizeOps() const
 }
 
 void
+SurgePricingPriorityQueue::updateOpsLimit(uint32_t newLimit)
+{
+    mOpsLimit = newLimit;
+}
+
+void
 SurgePricingPriorityQueue::popTopTx(
     SurgePricingPriorityQueue::TxStackSet::iterator iter)
 {
