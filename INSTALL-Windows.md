@@ -12,6 +12,22 @@
     * Windows 10 SDK
     * C++/CLI Support
 
+# Configure Git
+
+Some functionality depends on Linux file endings, as such you need to configure git with:
+```
+[core]
+        eol = lf
+        autocrlf = input
+```
+NB: if you change this setting in an existing working folder, you need to reset it to have the proper line ending.
+This can be done with the following sequence:
+```
+git checkout-index --force --all
+git rm --cached -r .
+git reset --hard
+```
+
 ## Download and install rust
 
 Easiest is to use rustup, found on [rust-lang.org](https://www.rust-lang.org/tools/install).
@@ -78,8 +94,8 @@ If you do not have cURL installed
 ## clang-format
 
 For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
-* note that the version of clang-format used currently is 8.0 (other versions may not format the same way).
-* we recommend downloading 8.0 from http://releases.llvm.org/download.html
+* note that the version of clang-format used currently is 10.0 (other versions may not format the same way).
+* we recommend downloading 10.0 from http://releases.llvm.org/download.html
 
 # Build on Windows using the Windows Subsystem for Linux
 To setup the subsystem, go to https://msdn.microsoft.com/en-us/commandline/wsl/install_guide

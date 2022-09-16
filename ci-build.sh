@@ -151,6 +151,14 @@ then
     exit 1
 fi
 
+crlf=$(find . ! \( -type d -o -path './.git/*' -o -path './Builds/*' -o -path './lib/*' \) -print0 | xargs -0 -n1 -P9 file "{}" | grep CRLF || true)
+if [ -n "$crlf" ]
+then
+    echo "Found some files with Windows line endings:"
+    echo "$crlf"
+    exit 1
+fi
+
 date
 time make -j$(($NPROCS + 1))
 
