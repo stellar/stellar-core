@@ -795,7 +795,8 @@ TxSetFrame::applySurgePricing(Application& app)
         return;
     }
 
-    size_t maxOps = app.getLedgerManager().getLastMaxTxSetSizeOps();
+    uint32_t maxOps =
+        static_cast<uint32_t>(app.getLedgerManager().getLastMaxTxSetSizeOps());
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
 
