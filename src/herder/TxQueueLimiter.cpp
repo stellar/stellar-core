@@ -110,6 +110,7 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
             "invalid state (missing tx) while removing tx in TxQueueLimiter");
     }
     mTxs->erase(txStackIt->second);
+    mStackForTx.erase(txStackIt);
 }
 
 std::pair<bool, int64>
@@ -189,5 +190,6 @@ TxQueueLimiter::resetTxs()
     mTxs = std::make_unique<SurgePricingPriorityQueue>(
         /* isHighestPriority */ false, maxQueueSizeOps(),
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    mStackForTx.clear();
 }
 }
