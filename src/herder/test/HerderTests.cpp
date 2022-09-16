@@ -2213,10 +2213,12 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         {
             configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
         }
+#ifdef USE_POSTGRES
         SECTION("postgres")
         {
             configure(Config::TestDbMode::TESTDB_POSTGRESQL);
         }
+#endif
         // add node0 and node1, in lockstep
         {
             SCPQuorumSet qSet;
