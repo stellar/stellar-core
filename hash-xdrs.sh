@@ -22,7 +22,7 @@ namespace stellar {
 extern const std::vector<std::pair<std::filesystem::path, std::string>> XDR_FILES_SHA256 = {
 EOF
 
-sha256sum -b $1/xdr/*.x | grep -v Stellar-internal | sed -e 's/\([a-f0-9]\+\)[ \*]*\(.*\)/{"\2", "\1"},/'
+for a in $(ls -1 $1/xdr/*.x | grep -v Stellar-internal ) ; do echo "{\"$a\", \""$(cat $a | tr -d '[:space:]' | sha256sum | cut -d\  -f1)"\"}," ; done
 
 echo '{"", ""}};'
 echo '}'
