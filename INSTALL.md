@@ -106,11 +106,13 @@ When building on OSX, here's some dependencies you'll need:
 - `brew install openssl` (required for postgres)
 - `brew install parallel` (required for running tests)
 - `brew install ccache` (required for enabling ccache)
+- `brew install bison` (the version that comes with the OS is too old)
 
 You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
 ```zsh
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+export PATH="$(brew --prefix bison)/bin:$PATH"
 ```
 
 ### Windows
