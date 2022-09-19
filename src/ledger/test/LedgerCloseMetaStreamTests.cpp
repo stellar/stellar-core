@@ -201,10 +201,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else
     {
         REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
     }
+#endif
 
     // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
     // the meta for the latest ledger (or the latest ledger before the corrupt
@@ -219,10 +221,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else
     {
         REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
     }
+#endif
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -326,10 +330,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else
     {
         REQUIRE(lcm.v2().ledgerHeader.hash == hash);
     }
+#endif
 }
 
 TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
