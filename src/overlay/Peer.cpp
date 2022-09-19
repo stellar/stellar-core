@@ -808,7 +808,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     char const* cat = nullptr;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
-    switch (stellarMsg.type())
+    auto msgType = stellarMsg.type();
+    switch (msgType)
     {
     // group messages used during handshake, process those synchronously
     case HELLO:
@@ -877,9 +878,23 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     // high volume flooding
     case TRANSACTION:
+    case FLOOD_ADVERT:
+    case FLOOD_DEMAND:
+    {
+        if (!mPullModeEnabled &&
+            (msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND))
+        {
+            drop(fmt::format("Peer sent {}, but pull mode is disabled",
+                             xdr::xdr_traits<MessageType>::enum_name(msgType)),
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            return;
+        }
+
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
         break;
+    }
 
     // consensus, inbound
     case GET_TX_SET:
