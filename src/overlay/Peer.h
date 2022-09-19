@@ -337,7 +337,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mAdvertTimer;
     void startAdvertTimer();
 
-    bool mShuttingDown;
+    bool mShuttingDown{false};
 
   public:
     Peer(Application& app, PeerRole role);
