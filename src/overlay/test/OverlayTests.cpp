@@ -2125,6 +2125,29 @@ TEST_CASE("pull mode enable only if both request", "[overlay][pullmode]")
         REQUIRE(conn->getAcceptor()->isAuthenticated());
         REQUIRE(conn->getInitiator()->isPullModeEnabled() == false);
         REQUIRE(conn->getAcceptor()->isPullModeEnabled() == false);
+
+        SECTION("peer does not follow the protocol")
+        {
+            StellarMessage adv, emptyMsg;
+            adv.type(FLOOD_ADVERT);
+            adv.floodAdvert().txHashes.push_back(xdrSha256(emptyMsg));
+            conn->getInitiator()->sendMessage(
+                std::make_shared<StellarMessage>(adv));
+            testutil::crankSome(clock);
+
+            if (node1 && node2)
+            {
+                REQUIRE(conn->getInitiator()->isAuthenticated());
+                REQUIRE(conn->getAcceptor()->isAuthenticated());
+            }
+            else
+            {
+                REQUIRE(!conn->getInitiator()->isConnected());
+                REQUIRE(!conn->getAcceptor()->isConnected());
+                REQUIRE(conn->getAcceptor()->getDropReason() ==
+                        "Peer sent FLOOD_ADVERT, but pull mode is disabled");
+            }
+        }
     };
     SECTION("acceptor disabled pull mode")
     {
