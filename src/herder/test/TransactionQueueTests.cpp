@@ -1423,7 +1423,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         // the limiter, but with `minFee + 1` can be added. Use for checking
         // that fee threshold is applied even when there is enough space in
         // the limiter, but some transactions were evicted before.
-        auto checkMinFeeToFitWithNoEvict = [&](int64_t minFee) {
+        auto checkMinFeeToFitWithNoEvict = [&](uint32_t minFee) {
             std::vector<TxStackPtr> txsToEvict;
             // 0 fee is a special case as transaction shouldn't have 0 fee.
             // Hence we only check that fee of 1 allows transaction to be added.

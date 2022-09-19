@@ -1187,6 +1187,39 @@ exit /b 0
     <None Include="..\..\docs\transaction.md" />
     <None Include="..\..\docs\tx-simulation.md" />
     <None Include="..\..\docs\versioning.md" />
+    <CustomBuild Include="..\..\hash-xdrs.sh">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">None</OutputItemType>
+    </CustomBuild>
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
@@ -1422,19 +1455,6 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
-    <CustomBuild Include="..\..\hash-xdrs.sh">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
-      <Message>running hash-xdrs.sh</Message>
-      <Outputs>src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
-      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/xdr/Stellar-transaction.h;src/$(Configuration)/generated/xdr/Stellar-ledger.h;src/$(Configuration)/generated/xdr/Stellar-ledger-entries.h;src/$(Configuration)/generated/xdr/Stellar-SCP.h;src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
-      <OutputItemType>ClCompile</OutputItemType>
-    </CustomBuild>
-
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>

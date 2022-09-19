@@ -92,7 +92,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
             toXDRBuf(mInvokeHostFunction.parameters),
             toXDRBuf(mInvokeHostFunction.footprint), ledgerEntryXdrBufs);
     }
-    catch (std::exception& e)
+    catch (std::exception&)
     {
         innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
         return false;

@@ -1287,6 +1287,7 @@
     <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2222,9 +2223,6 @@
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-internal.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
-    <ClInclude Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp">
-      <Filter>xdr\generated</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\util\xdrquery\XDRQuery.h">
       <Filter>util\xdrquery</Filter>
     </ClInclude>
@@ -2449,6 +2447,7 @@
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryScanner.ll">
       <Filter>util\xdrquery</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\hash-xdrs.sh" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\INSTALL-Windows.md" />

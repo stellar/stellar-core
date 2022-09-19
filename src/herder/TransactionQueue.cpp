@@ -936,7 +936,7 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
                          Rounding::ROUND_UP);
     releaseAssertOrThrow(opsToFlood >= 0 &&
                          opsToFlood <= std::numeric_limits<uint32_t>::max());
-    return opsToFlood;
+    return static_cast<uint32_t>(opsToFlood);
 }
 
 TransactionQueue::BroadcastStatus

@@ -602,7 +602,7 @@ getAccountSigners(PublicKey const& k, Application& app)
 TransactionFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, int fee)
+                            const std::vector<Operation>& ops, uint32_t fee)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
@@ -624,7 +624,7 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, int fee,
+                            const std::vector<Operation>& ops, uint32_t fee,
                             std::optional<PreconditionsV2> cond)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
@@ -653,7 +653,7 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
-                          int fee)
+                          uint32_t fee)
 {
     uint32_t ledgerVersion;
     {
