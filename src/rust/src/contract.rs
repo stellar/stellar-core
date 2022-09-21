@@ -5,7 +5,8 @@
 use crate::{
     log::partition::TX,
     rust_bridge::{
-        CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, PreflightCallbacks, PreflightHostFunctionOutput, RustBuf, XDRFileHash
+        CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, PreflightCallbacks,
+        PreflightHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
 use cxx::{CxxVector, UniquePtr};
@@ -272,23 +273,28 @@ fn invoke_host_function_or_maybe_panic(
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
 
-    debug!(target: TX, "invoking host function '{}'", HostFunction::name(&hf));
+    debug!(
+        target: TX,
+        "invoking host function '{}'",
+        HostFunction::name(&hf)
+    );
     let res = host.invoke_function(hf, args);
     let (storage, _budget, events) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
-    match res {
-        Ok(_) => (),
+    let result_value = match res {
+        Ok(rv) => xdr_to_rust_buf(&rv)?,
         Err(err) => {
             debug!(target: TX, "invocation failed: {}", err);
             return Err(err.into());
         }
-    }
+    };
     let modified_ledger_entries =
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
     let contract_events = extract_contract_events(&events)?;
     Ok(InvokeHostFunctionOutput {
+        result_value,
         contract_events,
         modified_ledger_entries,
     })
@@ -357,7 +363,13 @@ pub(crate) fn preflight_host_function(
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        preflight_host_function_or_maybe_panic(hf_buf, args_buf, source_account_buf, ledger_info, cb)
+        preflight_host_function_or_maybe_panic(
+            hf_buf,
+            args_buf,
+            source_account_buf,
+            ledger_info,
+            cb,
+        )
     }));
     match res {
         Err(_) => Err(CoreHostError::General("contract host panicked").into()),
