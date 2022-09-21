@@ -809,6 +809,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     char const* cat = nullptr;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
     auto msgType = stellarMsg.type();
+    bool ignoreIfOutOfSync = false;
     switch (msgType)
     {
     // group messages used during handshake, process those synchronously
@@ -893,6 +894,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
+        ignoreIfOutOfSync = true;
         break;
     }
 
@@ -917,7 +919,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
-    if (!mApp.getLedgerManager().isSynced() && stellarMsg.type() == TRANSACTION)
+    if (!mApp.getLedgerManager().isSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we can't
         // properly verify them
