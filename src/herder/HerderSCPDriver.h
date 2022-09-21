@@ -162,6 +162,8 @@ class HerderSCPDriver : public SCPDriver
     medida::Histogram& mNominateTimeout;
     // Prepare timeouts per ledger
     medida::Histogram& mPrepareTimeout;
+    // Unique values referenced per ledger
+    medida::Histogram& mUniqueValues;
 
     // Externalize lag tracking for nodes in qset
     UnorderedMap<NodeID, medida::Timer> mQSetLag;
@@ -209,7 +211,7 @@ class HerderSCPDriver : public SCPDriver
                                                    StellarValue const& sv,
                                                    bool nomination) const;
 
-    void logQuorumInformation(uint64_t index);
+    void logQuorumInformationAndUpdateMetrics(uint64_t index);
 
     void clearSCPExecutionEvents();
 

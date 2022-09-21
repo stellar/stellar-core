@@ -80,6 +80,8 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
           {"scp", "timeout", "nominate"})}
     , mPrepareTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "prepare"})}
+    , mUniqueValues{mApp.getMetrics().NewHistogram(
+          {"scp", "slot", "values-referenced"})}
     , mLedgerSeqNominating(0)
     , mTxSetValidCache(TXSETVALID_CACHE_SIZE)
 {
@@ -751,7 +753,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         // all messages made it
         if (slotIndex > 2)
         {
-            logQuorumInformation(slotIndex - 2);
+            logQuorumInformationAndUpdateMetrics(slotIndex - 2);
         }
 
         if (mCurrentValue)
@@ -790,7 +792,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 }
 
 void
-HerderSCPDriver::logQuorumInformation(uint64_t index)
+HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 {
     std::string res;
     auto v = mApp.getHerder().getJsonQuorumInfo(mSCP.getLocalNodeID(), true,
@@ -801,6 +803,22 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
         Json::FastWriter fw;
         CLOG_INFO(Herder, "Quorum information for {} : {}", index,
                   fw.write(qset));
+    }
+
+    std::unordered_set<Hash> referencedValues;
+    auto collectReferencedHashes = [&](SCPEnvelope const& envelope) {
+        for (auto const& hash : getTxSetHashes(envelope))
+        {
+            referencedValues.insert(hash);
+        }
+        return true;
+    };
+
+    getSCP().processCurrentState(index, collectReferencedHashes,
+                                 /* forceSelf */ true);
+    if (!referencedValues.empty())
+    {
+        mUniqueValues.Update(referencedValues.size());
     }
 }
 
