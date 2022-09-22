@@ -538,6 +538,25 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     }
 }
 
+void
+HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
+{
+
+    auto timersIt = mSCPTimers.find(slotIndex);
+    if (timersIt == mSCPTimers.end())
+    {
+        return;
+    }
+
+    auto& slotTimers = timersIt->second;
+    auto it = slotTimers.find(timerID);
+    if (it != slotTimers.end())
+    {
+        auto& timer = *it->second;
+        timer.cancel();
+    }
+}
+
 // returns true if l < r
 // lh, rh are the hashes of l,h
 static bool

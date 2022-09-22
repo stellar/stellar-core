@@ -222,6 +222,12 @@ class TestSCP : public SCPDriver
                       cb};
     }
 
+    void
+    stopTimer(uint64 slotIndex, int timerID) override
+    {
+        mTimers.erase(timerID);
+    }
+
     TimerData
     getBallotProtocolTimer()
     {
@@ -2945,6 +2951,58 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         SCPEnvelope nom2 =
             makeNominate(v2SecretKey, qSetHash, 0, votesXK, emptyV);
 
+        SECTION("value from v1 is a candidate, self should not introduce new "
+                "value on timeout")
+        {
+            REQUIRE(!scp.nominate(0, xValue, false));
+            checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
+            REQUIRE(scp.mEnvs.size() == 0);
+            nom1 = makeNominate(v1SecretKey, qSetHash, 0, votesX, emptyV);
+            nom2 = makeNominate(v2SecretKey, qSetHash, 0, votesX, emptyV);
+            SCPEnvelope nom3 =
+                makeNominate(v3SecretKey, qSetHash, 0, votesX, emptyV);
+
+            // Receive `x` from v1, vote for it
+            scp.receiveEnvelope(nom1);
+            REQUIRE(scp.mEnvs.size() == 1);
+            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
+                           emptyV);
+
+            scp.receiveEnvelope(nom2);
+            scp.receiveEnvelope(nom3);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesX,
+                           votesX);
+
+            SCPEnvelope acc1 =
+                makeNominate(v1SecretKey, qSetHash, 0, votesX, votesX);
+            SCPEnvelope acc2 =
+                makeNominate(v2SecretKey, qSetHash, 0, votesX, votesX);
+            SCPEnvelope acc3 =
+                makeNominate(v3SecretKey, qSetHash, 0, votesX, votesX);
+
+            scp.receiveEnvelope(acc1);
+            scp.receiveEnvelope(acc2);
+            REQUIRE(scp.mEnvs.size() == 2);
+
+            // Receive accept from quorum, ratify and generate a candidate value
+            REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) !=
+                    scp.mTimers.end());
+            scp.mCompositeValue = xValue;
+            scp.mExpectedCandidates.emplace(xValue);
+            scp.receiveEnvelope(acc3);
+            REQUIRE(scp.mEnvs.size() == 3);
+            // Timer is cancelled
+            REQUIRE(scp.mTimers.find(Slot::NOMINATION_TIMER) ==
+                    scp.mTimers.end());
+
+            // v0 is the new leader, but we already have a candidate
+            scp.mPriorityLookup = [&](NodeID const& n) {
+                return (n == v0NodeID) ? 1000 : 1;
+            };
+            REQUIRE(!scp.nominate(0, kValue, true));
+        }
         SECTION("nomination waits for v1")
         {
             REQUIRE(!scp.nominate(0, xValue, false));
