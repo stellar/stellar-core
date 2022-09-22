@@ -525,18 +525,6 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     std::chrono::milliseconds timeout =
         mSlot.getSCPDriver().computeTimeout(mRoundNumber);
 
-    // if we're leader, add our value
-    if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
-        mRoundLeaders.end())
-    {
-        auto ins = mVotes.insert(value);
-        if (ins.second)
-        {
-            updated = true;
-            mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
-                                                 value->getValue());
-        }
-    }
     // add a few more values from other leaders
     for (auto const& leader : mRoundLeaders)
     {
@@ -552,6 +540,20 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
                 mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
                                                      lnmV->getValue());
             }
+        }
+    }
+
+    // if we're leader, add our value if we haven't added any votes yet
+    if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
+            mRoundLeaders.end() &&
+        mVotes.empty())
+    {
+        auto ins = mVotes.insert(value);
+        if (ins.second)
+        {
+            updated = true;
+            mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
+                                                 value->getValue());
         }
     }
 
