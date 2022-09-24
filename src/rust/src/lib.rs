@@ -50,6 +50,7 @@ mod rust_bridge {
             hf_buf: &XDRBuf,
             args: &XDRBuf,
             footprint: &XDRBuf,
+            source_account: &XDRBuf,
             ledger_entries: &Vec<XDRBuf>,
         ) -> Result<Vec<Bytes>>;
         fn preflight_host_function(

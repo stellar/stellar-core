@@ -90,7 +90,8 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
         retBufs = rust_bridge::invoke_host_function(
             toXDRBuf(mInvokeHostFunction.function),
             toXDRBuf(mInvokeHostFunction.parameters),
-            toXDRBuf(mInvokeHostFunction.footprint), ledgerEntryXdrBufs);
+            toXDRBuf(mInvokeHostFunction.footprint), toXDRBuf(getSourceID()),
+            ledgerEntryXdrBufs);
     }
     catch (std::exception&)
     {

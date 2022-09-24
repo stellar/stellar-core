@@ -15,9 +15,9 @@ use soroban_env_host::{
     storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
-        HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey, LedgerKeyAccount,
-        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode,
-        ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256,
+        AccountId, HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey,
+        LedgerKeyAccount, LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr,
+        ScHostContextErrorCode, ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256,
     },
     Host, HostError, MeteredOrdMap,
 };
@@ -194,11 +194,13 @@ pub(crate) fn invoke_host_function(
     hf_buf: &XDRBuf,
     args_buf: &XDRBuf,
     footprint_buf: &XDRBuf,
+    source_account_buf: &XDRBuf,
     ledger_entries: &Vec<XDRBuf>,
 ) -> Result<Vec<Bytes>, Box<dyn Error>> {
     let budget = Budget::default();
     let hf = xdr_from_xdrbuf::<HostFunction>(&hf_buf)?;
     let args = xdr_from_xdrbuf::<ScVec>(&args_buf)?;
+    let source_account = xdr_from_xdrbuf::<AccountId>(&source_account_buf)?;
 
     let footprint = build_storage_footprint_from_xdr(budget.clone(), footprint_buf)?;
     let map =
@@ -206,14 +208,25 @@ pub(crate) fn invoke_host_function(
 
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let host = Host::with_storage_and_budget(storage, budget);
+    host.set_source_account(source_account);
 
     match hf {
         HostFunction::Call => {
             info!(target: TX, "Invoking host function 'Call'");
             host.invoke_function(hf, args)?;
         }
-        HostFunction::CreateContract => {
-            info!(target: TX, "Invoking host function 'CreateContract'");
+        HostFunction::CreateContractWithEd25519 => {
+            info!(
+                target: TX,
+                "Invoking host function 'CreateContractWithEd25519'"
+            );
+            host.invoke_function(hf, args)?;
+        }
+        HostFunction::CreateContractWithSourceAccount => {
+            info!(
+                target: TX,
+                "Invoking host function 'CreateContractWithSource'"
+            );
             host.invoke_function(hf, args)?;
         }
     };
