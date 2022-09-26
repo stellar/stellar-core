@@ -113,32 +113,39 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
 }
 
 void
-LedgerCloseMetaFrame::setLastTxProcessingMetaAndResultPair(
-    TransactionMeta const& tm, TransactionResultPair const& rp)
+LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
+    TransactionMeta const& tm, TransactionResultPair const& rp, int index)
 {
     switch (mVersion)
     {
     case 0:
-        mLedgerCloseMeta.v0().txProcessing.back().txApplyProcessing = tm;
-        mLedgerCloseMeta.v0().txProcessing.back().result = rp;
-        break;
+    {
+        auto& txp = mLedgerCloseMeta.v0().txProcessing.at(index);
+        txp.txApplyProcessing = tm;
+        txp.result = rp;
+    }
+    break;
     case 1:
-        mLedgerCloseMeta.v1().txProcessing.back().txApplyProcessing = tm;
-        mLedgerCloseMeta.v1().txProcessing.back().result = rp;
-        break;
+    {
+        auto& txp = mLedgerCloseMeta.v1().txProcessing.at(index);
+        txp.txApplyProcessing = tm;
+        txp.result = rp;
+    }
+    break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
-        mLedgerCloseMeta.v2().txProcessing.back().txApplyProcessing = tm;
-        mLedgerCloseMeta.v2().txProcessing.back().result.transactionHash =
-            rp.transactionHash;
-        {
-            // In v2 we do not store the actual txresult anymore, just a hash of
-            // hashes. This means we had to get a TransactionMetaV3.
-            releaseAssert(tm.v() == 3);
-            mLedgerCloseMeta.v2().txProcessing.back().result.hashOfMetaHashes =
-                TransactionMetaFrame::getHashOfMetaHashes(tm);
-        }
-        break;
+    {
+        auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
+        txp.txApplyProcessing = tm;
+        auto& res = txp.result;
+        res.transactionHash = rp.transactionHash;
+
+        // In v2 we do not store the actual txresult anymore, just a hash of
+        // hashes. This means we had to get a TransactionMetaV3.
+        releaseAssert(tm.v() == 3);
+        res.hashOfMetaHashes = TransactionMetaFrame::getHashOfMetaHashes(tm);
+    }
+    break;
 #endif
     default:
         releaseAssert(false);

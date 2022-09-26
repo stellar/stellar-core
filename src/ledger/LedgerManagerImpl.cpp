@@ -1235,8 +1235,8 @@ LedgerManagerImpl::applyTransactions(
         // into the associated slot of any LedgerCloseMeta we're collecting.
         if (ledgerCloseMeta)
         {
-            ledgerCloseMeta->setLastTxProcessingMetaAndResultPair(tm.getXDR(),
-                                                                  results);
+            ledgerCloseMeta->setTxProcessingMetaAndResultPair(tm.getXDR(),
+                                                              results, index);
         }
 
         // Then finally store the results and meta into the txhistory table.
