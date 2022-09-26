@@ -292,7 +292,9 @@ AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 AC_ARG_ENABLE(tests,
     AS_HELP_STRING([--disable-tests],
         [Disable building test suite]))
-AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
+## tbcasoft - Disable to prevent corruption
+##AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
+AM_CONDITIONAL(BUILD_TESTS, 0)
 
 AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
