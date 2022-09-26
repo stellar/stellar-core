@@ -285,13 +285,6 @@ class OverlayManagerTests
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);
-
-        // Test that we updating a flood record actually prevents re-broadcast
-        StellarMessage AtoC = a.tx({payment(c, 10)})->toStellarMessage();
-        pm.updateFloodRecord(AtoB, AtoC);
-        broadcastTxnMsg(AtoC);
-        crank(10);
-        REQUIRE(sentCounts(pm) == expectedFinal);
     }
 };
 

@@ -189,9 +189,6 @@ class OverlayManager
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
 
-    virtual void updateFloodRecord(StellarMessage const& oldMsg,
-                                   StellarMessage const& newMsg) = 0;
-
     virtual void recordTxPullLatency(Hash const& hash) = 0;
 
     virtual size_t getMaxAdvertSize() const = 0;

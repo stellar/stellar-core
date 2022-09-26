@@ -74,8 +74,5 @@ class Floodgate
     void forgetRecord(Hash const& msgID);
 
     void shutdown();
-
-    void updateRecord(StellarMessage const& oldMsg,
-                      StellarMessage const& newMsg);
 };
 }

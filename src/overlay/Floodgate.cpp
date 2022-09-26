@@ -189,24 +189,4 @@ Floodgate::forgetRecord(Hash const& h)
 {
     mFloodMap.erase(h);
 }
-
-void
-Floodgate::updateRecord(StellarMessage const& oldMsg,
-                        StellarMessage const& newMsg)
-{
-    ZoneScoped;
-    Hash oldHash = xdrBlake2(oldMsg);
-    Hash newHash = xdrBlake2(newMsg);
-
-    auto oldIter = mFloodMap.find(oldHash);
-    if (oldIter != mFloodMap.end())
-    {
-        auto record = oldIter->second;
-        record->mMessage = newMsg;
-
-        mFloodMap.erase(oldIter);
-        mFloodMap.emplace(newHash, record);
-    }
-}
-
 }
