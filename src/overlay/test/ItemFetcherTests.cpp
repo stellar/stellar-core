@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
@@ -355,8 +356,8 @@ TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
         {
             StellarMessage msg(SCP_MESSAGE);
             msg.envelope() = hundredEnvelope1;
-            auto index = sha256(xdr::xdr_to_opaque(msg));
-            app->getOverlayManager().recvFloodedMsgID(msg, peer1, index);
+            auto index = xdrBlake2(msg);
+            app->getOverlayManager().recvFloodedMsg(peer1, index);
             tracker->tryNextPeer();
             REQUIRE(askCount == 2);
             auto trPeer1b = tracker->getLastAskedPeer();

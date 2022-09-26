@@ -261,27 +261,34 @@ class OverlayManagerTests
         auto c = TestAccount{*app, getAccount("c")};
         auto d = TestAccount{*app, getAccount("d")};
 
-        StellarMessage AtoB = a.tx({payment(b, 10)})->toStellarMessage();
+        auto AtoBTxFrame = a.tx({payment(b, 10)});
+        StellarMessage AtoB = AtoBTxFrame->toStellarMessage();
         auto i = 0;
         for (auto p : pm.mOutboundPeers.mAuthenticated)
         {
             if (i++ == 2)
             {
-                pm.recvFloodedMsg(AtoB, p.second);
+                pm.recvFloodedMsg(
+                    p.second,
+                    TransactionFrameBase::txHashForFlooding(AtoBTxFrame));
             }
         }
-        auto broadcastTxnMsg = [&](auto msg) {
-            pm.broadcastMessage(msg, false, xdrSha256(msg.transaction()));
+        auto broadcastTxnMsg = [&](StellarMessage msg,
+                                   TransactionFramePtr txPtr) {
+            pm.broadcastMessage(
+                msg, TransactionFrameBase::txHashForFlooding(txPtr), false);
         };
-        broadcastTxnMsg(AtoB);
+        broadcastTxnMsg(AtoB, AtoBTxFrame);
         crank(10);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
-        broadcastTxnMsg(AtoB);
+        broadcastTxnMsg(AtoB, AtoBTxFrame);
         crank(10);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
-        broadcastTxnMsg(CtoD);
+
+        auto CtoDTxFrame = c.tx({payment(d, 10)});
+        StellarMessage CtoD = CtoDTxFrame->toStellarMessage();
+        broadcastTxnMsg(CtoD, CtoDTxFrame);
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);

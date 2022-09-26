@@ -1821,6 +1821,12 @@ auto numTxHashesAdvertised = [](std::shared_ptr<Application> app) {
         .count();
 };
 
+auto numFulfilled = [](std::shared_ptr<Application> app) {
+    return app->getMetrics()
+        .NewMeter({"overlay", "flood", "fulfilled"}, "message")
+        .count();
+};
+
 TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 {
     VirtualClock clock;
@@ -1925,6 +1931,35 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 
         REQUIRE(numDemandSent(apps[2]) == 1);
         REQUIRE(numUnknownDemand(apps[0]) == 1);
+    }
+
+    SECTION("do not advertise to peers that know about tx")
+    {
+        auto root = TestAccount::createRoot(*apps[0]);
+        auto tx = root.tx({txtest::createAccount(
+            txtest::getAccount("acc").getPublicKey(), 100)});
+        auto adv = createAdvert(std::vector<std::shared_ptr<StellarMessage>>{
+            std::make_shared<StellarMessage>(tx->toStellarMessage())});
+
+        // Node 0 advertises tx 0 to Node 2
+        REQUIRE(apps[0]->getHerder().recvTransaction(tx, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(apps[1]->getHerder().recvTransaction(tx, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+        // Give enough time to call `demand` multiple times
+        testutil::crankFor(
+            clock, 3 * apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
+
+        REQUIRE(numDemandSent(apps[2]) == 1);
+        REQUIRE(numFulfilled(apps[0]) == 1);
+        REQUIRE(numFulfilled(apps[1]) == 0);
+        // No adverts sent
+        REQUIRE(apps[2]
+                    ->getMetrics()
+                    .NewTimer({"overlay", "recv", "flood-advert"})
+                    .count() == 2);
+        REQUIRE(numTxHashesAdvertised(apps[2]) == 0);
     }
 
     SECTION("sanity check - demand")
