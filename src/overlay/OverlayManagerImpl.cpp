@@ -27,6 +27,7 @@
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
+#include "crypto/BLAKE2.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -46,6 +47,12 @@ constexpr std::chrono::seconds PEER_IP_RESOLVE_RETRY_DELAY(10);
 // FLOOD_DEMAND_BACKOFF_DELAY_MS it doesn't make much sense to wait much
 // longer than 2 seconds between re-issuing demands.
 constexpr std::chrono::seconds MAX_DELAY_DEMAND{2};
+
+Hash
+OverlayManager::defaultFloodingHash(StellarMessage const& msg)
+{
+    return xdrBlake2(msg);
+}
 
 OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
@@ -959,11 +966,10 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 }
 
 bool
-OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
-                                     Peer::pointer peer, Hash& msgID)
+OverlayManagerImpl::recvFloodedMsg(Peer::pointer peer, Hash const& msgID)
 {
     ZoneScoped;
-    return mFloodGate.addRecord(msg, peer, msgID);
+    return mFloodGate.addRecord(peer, msgID);
 }
 
 void
@@ -974,8 +980,8 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 }
 
 bool
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force,
-                                     std::optional<Hash> const hash)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
+                                     Hash const& hash, bool force)
 {
     ZoneScoped;
     auto res = mFloodGate.broadcast(msg, force, hash);

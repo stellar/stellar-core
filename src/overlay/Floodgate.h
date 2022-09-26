@@ -14,7 +14,8 @@
  * either send M to P once (and only once), or receive M _from_ P (thereby
  * inhibit sending M to P at all).
  *
- * The broadcast message types are TRANSACTION and SCP_MESSAGE.
+ * The broadcast message types are TRANSACTION, SCP_MESSAGE, SURVEY_RESPONSE and
+ * SURVEY_REQUEST.
  *
  * All messages are marked with the ledger sequence number to which they
  * relate, and all flood-management information for a given ledger number
@@ -54,14 +55,11 @@ class Floodgate
     // forget data strictly older than `maxLedger`
     void clearBelow(uint32_t maxLedger);
     // returns true if this is a new record
-    // fills msgID with msg's hash
-    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer,
-                   Hash& msgID);
+    bool addRecord(Peer::pointer fromPeer, Hash const& msgID);
 
     // returns true if msg was sent to at least one peer
     // The hash required for transactions
-    bool broadcast(StellarMessage const& msg, bool force,
-                   std::optional<Hash> const& hash = std::nullopt);
+    bool broadcast(StellarMessage const& msg, bool force, Hash const& index);
 
     // returns the list of peers that sent us the item with hash `msgID`
     // NB: `msgID` is the hash of a `StellarMessage`

@@ -55,6 +55,7 @@ class OverlayManager
 {
   public:
     static std::unique_ptr<OverlayManager> create(Application& app);
+    static Hash defaultFloodingHash(StellarMessage const& msg);
 
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
@@ -68,25 +69,17 @@ class OverlayManager
     // returns true if message was sent to at least one peer
     // When passing a transaction message,
     // the hash of TransactionEnvelope must be passed also for pull mode.
-    virtual bool
-    broadcastMessage(StellarMessage const& msg, bool force = false,
-                     std::optional<Hash> const hash = std::nullopt) = 0;
+    virtual bool broadcastMessage(StellarMessage const& msg, Hash const& hash,
+                                  bool force = false) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a
     // given broadcast message, so that it is inhibited from being resent to
     // that peer. This does _not_ cause the message to be broadcast anew; to do
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
-    // fills msgID with msg's hash
-    virtual bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                                  Hash& msgID) = 0;
-
-    bool
-    recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
-    {
-        Hash msgID;
-        return recvFloodedMsgID(msg, peer, msgID);
-    }
+    // msgId is a unique key to identify this message that must be provided by
+    // the caller
+    virtual bool recvFloodedMsg(Peer::pointer peer, Hash const& msgID) = 0;
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)

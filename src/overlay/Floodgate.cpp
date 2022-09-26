@@ -58,10 +58,9 @@ Floodgate::clearBelow(uint32_t maxLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
+Floodgate::addRecord(Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
-    index = xdrBlake2(msg);
     if (mShuttingDown)
     {
         return false;
@@ -85,20 +84,13 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 
 // send message to anyone you haven't gotten it from
 bool
-Floodgate::broadcast(StellarMessage const& msg, bool force,
-                     std::optional<Hash> const& hash)
+Floodgate::broadcast(StellarMessage const& msg, bool force, Hash const& index)
 {
     ZoneScoped;
     if (mShuttingDown)
     {
         return false;
     }
-    if (msg.type() == TRANSACTION)
-    {
-        // Must pass a hash when broadcasting transactions.
-        releaseAssert(hash.has_value());
-    }
-    Hash index = xdrBlake2(msg);
 
     FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
@@ -129,7 +121,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
             if (msg.type() == TRANSACTION && peer.second->isPullModeEnabled())
             {
                 mMessagesAdvertised.Mark();
-                peer.second->queueTxHashToAdvertise(hash.value());
+                peer.second->queueTxHashToAdvertise(index);
             }
             else
             {

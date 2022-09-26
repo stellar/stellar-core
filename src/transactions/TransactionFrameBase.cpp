@@ -24,4 +24,10 @@ TransactionFrameBase::makeTransactionFromWire(Hash const& networkID,
         abort();
     }
 }
+
+Hash
+TransactionFrameBase::txHashForFlooding(TransactionFrameBasePtr const& tx)
+{
+    return tx->getFullHash();
+}
 }

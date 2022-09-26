@@ -1031,8 +1031,8 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
         return BroadcastStatus::BROADCAST_STATUS_SKIPPED;
     }
     return mApp.getOverlayManager().broadcastMessage(
-               tx.mTx->toStellarMessage(), false,
-               std::make_optional<Hash>(tx.mTx->getFullHash()))
+               tx.mTx->toStellarMessage(),
+               TransactionFrameBase::txHashForFlooding(tx.mTx), false)
                ? BroadcastStatus::BROADCAST_STATUS_SUCCESS
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }

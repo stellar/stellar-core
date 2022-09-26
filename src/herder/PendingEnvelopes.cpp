@@ -539,7 +539,8 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     StellarMessage msg;
     msg.type(SCP_MESSAGE);
     msg.envelope() = envelope;
-    mApp.getOverlayManager().broadcastMessage(msg);
+    mApp.getOverlayManager().broadcastMessage(
+        msg, OverlayManager::defaultFloodingHash(msg));
 
     auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
     mEnvelopes[slot].mReadyEnvelopes.push_back(envW);

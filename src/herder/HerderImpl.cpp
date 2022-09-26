@@ -407,7 +407,8 @@ HerderImpl::broadcast(SCPEnvelope const& e)
                    e.statement.slotIndex);
 
         mSCPMetrics.mEnvelopeEmit.Mark();
-        mApp.getOverlayManager().broadcastMessage(m, false);
+        mApp.getOverlayManager().broadcastMessage(
+            m, OverlayManager::defaultFloodingHash(m), false);
     }
 }
 

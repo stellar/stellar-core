@@ -242,7 +242,8 @@ Tracker::listen(const SCPEnvelope& env)
     // what the floodmap is keyed by, and we're storing its keys
     // in mWaitingEnvelopes, not the mItemHash that is the SHA256
     // of the item being tracked.
-    mWaitingEnvelopes.push_back(std::make_pair(xdrBlake2(m), env));
+    mWaitingEnvelopes.push_back(
+        std::make_pair(OverlayManager::defaultFloodingHash(m), env));
 }
 
 void

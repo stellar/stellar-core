@@ -129,12 +129,10 @@ class OverlayManagerImpl : public OverlayManager
     ~OverlayManagerImpl();
 
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
-    bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                          Hash& msgID) override;
+    bool recvFloodedMsg(Peer::pointer peer, Hash const& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
-    bool
-    broadcastMessage(StellarMessage const& msg, bool force = false,
-                     std::optional<Hash> const hash = std::nullopt) override;
+    bool broadcastMessage(StellarMessage const& msg, Hash const& hash,
+                          bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;

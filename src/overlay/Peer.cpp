@@ -1502,17 +1502,15 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
-        Hash msgID;
-        mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
-                                                  msgID);
+        auto hash = TransactionFrameBase::txHashForFlooding(transaction);
+        mApp.getOverlayManager().recvFloodedMsg(shared_from_this(), hash);
 
         if (isPullModeEnabled())
         {
             // It does not make sense to record the latency if the transaction
             // is coming from a node that we didn't demand it from.
             // Peers with pull mode enabled should send txns only if demanded.
-            mApp.getOverlayManager().recordTxPullLatency(
-                transaction->getFullHash());
+            mApp.getOverlayManager().recordTxPullLatency(hash);
         }
 
         // add it to our current set
@@ -1522,7 +1520,7 @@ Peer::recvTransaction(StellarMessage const& msg)
         if (!(recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
               recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
         {
-            mApp.getOverlayManager().forgetFloodedMsg(msgID);
+            mApp.getOverlayManager().forgetFloodedMsg(hash);
         }
     }
 }
@@ -1636,8 +1634,8 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     ZoneText(codeStr.c_str(), codeStr.size());
 
     // add it to the floodmap so that this peer gets credit for it
-    Hash msgID;
-    mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(), msgID);
+    Hash msgID = OverlayManager::defaultFloodingHash(msg);
+    mApp.getOverlayManager().recvFloodedMsg(shared_from_this(), msgID);
 
     auto res = mApp.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
@@ -2009,6 +2007,12 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
+    auto self = shared_from_this();
+    for (auto const& hash : msg.floodAdvert().txHashes)
+    {
+        mApp.getOverlayManager().recvFloodedMsg(self, hash);
+    }
+
     mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
 }
 
