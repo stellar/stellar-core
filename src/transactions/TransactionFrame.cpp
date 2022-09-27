@@ -1215,8 +1215,6 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             {
                 ok = applyOperations(signatureChecker, app, ltx, meta);
             }
-            meta.setTxResult(mResult);
-            meta.finalizeHashes();
             return ok;
         }
         catch (std::exception& e)
