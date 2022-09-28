@@ -505,16 +505,19 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
                              bool timedout)
 {
     ZoneScoped;
-    CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
-               mSlot.getSCP().getValueString(value->getValue()));
 
     // No need to continue nominating, as per the whitepaper:
     // "As soon as `v` has a candidate value, however, it must cease
     // voting to nominate `x` for any new values `x`"
     if (!mCandidates.empty())
     {
+        CLOG_DEBUG(SCP, "Skip nomination round {}, already have a candidate",
+                   mRoundNumber);
         return false;
     }
+
+    CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
+               mSlot.getSCP().getValueString(value->getValue()));
 
     bool updated = false;
 
