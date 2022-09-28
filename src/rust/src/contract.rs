@@ -210,40 +210,8 @@ pub(crate) fn invoke_host_function(
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
 
-    match hf {
-        HostFunction::InvokeContract => {
-            info!(target: TX, "Invoking host function 'InvokeContract'");
-            host.invoke_function(hf, args)?;
-        }
-        HostFunction::CreateContractWithEd25519 => {
-            info!(
-                target: TX,
-                "Invoking host function 'CreateContractWithEd25519'"
-            );
-            host.invoke_function(hf, args)?;
-        }
-        HostFunction::CreateContractWithSourceAccount => {
-            info!(
-                target: TX,
-                "Invoking host function 'CreateContractWithSource'"
-            );
-            host.invoke_function(hf, args)?;
-        }
-        HostFunction::CreateTokenContractWithSourceAccount => {
-            info!(
-                target: TX,
-                "Invoking host function 'CreateTokenContractWithSourceAccount'"
-            );
-            host.invoke_function(hf, args)?;
-        }
-        HostFunction::CreateTokenContractWithAsset => {
-            info!(
-                target: TX,
-                "Invoking host function 'CreateTokenContractWithAsset'"
-            );
-            host.invoke_function(hf, args)?;
-        }
-    };
+    info!(target: TX, "Invoking host function {}", hf.to_string());
+    host.invoke_function(hf, args)?;
 
     let (storage, _budget, _events) = host
         .try_finish()
