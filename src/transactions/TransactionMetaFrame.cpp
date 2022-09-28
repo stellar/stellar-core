@@ -6,6 +6,7 @@
 #include "crypto/SHA.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include <iterator>
 #include <xdrpp/xdrpp/marshal.h>
@@ -201,6 +202,7 @@ void
 TransactionMetaFrame::finalizeHashes()
 {
     releaseAssert(!mHashesFinalized);
+    normalizeMeta(mTransactionMeta);
     switch (mTransactionMeta.v())
     {
     case 2:

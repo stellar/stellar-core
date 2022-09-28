@@ -22,6 +22,7 @@
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetaUtils.h"
 #include "util/TmpDir.h"
 #include "util/XDRCereal.h"
 
