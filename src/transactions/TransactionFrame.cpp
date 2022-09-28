@@ -1101,7 +1101,11 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            outerMeta.pushContractEvents(mEvents);
+            // ContractEvents should only occur in InvokeHostFunctionOps which
+            // should only occur in txs with a single op. This is enforced in
+            // InvokeHostFunctionOpFrame::doCheckValid but re-assert here.
+            releaseAssertOrThrow(mEvents.empty() || mOperations.size() == 1);
+            outerMeta.pushContractEvents(std::move(mEvents));
 #endif
         }
         else
