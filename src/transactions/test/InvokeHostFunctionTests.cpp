@@ -85,7 +85,7 @@ submitOpToCreateContract(Application& app, Operation const& op,
     // verify contract code is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
-    REQUIRE((bool)ltxe2 == expectEntry);
+    REQUIRE(static_cast<bool>(ltxe2) == expectEntry);
     // FIXME: it's a little weird that we put a contractBin in and get a
     // contractCodeObj out. This is probably a residual error from before an API
     // change. See https://github.com/stellar/rs-soroban-env/issues/369
@@ -176,7 +176,6 @@ deployContract(Application& app, Bytes const& contract, HostFunction fn,
     {
     case HostFunction::HOST_FN_CREATE_CONTRACT_WITH_ED25519:
     {
-        // uint256 salt = sha256("salt");
         auto key = SecretKey::fromSeed(sha256("a1"));
 
         // create signature
