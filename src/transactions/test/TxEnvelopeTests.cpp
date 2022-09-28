@@ -2382,7 +2382,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     REQUIRE(PaymentOpFrame::getInnerCode(
                                 r[1].first.result.result.results()[0]) ==
                             PAYMENT_SUCCESS);
-                    REQUIRE(r[1].first.result.result.code() == opBAD_AUTH);
+                    REQUIRE(r[1].first.result.result.results()[1].code() ==
+                            opBAD_AUTH);
                 });
             }
         }

@@ -65,10 +65,39 @@ makeSymbol(std::string const& str)
     return val;
 }
 
+static void
+submitOpToCreateContract(Application& app, Operation const& op,
+                         Bytes const& contract, Hash const& contractID,
+                         SCVal const& wasmKey, bool expectSuccess,
+                         bool expectEntry)
+{
+    // submit operation
+    auto root = TestAccount::createRoot(app);
+    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    TransactionMeta txm(2);
+    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
+    ltx.commit();
+
+    auto contractCodeObj =
+        makeContract(contract.vec.begin(), contract.vec.end());
+    // verify contract code is correct
+    LedgerTxn ltx2(app.getLedgerTxnRoot());
+    auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
+    REQUIRE(static_cast<bool>(ltxe2) == expectEntry);
+    // FIXME: it's a little weird that we put a contractBin in and get a
+    // contractCodeObj out. This is probably a residual error from before an API
+    // change. See https://github.com/stellar/rs-soroban-env/issues/369
+    REQUIRE((!expectEntry ||
+             ltxe2.current().data.contractData().val == contractCodeObj));
+}
+
 static LedgerKey
-createContract(Application& app, Bytes const& contract, uint256 const& salt,
-               PublicKey const& pub, Signature const& sig, bool expectSuccess,
-               bool expectEntry)
+createContractFromEd25519(Application& app, Bytes const& contract,
+                          uint256 const& salt, PublicKey const& pub,
+                          Signature const& sig, bool expectSuccess,
+                          bool expectEntry)
 {
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519);
@@ -80,10 +109,8 @@ createContract(Application& app, Bytes const& contract, uint256 const& salt,
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
     auto& ihf = op.body.invokeHostFunctionOp();
-    ihf.function = HOST_FN_CREATE_CONTRACT;
+    ihf.function = HOST_FN_CREATE_CONTRACT_WITH_ED25519;
 
-    auto contractCodeObj =
-        makeContract(contract.vec.begin(), contract.vec.end());
     auto contractBin = makeBinary(contract.vec.begin(), contract.vec.end());
     ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end()),
                       makeBinary(pub.ed25519().begin(), pub.ed25519().end()),
@@ -99,45 +126,80 @@ createContract(Application& app, Bytes const& contract, uint256 const& salt,
 
     ihf.footprint.readWrite = {lk};
 
-    // submit operation
-    auto root = TestAccount::createRoot(app);
-    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    TransactionMeta txm(2);
-    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-    REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
-    ltx.commit();
-
-    // verify contract code is correct
-    LedgerTxn ltx2(app.getLedgerTxnRoot());
-    auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
-    REQUIRE((bool)ltxe2 == expectEntry);
-    // FIXME: it's a little weird that we put a contractBin in and get a
-    // contractCodeObj out. This is probably a residual error from before an API
-    // change. See https://github.com/stellar/rs-soroban-env/issues/369
-    REQUIRE((!expectEntry ||
-             ltxe2.current().data.contractData().val == contractCodeObj));
-
+    submitOpToCreateContract(app, op, contract, contractID, wasmKey,
+                             expectSuccess, expectEntry);
     return lk;
 }
 
 static LedgerKey
-deployContract(Application& app, Bytes const& contract)
+createContractFromSource(Application& app, Bytes const& contract,
+                         uint256 const& salt, bool expectSuccess,
+                         bool expectEntry)
 {
-    uint256 salt = sha256("salt");
-    auto key = SecretKey::fromSeed(sha256("a1"));
+    auto root = TestAccount::createRoot(app);
 
-    // create signature
-    auto const& separator = "create_contract_from_ed25519(contract: Vec<u8>, "
-                            "salt: u256, key: u256, sig: Vec<u8>)";
-    SHA256 hasher;
-    hasher.add(separator);
-    hasher.add(salt);
-    hasher.add(contract);
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_SOURCE_ACCOUNT);
+    preImage.sourceAccountContractID().sourceAccount = root.getPublicKey();
+    preImage.sourceAccountContractID().salt = salt;
+    auto contractID = xdrSha256(preImage);
 
-    auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
-    return createContract(app, contract, salt, key.getPublicKey(), sig, true,
-                          true);
+    // Create operation
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp();
+    ihf.function = HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT;
+
+    auto contractBin = makeBinary(contract.vec.begin(), contract.vec.end());
+    ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end())};
+
+    SCVal wasmKey(SCValType::SCV_STATIC);
+    wasmKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
+
+    LedgerKey lk;
+    lk.type(CONTRACT_DATA);
+    lk.contractData().contractID = contractID;
+    lk.contractData().key = wasmKey;
+
+    ihf.footprint.readWrite = {lk};
+
+    submitOpToCreateContract(app, op, contract, contractID, wasmKey,
+                             expectSuccess, expectEntry);
+    return lk;
+}
+
+static LedgerKey
+deployContract(Application& app, Bytes const& contract, HostFunction fn,
+               uint256 salt = sha256("salt"))
+{
+    switch (fn)
+    {
+    case HostFunction::HOST_FN_CREATE_CONTRACT_WITH_ED25519:
+    {
+        auto key = SecretKey::fromSeed(sha256("a1"));
+
+        // create signature
+        auto const& separator =
+            "create_contract_from_ed25519(contract: Vec<u8>, "
+            "salt: u256, key: u256, sig: Vec<u8>)";
+        SHA256 hasher;
+        hasher.add(separator);
+        hasher.add(salt);
+        hasher.add(contract);
+
+        auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
+        return createContractFromEd25519(app, contract, salt,
+                                         key.getPublicKey(), sig, true, true);
+    }
+    case HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT:
+    {
+        return createContractFromSource(app, contract, salt, true, true);
+    }
+    case HostFunction::HOST_FN_INVOKE_CONTRACT:
+        throw std::runtime_error("Invalid HostFunction");
+    default:
+        throw std::runtime_error("Unknown HostFunction");
+    }
 }
 
 TEST_CASE("invoke host function", "[tx][contract]")
@@ -149,58 +211,70 @@ TEST_CASE("invoke host function", "[tx][contract]")
     auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
-    SECTION("add i32")
     {
-        auto contract = deployContract(*app, addI32Wasm);
-        auto const& contractID = contract.contractData().contractID;
+        auto addI32 = [&](HostFunction fn) {
+            auto contract = deployContract(*app, addI32Wasm, fn);
+            auto const& contractID = contract.contractData().contractID;
 
-        auto call = [&](SCVec const& parameters, bool success) {
-            Operation op;
-            op.body.type(INVOKE_HOST_FUNCTION);
-            auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_CALL;
-            ihf.parameters = parameters;
-            ihf.footprint.readOnly = {contract};
+            auto call = [&](SCVec const& parameters, bool success) {
+                Operation op;
+                op.body.type(INVOKE_HOST_FUNCTION);
+                auto& ihf = op.body.invokeHostFunctionOp();
+                ihf.function = HOST_FN_INVOKE_CONTRACT;
+                ihf.parameters = parameters;
+                ihf.footprint.readOnly = {contract};
 
-            auto tx =
-                transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-            if (success)
-            {
-                REQUIRE(tx->apply(*app, ltx, txm));
-            }
-            else
-            {
-                REQUIRE(!tx->apply(*app, ltx, txm));
-            }
-            ltx.commit();
+                auto tx = transactionFrameFromOps(app->getNetworkID(), root,
+                                                  {op}, {});
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                if (success)
+                {
+                    REQUIRE(tx->apply(*app, ltx, txm));
+                }
+                else
+                {
+                    REQUIRE(!tx->apply(*app, ltx, txm));
+                }
+                ltx.commit();
+            };
+
+            auto scContractID =
+                makeBinary(contractID.begin(), contractID.end());
+            auto scFunc = makeSymbol("add");
+            auto sc7 = makeI32(7);
+            auto sc16 = makeI32(16);
+
+            // Too few parameters for call
+            call({}, false);
+            call({scContractID}, false);
+
+            // To few parameters for "add"
+            call({scContractID, scFunc}, false);
+            call({scContractID, scFunc, sc7}, false);
+
+            // Correct function call
+            call({scContractID, scFunc, sc7, sc16}, true);
+
+            // Too many parameters for "add"
+            call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
         };
-
-        auto scContractID = makeBinary(contractID.begin(), contractID.end());
-        auto scFunc = makeSymbol("add");
-        auto sc7 = makeI32(7);
-        auto sc16 = makeI32(16);
-
-        // Too few parameters for call
-        call({}, false);
-        call({scContractID}, false);
-
-        // To few parameters for "add"
-        call({scContractID, scFunc}, false);
-        call({scContractID, scFunc, sc7}, false);
-
-        // Correct function call
-        call({scContractID, scFunc, sc7, sc16}, true);
-
-        // Too many parameters for "add"
-        call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
+        SECTION("create with ed25519 -  add i32")
+        {
+            addI32(HostFunction::HOST_FN_CREATE_CONTRACT_WITH_ED25519);
+        }
+        SECTION("create with source -  add i32")
+        {
+            addI32(HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT);
+        }
     }
 
     SECTION("contract data")
     {
-        auto contract = deployContract(*app, contractDataWasm);
+        auto contract =
+            deployContract(*app, contractDataWasm,
+                           HostFunction::HOST_FN_CREATE_CONTRACT_WITH_ED25519);
         auto const& contractID = contract.contractData().contractID;
 
         auto checkContractData = [&](SCVal const& key, SCVal const* val) {
@@ -228,7 +302,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_CALL;
+            ihf.function = HOST_FN_INVOKE_CONTRACT;
             ihf.parameters.emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
             ihf.parameters.emplace_back(makeSymbol("put"));
@@ -270,7 +344,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_CALL;
+            ihf.function = HOST_FN_INVOKE_CONTRACT;
             ihf.parameters.emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
             ihf.parameters.emplace_back(makeSymbol("del"));
@@ -339,8 +413,9 @@ TEST_CASE("invoke host function", "[tx][contract]")
 
             // public key is different than the one that created the signature
             auto new_pub = SecretKey::fromSeed(sha256("a2"));
-            createContract(*app, addI32Wasm, salt, new_pub.getPublicKey(), sig,
-                           false, false);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      new_pub.getPublicKey(), sig, false,
+                                      false);
         }
 
         {
@@ -351,8 +426,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
             hasher.add(addI32Wasm);
             auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
 
-            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
-                           false, false);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      key.getPublicKey(), sig, false, false);
         }
 
         {
@@ -363,8 +438,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
             hasher.add(addI32Wasm);
             auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
 
-            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
-                           false, false);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      key.getPublicKey(), sig, false, false);
         }
 
         {
@@ -375,8 +450,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
             hasher.add(contractDataWasm);
             auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
 
-            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
-                           false, false);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      key.getPublicKey(), sig, false, false);
         }
 
         {
@@ -387,10 +462,10 @@ TEST_CASE("invoke host function", "[tx][contract]")
             hasher.add(addI32Wasm);
 
             auto sig = SignatureUtils::sign(key, hasher.finish()).signature;
-            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
-                           true, true);
-            createContract(*app, addI32Wasm, salt, key.getPublicKey(), sig,
-                           false, true);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      key.getPublicKey(), sig, true, true);
+            createContractFromEd25519(*app, addI32Wasm, salt,
+                                      key.getPublicKey(), sig, false, true);
         }
     }
 }
