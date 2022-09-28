@@ -211,8 +211,8 @@ pub(crate) fn invoke_host_function(
     host.set_source_account(source_account);
 
     match hf {
-        HostFunction::Call => {
-            info!(target: TX, "Invoking host function 'Call'");
+        HostFunction::InvokeContract => {
+            info!(target: TX, "Invoking host function 'InvokeContract'");
             host.invoke_function(hf, args)?;
         }
         HostFunction::CreateContractWithEd25519 => {
@@ -226,6 +226,20 @@ pub(crate) fn invoke_host_function(
             info!(
                 target: TX,
                 "Invoking host function 'CreateContractWithSource'"
+            );
+            host.invoke_function(hf, args)?;
+        }
+        HostFunction::CreateTokenContractWithSourceAccount => {
+            info!(
+                target: TX,
+                "Invoking host function 'CreateTokenContractWithSourceAccount'"
+            );
+            host.invoke_function(hf, args)?;
+        }
+        HostFunction::CreateTokenContractWithAsset => {
+            info!(
+                target: TX,
+                "Invoking host function 'CreateTokenContractWithAsset'"
             );
             host.invoke_function(hf, args)?;
         }
