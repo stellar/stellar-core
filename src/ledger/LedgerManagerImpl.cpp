@@ -1254,7 +1254,8 @@ LedgerManagerImpl::applyTransactions(
         if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            // TODO: decide if we are going to keep storing the V1 txResultSet
+            // See bug https://github.com/stellar/stellar-core/issues/3555 -- we
+            // need to decide if we are going to keep storing the V1 txResultSet
             // here, or want to store txResultSetV2 or something else, when
             // running on post-soroban ledgers.
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
