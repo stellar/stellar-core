@@ -207,6 +207,9 @@
     <ClCompile Include="..\..\src\util\types.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\MetaUtils.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\MetricResetter.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -604,6 +607,9 @@
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\TransactionResultSetFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp">
@@ -1092,6 +1098,9 @@
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionMetaFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -1336,6 +1345,9 @@
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Logging.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\MetaUtils.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\MetricResetter.h">
@@ -1752,6 +1764,9 @@
     <ClInclude Include="..\..\src\ledger\LedgerTxnImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ledger\TransactionResultSetFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -2023,6 +2038,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionMetaFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h">
