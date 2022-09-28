@@ -195,8 +195,10 @@ deployContract(Application& app, Bytes const& contract, HostFunction fn,
     {
         return createContractFromSource(app, contract, salt, true, true);
     }
-    case HostFunction::HOST_FN_CALL:
+    case HostFunction::HOST_FN_INVOKE_CONTRACT:
         throw std::runtime_error("Invalid HostFunction");
+    default:
+        throw std::runtime_error("Unknown HostFunction");
     }
 }
 
@@ -218,7 +220,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 Operation op;
                 op.body.type(INVOKE_HOST_FUNCTION);
                 auto& ihf = op.body.invokeHostFunctionOp();
-                ihf.function = HOST_FN_CALL;
+                ihf.function = HOST_FN_INVOKE_CONTRACT;
                 ihf.parameters = parameters;
                 ihf.footprint.readOnly = {contract};
 
@@ -300,7 +302,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_CALL;
+            ihf.function = HOST_FN_INVOKE_CONTRACT;
             ihf.parameters.emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
             ihf.parameters.emplace_back(makeSymbol("put"));
@@ -342,7 +344,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_CALL;
+            ihf.function = HOST_FN_INVOKE_CONTRACT;
             ihf.parameters.emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
             ihf.parameters.emplace_back(makeSymbol("del"));
