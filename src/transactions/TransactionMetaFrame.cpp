@@ -7,6 +7,7 @@
 #include "transactions/TransactionFrameBase.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include <iterator>
 #include <xdrpp/xdrpp/marshal.h>
 
 namespace stellar
@@ -29,9 +30,9 @@ TransactionMetaFrame::TransactionMetaFrame(uint32_t protocolVersion)
 
 template <typename T>
 void
-vecAppend(T& a, T const& b)
+vecAppend(xdr::xvector<T>& a, xdr::xvector<T>&& b)
 {
-    a.insert(a.end(), b.begin(), b.end());
+    std::move(b.begin(), b.end(), std::back_inserter(a));
 }
 
 size_t
@@ -67,17 +68,17 @@ TransactionMetaFrame::getChangesBefore() const
 }
 
 void
-TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges const& changes)
+TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
 {
     releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
-        vecAppend(mTransactionMeta.v2().txChangesBefore, changes);
+        vecAppend(mTransactionMeta.v2().txChangesBefore, std::move(changes));
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
-        vecAppend(mTransactionMeta.v3().txChangesBefore, changes);
+        vecAppend(mTransactionMeta.v3().txChangesBefore, std::move(changes));
         break;
 #endif
     default:
@@ -105,18 +106,17 @@ TransactionMetaFrame::clearOperationMetas()
 }
 
 void
-TransactionMetaFrame::pushOperationMetas(
-    xdr::xvector<OperationMeta> const& opMetas)
+TransactionMetaFrame::pushOperationMetas(xdr::xvector<OperationMeta>&& opMetas)
 {
     releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
-        vecAppend(mTransactionMeta.v2().operations, opMetas);
+        vecAppend(mTransactionMeta.v2().operations, std::move(opMetas));
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
-        vecAppend(mTransactionMeta.v3().operations, opMetas);
+        vecAppend(mTransactionMeta.v3().operations, std::move(opMetas));
         break;
 #endif
     default:
@@ -141,17 +141,17 @@ TransactionMetaFrame::getNumOperations() const
 }
 
 void
-TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges const& changes)
+TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges&& changes)
 {
     releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
-        vecAppend(mTransactionMeta.v2().txChangesAfter, changes);
+        vecAppend(mTransactionMeta.v2().txChangesAfter, std::move(changes));
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
-        vecAppend(mTransactionMeta.v3().txChangesAfter, changes);
+        vecAppend(mTransactionMeta.v3().txChangesAfter, std::move(changes));
         break;
 #endif
     default:
@@ -244,8 +244,7 @@ TransactionMetaFrame::finalizeHashes()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionMetaFrame::pushContractEvents(
-    xdr::xvector<ContractEvent> const& events)
+TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
 {
     releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
@@ -254,7 +253,7 @@ TransactionMetaFrame::pushContractEvents(
         // Do nothing, until v3 we don't create events.
         break;
     case 3:
-        vecAppend(mTransactionMeta.v3().events, events);
+        vecAppend(mTransactionMeta.v3().events, std::move(events));
         break;
     default:
         releaseAssert(false);

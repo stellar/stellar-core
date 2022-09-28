@@ -23,7 +23,7 @@ class LedgerCloseMetaFrame
     void
     setLastTxProcessingFeeProcessingChanges(LedgerEntryChanges const& changes);
     void setTxProcessingMetaAndResultPair(TransactionMeta const& tm,
-                                          TransactionResultPair const& rp,
+                                          TransactionResultPair&& rp,
                                           int index);
 
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();

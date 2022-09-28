@@ -1098,8 +1098,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
             ltxTx.commit();
             // commit -> propagate the meta to the outer scope
-            outerMeta.pushOperationMetas(operationMetas);
-            outerMeta.pushTxChangesAfter(changesAfter);
+            outerMeta.pushOperationMetas(std::move(operationMetas));
+            outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             outerMeta.pushContractEvents(mEvents);
 #endif

@@ -114,7 +114,7 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
 
 void
 LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
-    TransactionMeta const& tm, TransactionResultPair const& rp, int index)
+    TransactionMeta const& tm, TransactionResultPair&& rp, int index)
 {
     switch (mVersion)
     {
@@ -122,14 +122,14 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
     {
         auto& txp = mLedgerCloseMeta.v0().txProcessing.at(index);
         txp.txApplyProcessing = tm;
-        txp.result = rp;
+        txp.result = std::move(rp);
     }
     break;
     case 1:
     {
         auto& txp = mLedgerCloseMeta.v1().txProcessing.at(index);
         txp.txApplyProcessing = tm;
-        txp.result = rp;
+        txp.result = std::move(rp);
     }
     break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -138,7 +138,7 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
         txp.txApplyProcessing = tm;
         auto& res = txp.result;
-        res.transactionHash = rp.transactionHash;
+        res.transactionHash = std::move(rp.transactionHash);
 
         // In v2 we do not store the actual txresult anymore, just a hash of
         // hashes. This means we had to get a TransactionMetaV3.

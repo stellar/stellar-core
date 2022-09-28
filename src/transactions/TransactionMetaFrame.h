@@ -16,13 +16,13 @@ class TransactionMetaFrame
   public:
     TransactionMetaFrame(uint32_t protocolVersion);
 
-    void pushTxChangesBefore(LedgerEntryChanges const& changes);
+    void pushTxChangesBefore(LedgerEntryChanges&& changes);
     size_t getNumChangesBefore() const;
     LedgerEntryChanges getChangesBefore() const;
     void clearOperationMetas();
-    void pushOperationMetas(xdr::xvector<OperationMeta> const& opMetas);
+    void pushOperationMetas(xdr::xvector<OperationMeta>&& opMetas);
     size_t getNumOperations() const;
-    void pushTxChangesAfter(LedgerEntryChanges const& changes);
+    void pushTxChangesAfter(LedgerEntryChanges&& changes);
     void clearTxChangesAfter();
 
     void setTxResult(TransactionResult const& res);
@@ -30,7 +30,7 @@ class TransactionMetaFrame
     TransactionMeta const& getXDR() const;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void pushContractEvents(xdr::xvector<ContractEvent> const& events);
+    void pushContractEvents(xdr::xvector<ContractEvent>&& events);
     static Hash getHashOfMetaHashes(TransactionMeta const&);
 #endif
 
