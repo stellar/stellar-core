@@ -4,7 +4,7 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{Bytes, PreflightCallbacks, XDRBuf, XDRFileHash},
+    rust_bridge::{Bytes, CxxLedgerInfo, PreflightCallbacks, XDRBuf, XDRFileHash},
 };
 use cxx::{CxxVector, UniquePtr};
 use log::info;
@@ -19,9 +19,21 @@ use soroban_env_host::{
         LedgerKeyAccount, LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr,
         ScHostContextErrorCode, ScUnknownErrorCode, ScVec, WriteXdr, XDR_FILES_SHA256,
     },
-    Host, HostError, MeteredOrdMap,
+    Host, HostError, LedgerInfo, MeteredOrdMap,
 };
 use std::error::Error;
+
+impl From<CxxLedgerInfo> for LedgerInfo {
+    fn from(c: CxxLedgerInfo) -> Self {
+        Self {
+            protocol_version: c.protocol_version,
+            sequence_number: c.sequence_number,
+            timestamp: c.timestamp,
+            network_passphrase: c.network_passphrase,
+            base_reserve: c.base_reserve,
+        }
+    }
+}
 
 #[derive(Debug)]
 enum CoreHostError {
@@ -196,6 +208,7 @@ pub(crate) fn invoke_host_function(
     args_buf: &XDRBuf,
     footprint_buf: &XDRBuf,
     source_account_buf: &XDRBuf,
+    ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<XDRBuf>,
 ) -> Result<Vec<Bytes>, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
@@ -204,6 +217,7 @@ pub(crate) fn invoke_host_function(
             args_buf,
             footprint_buf,
             source_account_buf,
+            ledger_info,
             ledger_entries,
         )
     }));
@@ -218,6 +232,7 @@ fn invoke_host_function_or_maybe_panic(
     args_buf: &XDRBuf,
     footprint_buf: &XDRBuf,
     source_account_buf: &XDRBuf,
+    ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<XDRBuf>,
 ) -> Result<Vec<Bytes>, Box<dyn Error>> {
     let budget = Budget::default();
@@ -232,6 +247,7 @@ fn invoke_host_function_or_maybe_panic(
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
+    host.set_ledger_info(ledger_info.into());
 
     info!(target: TX, "Invoking host function {}", hf.to_string());
     host.invoke_function(hf, args)?;
@@ -303,10 +319,12 @@ fn storage_footprint_to_ledger_footprint(
 pub(crate) fn preflight_host_function(
     hf_buf: &CxxVector<u8>,
     args_buf: &CxxVector<u8>,
+    source_account_buf: &CxxVector<u8>,
+    ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<(), Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        preflight_host_function_or_maybe_panic(hf_buf, args_buf, cb)
+        preflight_host_function_or_maybe_panic(hf_buf, args_buf, source_account_buf, ledger_info, cb)
     }));
     match res {
         Err(_) => Err(CoreHostError::General("contract host panicked").into()),
@@ -317,15 +335,20 @@ pub(crate) fn preflight_host_function(
 fn preflight_host_function_or_maybe_panic(
     hf_buf: &CxxVector<u8>,
     args_buf: &CxxVector<u8>,
+    source_account_buf: &CxxVector<u8>,
+    ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<(), Box<dyn Error>> {
     let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
     let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
+    let source_account = xdr_from_slice::<AccountId>(source_account_buf.as_slice())?;
     let pfc = Rc::new(Pfc(RefCell::new(cb)));
     let src: Rc<dyn SnapshotSource> = pfc.clone() as Rc<dyn SnapshotSource>;
     let storage = Storage::with_recording_footprint(src);
     let budget = Budget::default();
     let host = Host::with_storage_and_budget(storage, budget);
+    host.set_source_account(source_account);
+    host.set_ledger_info(ledger_info.into());
     let val = host.invoke_function(hf, args)?;
 
     // Recover, convert and return the storage footprint and other values to C++.

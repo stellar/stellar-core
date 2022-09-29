@@ -134,7 +134,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx)
+                      AbstractLedgerTxn& ltx, Config const& cfg)
 {
     ZoneScoped;
     bool res;
@@ -142,11 +142,19 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(ltx);
+        res = doApply(ltx, cfg);
         CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
     return res;
+}
+
+bool
+OperationFrame::doApply(AbstractLedgerTxn& ltx, Config const& _cfg)
+{
+    // By default we ignore the cfg, but subclasses can override
+    // to intercept and use it.
+    return doApply(ltx);
 }
 
 ThresholdLevel

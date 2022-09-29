@@ -4,6 +4,7 @@
 
 // clang-format off
 // This needs to be included first
+#include "util/GlobalChecks.h"
 #include <json/json.h>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustVecXdrMarshal.h"
@@ -24,6 +25,22 @@
 
 namespace stellar
 {
+
+CxxLedgerInfo
+getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
+{
+    CxxLedgerInfo info;
+    auto const& hdr = ltx.loadHeader().current();
+    info.base_reserve = hdr.baseReserve;
+    info.protocol_version = hdr.ledgerVersion;
+    info.sequence_number = hdr.ledgerSeq;
+    info.timestamp = hdr.scpValue.closeTime;
+    for (auto c : cfg.NETWORK_PASSPHRASE)
+    {
+        info.network_passphrase.push_back(static_cast<unsigned char>(c));
+    }
+    return info;
+}
 
 template <typename T>
 std::vector<uint8_t>
@@ -62,6 +79,12 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    throw std::runtime_error("InvokeHostFunctionOpFrame::doApply needs Config");
+}
+
+bool
+InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
+{
     // Get the entries for the footprint
     rust::Vec<XDRBuf> ledgerEntryXdrBufs;
     ledgerEntryXdrBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
@@ -91,7 +114,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
             toXDRBuf(mInvokeHostFunction.function),
             toXDRBuf(mInvokeHostFunction.parameters),
             toXDRBuf(mInvokeHostFunction.footprint), toXDRBuf(getSourceID()),
-            ledgerEntryXdrBufs);
+            getLedgerInfo(ltx, cfg), ledgerEntryXdrBufs);
     }
     catch (std::exception&)
     {
@@ -210,15 +233,19 @@ PreflightCallbacks::set_result_mem_bytes(uint64_t mem)
 
 Json::Value
 InvokeHostFunctionOpFrame::preflight(Application& app,
-                                     InvokeHostFunctionOp const& op)
+                                     InvokeHostFunctionOp const& op,
+                                     AccountID const& sourceAccount)
 {
     PreflightResults res;
     auto cb = std::make_unique<PreflightCallbacks>(app, res);
     Json::Value root;
     try
     {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
         rust_bridge::preflight_host_function(
-            toXDRVec(op.function), toXDRVec(op.parameters), std::move(cb));
+            toXDRVec(op.function), toXDRVec(op.parameters),
+            toXDRVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()),
+            std::move(cb));
         root["status"] = "OK";
         root["result"] = toOpaqueBase64(res.mResult);
         root["footprint"] = toOpaqueBase64(res.mFootprint);

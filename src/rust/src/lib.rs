@@ -40,6 +40,14 @@ mod rust_bridge {
         LVL_TRACE = 5,
     }
 
+    struct CxxLedgerInfo {
+        pub protocol_version: u32,
+        pub sequence_number: u32,
+        pub timestamp: u64,
+        pub network_passphrase: Vec<u8>,
+        pub base_reserve: u32,
+    }
+
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
@@ -51,11 +59,14 @@ mod rust_bridge {
             args: &XDRBuf,
             footprint: &XDRBuf,
             source_account: &XDRBuf,
+            ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<XDRBuf>,
         ) -> Result<Vec<Bytes>>;
         fn preflight_host_function(
             hf_buf: &CxxVector<u8>,
             args: &CxxVector<u8>,
+            source_account: &CxxVector<u8>,
+            ledger_info: CxxLedgerInfo,
             cb: UniquePtr<PreflightCallbacks>,
         ) -> Result<()>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
