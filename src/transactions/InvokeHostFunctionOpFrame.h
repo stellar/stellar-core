@@ -35,7 +35,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     static Json::Value preflight(Application& app,
-                                 InvokeHostFunctionOp const& op);
+                                 InvokeHostFunctionOp const& op,
+                                 AccountID const& sourceAccount);
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

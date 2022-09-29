@@ -233,7 +233,8 @@ PreflightCallbacks::set_result_mem_bytes(uint64_t mem)
 
 Json::Value
 InvokeHostFunctionOpFrame::preflight(Application& app,
-                                     InvokeHostFunctionOp const& op)
+                                     InvokeHostFunctionOp const& op,
+                                     AccountID const& sourceAccount)
 {
     PreflightResults res;
     auto cb = std::make_unique<PreflightCallbacks>(app, res);
@@ -243,7 +244,8 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         rust_bridge::preflight_host_function(
             toXDRVec(op.function), toXDRVec(op.parameters),
-            getLedgerInfo(ltx, app.getConfig()), std::move(cb));
+            toXDRVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()),
+            std::move(cb));
         root["status"] = "OK";
         root["result"] = toOpaqueBase64(res.mResult);
         root["footprint"] = toOpaqueBase64(res.mFootprint);

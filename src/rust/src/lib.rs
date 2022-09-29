@@ -65,6 +65,7 @@ mod rust_bridge {
         fn preflight_host_function(
             hf_buf: &CxxVector<u8>,
             args: &CxxVector<u8>,
+            source_account: &CxxVector<u8>,
             ledger_info: CxxLedgerInfo,
             cb: UniquePtr<PreflightCallbacks>,
         ) -> Result<()>;

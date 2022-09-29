@@ -319,11 +319,12 @@ fn storage_footprint_to_ledger_footprint(
 pub(crate) fn preflight_host_function(
     hf_buf: &CxxVector<u8>,
     args_buf: &CxxVector<u8>,
+    source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<(), Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        preflight_host_function_or_maybe_panic(hf_buf, args_buf, ledger_info, cb)
+        preflight_host_function_or_maybe_panic(hf_buf, args_buf, source_account_buf, ledger_info, cb)
     }));
     match res {
         Err(_) => Err(CoreHostError::General("contract host panicked").into()),
@@ -334,16 +335,19 @@ pub(crate) fn preflight_host_function(
 fn preflight_host_function_or_maybe_panic(
     hf_buf: &CxxVector<u8>,
     args_buf: &CxxVector<u8>,
+    source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
 ) -> Result<(), Box<dyn Error>> {
     let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
     let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
+    let source_account = xdr_from_slice::<AccountId>(source_account_buf.as_slice())?;
     let pfc = Rc::new(Pfc(RefCell::new(cb)));
     let src: Rc<dyn SnapshotSource> = pfc.clone() as Rc<dyn SnapshotSource>;
     let storage = Storage::with_recording_footprint(src);
     let budget = Budget::default();
     let host = Host::with_storage_and_budget(storage, budget);
+    host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
     let val = host.invoke_function(hf, args)?;
 

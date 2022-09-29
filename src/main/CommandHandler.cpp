@@ -673,18 +673,24 @@ CommandHandler::preflight(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> paramMap;
     http::server::server::parseParams(params, paramMap);
     std::string blob = paramMap["blob"];
+    std::string sourceAcct = paramMap["source_account"];
     if (!blob.empty())
     {
+        AccountID acct;
+        if (!sourceAcct.empty())
+        {
+            acct = KeyUtils::fromStrKey<PublicKey>(sourceAcct);
+        }
         InvokeHostFunctionOp op;
         std::vector<uint8_t> binBlob;
         fromOpaqueBase64(op, blob);
-        root = InvokeHostFunctionOpFrame::preflight(mApp, op);
+        root = InvokeHostFunctionOpFrame::preflight(mApp, op, acct);
     }
     else
     {
         throw std::invalid_argument(
             "Must specify an InvokeHostFunctionOp blob: preflight?blob=<op in "
-            "base64 XDR format>");
+            "base64 XDR format>[&source_account=<strkey>]");
     }
     retStr = Json::FastWriter().write(root);
 }
