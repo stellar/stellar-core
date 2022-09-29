@@ -40,6 +40,7 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
+    virtual bool doApply(AbstractLedgerTxn& ltx, Config const& cfg);
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
@@ -81,7 +82,8 @@ class OperationFrame
     bool checkValid(SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
-    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx);
+    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx,
+               Config const& cfg);
 
     Operation const&
     getOperation() const

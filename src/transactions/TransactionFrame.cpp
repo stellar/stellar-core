@@ -1029,11 +1029,12 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             app.getConfig().LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
+        Config const& cfg = app.getConfig();
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerTxn ltxOp(ltxTx);
-            bool txRes = op->apply(signatureChecker, ltxOp);
+            bool txRes = op->apply(signatureChecker, ltxOp, cfg);
 
             if (!txRes)
             {
