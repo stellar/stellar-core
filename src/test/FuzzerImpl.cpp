@@ -18,6 +18,7 @@
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -876,7 +877,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
-        TransactionMeta tm(2);
+        TransactionMetaFrame tm(2);
         applyOperations(signatureChecker, app, ltx, tm);
         if (getResultCode() == txINTERNAL_ERROR)
         {

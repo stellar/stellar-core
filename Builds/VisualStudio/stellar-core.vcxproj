@@ -165,6 +165,7 @@
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -224,6 +225,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -285,6 +287,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -343,6 +346,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -402,6 +406,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -534,6 +539,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\RevokeSponsorshipTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionBridge.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionMetaFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
@@ -691,6 +697,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\TransactionResultSetFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
@@ -820,6 +827,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
+    <ClCompile Include="..\..\src\util\MetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\MetricResetter.cpp" />
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
@@ -937,6 +945,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionMetaFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
@@ -1014,6 +1023,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
+    <ClInclude Include="..\..\src\ledger\TransactionResultSetFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
@@ -1134,6 +1144,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
+    <ClInclude Include="..\..\src\util\MetaUtils.h" />
     <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
     <ClInclude Include="..\..\src\util\RandomEvictionCache.h" />

@@ -23,6 +23,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
@@ -157,7 +158,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             // else, leave feeCharged as per checkValid
             try
             {
-                TransactionMeta cleanTm(2);
+                TransactionMetaFrame cleanTm(
+                    ltxCleanTx.loadHeader().current().ledgerVersion);
                 checkedTxApplyRes = checkedTx->apply(app, ltxCleanTx, cleanTm);
             }
             catch (...)
@@ -222,7 +224,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMeta tm(2);
+        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
         try
         {
             res = tx->apply(app, ltxTx, tm);
@@ -241,7 +243,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
         if (!res || tx->getResultCode() != txSUCCESS)
         {
-            REQUIRE(tm.v2().operations.size() == 0);
+            REQUIRE(tm.getNumOperations() == 0);
         }
         // checks that the failure is the same if pre checks failed
         if (!check)
@@ -359,7 +361,9 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
-        recordOrCheckGlobalTestTxMetadata(tm);
+        tm.setTxResult(tx->getResult());
+        tm.finalizeHashes();
+        recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }
 
     ltx.commit();
@@ -675,6 +679,24 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
     return transactionFromOperationsV1(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
         {payment(account.getPublicKey(), 1)}, fee, cond);
+}
+
+TransactionFrameBasePtr
+feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
+        int64_t fee)
+{
+    REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
+    TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
+    fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
+    fb.feeBump().tx.fee = fee;
+    fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+    fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
+
+    auto hash = sha256(xdr::xdr_to_opaque(
+        app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
+    fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
+    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
+                                                         fb);
 }
 
 Operation

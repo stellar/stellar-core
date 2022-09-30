@@ -160,9 +160,11 @@ k_means(std::vector<double> const& points, uint32_t k)
 }
 
 #ifdef BUILD_TESTS
+static unsigned int lastGlobalSeed{0};
 void
 reinitializeAllGlobalStateWithSeed(unsigned int seed)
 {
+    lastGlobalSeed = seed;
     PubKeyUtils::clearVerifySigCache();
     srand(seed);
     gRandomEngine.seed(seed);
@@ -170,6 +172,11 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     Catch::rng().seed(seed);
     autocheck::rng().seed(seed);
     randHash::initialize();
+}
+unsigned int
+getLastGlobalStateSeed()
+{
+    return lastGlobalSeed;
 }
 #endif
 

@@ -49,4 +49,8 @@ bool protocolVersionEquals(uint32_t protocolVersion,
 
 constexpr ProtocolVersion GENERALIZED_TX_SET_PROTOCOL_VERSION =
     ProtocolVersion::V_20;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+constexpr ProtocolVersion SOROBAN_PROTOCOL_VERSION = ProtocolVersion::V_20;
+#endif
 }

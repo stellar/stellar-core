@@ -22,6 +22,7 @@
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/MetaUtils.h"
 #include "util/TmpDir.h"
 #include "util/XDRCereal.h"
 
@@ -262,8 +263,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // seeds the global PRNG might have been seeded with by default (which
         // could thereby collide).
         thisConfig.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(
-            0xFFFF0000 +
-            (instanceNumber ^ ReseedPRNGListener::sCommandLineSeed));
+            0xFFFF0000 + (instanceNumber ^ getLastGlobalStateSeed()));
         thisConfig.NODE_IS_VALIDATOR = true;
 
         // single node setup

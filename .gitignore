@@ -92,6 +92,7 @@ min-testcases/
 /src/rust/bin
 /src/rust/target
 /target
+/ra-target
 /src/rust/RustBridge.cpp
 /src/rust/RustBridge.h
 /src/rust/.crates.toml

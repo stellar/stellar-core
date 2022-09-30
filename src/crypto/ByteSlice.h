@@ -76,10 +76,11 @@ class ByteSlice
     {
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    ByteSlice(Bytes const& buf) : mData(buf.vec.data()), mSize(buf.vec.size())
+    ByteSlice(RustBuf const& buf)
+        : mData(buf.data.data()), mSize(buf.data.size())
     {
     }
-    ByteSlice(XDRBuf const& buf)
+    ByteSlice(CxxBuf const& buf)
         : mData(buf.data->data()), mSize(buf.data->size())
     {
     }

@@ -8,6 +8,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/TransactionResultSetFrame.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
@@ -73,7 +74,7 @@ class LedgerManagerImpl : public LedgerManager
     void applyTransactions(
         TxSetFrame const& txSet,
         std::vector<TransactionFrameBasePtr> const& txs, AbstractLedgerTxn& ltx,
-        TransactionResultSet& txResultSet,
+        TransactionResultSetFrame& txResultSetFrame,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);

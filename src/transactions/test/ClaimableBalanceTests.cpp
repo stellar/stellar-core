@@ -176,7 +176,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             {createAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMeta txm(2);
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -235,7 +235,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             {createAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMeta txm(2);
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         ltx.commit();
@@ -256,7 +256,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             {claimAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        TransactionMeta txm(2);
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(ltx, 0, 0, 0));
         REQUIRE(tx->apply(app, ltx, txm));
         ltx.commit();
@@ -1163,7 +1163,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 {acc1});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1176,7 +1176,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 {root.op(revokeSponsorship(claimableBalanceKey(balanceID)))},
                 {});
 
-            TransactionMeta txm2(2);
+            TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
             REQUIRE(!tx2->apply(*app, ltx, txm2));
             REQUIRE(tx2->getResultCode() == txFAILED);
@@ -1240,7 +1240,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                         {acc2});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm(2);
+                    TransactionMetaFrame txm(
+                        ltx.loadHeader().current().ledgerVersion);
                     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                     REQUIRE(tx->apply(*app, ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1269,7 +1270,8 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                         {claimAccount});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm2(2);
+                    TransactionMetaFrame txm2(
+                        ltx.loadHeader().current().ledgerVersion);
                     REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
                     REQUIRE(tx2->apply(*app, ltx, txm2));
                     REQUIRE(tx2->getResultCode() == txSUCCESS);

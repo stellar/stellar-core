@@ -141,6 +141,9 @@ TransactionFramePtr transactionWithV2Precondition(Application& app,
                                                   uint32_t fee,
                                                   PreconditionsV2 const& cond);
 
+TransactionFrameBasePtr feeBump(Application& app, TestAccount& feeSource,
+                                TransactionFrameBasePtr tx, int64_t fee);
+
 Operation changeTrust(Asset const& asset, int64_t limit);
 Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit);
 

@@ -4,14 +4,17 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{Bytes, CxxLedgerInfo, PreflightCallbacks, XDRBuf, XDRFileHash},
+    rust_bridge::{
+        CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, PreflightCallbacks, PreflightHostFunctionOutput, RustBuf, XDRFileHash
+    },
 };
 use cxx::{CxxVector, UniquePtr};
-use log::info;
+use log::debug;
 use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
 use soroban_env_host::{
     budget::Budget,
+    events::{Events, HostEvent},
     storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
@@ -72,12 +75,12 @@ fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     Ok(vec)
 }
 
-fn xdr_to_bytes<T: WriteXdr>(t: &T) -> Result<Bytes, HostError> {
-    let vec = xdr_to_vec_u8(t)?;
-    Ok(Bytes { vec })
+fn xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+    let data = xdr_to_vec_u8(t)?;
+    Ok(RustBuf { data })
 }
 
-fn xdr_from_xdrbuf<T: ReadXdr>(buf: &XDRBuf) -> Result<T, HostError> {
+fn xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
     xdr_from_slice(buf.data.as_slice())
 }
 
@@ -113,12 +116,12 @@ fn populate_access_map(
     Ok(())
 }
 
-/// Deserializes an [`xdr::LedgerFootprint`] from the provided [`XDRBuf`], converts
+/// Deserializes an [`xdr::LedgerFootprint`] from the provided [`CxxBuf`], converts
 /// its entries to an [`OrdMap`], and returns a [`storage::Footprint`]
 /// containing that map.
 fn build_storage_footprint_from_xdr(
     budget: Budget,
-    footprint: &XDRBuf,
+    footprint: &CxxBuf,
 ) -> Result<storage::Footprint, CoreHostError> {
     let xdr::LedgerFootprint {
         read_only,
@@ -149,17 +152,17 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
 }
 
 /// Deserializes a sequence of [`xdr::LedgerEntry`] structures from a vector of
-/// [`XDRBuf`] buffers, inserts them into an [`OrdMap`] with entries
+/// [`CxxBuf`] buffers, inserts them into an [`OrdMap`] with entries
 /// additionally keyed by the provided contract ID, checks that the entries
 /// match the provided [`storage::Footprint`], and returns the constructed map.
 fn build_storage_map_from_xdr_ledger_entries(
     budget: Budget,
     footprint: &storage::Footprint,
-    ledger_entries: &Vec<XDRBuf>,
+    ledger_entries: &Vec<CxxBuf>,
 ) -> Result<MeteredOrdMap<LedgerKey, Option<LedgerEntry>>, CoreHostError> {
     let mut map = MeteredOrdMap::new(budget)?;
     for buf in ledger_entries {
-        let le = xdr_from_xdrbuf::<LedgerEntry>(buf)?;
+        let le = xdr_from_cxx_buf::<LedgerEntry>(buf)?;
         let key = ledger_entry_to_ledger_key(&le)?;
         if !footprint.0.contains_key(&key)? {
             return Err(CoreHostError::General(
@@ -181,20 +184,40 @@ fn build_storage_map_from_xdr_ledger_entries(
 fn build_xdr_ledger_entries_from_storage_map(
     footprint: &storage::Footprint,
     storage_map: &MeteredOrdMap<LedgerKey, Option<LedgerEntry>>,
-) -> Result<Vec<Bytes>, CoreHostError> {
+) -> Result<Vec<RustBuf>, CoreHostError> {
     let mut res = Vec::new();
     for (lk, ole) in storage_map {
         match footprint.0.get(lk)? {
             Some(AccessType::ReadOnly) => (),
             Some(AccessType::ReadWrite) => {
                 if let Some(le) = ole {
-                    res.push(xdr_to_bytes(le)?)
+                    res.push(xdr_to_rust_buf(le)?)
                 }
             }
             None => return Err(CoreHostError::General("ledger entry not in footprint")),
         }
     }
     Ok(res)
+}
+
+fn extract_contract_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
+    events
+        .0
+        .iter()
+        .filter_map(|e| match e {
+            HostEvent::Contract(ce) => Some(xdr_to_rust_buf(ce)),
+            HostEvent::Debug(_) => None,
+        })
+        .collect()
+}
+
+fn log_debug_events(events: &Events) {
+    for e in events.0.iter() {
+        match e {
+            HostEvent::Contract(_) => (),
+            HostEvent::Debug(de) => debug!("contract HostEvent::Debug: {}", de),
+        }
+    }
 }
 
 /// Deserializes an [`xdr::HostFunction`] host function identifier, an [`xdr::ScVec`] XDR object of
@@ -204,13 +227,13 @@ fn build_xdr_ledger_entries_from_storage_map(
 /// entries in serialized form. Ledger entries not returned have been deleted.
 
 pub(crate) fn invoke_host_function(
-    hf_buf: &XDRBuf,
-    args_buf: &XDRBuf,
-    footprint_buf: &XDRBuf,
-    source_account_buf: &XDRBuf,
+    hf_buf: &CxxBuf,
+    args_buf: &CxxBuf,
+    footprint_buf: &CxxBuf,
+    source_account_buf: &CxxBuf,
     ledger_info: CxxLedgerInfo,
-    ledger_entries: &Vec<XDRBuf>,
-) -> Result<Vec<Bytes>, Box<dyn Error>> {
+    ledger_entries: &Vec<CxxBuf>,
+) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
             hf_buf,
@@ -228,17 +251,17 @@ pub(crate) fn invoke_host_function(
 }
 
 fn invoke_host_function_or_maybe_panic(
-    hf_buf: &XDRBuf,
-    args_buf: &XDRBuf,
-    footprint_buf: &XDRBuf,
-    source_account_buf: &XDRBuf,
+    hf_buf: &CxxBuf,
+    args_buf: &CxxBuf,
+    footprint_buf: &CxxBuf,
+    source_account_buf: &CxxBuf,
     ledger_info: CxxLedgerInfo,
-    ledger_entries: &Vec<XDRBuf>,
-) -> Result<Vec<Bytes>, Box<dyn Error>> {
+    ledger_entries: &Vec<CxxBuf>,
+) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let budget = Budget::default();
-    let hf = xdr_from_xdrbuf::<HostFunction>(&hf_buf)?;
-    let args = xdr_from_xdrbuf::<ScVec>(&args_buf)?;
-    let source_account = xdr_from_xdrbuf::<AccountId>(&source_account_buf)?;
+    let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
+    let args = xdr_from_cxx_buf::<ScVec>(&args_buf)?;
+    let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
 
     let footprint = build_storage_footprint_from_xdr(budget.clone(), footprint_buf)?;
     let map =
@@ -249,16 +272,26 @@ fn invoke_host_function_or_maybe_panic(
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
 
-    info!(target: TX, "Invoking host function {}", hf.to_string());
-    host.invoke_function(hf, args)?;
-
-    let (storage, _budget, _events) = host
+    debug!(target: TX, "invoking host function '{}'", HostFunction::name(&hf));
+    let res = host.invoke_function(hf, args);
+    let (storage, _budget, events) = host
         .try_finish()
-        .map_err(|_h| CoreHostError::General("could not get storage from host"))?;
-    Ok(build_xdr_ledger_entries_from_storage_map(
-        &storage.footprint,
-        &storage.map,
-    )?)
+        .map_err(|_h| CoreHostError::General("could not finalize host"))?;
+    log_debug_events(&events);
+    match res {
+        Ok(_) => (),
+        Err(err) => {
+            debug!(target: TX, "invocation failed: {}", err);
+            return Err(err.into());
+        }
+    }
+    let modified_ledger_entries =
+        build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
+    let contract_events = extract_contract_events(&events)?;
+    Ok(InvokeHostFunctionOutput {
+        contract_events,
+        modified_ledger_entries,
+    })
 }
 
 // Pfc here exists just to translate a mess of irrelevant ownership and access
@@ -290,7 +323,7 @@ impl SnapshotSource for Pfc {
     fn get(&self, key: &LedgerKey) -> Result<LedgerEntry, HostError> {
         let kv = xdr_to_vec_u8(key)?;
         let lev = self.with_cb(|cb| cb.get_ledger_entry(&kv))?;
-        xdr_from_xdrbuf(&lev)
+        xdr_from_cxx_buf(&lev)
     }
 
     fn has(&self, key: &LedgerKey) -> Result<bool, HostError> {
@@ -322,7 +355,7 @@ pub(crate) fn preflight_host_function(
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         preflight_host_function_or_maybe_panic(hf_buf, args_buf, source_account_buf, ledger_info, cb)
     }));
@@ -338,7 +371,7 @@ fn preflight_host_function_or_maybe_panic(
     source_account_buf: &CxxVector<u8>,
     ledger_info: CxxLedgerInfo,
     cb: UniquePtr<PreflightCallbacks>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<PreflightHostFunctionOutput, Box<dyn Error>> {
     let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
     let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
     let source_account = xdr_from_slice::<AccountId>(source_account_buf.as_slice())?;
@@ -349,30 +382,49 @@ fn preflight_host_function_or_maybe_panic(
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
-    let val = host.invoke_function(hf, args)?;
+
+    debug!(
+        target: TX,
+        "preflight execution of host function '{}'",
+        HostFunction::name(&hf)
+    );
+    let res = host.invoke_function(hf, args);
 
     // Recover, convert and return the storage footprint and other values to C++.
-    let (storage, budget, _events) = host
+    let (storage, budget, events) = host
         .try_finish()
-        .map_err(|_| CoreHostError::General("could not get storage from host"))?;
-    let (cpu_insns, mem_bytes) = (budget.get_cpu_insns_count(), budget.get_mem_bytes_count());
-    let val_vec = xdr_to_vec_u8(&val)?;
-    let foot_vec = xdr_to_vec_u8(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
-    pfc.with_cb(|cb| cb.set_result_value(&val_vec))?;
-    pfc.with_cb(|cb| cb.set_result_footprint(&foot_vec))?;
-    pfc.with_cb(|cb| cb.set_result_cpu_insns(cpu_insns))?;
-    pfc.with_cb(|cb| cb.set_result_mem_bytes(mem_bytes))?;
-    Ok(())
+        .map_err(|_| CoreHostError::General("could not finalize host"))?;
+    log_debug_events(&events);
+    let val = match res {
+        Ok(val) => val,
+        Err(err) => {
+            debug!(target: TX, "preflight failed: {}", err);
+            return Err(err.into());
+        }
+    };
+
+    let storage_footprint =
+        xdr_to_rust_buf(&storage_footprint_to_ledger_footprint(&storage.footprint)?)?;
+    let contract_events = extract_contract_events(&events)?;
+    let result_value = xdr_to_rust_buf(&val)?;
+
+    Ok(PreflightHostFunctionOutput {
+        result_value,
+        contract_events,
+        storage_footprint,
+        cpu_insns: budget.get_cpu_insns_count(),
+        mem_bytes: budget.get_mem_bytes_count(),
+    })
 }
 
 // Accessors for test wasms, compiled into soroban-test-wasms crate.
-pub(crate) fn get_test_wasm_add_i32() -> Result<Bytes, Box<dyn Error>> {
-    Ok(Bytes {
-        vec: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
+pub(crate) fn get_test_wasm_add_i32() -> Result<RustBuf, Box<dyn Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
     })
 }
-pub(crate) fn get_test_wasm_contract_data() -> Result<Bytes, Box<dyn Error>> {
-    Ok(Bytes {
-        vec: soroban_test_wasms::CONTRACT_DATA.iter().cloned().collect(),
+pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONTRACT_DATA.iter().cloned().collect(),
     })
 }

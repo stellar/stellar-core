@@ -19,23 +19,16 @@ inline namespace cxxbridge1
 template <typename T> class Vec;
 }
 }
-struct XDRBuf;
+struct CxxBuf;
 namespace stellar
 {
 class Application;
-struct PreflightResults;
 struct PreflightCallbacks
 {
     Application& mApp;
-    PreflightResults& mRes;
-    PreflightCallbacks(Application& app, PreflightResults& res)
-        : mApp(app), mRes(res){};
-    XDRBuf get_ledger_entry(rust::Vec<uint8_t> const& key);
+    PreflightCallbacks(Application& app) : mApp(app){};
+    CxxBuf get_ledger_entry(rust::Vec<uint8_t> const& key);
     bool has_ledger_entry(rust::Vec<uint8_t> const& key);
-    void set_result_value(rust::Vec<uint8_t> const& val);
-    void set_result_footprint(rust::Vec<uint8_t> const& footprint);
-    void set_result_cpu_insns(uint64_t cpu);
-    void set_result_mem_bytes(uint64_t mem);
 };
 
 inline bool

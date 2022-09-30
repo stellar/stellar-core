@@ -7,8 +7,10 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <memory>
 #include <optional>
@@ -45,6 +47,9 @@ class TransactionFrame : public TransactionFrameBase
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    xdr::xvector<ContractEvent> mEvents;
+#endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
@@ -101,7 +106,7 @@ class TransactionFrame : public TransactionFrameBase
     void markResultFailed();
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerTxn& ltx, TransactionMeta& meta);
+                         AbstractLedgerTxn& ltx, TransactionMetaFrame& meta);
 
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
@@ -158,6 +163,10 @@ class TransactionFrame : public TransactionFrameBase
     void resetResults(LedgerHeader const& header,
                       std::optional<int64_t> baseFee, bool applying);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void pushContractEvent(ContractEvent const& evt);
+#endif
+
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
 
@@ -204,10 +213,10 @@ class TransactionFrame : public TransactionFrameBase
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(Application& app, AbstractLedgerTxn& ltx, TransactionMeta& meta,
-               bool chargeFee);
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMeta& meta) override;
+               TransactionMetaFrame& meta, bool chargeFee);
+    bool apply(Application& app, AbstractLedgerTxn& ltx,
+               TransactionMetaFrame& meta) override;
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx);

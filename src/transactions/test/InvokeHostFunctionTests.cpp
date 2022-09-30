@@ -67,7 +67,7 @@ makeSymbol(std::string const& str)
 
 static void
 submitOpToCreateContract(Application& app, Operation const& op,
-                         Bytes const& contract, Hash const& contractID,
+                         RustBuf const& contract, Hash const& contractID,
                          SCVal const& wasmKey, bool expectSuccess,
                          bool expectEntry)
 {
@@ -75,13 +75,13 @@ submitOpToCreateContract(Application& app, Operation const& op,
     auto root = TestAccount::createRoot(app);
     auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    TransactionMeta txm(2);
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
     REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
     ltx.commit();
 
     auto contractCodeObj =
-        makeContract(contract.vec.begin(), contract.vec.end());
+        makeContract(contract.data.begin(), contract.data.end());
     // verify contract code is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
@@ -94,7 +94,7 @@ submitOpToCreateContract(Application& app, Operation const& op,
 }
 
 static LedgerKey
-createContractFromEd25519(Application& app, Bytes const& contract,
+createContractFromEd25519(Application& app, RustBuf const& contract,
                           uint256 const& salt, PublicKey const& pub,
                           Signature const& sig, bool expectSuccess,
                           bool expectEntry)
@@ -111,7 +111,7 @@ createContractFromEd25519(Application& app, Bytes const& contract,
     auto& ihf = op.body.invokeHostFunctionOp();
     ihf.function = HOST_FN_CREATE_CONTRACT_WITH_ED25519;
 
-    auto contractBin = makeBinary(contract.vec.begin(), contract.vec.end());
+    auto contractBin = makeBinary(contract.data.begin(), contract.data.end());
     ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end()),
                       makeBinary(pub.ed25519().begin(), pub.ed25519().end()),
                       makeBinary(sig.begin(), sig.end())};
@@ -132,7 +132,7 @@ createContractFromEd25519(Application& app, Bytes const& contract,
 }
 
 static LedgerKey
-createContractFromSource(Application& app, Bytes const& contract,
+createContractFromSource(Application& app, RustBuf const& contract,
                          uint256 const& salt, bool expectSuccess,
                          bool expectEntry)
 {
@@ -150,7 +150,7 @@ createContractFromSource(Application& app, Bytes const& contract,
     auto& ihf = op.body.invokeHostFunctionOp();
     ihf.function = HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT;
 
-    auto contractBin = makeBinary(contract.vec.begin(), contract.vec.end());
+    auto contractBin = makeBinary(contract.data.begin(), contract.data.end());
     ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end())};
 
     SCVal wasmKey(SCValType::SCV_STATIC);
@@ -169,7 +169,7 @@ createContractFromSource(Application& app, Bytes const& contract,
 }
 
 static LedgerKey
-deployContract(Application& app, Bytes const& contract, HostFunction fn,
+deployContract(Application& app, RustBuf const& contract, HostFunction fn,
                uint256 salt = sha256("salt"))
 {
     switch (fn)
@@ -227,7 +227,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 auto tx = transactionFrameFromOps(app->getNetworkID(), root,
                                                   {op}, {});
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMeta txm(2);
+                TransactionMetaFrame txm(
+                    ltx.loadHeader().current().ledgerVersion);
                 REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                 if (success)
                 {
@@ -314,7 +315,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             auto tx =
                 transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             if (success)
             {
@@ -355,7 +356,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             auto tx =
                 transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMeta txm(2);
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(ltx, 0, 0, 0));
             if (success)
             {

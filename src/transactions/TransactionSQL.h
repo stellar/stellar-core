@@ -15,7 +15,8 @@ class Application;
 class XDROutputFileStream;
 
 void storeTransaction(Database& db, uint32_t ledgerSeq,
-                      TransactionFrameBasePtr const& tx, TransactionMeta& tm,
+                      TransactionFrameBasePtr const& tx,
+                      TransactionMeta const& tm,
                       TransactionResultSet const& resultSet);
 
 void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet);
