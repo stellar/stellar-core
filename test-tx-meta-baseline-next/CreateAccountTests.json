@@ -162,16 +162,16 @@
 	"create account|protocol version 1|Success" : [ "IxXegoyiQk4=" ],
 	"create account|protocol version 1|Success|Account already exists" : [ "/lfj8xIFS8I=" ],
 	"create account|protocol version 20|Amount too small to create account" : [ "XaXJrgyhgnw=" ],
-	"create account|protocol version 20|Not enough funds (source)" : [ "zYHax9WgqY4=", "eIaCNMh0TiA=" ],
-	"create account|protocol version 20|Success" : [ "37kXHQB07U0=" ],
+	"create account|protocol version 20|Not enough funds (source)" : [ "jrHXrobzpFo=", "eIaCNMh0TiA=" ],
+	"create account|protocol version 20|Success" : [ "oCM6C6TZs7c=" ],
 	"create account|protocol version 20|Success|Account already exists" : [ "/tNQEqxMC7g=" ],
-	"create account|protocol version 20|with native buying liabilities" : [ "Hblimy05FMA=", "EE60B1qq9qw=", "bFcmqQxGpQA=" ],
+	"create account|protocol version 20|with native buying liabilities" : [ "jHkiKkVBse0=", "EE60B1qq9qw=", "bFcmqQxGpQA=" ],
 	"create account|protocol version 20|with native selling liabilities" : 
 	[
-		"Hblimy05FMA=",
+		"jHkiKkVBse0=",
 		"hpCEca3bf5M=",
 		"+Auut+vg44A=",
-		"FpUDpdi+oUQ=",
+		"XmsK/CjcdtE=",
 		"L+5BXpEJytw="
 	],
 	"create account|protocol version 2|Amount too small to create account" : [ "/lfj8xIFS8I=" ],
