@@ -62,6 +62,7 @@ rand_element(std::vector<T>& v)
 // shouldn't be resetting globals like this mid-run -- especially not things
 // like hash function keys.
 void reinitializeAllGlobalStateWithSeed(unsigned int seed);
+unsigned int getLastGlobalStateSeed();
 #endif
 
 }
