@@ -77,6 +77,8 @@ class NominationProtocol
     uint64 hashValue(Value const& value);
 
     uint64 getNodePriority(NodeID const& nodeID, SCPQuorumSet const& qset);
+    // updates the set of nodes that have priority over the others.  Node weight is NOT a constraint for computed priority.
+    uint64 getNodePriorityWithoutWeight(NodeID const& nodeID, SCPQuorumSet const& qset);    
 
     // returns the highest value that we don't have yet, that we should
     // vote for, extracted from a nomination.
