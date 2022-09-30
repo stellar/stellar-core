@@ -42,8 +42,8 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     Hash expectedLastUnsafeHash, expectedLastSafeHash;
     TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
     TmpDir td = tdm.tmpDir("streams");
-    std::string path = td.getName() + "/stream.xdr";
-    std::string pathSafe = td.getName() + "/streamSafe.xdr";
+    std::string metaPath = td.getName() + "/stream.xdr";
+    std::string metaPathSafe = td.getName() + "/streamSafe.xdr";
 
     uint32 const ledgerToWaitFor = 10;
 
@@ -91,15 +91,15 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         cfg5.NODE_IS_VALIDATOR = false;
         cfg5.FORCE_SCP = false;
 #ifdef _WIN32
-        cfg4.METADATA_OUTPUT_STREAM = path;
-        cfg5.METADATA_OUTPUT_STREAM = pathSafe;
+        cfg4.METADATA_OUTPUT_STREAM = metaPath;
+        cfg5.METADATA_OUTPUT_STREAM = metaPathSafe;
 #else
-        int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
+        int fd = ::open(metaPath.c_str(), O_CREAT | O_WRONLY, 0644);
         REQUIRE(fd != -1);
-        cfg4.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
-        int fdSafe = ::open(pathSafe.c_str(), O_CREAT | O_WRONLY, 0644);
+        cfg4.METADATA_OUTPUT_STREAM = fmt::format(FMT_STRING("fd:{}"), fd);
+        int fdSafe = ::open(metaPathSafe.c_str(), O_CREAT | O_WRONLY, 0644);
         REQUIRE(fdSafe != -1);
-        cfg5.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fdSafe);
+        cfg5.METADATA_OUTPUT_STREAM = fmt::format(FMT_STRING("fd:{}"), fdSafe);
 #endif
 
         cfg4.EXPERIMENTAL_PRECAUTION_DELAY_META = false;
@@ -196,8 +196,8 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         return lcms;
     };
 
-    auto lcms = readLcms(path);
-    auto lcmsSafe = readLcms(pathSafe);
+    auto lcms = readLcms(metaPath);
+    auto lcmsSafe = readLcms(metaPathSafe);
     // The "- 1" is because we don't stream meta for the genesis ledger.
     REQUIRE(lcms.size() == expectedLastWatcherLedger - 1);
     if (lcms.back().v() == 0)
@@ -208,12 +208,14 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else
     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
-    }
+#else
+        REQUIRE(false);
 #endif
+    }
 
     // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
     // the meta for the latest ledger (or the latest ledger before the corrupt
@@ -271,14 +273,14 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     // Step 2: open a writable file descriptor.
     TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
     TmpDir td = tdm.tmpDir("streams");
-    std::string path = td.getName() + "/stream.xdr";
+    std::string metaPath = td.getName() + "/stream.xdr";
     auto cfg1 = getTestConfig(1);
 #ifdef _WIN32
-    cfg1.METADATA_OUTPUT_STREAM = path;
+    cfg1.METADATA_OUTPUT_STREAM = metaPath;
 #else
-    int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
+    int fd = ::open(metaPath.c_str(), O_CREAT | O_WRONLY, 0644);
     REQUIRE(fd != -1);
-    cfg1.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
+    cfg1.METADATA_OUTPUT_STREAM = fmt::format(FMT_STRING("fd:{}"), fd);
 #endif
 
     bool const delayMeta = GENERATE(true, false);
@@ -320,7 +322,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     // the latest meta, because catchup should have validated that ledger's hash
     // by validating a chain of hashes back from one obtained from consensus.
     XDRInputFileStream stream;
-    stream.open(path);
+    stream.open(metaPath);
     LedgerCloseMeta lcm;
     size_t nLcm = 1;
     while (stream && stream.readOne(lcm))
@@ -337,12 +339,14 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else
     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         REQUIRE(lcm.v2().ledgerHeader.hash == hash);
-    }
+#else
+        REQUIRE(false);
 #endif
+    }
 }
 
 TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
@@ -370,15 +374,15 @@ TEST_CASE("EXPERIMENTAL_PRECAUTION_DELAY_META configuration",
     {
         TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
         TmpDir td = tdm.tmpDir("streams");
-        std::string path = td.getName() + "/stream.xdr";
+        std::string metaPath = td.getName() + "/stream.xdr";
         std::string metaStream;
 
 #ifdef _WIN32
-        metaStream = path;
+        metaStream = metaPath;
 #else
-        int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
+        int fd = ::open(metaPath.c_str(), O_CREAT | O_WRONLY, 0644);
         REQUIRE(fd != -1);
-        metaStream = fmt::format("fd:{}", fd);
+        metaStream = fmt::format(FMT_STRING("fd:{}"), fd);
 #endif
 
         cfg.METADATA_OUTPUT_STREAM = metaStream;
@@ -444,10 +448,10 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
     TmpDirManager tdm(std::string("metatest-") + binToHex(randomBytes(8)));
     TmpDir td = tdm.tmpDir("meta-ok");
-    std::string path = td.getName() + "/stream.xdr";
+    std::string metaPath = td.getName() + "/stream.xdr";
 
     VirtualClock clock;
-    cfg.METADATA_OUTPUT_STREAM = path;
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
 
     {
         // Do some stuff
@@ -493,7 +497,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
     uint32_t const targetSeq = 6;
 
     XDRInputFileStream in;
-    in.open(path);
+    in.open(metaPath);
     LedgerCloseMeta lcm;
     uint32_t maxSeq = 0;
     while (in.readOne(lcm))
@@ -532,20 +536,20 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
         if (ledgerSeq == targetSeq)
         {
-            std::string path = fmt::format(
-                "testdata/ledger-close-meta-v{}-protocol-{}.json", lcm.v(),
-                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+            std::string refJsonPath = fmt::format(
+                FMT_STRING("testdata/ledger-close-meta-v{}-protocol-{}.json"),
+                lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             std::string have = xdr_to_string(lcm, "LedgerCloseMeta");
             if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
             {
-                std::ofstream out(path);
-                out.write(have.data(), have.size());
+                std::ofstream outJson(refJsonPath);
+                outJson.write(have.data(), have.size());
             }
             else
             {
-                std::ifstream in(path);
-                REQUIRE(in);
-                std::string expect(std::istreambuf_iterator<char>{in}, {});
+                std::ifstream inJson(refJsonPath);
+                REQUIRE(inJson);
+                std::string expect(std::istreambuf_iterator<char>{inJson}, {});
                 REQUIRE(expect == have);
             }
         }
