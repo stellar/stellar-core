@@ -202,7 +202,6 @@ void
 TransactionMetaFrame::finalizeHashes()
 {
     releaseAssert(!mHashesFinalized);
-    normalizeMeta(mTransactionMeta);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -220,6 +219,8 @@ TransactionMetaFrame::finalizeHashes()
         // These will, in turn, be combined into a single hash in
         // getHashOfMetaHashes below, which fills in the
         // TransactionResultPairV2.hashOfMetaHashes value in various contexts.
+
+        normalizeMeta(mTransactionMeta);
 
         SHA256 sha;
 

@@ -95,6 +95,15 @@ normalizeMeta(TransactionMeta& m)
         sortChanges(m.v2().txChangesAfter);
         normalizeOps(m.v2().operations);
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case 3:
+        sortChanges(m.v3().txChangesBefore);
+        sortChanges(m.v3().txChangesAfter);
+        normalizeOps(m.v3().operations);
+        break;
+#endif
+    default:
+        releaseAssert(false);
     }
 }
 
