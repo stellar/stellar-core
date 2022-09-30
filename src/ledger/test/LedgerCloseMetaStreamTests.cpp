@@ -522,7 +522,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             REQUIRE(lcm.v() == 1);
             REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-            ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
+            ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
         }
 
         if (ledgerSeq == targetSeq)
