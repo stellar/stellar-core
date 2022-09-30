@@ -165,6 +165,7 @@
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -224,6 +225,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -285,6 +287,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -343,6 +346,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -402,6 +406,7 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
