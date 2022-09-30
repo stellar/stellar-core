@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "xdr/Stellar-transaction.h"
 #include <iterator>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
@@ -239,6 +240,22 @@ TEST_CASE("invoke host function", "[tx][contract]")
                     REQUIRE(!tx->apply(*app, ltx, txm));
                 }
                 ltx.commit();
+                SCVal resultVal;
+                resultVal.type(stellar::SCV_STATUS);
+                resultVal.status().type(SCStatusType::SST_UNKNOWN_ERROR);
+                if (tx->getResult().result.code() == txSUCCESS &&
+                    !tx->getResult().result.results().empty())
+                {
+                    auto const& ores = tx->getResult().result.results().at(0);
+                    if (ores.tr().type() == INVOKE_HOST_FUNCTION &&
+                        ores.tr().invokeHostFunctionResult().code() ==
+                            INVOKE_HOST_FUNCTION_SUCCESS)
+                    {
+                        resultVal =
+                            ores.tr().invokeHostFunctionResult().success();
+                    }
+                }
+                return resultVal;
             };
 
             auto scContractID =

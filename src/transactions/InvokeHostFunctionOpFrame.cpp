@@ -166,6 +166,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg)
     }
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
+    xdr::xdr_from_opaque(out.result_value.data, innerResult().success());
     return true;
 }
 

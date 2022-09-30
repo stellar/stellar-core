@@ -34,8 +34,9 @@ mod rust_bridge {
         file: String,
         hash: String,
     }
-    
+
     struct InvokeHostFunctionOutput {
+        result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
     }
