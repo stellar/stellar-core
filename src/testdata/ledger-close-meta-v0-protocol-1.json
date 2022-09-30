@@ -3,19 +3,19 @@
         "v": 0,
         "v0": {
             "ledgerHeader": {
-                "hash": "31814802c16bdd0b10bfc2b3f6cf43ecb98a2a2ff8af4b65f0037f448e9b420e",
+                "hash": "b4479d7ab33edd46d399bb53f9ab933d15b00c8ba3efc35453a5698a5ed8d4be",
                 "header": {
                     "ledgerVersion": 1,
-                    "previousLedgerHash": "e2824a29242824d5c2841498cca546dfeb58348a3fa4f11b2ff89243bb5211b0",
+                    "previousLedgerHash": "1e5b15bf369fd8fbe9450a0e3cb6774948a19e56ef2531271d8c36d3e70ecfcd",
                     "scpValue": {
-                        "txSetHash": "100401b6a6c3536b4b47a7c8c1060a85384259f4a72abfb683b1b781b7f5c123",
+                        "txSetHash": "370820754db72e266595440690e11056daeeb7a2295ccbf49600ff6348645c97",
                         "closeTime": 0,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
-                                "nodeID": "GAHGNUKGC5GOETJR5FF33LEFT5FVZJN4UURBUWXEDORKSK7Q23TXO3RG",
-                                "signature": "5f0e1cf227e13122543f79e2085a8dbc097352cc90656b0a860298a02ff40e61d3ef858056a529ce17d831aadeff41736cd957f5bc76e17eb6b9aebfb1120803"
+                                "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
+                                "signature": "8f58233149ab8f1fd811d773af4382857de9eaa6affdb1d37c64250fbd78cca9ad2e08713d8e21229c30dc449ba6b369a18d63aff63e1b527153db068cd80c01"
                             }
                         }
                     },
@@ -44,7 +44,7 @@
                 }
             },
             "txSet": {
-                "previousLedgerHash": "e2824a29242824d5c2841498cca546dfeb58348a3fa4f11b2ff89243bb5211b0",
+                "previousLedgerHash": "1e5b15bf369fd8fbe9450a0e3cb6774948a19e56ef2531271d8c36d3e70ecfcd",
                 "txs": [
                     {
                         "type": "ENVELOPE_TYPE_TX_V0",

@@ -4,6 +4,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
+#include "crypto/SecretKey.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
@@ -437,6 +438,10 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 {
     Config cfg = getTestConfig();
+
+    // We need to fix a deterministic NODE_SEED for this test to be stable.
+    cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(12345);
+
     TmpDirManager tdm(std::string("metatest-") + binToHex(randomBytes(8)));
     TmpDir td = tdm.tmpDir("meta-ok");
     std::string path = td.getName() + "/stream.xdr";
