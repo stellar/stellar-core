@@ -227,7 +227,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 auto tx = transactionFrameFromOps(app->getNetworkID(), root,
                                                   {op}, {});
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+                TransactionMetaFrame txm(
+                    ltx.loadHeader().current().ledgerVersion);
                 REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                 if (success)
                 {

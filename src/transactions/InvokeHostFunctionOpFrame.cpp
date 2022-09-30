@@ -221,9 +221,10 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
     Json::Value root;
     try
     {
-       LedgerTxn ltx(app.getLedgerTxnRoot()); 
+        LedgerTxn ltx(app.getLedgerTxnRoot());
         PreflightHostFunctionOutput out = rust_bridge::preflight_host_function(
-            toVec(op.function), toVec(op.parameters), toVec(sourceAccount), getLedgerInfo(ltx, app.getConfig()), std::move(cb));
+            toVec(op.function), toVec(op.parameters), toVec(sourceAccount),
+            getLedgerInfo(ltx, app.getConfig()), std::move(cb));
         SCVal result_value;
         LedgerFootprint storage_footprint;
         xdr::xdr_from_opaque(out.result_value.data, result_value);
