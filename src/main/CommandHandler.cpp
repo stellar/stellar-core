@@ -224,6 +224,20 @@ parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
     }
 }
 
+template <>
+bool
+parseOptionalParamOrDefault<bool>(std::map<std::string, std::string> const& map,
+                                  std::string const& key,
+                                  bool const& defaultValue)
+{
+    auto paramStr = parseOptionalParam<std::string>(map, key);
+    if (!paramStr)
+    {
+        return defaultValue;
+    }
+    return *paramStr == "true";
+}
+
 // Return a value only if the key exists and the value parses.
 // Otherwise, this throws an error.
 template <typename T>
@@ -952,41 +966,51 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     {
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
-
-        LoadGenMode mode = LoadGenerator::getMode(
+        GeneratedLoadConfig cfg;
+        cfg.mode = LoadGenerator::getMode(
             parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
-        bool isCreate = mode == LoadGenMode::CREATE;
+        bool isCreate = cfg.mode == LoadGenMode::CREATE;
 
-        uint32_t nAccounts =
+        cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
-        uint32_t nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
-        uint32_t txRate =
-            parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
-        uint32_t batchSize = parseOptionalParamOrDefault<uint32_t>(
+        cfg.nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
+        cfg.txRate = parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
+        cfg.batchSize = parseOptionalParamOrDefault<uint32_t>(
             map, "batchsize", 100); // Only for account creations
-        uint32_t offset =
-            parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
+        cfg.offset = parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
         uint32_t spikeIntervalInt =
             parseOptionalParamOrDefault<uint32_t>(map, "spikeinterval", 0);
-        std::chrono::seconds spikeInterval(spikeIntervalInt);
-        uint32_t spikeSize =
+        cfg.spikeInterval = std::chrono::seconds(spikeIntervalInt);
+        cfg.spikeSize =
             parseOptionalParamOrDefault<uint32_t>(map, "spikesize", 0);
+        cfg.maxGeneratedFeeRate =
+            parseOptionalParam<uint32_t>(map, "maxfeerate");
+        cfg.skipLowFeeTxs =
+            parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
 
-        uint32_t numItems = isCreate ? nAccounts : nTxs;
-        std::string itemType = isCreate ? "accounts" : "txs";
-
-        if (batchSize > 100)
+        if (cfg.batchSize > 100)
         {
-            batchSize = 100;
+            cfg.batchSize = 100;
             retStr = "Setting batch size to its limit of 100.";
         }
+        if (cfg.maxGeneratedFeeRate)
+        {
+            auto baseFee = mApp.getLedgerManager().getLastTxFee();
+            if (baseFee > *cfg.maxGeneratedFeeRate)
+            {
+                retStr = "maxfeerate is smaller than minimum base fee, load "
+                         "generation skipped.";
+                return;
+            }
+        }
 
-        mApp.generateLoad(mode, nAccounts, offset, nTxs, txRate, batchSize,
-                          spikeInterval, spikeSize);
+        uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
+        std::string itemType = isCreate ? "accounts" : "txs";
 
         retStr +=
             fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
-                        numItems, itemType, txRate);
+                        numItems, itemType, cfg.txRate);
+        mApp.generateLoad(cfg);
     }
     else
     {

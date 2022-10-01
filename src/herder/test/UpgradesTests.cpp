@@ -2537,9 +2537,8 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
 
     auto& loadGen = nodes[0]->getLoadGenerator();
     // Generate 8 ledgers worth of txs (40 / 5).
-    loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 40, 0, 0,
-                         /*txRate*/ 1,
-                         /*batchSize*/ 1, std::chrono::seconds(0), 0);
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 40, /* txRate */ 1, /* batchSize */ 1));
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();

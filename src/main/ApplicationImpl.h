@@ -103,11 +103,7 @@ class ApplicationImpl : public Application
                 std::optional<TimePoint> const& manualCloseTime) override;
 
 #ifdef BUILD_TESTS
-    virtual void generateLoad(LoadGenMode mode, uint32_t nAccounts,
-                              uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                              uint32_t batchSize,
-                              std::chrono::seconds spikeInterval,
-                              uint32_t spikeSize) override;
+    virtual void generateLoad(GeneratedLoadConfig cfg) override;
 
     virtual LoadGenerator& getLoadGenerator() override;
 #endif

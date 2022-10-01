@@ -1272,6 +1272,18 @@ TransactionQueue::getQueueSizeOps() const
 {
     return mTxQueueLimiter->size();
 }
+
+std::optional<int64_t>
+TransactionQueue::getInQueueSeqNum(AccountID const& account) const
+{
+    auto stateIter = mAccountStates.find(account);
+    if (stateIter == mAccountStates.end())
+    {
+        return std::nullopt;
+    }
+    auto& transactions = stateIter->second.mTransactions;
+    return transactions.back().mTx->getSeqNum();
+}
 #endif
 
 size_t
