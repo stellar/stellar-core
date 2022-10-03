@@ -34,6 +34,7 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 17
     ;
 
 bool gIsProductionNetwork = false;
+uint64 BASE_LEADER_NOMINATION_TIMEOUT_MS = 250; //(default) value to increment wait time between nomination rounds
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
@@ -192,6 +193,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     ENTRY_CACHE_SIZE = 100000;
     PREFETCH_BATCH_SIZE = 1000;
+
+    BASE_LEADER_NOMINATION_TIMEOUT_MS = 250;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1065,6 +1068,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 // processed later (may depend on previously defined public
                 // keys)
+            }
+            else if (item.first == "BASE_LEADER_NOMINATION_TIMEOUT_MS")
+            {
+                BASE_LEADER_NOMINATION_TIMEOUT_MS = readInt<int>(item, 0);
             }
             else if (item.first ==
                      "EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE")

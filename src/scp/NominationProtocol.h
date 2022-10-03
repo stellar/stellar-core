@@ -85,6 +85,12 @@ class NominationProtocol
     // returns nullptr if no new value was found
     ValueWrapperPtr getNewValueFromNomination(SCPNomination const& nom);
 
+    /*
+    Amount of time (in millisecs) allow for a leader to behave correctly.  If leader is slow, timeout logic kicks in.
+    Vanilla stellar waits in secs which is too long for our network.
+    */
+    std::chrono::milliseconds leaderNominationTimeoutInMilisec = std::chrono::milliseconds(0);
+
   public:
     NominationProtocol(Slot& slot);
 
@@ -124,5 +130,11 @@ class NominationProtocol
     // returns the latest message from a node
     // or nullptr if not found
     SCPEnvelope const* getLatestMessage(NodeID const& id) const;
+
+      /*
+    `computeNominationTimeout` computes a timeout given a round number.  It's base on SCPDriver::computeTimeout()
+    @parm roundNumber - nomination round number
+    */
+    virtual std::chrono::milliseconds computeNominationTimeout(uint32 roundNumber);
 };
 }

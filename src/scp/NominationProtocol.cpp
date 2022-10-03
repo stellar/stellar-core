@@ -17,6 +17,8 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <functional>
+//Access to loaded configs
+#include "main/Config.h"
 
 namespace stellar
 {
@@ -25,6 +27,8 @@ using namespace std::placeholders;
 NominationProtocol::NominationProtocol(Slot& slot)
     : mSlot(slot), mRoundNumber(0), mNominationStarted(false)
 {
+    CLOG_DEBUG(SCP, "### new NominationProtocol object, value of external global variable baseNominationTimeOutInMilisecs ({})."
+        , BASE_LEADER_NOMINATION_TIMEOUT_MS);
 }
 
 bool
@@ -665,7 +669,7 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     to the next round to expand the set of leaders they follow.
     */
     std::chrono::milliseconds timeout =
-        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
+        computeNominationTimeout(mRoundNumber);
 
     // if we're leader, add our value
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
@@ -812,5 +816,20 @@ NominationProtocol::getLatestMessage(NodeID const& id) const
         return &it->second->getEnvelope();
     }
     return nullptr;
+}
+
+static const int NOMINATION_MAX_TIMEOUT_SECONDS = (30 * 60); //same value as MAX_TIMEOUT_SECONDS defined within SCPDriver.cpp
+std::chrono::milliseconds
+NominationProtocol::computeNominationTimeout(uint32 roundNumber)
+{
+    if (roundNumber > NOMINATION_MAX_TIMEOUT_SECONDS)
+    {
+        leaderNominationTimeoutInMilisec = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::seconds(NOMINATION_MAX_TIMEOUT_SECONDS));
+    }
+    else
+    {
+        leaderNominationTimeoutInMilisec.operator+=(std::chrono::milliseconds(BASE_LEADER_NOMINATION_TIMEOUT_MS)); //increment by 250 ms for each round
+    }
+    return leaderNominationTimeoutInMilisec;
 }
 }
