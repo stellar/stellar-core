@@ -220,9 +220,11 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
 {
     auto cb = std::make_unique<PreflightCallbacks>(app);
     Json::Value root;
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    root["ledger"] = ltx.loadHeader().current().ledgerSeq;
+
     try
     {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
         PreflightHostFunctionOutput out = rust_bridge::preflight_host_function(
             toVec(op.function), toVec(op.parameters), toVec(sourceAccount),
             getLedgerInfo(ltx, app.getConfig()), std::move(cb));

@@ -696,7 +696,6 @@ CommandHandler::preflight(std::string const& params, std::string& retStr)
             acct = KeyUtils::fromStrKey<PublicKey>(sourceAcct);
         }
         InvokeHostFunctionOp op;
-        std::vector<uint8_t> binBlob;
         fromOpaqueBase64(op, blob);
         root = InvokeHostFunctionOpFrame::preflight(mApp, op, acct);
     }
