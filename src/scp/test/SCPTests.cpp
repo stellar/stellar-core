@@ -2735,19 +2735,18 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                             0,
                             scp2.wrapEnvelope(makeNominate(
                                 v0SecretKey, qSetHash0, 0, votes, accepted)));
-                        // tries to start nomination with yValue
-                        REQUIRE(scp2.nominate(0, yValue, false));
+                        // tries to start nomination with yValue, but picks
+                        // xValue since it was already in the votes
+                        REQUIRE(!scp2.nominate(0, yValue, false));
 
                         checkLeaders(scp2, {v0SecretKey.getPublicKey()});
 
-                        REQUIRE(scp2.mEnvs.size() == 1);
-                        verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                       votes2, accepted);
+                        REQUIRE(scp2.mEnvs.size() == 0);
 
                         // other nodes vote for 'x'
                         scp2.receiveEnvelope(nom1);
                         scp2.receiveEnvelope(nom2);
-                        REQUIRE(scp2.mEnvs.size() == 1);
+                        REQUIRE(scp2.mEnvs.size() == 0);
                         // 'x' is accepted (quorum)
                         // but because the restored state already included
                         // 'x' in the accepted set, no new message is emitted
@@ -2759,7 +2758,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                         // other nodes not emit 'x' as accepted
                         scp2.receiveEnvelope(acc1);
                         scp2.receiveEnvelope(acc2);
-                        REQUIRE(scp2.mEnvs.size() == 1);
+                        REQUIRE(scp2.mEnvs.size() == 0);
 
                         scp2.mCompositeValue = xValue;
                         // this causes the node to update its composite value to
@@ -2771,9 +2770,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     {
                         nominationRestore();
                         // nomination ended up starting the ballot protocol
-                        REQUIRE(scp2.mEnvs.size() == 2);
+                        REQUIRE(scp2.mEnvs.size() == 1);
 
-                        verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                        verifyPrepare(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
                                       SCPBallot(1, xValue));
                     }
                     SECTION("ballot protocol started (on value k)")
@@ -2784,7 +2783,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                                                SCPBallot(1, kValue))));
                         nominationRestore();
                         // nomination didn't do anything (already working on k)
-                        REQUIRE(scp2.mEnvs.size() == 1);
+                        REQUIRE(scp2.mEnvs.size() == 0);
                     }
                 }
             }
