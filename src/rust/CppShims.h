@@ -23,10 +23,13 @@ struct CxxBuf;
 namespace stellar
 {
 class Application;
+struct HostFunctionMetrics;
 struct PreflightCallbacks
 {
     Application& mApp;
-    PreflightCallbacks(Application& app) : mApp(app){};
+    HostFunctionMetrics& mMetrics;
+    PreflightCallbacks(Application& app, HostFunctionMetrics& metrics)
+        : mApp(app), mMetrics(metrics){};
     CxxBuf get_ledger_entry(rust::Vec<uint8_t> const& key);
     bool has_ledger_entry(rust::Vec<uint8_t> const& key);
 };

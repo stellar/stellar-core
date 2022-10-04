@@ -39,6 +39,8 @@ mod rust_bridge {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
+        cpu_insns: u64,
+        mem_bytes: u64,
     }
 
     struct PreflightHostFunctionOutput {
