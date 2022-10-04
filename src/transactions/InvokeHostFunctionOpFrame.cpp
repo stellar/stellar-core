@@ -220,14 +220,21 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
 {
     auto cb = std::make_unique<PreflightCallbacks>(app);
     Json::Value root;
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    root["ledger"] = ltx.loadHeader().current().ledgerSeq;
+    CxxLedgerInfo li;
+
+    // Scope our use of an ltx to a block here so that a new one can be opened
+    // later in the preflight callbacks.
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
+        li = getLedgerInfo(ltx, app.getConfig());
+    }
 
     try
     {
         PreflightHostFunctionOutput out = rust_bridge::preflight_host_function(
-            toVec(op.function), toVec(op.parameters), toVec(sourceAccount),
-            getLedgerInfo(ltx, app.getConfig()), std::move(cb));
+            toVec(op.function), toVec(op.parameters), toVec(sourceAccount), li,
+            std::move(cb));
         SCVal result_value;
         LedgerFootprint storage_footprint;
         xdr::xdr_from_opaque(out.result_value.data, result_value);
