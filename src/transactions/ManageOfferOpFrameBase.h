@@ -41,6 +41,9 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     bool doApply(AbstractLedgerTxn& lsOuter) override;
+
+    bool isDexOperation() const override;
+
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

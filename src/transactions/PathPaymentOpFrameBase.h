@@ -37,6 +37,8 @@ class PathPaymentOpFrameBase : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
+    bool isDexOperation() const override;
+
     virtual bool checkTransfer(int64_t maxSend, int64_t amountSend,
                                int64_t maxRecv, int64_t amountRecv) const = 0;
 

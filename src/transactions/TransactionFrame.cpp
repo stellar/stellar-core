@@ -53,6 +53,21 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
                                    TransactionEnvelope const& envelope)
     : mEnvelope(envelope), mNetworkID(networkID)
 {
+    // Create operation frames with dummy results. Currently the proper results
+    // are initialized in `TransactionFrame::resetResults` and eventually the
+    // operation frames should be decoupled from the results completely and
+    // created just once.
+    auto& ops = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
+                    ? mEnvelope.v0().tx.operations
+                    : mEnvelope.v1().tx.operations;
+    getResult().result.code(txFAILED);
+    getResult().result.results().resize(static_cast<uint32_t>(ops.size()));
+
+    for (size_t i = 0; i < ops.size(); i++)
+    {
+        mOperations.push_back(
+            makeOperation(ops[i], getResult().result.results()[i], i));
+    }
 }
 
 Hash const&
@@ -321,6 +336,19 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
     {
         return stellar::loadAccount(ltx, accountID);
     }
+}
+
+bool
+TransactionFrame::hasDexOperations() const
+{
+    for (auto const& op : mOperations)
+    {
+        if (op->isDexOperation())
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::shared_ptr<OperationFrame>

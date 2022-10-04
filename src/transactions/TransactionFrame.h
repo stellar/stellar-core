@@ -230,5 +230,7 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
     Duration getMinSeqAge() const override;
     uint32 getMinSeqLedgerGap() const override;
+
+    bool hasDexOperations() const override;
 };
 }
