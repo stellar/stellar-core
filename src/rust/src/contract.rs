@@ -15,7 +15,7 @@ use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
 use soroban_env_host::{
     budget::Budget,
-    events::{Events, HostEvent},
+    events::{DebugError, DebugEvent, Events, HostEvent},
     storage::{self, AccessType, SnapshotSource, Storage},
     xdr,
     xdr::{
@@ -305,22 +305,49 @@ fn invoke_host_function_or_maybe_panic(
 // Pin<&mut PreflightCallbacks>. They're all pointers to the same thing (or
 // perhaps indirected through an Rc or RefCell) but unfortunately, as you know,
 // type systems.
-struct Pfc(RefCell<UniquePtr<PreflightCallbacks>>);
+//
+// Pfc also carries a reference to a Host to allow us to record as debug events
+// any strings returned in exceptions thrown while running the callbacks. This
+// is awkward but it's the best we can do for mapping from the core error regime
+// to that of the Host.
+struct Pfc(
+    RefCell<Option<Host>>,
+    RefCell<UniquePtr<PreflightCallbacks>>,
+);
 
 impl Pfc {
     fn with_cb<T, F>(&self, f: F) -> Result<T, HostError>
     where
         F: FnOnce(Pin<&mut PreflightCallbacks>) -> Result<T, ::cxx::Exception>,
     {
-        if let Some(cb) = self
-            .0
-            .try_borrow_mut()
-            .map_err(|_| ScHostContextErrorCode::UnknownError)?
-            .as_mut()
-        {
-            f(cb).map_err(|_| ScHostContextErrorCode::UnknownError.into())
+        let code = ScHostContextErrorCode::UnknownError;
+
+        if let Some(cb) = self.1.try_borrow_mut().map_err(|_| code)?.as_mut() {
+            f(cb).map_err(|exn| {
+                // Error propagation is relatively awkward here. We need to
+                // generate a `HostError`, which has no string, and we have a
+                // `cxx::Exception`, which only has a string. We therefore have
+                // a `Host` reference plumbed through here so that we can call
+                // `err` on it passing a `DebugError` carrying a copy of the
+                // string from the `cxx::Exception`. This will in turn record
+                // the string in the `Host` debug-event buffer and then generate
+                // a `HostError` carrying a snapshot of that buffer, which will
+                // hopefully make it back to users.
+                //
+                // NB: the `Host` reference in this function is only here to
+                // serve this purpose; it's not otherwise needed.
+                if let Ok(Some(host)) = self.0.try_borrow().map(|r| (*r).clone()) {
+                    let err = DebugError {
+                        event: DebugEvent::new().msg(exn.what().to_string()),
+                        status: code.into(),
+                    };
+                    host.err(err)
+                } else {
+                    code.into()
+                }
+            })
         } else {
-            Err(ScHostContextErrorCode::UnknownError.into())
+            Err(code.into())
         }
     }
 }
@@ -387,11 +414,12 @@ fn preflight_host_function_or_maybe_panic(
     let hf = xdr_from_slice::<HostFunction>(hf_buf.as_slice())?;
     let args = xdr_from_slice::<ScVec>(args_buf.as_slice())?;
     let source_account = xdr_from_slice::<AccountId>(source_account_buf.as_slice())?;
-    let pfc = Rc::new(Pfc(RefCell::new(cb)));
+    let pfc = Rc::new(Pfc(RefCell::new(None), RefCell::new(cb)));
     let src: Rc<dyn SnapshotSource> = pfc.clone() as Rc<dyn SnapshotSource>;
     let storage = Storage::with_recording_footprint(src);
     let budget = Budget::default();
     let host = Host::with_storage_and_budget(storage, budget);
+
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
 
@@ -400,7 +428,17 @@ fn preflight_host_function_or_maybe_panic(
         "preflight execution of host function '{}'",
         HostFunction::name(&hf)
     );
+
+    // NB: this line creates cyclical ownership between Pfc and Host. We need to
+    // do this so that Pfc can access Host in `with_cb` above, but we must break
+    // that cycle below, otherwise both will leak.
+    *pfc.0.try_borrow_mut()? = Some(host.clone());
+
+    // Run the preflight.
     let res = host.invoke_function(hf, args);
+
+    // Break cyclical ownership between Pfc and Host.
+    *pfc.0.try_borrow_mut()? = None;
 
     // Recover, convert and return the storage footprint and other values to C++.
     let (storage, budget, events) = host
