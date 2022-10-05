@@ -480,3 +480,9 @@ pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn Error>> {
         data: soroban_test_wasms::CONTRACT_DATA.iter().cloned().collect(),
     })
 }
+
+pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::COMPLEX.iter().cloned().collect(),
+    })
+}
