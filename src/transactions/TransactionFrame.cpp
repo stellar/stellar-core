@@ -1068,11 +1068,12 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
         Config const& cfg = app.getConfig();
+        medida::MetricsRegistry& metrics = app.getMetrics();
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerTxn ltxOp(ltxTx);
-            bool txRes = op->apply(signatureChecker, ltxOp, cfg);
+            bool txRes = op->apply(signatureChecker, ltxOp, cfg, metrics);
 
             if (!txRes)
             {

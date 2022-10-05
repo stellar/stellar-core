@@ -279,7 +279,7 @@ fn invoke_host_function_or_maybe_panic(
         HostFunction::name(&hf)
     );
     let res = host.invoke_function(hf, args);
-    let (storage, _budget, events) = host
+    let (storage, budget, events) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
@@ -297,6 +297,8 @@ fn invoke_host_function_or_maybe_panic(
         result_value,
         contract_events,
         modified_ledger_entries,
+        cpu_insns: budget.get_cpu_insns_count(),
+        mem_bytes: budget.get_mem_bytes_count(),
     })
 }
 

@@ -34,6 +34,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -134,7 +135,8 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx, Config const& cfg)
+                      AbstractLedgerTxn& ltx, Config const& cfg,
+                      medida::MetricsRegistry& metrics)
 {
     ZoneScoped;
     bool res;
@@ -142,7 +144,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(ltx, cfg);
+        res = doApply(ltx, cfg, metrics);
         CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
@@ -150,10 +152,11 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
 }
 
 bool
-OperationFrame::doApply(AbstractLedgerTxn& ltx, Config const& _cfg)
+OperationFrame::doApply(AbstractLedgerTxn& ltx, Config const& _cfg,
+                        medida::MetricsRegistry& _metrics)
 {
-    // By default we ignore the cfg, but subclasses can override
-    // to intercept and use it.
+    // By default we ignore the cfg and metrics, but subclasses can override to
+    // intercept and use them.
     return doApply(ltx);
 }
 

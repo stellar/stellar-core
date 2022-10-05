@@ -274,6 +274,13 @@ TEST_CASE("invoke host function", "[tx][contract]")
 
             // Correct function call
             call({scContractID, scFunc, sc7, sc16}, true);
+            REQUIRE(app->getMetrics()
+                        .NewTimer({"host-fn", "invoke-contract", "exec"})
+                        .count() != 0);
+            REQUIRE(
+                app->getMetrics()
+                    .NewMeter({"host-fn", "invoke-contract", "success"}, "call")
+                    .count() != 0);
 
             // Too many parameters for "add"
             call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
