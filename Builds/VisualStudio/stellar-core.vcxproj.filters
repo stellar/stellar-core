@@ -1297,6 +1297,12 @@
       <Filter>overlay\tests</Filter>
     </ClCompile>
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\InvokeHostFunctionTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\LedgerEntryIsValidTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2411,6 +2417,24 @@
     </None>
     <None Include="..\..\src\rust\Cargo.toml">
       <Filter>rust</Filter>
+    </None>
+    <None Include="..\..\src\test\check-nondet">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\run-selftest-nopg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\run-selftest-pg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-nopg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-parallel">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-pg">
+      <Filter>test</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

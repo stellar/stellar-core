@@ -505,6 +505,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
+    <ClCompile Include="..\..\src\invariant\test\LedgerEntryIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
@@ -548,6 +549,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\ClawbackClaimableBalanceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\InvokeHostFunctionTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\BeginSponsoringFutureReservesTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\SponsorshipTestUtils.cpp" />
@@ -1532,6 +1534,12 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
     <None Include="..\..\src\rust\src\contract.rs" />
     <None Include="..\..\src\rust\src\log.rs" />
     <None Include="..\..\src\scp\readme.md" />
+    <None Include="..\..\src\test\check-nondet" />
+    <None Include="..\..\src\test\run-selftest-nopg" />
+    <None Include="..\..\src\test\run-selftest-pg" />
+    <None Include="..\..\src\test\selftest-nopg" />
+    <None Include="..\..\src\test\selftest-parallel" />
+    <None Include="..\..\src\test\selftest-pg" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\ci-build.sh" />
     <None Include="..\..\src\util\LogPartitions.def" />
