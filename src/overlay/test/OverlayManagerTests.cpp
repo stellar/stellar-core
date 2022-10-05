@@ -269,14 +269,13 @@ class OverlayManagerTests
             if (i++ == 2)
             {
                 pm.recvFloodedMsg(
-                    p.second,
-                    OverlayManager::txHashForFlooding(AtoBTxFrame));
+                    p.second, OverlayManager::txHashForFlooding(AtoBTxFrame));
             }
         }
         auto broadcastTxnMsg = [&](StellarMessage msg,
                                    TransactionFramePtr txPtr) {
-            pm.broadcastMessage(
-                msg, OverlayManager::txHashForFlooding(txPtr), false);
+            pm.broadcastMessage(msg, OverlayManager::txHashForFlooding(txPtr),
+                                false);
         };
         broadcastTxnMsg(AtoB, AtoBTxFrame);
         crank(10);
