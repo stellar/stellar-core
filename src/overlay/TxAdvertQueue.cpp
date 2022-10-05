@@ -4,6 +4,8 @@
 
 #include "overlay/TxAdvertQueue.h"
 #include "ledger/LedgerManager.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/Peer.h"
 
 namespace stellar
 {
@@ -19,17 +21,20 @@ TxAdvertQueue::size() const
 }
 
 void
-TxAdvertQueue::appendHashesToRetryAndMaybeTrim(std::list<Hash>& list)
+TxAdvertQueue::appendHashesToRetryAndMaybeTrim(std::list<Hash>& list,
+                                               std::shared_ptr<Peer> peer)
 {
     mTxHashesToRetry.splice(mTxHashesToRetry.end(), list);
     while (size() > mApp.getLedgerManager().getLastMaxTxSetSizeOps())
     {
-        pop();
+        auto hash = pop();
+        mApp.getOverlayManager().forgetFloodedMsgForPeer(hash, peer);
     }
 }
 
 void
-TxAdvertQueue::queueAndMaybeTrim(TxAdvertVector const& txHashes)
+TxAdvertQueue::queueAndMaybeTrim(TxAdvertVector const& txHashes,
+                                 std::shared_ptr<Peer> peer)
 {
     auto it = txHashes.begin();
     size_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
@@ -45,12 +50,14 @@ TxAdvertQueue::queueAndMaybeTrim(TxAdvertVector const& txHashes)
     while (it != txHashes.end())
     {
         mIncomingTxHashes.emplace_back(*it);
+        mApp.getOverlayManager().recvFloodedMsg(peer, *it);
         it++;
     }
 
     while (size() > limit)
     {
-        pop();
+        auto hash = pop();
+        mApp.getOverlayManager().forgetFloodedMsgForPeer(hash, peer);
     }
 }
 

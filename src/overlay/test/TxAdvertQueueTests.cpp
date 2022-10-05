@@ -6,6 +6,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/TxAdvertQueue.h"
+#include "overlay/test/LoopbackPeer.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
@@ -16,6 +17,8 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
     VirtualClock clock;
     Config const& cfg = getTestConfig(0);
     auto app = createTestApplication(clock, cfg);
+    auto peer =
+        std::make_shared<LoopbackPeer>(*app, Peer::PeerRole::WE_CALLED_REMOTE);
     TxAdvertQueue advertQueue(*app);
     auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
@@ -29,10 +32,10 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes);
+    advertQueue.queueAndMaybeTrim(hashes, peer);
     REQUIRE(advertQueue.size() == limit);
 
-    advertQueue.appendHashesToRetryAndMaybeTrim(retry);
+    advertQueue.appendHashesToRetryAndMaybeTrim(retry, peer);
     REQUIRE(advertQueue.size() == limit);
 
     for (uint32_t i = 0; i < limit; i++)
@@ -51,8 +54,8 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes);
-    advertQueue.appendHashesToRetryAndMaybeTrim(retry);
+    advertQueue.queueAndMaybeTrim(hashes, peer);
+    advertQueue.appendHashesToRetryAndMaybeTrim(retry, peer);
     REQUIRE(advertQueue.size() == ((limit / 2) * 2));
     for (uint32_t i = 0; i < limit / 2; i++)
     {

@@ -129,8 +129,13 @@ class OverlayManagerImpl : public OverlayManager
     ~OverlayManagerImpl();
 
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
+    bool recvFloodedMsg(Peer::pointer peer, StellarMessage const& msg,
+                        Hash& msgID) override;
     bool recvFloodedMsg(Peer::pointer peer, Hash const& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
+    void forgetFloodedMsgForPeer(Hash const& msgID,
+                                 Peer::pointer peer) override;
+
     bool broadcastMessage(StellarMessage const& msg, Hash const& hash,
                           bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;

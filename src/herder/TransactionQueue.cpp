@@ -1032,7 +1032,7 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
     }
     return mApp.getOverlayManager().broadcastMessage(
                tx.mTx->toStellarMessage(),
-               TransactionFrameBase::txHashForFlooding(tx.mTx), false)
+               OverlayManager::txHashForFlooding(tx.mTx), false)
                ? BroadcastStatus::BROADCAST_STATUS_SUCCESS
                : BroadcastStatus::BROADCAST_STATUS_ALREADY;
 }

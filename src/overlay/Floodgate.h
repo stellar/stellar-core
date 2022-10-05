@@ -68,6 +68,7 @@ class Floodgate
     // removes the record corresponding to `msgID`
     // `msgID` corresponds to a `StellarMessage`
     void forgetRecord(Hash const& msgID);
+    void forgetRecordForPeer(Hash const& msgID, Peer::pointer peer);
 
     void shutdown();
 };

@@ -29,7 +29,6 @@ class TransactionFrameBase
     static TransactionFrameBasePtr
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& env);
-    static Hash txHashForFlooding(TransactionFrameBasePtr const& tx);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMeta& meta) = 0;

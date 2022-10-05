@@ -54,6 +54,12 @@ OverlayManager::defaultFloodingHash(StellarMessage const& msg)
     return xdrBlake2(msg);
 }
 
+Hash
+OverlayManager::txHashForFlooding(TransactionFrameBasePtr const& tx)
+{
+    return tx->getFullHash();
+}
+
 OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
     medida::MetricsRegistry& metricsRegistry,
@@ -966,6 +972,23 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 }
 
 bool
+OverlayManagerImpl::recvFloodedMsg(Peer::pointer peer,
+                                   StellarMessage const& msg, Hash& msgID)
+{
+    ZoneScoped;
+    if (msg.type() == TRANSACTION)
+    {
+        auto transaction = TransactionFrameBase::makeTransactionFromWire(
+            mApp.getNetworkID(), msg.transaction());
+        msgID = transaction->getFullHash();
+        return recvFloodedMsg(peer, transaction->getFullHash());
+    }
+
+    msgID = OverlayManager::defaultFloodingHash(msg);
+    return mFloodGate.addRecord(peer, msgID);
+}
+
+bool
 OverlayManagerImpl::recvFloodedMsg(Peer::pointer peer, Hash const& msgID)
 {
     ZoneScoped;
@@ -977,6 +1000,14 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 {
     ZoneScoped;
     mFloodGate.forgetRecord(msgID);
+}
+
+void
+OverlayManagerImpl::forgetFloodedMsgForPeer(Hash const& msgID,
+                                            Peer::pointer peer)
+{
+    ZoneScoped;
+    mFloodGate.forgetRecordForPeer(msgID, peer);
 }
 
 bool
@@ -1330,7 +1361,7 @@ OverlayManagerImpl::demand()
         // which gets appended. Don't touch `demand` or `retry` after here.
         peer->sendTxDemand(std::move(demandMap[peer].first));
         peer->getTxAdvertQueue().appendHashesToRetryAndMaybeTrim(
-            demandMap[peer].second);
+            demandMap[peer].second, peer);
     }
 
     // mPendingDemands and mDemandHistoryMap must always contain exactly the

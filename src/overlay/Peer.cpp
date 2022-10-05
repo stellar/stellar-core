@@ -1502,7 +1502,7 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
-        auto hash = TransactionFrameBase::txHashForFlooding(transaction);
+        auto hash = OverlayManager::txHashForFlooding(transaction);
         mApp.getOverlayManager().recvFloodedMsg(shared_from_this(), hash);
 
         if (isPullModeEnabled())
@@ -1634,8 +1634,8 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     ZoneText(codeStr.c_str(), codeStr.size());
 
     // add it to the floodmap so that this peer gets credit for it
-    Hash msgID = OverlayManager::defaultFloodingHash(msg);
-    mApp.getOverlayManager().recvFloodedMsg(shared_from_this(), msgID);
+    Hash msgID;
+    mApp.getOverlayManager().recvFloodedMsg(shared_from_this(), msg, msgID);
 
     auto res = mApp.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
@@ -2008,12 +2008,7 @@ void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
     auto self = shared_from_this();
-    for (auto const& hash : msg.floodAdvert().txHashes)
-    {
-        mApp.getOverlayManager().recvFloodedMsg(self, hash);
-    }
-
-    mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
+    mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes, self);
 }
 
 void

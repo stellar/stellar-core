@@ -179,4 +179,18 @@ Floodgate::forgetRecord(Hash const& h)
 {
     mFloodMap.erase(h);
 }
+
+void
+Floodgate::forgetRecordForPeer(Hash const& msgID, Peer::pointer peer)
+{
+    auto it = mFloodMap.find(msgID);
+    if (it != mFloodMap.end())
+    {
+        it->second->mPeersTold.erase(peer->toString());
+        if (it->second->mPeersTold.empty())
+        {
+            forgetRecord(msgID);
+        }
+    }
+}
 }

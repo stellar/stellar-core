@@ -113,8 +113,7 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
 
     // mMessageLimiter filters out duplicates, so here we are guaranteed
     // to record the message for the first time
-    mApp.getOverlayManager().recvFloodedMsg(
-        peer, OverlayManager::defaultFloodingHash(msg));
+    mApp.getOverlayManager().recvFloodedMsg(peer, msg);
 
     if (response.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
@@ -208,8 +207,7 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
 
     if (peer)
     {
-        mApp.getOverlayManager().recvFloodedMsg(
-            peer, OverlayManager::defaultFloodingHash(msg));
+        mApp.getOverlayManager().recvFloodedMsg(peer, msg);
     }
 
     if (request.surveyedPeerID == mApp.getConfig().NODE_SEED.getPublicKey())

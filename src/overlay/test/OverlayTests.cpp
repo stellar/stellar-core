@@ -1958,8 +1958,10 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                                    epsilon);
 
             REQUIRE(numDemandSent(apps[2]) == 1);
-            REQUIRE(numFulfilled(apps[0]) == 0);
-            REQUIRE(numFulfilled(apps[1]) == 1);
+            auto cond =
+                (numFulfilled(apps[0]) == 0 && numFulfilled(apps[1]) == 1) ||
+                (numFulfilled(apps[1]) == 0 && numFulfilled(apps[0]) == 1);
+            REQUIRE(cond);
             // After receiving a transaction, Node2 does not advertise it to
             // anyone because others already know about it
             REQUIRE(apps[2]

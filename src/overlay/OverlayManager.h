@@ -6,6 +6,7 @@
 
 #include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/TransactionFrameBase.h"
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
@@ -56,6 +57,7 @@ class OverlayManager
   public:
     static std::unique_ptr<OverlayManager> create(Application& app);
     static Hash defaultFloodingHash(StellarMessage const& msg);
+    static Hash txHashForFlooding(TransactionFrameBasePtr const& tx);
 
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
@@ -79,12 +81,23 @@ class OverlayManager
     // Returns true if this is a new message
     // msgId is a unique key to identify this message that must be provided by
     // the caller
+    virtual bool recvFloodedMsg(Peer::pointer peer, StellarMessage const& msg,
+                                Hash& msgID) = 0;
+    bool
+    recvFloodedMsg(Peer::pointer peer, StellarMessage const& msg)
+    {
+        Hash msgID;
+        return recvFloodedMsg(peer, msg, msgID);
+    }
     virtual bool recvFloodedMsg(Peer::pointer peer, Hash const& msgID) = 0;
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
     virtual void forgetFloodedMsg(Hash const& msgID) = 0;
+
+    virtual void forgetFloodedMsgForPeer(Hash const& msgID,
+                                         Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;

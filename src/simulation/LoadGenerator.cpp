@@ -761,7 +761,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     else
     {
         mApp.getOverlayManager().broadcastMessage(
-            msg, TransactionFrameBase::txHashForFlooding(txf), false);
+            msg, OverlayManager::txHashForFlooding(txf), false);
     }
 
     return status;

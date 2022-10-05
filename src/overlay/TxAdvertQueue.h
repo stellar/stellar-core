@@ -9,6 +9,8 @@
 namespace stellar
 {
 
+class Peer;
+
 // TxAdvertQueue class stores and properly trims incoming tx hashes
 // and also maintains retries.
 //
@@ -33,7 +35,9 @@ class TxAdvertQueue
 
     Hash pop();
 
-    void queueAndMaybeTrim(TxAdvertVector const& hash);
-    void appendHashesToRetryAndMaybeTrim(std::list<Hash>& list);
+    void queueAndMaybeTrim(TxAdvertVector const& hash,
+                           std::shared_ptr<Peer> peer);
+    void appendHashesToRetryAndMaybeTrim(std::list<Hash>& list,
+                                         std::shared_ptr<Peer> peer);
 };
 }
