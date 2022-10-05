@@ -447,6 +447,12 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
             {
                 mCandidates.emplace(a);
                 newCandidates = true;
+                // Stop the timer, as there's no need to continue nominating,
+                // per the whitepaper:
+                // "As soon as `v` has a candidate value, however, it must cease
+                // voting to nominate `x` for any new values `x`"
+                mSlot.getSCPDriver().stopTimer(mSlot.getSlotIndex(),
+                                               Slot::NOMINATION_TIMER);
             }
         }
 
@@ -499,6 +505,17 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
                              bool timedout)
 {
     ZoneScoped;
+
+    // No need to continue nominating, as per the whitepaper:
+    // "As soon as `v` has a candidate value, however, it must cease
+    // voting to nominate `x` for any new values `x`"
+    if (!mCandidates.empty())
+    {
+        CLOG_DEBUG(SCP, "Skip nomination round {}, already have a candidate",
+                   mRoundNumber);
+        return false;
+    }
+
     CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
                mSlot.getSCP().getValueString(value->getValue()));
 

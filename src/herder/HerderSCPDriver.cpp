@@ -80,6 +80,8 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
           {"scp", "timeout", "nominate"})}
     , mPrepareTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "prepare"})}
+    , mUniqueValues{mApp.getMetrics().NewHistogram(
+          {"scp", "slot", "values-referenced"})}
     , mLedgerSeqNominating(0)
     , mTxSetValidCache(TXSETVALID_CACHE_SIZE)
 {
@@ -536,6 +538,25 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     }
 }
 
+void
+HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
+{
+
+    auto timersIt = mSCPTimers.find(slotIndex);
+    if (timersIt == mSCPTimers.end())
+    {
+        return;
+    }
+
+    auto& slotTimers = timersIt->second;
+    auto it = slotTimers.find(timerID);
+    if (it != slotTimers.end())
+    {
+        auto& timer = *it->second;
+        timer.cancel();
+    }
+}
+
 // returns true if l < r
 // lh, rh are the hashes of l,h
 static bool
@@ -751,7 +772,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         // all messages made it
         if (slotIndex > 2)
         {
-            logQuorumInformation(slotIndex - 2);
+            logQuorumInformationAndUpdateMetrics(slotIndex - 2);
         }
 
         if (mCurrentValue)
@@ -790,7 +811,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 }
 
 void
-HerderSCPDriver::logQuorumInformation(uint64_t index)
+HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 {
     std::string res;
     auto v = mApp.getHerder().getJsonQuorumInfo(mSCP.getLocalNodeID(), true,
@@ -801,6 +822,22 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
         Json::FastWriter fw;
         CLOG_INFO(Herder, "Quorum information for {} : {}", index,
                   fw.write(qset));
+    }
+
+    std::unordered_set<Hash> referencedValues;
+    auto collectReferencedHashes = [&](SCPEnvelope const& envelope) {
+        for (auto const& hash : getTxSetHashes(envelope))
+        {
+            referencedValues.insert(hash);
+        }
+        return true;
+    };
+
+    getSCP().processCurrentState(index, collectReferencedHashes,
+                                 /* forceSelf */ true);
+    if (!referencedValues.empty())
+    {
+        mUniqueValues.Update(referencedValues.size());
     }
 }
 

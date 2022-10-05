@@ -75,6 +75,8 @@ class HerderSCPDriver : public SCPDriver
                     std::chrono::milliseconds timeout,
                     std::function<void()> cb) override;
 
+    void stopTimer(uint64 slotIndex, int timerID) override;
+
     // hashing support
     Hash getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override;
 
@@ -162,6 +164,8 @@ class HerderSCPDriver : public SCPDriver
     medida::Histogram& mNominateTimeout;
     // Prepare timeouts per ledger
     medida::Histogram& mPrepareTimeout;
+    // Unique values referenced per ledger
+    medida::Histogram& mUniqueValues;
 
     // Externalize lag tracking for nodes in qset
     UnorderedMap<NodeID, medida::Timer> mQSetLag;
@@ -209,7 +213,7 @@ class HerderSCPDriver : public SCPDriver
                                                    StellarValue const& sv,
                                                    bool nomination) const;
 
-    void logQuorumInformation(uint64_t index);
+    void logQuorumInformationAndUpdateMetrics(uint64_t index);
 
     void clearSCPExecutionEvents();
 

@@ -134,4 +134,5 @@ scp.timing.first-to-self-externalize-lag | timer     | delay between first exter
 scp.timing.self-to-others-externalize-lag| timer     | delay between local node externalizing and later externalize messages from other nodes
 scp.value.invalid                        | meter     | SCP value is invalid
 scp.value.valid                          | meter     | SCP value is valid
+scp.slot.values-referenced               | histogram | number of values referenced per consensus round
 

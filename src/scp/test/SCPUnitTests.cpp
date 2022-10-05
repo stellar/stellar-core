@@ -109,6 +109,11 @@ class TestNominationSCP : public SCPDriver
     {
     }
 
+    void
+    stopTimer(uint64 slotIndex, int timerID) override
+    {
+    }
+
     std::map<Hash, SCPQuorumSetPtr> mQuorumSets;
 
     Value const&
