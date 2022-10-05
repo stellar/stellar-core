@@ -769,9 +769,9 @@ LoadGenerator::createTransactionFramePtr(
         // every transaction would necessarily have the `fee == ops_count *
         // some_int`. This also would exercise more code paths/logic during the
         // transaction comparisons.
-        auto fractionalFeeDistr =
-            uniform_int_distribution<uint32_t>(0, ops.size() - 1);
-        fee = ops.size() * feeRateDistr(gRandomEngine) +
+        auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
+            0, static_cast<uint32_t>(ops.size()) - 1);
+        fee = static_cast<uint32_t>(ops.size()) * feeRateDistr(gRandomEngine) +
               fractionalFeeDistr(gRandomEngine);
     }
     auto txf = transactionFromOperations(mApp, from->getSecretKey(),
