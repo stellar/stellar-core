@@ -88,12 +88,14 @@
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
@@ -101,18 +103,21 @@
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
     <CodeAnalysisRuleSet>CppCoreCheckConstRules.ruleset</CodeAnalysisRuleSet>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
     <ClCompile>
@@ -135,15 +140,13 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
       <Inputs>src/$(Configuration)/generated/xdr/Stellar-internal.h;src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
@@ -152,10 +155,6 @@
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -172,6 +171,14 @@ exit /b 0
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
     <ClCompile>
@@ -194,15 +201,13 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
       <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
@@ -211,10 +216,6 @@ exit /b 0
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -232,6 +233,14 @@ exit /b 0
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <ClCompile>
@@ -254,29 +263,23 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h;src/$(Configuration)/generated/rust/RustBridge.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -294,6 +297,14 @@ exit /b 0
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
     <ClCompile>
@@ -316,15 +327,13 @@ exit /b 0
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>cargo build --release --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
       <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
@@ -333,10 +342,6 @@ exit /b 0
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -353,6 +358,14 @@ exit /b 0
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
     <ClCompile>
@@ -375,15 +388,13 @@ exit /b 0
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>cargo build --release --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
       <Inputs>src/$(Configuration)/generated/xdr/Stellar-overlay.h</Inputs>
@@ -392,10 +403,6 @@ exit /b 0
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -413,6 +420,14 @@ exit /b 0
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\tracy\TracyClient.cpp" />
@@ -1496,27 +1511,7 @@ exit /b 0
     </CustomBuild>
     <None Include="..\..\src\ledger\readme.md" />
     <None Include="..\..\src\overlay\readme.md" />
-    <CustomBuild Include="..\..\src\rust\Cargo.toml">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(OutDir)\rust\target\debug\rust_stellar_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(OutDir)\rust\target\debug\rust_stellar_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\rust\target\debug\rust_stellar_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(OutDir)\rust\target\release\rust_stellar_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(OutDir)\rust\target\release\rust_stellar_core.lib</Outputs>
-      <LinkObjects>true</LinkObjects>
-      <BuildInParallel>true</BuildInParallel>
-      <AdditionalInputs>$(ProjectDir)..\..\src\rust\src\lib.rs;%(AdditionalInputs)</AdditionalInputs>
-    </CustomBuild>
+    <None Include="..\..\src\rust\Cargo.toml" />
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <FileType>Document</FileType>
       <Command>$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\$(Configuration)\generated\rust\RustBridge.h
@@ -1525,6 +1520,7 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
       <Outputs>src\$(Configuration)\generated\rust\RustBridge.h;src\$(Configuration)\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
       <AdditionalInputs>$(OutDir)\bin\cxxbridge.exe</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>
@@ -1532,6 +1528,9 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
       <Message>cargo install --root $(OutDir) cxxbridge-cmd</Message>
       <Outputs>$(OutDir)/bin/cxxbridge.exe</Outputs>
     </CustomBuild>
+    <None Include="..\..\src\rust\src\b64.rs" />
+    <None Include="..\..\src\rust\src\contract.rs" />
+    <None Include="..\..\src\rust\src\log.rs" />
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\ci-build.sh" />
