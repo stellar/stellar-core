@@ -36,6 +36,7 @@
 
 #include "crypto/Hex.h"
 #include "xdr/Stellar-ledger.h"
+#include "xdrpp/autocheck.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <fmt/format.h>
@@ -1059,7 +1060,8 @@ TEST_CASE("txset base fee", "[herder][txset]")
 
     auto testBaseFee = [&](uint32_t protocolVersion, uint32 nbTransactions,
                            uint32 extraAccounts, size_t lim, int64_t expLowFee,
-                           int64_t expHighFee) {
+                           int64_t expHighFee,
+                           uint32_t expNotChargedAccounts = 0) {
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
         VirtualClock clock;
@@ -1115,21 +1117,28 @@ TEST_CASE("txset base fee", "[herder][txset]")
         auto balancesBefore = getBalances();
 
         // apply this
-        closeLedger(*app, txSet->getTxs());
+        closeLedger(*app, txSet);
 
         auto balancesAfter = getBalances();
         int64_t lowFee = INT64_MAX, highFee = 0;
+        uint32_t notChargedAccounts = 0;
         for (size_t i = 0; i < balancesAfter.size(); i++)
         {
             auto b = balancesBefore[i];
             auto a = balancesAfter[i];
             auto fee = b - a;
+            if (fee == 0)
+            {
+                ++notChargedAccounts;
+                continue;
+            }
             lowFee = std::min(lowFee, fee);
             highFee = std::max(highFee, fee);
         }
 
         REQUIRE(lowFee == expLowFee);
         REQUIRE(highFee == expHighFee);
+        REQUIRE(notChargedAccounts == expNotChargedAccounts);
     };
 
     // 8 base transactions
@@ -1160,21 +1169,83 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 testBaseFee(10, baseCount, v10ExtraTx, maxTxSetSize, 1000,
                             20104);
             }
-            SECTION("protocol current")
+            SECTION("protocol before generalized tx set")
             {
                 // low = 10*base tx = baseFee = 1000
                 // high = 2*base (surge)
                 SECTION("maxed out surged")
                 {
-                    testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                                    1,
                                 baseCount, v11ExtraTx, maxTxSetSize, 1000,
                                 2000);
                 }
                 SECTION("smallest surged")
                 {
-                    testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                                    1,
                                 baseCount + 1, v11ExtraTx - 50,
                                 maxTxSetSize - 100 + 1, 1000, 2000);
+                }
+            }
+            SECTION("generalized tx set protocol")
+            {
+                SECTION("fitting exactly into capacity does not cause surge")
+                {
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
+                }
+                SECTION("evicting one tx causes surge")
+                {
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                baseCount + 1, v11ExtraTx, maxTxSetSize, 1000,
+                                2000, 1);
+                }
+            }
+            SECTION("protocol current")
+            {
+                if (protocolVersionStartsFrom(
+                        Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                {
+                    SECTION(
+                        "fitting exactly into capacity does not cause surge")
+                    {
+                        testBaseFee(static_cast<uint32_t>(
+                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                    baseCount, v11ExtraTx, maxTxSetSize, 100,
+                                    200);
+                    }
+                    SECTION("evicting one tx causes surge")
+                    {
+                        testBaseFee(static_cast<uint32_t>(
+                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                    baseCount + 1, v11ExtraTx, maxTxSetSize,
+                                    1000, 2000, 1);
+                    }
+                }
+                else
+                {
+                    SECTION("maxed out surged")
+                    {
+                        testBaseFee(static_cast<uint32_t>(
+                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                                        1,
+                                    baseCount, v11ExtraTx, maxTxSetSize, 1000,
+                                    2000);
+                    }
+                    SECTION("smallest surged")
+                    {
+                        testBaseFee(static_cast<uint32_t>(
+                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
+                                        1,
+                                    baseCount + 1, v11ExtraTx - 50,
+                                    maxTxSetSize - 100 + 1, 1000, 2000);
+                    }
                 }
             }
         }
@@ -1197,9 +1268,19 @@ TEST_CASE("txset base fee", "[herder][txset]")
             }
             SECTION("generalized tx set protocol")
             {
-                testBaseFee(
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                    0, v11NewCount, maxTxSetSize, 20000, 20000);
+                SECTION("fitting exactly into capacity does not cause surge")
+                {
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                0, v11NewCount, maxTxSetSize, 200, 200);
+                }
+                SECTION("evicting one tx causes surge")
+                {
+                    testBaseFee(static_cast<uint32_t>(
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                0, v11NewCount + 1, maxTxSetSize, 20002, 20002,
+                                1);
+                }
             }
             SECTION("protocol current")
             {
@@ -1207,8 +1288,18 @@ TEST_CASE("txset base fee", "[herder][txset]")
                         Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                         GENERALIZED_TX_SET_PROTOCOL_VERSION))
                 {
-                    testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                                v11NewCount, maxTxSetSize, 20000, 20000);
+                    SECTION(
+                        "fitting exactly into capacity does not cause surge")
+                    {
+                        testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+                                    v11NewCount, maxTxSetSize, 200, 200);
+                    }
+                    SECTION("evicting one tx causes surge")
+                    {
+                        testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+                                    v11NewCount + 1, maxTxSetSize, 20002, 20002,
+                                    1);
+                    }
                 }
                 else
                 {
@@ -1270,7 +1361,6 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
-
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
@@ -1433,6 +1523,425 @@ TEST_CASE("surge pricing", "[herder][txset]")
         // Transaction is valid, but trimmed by surge pricing.
         REQUIRE(invalidTxs.empty());
         REQUIRE(txSet->sizeTx() == 0);
+    }
+}
+
+TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 15;
+    cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET = 5;
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    LedgerHeader lhCopy;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        lhCopy = ltx.loadHeader().current();
+    }
+
+    auto root = TestAccount::createRoot(*app);
+
+    auto accountA = root.create("accountA", 5000000000);
+    auto accountB = root.create("accountB", 5000000000);
+    auto accountC = root.create("accountC", 5000000000);
+
+    auto seqNumA = accountA.getLastSequenceNumber();
+    auto seqNumB = accountB.getLastSequenceNumber();
+    auto seqNumC = accountC.getLastSequenceNumber();
+
+    auto runTest = [&](std::vector<TransactionFrameBasePtr> const& txs,
+                       size_t expectedTxsA, size_t expectedTxsB,
+                       size_t expectedTxsC, int64_t expectedNonDexBaseFee,
+                       int64_t expectedDexBaseFee) {
+        auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+        size_t cntA = 0, cntB = 0, cntC = 0;
+        auto resTxs = txSet->getTxsInApplyOrder();
+        for (auto const& tx : resTxs)
+        {
+            if (tx->getSourceID() == accountA.getPublicKey())
+            {
+                ++cntA;
+                ++seqNumA;
+                REQUIRE(seqNumA == tx->getSeqNum());
+            }
+            if (tx->getSourceID() == accountB.getPublicKey())
+            {
+                ++cntB;
+                ++seqNumB;
+                REQUIRE(seqNumB == tx->getSeqNum());
+            }
+            if (tx->getSourceID() == accountC.getPublicKey())
+            {
+                ++cntC;
+                ++seqNumC;
+                REQUIRE(seqNumC == tx->getSeqNum());
+            }
+            auto baseFee = txSet->getTxBaseFee(tx, lhCopy);
+            REQUIRE(baseFee);
+            if (tx->hasDexOperations())
+            {
+                REQUIRE(*baseFee == expectedDexBaseFee);
+            }
+            else
+            {
+                REQUIRE(*baseFee == expectedNonDexBaseFee);
+            }
+        }
+        REQUIRE(cntA == expectedTxsA);
+        REQUIRE(cntB == expectedTxsB);
+        REQUIRE(cntC == expectedTxsC);
+    };
+
+    auto nonDexTx = [](TestAccount& account, int nbOps, uint32_t opFee) {
+        return makeSelfPayment(account, nbOps, opFee * nbOps);
+    };
+    auto dexTx = [&](TestAccount& account, int nbOps, uint32_t opFee) {
+        return createSimpleDexTx(*app, account, nbOps, opFee * nbOps);
+    };
+
+    SECTION("single account")
+    {
+        SECTION("only non DEX txs")
+        {
+            runTest({nonDexTx(accountA, 3, 200), nonDexTx(accountA, 4, 120),
+                     nonDexTx(accountA, 2, 150), nonDexTx(accountA, 5, 250),
+                     /* cutoff */ nonDexTx(accountA, 2, 300),
+                     nonDexTx(accountA, 1, 500)},
+                    4, 0, 0, 120, 0);
+        }
+        SECTION("only DEX txs")
+        {
+            runTest({dexTx(accountA, 3, 200), dexTx(accountA, 1, 120),
+                     /* cutoff */
+                     dexTx(accountA, 2, 150), dexTx(accountA, 1, 300)},
+                    2, 0, 0, 0, 120);
+        }
+        SECTION("mixed txs")
+        {
+            SECTION("only DEX surge priced")
+            {
+                SECTION("DEX limit reached")
+                {
+                    runTest(
+                        {/* 5 non-DEX ops + 4 DEX ops = 9 ops */
+                         nonDexTx(accountA, 2, 200), dexTx(accountA, 4, 250),
+                         nonDexTx(accountA, 1, 150),
+                         /* cutoff */ dexTx(accountA, 2, 150),
+                         nonDexTx(accountA, 1, 500)},
+                        3, 0, 0, 100, 250);
+                }
+                SECTION("both limits reached")
+                {
+                    // DEX tx didn't fit into both DEX and global limits, but
+                    // there are no remaining non-DEX txs to activate surge
+                    // pricing for them.
+                    runTest(
+                        {
+                            /* 10 non-DEX ops + 4 DEX ops = 14 ops */
+                            nonDexTx(accountA, 10, 200),
+                            dexTx(accountA, 4, 250),
+                            /* cutoff */
+                            dexTx(accountA, 2, 300),
+                            nonDexTx(accountA, 1, 500),
+                        },
+                        2, 0, 0, 100, 250);
+                }
+            }
+            SECTION("both DEX and non-dex surge priced")
+            {
+                SECTION("non-DEX fee is lowest")
+                {
+                    runTest(
+                        {
+                            /* 8 non-DEX ops + 4 DEX ops = 12 ops */
+                            nonDexTx(accountA, 3, 200),
+                            dexTx(accountA, 4, 250),
+                            nonDexTx(accountA, 5, 150),
+                            /* cutoff */
+                            nonDexTx(accountA, 4, 500),
+                            dexTx(accountA, 2, 150),
+                        },
+                        3, 0, 0, 150, 150);
+                }
+                SECTION("DEX fee is lowest")
+                {
+                    runTest(
+                        {
+                            /* 8 non-DEX ops + 4 DEX ops = 12 ops */
+                            nonDexTx(accountA, 3, 200),
+                            dexTx(accountA, 4, 150),
+                            nonDexTx(accountA, 5, 250),
+                            /* cutoff */
+                            nonDexTx(accountA, 4, 500),
+                            dexTx(accountA, 2, 150),
+                        },
+                        3, 0, 0, 150, 150);
+                }
+            }
+        }
+    }
+
+    SECTION("multiple accounts")
+    {
+        SECTION("only non-DEX txs")
+        {
+            // Last 3 txs do not fit into limit and activate surge pricing.
+            runTest({nonDexTx(accountA, 3, 200), nonDexTx(accountA, 5, 250),
+                     nonDexTx(accountB, 4, 300), nonDexTx(accountC, 2, 400),
+                     /* cutoff */
+                     nonDexTx(accountA, 2, 500), nonDexTx(accountB, 2, 180),
+                     nonDexTx(accountC, 2, 100)},
+                    2, 1, 1, 200, 0);
+        }
+        SECTION("only DEX txs")
+        {
+            // Last two txs do not fit into DEX ops limit and activate surge
+            // pricing.
+            runTest({dexTx(accountA, 1, 200), dexTx(accountA, 1, 250),
+                     dexTx(accountB, 1, 300), dexTx(accountC, 2, 400),
+                     /* cutoff */
+                     dexTx(accountA, 4, 500), dexTx(accountB, 1, 180),
+                     dexTx(accountC, 1, 100)},
+                    2, 1, 1, 0, 200);
+        }
+        SECTION("mixed txs")
+        {
+            SECTION("only DEX surge priced")
+            {
+                SECTION("DEX limit reached")
+                {
+                    runTest(
+                        {
+                            /* 6 non-DEX ops + 5 DEX ops = 11 ops */
+                            nonDexTx(accountA, 1, 300),
+                            dexTx(accountA, 2, 400),
+                            dexTx(accountB, 1, 300),
+                            nonDexTx(accountB, 2, 400),
+                            dexTx(accountC, 2, 250),
+                            nonDexTx(accountC, 3, 500),
+                            /* cutoff */
+                            dexTx(accountA, 1, 200),
+                            dexTx(accountB, 1, 200),
+                            dexTx(accountC, 1, 249),
+                        },
+                        2, 2, 2, 100, 250);
+                }
+                SECTION("both limits reached, but only DEX evicted")
+                {
+                    runTest(
+                        {
+                            /* 10 non-DEX ops + 5 DEX ops = 15 ops */
+                            nonDexTx(accountA, 2, 600),
+                            dexTx(accountA, 3, 400),
+                            nonDexTx(accountB, 3, 400),
+                            dexTx(accountC, 2, 500),
+                            nonDexTx(accountC, 5, 250),
+                            /* cutoff */
+                            dexTx(accountA, 1, 399),
+                            dexTx(accountB, 1, 399),
+                            dexTx(accountC, 1, 399),
+                        },
+                        2, 1, 2, 100, 400);
+                }
+            }
+            SECTION("all txs surge priced")
+            {
+                SECTION("only global limit reached")
+                {
+                    runTest(
+                        {
+                            /* 13 non-DEX ops + 2 DEX ops = 15 ops */
+                            nonDexTx(accountA, 6, 300),
+                            dexTx(accountB, 1, 400),
+                            nonDexTx(accountB, 3, 400),
+                            nonDexTx(accountC, 4, 250),
+                            dexTx(accountC, 1, 500),
+                            /* cutoff */
+                            dexTx(accountA, 1, 200),
+                            nonDexTx(accountB, 1, 249),
+                            dexTx(accountC, 1, 249),
+                        },
+                        1, 2, 2, 250, 250);
+                }
+                SECTION("both limits reached")
+                {
+                    SECTION("non-DEX fee is lowest")
+                    {
+                        runTest(
+                            {
+                                /* 10 non-DEX ops + 5 DEX ops = 15 ops */
+                                nonDexTx(accountA, 2, 600),
+                                dexTx(accountA, 3, 400),
+                                nonDexTx(accountB, 3, 400),
+                                dexTx(accountC, 2, 500),
+                                nonDexTx(accountC, 5, 250),
+                                /* cutoff */
+                                dexTx(accountA, 1, 399),
+                                nonDexTx(accountB, 1, 249),
+                            },
+                            2, 1, 2, 250, 400);
+                    }
+                    SECTION("DEX fee is lowest")
+                    {
+                        runTest(
+                            {
+                                /* 10 non-DEX ops + 5 DEX ops = 15 ops */
+                                dexTx(accountA, 3, 300),
+                                nonDexTx(accountA, 2, 500),
+                                nonDexTx(accountB, 3, 400),
+                                dexTx(accountC, 2, 200),
+                                nonDexTx(accountC, 5, 250),
+                                /* cutoff */
+                                dexTx(accountA, 1, 199),
+                                nonDexTx(accountB, 1, 199),
+                            },
+                            2, 1, 2, 200, 200);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("surge pricing with DEX separation holds invariants",
+          "[herder][txset]")
+{
+    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        return;
+    }
+
+    auto runTest = [](std::optional<uint32_t> maxDexOps, int dexOpsPercent) {
+        Config cfg(getTestConfig());
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 20;
+        cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET = maxDexOps;
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        LedgerHeader lhCopy;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            lhCopy = ltx.loadHeader().current();
+        }
+
+        uniform_int_distribution<> isDexTxDistr(0, 100);
+        uniform_int_distribution<> numOpsDistr(1, 5);
+        uniform_int_distribution<> feeDistr(100, 1000);
+        uniform_int_distribution<> addFeeDistr(0, 5);
+        uniform_int_distribution<> txCountDistr(1, 30);
+
+        auto root = TestAccount::createRoot(*app);
+
+        int nextAccId = 1;
+
+        auto genTx = [&]() {
+            auto account = root.create(std::to_string(nextAccId), 5000000000);
+            ++nextAccId;
+            int ops = numOpsDistr(Catch::rng());
+            int fee = ops * feeDistr(Catch::rng()) + addFeeDistr(Catch::rng());
+            if (isDexTxDistr(Catch::rng()) < dexOpsPercent)
+            {
+                return createSimpleDexTx(*app, account, ops, fee);
+            }
+            else
+            {
+                return makeSelfPayment(account, ops, fee);
+            }
+        };
+        auto genTxs = [&](int cnt) {
+            std::vector<TransactionFrameBasePtr> txs;
+            for (int i = 0; i < cnt; ++i)
+            {
+                txs.emplace_back(genTx());
+            }
+            return txs;
+        };
+
+        for (int iter = 0; iter < 50; ++iter)
+        {
+            auto txs = genTxs(txCountDistr(Catch::rng()));
+            auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+
+            auto resTxs = txSet->getTxsInApplyOrder();
+            std::array<uint32_t, 2> opsCounts{};
+            std::array<int64_t, 2> baseFees{};
+            for (auto const& resTx : resTxs)
+            {
+                auto isDex = static_cast<size_t>(resTx->hasDexOperations());
+                opsCounts[isDex] += resTx->getNumOperations();
+                auto baseFee = txSet->getTxBaseFee(resTx, lhCopy);
+                REQUIRE(baseFee);
+                if (baseFees[isDex] != 0)
+                {
+                    // All base fees should be the same among the transaction
+                    // categories.
+                    REQUIRE(baseFees[isDex] == *baseFee);
+                }
+                else
+                {
+                    baseFees[isDex] = *baseFee;
+                }
+            }
+            REQUIRE(opsCounts[0] + opsCounts[1] <=
+                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+            if (maxDexOps)
+            {
+                REQUIRE(opsCounts[1] <= *maxDexOps);
+            }
+            // DEX transaction base fee has to be not smaller than generic
+            // transaction base fee.
+            if (baseFees[0] > 0 && baseFees[1] > 0)
+            {
+                REQUIRE(baseFees[0] <= baseFees[1]);
+            }
+        }
+    };
+
+    SECTION("no DEX limit")
+    {
+        runTest(std::nullopt, 50);
+    }
+    SECTION("low DEX limit")
+    {
+        SECTION("medium DEX tx fraction")
+        {
+            runTest(5, 50);
+        }
+        SECTION("high DEX tx fraction")
+        {
+            runTest(5, 80);
+        }
+        SECTION("only DEX txs")
+        {
+            runTest(5, 100);
+        }
+    }
+    SECTION("high DEX limit")
+    {
+        SECTION("medium DEX tx fraction")
+        {
+            runTest(15, 50);
+        }
+        SECTION("high DEX tx fraction")
+        {
+            runTest(15, 80);
+        }
+        SECTION("only DEX txs")
+        {
+            runTest(15, 100);
+        }
     }
 }
 
@@ -3338,6 +3847,379 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
     SECTION("full transactions")
     {
         test(100);
+    }
+}
+
+TEST_CASE("do not flood too many transactions with DEX separation",
+          "[herder][transactionqueue]")
+{
+    auto test = [](uint32_t dexTxs, uint32_t nonDexTxs, uint32_t opsPerDexTx,
+                   uint32_t opsPerNonDexTx, bool broadcastDexFirst,
+                   bool shuffleDexAndNonDex, int maxNoBroadcastPeriods) {
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        auto simulation = std::make_shared<Simulation>(
+            Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
+                cfg.NODE_IS_VALIDATOR = false;
+                cfg.FORCE_SCP = false;
+                cfg.FLOOD_TX_PERIOD_MS = 100;
+                cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
+                cfg.MAX_DEX_TX_OPERATIONS_IN_TX_SET = 200;
+                return cfg;
+            });
+
+        auto mainKey = SecretKey::fromSeed(sha256("main"));
+        auto otherKey = SecretKey::fromSeed(sha256("other"));
+
+        SCPQuorumSet qset;
+        qset.threshold = 1;
+        qset.validators.push_back(mainKey.getPublicKey());
+
+        simulation->addNode(mainKey, qset);
+        simulation->addNode(otherKey, qset);
+
+        simulation->addPendingConnection(mainKey.getPublicKey(),
+                                         otherKey.getPublicKey());
+        simulation->startAllNodes();
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+        auto app = simulation->getNode(mainKey.getPublicKey());
+        auto const& cfg = app->getConfig();
+        auto& lm = app->getLedgerManager();
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& tq = herder.getTransactionQueue();
+
+        auto root = TestAccount::createRoot(*app);
+        std::vector<TestAccount> accs;
+
+        // number of accounts to use
+        int const nbAccounts = 40;
+        // number of transactions to generate per fee groups
+        int const feeGroupMaxSize = 7;
+        // used to track fee
+        int feeGroupSize = 0;
+        uint32_t curFeeOffset = 10000;
+
+        accs.reserve(nbAccounts);
+        UnorderedMap<AccountID, int> accountToIndex;
+        for (int i = 0; i < nbAccounts; ++i)
+        {
+            auto accKey = getAccount(fmt::format("A{}", i));
+            accs.emplace_back(root.create(accKey, lm.getLastMinBalance(2)));
+            accountToIndex[accKey.getPublicKey()] = i;
+        }
+        std::vector<std::deque<std::pair<int64_t, bool>>> accountFees(
+            nbAccounts);
+
+        auto genTx = [&](size_t accountIndex, bool isDex, uint32_t numOps,
+                         bool highFee) {
+            std::vector<Operation> ops;
+            auto& source = accs[accountIndex];
+            if (isDex)
+            {
+
+                Asset asset1(ASSET_TYPE_CREDIT_ALPHANUM4);
+                strToAssetCode(asset1.alphaNum4().assetCode, "USD");
+                Asset asset2(ASSET_TYPE_NATIVE);
+                for (uint32_t i = 1; i <= numOps; ++i)
+                {
+                    ops.emplace_back(
+                        manageBuyOffer(i, asset1, asset2, Price{2, 5}, 10));
+                }
+            }
+            else
+            {
+                for (uint32_t i = 1; i <= numOps; ++i)
+                {
+                    ops.emplace_back(payment(source, i));
+                }
+            }
+            auto tx = source.tx(ops);
+            auto txFee = tx->getFeeBid();
+            if (highFee)
+            {
+                txFee += 100000;
+                accountFees[accountIndex].emplace_front(txFee, isDex);
+            }
+            else
+            {
+                txFee += curFeeOffset;
+                accountFees[accountIndex].emplace_back(txFee, isDex);
+            }
+            setFee(tx, txFee);
+            getSignatures(tx).clear();
+            tx->addSignature(source.getSecretKey());
+            if (++feeGroupSize == feeGroupMaxSize)
+            {
+                feeGroupSize = 0;
+                curFeeOffset--;
+            }
+
+            REQUIRE(herder.recvTransaction(tx, false) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            return tx;
+        };
+
+        auto genTxRandAccount = [&](bool isDex, uint32_t numOps) {
+            genTx(autocheck::generator<size_t>()(nbAccounts - 3), isDex, numOps,
+                  false);
+        };
+
+        // Reserve 1 tx in each non-empty group to add in the middle of the
+        // ledger.
+        if (dexTxs > 0)
+        {
+            --dexTxs;
+        }
+        if (nonDexTxs > 0)
+        {
+            --nonDexTxs;
+        }
+        if (shuffleDexAndNonDex)
+        {
+            auto boolGen = autocheck::generator<bool>();
+            uint32_t generatedDex = 0, generatedNonDex = 0;
+            while (generatedDex < dexTxs || generatedNonDex < nonDexTxs)
+            {
+                bool isDex = generatedDex < dexTxs &&
+                             (generatedNonDex >= nonDexTxs || boolGen());
+                if (isDex)
+                {
+                    genTxRandAccount(true, opsPerDexTx);
+                    ++generatedDex;
+                }
+                else
+                {
+                    genTxRandAccount(false, opsPerNonDexTx);
+                    ++generatedNonDex;
+                }
+            }
+        }
+        else
+        {
+            if (broadcastDexFirst)
+            {
+                for (uint32_t i = 0; i < dexTxs; ++i)
+                {
+                    genTxRandAccount(true, opsPerDexTx);
+                }
+            }
+            for (uint32_t i = 0; i < nonDexTxs; ++i)
+            {
+                genTxRandAccount(false, opsPerNonDexTx);
+            }
+            if (!broadcastDexFirst)
+            {
+                for (uint32_t i = 0; i < dexTxs; ++i)
+                {
+                    genTxRandAccount(true, opsPerDexTx);
+                }
+            }
+        }
+
+        REQUIRE(tq.getTransactions({}).size() == dexTxs + nonDexTxs);
+
+        std::map<AccountID, SequenceNumber> accountSeqNum;
+        uint32_t dexOpsBroadcasted = 0;
+        uint32_t nonDexOpsBroadcasted = 0;
+        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+            // Ensure that sequence numbers are correct per account.
+            if (accountSeqNum.find(tx->getSourceID()) == accountSeqNum.end())
+            {
+                accountSeqNum[tx->getSourceID()] = tx->getSeqNum();
+            }
+            REQUIRE(accountSeqNum[tx->getSourceID()] == tx->getSeqNum());
+            ++accountSeqNum[tx->getSourceID()];
+
+            bool isDex = tx->hasDexOperations();
+            // We expect the fee to be the highest among the accounts that
+            // have the current transaction from the same group (i.e. DEX or
+            // non-DEX).
+            auto expectedFee =
+                std::max_element(
+                    accountFees.begin(), accountFees.end(),
+                    [isDex](auto const& feesA, auto const& feesB) {
+                        if (feesA.empty() || feesB.empty())
+                        {
+                            return !feesB.empty();
+                        }
+                        if (feesA.front().second != feesB.front().second)
+                        {
+                            return feesA.front().second != isDex;
+                        }
+                        return feesA.front().first < feesB.front().first;
+                    })
+                    ->front()
+                    .first;
+
+            REQUIRE(tx->getFeeBid() == expectedFee);
+            accountFees[accountToIndex[tx->getSourceID()]].pop_front();
+            if (tx->hasDexOperations())
+            {
+                dexOpsBroadcasted += tx->getNumOperations();
+            }
+            else
+            {
+                nonDexOpsBroadcasted += tx->getNumOperations();
+            }
+        };
+
+        // no broadcast right away
+        REQUIRE(dexOpsBroadcasted == 0);
+        REQUIRE(nonDexOpsBroadcasted == 0);
+
+        // wait for a bit more than a broadcast period
+        // rate per period is
+        // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
+        // 1000*100/5000=20
+        auto constexpr opsRatePerPeriod = 20;
+        auto constexpr dexOpsRatePerPeriod = 8;
+        auto broadcastPeriod =
+            std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
+        auto const delta = std::chrono::milliseconds(1);
+        int noBroadcastPeriods = 0;
+
+        // Make 50(=5s/100ms) broadcast 'iterations' by cranking timer for
+        // broadcastPeriod.
+        for (int broadcastIter = 0; broadcastIter < 50; ++broadcastIter)
+        {
+            // Inject new transactions from unused account in the middle of
+            // ledger period.
+            if (broadcastIter == 25)
+            {
+                if (dexTxs > 0)
+                {
+                    ++dexTxs;
+                    genTx(nbAccounts - 2, true, opsPerDexTx, true);
+                }
+                if (nonDexTxs > 0)
+                {
+                    ++nonDexTxs;
+                    genTx(nbAccounts - 1, false, opsPerNonDexTx, true);
+                }
+            }
+            auto lastDexOpsBroadcasted = dexOpsBroadcasted;
+            auto lastNonDexOpsBroadcasted = nonDexOpsBroadcasted;
+            simulation->crankForAtLeast(broadcastPeriod + delta, false);
+            auto dexOpsPerPeriod = dexOpsBroadcasted - lastDexOpsBroadcasted;
+            auto nonDexOpsPerPeriod =
+                nonDexOpsBroadcasted - lastNonDexOpsBroadcasted;
+            if (dexOpsPerPeriod + nonDexOpsBroadcasted == 0)
+            {
+                ++noBroadcastPeriods;
+            }
+            REQUIRE(dexOpsPerPeriod <= cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE + 1);
+            REQUIRE(nonDexOpsPerPeriod <=
+                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE + 1);
+            // We should broadcast the high fee transactions added at iteration
+            // 25 within the number of periods according to the DEX/general
+            // operation rates.
+            if (dexTxs > 0 && broadcastIter ==
+                                  25 + opsPerDexTx / dexOpsRatePerPeriod +
+                                      opsPerDexTx % dexOpsRatePerPeriod !=
+                                  0)
+            {
+                REQUIRE(accountFees[nbAccounts - 2].empty());
+            }
+            if (nonDexTxs > 0 &&
+                broadcastIter ==
+                    25 +
+                        opsPerNonDexTx /
+                            (opsRatePerPeriod - dexOpsRatePerPeriod) +
+                        opsPerNonDexTx %
+                            (opsRatePerPeriod - dexOpsRatePerPeriod) !=
+                    0)
+            {
+                REQUIRE(accountFees[nbAccounts - 1].empty());
+            }
+        }
+
+        REQUIRE(dexOpsBroadcasted == opsPerDexTx * dexTxs);
+        REQUIRE(nonDexOpsBroadcasted == opsPerNonDexTx * nonDexTxs);
+        // It's tricky to measure how closely do we follow the operations rate
+        // due to existence of broadcast operations 'credit', so we just make
+        // sure that the load is more or less even by looking at the upper bound
+        // of idle periods (the more we have, the more we broadcast at too high
+        // rate).
+        REQUIRE(noBroadcastPeriods <= maxNoBroadcastPeriods);
+        simulation->stopAllNodes();
+    };
+
+    SECTION("DEX-only, low ops")
+    {
+        test(400, 0, 1, 1, true, false, 0);
+    }
+    SECTION("DEX-only, med ops")
+    {
+        test(400 / 7, 0, 7, 1, true, false, 0);
+    }
+    SECTION("DEX-only, high ops")
+    {
+        // Broadcast only during 4 cycles.
+        test(4, 0, 100, 1, true, false, 46);
+    }
+
+    SECTION("non-DEX-only, low ops")
+    {
+        test(0, 1000, 1, 1, true, false, 0);
+    }
+    SECTION("non-DEX-only, med ops")
+    {
+        test(0, 1000 / 7, 1, 7, true, false, 0);
+    }
+    SECTION("non-DEX-only, high ops")
+    {
+        // Broadcast only during 10 cycles.
+        test(0, 10, 1, 100, true, false, 40);
+    }
+
+    SECTION("DEX before non-DEX, low ops")
+    {
+        test(300, 400, 1, 1, true, false, 0);
+    }
+    SECTION("DEX before non-DEX, med ops")
+    {
+        test(300 / 7, 400 / 7, 7, 7, true, false, 0);
+    }
+    SECTION("DEX before non-DEX, high ops")
+    {
+        test(300 / 100, 400 / 100, 100, 100, true, false, 43);
+    }
+
+    SECTION("DEX after non-DEX, low ops")
+    {
+        test(300, 400, 1, 1, false, false, 0);
+    }
+    SECTION("DEX after non-DEX, med ops")
+    {
+        test(300 / 7, 400 / 7, 7, 7, false, false, 0);
+    }
+    SECTION("DEX after non-DEX, high ops")
+    {
+        test(300 / 100, 400 / 100, 100, 100, false, false, 43);
+    }
+
+    SECTION("DEX shuffled with non-DEX, low ops")
+    {
+        test(300, 400, 1, 1, false, true, 0);
+    }
+    SECTION("DEX shuffled with non-DEX, med ops")
+    {
+        test(300 / 7, 400 / 7, 7, 7, false, true, 0);
+    }
+    SECTION("DEX shuffled with  non-DEX, high ops")
+    {
+        test(300 / 100, 400 / 100, 100, 100, false, true, 43);
+    }
+
+    SECTION("DEX shuffled with non-DEX, med DEX ops, high non-DEX")
+    {
+        test(300 / 9, 400 / 100, 9, 100, false, true, 5);
+    }
+    SECTION("DEX shuffled with non-DEX, high DEX ops, med non-DEX")
+    {
+        test(300 / 100, 400 / 9, 100, 9, false, true, 5);
     }
 }
 
