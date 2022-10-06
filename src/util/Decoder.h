@@ -7,10 +7,6 @@
 #include <iterator>
 #include <lib/util/basen.h>
 #include <string>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/RustBridge.h"
-#include <xdrpp/types.h>
-#endif
 
 namespace stellar
 {
@@ -48,26 +44,6 @@ encode_b64(T const& v)
     return res;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-template <>
-inline std::string
-encode_b64(std::vector<uint8_t> const& v)
-{
-    std::string s;
-    rust_bridge::to_base64(v, s);
-    return s;
-}
-
-template <uint32_t N>
-inline std::string
-encode_b64(xdr::opaque_vec<N> const& v)
-{
-    std::string s;
-    rust_bridge::to_base64(v, s);
-    return s;
-}
-#endif
-
 template <class V, class T>
 inline void
 decode_b32(V const& v, T& out)
@@ -85,16 +61,6 @@ decode_b64(V const& v, T& out)
     out.reserve(v.size() * sizeof(typename T::value_type));
     bn::decode_b64(v.begin(), v.end(), std::back_inserter(out));
 }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-template <>
-inline void
-decode_b64(std::string const& v, std::vector<uint8_t>& out)
-{
-    out.clear();
-    rust_bridge::from_base64(v, out);
-}
-#endif
 
 template <class Iter1, class Iter2>
 inline void

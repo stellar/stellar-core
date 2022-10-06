@@ -1297,6 +1297,12 @@
       <Filter>overlay\tests</Filter>
     </ClCompile>
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\InvokeHostFunctionTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\LedgerEntryIsValidTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2400,6 +2406,36 @@
     <None Include="..\..\docs\software\ledger_query_examples.md">
       <Filter>docs\software</Filter>
     </None>
+    <None Include="..\..\src\rust\src\b64.rs">
+      <Filter>rust</Filter>
+    </None>
+    <None Include="..\..\src\rust\src\contract.rs">
+      <Filter>rust</Filter>
+    </None>
+    <None Include="..\..\src\rust\src\log.rs">
+      <Filter>rust</Filter>
+    </None>
+    <None Include="..\..\src\rust\Cargo.toml">
+      <Filter>rust</Filter>
+    </None>
+    <None Include="..\..\src\test\check-nondet">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\run-selftest-nopg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\run-selftest-pg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-nopg">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-parallel">
+      <Filter>test</Filter>
+    </None>
+    <None Include="..\..\src\test\selftest-pg">
+      <Filter>test</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract.x">
@@ -2428,9 +2464,6 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <Filter>main</Filter>
-    </CustomBuild>
-    <CustomBuild Include="..\..\src\rust\Cargo.toml">
-      <Filter>rust</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <Filter>rust</Filter>
