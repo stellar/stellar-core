@@ -339,8 +339,9 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
     // sorted using hashValue.
     ValueWrapperPtr newVote;
     uint64 newHash = 0;
+    bool foundValidValue = false;
 
-    applyAll(nom, [&](Value const& value) {
+    auto pickValue = [&](Value const& value) {
         ValueWrapperPtr valueToNominate;
         auto vl = validateValue(value);
         if (vl == SCPDriver::kFullyValidatedValue)
@@ -353,6 +354,7 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
         }
         if (valueToNominate)
         {
+            foundValidValue = true;
             if (mVotes.find(valueToNominate) == mVotes.end())
             {
                 uint64 curHash = hashValue(valueToNominate->getValue());
@@ -363,7 +365,22 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
                 }
             }
         }
-    });
+    };
+
+    for (auto const& val : nom.accepted)
+    {
+        pickValue(val);
+    }
+
+    // Move on to votes if we have not found a valid accepted value
+    if (!foundValidValue)
+    {
+        for (auto const& val : nom.votes)
+        {
+            pickValue(val);
+        }
+    }
+
     return newVote;
 }
 
