@@ -164,7 +164,7 @@ class HerderImpl : public Herder
 
     void startTxSetGCTimer();
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
 

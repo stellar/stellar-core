@@ -2,6 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "test.h"
+#include "main/Config.h"
+#include "util/Math.h"
+#include "util/TmpDir.h"
+
+#include <fmt/format.h>
+
+#ifdef BUILD_TESTS
 #include "crypto/ShortHash.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
@@ -15,19 +23,14 @@
 
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Config.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "test.h"
-#include "test/TestUtils.h"
+#include "test-common/TestUtils.h"
 #include "util/Logging.h"
-#include "util/Math.h"
 #include "util/MetaUtils.h"
-#include "util/TmpDir.h"
 #include "util/XDRCereal.h"
 
 #include <cstdlib>
-#include <fmt/format.h>
 #include <numeric>
 #include <time.h>
 
@@ -50,10 +53,12 @@ SimpleTestReporter::~SimpleTestReporter()
 {
 }
 }
+#endif
 
 namespace stellar
 {
 
+#ifdef BUILD_TESTS
 // We use a Catch event-listener to re-seed all the PRNGs we know about on every
 // test, to minimize nondeterministic bleed from one test to the next.
 struct ReseedPRNGListener : Catch::TestEventListenerBase
@@ -131,7 +136,17 @@ struct TestContextListener : Catch::TestEventListenerBase
         }
     }
 };
+#endif
 
+static std::vector<std::string> gTestMetrics;
+static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
+static std::vector<TmpDir> gTestRoots;
+int gBaseInstance{0};
+static uint32_t gTestingVersion{Config::CURRENT_LEDGER_PROTOCOL_VERSION};
+
+bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
+
+#ifdef BUILD_TESTS
 CATCH_REGISTER_LISTENER(TestContextListener)
 
 namespace stdfs = std::filesystem;
@@ -142,14 +157,9 @@ static std::map<stdfs::path,
                 std::map<std::string, std::pair<bool, std::vector<uint64_t>>>>
     gTestTxMetadata;
 static std::optional<std::ofstream> gDebugTestTxMeta;
-static std::vector<std::string> gTestMetrics;
-static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
-static std::vector<TmpDir> gTestRoots;
 static bool gTestAllVersions{false};
 static std::vector<uint32> gVersionsToTest;
-int gBaseInstance{0};
 static bool gMustUseTestVersionsWrapper{false};
-static uint32_t gTestingVersion{Config::CURRENT_LEDGER_PROTOCOL_VERSION};
 
 static void
 clearConfigs()
@@ -178,11 +188,10 @@ test_versions_wrapper(std::function<void(void)> f)
     gTestingVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 }
 
-bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
-
 static void saveTestTxMeta(stdfs::path const& dir);
 static void loadTestTxMeta(stdfs::path const& dir);
 static void reportTestTxMeta();
+#endif
 
 // if this method is used outside of the catch test cases, gTestRoots needs to
 // be manually cleared using cleanupTmpDirs. If this isn't done, gTestRoots will
@@ -311,6 +320,13 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     return *cfgs[instanceNumber];
 }
 
+void
+cleanupTmpDirs()
+{
+    gTestRoots.clear();
+}
+
+#ifdef BUILD_TESTS
 int
 runTest(CommandLineArgs const& args)
 {
@@ -452,12 +468,6 @@ runTest(CommandLineArgs const& args)
         reportTestTxMeta();
     }
     return r;
-}
-
-void
-cleanupTmpDirs()
-{
-    gTestRoots.clear();
 }
 
 void
@@ -855,4 +865,5 @@ reportTestTxMeta()
             hashes, nonempty, contexts));
     }
 }
+#endif
 }

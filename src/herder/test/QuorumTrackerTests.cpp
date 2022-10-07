@@ -8,8 +8,8 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "scp/SCP.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "xdr/Stellar-ledger.h"
 
 using namespace stellar;

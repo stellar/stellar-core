@@ -12,10 +12,10 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/Tracker.h"
-#include "overlay/test/LoopbackPeer.h"
 #include "simulation/Simulation.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/LoopbackPeer.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar

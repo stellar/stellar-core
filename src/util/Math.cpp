@@ -10,10 +10,13 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <autocheck/generator.hpp>
-#include <catch.hpp>
 #include <cmath>
 #include <numeric>
 #include <set>
+
+#ifdef BUILD_TESTS
+#include <catch.hpp>
+#endif
 
 namespace stellar
 {
@@ -159,7 +162,7 @@ k_means(std::vector<double> const& points, uint32_t k)
     return centroids;
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 static unsigned int lastGlobalSeed{0};
 void
 reinitializeAllGlobalStateWithSeed(unsigned int seed)
@@ -169,9 +172,12 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     srand(seed);
     gRandomEngine.seed(seed);
     shortHash::seed(seed);
-    Catch::rng().seed(seed);
     autocheck::rng().seed(seed);
     randHash::initialize();
+
+#ifdef BUILD_TESTS
+    Catch::rng().seed(seed);
+#endif
 }
 unsigned int
 getLastGlobalStateSeed()

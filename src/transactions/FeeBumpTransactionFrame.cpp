@@ -49,7 +49,7 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 {
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
     TransactionFramePtr innerTx)

@@ -9,9 +9,10 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "test/TestAccount.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/test.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "transactions/TransactionUtils.h"
 
 using namespace stellar;

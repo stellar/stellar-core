@@ -1,4 +1,4 @@
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 #pragma once
 
 // Copyright 2021 Stellar Development Foundation and contributors. Licensed
@@ -76,4 +76,4 @@ class OrderBookIsNotCrossed : public Invariant
     std::string check(AssetPairSet const& assetPairs);
 };
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON

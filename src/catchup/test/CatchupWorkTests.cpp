@@ -7,8 +7,8 @@
 #include "catchup/CatchupRange.h"
 #include "catchup/CatchupWork.h"
 #include "ledger/CheckpointRange.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <fmt/format.h>

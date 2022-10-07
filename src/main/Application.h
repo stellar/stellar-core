@@ -47,7 +47,7 @@ class BasicWork;
 enum class LoadGenMode;
 struct GeneratedLoadConfig;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 class LoadGenerator;
 #endif
 
@@ -258,7 +258,7 @@ class Application
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) = 0;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
     // against the current application.
     virtual void generateLoad(GeneratedLoadConfig cfg) = 0;

@@ -30,10 +30,10 @@
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 
-#ifdef BUILD_TESTS
-#include "test/Fuzzer.h"
-#include "test/fuzz.h"
-#include "test/test.h"
+#ifdef BUILD_TESTS_COMMON
+#include "fuzzer/Fuzzer.h"
+#include "fuzzer/fuzz.h"
+#include "test-common/test.h"
 #endif
 
 #include <fmt/format.h>
@@ -1645,7 +1645,9 @@ runSimulateBuckets(CommandLineArgs const& args)
             return 0;
         });
 }
+#endif
 
+#ifdef BUILD_TESTS_COMMON
 ParserWithValidation
 fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
 {
@@ -1783,8 +1785,6 @@ handleCommandLine(int argc, char* const* argv)
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",
           runRebuildLedgerFromBuckets},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"generate-transactions",
           "generate simulated transactions based on a multiplier. Ensure a "
           "proper writeable test archive is configured",
@@ -1795,6 +1795,10 @@ handleCommandLine(int argc, char* const* argv)
           runSimulateTxs},
          {"simulate-bucketlist", "simulate bucketlist", runSimulateBuckets},
          {"test", "execute test suite", runTest},
+#endif
+#ifdef BUILD_TESTS_COMMON
+         {"fuzz", "run a single fuzz input and exit", runFuzz},
+         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
 #endif
          {"version", "print version information", runVersion}}};
 

@@ -6,7 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
-#include "invariant/test/InvariantTestUtils.h"
+#include "test-common/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/HashOfHash.h"
 #include "xdr/Stellar-ledger-entries.h"

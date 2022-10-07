@@ -48,10 +48,10 @@ class InvariantManager
 
     virtual void enableInvariant(std::string const& name) = 0;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     virtual void snapshotForFuzzer() = 0;
     virtual void resetForFuzzer() = 0;
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
     template <typename T, typename... Args>
     std::shared_ptr<T>

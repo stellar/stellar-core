@@ -11,11 +11,11 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 #include <fmt/format.h>
 

@@ -11,10 +11,11 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerHashUtils.h"
-#include "test/TestAccount.h"
-#include "test/TestUtils.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
@@ -27,6 +28,7 @@
 #include <numeric>
 
 using namespace stellar;
+using namespace stellar::txtest;
 using namespace stellar::txtest;
 
 namespace
@@ -51,7 +53,7 @@ invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
 {
     return transactionFromOperations(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
-        {payment(account.getPublicKey(), -1)});
+        {txtest::payment(account.getPublicKey(), -1)});
 }
 
 class TransactionQueueTest

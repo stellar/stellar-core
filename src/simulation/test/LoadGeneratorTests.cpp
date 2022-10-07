@@ -9,7 +9,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
-#include "test/test.h"
+#include "test-common/test.h"
 #include "util/Math.h"
 #include <fmt/format.h>
 

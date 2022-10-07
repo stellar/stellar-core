@@ -2,38 +2,27 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "invariant/test/InvariantTestUtils.h"
+#include "test-common/InvariantTestUtils.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "ledger/test/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test-common/LedgerTestUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <numeric>
+
+#ifdef BUILD_TESTS
+#include "lib/catch.hpp"
+#endif
 
 namespace stellar
 {
 namespace InvariantTestUtils
 {
 
-LedgerEntry
-generateRandomAccount(uint32_t ledgerSeq)
-{
-    LedgerEntry le;
-    le.lastModifiedLedgerSeq = ledgerSeq;
-    le.data.type(ACCOUNT);
-    le.data.account() = LedgerTestUtils::generateValidAccountEntry(5);
-    le.data.account().balance = 0;
-    if (le.data.account().ext.v() > 0)
-    {
-        le.data.account().ext.v1().liabilities = Liabilities{0, 0};
-    }
-    return le;
-}
-
+#ifdef BUILD_TESTS
 LedgerEntry
 generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
               Price price)
@@ -125,6 +114,22 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
         ltxPtr->commit();
     }
     return doInvariantsHold;
+}
+#endif
+
+LedgerEntry
+generateRandomAccount(uint32_t ledgerSeq)
+{
+    LedgerEntry le;
+    le.lastModifiedLedgerSeq = ledgerSeq;
+    le.data.type(ACCOUNT);
+    le.data.account() = LedgerTestUtils::generateValidAccountEntry(5);
+    le.data.account().balance = 0;
+    if (le.data.account().ext.v() > 0)
+    {
+        le.data.account().ext.v1().liabilities = Liabilities{0, 0};
+    }
+    return le;
 }
 
 UpdateList

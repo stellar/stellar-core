@@ -232,7 +232,7 @@ SecretKey::benchmarkOpsPerSecond(size_t& sign, size_t& verify,
         1000000 / std::max(size_t(1), size_t(verifyUsec.count() / iterations));
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 template <typename Rng>
 static std::vector<uint8_t>
 getPRNGBytes(size_t n, Rng& engine)
@@ -253,15 +253,6 @@ pseudoRandomForTestingFromPRNG(Rng& engine)
 }
 
 SecretKey
-SecretKey::pseudoRandomForTesting()
-{
-    // Reminder: this is not cryptographic randomness or even particularly hard
-    // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
-    // "slightly random-ish" keys, for test-data generation.
-    return pseudoRandomForTestingFromPRNG(Catch::rng());
-}
-
-SecretKey
 SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
 {
     // Reminder: this is not cryptographic randomness or even particularly hard
@@ -269,6 +260,28 @@ SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
     // "slightly random-ish" keys, for test-data generation.
     stellar_default_random_engine tmpEngine(seed);
     return pseudoRandomForTestingFromPRNG(tmpEngine);
+}
+#endif
+
+// There are two versions of this function to avoid including the catch library
+// when fuzzing. When running tests, Catch::rng is used so that the test setups
+// generated using this function are constant no matter what app changes occur.
+// For fuzzing, we don't care about test generation, so we avoid the catch
+// library.
+#ifdef BUILD_TESTS
+SecretKey
+SecretKey::pseudoRandomForTesting()
+{
+    // Reminder: this is not cryptographic randomness or even particularly hard
+    // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
+    // "slightly random-ish" keys, for test-data generation.
+    return pseudoRandomForTestingFromPRNG(Catch::rng());
+}
+#elif defined(BUILD_TESTS_COMMON)
+SecretKey
+SecretKey::pseudoRandomForTesting()
+{
+    return pseudoRandomForTestingFromPRNG(gRandomEngine);
 }
 #endif
 
@@ -469,7 +482,7 @@ PubKeyUtils::random()
     return pk;
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 PublicKey
 PubKeyUtils::pseudoRandomForTesting()
 {
@@ -545,7 +558,7 @@ HashUtils::random()
     return res;
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 Hash
 HashUtils::pseudoRandomForTesting()
 {

@@ -39,6 +39,59 @@ class TestAccount
 
     TransactionFramePtr tx(std::vector<Operation> const& ops,
                            SequenceNumber sn = 0);
+
+    SequenceNumber
+    nextSequenceNumber()
+    {
+        updateSequenceNumber();
+        if (mSn == std::numeric_limits<SequenceNumber>::max())
+        {
+            throw std::runtime_error(
+                "Sequence number overflow in test account");
+        }
+        return ++mSn;
+    }
+
+    SequenceNumber
+    getLastSequenceNumber()
+    {
+        updateSequenceNumber();
+        return mSn;
+    }
+
+    operator SecretKey() const
+    {
+        return getSecretKey();
+    }
+    operator PublicKey() const
+    {
+        return getPublicKey();
+    }
+
+    SecretKey const&
+    getSecretKey() const
+    {
+        return mSk;
+    }
+    PublicKey const&
+    getPublicKey() const
+    {
+        return mSk.getPublicKey();
+    }
+
+    void
+    setSequenceNumber(SequenceNumber sn)
+    {
+        mSn = sn;
+    }
+
+    std::string
+    getAccountId()
+    {
+        return mAccountID;
+    }
+
+#ifdef BUILD_TESTS
     Operation op(Operation operation);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
@@ -118,57 +171,7 @@ class TestAccount
     void liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
                                int64_t minAmountA, int64_t minAmountB);
 
-    operator SecretKey() const
-    {
-        return getSecretKey();
-    }
-    operator PublicKey() const
-    {
-        return getPublicKey();
-    }
-
-    SecretKey const&
-    getSecretKey() const
-    {
-        return mSk;
-    }
-    PublicKey const&
-    getPublicKey() const
-    {
-        return mSk.getPublicKey();
-    }
-
-    void
-    setSequenceNumber(SequenceNumber sn)
-    {
-        mSn = sn;
-    }
-
-    SequenceNumber
-    getLastSequenceNumber()
-    {
-        updateSequenceNumber();
-        return mSn;
-    }
-
-    SequenceNumber
-    nextSequenceNumber()
-    {
-        updateSequenceNumber();
-        if (mSn == std::numeric_limits<SequenceNumber>::max())
-        {
-            throw std::runtime_error(
-                "Sequence number overflow in test account");
-        }
-        return ++mSn;
-    }
     SequenceNumber loadSequenceNumber();
-
-    std::string
-    getAccountId()
-    {
-        return mAccountID;
-    }
 
     uint32_t getTrustlineFlags(Asset const& asset) const;
     int64_t getTrustlineBalance(Asset const& asset) const;
@@ -178,6 +181,8 @@ class TestAccount
     uint32_t getNumSubEntries() const;
 
     bool exists() const;
+
+#endif
 
   private:
     Application& mApp;

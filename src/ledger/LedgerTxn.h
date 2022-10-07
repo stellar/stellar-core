@@ -495,9 +495,9 @@ class AbstractLedgerTxnParent
     // prepares to increase the capacity of pending changes by up to "s" changes
     virtual void prepareNewObjects(size_t s) = 0;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     virtual void resetForFuzzer() = 0;
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 #ifdef BEST_OFFER_DEBUGGING
     virtual bool bestOfferDebuggingEnabled() const = 0;
@@ -788,14 +788,14 @@ class LedgerTxn : public AbstractLedgerTxn
 
     bool hasSponsorshipEntry() const override;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     UnorderedMap<AssetPair,
                  std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
                  AssetPairHash>
     getOrderBook() const;
 
     void resetForFuzzer() override;
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 #ifdef BEST_OFFER_DEBUGGING
     bool bestOfferDebuggingEnabled() const override;
@@ -845,9 +845,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropConfigSettings() override;
 #endif
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     void resetForFuzzer() override;
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 

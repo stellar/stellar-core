@@ -17,7 +17,7 @@ namespace stellar
 namespace shortHash
 {
 void initialize();
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void seed(unsigned int);
 #endif
 uint64_t computeHash(stellar::ByteSlice const& b);

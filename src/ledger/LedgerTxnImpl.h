@@ -624,7 +624,7 @@ class LedgerTxn::Impl
     // hasSponsorshipEntry has the strong exception safety guarantee
     bool hasSponsorshipEntry() const;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     UnorderedMap<AssetPair,
                  std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
                  AssetPairHash>
@@ -881,9 +881,9 @@ class LedgerTxnRoot::Impl
     void dropConfigSettings();
 #endif
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     void resetForFuzzer();
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
     // getAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then

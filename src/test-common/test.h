@@ -21,6 +21,10 @@ Config const& getTestConfig(int instanceNumber = 0,
 
 void cleanupTmpDirs();
 
+extern int gBaseInstance;
+extern bool force_sqlite;
+
+#ifdef BUILD_TESTS
 // Records or checks a TxMetadata value against a persistent record
 // of metadata hashes. Each unit-test name and section has a separate
 // vector of TxMetadata hashes, containing all the txs in that
@@ -28,9 +32,6 @@ void cleanupTmpDirs();
 void recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMeta);
 
 int runTest(CommandLineArgs const& args);
-
-extern int gBaseInstance;
-extern bool force_sqlite;
 
 void test_versions_wrapper(std::function<void(void)> f);
 
@@ -75,4 +76,5 @@ void for_versions(std::vector<uint32> const& versions, Config const& cfg,
 void for_all_versions_except(std::vector<uint32> const& versions,
                              Application& app,
                              std::function<void(void)> const& f);
+#endif
 }

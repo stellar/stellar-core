@@ -8,10 +8,11 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "test/TestAccount.h"
-#include "test/TestUtils.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "util/ProtocolVersion.h"
 
 namespace stellar

@@ -63,7 +63,7 @@ class SecretKey
                                       size_t iterations,
                                       size_t cachedVerifyPasses = 1);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     // Create a new, pseudo-random secret key drawn from the global weak
     // non-cryptographic PRNG (which itself is seeded from command-line or
     // deterministically). Do not under any circumstances use this for non-test
@@ -143,7 +143,7 @@ void clearVerifySigCache();
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 PublicKey pseudoRandomForTesting();
 #endif
 }
@@ -158,7 +158,7 @@ void logKey(std::ostream& s, std::string const& key);
 namespace HashUtils
 {
 Hash random();
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 Hash pseudoRandomForTesting();
 #endif
 }

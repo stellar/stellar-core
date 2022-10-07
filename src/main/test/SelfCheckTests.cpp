@@ -8,8 +8,8 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
 

@@ -22,16 +22,19 @@ namespace InvariantTestUtils
 {
 
 LedgerEntry generateRandomAccount(uint32_t ledgerSeq);
-LedgerEntry generateOffer(Asset const& selling, Asset const& buying,
-                          int64_t amount, Price price);
 
 typedef std::vector<
     std::tuple<std::shared_ptr<LedgerEntry>, std::shared_ptr<LedgerEntry>>>
     UpdateList;
 
+#ifdef BUILD_TESTS
+LedgerEntry generateOffer(Asset const& selling, Asset const& buying,
+                          int64_t amount, Price price);
+
 bool store(Application& app, UpdateList const& apply,
            AbstractLedgerTxn* ltxPtr = nullptr,
            OperationResult const* resPtr = nullptr);
+#endif
 
 UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,
                           std::nullptr_t previous);

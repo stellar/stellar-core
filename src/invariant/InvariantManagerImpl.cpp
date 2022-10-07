@@ -237,7 +237,7 @@ InvariantManagerImpl::handleInvariantFailure(
     }
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 InvariantManagerImpl::snapshotForFuzzer()
 {
@@ -255,5 +255,5 @@ InvariantManagerImpl::resetForFuzzer()
         invariant->resetForFuzzer();
     }
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 }

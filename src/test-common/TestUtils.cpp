@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
-#include "overlay/test/LoopbackPeer.h"
-#include "test/TxTests.h"
-#include "test/test.h"
+#include "test-common/LoopbackPeer.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/test.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
 

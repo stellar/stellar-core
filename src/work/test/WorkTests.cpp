@@ -5,8 +5,8 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "process/ProcessManager.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "work/WorkScheduler.h"
 #include <fmt/format.h>
 

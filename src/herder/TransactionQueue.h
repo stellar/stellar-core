@@ -234,7 +234,7 @@ class TransactionQueue
 
     friend class TxQueueTracker;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
   public:
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;

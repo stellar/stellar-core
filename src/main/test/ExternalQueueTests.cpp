@@ -8,8 +8,8 @@
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
 #include "simulation/Simulation.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 using namespace stellar;
 

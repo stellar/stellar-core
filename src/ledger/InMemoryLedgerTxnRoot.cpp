@@ -172,13 +172,13 @@ void InMemoryLedgerTxnRoot::prepareNewObjects(size_t)
 {
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 InMemoryLedgerTxnRoot::resetForFuzzer()
 {
     abort();
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 #ifdef BEST_OFFER_DEBUGGING
 bool

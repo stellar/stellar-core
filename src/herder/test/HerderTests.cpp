@@ -10,9 +10,10 @@
 #include "scp/SCP.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
-#include "test/TestAccount.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 #include "crypto/SHA.h"
 #include "database/Database.h"

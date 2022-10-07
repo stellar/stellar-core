@@ -1990,13 +1990,13 @@ LedgerTxn::getPrefetchHitRate() const
     return getImpl()->getPrefetchHitRate();
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 LedgerTxn::resetForFuzzer()
 {
     abort();
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 double
 LedgerTxn::Impl::getPrefetchHitRate() const
@@ -2297,7 +2297,7 @@ LedgerTxn::Impl::prepareNewObjects(size_t s)
     mEntry.reserve(newSize);
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 UnorderedMap<AssetPair,
              std::map<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
              AssetPairHash>
@@ -2428,7 +2428,7 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
 {
@@ -2441,7 +2441,7 @@ LedgerTxnRoot::resetForFuzzer()
 {
     mImpl->resetForFuzzer();
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 void
 LedgerTxnRoot::addChild(AbstractLedgerTxn& child, TransactionMode mode)

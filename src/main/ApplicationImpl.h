@@ -102,7 +102,7 @@ class ApplicationImpl : public Application
     manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                 std::optional<TimePoint> const& manualCloseTime) override;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     virtual void generateLoad(GeneratedLoadConfig cfg) override;
 
     virtual LoadGenerator& getLoadGenerator() override;
@@ -180,7 +180,7 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<CommandHandler> mCommandHandler;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     std::unique_ptr<LoadGenerator> mLoadGenerator;
 #endif
 

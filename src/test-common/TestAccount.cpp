@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "test/TestAccount.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -10,23 +9,19 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "transactions/TransactionUtils.h"
+#ifdef BUILD_TESTS
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
-#include "transactions/TransactionUtils.h"
-
 #include <lib/catch.hpp>
+#endif
 
 namespace stellar
 {
 
 using namespace txtest;
-
-SequenceNumber
-TestAccount::loadSequenceNumber()
-{
-    mSn = 0;
-    return getLastSequenceNumber();
-}
 
 void
 TestAccount::updateSequenceNumber()
@@ -40,6 +35,32 @@ TestAccount::updateSequenceNumber()
             mSn = entry.current().data.account().seqNum;
         }
     }
+}
+
+TransactionFramePtr
+TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
+{
+    if (sn == 0)
+    {
+        sn = nextSequenceNumber();
+    }
+
+    return transactionFromOperations(mApp, getSecretKey(), sn, ops);
+}
+
+TestAccount
+TestAccount::createRoot(Application& app)
+{
+    auto secretKey = getRoot(app.getNetworkID());
+    return TestAccount{app, secretKey};
+}
+
+#ifdef BUILD_TESTS
+SequenceNumber
+TestAccount::loadSequenceNumber()
+{
+    mSn = 0;
+    return getLastSequenceNumber();
 }
 
 uint32_t
@@ -103,29 +124,11 @@ TestAccount::exists() const
     return doesAccountExist(mApp, getPublicKey());
 }
 
-TransactionFramePtr
-TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
-{
-    if (sn == 0)
-    {
-        sn = nextSequenceNumber();
-    }
-
-    return transactionFromOperations(mApp, getSecretKey(), sn, ops);
-}
-
 Operation
 TestAccount::op(Operation operation)
 {
     operation.sourceAccount.activate() = toMuxedAccount(getPublicKey());
     return operation;
-}
-
-TestAccount
-TestAccount::createRoot(Application& app)
-{
-    auto secretKey = getRoot(app.getNetworkID());
-    return TestAccount{app, secretKey};
 }
 
 TestAccount
@@ -319,7 +322,7 @@ TestAccount::hasTrustLine(TrustLineAsset const& asset) const
 }
 
 void
-TestAccount::setOptions(SetOptionsArguments const& arguments)
+TestAccount::setOptions(txtest::SetOptionsArguments const& arguments)
 {
     applyTx(tx({txtest::setOptions(arguments)}), mApp);
 }
@@ -597,5 +600,5 @@ TestAccount::liquidityPoolWithdraw(PoolID const& poolID, int64_t amount,
                                               minAmountB)}),
             mApp);
 }
-
+#endif
 };

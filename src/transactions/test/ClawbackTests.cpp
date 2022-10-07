@@ -5,11 +5,12 @@
 #include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "test/TestAccount.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TestExceptions.h"
-#include "test/TestUtils.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "transactions/TransactionUtils.h"
 
 using namespace stellar;

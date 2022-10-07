@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "fuzzer/Fuzzer.h"
 #include "ledger/LedgerTxn.h"
-#include "test/Fuzzer.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"

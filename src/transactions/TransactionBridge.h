@@ -23,7 +23,7 @@ getSignaturesInner(TransactionEnvelope& env);
 xdr::xvector<Operation, MAX_OPS_PER_TX>&
 getOperations(TransactionEnvelope& env);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionFramePtr tx);
 
 void setSeqNum(TransactionFramePtr tx, int64_t seq);

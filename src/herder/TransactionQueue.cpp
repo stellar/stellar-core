@@ -11,7 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
-#include "test/TxTests.h"
+#include "test-common/TestTxUtils.h"
 #include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionBridge.h"
@@ -1009,7 +1009,7 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
             }
         }
     }
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     if (mTxBroadcastedEvent)
     {
         mTxBroadcastedEvent(tx.mTx);
@@ -1266,7 +1266,7 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
     }
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 size_t
 TransactionQueue::getQueueSizeOps() const
 {

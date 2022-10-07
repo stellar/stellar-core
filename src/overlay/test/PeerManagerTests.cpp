@@ -10,8 +10,8 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 namespace stellar
 {

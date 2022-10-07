@@ -38,7 +38,7 @@ class TxQueueLimiter
     void addTransaction(TransactionFrameBasePtr const& tx);
     void removeTransaction(TransactionFrameBasePtr const& tx);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     size_t size() const;
 #endif
     uint32_t maxQueueSizeOps() const;

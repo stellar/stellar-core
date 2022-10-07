@@ -84,9 +84,9 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     void prepareNewObjects(size_t s) override;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     void resetForFuzzer() override;
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 
 #ifdef BEST_OFFER_DEBUGGING
     bool bestOfferDebuggingEnabled() const override;

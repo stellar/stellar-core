@@ -11,9 +11,9 @@
 #include "crypto/ShortHash.h"
 #include "crypto/SignerKey.h"
 #include "crypto/StrKey.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "test/test.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include <autocheck/autocheck.hpp>
 #include <map>

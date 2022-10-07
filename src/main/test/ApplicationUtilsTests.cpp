@@ -14,9 +14,10 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "simulation/Simulation.h"
-#include "test/TestUtils.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include <filesystem>

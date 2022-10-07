@@ -7,8 +7,8 @@
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "test/TestAccount.h"
-#include "test/TxTests.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
 #include "xdr/Stellar-types.h"
 #include <vector>
 

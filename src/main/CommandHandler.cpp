@@ -41,10 +41,10 @@
 
 #include "ExternalQueue.h"
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 #include "simulation/LoadGenerator.h"
-#include "test/TestAccount.h"
-#include "test/TxTests.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestTxUtils.h"
 #endif
 #include <optional>
 #include <regex>
@@ -122,7 +122,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("self-check", &CommandHandler::selfCheck);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     addRoute("generateload", &CommandHandler::generateLoad);
     addRoute("testacc", &CommandHandler::testAcc);
     addRoute("testtx", &CommandHandler::testTx);
@@ -956,7 +956,7 @@ CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
     retStr = surveyManager.getJsonResults().toStyledString();
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 {

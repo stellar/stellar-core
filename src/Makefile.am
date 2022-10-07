@@ -9,10 +9,14 @@ include $(srcdir)/src.mk
 noinst_HEADERS = $(SRC_H_FILES)
 
 if BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
-else # !BUILD_TESTS
+stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_COMMON_CXX_FILES) $(SRC_TEST_CXX_FILES)
+else
+if USE_AFL_FUZZ
+stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_COMMON_CXX_FILES)
+else # !BUILD_TESTS && !USE_AFL_FUZZ
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
-endif # !BUILD_TESTS
+endif # USE_AFL_FUZZ
+endif # BUILD_TESTS
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile.am $(top_srcdir)/hash-xdrs.sh

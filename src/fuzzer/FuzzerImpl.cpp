@@ -2,20 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "test/FuzzerImpl.h"
+#include "FuzzerImpl.h"
+#include "fuzzer/fuzz.h"
 #include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/TrustLineWrapper.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
-#include "test/TestUtils.h"
-#include "test/TxTests.h"
-#include "test/fuzz.h"
-#include "test/test.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionMetaFrame.h"
@@ -834,10 +834,10 @@ resetTxInternalState(Application& app)
 {
     reinitializeAllGlobalStateWithSeed(1);
 // reset caches to clear persistent state
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     app.getLedgerTxnRoot().resetForFuzzer();
     app.getInvariantManager().resetForFuzzer();
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
     app.getDatabase().clearPreparedStatementCache();
 }
 
@@ -1454,9 +1454,9 @@ TransactionFuzzer::initialize()
     // state to fuzz test against
     ltxOuter.commit();
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     mApp->getInvariantManager().snapshotForFuzzer();
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON
 }
 
 void

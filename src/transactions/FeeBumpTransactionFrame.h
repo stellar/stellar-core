@@ -49,7 +49,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope);
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope,
                             TransactionFramePtr innerTx);

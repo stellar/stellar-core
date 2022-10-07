@@ -1,4 +1,4 @@
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 // Copyright 2021 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
@@ -228,4 +228,4 @@ OrderBookIsNotCrossed::resetForFuzzer()
     mRestoreBeforeNextUpdate = true;
 }
 }
-#endif // BUILD_TESTS
+#endif // BUILD_TESTS_COMMON

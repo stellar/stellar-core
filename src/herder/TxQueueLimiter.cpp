@@ -76,7 +76,7 @@ TxQueueLimiter::~TxQueueLimiter()
     // empty destructor allows deleting TxQueueLimiter from other source files
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 size_t
 TxQueueLimiter::size() const
 {

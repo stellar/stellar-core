@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/InvariantTestUtils.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "transactions/TransactionUtils.h"
 #include "xdrpp/autocheck.h"
 

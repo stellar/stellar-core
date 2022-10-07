@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "test/test.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include <fmt/format.h>

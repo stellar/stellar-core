@@ -79,7 +79,7 @@ export CFLAGS='-O3 -g1' ; export CXXFLAGS="$CFLAGS"
 
 # or any compiler that you want
 export CC='clang' ; export CXX='clang++'
-./autogen.sh && ./configure --enable-extrachecks --disable-postgres --enable-afl && make
+./autogen.sh && ./configure --enable-extrachecks --disable-postgres --enable-afl --disable-tests && make
 ```
 
 make sure you have not enabled `asan` and `ccache`;

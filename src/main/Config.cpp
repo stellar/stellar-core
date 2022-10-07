@@ -233,7 +233,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     HALT_ON_INTERNAL_TRANSACTION_ERROR = false;
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     TEST_CASES_ENABLED = false;
 #endif
 

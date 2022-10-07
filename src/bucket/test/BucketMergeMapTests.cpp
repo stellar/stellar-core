@@ -4,11 +4,11 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "bucket/BucketTests.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/LedgerTestUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 using namespace stellar;
 

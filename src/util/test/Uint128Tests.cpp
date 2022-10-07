@@ -6,7 +6,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "lib/util/uint128_t.h"
-#include "test/test.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include <chrono>
 #include <fmt/chrono.h>

@@ -64,7 +64,7 @@ class CommandHandler
     void stopSurvey(std::string const&, std::string& retStr);
     void getSurveyResult(std::string const&, std::string& retStr);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
     void generateLoad(std::string const& params, std::string& retStr);
     void testAcc(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);

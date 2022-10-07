@@ -15,9 +15,9 @@
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
 #include "ledger/LedgerRange.h"
-#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test-common/LedgerTestUtils.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 

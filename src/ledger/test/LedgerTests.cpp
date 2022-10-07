@@ -6,7 +6,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-#include "test/test.h"
+#include "test-common/test.h"
 
 #include <lib/catch.hpp>
 

@@ -5,14 +5,14 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/InvariantTestUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "util/Math.h"
 #include <numeric>
 #include <random>

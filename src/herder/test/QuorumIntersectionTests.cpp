@@ -8,7 +8,7 @@
 #include "lib/catch.hpp"
 #include "main/Config.h"
 #include "scp/LocalNode.h"
-#include "test/test.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "xdrpp/marshal.h"

@@ -62,7 +62,7 @@
 #include "work/BasicWork.h"
 #include "work/WorkScheduler.h"
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 #include "simulation/LoadGenerator.h"
 #endif
 
@@ -122,7 +122,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         {
             LOG_INFO(DEFAULT_LOG, "got signal {}, shutting down", sig);
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
             if (mConfig.TEST_CASES_ENABLED)
             {
                 exit(1);
@@ -1002,7 +1002,7 @@ ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
     }
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 void
 ApplicationImpl::generateLoad(GeneratedLoadConfig cfg)
 {

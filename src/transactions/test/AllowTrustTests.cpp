@@ -4,12 +4,12 @@
 
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "test/TestAccount.h"
+#include "test-common/TestAccount.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
-#include "test/TestUtils.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 

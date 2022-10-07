@@ -10,7 +10,7 @@
 #include "overlay/PeerDoor.h"
 #include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
-#include "test/test.h"
+#include "test-common/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 

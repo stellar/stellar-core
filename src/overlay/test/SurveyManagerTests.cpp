@@ -8,9 +8,10 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "simulation/Simulation.h"
-#include "test/TestUtils.h"
+#include "test-common/TestTxUtils.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 #include "test/TxTests.h"
-#include "test/test.h"
 
 using namespace stellar;
 

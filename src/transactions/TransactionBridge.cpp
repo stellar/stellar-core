@@ -91,7 +91,7 @@ getOperations(TransactionEnvelope& env)
     }
 }
 
-#ifdef BUILD_TESTS
+#ifdef BUILD_TESTS_COMMON
 xdr::xvector<DecoratedSignature, 20>&
 getSignatures(TransactionFramePtr tx)
 {

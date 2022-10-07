@@ -7,8 +7,8 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/Tracker.h"
-#include "test/TestUtils.h"
-#include "test/test.h"
+#include "test-common/TestUtils.h"
+#include "test-common/test.h"
 
 namespace stellar
 {
