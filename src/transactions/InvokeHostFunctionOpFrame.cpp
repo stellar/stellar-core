@@ -283,6 +283,24 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
         return false;
     }
+    
+    // Append events to the enclosing TransactionFrame, where
+    // they'll be picked up and transferred to the TxMeta.
+    for (auto const& buf : out.contract_events)
+    {
+        metrics.mEmitEvent++;
+        metrics.mEmitEventByte += buf.data.size();
+        ContractEvent evt;
+        xdr::xdr_from_opaque(buf.data, evt);
+        mParentTx.pushContractEvent(evt);
+    }
+
+    if (out.is_error)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_ERROR);
+        xdr::xdr_from_opaque(out.result_value.data, innerResult().error());
+        return false;
+    }
 
     metrics.mCpuInsn = out.cpu_insns;
     metrics.mMemByte = out.mem_bytes;
@@ -319,17 +337,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
                 ltx.erase(lk);
             }
         }
-    }
-
-    // Append events to the enclosing TransactionFrame, where
-    // they'll be picked up and transferred to the TxMeta.
-    for (auto const& buf : out.contract_events)
-    {
-        metrics.mEmitEvent++;
-        metrics.mEmitEventByte += buf.data.size();
-        ContractEvent evt;
-        xdr::xdr_from_opaque(buf.data, evt);
-        mParentTx.pushContractEvent(evt);
     }
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);

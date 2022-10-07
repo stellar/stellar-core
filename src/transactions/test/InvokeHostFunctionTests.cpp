@@ -207,6 +207,18 @@ TEST_CASE("invoke host function", "[tx][contract]")
                             ores.tr().invokeHostFunctionResult().success();
                     }
                 }
+                if (tx->getResult().result.code() == txFAILED &&
+                    !tx->getResult().result.results().empty())
+                {
+                    auto const& ores = tx->getResult().result.results().at(0);
+                    if (ores.tr().type() == INVOKE_HOST_FUNCTION &&
+                        ores.tr().invokeHostFunctionResult().code() ==
+                            INVOKE_HOST_FUNCTION_ERROR)
+                    {
+                        resultVal =
+                            ores.tr().invokeHostFunctionResult().error();
+                    }
+                }
                 return resultVal;
             };
 
@@ -216,13 +228,23 @@ TEST_CASE("invoke host function", "[tx][contract]")
             auto sc7 = makeI32(7);
             auto sc16 = makeI32(16);
 
-            // Too few parameters for call
-            call({}, false);
-            call({scContractID}, false);
+            SCVal wrongArgsStatus(stellar::SCV_STATUS);
+            wrongArgsStatus.status().type(
+                SCStatusType::SST_HOST_FUNCTION_ERROR);
+            wrongArgsStatus.status().fnCode() =
+                SCHostFnErrorCode::HOST_FN_INPUT_ARGS_WRONG_LENGTH;
 
-            // To few parameters for "add"
-            call({scContractID, scFunc}, false);
-            call({scContractID, scFunc, sc7}, false);
+            // Too few parameters for call
+            REQUIRE(call({}, false) == wrongArgsStatus);
+            REQUIRE(call({scContractID}, false) == wrongArgsStatus);
+
+            SCVal wrongParamsStatus(stellar::SCV_STATUS);
+            wrongParamsStatus.status().type(SCStatusType::SST_VM_ERROR);
+            wrongParamsStatus.status().vmCode() = SCVmErrorCode::VM_FUNCTION;
+            //// To few parameters for "add"
+            REQUIRE(call({scContractID, scFunc}, false) == wrongParamsStatus);
+            REQUIRE(call({scContractID, scFunc, sc7}, false) ==
+                    wrongParamsStatus);
 
             // Correct function call
             call({scContractID, scFunc, sc7, sc16}, true);
@@ -235,9 +257,10 @@ TEST_CASE("invoke host function", "[tx][contract]")
                     .count() != 0);
 
             // Too many parameters for "add"
-            call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
+            REQUIRE(call({scContractID, scFunc, sc7, sc16, makeI32(0)},
+                         false) == wrongParamsStatus);
         };
-        SECTION("create with source -  add i32")
+        SECTION("create with source - add i32")
         {
             addI32(HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT);
         }

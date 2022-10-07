@@ -41,6 +41,9 @@ mod rust_bridge {
         modified_ledger_entries: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
+        // Flags whether result_value is an actual function output or an 
+        // error status.
+        is_error: bool,
     }
 
     struct PreflightHostFunctionOutput {
