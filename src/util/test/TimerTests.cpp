@@ -85,9 +85,18 @@ TEST_CASE("VirtualClock from_time_t", "[timer]")
     CHECK(now == VirtualClock::from_time_t(133818));
 }
 
+// Enabling pull mode starts the demand timer automatically
+// which expires periodically. This interferes with some tests.
+auto getTestConfigWithoutPullMode = [](auto n) {
+    auto config = getTestConfig(n);
+    config.ENABLE_PULL_MODE = false;
+    return config;
+};
+
 TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfigWithoutPullMode(0));
+
     VirtualClock clock;
     Application::pointer appPtr = createTestApplication(clock, cfg);
     // cancel the timer
@@ -146,8 +155,10 @@ TEST_CASE("shared virtual time advances only when all apps idle",
           "[timer][sharedtimer]")
 {
     VirtualClock clock;
-    Application::pointer app1 = createTestApplication(clock, getTestConfig(0));
-    Application::pointer app2 = createTestApplication(clock, getTestConfig(1));
+    Application::pointer app1 =
+        createTestApplication(clock, getTestConfigWithoutPullMode(0));
+    Application::pointer app2 =
+        createTestApplication(clock, getTestConfigWithoutPullMode(1));
 
     size_t app1Event = 0;
     size_t app2Event = 0;
@@ -197,7 +208,8 @@ TEST_CASE("shared virtual time advances only when all apps idle",
 TEST_CASE("timer cancels", "[timer]")
 {
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, getTestConfig(0));
+    Application::pointer app =
+        createTestApplication(clock, getTestConfigWithoutPullMode(0));
     // cancel the timer
     app->getHerder().shutdown();
 
