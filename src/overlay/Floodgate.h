@@ -37,11 +37,9 @@ class Floodgate
         typedef std::shared_ptr<FloodRecord> pointer;
 
         uint32_t mLedgerSeq;
-        StellarMessage mMessage;
         std::set<std::string> mPeersTold;
 
-        FloodRecord(StellarMessage const& msg, uint32_t ledger,
-                    Peer::pointer peer);
+        FloodRecord(uint32_t ledger, Peer::pointer peer);
     };
 
     std::map<Hash, FloodRecord::pointer> mFloodMap;
@@ -74,8 +72,5 @@ class Floodgate
     void forgetRecord(Hash const& msgID);
 
     void shutdown();
-
-    void updateRecord(StellarMessage const& oldMsg,
-                      StellarMessage const& newMsg);
 };
 }

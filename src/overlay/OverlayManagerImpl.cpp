@@ -1123,14 +1123,6 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
-void
-OverlayManagerImpl::updateFloodRecord(StellarMessage const& oldMsg,
-                                      StellarMessage const& newMsg)
-{
-    ZoneScoped;
-    mFloodGate.updateRecord(oldMsg, newMsg);
-}
-
 size_t
 OverlayManagerImpl::getMaxAdvertSize() const
 {

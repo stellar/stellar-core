@@ -182,9 +182,6 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
-    void updateFloodRecord(StellarMessage const& oldMsg,
-                           StellarMessage const& newMsg) override;
-
     void recordTxPullLatency(Hash const& hash) override;
     size_t getMaxAdvertSize() const override;
 
