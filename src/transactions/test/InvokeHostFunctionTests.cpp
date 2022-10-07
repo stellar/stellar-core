@@ -215,7 +215,8 @@ TEST_CASE("invoke host function", "[tx][contract]")
                         ores.tr().invokeHostFunctionResult().code() ==
                             INVOKE_HOST_FUNCTION_ERROR)
                     {
-                        resultVal =
+                        resultVal.type(SCV_STATUS);
+                        resultVal.status() =
                             ores.tr().invokeHostFunctionResult().error();
                     }
                 }

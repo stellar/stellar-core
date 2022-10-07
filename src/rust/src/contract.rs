@@ -21,7 +21,7 @@ use soroban_env_host::{
     xdr::{
         AccountId, HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey,
         LedgerKeyAccount, LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr,
-        ScHostContextErrorCode, ScStatus, ScUnknownErrorCode, ScVal, ScVec, WriteXdr,
+        ScHostContextErrorCode, ScStatus, ScUnknownErrorCode, ScVec, WriteXdr,
         XDR_FILES_SHA256,
     },
     Host, HostError, LedgerInfo, MeteredOrdMap,
@@ -284,32 +284,29 @@ fn invoke_host_function_or_maybe_panic(
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
-    let contract_events = extract_contract_events(&events)?;
-    let result_value = match res {
-        Ok(rv) => xdr_to_rust_buf(&rv)?,
-        Err(err) => {
-            debug!(target: TX, "invocation failed: {}", err);
-            return Ok(InvokeHostFunctionOutput {
-                result_value: xdr_to_rust_buf(&ScVal::Status(ScStatus::try_from(&err)?))?,
-                contract_events,
-                modified_ledger_entries: Default::default(),
-                cpu_insns: budget.get_cpu_insns_count(),
-                mem_bytes: budget.get_mem_bytes_count(),
-                is_error: true,
-            });
-        }
-    };
-    let modified_ledger_entries =
-        build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
 
-    Ok(InvokeHostFunctionOutput {
-        result_value,
-        contract_events,
-        modified_ledger_entries,
-        cpu_insns: budget.get_cpu_insns_count(),
-        mem_bytes: budget.get_mem_bytes_count(),
-        is_error: false,
-    })
+    let mut out: InvokeHostFunctionOutput = Default::default();
+    out.cpu_insns = budget.get_cpu_insns_count();
+    out.mem_bytes = budget.get_mem_bytes_count();
+
+    match res {
+        Ok(rv) => {
+            debug!(target: TX, "invocation succeeded");
+            out.result_value = xdr_to_rust_buf(&rv)?;
+            out.result_is_status = false;
+            out.contract_events = extract_contract_events(&events)?;
+            out.modified_ledger_entries =
+                build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map)?;
+        }
+        Err(err) => {
+            let status = ScStatus::try_from(&err)?;
+            debug!(target: TX, "invocation failed: {:?}", status);
+            out.result_value = xdr_to_rust_buf(&status)?;
+            out.result_is_status = true;
+        }
+    }
+
+    Ok(out)
 }
 
 // Pfc here exists just to translate a mess of irrelevant ownership and access

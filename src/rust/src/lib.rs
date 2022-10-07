@@ -25,25 +25,28 @@ mod rust_bridge {
     // When we want to return owned data _from_ Rust, we typically want to do
     // the opposite: allocate on the Rust side as a Vec<u8> and then let the C++
     // side parse the data out of it and then drop it.
+    #[derive(Default)]
     struct RustBuf {
         data: Vec<u8>,
     }
 
     // We return these from get_xdr_hashes below.
+    #[derive(Default)]
     struct XDRFileHash {
         file: String,
         hash: String,
     }
 
+    #[derive(Default)]
     struct InvokeHostFunctionOutput {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
-        // Flags whether result_value is an actual function output or an 
-        // error status.
-        is_error: bool,
+        // Flags whether result_value is an SCVal from an Ok(...) return or an
+        // SCStatus carrying the Status from an Err(...) return.
+        result_is_status: bool,
     }
 
     struct PreflightHostFunctionOutput {
@@ -134,8 +137,8 @@ use b64::{from_base64, to_base64};
 
 mod contract;
 use contract::get_test_wasm_add_i32;
-use contract::get_test_wasm_contract_data;
 use contract::get_test_wasm_complex;
+use contract::get_test_wasm_contract_data;
 use contract::get_xdr_hashes;
 use contract::invoke_host_function;
 use contract::preflight_host_function;
