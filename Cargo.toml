@@ -7,4 +7,6 @@ wasmi = { package = "soroban-wasmi", git = "https://github.com/stellar/wasmi", r
 soroban-env-common = { git = "https://github.com/stellar/rs-soroban-env", rev = "17ada13" }
 soroban-native-sdk-macros = { git = "https://github.com/stellar/rs-soroban-env", rev = "17ada13" }
 
-
+[profile.release]
+codegen-units = 1
+lto = true
