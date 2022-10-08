@@ -1,5 +1,6 @@
 Installation Instructions
 ==================
+
 These are instructions for building stellar-core from source.
 
 For a potentially quicker set up, the following projects could be good alternatives:
@@ -7,6 +8,19 @@ For a potentially quicker set up, the following projects could be good alternati
 * stellar-core in a [docker container](https://github.com/stellar/docker-stellar-core)
 * stellar-core and [horizon](https://github.com/stellar/go/tree/master/services/horizon) in a [docker container](https://github.com/stellar/docker-stellar-core-horizon)
 * pre-compiled [packages](https://github.com/stellar/packages)
+
+## Which version to run?
+
+In general, you should aim to run the most recent stable version of core, so make sure
+to keep track of new releases.
+
+We _highly_ recommend upgrading to the latest core release _within 30 days of a release_ as
+highlighted in our [protocol and security release notes](docs/software/security-protocol-release-notes.md) in case
+the release contains security fixes that could be exploited (we do not disclose
+ahead of time if a release contains security fixes to give people time to upgrade).
+
+As a consequence, old, potentially insecure or abandoned nodes _running releases that are older than 90 days will get blocked_ by newer nodes (if there are newer releases
+of course).
 
 ## Picking a version to run
 
