@@ -682,6 +682,10 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
+    for (auto const& peer : getAuthenticatedPeers())
+    {
+        peer.second->clearBelow(ledgerSeq);
+    }
 }
 
 void

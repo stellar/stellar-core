@@ -43,6 +43,8 @@
 namespace stellar
 {
 
+constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
+
 using namespace std;
 using namespace soci;
 
@@ -68,11 +70,24 @@ Peer::Peer(Application& app, PeerRole role)
                 app.getConfig().PEER_READING_CAPACITY}
     , mTxAdvertQueue(app)
     , mAdvertTimer(app)
+    , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
+}
+
+bool
+Peer::peerKnowsHash(Hash const& hash)
+{
+    return mAdvertHistory.exists(hash);
+}
+
+void
+Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
+{
+    mAdvertHistory.put(hash, ledgerSeq);
 }
 
 void
@@ -2008,7 +2023,19 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
+    auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
+    for (auto const& hash : msg.floodAdvert().txHashes)
+    {
+        rememberHash(hash, seq);
+    }
     mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
+}
+
+void
+Peer::clearBelow(uint32_t ledgerSeq)
+{
+    mAdvertHistory.erase_if(
+        [&](uint32_t const& seq) { return seq < ledgerSeq; });
 }
 
 void
