@@ -89,7 +89,7 @@ Bucket::getStream()
     {
         mStream = std::make_unique<XDRInputFileStream>();
         releaseAssertOrThrow(!mFilename.empty());
-        mStream->open(mFilename);
+        mStream->open(mFilename.string());
     }
     return *mStream;
 }

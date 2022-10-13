@@ -221,7 +221,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         CHECK(b1.use_count() == 2);
 
         // Drop bucket ourselves then purge bucketManager.
-        std::string filename = b1->getFilename();
+        std::string filename = b1->getFilename().string();
         CHECK(fs::exists(filename));
         b1.reset();
         app->getBucketManager().forgetUnreferencedBuckets();
@@ -249,7 +249,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         CHECK(b1.use_count() == 2);
 
         // Drop it again.
-        filename = b1->getFilename();
+        filename = b1->getFilename().string();
         CHECK(fs::exists(filename));
         b1.reset();
         app->getBucketManager().forgetUnreferencedBuckets();
@@ -278,7 +278,7 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
             closeLedger(*app);
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
-        someBucketFileName = someBucket->getFilename();
+        someBucketFileName = someBucket->getFilename().string();
     }
 
     // Delete a bucket from the bucket dir

@@ -97,7 +97,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
                     /*doFsync=*/true);
             }
         }
-        auto sz = static_cast<size_t>(fileSize(b1->getFilename()));
+        auto sz = static_cast<size_t>(fileSize(b1->getFilename().string()));
         CLOG_DEBUG(Bucket, "Spill file size: {}", sz);
     });
 }

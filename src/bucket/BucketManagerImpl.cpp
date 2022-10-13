@@ -21,6 +21,7 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
+#include <filesystem>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fstream>
@@ -710,7 +711,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
             {
                 CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
-                std::remove(filename.c_str());
+                std::filesystem::remove(filename);
                 auto gzfilename = filename.string() + ".gz";
                 std::remove(gzfilename.c_str());
             }
@@ -1127,7 +1128,7 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
                 FMT_STRING("Missing referenced bucket {}"), binToHex(h)));
         }
         seq.emplace_back(std::make_shared<VerifyBucketWork>(
-            mApp, b->getFilename(), b->getHash(), nullptr));
+            mApp, b->getFilename().string(), b->getHash(), nullptr));
     }
     return mApp.getWorkScheduler().scheduleWork<WorkSequence>(
         "verify-referenced-buckets", seq);

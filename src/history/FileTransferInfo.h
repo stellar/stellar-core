@@ -31,7 +31,7 @@ class FileTransferInfo
     FileTransferInfo(Bucket const& bucket)
         : mType(HISTORY_FILE_TYPE_BUCKET)
         , mHexDigits(binToHex(bucket.getHash()))
-        , mLocalPath(bucket.getFilename())
+        , mLocalPath(bucket.getFilename().string())
     {
     }
 

@@ -151,7 +151,8 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
     mBuf.reset();
     mOut.close();
 
-    return std::pair<std::string, uint256>(mFilename, mHasher.finish());
+    return std::pair<std::string, uint256>(mFilename.string(),
+                                           mHasher.finish());
 };
 
 TestBucketGenerator::TestBucketGenerator(

@@ -101,7 +101,7 @@ BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
     {
         CLOG_TRACE(Bucket, "BucketInputIterator opening file to read: {}",
                    mBucket->getFilename());
-        mIn.open(mBucket->getFilename());
+        mIn.open(mBucket->getFilename().string());
         loadEntry();
     }
 }

@@ -46,7 +46,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
 
     size_t const estimatedLedgerEntrySize =
         xdr::xdr_traits<BucketEntry>::serial_size(BucketEntry{});
-    auto fileSize = fs::size(filename);
+    auto fileSize = fs::size(filename.string());
     auto estimatedNumElems = fileSize / estimatedLedgerEntrySize;
     size_t estimatedIndexEntries;
 
@@ -70,7 +70,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
     mKeys.reserve(estimatedIndexEntries);
 
     XDRInputFileStream in;
-    in.open(filename);
+    in.open(filename.string());
     std::streamoff pos = 0;
     std::streamoff pageUpperBound = 0;
     BucketEntry be;
@@ -150,7 +150,7 @@ BucketIndex::createIndex(Config const& cfg,
     releaseAssertOrThrow(!filename.empty());
     auto pageSize = cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
     auto cutoff = cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF;
-    if (pageSize == 0 || fs::size(filename) < cutoff)
+    if (pageSize == 0 || fs::size(filename.string()) < cutoff)
     {
         CLOG_INFO(Bucket,
                   "BucketIndex::createIndex() indexing individual keys in "

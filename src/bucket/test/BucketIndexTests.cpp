@@ -119,9 +119,6 @@ class BucketIndexTest
             }
             else
             {
-                auto const& entries =
-                    LedgerTestUtils::generateValidLedgerEntries(10);
-
                 // Sample ~15% of entries to be destroyed/updated
                 if (mDist(gRandomEngine) < 40)
                 {

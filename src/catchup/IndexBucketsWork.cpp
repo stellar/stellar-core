@@ -67,7 +67,7 @@ IndexBucketsWork::spawnWork()
 
             // Index all buckets in bucket list, including future buckets that
             // have already finished merging
-            for (size_t i = 0; i < bm.getBucketList().kNumLevels; ++i)
+            for (uint32_t i = 0; i < bm.getBucketList().kNumLevels; ++i)
             {
                 auto& level = bm.getBucketList().getLevel(i);
                 indexBucket(level.getCurr());
@@ -100,7 +100,7 @@ IndexBucketsWork::onReset()
     // Must free all indexes so subsequent calls to IndexBucketsWork don't trip
     // setIndex assert
     auto& bm = this->mApp.getBucketManager();
-    for (size_t i = 0; i < bm.getBucketList().kNumLevels; ++i)
+    for (uint32_t i = 0; i < bm.getBucketList().kNumLevels; ++i)
     {
         auto& level = bm.getBucketList().getLevel(i);
         level.getCurr()->freeIndex();

@@ -9,6 +9,7 @@
 #include "crypto/Random.h"
 #include "util/GlobalChecks.h"
 #include <Tracy.hpp>
+#include <filesystem>
 
 namespace stellar
 {
@@ -52,7 +53,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
     CLOG_TRACE(Bucket, "BucketOutputIterator opening file to write: {}",
                mFilename);
     // Will throw if unable to open the file
-    mOut.open(mFilename);
+    mOut.open(mFilename.string());
 
     if (protocolVersionStartsFrom(
             meta.ledgerVersion,
@@ -131,7 +132,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         releaseAssert(mObjectsPut == 0);
         releaseAssert(mBytesPut == 0);
         CLOG_DEBUG(Bucket, "Deleting empty bucket file {}", mFilename);
-        std::remove(mFilename.c_str());
+        std::filesystem::remove(mFilename);
         if (mergeKey)
         {
             bucketManager.noteEmptyMergeOutput(*mergeKey);
@@ -155,7 +156,8 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         }
     }
 
-    return bucketManager.adoptFileAsBucket(
-        mFilename, hash, mObjectsPut, mBytesPut, mergeKey, std::move(index));
+    return bucketManager.adoptFileAsBucket(mFilename.string(), hash,
+                                           mObjectsPut, mBytesPut, mergeKey,
+                                           std::move(index));
 }
 }
