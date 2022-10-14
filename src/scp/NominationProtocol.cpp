@@ -393,6 +393,7 @@ uint64 NominationProtocol::getNodePriorityWithoutWeight(NodeID const& nodeID, SC
     uint64 res;
     uint64 w;
 
+    /**
     if (nodeID == mSlot.getLocalNode()->getNodeID()) //node v is the local node
     {
         // local node is in all quorum sets.
@@ -404,6 +405,7 @@ uint64 NominationProtocol::getNodePriorityWithoutWeight(NodeID const& nodeID, SC
         //node v is not local node so will compute its weight.
         w = LocalNode::getNodeWeight(nodeID, qset);
     }
+    **/
 
     w = UINT64_MAX; //Take away advantage of local node to be elected leader. 
     CLOG_DEBUG(SCP, "getNodePriorityWithoutWeight:  NOTE: all nodes set to max value for its weight.");
@@ -818,13 +820,13 @@ NominationProtocol::getLatestMessage(NodeID const& id) const
     return nullptr;
 }
 
-static const int NOMINATION_MAX_TIMEOUT_SECONDS = (30 * 60); //same value as MAX_TIMEOUT_SECONDS defined within SCPDriver.cpp
+static const std::chrono::milliseconds NOMINATION_MAX_TIMEOUT_MS = std::chrono::milliseconds(1800000); //same value as MAX_TIMEOUT_SECONDS defined within SCPDriver.cpp
 std::chrono::milliseconds
 NominationProtocol::computeNominationTimeout(uint32 roundNumber)
 {
-    if (roundNumber > NOMINATION_MAX_TIMEOUT_SECONDS)
+    if (leaderNominationTimeoutInMilisec >= NOMINATION_MAX_TIMEOUT_MS)
     {
-        leaderNominationTimeoutInMilisec = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::seconds(NOMINATION_MAX_TIMEOUT_SECONDS));
+        leaderNominationTimeoutInMilisec = NOMINATION_MAX_TIMEOUT_MS;
     }
     else
     {
