@@ -179,8 +179,9 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
         auto cfgGen2 = [&](int n) {
             auto cfg = getTestConfig(n);
-            // adjust delayed tx flooding
+            // adjust delayed tx flooding and how often to pull
             cfg.FLOOD_TX_PERIOD_MS = 10;
+            cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(10);
             return cfg;
         };
         SECTION("core")
