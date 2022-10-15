@@ -21,7 +21,8 @@
 namespace stellar
 {
 extern bool gIsProductionNetwork;
-extern uint64 BASE_LEADER_NOMINATION_TIMEOUT_MS;  //value to increment wait time between nomination rounds
+extern uint64 BASE_LEADER_NOMINATION_TIMEOUT_MS; // value to increment wait time
+                                                 // between nomination rounds
 
 struct HistoryArchiveConfiguration
 {

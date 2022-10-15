@@ -34,7 +34,8 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 17
     ;
 
 bool gIsProductionNetwork = false;
-uint64 BASE_LEADER_NOMINATION_TIMEOUT_MS = 250; //(default) value to increment wait time between nomination rounds
+uint64 BASE_LEADER_NOMINATION_TIMEOUT_MS =
+    250; //(default) value to increment wait time between nomination rounds
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
