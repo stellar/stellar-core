@@ -555,9 +555,12 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
 
     // Load all the LiquidityPool entries that the account has a trustline for.
     auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch, cfg);
-
+    // pools always exist when there are trustlines
+    releaseAssertOrThrow(liquidityPoolEntries.size() ==
+                         liquidityPoolKeysToSearch.size());
     // Filter out liquidity pools that don't match the asset we're looking for
     std::vector<LedgerEntry> result;
+    result.reserve(liquidityPoolEntries.size());
     for (const auto& e : liquidityPoolEntries)
     {
         releaseAssert(e.data.type() == LIQUIDITY_POOL);
@@ -606,12 +609,11 @@ BucketList::loadInflationWinners(size_t maxWinners, int64_t minBalance) const
             // Don't double count AccountEntry's seen in earlier levels
             AccountEntry const& ae = le.data.account();
             AccountID const& id = ae.accountID;
-            if (seen.find(id) != seen.end())
+            if (!seen.insert(id).second)
             {
                 continue;
             }
 
-            seen.insert(id);
             if (ae.inflationDest && ae.balance >= 1000000000)
             {
                 voteCount[*ae.inflationDest] += ae.balance;

@@ -146,8 +146,8 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     // If this bucket needs to be indexed and is not already indexed
     if (shouldSynchronouslyIndex)
     {
-        // Edge case: whenever a bucket merges with an empty bucket, the result
-        // has already been indexed so we don't need to index again
+        // either it's a new bucket or we just reconstructed a bucket
+        // we already have, in any case ensure we have an index
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {

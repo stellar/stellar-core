@@ -705,6 +705,13 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             j->second.use_count() == 1)
         {
             auto filename = j->second->getFilename();
+            if (!j->second->isEmpty())
+            {
+                // this is a hack - should not be done like this, but this fixes
+                // the problem of not being able to delete buckets because the
+                // bucket file is still in use
+                j->second->getStream().close();
+            }
             CLOG_TRACE(Bucket,
                        "BucketManager::forgetUnreferencedBuckets dropping {}",
                        filename);
