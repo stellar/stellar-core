@@ -735,8 +735,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
 
     mRoundNumber++;
     updateRoundLeaders(); // updates the set of nodes that have priority over
-                          // the others.  Result is the leader(s) to nominate for
-                          // this round.
+                          // the others.  Result is the leader(s) to nominate
+                          // for this round.
 
     CLOG_DEBUG(
         SCP,
