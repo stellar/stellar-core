@@ -148,6 +148,10 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(
                 res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
             break;
+        case stellar::CONTRACT_CODE:
+            stellar::hashMix(
+                res, std::hash<stellar::uint256>()(lk.contractCode().hash));
+            break;
         case stellar::CONFIG_SETTING:
             stellar::hashMix(
                 res, std::hash<int32_t>()(lk.configSetting().configSettingID));

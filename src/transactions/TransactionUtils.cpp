@@ -289,6 +289,14 @@ contractDataKey(Hash const& contractID, SCVal const& dataKey)
     key.contractData().key = dataKey;
     return key;
 }
+
+LedgerKey
+contractCodeKey(Hash const& hash)
+{
+    LedgerKey key(CONTRACT_CODE);
+    key.contractCode().hash = hash;
+    return key;
+}
 #endif
 
 InternalLedgerKey
@@ -426,6 +434,13 @@ loadContractData(AbstractLedgerTxn& ltx, Hash const& contractID,
 {
     ZoneScoped;
     return ltx.load(contractDataKey(contractID, dataKey));
+}
+
+LedgerTxnEntry
+loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
+{
+    ZoneScoped;
+    return ltx.load(contractCodeKey(hash));
 }
 #endif
 

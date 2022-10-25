@@ -479,6 +479,10 @@ class AbstractLedgerTxnParent
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropContractData(bool rebuild) = 0;
 
+    // Delete all contract code ledger entries. Will throw when called on
+    // anything other than a (real or stub) root LedgerTxn.
+    virtual void dropContractCode(bool rebuild) = 0;
+
     // Delete all config setting ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropConfigSettings(bool rebuild) = 0;
@@ -782,6 +786,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropLiquidityPools(bool rebuild) override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void dropContractData(bool rebuild) override;
+    void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
 #endif
     double getPrefetchHitRate() const override;
@@ -844,6 +849,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropLiquidityPools(bool rebuild) override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void dropContractData(bool rebuild) override;
+    void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
 #endif
 
