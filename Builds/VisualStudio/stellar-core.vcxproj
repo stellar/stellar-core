@@ -1526,8 +1526,8 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>
-      <Command>cargo install --root $(OutDir) cxxbridge-cmd</Command>
-      <Message>cargo install --root $(OutDir) cxxbridge-cmd</Message>
+      <Command>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Command>
+      <Message>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Message>
       <Outputs>$(OutDir)/bin/cxxbridge.exe</Outputs>
     </CustomBuild>
     <None Include="..\..\src\rust\src\b64.rs" />
