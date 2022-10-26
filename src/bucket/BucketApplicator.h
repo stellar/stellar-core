@@ -32,26 +32,26 @@ class BucketApplicator
   public:
     class Counters
     {
-        // indexed by LedgerEntryType, i.e. offer counter == CounterArray[OFFER]
-        // array size == num enums in LedgerEntryType
-        typedef std::array<uint64_t, 8> CounterArray;
+        struct CounterEntry
+        {
+            uint64_t numUpserted;
+            uint64_t numDeleted;
+        };
 
         // We avoid using medida metrics here here because BucketApplicator
         // activity is typically a rare thing that happens only during catchup
         // and we don't want to pollute the regular operational metrics
         // interface with these counts.
         VirtualClock::time_point mStarted;
-        CounterArray mUpserted{0};
-        CounterArray mDeleted{0};
+        std::map<LedgerEntryType, CounterEntry> mCounters;
 
-        void getRates(VirtualClock::time_point now, CounterArray& upserted_sec,
-                      CounterArray& deleted_sec, uint64_t& T_sec,
-                      uint64_t& total);
+        void getRates(VirtualClock::time_point now,
+                      std::map<LedgerEntryType, CounterEntry>& sec_count,
+                      uint64_t& T_sec, uint64_t& total);
 
-        std::string logStr(uint64_t total, uint64_t level,
-                           std::string const& bucketName,
-                           CounterArray const& upserted,
-                           CounterArray const& deleted);
+        std::string
+        logStr(uint64_t total, uint64_t level, std::string const& bucketName,
+               std::map<LedgerEntryType, CounterEntry> const& counters);
 
       public:
         Counters(VirtualClock::time_point now);

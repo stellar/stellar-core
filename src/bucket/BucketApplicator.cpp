@@ -191,45 +191,49 @@ void
 BucketApplicator::Counters::reset(VirtualClock::time_point now)
 {
     mStarted = now;
-    mUpserted.fill(0);
-    mDeleted.fill(0);
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType t = static_cast<LedgerEntryType>(let);
+        mCounters[t] = {0, 0};
+    }
 }
 
 void
-BucketApplicator::Counters::getRates(VirtualClock::time_point now,
-                                     CounterArray& upserted_sec,
-                                     CounterArray& deleted_sec, uint64_t& T_sec,
-                                     uint64_t& total)
+BucketApplicator::Counters::getRates(
+    VirtualClock::time_point now,
+    std::map<LedgerEntryType, CounterEntry>& sec_counters, uint64_t& T_sec,
+    uint64_t& total)
 {
     VirtualClock::duration dur = now - mStarted;
     auto usec = std::chrono::duration_cast<std::chrono::microseconds>(dur);
     uint64_t usecs = usec.count() + 1;
     total = 0;
-    for (auto i = 0; i < std::tuple_size<CounterArray>::value; ++i)
+    for (auto const& [t, countPair] : mCounters)
     {
-        upserted_sec[i] = (mUpserted[i] * 1000000) / usecs;
-        deleted_sec[i] = (mDeleted[i] * 1000000) / usecs;
-        total += mUpserted[i];
-        total += mDeleted[i];
+        sec_counters[t] = {(countPair.numUpserted * 1000000) / usecs,
+                           (countPair.numDeleted * 1000000) / usecs};
+        total += countPair.numUpserted + countPair.numDeleted;
     }
 
     T_sec = (total * 1000000) / usecs;
 }
 
 std::string
-BucketApplicator::Counters::logStr(uint64_t total, uint64_t level,
-                                   std::string const& bucketName,
-                                   CounterArray const& upserted,
-                                   CounterArray const& deleted)
+BucketApplicator::Counters::logStr(
+    uint64_t total, uint64_t level, std::string const& bucketName,
+    std::map<LedgerEntryType, CounterEntry> const& counters)
 {
-    return fmt::format("for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
-                       "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} "
-                       "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} eeu:{} eed:{}",
-                       total, level, bucketName, upserted[0], deleted[0],
-                       upserted[1], deleted[1], upserted[2], deleted[2],
-                       upserted[3], deleted[3], upserted[4], deleted[4],
-                       upserted[5], deleted[5], upserted[6], deleted[6],
-                       upserted[7], deleted[7], upserted[8], deleted[8]);
+    auto str =
+        fmt::format("for {}-entry bucket {}.{}", total, level, bucketName);
+
+    for (auto const& [let, countPair] : counters)
+    {
+        auto label = xdr::xdr_traits<LedgerEntryType>::enum_name(let);
+        str += fmt::format(" {} up: {}, del: {}", label, countPair.numUpserted,
+                           countPair.numDeleted);
+    }
+
+    return str;
 }
 
 void
@@ -238,13 +242,12 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
                                     VirtualClock::time_point now)
 {
     uint64_t T_sec, total;
-    CounterArray upserted_sec, deleted_sec;
-    getRates(now, upserted_sec, deleted_sec, T_sec, total);
+    std::map<LedgerEntryType, CounterEntry> sec_counters;
+    getRates(now, sec_counters, T_sec, total);
     CLOG_INFO(Bucket, "Apply-rates {} T:{}",
-              logStr(total, level, bucketName, upserted_sec, deleted_sec),
-              T_sec);
+              logStr(total, level, bucketName, sec_counters), T_sec);
     CLOG_INFO(Bucket, "Entry-counts {}",
-              logStr(total, level, bucketName, mUpserted, mDeleted));
+              logStr(total, level, bucketName, mCounters));
 }
 
 void
@@ -253,11 +256,10 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
                                      VirtualClock::time_point now)
 {
     uint64_t T_sec, total;
-    CounterArray upserted_sec, deleted_sec;
-    getRates(now, upserted_sec, deleted_sec, T_sec, total);
+    std::map<LedgerEntryType, CounterEntry> sec_counters;
+    getRates(now, sec_counters, T_sec, total);
     CLOG_DEBUG(Bucket, "Apply-rates {} T:{}",
-               logStr(total, level, bucketName, upserted_sec, deleted_sec),
-               T_sec);
+               logStr(total, level, bucketName, sec_counters), T_sec);
 }
 
 void
@@ -265,11 +267,18 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
 {
     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {
-        ++mUpserted[e.liveEntry().data.type()];
+        auto let = e.liveEntry().data.type();
+        auto iter = mCounters.find(let);
+        releaseAssert(iter != mCounters.end());
+        ++iter->second.numUpserted;
     }
     else
     {
-        ++mDeleted[e.deadEntry().type()];
+        auto let = e.deadEntry().type();
+        releaseAssert(let != CONFIG_SETTING);
+        auto iter = mCounters.find(let);
+        releaseAssert(iter != mCounters.end());
+        ++iter->second.numDeleted;
     }
 }
 }
