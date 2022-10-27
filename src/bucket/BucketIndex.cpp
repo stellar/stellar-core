@@ -57,6 +57,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
         bloom_parameters params;
         params.projected_element_count = estimatedNumElems;
         params.false_positive_probability = 0.001; // 1 in 1000
+        crypto_shorthash_keygen(params.random_seed.data());
         params.compute_optimal_parameters();
         mFilter = std::make_unique<bloom_filter>(params);
         estimatedIndexEntries = fileSize / mPageSize;
