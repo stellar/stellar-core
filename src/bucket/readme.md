@@ -33,7 +33,7 @@ of the buckets) is retrieved from history and applied in order to perform "fast"
 Currently, the state of the ledger is redundantly copied in two places: the local SQL database
 and the BucketList. The BucketList is used to quickly compute the hash for a ledger, while the
 database is used for key-value lookup. This disjoint setup leads to write and disk amplification.
-Additionally, SQL is not the most effecient database for our read/write patterns. The database
+Additionally, SQL is not the most efficient database for our read/write patterns. The database
 receives a single large, atomic write whenever a ledger closes and many
 reads during consensus. There is never a write during a read, so all the reads occur on an
 effectively
@@ -82,24 +82,15 @@ for smaller memory overhead.
 Because the `BucketIndex`'s must be in memory, there is a tradeoff between BucketList
 lookup speed and memory overhead. The following configuration flags control these options:
 
-- `EXPERIMENTAL_BUCKET_KV_STORE`
+- `EXPERIMENTAL_BUCKETLIST_DB`
   - When set to true, the `BucketList` is indexed and used for ledger entry lookup
-- `EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE`
-  - Page size, in bytes, used for `RangeIndex`. Larger values slow down lookup speed but
+- `EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`
+  - Page size used for `RangeIndex`, where `pageSize ==
+    2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`.
+    Larger values slow down lookup speed but
     decrease memory usage.
-- `EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF`
-  - Bucket file size, in bytes, tyhat determines wether the `IndividualIndex` or
+- `EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF`
+  - Bucket file size, in MB, tyhat determines wether the `IndividualIndex` or
    `RangeIndex` is used.
     Default value is 20 MB, which indexes the first ~3 levels with the `IndividualIndex`.
     Larger values speed up lookups but increase memory usage.
-- `EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX`
-  - When set to true, merged buckets are not indexed in the background. By default,
-    `FutureBucket`'s are indexed while they are being merged so that they can be searched
-    immediately after they are resolved. However, this effectively doubles the memory
-    overhead, as both the current `BucketList` is indexed as well as all the outstanding
-    `FutureBucket`'s. This flag reduces the memory overhead by only indexing buckets when
-    they are searched. For the largest buckets, this could take 30+ seconds and could
-    occur at any time if this flag is set. This means that a validator could halt and
-    de-sync with the network while indexing a large bucket on the main thread. This
-    flag should never be set on a validator, but may be useful in memory sensitive
-    situations like performing parallel catchup.

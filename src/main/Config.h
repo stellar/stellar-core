@@ -263,24 +263,20 @@ class Config : public std::enable_shared_from_this<Config>
 
     // A config parameter that when set uses the BucketList as the primary
     // key-value store for LedgerEntry lookups
-    bool EXPERIMENTAL_BUCKET_KV_STORE;
+    bool EXPERIMENTAL_BUCKETLIST_DB;
 
-    // A config parameter that when set lazily initializes bucket indexes when
-    // needed. This lowers the bucket index memory usage, but significantly
-    // reduces lookup speed. Should never be set on a validator node, node will
-    // fall out of sync with network.
-    bool EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX;
+    // Page size exponent used by BucketIndex when indexing ranges of
+    // BucketEntry's. If set to 0, BucketEntry's are individually indexed.
+    // Otherwise, pageSize ==
+    // 2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
 
-    // Page size used by BucketIndex when indexing ranges of BucketEntry's. If
-    // set to 0, BucketEntry's are individually indexed.
-    size_t EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
-
-    // Size, in bytes, determining whether a bucket should have an individual
+    // Size, in MB, determining whether a bucket should have an individual
     // key index or a key range index. If bucket size is below this value, range
     // based index will be used. If set to 0, all buckets are range indexed. If
     // index page size == 0, value ingnored and all buckets have individual key
     // index.
-    size_t EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF;
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
@@ -524,14 +520,6 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryModeWithoutMinimalDB() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
-
-    inline bool
-    shouldIndex() const
-    {
-        return EXPERIMENTAL_BUCKET_KV_STORE &&
-               !EXPERIMENTAL_BUCKET_KV_STORE_LAZY_INDEX;
-    }
-
     void logBasicInfo();
     void setNoListen();
     void setNoPublish();

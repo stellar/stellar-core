@@ -458,13 +458,11 @@ class BucketList
 
     // Look up a ledger entry from the BL. Returns nullopt if the LE is dead /
     // nonexistent.
-    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k,
-                                                Config const& cfg) const;
+    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry for all keys.
     std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-             Config const& cfg) const;
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,

@@ -375,12 +375,11 @@ BucketList::getHash() const
 void
 BucketList::loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const
 {
-    for (size_t i = 0; i < mLevels.size(); ++i)
+    for (auto const& lev : mLevels)
     {
-        auto const& lev = mLevels[i];
         std::array<std::shared_ptr<Bucket>, 2> buckets = {lev.getCurr(),
                                                           lev.getSnap()};
-        for (auto b : buckets)
+        for (auto& b : buckets)
         {
             if (b->isEmpty())
             {
@@ -396,13 +395,13 @@ BucketList::loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const
 }
 
 std::shared_ptr<LedgerEntry>
-BucketList::getLedgerEntry(LedgerKey const& k, Config const& cfg) const
+BucketList::getLedgerEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
     auto f = [&](std::shared_ptr<Bucket> b) {
-        auto be = b->getBucketEntry(k, cfg);
+        auto be = b->getBucketEntry(k);
         if (be.has_value())
         {
             result =
@@ -421,15 +420,8 @@ BucketList::getLedgerEntry(LedgerKey const& k, Config const& cfg) const
     return result;
 }
 
-// Since the input is sorted, we do a binary search at each level for the first
-// key in keys. If we find the entry, we remove the found key from keys and do
-// another binary search for the next key starting where we left off. If we
-// don't find the entry, we do not remove it from keys so that it will be
-// searched for again at a lower level.
-// The next iteration will add sharding and threading to this function
 std::vector<LedgerEntry>
-BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     Config const& cfg) const
+BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
@@ -437,32 +429,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        auto currKeyIt = keys.begin();
-        auto const& index = b->getIndex(cfg);
-        auto indexIter = index.begin();
-        while (currKeyIt != keys.end() && indexIter != index.end())
-        {
-            auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
-            indexIter = newIndexIter;
-            if (offOp)
-            {
-                auto entryOp = b->getEntryAtOffset(
-                    *currKeyIt, *offOp, b->getIndex(cfg).getPageSize());
-                if (entryOp)
-                {
-                    if (entryOp->type() != DEADENTRY)
-                    {
-                        entries.push_back(entryOp->liveEntry());
-                    }
-
-                    currKeyIt = keys.erase(currKeyIt);
-                    continue;
-                }
-            }
-
-            ++currKeyIt;
-        }
-
+        b->loadKeys(keys, entries);
         return keys.empty();
     };
 
@@ -480,81 +447,17 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
     UnorderedSet<LedgerKey> deadTrustlines;
     LedgerKeySet liquidityPoolKeysToSearch;
 
-    // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
-    // poolshare trusline for the given accountID
-    auto trustlineCheck = [&accountID](auto const& entry) {
-        return entry.type() == TRUSTLINE &&
-               entry.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE &&
-               entry.trustLine().accountID.ed25519() == accountID.ed25519();
-    };
-
     // First get all the poolshare trustlines for the given account
     auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
-        // Get upper and lower bound for poolsahre trustline range associated
-        // with this account
-        auto searchRange =
-            b->getIndex(cfg).getPoolshareTrustlineRange(accountID);
-        if (searchRange.first == 0)
-        {
-            return false; // continue
-        }
-
-        BucketEntry be;
-        auto& stream = b->getStream();
-        stream.seek(searchRange.first);
-        while (stream && stream.pos() < searchRange.second &&
-               stream.readOne(be))
-        {
-            LedgerEntry entry;
-            switch (be.type())
-            {
-            case LIVEENTRY:
-            case INITENTRY:
-                entry = be.liveEntry();
-                break;
-            case DEADENTRY:
-            {
-                auto key = be.deadEntry();
-
-                // If we find a valid trustline key and we have not seen the
-                // key yet, mark it as dead so we do not load a shadowed version
-                // later
-                if (trustlineCheck(key))
-                {
-                    deadTrustlines.emplace(key);
-                }
-                continue;
-            }
-            case METAENTRY:
-            default:
-                throw std::invalid_argument("Indexed METAENTRY");
-            }
-
-            // If this is a pool share trustline that matches the accountID and
-            // is not shadowed
-            if (trustlineCheck(entry.data) &&
-                deadTrustlines.find(LedgerEntryKey(entry)) ==
-                    deadTrustlines.end())
-            {
-                auto const& poolshareID =
-                    entry.data.trustLine().asset.liquidityPoolID();
-
-                LedgerKey key;
-                key.type(LIQUIDITY_POOL);
-                key.liquidityPool().liquidityPoolID = poolshareID;
-
-                liquidityPoolToTrustline.emplace(key, entry);
-                liquidityPoolKeysToSearch.emplace(key);
-            }
-        }
-
+        b->loadPoolShareTrustLinessByAccount(accountID, deadTrustlines,
+                                             liquidityPoolToTrustline,
+                                             liquidityPoolKeysToSearch);
         return false; // continue
     };
-
     loopAllBuckets(trustLineLoop);
 
     // Load all the LiquidityPool entries that the account has a trustline for.
-    auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch, cfg);
+    auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch);
     // pools always exist when there are trustlines
     releaseAssertOrThrow(liquidityPoolEntries.size() ==
                          liquidityPoolKeysToSearch.size());

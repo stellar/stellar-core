@@ -26,15 +26,8 @@ AssumeStateWork::doWork()
     {
         std::vector<std::shared_ptr<BasicWork>> seq;
 
-        auto assumeBLStateCB = [&has = mHas](Application& app) {
-            app.getBucketManager().assumeState(has);
-            return true;
-        };
-        auto assumeBLStateWork = std::make_shared<WorkWithCallback>(
-            mApp, "assume-bl-state", assumeBLStateCB);
-        seq.push_back(assumeBLStateWork);
-
-        if (mApp.getConfig().shouldIndex())
+        mApp.getBucketManager().assumeState(mHas);
+        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
         {
             seq.push_back(std::make_shared<IndexBucketsWork>(mApp));
         }

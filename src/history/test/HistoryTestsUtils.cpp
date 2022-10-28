@@ -654,7 +654,7 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
-    mCfgs.back().EXPERIMENTAL_BUCKET_KV_STORE = useBucketListDB;
+    mCfgs.back().EXPERIMENTAL_BUCKETLIST_DB = useBucketListDB;
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),

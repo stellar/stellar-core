@@ -24,11 +24,6 @@ class IndexBucketsWork : public BasicWork
 
   protected:
     State onRun() override;
-    void onReset() override;
-    bool
-    onAbort() override
-    {
-        return true;
-    };
+    bool onAbort() override;
 };
 }

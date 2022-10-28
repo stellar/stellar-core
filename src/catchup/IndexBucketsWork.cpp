@@ -31,6 +31,12 @@ IndexBucketsWork::onRun()
     return State::WORK_WAITING;
 }
 
+bool
+IndexBucketsWork::onAbort()
+{
+    return true;
+}
+
 void
 IndexBucketsWork::spawnWork()
 {
@@ -55,12 +61,11 @@ IndexBucketsWork::spawnWork()
                 // already been indexed when assuming LCL state, so also check
                 // b->isIndexed.
                 if (b->isEmpty() || b->isIndexed() ||
-                    indexedBuckets.find(b->getHash()) != indexedBuckets.end())
+                    !indexedBuckets.insert(b->getHash()).second)
                 {
                     return;
                 }
 
-                indexedBuckets.insert(b->getHash());
                 b->setIndex(BucketIndex::createIndex(app.getConfig(),
                                                      b->getFilename()));
             };
@@ -92,27 +97,5 @@ IndexBucketsWork::spawnWork()
                 "IndexBuckets: finish");
         },
         "IndexBuckets: start in background");
-}
-
-void
-IndexBucketsWork::onReset()
-{
-    // Must free all indexes so subsequent calls to IndexBucketsWork don't trip
-    // setIndex assert
-    auto& bm = this->mApp.getBucketManager();
-    for (uint32_t i = 0; i < bm.getBucketList().kNumLevels; ++i)
-    {
-        auto& level = bm.getBucketList().getLevel(i);
-        level.getCurr()->freeIndex();
-        level.getSnap()->freeIndex();
-        auto& nextFuture = level.getNext();
-        if (nextFuture.hasOutputHash())
-        {
-            auto hash = hexToBin256(nextFuture.getOutputHash());
-            bm.getBucketByHash(hash)->freeIndex();
-        }
-    }
-
-    mDone = false;
 }
 }

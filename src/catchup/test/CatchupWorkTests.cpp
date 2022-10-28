@@ -127,14 +127,14 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
 static void
 runExperimentalBucketListTest(std::function<void(Config const&)> f)
 {
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB enabled")
     {
         auto cfg = getTestConfig();
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB disabled")
     {
         auto cfg = getTestConfig();
         f(cfg);

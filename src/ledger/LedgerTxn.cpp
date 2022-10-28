@@ -2689,7 +2689,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
 
-    auto bucketKVStore = mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE;
+    auto bucketKVStore = mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB;
     auto bleca = BulkLedgerEntryChangeAccumulator();
     [[maybe_unused]] int64_t counter{0};
     try
@@ -2915,7 +2915,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         }
     };
 
-    if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
     {
         LedgerKeySet keysToSearch;
         for (auto const& key : keys)
@@ -2923,8 +2923,8 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             insertIfNotLoaded(keysToSearch, key);
         }
 
-        auto blLoad = mApp.getBucketManager().getBucketList().loadKeys(
-            keysToSearch, mApp.getConfig());
+        auto blLoad =
+            mApp.getBucketManager().getBucketList().loadKeys(keysToSearch);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3426,7 +3426,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     std::vector<LedgerEntry> trustLines;
     try
     {
-        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
         {
             trustLines = mApp.getBucketManager()
                              .getBucketList()
@@ -3491,7 +3491,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
         {
             return mApp.getBucketManager().getBucketList().loadInflationWinners(
                 maxWinners, minVotes);
@@ -3548,11 +3548,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     try
     {
 
-        if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE &&
-            key.type() != OFFER)
+        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && key.type() != OFFER)
         {
-            entry = mApp.getBucketManager().getBucketList().getLedgerEntry(
-                key, mApp.getConfig());
+            entry = mApp.getBucketManager().getBucketList().getLedgerEntry(key);
         }
         else
         {

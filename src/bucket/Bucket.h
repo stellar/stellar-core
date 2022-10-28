@@ -9,6 +9,8 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include <optional>
 #include <string>
@@ -45,19 +47,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Lazily-constructed and retained for read path.
     std::unique_ptr<XDRInputFileStream> mStream;
 
-  public:
-    // Create an empty bucket. The empty bucket has hash '000000...' and its
-    // filename is the empty string.
-    Bucket();
-
-    // Returns true if bucket is indexed, false otherwise
-    bool isIndexed() const;
-
-    // Sets index, throws if index is already set
-    void setIndex(std::unique_ptr<BucketIndex const> index);
-
     // Returns index, throws if index not yet initialized
-    BucketIndex const& getIndex(Config const& cfg);
+    BucketIndex const& getIndex() const;
 
     // Returns (lazily-constructed) file stream for bucket file. Note
     // this might be in some random position left over from a previous read --
@@ -69,15 +60,16 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     std::optional<BucketEntry>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
 
-    // Loads bucket entry for LedgerKey k.
-    std::optional<BucketEntry> getBucketEntry(LedgerKey const& k,
-                                              Config const& cfg);
+  public:
+    // Create an empty bucket. The empty bucket has hash '000000...' and its
+    // filename is the empty string.
+    Bucket();
 
     // Construct a bucket with a given filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
     Bucket(std::string const& filename, Hash const& hash,
-           std::unique_ptr<BucketIndex const> index);
+           std::unique_ptr<BucketIndex const>&& index);
 
     Hash const& getHash() const;
     std::filesystem::path const& getFilename() const;
@@ -89,11 +81,33 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     bool isEmpty() const;
 
-    void
-    freeIndex()
-    {
-        mIndex.reset(nullptr);
-    }
+    // Delete index and close file stream
+    void freeIndex();
+
+    // Returns true if bucket is indexed, false otherwise
+    bool isIndexed() const;
+
+    // Sets index, throws if index is already set
+    void setIndex(std::unique_ptr<BucketIndex const>&& index);
+
+    // Loads bucket entry for LedgerKey k.
+    std::optional<BucketEntry> getBucketEntry(LedgerKey const& k);
+
+    // Loads LedgerEntry's for given keys. When a key is found, the
+    // entry is added to result and the key is removed from keys.
+    void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                  std::vector<LedgerEntry>& result);
+
+    // Loads all poolshare trustlines for the given account. Trustlines are
+    // stored with their corresponding liquidity pool key in
+    // liquidityPoolKeyToTrustline. All liquidity pool keys corresponding to
+    // loaded trustlines are also reduntantly stored in liquidityPoolKeys.
+    // If a trustline key is in deadTrustlines, it is not loaded. Whenever a
+    // dead trustline is found, its key is added to deadTrustlines.
+    void loadPoolShareTrustLinessByAccount(
+        AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+        UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
+        LedgerKeySet& liquidityPoolKeys);
 
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.

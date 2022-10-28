@@ -240,7 +240,7 @@ CatchupWork::downloadApplyBuckets()
     }
 
     std::shared_ptr<ApplyBucketsWork> applyBuckets;
-    if (mApp.getConfig().EXPERIMENTAL_BUCKET_KV_STORE)
+    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
     {
         // Only apply offers to SQL DB when BucketList lookup is enabled
         auto filter = [](LedgerEntryType t) { return t == OFFER; };
@@ -621,7 +621,7 @@ CatchupWork::runCatchupStep()
             }
             // If there are no buckets to apply, still need to index BL before
             // ledgers can be replayed
-            else if (mApp.getConfig().shouldIndex())
+            else if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
             {
                 auto indexBuckets = std::make_shared<IndexBucketsWork>(mApp);
                 seq.push_back(indexBuckets);

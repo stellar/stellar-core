@@ -148,14 +148,14 @@ class BucketIndexTest
     run()
     {
         // Test bulk load lookup
-        auto loadResult = mBl.loadKeys(mKeysToSearch, mApp->getConfig());
+        auto loadResult = mBl.loadKeys(mKeysToSearch);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = mBl.getLedgerEntry(key, mApp->getConfig());
+            auto entryPtr = mBl.getLedgerEntry(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -196,7 +196,7 @@ class BucketIndexTest
                 }
             }
 
-            auto blLoad = mBl.loadKeys(searchSubset, mApp->getConfig());
+            auto blLoad = mBl.loadKeys(searchSubset);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -209,12 +209,12 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(mBl.loadKeys(invalidKeys, mApp->getConfig()).size() == 0);
+        REQUIRE(mBl.loadKeys(invalidKeys).size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = mBl.getLedgerEntry(key, mApp->getConfig());
+            auto entryPtr = mBl.getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -344,26 +344,26 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("individual index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE = 0;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
         f(cfg);
     }
 
     SECTION("individual and range index")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
 
         // First 3 levels individual, last 3 range index
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF = 100000;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
         f(cfg);
     }
 
     SECTION("range index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF = 0;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
         f(cfg);
     }
 }
@@ -413,18 +413,4 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
 
     testAllIndexTypes(f);
 }
-
-// Very slow, must linear search every bucket for each lookup
-TEST_CASE("key-value lookup perf", "[bucket][bucketindex][!hide]")
-{
-    Config cfg(getTestConfig());
-    cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
-    cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF = 0;
-    cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF = 225000;
-
-    auto test = BucketIndexTest(cfg, 8);
-    test.buildGeneralTest();
-    test.runPerf(1000);
-}
-
 }

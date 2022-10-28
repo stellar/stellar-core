@@ -38,12 +38,12 @@ using namespace historytestutils;
 static void
 runBucketKVTest(std::function<void(bool)> f)
 {
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB enabled")
     {
         f(true);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB disabled")
     {
         f(false);
     }
@@ -208,14 +208,14 @@ TEST_CASE("History bucket verification", "[history][catchup]")
         }
     };
 
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE enabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB enabled")
     {
         auto cfg = getTestConfig();
-        cfg.EXPERIMENTAL_BUCKET_KV_STORE = true;
+        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
         f(cfg);
     }
 
-    SECTION("EXPERIMENTAL_BUCKET_KV_STORE disabled")
+    SECTION("EXPERIMENTAL_BUCKETLIST_DB disabled")
     {
         auto cfg = getTestConfig();
         f(cfg);

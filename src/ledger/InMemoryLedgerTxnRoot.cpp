@@ -115,43 +115,43 @@ InMemoryLedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(
 }
 
 void
-InMemoryLedgerTxnRoot::dropAccounts(bool rebuild)
+InMemoryLedgerTxnRoot::dropAccounts(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropData(bool rebuild)
+InMemoryLedgerTxnRoot::dropData(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropOffers(bool rebuild)
+InMemoryLedgerTxnRoot::dropOffers(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropTrustLines(bool rebuild)
+InMemoryLedgerTxnRoot::dropTrustLines(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropClaimableBalances(bool rebuild)
+InMemoryLedgerTxnRoot::dropClaimableBalances(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropLiquidityPools(bool rebuild)
+InMemoryLedgerTxnRoot::dropLiquidityPools(bool)
 {
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-InMemoryLedgerTxnRoot::dropContractData(bool rebuild)
+InMemoryLedgerTxnRoot::dropContractData(bool)
 {
 }
 
 void
-InMemoryLedgerTxnRoot::dropConfigSettings(bool rebuild)
+InMemoryLedgerTxnRoot::dropConfigSettings(bool)
 {
 }
 #endif
@@ -163,7 +163,7 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 }
 
 uint32_t
-InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
+InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
 {
     return 0;
 }

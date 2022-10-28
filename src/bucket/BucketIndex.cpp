@@ -31,15 +31,63 @@ getDummyPoolShareTrustlineKey(AccountID const& accountID, uint8_t fill)
     return key;
 }
 
+// Index maps a range of BucketEntry's to the associated offset
+// within the bucket file. Index stored as two vectors, one stores
+// LedgerKey ranges sorted in the same scheme as LedgerEntryCmp, the other
+// stores offsets into the bucket file for a given key/ key range. pageSize
+// determines how large, in bytes, each range should be. pageSize == 0 indicates
+// that individual index.
+template <class IndexT> class BucketIndexImpl : public BucketIndex
+{
+    IndexT mKeys{};
+    std::vector<std::streamoff> mPositions{};
+    std::streamoff const mPageSize{};
+    std::unique_ptr<bloom_filter> mFilter{};
+
+    BucketIndexImpl(std::filesystem::path const& filename,
+                    std::streamoff pageSize);
+
+    friend std::unique_ptr<BucketIndex const>
+    BucketIndex::createIndex(Config const& cfg,
+                             std::filesystem::path const& filename);
+
+  public:
+    BucketIndexImpl() = default;
+
+    virtual std::optional<std::streamoff>
+    lookup(LedgerKey const& k) const override;
+
+    virtual std::pair<std::optional<std::streamoff>, Iterator>
+    scan(Iterator start, LedgerKey const& k) const override;
+
+    virtual std::pair<std::streamoff, std::streamoff>
+    getPoolshareTrustlineRange(AccountID const& accountID) const override;
+
+    virtual std::streamoff
+    getPageSize() const override
+    {
+        return mPageSize;
+    }
+
+    virtual Iterator
+    begin() const override
+    {
+        return mKeys.begin();
+    }
+
+    virtual Iterator
+    end() const override
+    {
+        return mKeys.end();
+    }
+};
+
 template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
                                          std::streamoff pageSize)
     : mPageSize(pageSize)
 {
     ZoneScoped;
-
-    // Assert pageSize is a power of 2 for disk IO optimization
-    releaseAssert((pageSize & (pageSize - 1)) == 0);
     releaseAssert(!filename.empty());
 
     auto timer = LogSlowExecution("Indexing bucket");
@@ -111,35 +159,59 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
     releaseAssertOrThrow(mPositions.size() == mKeys.size());
 }
 
-// For range index, check if key is within range
+// Returns true if the key is not contained within the given IndexEntry.
+// Range index: check if key is outside range of indexEntry
+// Individual index: check if key does not match indexEntry key
+template <class IndexEntryT>
 static bool
-operator!=(LedgerKey const& key,
-           BucketIndex::RangeIndex::const_iterator const& iter)
+keyNotInIndexEntry(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    return key < iter->lowerBound || iter->upperBound < key;
+    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    {
+        return key < indexEntry.lowerBound || indexEntry.upperBound < key;
+    }
+    else
+    {
+        return !(key == indexEntry);
+    }
 }
 
-// For individual index, check if key is equal to key that iterator points
-// to
+// std::lower_bound predicate. Returns true if index comes "before" key and does
+// not contain it
+// If key is too small for indexEntry bounds: return false
+// If key is contained within indexEntry bounds: return false
+// If key is too large for indexEntry bounds: return true
+template <class IndexEntryT>
 static bool
-operator!=(LedgerKey const& key,
-           BucketIndex::IndividualIndex::const_iterator const& iter)
+lower_bound_pred(IndexEntryT const& indexEntry, LedgerKey const& key)
 {
-    return !(key == *iter);
+    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    {
+        return indexEntry.upperBound < key;
+    }
+    else
+    {
+        return indexEntry < key;
+    }
 }
 
-// std::lower_bound operator for searching for a key in the RangeIndex
+// std::upper_bound predicate. Returns true if key comes "before" and is not
+// contained within the indexEntry.
+// If key is too small for indexEntry bounds: return true
+// If key is contained within indexEntry bounds: return false
+// If key is too large for indexEntry bounds: return false
+template <class IndexEntryT>
 static bool
-operator<(LedgerKey const& key, BucketIndex::RangeEntry const& indexEntry)
+upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    return key < indexEntry.lowerBound;
-}
-
-// std::upper_bound operator for searching for a key in the RangeIndex
-static bool
-operator<(BucketIndex::RangeEntry const& indexEntry, LedgerKey const& key)
-{
-    return indexEntry.upperBound < key;
+    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    {
+        return key < indexEntry.lowerBound;
+    }
+    else
+    {
+        return key < indexEntry;
+    }
 }
 
 std::unique_ptr<BucketIndex const>
@@ -147,10 +219,15 @@ BucketIndex::createIndex(Config const& cfg,
                          std::filesystem::path const& filename)
 {
     ZoneScoped;
-    releaseAssertOrThrow(cfg.EXPERIMENTAL_BUCKET_KV_STORE);
+    releaseAssertOrThrow(cfg.EXPERIMENTAL_BUCKETLIST_DB);
     releaseAssertOrThrow(!filename.empty());
-    auto pageSize = cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
-    auto cutoff = cfg.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_CUTOFF;
+
+    auto pageSizeExp = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+    releaseAssertOrThrow(pageSizeExp < 32);
+    auto pageSize = pageSizeExp == 0 ? 0 : 1UL << pageSizeExp;
+
+    // Conver to bytes
+    auto cutoff = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF * 1000000;
     if (pageSize == 0 || fs::size(filename.string()) < cutoff)
     {
         CLOG_INFO(Bucket,
@@ -188,14 +265,16 @@ BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(mKeys.size()));
-    if (mFilter && !mFilter->contains(std::hash<stellar::LedgerKey>()(k)))
-    {
-        return {std::nullopt, start};
-    }
 
     auto internalStart = std::get<typename IndexT::const_iterator>(start);
-    auto keyIter = std::lower_bound(internalStart, mKeys.end(), k);
-    if (keyIter == mKeys.end() || k != keyIter)
+    auto keyIter =
+        std::lower_bound(internalStart, mKeys.end(), k,
+                         lower_bound_pred<typename IndexT::value_type>);
+
+    // If the key is not in the bloom filter or in the lower bounded index
+    // entry, return nullopt
+    if ((mFilter && !mFilter->contains(std::hash<stellar::LedgerKey>()(k))) ||
+        keyIter == mKeys.end() || keyNotInIndexEntry(k, *keyIter))
     {
         return {std::nullopt, keyIter};
     }
@@ -219,13 +298,17 @@ BucketIndexImpl<IndexT>::getPoolshareTrustlineRange(
         accountID, std::numeric_limits<uint8_t>::min());
 
     // Get the index iterators for the bounds
-    auto startIter = std::lower_bound(mKeys.begin(), mKeys.end(), lowerBound);
+    auto startIter =
+        std::lower_bound(mKeys.begin(), mKeys.end(), lowerBound,
+                         lower_bound_pred<typename IndexT::value_type>);
     if (startIter == mKeys.end())
     {
         return {};
     }
 
-    auto endIter = std::upper_bound(startIter, mKeys.end(), upperBound);
+    auto endIter =
+        std::upper_bound(startIter, mKeys.end(), upperBound,
+                         upper_bound_pred<typename IndexT::value_type>);
 
     // Get file offsets based on lower and upper bound iterators
     std::streamoff startOff = mPositions.at(startIter - mKeys.begin());

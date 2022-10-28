@@ -150,7 +150,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     std::set<LedgerEntryType> toDrop;
     std::set<LedgerEntryType> toRebuild;
     auto& ps = app.getPersistentState();
-    auto blEnabled = app.getConfig().EXPERIMENTAL_BUCKET_KV_STORE;
+    auto blEnabled = app.getConfig().EXPERIMENTAL_BUCKETLIST_DB;
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
@@ -673,33 +673,31 @@ ApplicationImpl::validateAndLogConfig()
             "requires --in-memory");
     }
 
-    if (mConfig.EXPERIMENTAL_BUCKET_KV_STORE)
+    if (mConfig.EXPERIMENTAL_BUCKETLIST_DB)
     {
         mPersistentState->setState(PersistentState::kDBBackend,
                                    BucketIndex::DBBackendState);
-        auto pageSize = mConfig.EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE;
-        if (pageSize != 0)
+        auto pageSizeExp =
+            mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+        if (pageSizeExp != 0)
         {
             // If the page size is less than 256 bytes, it is essentially
             // indexing individual keys, so page size should be set to 0
             // instead.
-            if (pageSize < 256)
+            if (pageSizeExp < 8)
             {
                 throw std::invalid_argument(
-                    "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE must "
-                    "be at least 256 bytes or set to 0 for individual entry "
+                    "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                    "must be at least 8 or set to 0 for individual entry "
                     "indexing");
             }
 
-            // Check if pageSize is a power of 2
-            // readPage uses pageSize to read from disk, so this check
-            // enforces better disk optimization
-            if ((pageSize & (pageSize - 1)) != 0)
+            // Check if pageSize will cause overflow
+            if (pageSizeExp > 31)
             {
                 throw std::invalid_argument(
-                    "EXPERIMENTAL_BUCKET_KV_STORE_INDEX_PAGE_SIZE must "
-                    "be a power of 2 or set to 0 for individual entry "
-                    "indexing");
+                    "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                    "must be less than 32");
             }
         }
     }
@@ -707,7 +705,7 @@ ApplicationImpl::validateAndLogConfig()
              BucketIndex::DBBackendState)
     {
         throw std::invalid_argument(
-            "To downgrade from EXPERIMENTAL_BUCKET_KV_STORE, run "
+            "To downgrade from EXPERIMENTAL_BUCKETLIST_DB, run "
             "stellar-core new-db.");
     }
 

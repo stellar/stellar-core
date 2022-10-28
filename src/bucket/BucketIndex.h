@@ -35,6 +35,8 @@ class Config;
 class BucketIndex : public NonMovableOrCopyable
 {
   public:
+    // maps smallest and largest LedgerKey on a given page inclusively
+    // [lowerBound, upperbound]
     struct RangeEntry
     {
         LedgerKey lowerBound;
@@ -67,10 +69,11 @@ class BucketIndex : public NonMovableOrCopyable
     // the key is not found
     virtual std::optional<std::streamoff> lookup(LedgerKey const& k) const = 0;
 
-    // Begins searching for LegerKey k from start. Returns pair of file offset
-    // and index iterator. First pair entry is offset in the bucket file for
-    // given key, or std::nullopt if not found. Second entry is iterator that
-    // points to first index entry < k
+    // Begins searching for LegerKey k from start.
+    // Returns pair of:
+    // file offset in the bucket file for k, or std::nullopt if not found
+    // iterator that points to the first index entry not less than k, or
+    // BucketIndex::end()
     virtual std::pair<std::optional<std::streamoff>, Iterator>
     scan(Iterator start, LedgerKey const& k) const = 0;
 
@@ -86,56 +89,5 @@ class BucketIndex : public NonMovableOrCopyable
     virtual Iterator begin() const = 0;
 
     virtual Iterator end() const = 0;
-};
-
-// Index maps a range of BucketEntry's to the associated offset
-// within the bucket file. Index stored as two vectors, one stores
-// LedgerKey ranges sorted in the same scheme as LedgerEntryCmp, the other
-// stores offsets into the bucket file for a given key/ key range. pageSize
-// determines how large, in bytes, each range should be. pageSize == 0 indicates
-// that individual index.
-template <class IndexT> class BucketIndexImpl : public BucketIndex
-{
-    IndexT mKeys{};
-    std::vector<std::streamoff> mPositions{};
-    std::streamoff const mPageSize{};
-    std::unique_ptr<bloom_filter> mFilter{};
-
-    BucketIndexImpl(std::filesystem::path const& filename,
-                    std::streamoff pageSize);
-
-    friend std::unique_ptr<BucketIndex const>
-    BucketIndex::createIndex(Config const& cfg,
-                             std::filesystem::path const& filename);
-
-  public:
-    BucketIndexImpl() = default;
-
-    virtual std::optional<std::streamoff>
-    lookup(LedgerKey const& k) const override;
-
-    virtual std::pair<std::optional<std::streamoff>, Iterator>
-    scan(Iterator start, LedgerKey const& k) const override;
-
-    virtual std::pair<std::streamoff, std::streamoff>
-    getPoolshareTrustlineRange(AccountID const& accountID) const override;
-
-    virtual std::streamoff
-    getPageSize() const override
-    {
-        return mPageSize;
-    }
-
-    virtual Iterator
-    begin() const override
-    {
-        return mKeys.begin();
-    }
-
-    virtual Iterator
-    end() const override
-    {
-        return mKeys.end();
-    }
 };
 }
