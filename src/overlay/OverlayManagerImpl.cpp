@@ -310,11 +310,8 @@ OverlayManagerImpl::start()
             },
             VirtualTimer::onFailureNoop);
     }
-    if (mApp.getConfig().ENABLE_PULL_MODE)
-    {
-        // Start demanding.
-        demand();
-    }
+    // Start demanding.
+    demand();
 }
 
 void

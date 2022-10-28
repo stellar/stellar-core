@@ -213,7 +213,6 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 // While there's no strict requirement for batching,
                 // it seems more useful to test more realistic settings.
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-                cfg.ENABLE_PULL_MODE = true;
                 return cfg;
             };
             SECTION("pull mode with 2 nodes")

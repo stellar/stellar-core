@@ -65,7 +65,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_PULL_MODE = 24;
+    static constexpr uint32_t FIRST_VERSION_REQUIRING_PULL_MODE = 27;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
