@@ -354,11 +354,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 bool
 InvokeHostFunctionOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    if (mParentTx.getNumOperations() > 1)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_MALFORMED);
-        return false;
-    }
     return true;
 }
 
@@ -458,6 +453,12 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         root["detail"] = e.what();
     }
     return root;
+}
+
+bool
+InvokeHostFunctionOpFrame::isSmartOperation() const
+{
+    return true;
 }
 
 }

@@ -97,5 +97,7 @@ class OperationFrame
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const;
 
     virtual bool isDexOperation() const;
+
+    virtual bool isSmartOperation() const;
 };
 }

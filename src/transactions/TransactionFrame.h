@@ -118,6 +118,10 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<LedgerBounds const> const getLedgerBounds() const;
     bool extraSignersExist() const;
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    bool validateSmartOpsConsistency() const;
+#endif
+
   public:
     TransactionFrame(Hash const& networkID,
                      TransactionEnvelope const& envelope);

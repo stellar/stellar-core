@@ -70,13 +70,16 @@ makeSymbol(std::string const& str)
 }
 
 static void
-submitOpToInstallContractCode(Application& app, Operation const& op,
-                              Hash const& expectedWasmHash,
-                              xdr::opaque_vec<SCVAL_LIMIT> const& expectedWasm)
+submitTxToDeployContract(Application& app, Operation const& installOp,
+                         Operation const& createOp,
+                         Hash const& expectedWasmHash,
+                         xdr::opaque_vec<SCVAL_LIMIT> const& expectedWasm,
+                         Hash const& contractID, SCVal const& sourceRefKey)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
+    auto tx = transactionFrameFromOps(app.getNetworkID(), root,
+                                      {installOp, createOp}, {});
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
@@ -90,22 +93,6 @@ submitOpToInstallContractCode(Application& app, Operation const& op,
         REQUIRE(ltxe2);
         REQUIRE(ltxe2.current().data.contractCode().code == expectedWasm);
     }
-}
-
-static void
-submitOpToCreateContract(Application& app, Operation const& op,
-                         Hash const& contractID, Hash const& expectedWasmHash,
-                         SCVal const& sourceRefKey)
-{
-    // submit operation
-    auto root = TestAccount::createRoot(app);
-    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-    REQUIRE(tx->apply(app, ltx, txm));
-    ltx.commit();
-
     // verify contract code reference is correct
     {
         LedgerTxn ltx2(app.getLedgerTxnRoot());
@@ -135,9 +122,6 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractCodeLedgerKey.type(CONTRACT_CODE);
     contractCodeLedgerKey.contractCode().hash = xdrSha256(installContractArgs);
     installHF.footprint.readWrite = {contractCodeLedgerKey};
-    submitOpToInstallContractCode(app, installOp,
-                                  contractCodeLedgerKey.contractCode().hash,
-                                  installContractArgs.code);
 
     // Deploy the contract instance
     HashIDPreimage preImage;
@@ -169,9 +153,10 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     createHF.footprint.readOnly = {contractCodeLedgerKey};
     createHF.footprint.readWrite = {contractSourceRefLedgerKey};
 
-    submitOpToCreateContract(app, createOp, contractID,
-                             contractCodeLedgerKey.contractCode().hash,
-                             scContractSourceRefKey);
+    submitTxToDeployContract(
+        app, installOp, createOp, contractCodeLedgerKey.contractCode().hash,
+        installContractArgs.code, contractID, scContractSourceRefKey);
+
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
 
@@ -422,26 +407,46 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
     ihf.footprint.readOnly = contractKeys;
     ihf.footprint.readWrite.emplace_back(dataKey);
 
-    auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-    REQUIRE(tx->apply(*app, ltx, txm));
-    ltx.commit();
-    txm.finalizeHashes();
+    SECTION("single op")
+    {
+        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+        txm.finalizeHashes();
 
-    // Contract should have emitted a single event carrying a `Bytes` value.
-    REQUIRE(txm.getXDR().v3().events.size() == 1);
-    REQUIRE(txm.getXDR().v3().events.at(0).events.size() == 1);
-    REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
-            ContractEventType::CONTRACT);
-    REQUIRE(txm.getXDR()
-                .v3()
-                .events.at(0)
-                .events.at(0)
-                .body.v0()
-                .data.obj()
-                ->type() == SCO_BYTES);
+        // Contract should have emitted a single event carrying a `Bytes` value.
+        REQUIRE(txm.getXDR().v3().events.size() == 1);
+        REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
+                ContractEventType::CONTRACT);
+        REQUIRE(txm.getXDR()
+                    .v3()
+                    .events.at(0)
+                    .events.at(0)
+                    .body.v0()
+                    .data.obj()
+                    ->type() == SCO_BYTES);
+    }
+    SECTION("multiple ops")
+    {
+        auto tx = transactionFrameFromOps(app->getNetworkID(), root,
+                                          {op, op, op}, {});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+        txm.finalizeHashes();
+
+        REQUIRE(txm.getXDR().v3().events.at(0).events.size() == 3);
+        for (auto const& e : txm.getXDR().v3().events.at(0).events)
+        {
+            REQUIRE(e.type == ContractEventType::CONTRACT);
+            REQUIRE(e.body.v0().data.obj()->type() == SCO_BYTES);
+        }
+    }
 }
 
 #endif
