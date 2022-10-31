@@ -2510,14 +2510,15 @@ accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
         deleteBuffer.emplace_back(iter);
 }
 
-void
+// Return true only if something is actually accumulated and not skipped over
+bool
 BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
                                              bool isBucketKVStore)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
     if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
     {
-        return;
+        return false;
     }
 
     // Database only holds offers if BucketList KV lookup is enabled
@@ -2526,9 +2527,10 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         if (iter.key().ledgerKey().type() == OFFER)
         {
             accum(iter, mOffersToUpsert, mOffersToDelete);
+            return true;
         }
 
-        return;
+        return false;
     }
 
     switch (iter.key().ledgerKey().type())
@@ -2562,6 +2564,8 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
     default:
         abort();
     }
+
+    return true;
 }
 
 void
@@ -2696,9 +2700,12 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     {
         while ((bool)iter)
         {
-            bleca.accumulate(iter, bucketKVStore);
+            if (bleca.accumulate(iter, bucketKVStore))
+            {
+                ++counter;
+            }
+
             ++iter;
-            ++counter;
             size_t bufferThreshold =
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
@@ -3547,7 +3554,6 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     std::shared_ptr<LedgerEntry const> entry;
     try
     {
-
         if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && key.type() != OFFER)
         {
             entry = mApp.getBucketManager().getBucketList().getLedgerEntry(key);

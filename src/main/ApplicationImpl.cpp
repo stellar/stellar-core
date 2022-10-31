@@ -700,6 +700,11 @@ ApplicationImpl::validateAndLogConfig()
                     "must be less than 32");
             }
         }
+
+        CLOG_INFO(
+            Bucket,
+            "BucketListDB enabled: pageSizeExponent: {} indexCutOff: {}MB",
+            pageSizeExp, mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF);
     }
     else if (mPersistentState->getState(PersistentState::kDBBackend) ==
              BucketIndex::DBBackendState)

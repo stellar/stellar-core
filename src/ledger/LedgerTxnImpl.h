@@ -176,7 +176,7 @@ class BulkLedgerEntryChangeAccumulator
     }
 #endif
 
-    void accumulate(EntryIterator const& iter, bool isBucketKVStore);
+    bool accumulate(EntryIterator const& iter, bool isBucketKVStore);
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety

@@ -4,26 +4,42 @@
 
 #pragma once
 
-#include "util/UnorderedSet.h"
 #include "work/Work.h"
+#include <atomic>
+#include <memory>
 
 namespace stellar
 {
 
 class BucketManager;
+class Bucket;
 
-class IndexBucketsWork : public BasicWork
+class IndexBucketsWork : public Work
 {
-    UnorderedSet<Hash> mIndexedBuckets;
-    bool mDone{false};
+    class IndexWork : public BasicWork
+    {
+        std::shared_ptr<Bucket> mBucket;
+        bool mDone{false};
+        std::atomic_bool mExit{false};
 
+        void postWork();
+
+      public:
+        IndexWork(Application& app, std::shared_ptr<Bucket> b);
+
+      protected:
+        State onRun() override;
+        bool onAbort() override;
+    };
+
+    bool mWorkSpawned{false};
     void spawnWork();
 
   public:
     IndexBucketsWork(Application& app);
 
   protected:
-    State onRun() override;
-    bool onAbort() override;
+    State doWork() override;
+    void doReset() override;
 };
 }

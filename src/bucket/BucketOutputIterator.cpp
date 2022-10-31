@@ -151,8 +151,9 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index =
-                BucketIndex::createIndex(bucketManager.getConfig(), mFilename);
+            std::atomic_bool exit{false};
+            index = BucketIndex::createIndex(bucketManager.getConfig(),
+                                             mFilename, exit);
         }
     }
 

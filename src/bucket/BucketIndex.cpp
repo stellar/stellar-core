@@ -5,6 +5,7 @@
 #include "bucket/BucketIndex.h"
 #include "bucket/Bucket.h"
 #include "bucket/LedgerCmp.h"
+#include "ledger/LedgerHashUtils.h"
 #include "main/Config.h"
 #include "util/Fs.h"
 #include "util/LogSlowExecution.h"
@@ -14,7 +15,6 @@
 #include <Tracy.hpp>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-#include <ledger/LedgerHashUtils.h>
 
 namespace stellar
 {
@@ -39,17 +39,17 @@ getDummyPoolShareTrustlineKey(AccountID const& accountID, uint8_t fill)
 // that individual index.
 template <class IndexT> class BucketIndexImpl : public BucketIndex
 {
-    IndexT mKeys{};
-    std::vector<std::streamoff> mPositions{};
+    IndexT mKeysToOffset{};
     std::streamoff const mPageSize{};
     std::unique_ptr<bloom_filter> mFilter{};
 
     BucketIndexImpl(std::filesystem::path const& filename,
-                    std::streamoff pageSize);
+                    std::streamoff pageSize, std::atomic_bool& exit);
 
     friend std::unique_ptr<BucketIndex const>
     BucketIndex::createIndex(Config const& cfg,
-                             std::filesystem::path const& filename);
+                             std::filesystem::path const& filename,
+                             std::atomic_bool& exit);
 
   public:
     BucketIndexImpl() = default;
@@ -72,19 +72,20 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     virtual Iterator
     begin() const override
     {
-        return mKeys.begin();
+        return mKeysToOffset.begin();
     }
 
     virtual Iterator
     end() const override
     {
-        return mKeys.end();
+        return mKeysToOffset.end();
     }
 };
 
 template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
-                                         std::streamoff pageSize)
+                                         std::streamoff pageSize,
+                                         std::atomic_bool& exit)
     : mPageSize(pageSize)
 {
     ZoneScoped;
@@ -115,8 +116,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
         estimatedIndexEntries = estimatedNumElems;
     }
 
-    mPositions.reserve(estimatedIndexEntries);
-    mKeys.reserve(estimatedIndexEntries);
+    mKeysToOffset.reserve(estimatedIndexEntries);
 
     XDRInputFileStream in;
     in.open(filename.string());
@@ -125,6 +125,11 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
     BucketEntry be;
     while (in && in.readOne(be))
     {
+        if (exit)
+        {
+            return;
+        }
+
         if (be.type() != METAENTRY)
         {
             LedgerKey key = getBucketLedgerKey(be);
@@ -133,30 +138,27 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
                 if (pos >= pageUpperBound)
                 {
                     pageUpperBound = roundDown(pos, mPageSize) + mPageSize;
-                    mKeys.emplace_back(RangeEntry(key, key));
-                    mPositions.emplace_back(pos);
+                    mKeysToOffset.emplace_back(RangeEntry(key, key), pos);
                 }
                 else
                 {
-                    mKeys.back().upperBound = key;
+                    mKeysToOffset.back().first.upperBound = key;
                 }
 
                 mFilter->insert(std::hash<stellar::LedgerKey>()(key));
             }
             else
             {
-                mKeys.emplace_back(key);
-                mPositions.emplace_back(pos);
+                mKeysToOffset.emplace_back(key, pos);
             }
         }
 
         pos = in.pos();
     }
 
-    CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mPositions.size(),
+    CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mKeysToOffset.size(),
                filename.filename());
-    ZoneValue(static_cast<int64_t>(mKeys.size()));
-    releaseAssertOrThrow(mPositions.size() == mKeys.size());
+    ZoneValue(static_cast<int64_t>(mKeysToOffset.size()));
 }
 
 // Returns true if the key is not contained within the given IndexEntry.
@@ -185,13 +187,14 @@ template <class IndexEntryT>
 static bool
 lower_bound_pred(IndexEntryT const& indexEntry, LedgerKey const& key)
 {
-    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    if constexpr (std::is_same<IndexEntryT,
+                               BucketIndex::RangeIndex::value_type>::value)
     {
-        return indexEntry.upperBound < key;
+        return indexEntry.first.upperBound < key;
     }
     else
     {
-        return indexEntry < key;
+        return indexEntry.first < key;
     }
 }
 
@@ -204,19 +207,21 @@ template <class IndexEntryT>
 static bool
 upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    if constexpr (std::is_same<IndexEntryT,
+                               BucketIndex::RangeIndex::value_type>::value)
     {
-        return key < indexEntry.lowerBound;
+        return key < indexEntry.first.lowerBound;
     }
     else
     {
-        return key < indexEntry;
+        return key < indexEntry.first;
     }
 }
 
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(Config const& cfg,
-                         std::filesystem::path const& filename)
+                         std::filesystem::path const& filename,
+                         std::atomic_bool& exit)
 {
     ZoneScoped;
     releaseAssertOrThrow(cfg.EXPERIMENTAL_BUCKETLIST_DB);
@@ -235,7 +240,7 @@ BucketIndex::createIndex(Config const& cfg,
                   "bucket {}",
                   filename);
         return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-            new BucketIndexImpl<IndividualIndex>(filename, 0));
+            new BucketIndexImpl<IndividualIndex>(filename, 0, exit));
     }
     else
     {
@@ -245,7 +250,7 @@ BucketIndex::createIndex(Config const& cfg,
                   "{} in bucket {}",
                   pageSize, filename);
         return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
-            new BucketIndexImpl<RangeIndex>(filename, pageSize));
+            new BucketIndexImpl<RangeIndex>(filename, pageSize, exit));
     }
 
     return {};
@@ -264,24 +269,23 @@ std::pair<std::optional<std::streamoff>, BucketIndex::Iterator>
 BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
 {
     ZoneScoped;
-    ZoneValue(static_cast<int64_t>(mKeys.size()));
+    ZoneValue(static_cast<int64_t>(mKeysToOffset.size()));
 
     auto internalStart = std::get<typename IndexT::const_iterator>(start);
     auto keyIter =
-        std::lower_bound(internalStart, mKeys.end(), k,
+        std::lower_bound(internalStart, mKeysToOffset.end(), k,
                          lower_bound_pred<typename IndexT::value_type>);
 
     // If the key is not in the bloom filter or in the lower bounded index
     // entry, return nullopt
     if ((mFilter && !mFilter->contains(std::hash<stellar::LedgerKey>()(k))) ||
-        keyIter == mKeys.end() || keyNotInIndexEntry(k, *keyIter))
+        keyIter == mKeysToOffset.end() || keyNotInIndexEntry(k, keyIter->first))
     {
         return {std::nullopt, keyIter};
     }
     else
     {
-        return {std::make_optional(mPositions.at(keyIter - mKeys.begin())),
-                keyIter};
+        return {keyIter->second, keyIter};
     }
 }
 
@@ -299,25 +303,25 @@ BucketIndexImpl<IndexT>::getPoolshareTrustlineRange(
 
     // Get the index iterators for the bounds
     auto startIter =
-        std::lower_bound(mKeys.begin(), mKeys.end(), lowerBound,
+        std::lower_bound(mKeysToOffset.begin(), mKeysToOffset.end(), lowerBound,
                          lower_bound_pred<typename IndexT::value_type>);
-    if (startIter == mKeys.end())
+    if (startIter == mKeysToOffset.end())
     {
         return {};
     }
 
     auto endIter =
-        std::upper_bound(startIter, mKeys.end(), upperBound,
+        std::upper_bound(startIter, mKeysToOffset.end(), upperBound,
                          upper_bound_pred<typename IndexT::value_type>);
 
     // Get file offsets based on lower and upper bound iterators
-    std::streamoff startOff = mPositions.at(startIter - mKeys.begin());
+    std::streamoff startOff = startIter->second;
     std::streamoff endOff = std::numeric_limits<std::streamoff>::max();
 
     // If we hit the end of the index then upper bound should be EOF
-    if (endIter != mKeys.end())
+    if (endIter != mKeysToOffset.end())
     {
-        endOff = mPositions.at(endIter - mKeys.begin());
+        endOff = endIter->second;
     }
 
     return std::make_pair(startOff, endOff);

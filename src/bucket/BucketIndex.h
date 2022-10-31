@@ -7,6 +7,7 @@
 #include "bucket/LedgerCmp.h"
 #include "lib/bloom_filter.hpp"
 #include "util/NonCopyable.h"
+#include <atomic>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -49,8 +50,9 @@ class BucketIndex : public NonMovableOrCopyable
     };
 
     using IndividualEntry = LedgerKey;
-    using RangeIndex = std::vector<RangeEntry>;
-    using IndividualIndex = std::vector<IndividualEntry>;
+    using RangeIndex = std::vector<std::pair<RangeEntry, std::streamoff>>;
+    using IndividualIndex =
+        std::vector<std::pair<IndividualEntry, std::streamoff>>;
     using Iterator = std::variant<RangeIndex::const_iterator,
                                   IndividualIndex::const_iterator>;
 
@@ -61,7 +63,8 @@ class BucketIndex : public NonMovableOrCopyable
     // if file size is less than the cutoff, individual key index is used.
     // Otherwise range index is used, with the range defined by pageSize.
     static std::unique_ptr<BucketIndex const>
-    createIndex(Config const& cfg, std::filesystem::path const& filename);
+    createIndex(Config const& cfg, std::filesystem::path const& filename,
+                std::atomic_bool& exit);
 
     virtual ~BucketIndex() = default;
 

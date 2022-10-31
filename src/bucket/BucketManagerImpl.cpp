@@ -398,7 +398,10 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         {
             auto timer = LogSlowExecution("Delete redundant bucket");
             std::remove(filename.c_str());
-            if (index)
+
+            // race condition: two buckets + indexes were produced in parallel
+            // only setIndex if there is no index already.
+            if (index && !b->isIndexed())
             {
                 b->setIndex(std::move(index));
             }
