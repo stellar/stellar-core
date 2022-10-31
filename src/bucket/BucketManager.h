@@ -200,9 +200,12 @@ class BucketManager : NonMovableOrCopyable
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
 #endif
 
+    // Return the set of buckets referenced by the BucketList
+    virtual std::set<Hash> getBucketListReferencedBuckets() const = 0;
+
     // Return the set of buckets referenced by the BucketList, LCL HAS,
     // and publish queue.
-    virtual std::set<Hash> getReferencedBuckets() const = 0;
+    virtual std::set<Hash> getAllReferencedBuckets() const = 0;
 
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding

@@ -129,7 +129,8 @@ class BucketManagerImpl : public BucketManager
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 #endif
 
-    std::set<Hash> getReferencedBuckets() const override;
+    std::set<Hash> getBucketListReferencedBuckets() const override;
+    std::set<Hash> getAllReferencedBuckets() const override;
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void restartMerges(HistoryArchiveState const& has,

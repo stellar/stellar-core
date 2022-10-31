@@ -579,7 +579,7 @@ BucketManagerImpl::clearMergeFuturesForTesting()
 #endif
 
 std::set<Hash>
-BucketManagerImpl::getReferencedBuckets() const
+BucketManagerImpl::getBucketListReferencedBuckets() const
 {
     ZoneScoped;
     std::set<Hash> referenced;
@@ -613,6 +613,20 @@ BucketManagerImpl::getReferencedBuckets() const
             }
         }
     }
+
+    return referenced;
+}
+
+std::set<Hash>
+BucketManagerImpl::getAllReferencedBuckets() const
+{
+    ZoneScoped;
+    auto referenced = getBucketListReferencedBuckets();
+    if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        return referenced;
+    }
+
     // retain any bucket referenced by the last closed ledger as recorded in the
     // database (as merges complete, the bucket list drifts from that state)
     auto lclHas = mApp.getLedgerManager().getLastClosedLedgerHAS();
@@ -659,7 +673,7 @@ BucketManagerImpl::cleanupStaleFiles()
     }
 
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getReferencedBuckets();
+    auto referenced = getAllReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
                    std::inserter(referenced, std::end(referenced)),
                    [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
@@ -685,7 +699,8 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto referenced = getReferencedBuckets();
+    auto referenced = getAllReferencedBuckets();
+    auto blReferenced = getBucketListReferencedBuckets();
 
     for (auto i = mSharedBuckets.begin(); i != mSharedBuckets.end();)
     {
@@ -693,6 +708,22 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         // remain valid.
         auto j = i;
         ++i;
+
+        // Delete indexes for buckets no longer in bucketlist. There is a race
+        // condition on startup where future buckets for a level will be
+        // finished and have an index but will not yet be refered to by the
+        // bucket level's next pointer. Checking use_count == 1 makes sure no
+        // other in-progress structures will add bucket to bucket list after
+        // deleting index
+        if (j->second->isIndexed() && j->second.use_count() == 1 &&
+            blReferenced.find(j->first) == blReferenced.end())
+        {
+            CLOG_TRACE(Bucket,
+                       "BucketManager::forgetUnreferencedBuckets deleting "
+                       "index for {}",
+                       j->second->getFilename());
+            j->second->freeIndex();
+        }
 
         // Only drop buckets if the bucketlist has forgotten them _and_
         // no other in-progress structures (worker threads, shadow lists)
@@ -708,13 +739,6 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             j->second.use_count() == 1)
         {
             auto filename = j->second->getFilename();
-            if (!j->second->isEmpty())
-            {
-                // this is a hack - should not be done like this, but this fixes
-                // the problem of not being able to delete buckets because the
-                // bucket file is still in use
-                j->second->freeIndex();
-            }
             CLOG_TRACE(Bucket,
                        "BucketManager::forgetUnreferencedBuckets dropping {}",
                        filename);
@@ -1123,7 +1147,7 @@ BucketManagerImpl::visitLedgerEntries(
 std::shared_ptr<BasicWork>
 BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
 {
-    std::set<Hash> hashes = getReferencedBuckets();
+    std::set<Hash> hashes = getAllReferencedBuckets();
     std::vector<std::shared_ptr<BasicWork>> seq;
     for (auto const& h : hashes)
     {

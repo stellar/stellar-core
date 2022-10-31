@@ -480,7 +480,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     bm.forgetUnreferencedBuckets();
-    auto bmRefBuckets = bm.getReferencedBuckets();
+    auto bmRefBuckets = bm.getAllReferencedBuckets();
     auto bmDirBuckets = bm.getBucketHashesInBucketDirForTesting();
 
     // Remove the 0 bucket in case it's "referenced"; it's never a file.
