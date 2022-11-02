@@ -76,7 +76,7 @@ stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
-	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd
+	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
