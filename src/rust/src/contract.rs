@@ -103,7 +103,7 @@ pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
 /// [`AccessType`] `ty` into a [`storage::Footprint`] for every [`LedgerKey`] in
 /// `keys`.
 fn populate_access_map(
-    access: &mut MeteredOrdMap<LedgerKey, AccessType>,
+    access: &mut MeteredOrdMap<Box<LedgerKey>, AccessType>,
     keys: Vec<LedgerKey>,
     ty: AccessType,
 ) -> Result<(), CoreHostError> {
@@ -112,7 +112,7 @@ fn populate_access_map(
             LedgerKey::Account(_) | LedgerKey::Trustline(_) | LedgerKey::ContractData(_) => (),
             _ => return Err(CoreHostError::General("unexpected ledger entry type")),
         };
-        access.insert(lk, ty.clone())?;
+        access.insert(Box::new(lk), ty.clone())?;
     }
     Ok(())
 }
@@ -160,7 +160,7 @@ fn build_storage_map_from_xdr_ledger_entries(
     budget: Budget,
     footprint: &storage::Footprint,
     ledger_entries: &Vec<CxxBuf>,
-) -> Result<MeteredOrdMap<LedgerKey, Option<LedgerEntry>>, CoreHostError> {
+) -> Result<MeteredOrdMap<Box<LedgerKey>, Option<Box<LedgerEntry>>>, CoreHostError> {
     let mut map = MeteredOrdMap::new(budget)?;
     for buf in ledger_entries {
         let le = xdr_from_cxx_buf::<LedgerEntry>(buf)?;
@@ -170,11 +170,11 @@ fn build_storage_map_from_xdr_ledger_entries(
                 "ledger entry not found in footprint",
             ));
         }
-        map.insert(key, Some(le))?;
+        map.insert(Box::new(key), Some(Box::new(le)))?;
     }
     for k in footprint.0.keys()? {
         if !map.contains_key(k)? {
-            map.insert(k.clone(), None)?;
+            map.insert(Box::new(*k.clone()), None)?;
         }
     }
     Ok(map)
@@ -184,7 +184,7 @@ fn build_storage_map_from_xdr_ledger_entries(
 /// back to XDR.
 fn build_xdr_ledger_entries_from_storage_map(
     footprint: &storage::Footprint,
-    storage_map: &MeteredOrdMap<LedgerKey, Option<LedgerEntry>>,
+    storage_map: &MeteredOrdMap<Box<LedgerKey>, Option<Box<LedgerEntry>>>,
 ) -> Result<Vec<RustBuf>, CoreHostError> {
     let mut res = Vec::new();
     for (lk, ole) in storage_map {
@@ -378,9 +378,11 @@ fn storage_footprint_to_ledger_footprint(
             AccessType::ReadWrite => read_write.push(k.clone()),
         }
     }
+    let read_only_not_boxed: Vec<LedgerKey> = read_only.into_iter().map(|x| *x).collect();
+    let read_write_not_boxed: Vec<LedgerKey> = read_write.into_iter().map(|x| *x).collect();
     Ok(LedgerFootprint {
-        read_only: read_only.try_into()?,
-        read_write: read_write.try_into()?,
+        read_only: read_only_not_boxed.try_into()?,
+        read_write: read_write_not_boxed.try_into()?,
     })
 }
 

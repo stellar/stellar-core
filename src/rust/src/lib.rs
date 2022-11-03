@@ -131,8 +131,8 @@ use b64::{from_base64, to_base64};
 
 mod contract;
 use contract::get_test_wasm_add_i32;
-use contract::get_test_wasm_contract_data;
 use contract::get_test_wasm_complex;
+use contract::get_test_wasm_contract_data;
 use contract::get_xdr_hashes;
 use contract::invoke_host_function;
 use contract::preflight_host_function;
