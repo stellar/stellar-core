@@ -594,8 +594,8 @@ source = "git+https://github.com/stellar/rs-soroban-env?rev=c04c233#c04c2332fd3e
 
 [[package]]
 name = "soroban-wasmi"
-version = "0.16.0"
-source = "git+https://github.com/stellar/wasmi?rev=a61b6df#a61b6dffa0a13aca70b046fc11e379a3fde31147"
+version = "0.16.0-soroban1"
+source = "git+https://github.com/stellar/wasmi?rev=d1ec0036#d1ec0036a002a14227b0b09117f0dc6182ae19e4"
 dependencies = [
  "soroban-wasmi_core",
  "spin",
@@ -604,8 +604,8 @@ dependencies = [
 
 [[package]]
 name = "soroban-wasmi_core"
-version = "0.2.0"
-source = "git+https://github.com/stellar/wasmi?rev=a61b6df#a61b6dffa0a13aca70b046fc11e379a3fde31147"
+version = "0.16.0-soroban1"
+source = "git+https://github.com/stellar/wasmi?rev=d1ec0036#d1ec0036a002a14227b0b09117f0dc6182ae19e4"
 dependencies = [
  "downcast-rs",
  "libm",
