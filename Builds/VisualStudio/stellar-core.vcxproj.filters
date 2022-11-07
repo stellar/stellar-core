@@ -1303,6 +1303,21 @@
     <ClCompile Include="..\..\src\invariant\test\LedgerEntryIsValidTests.cpp">
       <Filter>invariant\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnContractCodeSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\AssumeStateWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketTestUtils.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketIndex.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2264,6 +2279,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\InvokeHostFunctionOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\AssumeStateWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h">
+      <Filter>bucket\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketIndex.h">
+      <Filter>bucket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
