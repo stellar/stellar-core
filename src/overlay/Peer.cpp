@@ -93,6 +93,10 @@ Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 void
 Peer::beginMesssageProcessing(StellarMessage const& msg)
 {
+    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
+                  mCapacity.mFloodCapacity);
+    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
+                  mCapacity.mTotalCapacity);
     // Check if flow control is enabled on the local node
     if (flowControlEnabled() == Peer::FlowControlState::ENABLED)
     {
@@ -1257,6 +1261,10 @@ Peer::endMessageProcessing(StellarMessage const& msg)
         mIsPeerThrottled = false;
         scheduleRead();
     }
+    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
+                  mCapacity.mFloodCapacity);
+    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
+                  mCapacity.mTotalCapacity);
 }
 
 void
