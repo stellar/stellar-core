@@ -29,8 +29,9 @@ void makeValid(DataEntry& d);
 void makeValid(ClaimableBalanceEntry& c);
 void makeValid(LiquidityPoolEntry& lp);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-void makeValid(ConfigSettingEntry& lp);
-void makeValid(ContractDataEntry& lp);
+void makeValid(ConfigSettingEntry& ce);
+void makeValid(ContractDataEntry& cde);
+void makeValid(ContractCodeEntry& cce);
 #endif
 void makeValid(LedgerHeaderHistoryEntry& lh,
                LedgerHeaderHistoryEntry firstLedger,
@@ -69,6 +70,9 @@ std::vector<ConfigSettingEntry> generateValidConfigSettingEntries(size_t n);
 
 ContractDataEntry generateValidContractDataEntry(size_t b = 3);
 std::vector<ContractDataEntry> generateValidContractDataEntries(size_t n);
+
+ContractCodeEntry generateValidContractCodeEntry(size_t b = 3);
+std::vector<ContractCodeEntry> generateValidContractCodeEntries(size_t n);
 #endif
 
 std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(

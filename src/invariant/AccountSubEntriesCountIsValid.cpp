@@ -102,6 +102,7 @@ updateChangedSubEntriesCount(
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
+    case CONTRACT_CODE:
     case CONFIG_SETTING:
     {
         // contract entries are not subentries

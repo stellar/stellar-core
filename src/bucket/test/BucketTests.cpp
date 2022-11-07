@@ -153,6 +153,10 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.contractData() =
                         LedgerTestUtils::generateValidContractDataEntry(10);
                     break;
+                case CONTRACT_CODE:
+                    liveEntry.data.contractCode() =
+                        LedgerTestUtils::generateValidContractCodeEntry(10);
+                    break;
 #endif
                 default:
                     abort();
@@ -184,6 +188,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         checkDeadAnnihilatesLive(CONFIG_SETTING);
         checkDeadAnnihilatesLive(CONTRACT_DATA);
+        checkDeadAnnihilatesLive(CONTRACT_CODE);
 #endif
 
         SECTION("random dead entries annihilates live entries")

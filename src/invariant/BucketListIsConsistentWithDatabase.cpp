@@ -91,6 +91,7 @@ struct EntryCounts
     uint64_t mClaimableBalance{0};
     uint64_t mLiquidityPool{0};
     uint64_t mContractData{0};
+    uint64_t mContractCode{0};
     uint64_t mConfigSettings{0};
 
     uint64_t
@@ -126,6 +127,9 @@ struct EntryCounts
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
             ++mContractData;
+            break;
+        case CONTRACT_CODE:
+            ++mContractCode;
             break;
         case CONFIG_SETTING:
             ++mConfigSettings;
@@ -168,6 +172,7 @@ struct EntryCounts
             check(LIQUIDITY_POOL, mLiquidityPool)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             && check(CONTRACT_DATA, mContractData) &&
+            check(CONTRACT_CODE, mContractCode) &&
             check(CONFIG_SETTING, mConfigSettings)
 #endif
             ;

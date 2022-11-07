@@ -72,6 +72,16 @@ signerEqual(Signer const& s1, Signer const& s2)
     return s1.key == s2.key;
 }
 
+template <size_t MAX_SIZE>
+xdr::xvector<uint8_t, MAX_SIZE>
+generateOpaqueVector()
+{
+    static auto vecgen = autocheck::list_of(autocheck::generator<uint8_t>());
+    stellar::uniform_int_distribution<size_t> distr(1, MAX_SIZE);
+    auto vec = vecgen(distr(autocheck::rng()));
+    return xdr::xvector<uint8_t, MAX_SIZE>(vec.begin(), vec.end());
+}
+
 void
 randomlyModifyEntry(LedgerEntry& e)
 {
@@ -123,6 +133,10 @@ randomlyModifyEntry(LedgerEntry& e)
         e.data.contractData().val.type(SCV_I32);
         e.data.contractData().val.i32() = autocheck::generator<int32_t>{}();
         makeValid(e.data.contractData());
+        break;
+    case CONTRACT_CODE:
+        e.data.contractCode().code = generateOpaqueVector<SCVAL_LIMIT>();
+        makeValid(e.data.contractCode());
         break;
 #endif
     }
@@ -320,6 +334,11 @@ void
 makeValid(ContractDataEntry& cde)
 {
 }
+
+void
+makeValid(ContractCodeEntry& cce)
+{
+}
 #endif
 
 void
@@ -413,6 +432,9 @@ static auto validLedgerEntryGeneratorMaybeIncludingConfig = autocheck::map(
         case CONTRACT_DATA:
             makeValid(led.contractData());
             break;
+        case CONTRACT_CODE:
+            makeValid(led.contractCode());
+            break;
 #endif
         }
 
@@ -499,6 +521,13 @@ static auto validContractDataEntryGenerator = autocheck::map(
         return std::move(c);
     },
     autocheck::generator<ContractDataEntry>());
+
+static auto validContractCodeEntryGenerator = autocheck::map(
+    [](ContractCodeEntry&& c, size_t s) {
+        makeValid(c);
+        return std::move(c);
+    },
+    autocheck::generator<ContractCodeEntry>());
 #endif
 
 LedgerEntry
@@ -643,6 +672,19 @@ std::vector<ContractDataEntry>
 generateValidContractDataEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validContractDataEntryGenerator);
+    return vecgen(n);
+}
+
+ContractCodeEntry
+generateValidContractCodeEntry(size_t b)
+{
+    return validContractCodeEntryGenerator(b);
+}
+
+std::vector<ContractCodeEntry>
+generateValidContractCodeEntries(size_t n)
+{
+    static auto vecgen = autocheck::list_of(validContractCodeEntryGenerator);
     return vecgen(n);
 }
 #endif
