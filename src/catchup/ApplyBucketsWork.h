@@ -16,13 +16,14 @@ class Bucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
-class ApplyBucketsWork : public BasicWork
+class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
     bool mApplying{false};
+    bool mSpawnedAssumeStateWork{false};
     size_t mTotalBuckets{0};
     size_t mAppliedBuckets{0};
     size_t mAppliedEntries{0};
@@ -63,12 +64,7 @@ class ApplyBucketsWork : public BasicWork
     std::string getStatus() const override;
 
   protected:
-    void onReset() override;
-    BasicWork::State onRun() override;
-    bool
-    onAbort() override
-    {
-        return true;
-    };
+    void doReset() override;
+    BasicWork::State doWork() override;
 };
 }

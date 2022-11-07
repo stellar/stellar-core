@@ -20,6 +20,7 @@ namespace stellar
 
 class Application;
 class BucketList;
+class Config;
 class TmpDirManager;
 struct LedgerHeader;
 struct MergeKey;

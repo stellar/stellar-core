@@ -8,7 +8,6 @@
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/ApplyBufferedLedgersWork.h"
 #include "catchup/ApplyCheckpointWork.h"
-#include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
@@ -253,13 +252,8 @@ CatchupWork::downloadApplyBuckets()
                                                           *mBucketHAS, version);
     }
     seq.push_back(applyBuckets);
-
-    auto assumeStateWork =
-        std::make_shared<AssumeStateWork>(mApp, *mBucketHAS, version);
-    seq.push_back(assumeStateWork);
-
-    return std::make_shared<WorkSequence>(
-        mApp, "download-verify-apply-assume-buckets", seq, RETRY_NEVER);
+    return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
+                                          seq, RETRY_NEVER);
 }
 
 void
@@ -618,13 +612,6 @@ CatchupWork::runCatchupStep()
                 // Step 4.2: Download, verify and apply buckets
                 mBucketVerifyApplySeq = downloadApplyBuckets();
                 seq.push_back(mBucketVerifyApplySeq);
-            }
-            // If there are no buckets to apply, still need to index BL before
-            // ledgers can be replayed
-            else if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
-            {
-                auto indexBuckets = std::make_shared<IndexBucketsWork>(mApp);
-                seq.push_back(indexBuckets);
             }
 
             if (catchupRange.replayLedgers())

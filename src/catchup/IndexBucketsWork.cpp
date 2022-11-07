@@ -35,7 +35,6 @@ IndexBucketsWork::IndexWork::onRun()
 bool
 IndexBucketsWork::IndexWork::onAbort()
 {
-    mExit = true;
     return true;
 };
 
@@ -47,15 +46,15 @@ IndexBucketsWork::IndexWork::postWork()
     std::weak_ptr<IndexWork> weak(
         std::static_pointer_cast<IndexWork>(shared_from_this()));
     app.postOnBackgroundThread(
-        [&app, &b = mBucket, &exit = mExit, weak]() {
+        [&app, &b = mBucket, weak]() {
             auto self = weak.lock();
             if (!self || self->isAborting())
             {
                 return;
             }
 
-            b->setIndex(BucketIndex::createIndex(app.getConfig(),
-                                                 b->getFilename(), exit));
+            b->setIndex(BucketIndex::createIndex(app.getBucketManager(),
+                                                 b->getFilename()));
 
             app.postOnMainThread(
                 [weak]() {

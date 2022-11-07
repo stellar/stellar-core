@@ -8,7 +8,6 @@
 #include "util/asio.h"
 
 #include "bucket/Bucket.h"
-#include "bucket/BucketIndex.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"

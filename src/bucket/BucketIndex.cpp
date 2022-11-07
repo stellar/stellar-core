@@ -4,6 +4,7 @@
 
 #include "bucket/BucketIndex.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "ledger/LedgerHashUtils.h"
 #include "main/Config.h"
@@ -32,24 +33,24 @@ getDummyPoolShareTrustlineKey(AccountID const& accountID, uint8_t fill)
 }
 
 // Index maps a range of BucketEntry's to the associated offset
-// within the bucket file. Index stored as two vectors, one stores
-// LedgerKey ranges sorted in the same scheme as LedgerEntryCmp, the other
-// stores offsets into the bucket file for a given key/ key range. pageSize
-// determines how large, in bytes, each range should be. pageSize == 0 indicates
-// that individual index.
+// within the bucket file. Index stored as vector of pairs:
+// First: LedgerKey/Key ranges sorted in the same scheme as LedgerEntryCmp
+// Second: offset into the bucket file for a given key/ key range.
+// pageSize determines how large, in bytes, each range should be. pageSize == 0
+// indicates individual keys used instead of ranges.
 template <class IndexT> class BucketIndexImpl : public BucketIndex
 {
     IndexT mKeysToOffset{};
     std::streamoff const mPageSize{};
     std::unique_ptr<bloom_filter> mFilter{};
 
-    BucketIndexImpl(std::filesystem::path const& filename,
-                    std::streamoff pageSize, std::atomic_bool& exit);
+    BucketIndexImpl(BucketManager const& bm,
+                    std::filesystem::path const& filename,
+                    std::streamoff pageSize);
 
     friend std::unique_ptr<BucketIndex const>
-    BucketIndex::createIndex(Config const& cfg,
-                             std::filesystem::path const& filename,
-                             std::atomic_bool& exit);
+    BucketIndex::createIndex(BucketManager const& bm,
+                             std::filesystem::path const& filename);
 
   public:
     BucketIndexImpl() = default;
@@ -83,9 +84,9 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 };
 
 template <class IndexT>
-BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
-                                         std::streamoff pageSize,
-                                         std::atomic_bool& exit)
+BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
+                                         std::filesystem::path const& filename,
+                                         std::streamoff pageSize)
     : mPageSize(pageSize)
 {
     ZoneScoped;
@@ -123,11 +124,18 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
     std::streamoff pos = 0;
     std::streamoff pageUpperBound = 0;
     BucketEntry be;
+    size_t iter = 0;
     while (in && in.readOne(be))
     {
-        if (exit)
+        // peridocially check if bucket manager is exiting to stop indexing
+        // gracefully
+        if (++iter >= 1000)
         {
-            return;
+            iter = 0;
+            if (bm.isShutdown())
+            {
+                return;
+            }
         }
 
         if (be.type() != METAENTRY)
@@ -142,7 +150,9 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(std::filesystem::path const& filename,
                 }
                 else
                 {
-                    mKeysToOffset.back().first.upperBound = key;
+                    auto& rangeEntry = mKeysToOffset.back().first;
+                    releaseAssert(rangeEntry.upperBound < key);
+                    rangeEntry.upperBound = key;
                 }
 
                 mFilter->insert(std::hash<stellar::LedgerKey>()(key));
@@ -219,11 +229,11 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 }
 
 std::unique_ptr<BucketIndex const>
-BucketIndex::createIndex(Config const& cfg,
-                         std::filesystem::path const& filename,
-                         std::atomic_bool& exit)
+BucketIndex::createIndex(BucketManager const& bm,
+                         std::filesystem::path const& filename)
 {
     ZoneScoped;
+    auto const& cfg = bm.getConfig();
     releaseAssertOrThrow(cfg.EXPERIMENTAL_BUCKETLIST_DB);
     releaseAssertOrThrow(!filename.empty());
 
@@ -240,7 +250,7 @@ BucketIndex::createIndex(Config const& cfg,
                   "bucket {}",
                   filename);
         return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-            new BucketIndexImpl<IndividualIndex>(filename, 0, exit));
+            new BucketIndexImpl<IndividualIndex>(bm, filename, 0));
     }
     else
     {
@@ -250,7 +260,7 @@ BucketIndex::createIndex(Config const& cfg,
                   "{} in bucket {}",
                   pageSize, filename);
         return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
-            new BucketIndexImpl<RangeIndex>(filename, pageSize, exit));
+            new BucketIndexImpl<RangeIndex>(bm, filename, pageSize));
     }
 
     return {};

@@ -352,10 +352,18 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                             mApp.getWorkScheduler()
                                 .executeWork<AssumeStateWork>(
                                     has, header.current().ledgerVersion);
-                        releaseAssertOrThrow(assumeStateWork->getState() ==
-                                             BasicWork::State::WORK_SUCCESS);
-                        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                                  ledgerAbbrev(header.current()));
+                        if (assumeStateWork->getState() ==
+                            BasicWork::State::WORK_SUCCESS)
+                        {
+                            CLOG_INFO(Ledger,
+                                      "Assumed bucket-state for LCL: {}",
+                                      ledgerAbbrev(header.current()));
+                        }
+                        else
+                        {
+                            // Work should only fail during graceful shutdown
+                            releaseAssert(mApp.isStopping());
+                        }
                     }
                     advanceLedgerPointers(header.current());
                 }

@@ -30,7 +30,7 @@ namespace stellar
  * the individual index vs range index.
  */
 
-class Config;
+class BucketManager;
 
 // BucketIndex abstract interface
 class BucketIndex : public NonMovableOrCopyable
@@ -63,8 +63,7 @@ class BucketIndex : public NonMovableOrCopyable
     // if file size is less than the cutoff, individual key index is used.
     // Otherwise range index is used, with the range defined by pageSize.
     static std::unique_ptr<BucketIndex const>
-    createIndex(Config const& cfg, std::filesystem::path const& filename,
-                std::atomic_bool& exit);
+    createIndex(BucketManager const& bm, std::filesystem::path const& filename);
 
     virtual ~BucketIndex() = default;
 

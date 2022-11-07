@@ -4,7 +4,6 @@
 
 #include "TxSimScaleBucketlistWork.h"
 #include "catchup/ApplyBucketsWork.h"
-#include "catchup/AssumeStateWork.h"
 #include "historywork/DownloadBucketsWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
@@ -46,18 +45,8 @@ TxSimScaleBucketlistWork::doWork()
         // Step 3: Apply artificially created bucketlist
         auto const& has =
             mHAS ? *mHAS : mGenerateBucketsWork->getGeneratedHAS();
-        auto maxProtocol = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-
-        std::vector<std::shared_ptr<BasicWork>> workSeq;
-        auto applyWork = std::make_shared<ApplyBucketsWork>(
-            mApp, mGeneratedBuckets, has, maxProtocol);
-        workSeq.push_back(applyWork);
-        auto assumeStateWork =
-            std::make_shared<AssumeStateWork>(mApp, has, maxProtocol);
-        workSeq.push_back(assumeStateWork);
-
-        mApplyBuckets =
-            addWork<WorkSequence>("assume-state-seq", workSeq, RETRY_NEVER);
+        mApplyBuckets = addWork<ApplyBucketsWork>(
+            mGeneratedBuckets, has, mApp.getConfig().LEDGER_PROTOCOL_VERSION);
         return State::WORK_RUNNING;
     }
     else if (mDownloadGenerateBuckets)

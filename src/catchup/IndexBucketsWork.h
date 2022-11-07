@@ -5,7 +5,6 @@
 #pragma once
 
 #include "work/Work.h"
-#include <atomic>
 #include <memory>
 
 namespace stellar
@@ -20,7 +19,6 @@ class IndexBucketsWork : public Work
     {
         std::shared_ptr<Bucket> mBucket;
         bool mDone{false};
-        std::atomic_bool mExit{false};
 
         void postWork();
 

@@ -31,8 +31,6 @@ namespace stellar
 
 class Application;
 class BucketManager;
-class BucketList;
-class Database;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable

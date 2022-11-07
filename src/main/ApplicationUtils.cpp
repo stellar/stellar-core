@@ -6,7 +6,6 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
-#include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
@@ -320,16 +319,8 @@ applyBucketsForLCL(Application& app,
     }
 
     std::map<std::string, std::shared_ptr<Bucket>> buckets;
-
-    std::vector<std::shared_ptr<BasicWork>> workSeq;
-    auto applyWork = std::make_shared<ApplyBucketsWork>(
-        app, buckets, has, maxProtocolVersion, onlyApply);
-    workSeq.push_back(applyWork);
-    auto assumeStateWork =
-        std::make_shared<AssumeStateWork>(app, has, maxProtocolVersion);
-    workSeq.push_back(assumeStateWork);
-    auto work = app.getWorkScheduler().scheduleWork<WorkSequence>(
-        "assume-state-seq", workSeq, BasicWork::RETRY_NEVER);
+    auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
+        buckets, has, maxProtocolVersion, onlyApply);
 
     while (app.getClock().crank(true) && !work->isDone())
         ;
@@ -691,6 +682,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
+
     uint256 zero;
     Bucket bucket(bucketFile, zero, nullptr);
     bucket.apply(*app);
