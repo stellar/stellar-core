@@ -111,11 +111,11 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(medida::MetricsRegistry& metrics, HostFunction hf,
+    HostFunctionMetrics(medida::MetricsRegistry& metrics, HostFunctionType hf,
                         bool isPreflight)
         : mMetrics(metrics), mPreflight(isPreflight)
     {
-        if (hf == HOST_FN_INVOKE_CONTRACT)
+        if (hf == HOST_FUNCTION_TYPE_INVOKE_CONTRACT)
         {
             if (isPreflight)
             {
@@ -234,7 +234,7 @@ bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
                                    medida::MetricsRegistry& metricsReg)
 {
-    HostFunctionMetrics metrics(metricsReg, mInvokeHostFunction.function,
+    HostFunctionMetrics metrics(metricsReg, mInvokeHostFunction.function.type(),
                                 false);
 
     // Get the entries for the footprint
@@ -273,7 +273,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         auto timeScope = metrics.getExecTimer();
         out = rust_bridge::invoke_host_function(
             toCxxBuf(mInvokeHostFunction.function),
-            toCxxBuf(mInvokeHostFunction.parameters),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
             getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
         metrics.mSuccess = true;
@@ -388,7 +387,7 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
                                      InvokeHostFunctionOp const& op,
                                      AccountID const& sourceAccount)
 {
-    HostFunctionMetrics metrics(app.getMetrics(), op.function, true);
+    HostFunctionMetrics metrics(app.getMetrics(), op.function.type(), true);
 
     auto cb = std::make_unique<PreflightCallbacks>(app, metrics);
 
@@ -409,8 +408,7 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         {
             auto timeScope = metrics.getExecTimer();
             out = rust_bridge::preflight_host_function(
-                toVec(op.function), toVec(op.parameters), toVec(sourceAccount),
-                li, std::move(cb));
+                toVec(op.function), toVec(sourceAccount), li, std::move(cb));
             metrics.mSuccess = true;
         }
         SCVal result_value;
