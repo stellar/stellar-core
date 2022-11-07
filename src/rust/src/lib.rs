@@ -80,7 +80,6 @@ mod rust_bridge {
         fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
             hf_buf: &CxxBuf,
-            args: &CxxBuf,
             footprint: &CxxBuf,
             source_account: &CxxBuf,
             ledger_info: CxxLedgerInfo,
@@ -88,7 +87,6 @@ mod rust_bridge {
         ) -> Result<InvokeHostFunctionOutput>;
         fn preflight_host_function(
             hf_buf: &CxxVector<u8>,
-            args: &CxxVector<u8>,
             source_account: &CxxVector<u8>,
             ledger_info: CxxLedgerInfo,
             cb: UniquePtr<PreflightCallbacks>,
