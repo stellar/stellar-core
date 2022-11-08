@@ -129,7 +129,6 @@ class LoopbackPeer : public Peer
     std::string getIP() const override;
 
     using Peer::addMsgAndMaybeTrimQueue;
-    using Peer::flowControlEnabled;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;

@@ -159,16 +159,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         VirtualClock::time_point mTimeEmplaced;
     };
 
-    // Does this peer want flow control enabled
-    enum class FlowControlState
-    {
-        ENABLED,
-        DISABLED,
-        DONT_KNOW
-    };
-
-    Peer::FlowControlState flowControlEnabled() const;
-
     Json::Value getFlowControlJsonInfo(bool compact) const;
     Json::Value getJsonInfo(bool compact) const;
 
@@ -247,7 +237,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
-    FlowControlState mFlowControlState;
     ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
@@ -426,12 +415,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     getPeerMetrics()
     {
         return mPeerMetrics;
-    }
-
-    bool
-    isFlowControlled() const
-    {
-        return mFlowControlState == Peer::FlowControlState::ENABLED;
     }
 
     std::string const& toString();

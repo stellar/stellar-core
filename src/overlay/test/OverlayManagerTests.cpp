@@ -39,7 +39,6 @@ class PeerStub : public Peer
         mState = GOT_AUTH;
         mAddress = address;
         mOutboundCapacity = std::numeric_limits<uint32>::max();
-        mFlowControlState = Peer::FlowControlState::ENABLED;
     }
     virtual std::string
     getIP() const override
