@@ -1479,6 +1479,11 @@ Config::adjust()
         }
     }
 
+    auto const originalMaxAdditionalPeerConnections =
+        MAX_ADDITIONAL_PEER_CONNECTIONS;
+    auto const originalTargetPeerConnections = TARGET_PEER_CONNECTIONS;
+    auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
+
     int maxFsConnections = std::min<int>(
         std::numeric_limits<unsigned short>::max(), fs::getMaxConnections());
 
@@ -1560,6 +1565,23 @@ Config::adjust()
         MAX_OUTBOUND_PENDING_CONNECTIONS = 0;
         MAX_INBOUND_PENDING_CONNECTIONS = 0;
     }
+    auto warnIfChanged = [&](std::string const name, auto const originalValue,
+                             auto const newValue) {
+        if (originalValue != newValue)
+        {
+            LOG_WARNING(DEFAULT_LOG,
+                        "Adjusted {} from {} to {} due to OS limits (the "
+                        "maximum number of file descriptors)",
+                        name, originalValue, newValue);
+        }
+    };
+    warnIfChanged("MAX_ADDITIONAL_PEER_CONNECTIONS",
+                  originalMaxAdditionalPeerConnections,
+                  MAX_ADDITIONAL_PEER_CONNECTIONS);
+    warnIfChanged("TARGET_PEER_CONNECTIONS", originalTargetPeerConnections,
+                  TARGET_PEER_CONNECTIONS);
+    warnIfChanged("MAX_PENDING_CONNECTIONS", originalMaxPendingConnections,
+                  MAX_PENDING_CONNECTIONS);
 }
 
 void
