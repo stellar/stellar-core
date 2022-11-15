@@ -46,7 +46,7 @@ static const unsigned char bit_mask[bits_per_char] = {
 class bloom_parameters
 {
   public:
-    typedef std::array<unsigned char, 16> rand_t;
+    typedef std::array<unsigned char, crypto_shorthash_KEYBYTES> rand_t;
 
     bloom_parameters()
         : minimum_size(1)
@@ -275,7 +275,7 @@ class bloom_filter
         std::size_t bit_index = 0;
         std::size_t bit = 0;
 
-        for (auto i = 0; i < hash_count_; ++i)
+        for (auto i = 0u; i < hash_count_; ++i)
         {
             compute_indices(hash_ap(key_begin, length, i), bit_index, bit);
 

@@ -10,14 +10,16 @@
 namespace stellar
 {
 
-class BucketManager;
 class Bucket;
+class BucketIndex;
+class BucketManager;
 
 class IndexBucketsWork : public Work
 {
     class IndexWork : public BasicWork
     {
         std::shared_ptr<Bucket> mBucket;
+        std::unique_ptr<BucketIndex const> mIndex;
         bool mDone{false};
 
         void postWork();

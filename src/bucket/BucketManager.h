@@ -188,6 +188,14 @@ class BucketManager : NonMovableOrCopyable
     // state of the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
 
+    // Sets index for bucket b if b is not already indexed and if BucketManager
+    // is not shutting down. In most cases, there should only be a single index
+    // for each bucket. However, during startup there are race conditions where
+    // a bucket may be indexed twice. If there is an index race, set index with
+    // this function, otherwise use Bucket::setIndex().
+    virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
+                               std::unique_ptr<BucketIndex const>&& index) = 0;
+
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
     // call to addBatch and snapshotLedger. This interface exists only for

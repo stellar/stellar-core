@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/LedgerCmp.h"
-#include "lib/bloom_filter.hpp"
 #include "util/NonCopyable.h"
 #include <atomic>
 #include <filesystem>

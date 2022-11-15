@@ -400,10 +400,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 
             // race condition: two buckets + indexes were produced in parallel
             // only setIndex if there is no index already.
-            if (index && !b->isIndexed())
-            {
-                b->setIndex(std::move(index));
-            }
+            maybeSetIndex(b, std::move(index));
         }
     }
     else
@@ -710,7 +707,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
         // Delete indexes for buckets no longer in bucketlist. There is a race
         // condition on startup where future buckets for a level will be
-        // finished and have an index but will not yet be refered to by the
+        // finished and have an index but will not yet be referred to by the
         // bucket level's next pointer. Checking use_count == 1 makes sure no
         // other in-progress structures will add bucket to bucket list after
         // deleting index
@@ -850,6 +847,16 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     }
 #endif
     calculateSkipValues(currentHeader);
+}
+
+void
+BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
+                                 std::unique_ptr<BucketIndex const>&& index)
+{
+    if (!isShutdown() && index && !b->isIndexed())
+    {
+        b->setIndex(std::move(index));
+    }
 }
 
 void

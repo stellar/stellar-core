@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 
+#include "lib/bloom_filter.hpp"
 #include <Tracy.hpp>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -107,7 +108,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
         bloom_parameters params;
         params.projected_element_count = estimatedNumElems;
         params.false_positive_probability = 0.001; // 1 in 1000
-        crypto_shorthash_keygen(params.random_seed.data());
+        crypto_shorthash_keygen(shortHash::getShortHashInitKey().data());
         params.compute_optimal_parameters();
         mFilter = std::make_unique<bloom_filter>(params);
         estimatedIndexEntries = fileSize / mPageSize;
@@ -125,6 +126,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
     std::streamoff pageUpperBound = 0;
     BucketEntry be;
     size_t iter = 0;
+    size_t count = 0;
     while (in && in.readOne(be))
     {
         // peridocially check if bucket manager is exiting to stop indexing
@@ -134,12 +136,14 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
             iter = 0;
             if (bm.isShutdown())
             {
-                return;
+                throw std::runtime_error(
+                    "Incomplete bucket index due to BucketManager shutdown");
             }
         }
 
         if (be.type() != METAENTRY)
         {
+            ++count;
             LedgerKey key = getBucketLedgerKey(be);
             if constexpr (std::is_same<IndexT, RangeIndex>::value)
             {
@@ -168,7 +172,15 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mKeysToOffset.size(),
                filename.filename());
-    ZoneValue(static_cast<int64_t>(mKeysToOffset.size()));
+    if (estimatedNumElems < count)
+    {
+        CLOG_WARNING(Bucket,
+                     "Underestimated bloom filter size. Estimated entry "
+                     "count: {}, Actual: {}",
+                     estimatedNumElems, count);
+    }
+
+    ZoneValue(static_cast<int64_t>(count));
 }
 
 // Returns true if the key is not contained within the given IndexEntry.
@@ -241,29 +253,36 @@ BucketIndex::createIndex(BucketManager const& bm,
     releaseAssertOrThrow(pageSizeExp < 32);
     auto pageSize = pageSizeExp == 0 ? 0 : 1UL << pageSizeExp;
 
-    // Conver to bytes
+    // Convert to bytes
     auto cutoff = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF * 1000000;
-    if (pageSize == 0 || fs::size(filename.string()) < cutoff)
+    try
     {
-        CLOG_INFO(Bucket,
-                  "BucketIndex::createIndex() indexing individual keys in "
-                  "bucket {}",
-                  filename);
-        return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-            new BucketIndexImpl<IndividualIndex>(bm, filename, 0));
+        if (pageSize == 0 || fs::size(filename.string()) < cutoff)
+        {
+            CLOG_INFO(Bucket,
+                      "BucketIndex::createIndex() indexing individual keys in "
+                      "bucket {}",
+                      filename);
+            return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
+                new BucketIndexImpl<IndividualIndex>(bm, filename, 0));
+        }
+        else
+        {
+            CLOG_INFO(Bucket,
+                      "BucketIndex::createIndex() indexing key range with "
+                      "page size "
+                      "{} in bucket {}",
+                      pageSize, filename);
+            return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
+                new BucketIndexImpl<RangeIndex>(bm, filename, pageSize));
+        }
     }
-    else
+    // BucketIndexImpl throws if BucketManager shuts down before index finishes,
+    // so return empty index instead of partial index
+    catch (std::runtime_error&)
     {
-        CLOG_INFO(Bucket,
-                  "BucketIndex::createIndex() indexing key range with "
-                  "page size "
-                  "{} in bucket {}",
-                  pageSize, filename);
-        return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
-            new BucketIndexImpl<RangeIndex>(bm, filename, pageSize));
+        return {};
     }
-
-    return {};
 }
 
 template <class IndexT>

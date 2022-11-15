@@ -276,7 +276,7 @@ ApplyBucketsWork::doWork()
             return State::WORK_RUNNING;
         }
 
-        CLOG_INFO(History, "ApplyBuckets : done, restarting merges");
+        CLOG_INFO(History, "ApplyBuckets : done, assuming state");
 
         // After all buckets applied, spawn assumeState work
         addWork<AssumeStateWork>(mApplyState, mMaxProtocolVersion);

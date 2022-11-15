@@ -118,6 +118,8 @@ class BucketManagerImpl : public BucketManager
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
+    void maybeSetIndex(std::shared_ptr<Bucket> b,
+                       std::unique_ptr<BucketIndex const>&& index) override;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
