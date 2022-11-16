@@ -9,6 +9,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "lib/util/finally.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -525,6 +526,13 @@ OverlayManagerImpl::tick()
     ZoneScoped;
     CLOG_TRACE(Overlay, "OverlayManagerImpl tick");
 
+    auto rescheduleTick = gsl::finally([&]() {
+        mTimer.expires_from_now(std::chrono::seconds(
+            mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
+        mTimer.async_wait([this]() { this->tick(); },
+                          VirtualTimer::onFailureNoop);
+    });
+
     if (futureIsReady(mResolvedPeers))
     {
         CLOG_TRACE(Overlay, "Resolved peers are ready");
@@ -612,10 +620,6 @@ OverlayManagerImpl::tick()
     {
         connectTo(availablePendingSlots, PeerType::INBOUND);
     }
-
-    mTimer.expires_from_now(
-        std::chrono::seconds(mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
-    mTimer.async_wait([this]() { this->tick(); }, VirtualTimer::onFailureNoop);
 }
 
 int

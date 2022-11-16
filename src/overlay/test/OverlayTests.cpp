@@ -1540,6 +1540,70 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
     simulation->crankForAtLeast(std::chrono::seconds{3}, true);
 }
 
+TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    auto configs = std::vector<Config>{};
+    for (auto i = 0; i < 2; i++)
+    {
+        auto cfg = getTestConfig(i + 1);
+        cfg.PEER_FLOOD_READING_CAPACITY = 1;
+        cfg.PEER_READING_CAPACITY = 1;
+        cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        if (i == 1)
+        {
+            cfg.FORCE_SCP = false;
+        }
+        configs.push_back(cfg);
+    }
+
+    auto node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
+    auto outOfSyncNode =
+        simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
+    simulation->startAllNodes();
+
+    // Node1 closes a few ledgers, while Node2 falls behind and goes out of sync
+    simulation->crankUntil(
+        [&]() {
+            return node->getLedgerManager().getLastClosedLedgerNum() >= 15;
+        },
+        50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    REQUIRE(!outOfSyncNode->getLedgerManager().isSynced());
+    simulation->addConnection(vNode2NodeID, vNode1NodeID);
+
+    // Generate transactions traffic, which the out of sync node will drop
+    auto& loadGen = node->getLoadGenerator();
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 200,
+                                                /* txRate */ 1,
+                                                /* batchSize */ 1));
+
+    auto& loadGenDone =
+        node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Confirm Node2 is still connected to Node1 and did not get dropped
+    auto conn = simulation->getLoopbackConnection(vNode2NodeID, vNode1NodeID);
+    REQUIRE(conn);
+    REQUIRE(conn->getInitiator()->isConnected());
+    REQUIRE(conn->getAcceptor()->isConnected());
+}
+
 TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
