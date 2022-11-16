@@ -118,9 +118,12 @@ class XDRInputFileStream
             if (mIn.eof())
             {
                 mIn.clear(std::ios_base::eofbit);
+                return false;
             }
-
-            return false;
+            else
+            {
+                throw xdr::xdr_runtime_error("IO failure in readOne");
+            }
         }
 
         auto sz = getXDRSize(szBuf);
@@ -134,7 +137,8 @@ class XDRInputFileStream
         }
         if (!mIn.read(mBuf.data(), sz))
         {
-            throw xdr::xdr_runtime_error("malformed XDR file");
+            throw xdr::xdr_runtime_error(
+                "malformed XDR file or IO failure in readOne");
         }
 
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
@@ -142,12 +146,16 @@ class XDRInputFileStream
         return true;
     }
 
+    // `readPage` reads records of XDR type `T` from the stream into output
+    // variable `out`, until it has exceeded `pageSize` bytes or until it finds
+    // an `out` value for which `getBucketLedgerKey(out) == key`. It returns
+    // `true` if it located such a value, or false if it failed to find one.
     template <typename T>
     bool
     readPage(T& out, LedgerKey const& key, size_t pageSize)
     {
         ZoneScoped;
-        if (mBuf.size() < pageSize)
+        if (mBuf.size() != pageSize)
         {
             mBuf.resize(pageSize);
         }
@@ -156,54 +164,52 @@ class XDRInputFileStream
         {
             if (mIn.eof())
             {
+                // Hitting eof just means there's not a full pageSize
+                // worth of data left in the file. Not a problem: resize our
+                // buffer down to the amount the page we _did_ manage to read.
+                mBuf.resize(mIn.gcount());
                 mIn.clear(std::ios_base::eofbit);
             }
             else
             {
-                return false;
+                throw xdr::xdr_runtime_error("IO failure in readPage");
             }
         }
 
-        auto bytesToRead = mIn.gcount();
-        char* curr = mBuf.data();
-        for (std::streamsize read = 0; read < bytesToRead;)
+        size_t xdrStart = 0;
+        while (xdrStart + 4 <= mBuf.size())
         {
-            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+            const uint32_t xdrSz = getXDRSize(mBuf.data() + xdrStart);
+            xdrStart += 4;
+            const size_t xdrEnd = xdrStart + xdrSz;
 
-            uint32_t sz = getXDRSize(curr);
-            read += sizeof(sz);
-            curr += sizeof(sz);
-
-            // If entry continues past end of page
-            if (read + sz > bytesToRead)
+            // If entry continues past end of buffer, temporarily expand
+            // it and load the extra bytes. The buffer will be resized
+            // back to pageSize in the next readPage.
+            if (xdrEnd > mBuf.size())
             {
-                if (mBuf.size() < sz)
+                const size_t extraStart = mBuf.size();
+                const size_t extraSz = xdrEnd - extraStart;
+                mBuf.resize(xdrEnd);
+                releaseAssert(extraStart + extraSz == mBuf.size());
+                if (!mIn.read(mBuf.data() + extraStart, extraSz))
                 {
-                    mBuf.resize(sz);
+                    throw xdr::xdr_runtime_error(
+                        "malformed XDR file or IO failure in readPage");
                 }
-
-                // Move undecoded bytes to front of buffer and read in the rest
-                // of the entry
-                auto bytesRemaining = bytesToRead - read;
-                memmove(mBuf.data(), curr, bytesRemaining);
-                if (!mIn.read(mBuf.data() + bytesRemaining,
-                              sz - bytesRemaining))
-                {
-                    throw xdr::xdr_runtime_error("malformed XDR file");
-                }
-
-                curr = mBuf.data();
             }
 
-            xdr::xdr_get g(curr, curr + sz);
+            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+            releaseAssert(xdrStart <= xdrEnd);
+            releaseAssert(xdrEnd <= mBuf.size());
+            xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
             xdr::xdr_argpack_archive(g, out);
             if (getBucketLedgerKey(out) == key)
             {
                 return true;
             }
 
-            curr += sz;
-            read += sz;
+            xdrStart = xdrEnd;
         }
 
         return false;
