@@ -11,6 +11,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -115,6 +116,10 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
+    , mBucketListDBQueryMeter(app.getMetrics().NewMeter(
+          {"bucketlistDB", "query", "loads"}, "query"))
+    , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
+          {"bucketlistDB", "bloom", "misses"}, "bloom"))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -857,6 +862,71 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
     {
         b->setIndex(std::move(index));
     }
+}
+
+medida::TimerContext
+BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
+{
+    mBucketListDBQueryMeter.Mark();
+    return mApp.getMetrics()
+        .NewTimer({"bucketlistDB", "bulk", label})
+        .TimeScope();
+}
+
+medida::TimerContext
+BucketManagerImpl::getPointLoadTimer(std::string const& label) const
+{
+    mBucketListDBQueryMeter.Mark();
+    return mApp.getMetrics()
+        .NewTimer({"bucketlistDB", "point", label})
+        .TimeScope();
+}
+
+std::shared_ptr<LedgerEntry>
+BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
+{
+    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
+                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    auto timer = getPointLoadTimer(
+        xdr::xdr_traits<LedgerEntryType>::enum_name(k.type()));
+    return mBucketList->getLedgerEntry(k);
+}
+
+std::vector<LedgerEntry>
+BucketManagerImpl::loadKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
+{
+    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
+                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    auto timer = getBulkLoadTimer("prefetch");
+    return mBucketList->loadKeys(keys);
+}
+
+std::vector<LedgerEntry>
+BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
+    AccountID const& accountID, Asset const& asset) const
+{
+    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
+                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    auto timer = getBulkLoadTimer("poolshareTrustlines");
+    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
+        accountID, asset, getConfig());
+}
+
+std::vector<InflationWinner>
+BucketManagerImpl::loadInflationWinners(size_t maxWinners,
+                                        int64_t minBalance) const
+{
+    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
+                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    auto timer = getBulkLoadTimer("inflationWinners");
+    return mBucketList->loadInflationWinners(maxWinners, minBalance);
+}
+
+medida::Meter&
+BucketManagerImpl::getBloomMissMeter() const
+{
+    return mBucketListDBBloomMisses;
 }
 
 void

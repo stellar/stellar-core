@@ -399,12 +399,12 @@ class BucketList
 {
     std::vector<BucketLevel> mLevels;
 
-  public:
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
     // returns true
     void loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const;
 
+  public:
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.
@@ -456,11 +456,8 @@ class BucketList
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
 
-    // Look up a ledger entry from the BL. Returns nullopt if the LE is dead /
-    // nonexistent.
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
 
-    // Loads LedgerEntry for all keys.
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 

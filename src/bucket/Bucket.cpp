@@ -158,6 +158,8 @@ Bucket::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
         return std::make_optional(be);
     }
 
+    // Mark entry miss for metrics
+    getIndex().markBloomMiss();
     return std::nullopt;
 }
 

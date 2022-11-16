@@ -2513,7 +2513,7 @@ accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
 // Return true only if something is actually accumulated and not skipped over
 bool
 BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
-                                             bool isBucketKVStore)
+                                             bool bucketListDBEnabled)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
     if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
@@ -2521,8 +2521,8 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         return false;
     }
 
-    // Database only holds offers if BucketList KV lookup is enabled
-    if (isBucketKVStore)
+    // Database only holds offers if BucketListDB is enabled
+    if (bucketListDBEnabled)
     {
         if (iter.key().ledgerKey().type() == OFFER)
         {
@@ -2930,8 +2930,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             insertIfNotLoaded(keysToSearch, key);
         }
 
-        auto blLoad =
-            mApp.getBucketManager().getBucketList().loadKeys(keysToSearch);
+        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3435,10 +3434,9 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     {
         if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
         {
-            trustLines = mApp.getBucketManager()
-                             .getBucketList()
-                             .loadPoolShareTrustLinesByAccountAndAsset(
-                                 account, asset, mApp.getConfig());
+            trustLines =
+                mApp.getBucketManager()
+                    .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
         {
@@ -3500,8 +3498,8 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
         {
-            return mApp.getBucketManager().getBucketList().loadInflationWinners(
-                maxWinners, minVotes);
+            return mApp.getBucketManager().loadInflationWinners(maxWinners,
+                                                                minVotes);
         }
         else
         {
@@ -3556,7 +3554,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && key.type() != OFFER)
         {
-            entry = mApp.getBucketManager().getBucketList().getLedgerEntry(key);
+            entry = mApp.getBucketManager().getLedgerEntry(key);
         }
         else
         {

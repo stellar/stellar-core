@@ -15,17 +15,23 @@
 
 #include "medida/timer_context.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
 class Application;
+class BasicWork;
 class BucketList;
 class Config;
 class TmpDirManager;
+struct HistoryArchiveState;
+struct InflationWinner;
 struct LedgerHeader;
 struct MergeKey;
-struct HistoryArchiveState;
-class BasicWork;
 
 // A fine-grained merge-operation-counter structure for tracking various
 // events during merges. These are not medida counters because we do not
@@ -195,6 +201,24 @@ class BucketManager : NonMovableOrCopyable
     // this function, otherwise use Bucket::setIndex().
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
+
+    // Look up a ledger entry from the BucketList. Returns nullopt if the LE is
+    // dead / nonexistent.
+    virtual std::shared_ptr<LedgerEntry>
+    getLedgerEntry(LedgerKey const& k) const = 0;
+
+    // Loads LedgerEntry for all keys.
+    virtual std::vector<LedgerEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
+
+    virtual std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset) const = 0;
+
+    virtual std::vector<InflationWinner>
+    loadInflationWinners(size_t maxWinners, int64_t minBalance) const = 0;
+
+    virtual medida::Meter& getBloomMissMeter() const = 0;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next

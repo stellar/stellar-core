@@ -25,7 +25,7 @@ class BucketIndexTest
   protected:
     VirtualClock mClock;
     std::shared_ptr<BucketTestApplication> mApp;
-    BucketList& mBl;
+    BucketManager& mBM;
     LedgerManagerForBucketTests& mLm;
 
     // Mapping of Key->value that BucketList should return
@@ -66,7 +66,7 @@ class BucketIndexTest
     BucketIndexTest(Config& cfg, uint32_t levels = 6)
         : mClock()
         , mApp(createTestApplication<BucketTestApplication>(mClock, cfg))
-        , mBl(mApp->getBucketManager().getBucketList())
+        , mBM(mApp->getBucketManager())
         , mLm(mApp->getLedgerManager())
         , mLevelsToBuild(levels)
     {
@@ -148,14 +148,14 @@ class BucketIndexTest
     run()
     {
         // Test bulk load lookup
-        auto loadResult = mBl.loadKeys(mKeysToSearch);
+        auto loadResult = mBM.loadKeys(mKeysToSearch);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = mBl.getLedgerEntry(key);
+            auto entryPtr = mBM.getLedgerEntry(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -196,7 +196,7 @@ class BucketIndexTest
                 }
             }
 
-            auto blLoad = mBl.loadKeys(searchSubset);
+            auto blLoad = mBM.loadKeys(searchSubset);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -209,12 +209,12 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(mBl.loadKeys(invalidKeys).size() == 0);
+        REQUIRE(mBM.loadKeys(invalidKeys).size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = mBl.getLedgerEntry(key);
+            auto entryPtr = mBM.getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -332,8 +332,8 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto loadResult = mBl.loadPoolShareTrustLinesByAccountAndAsset(
-            mAccountToSearch.accountID, mAssetToSearch, mApp->getConfig());
+        auto loadResult = mBM.loadPoolShareTrustLinesByAccountAndAsset(
+            mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
 };

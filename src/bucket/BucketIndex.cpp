@@ -14,6 +14,7 @@
 #include "util/XDRStream.h"
 
 #include "lib/bloom_filter.hpp"
+#include "medida/meter.h"
 #include <Tracy.hpp>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -44,6 +45,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     IndexT mKeysToOffset{};
     std::streamoff const mPageSize{};
     std::unique_ptr<bloom_filter> mFilter{};
+    medida::Meter& mBloomMisses;
 
     BucketIndexImpl(BucketManager const& bm,
                     std::filesystem::path const& filename,
@@ -54,8 +56,6 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
                              std::filesystem::path const& filename);
 
   public:
-    BucketIndexImpl() = default;
-
     virtual std::optional<std::streamoff>
     lookup(LedgerKey const& k) const override;
 
@@ -82,13 +82,15 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     {
         return mKeysToOffset.end();
     }
+
+    virtual void markBloomMiss() const override;
 };
 
 template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize)
-    : mPageSize(pageSize)
+    : mPageSize(pageSize), mBloomMisses(bm.getBloomMissMeter())
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
@@ -354,5 +356,18 @@ BucketIndexImpl<IndexT>::getPoolshareTrustlineRange(
     }
 
     return std::make_pair(startOff, endOff);
+}
+
+template <class IndexT>
+void
+BucketIndexImpl<IndexT>::markBloomMiss() const
+{
+}
+
+template <>
+void
+BucketIndexImpl<BucketIndex::RangeIndex>::markBloomMiss() const
+{
+    mBloomMisses.Mark();
 }
 }

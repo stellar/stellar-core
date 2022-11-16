@@ -46,6 +46,8 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+    medida::Meter& mBucketListDBQueryMeter;
+    medida::Meter& mBucketListDBBloomMisses;
     MergeCounters mMergeCounters;
 
     bool const mDeleteEntireBucketDirInDtor;
@@ -71,6 +73,9 @@ class BucketManagerImpl : public BucketManager
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
     bool renameBucket(std::string const& src, std::string const& dst);
+
+    medida::TimerContext getBulkLoadTimer(std::string const& label) const;
+    medida::TimerContext getPointLoadTimer(std::string const& label) const;
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
@@ -120,6 +125,17 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
+
+    std::shared_ptr<LedgerEntry>
+    getLedgerEntry(LedgerKey const& k) const override;
+    std::vector<LedgerEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
+    std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset) const override;
+    std::vector<InflationWinner>
+    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
+    medida::Meter& getBloomMissMeter() const override;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
