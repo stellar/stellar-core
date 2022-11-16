@@ -919,17 +919,16 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
+    auto self = shared_from_this();
+    std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(self));
+    auto msgTracker = std::make_shared<MsgCapacityTracker>(weak, stellarMsg);
+
     if (!mApp.getLedgerManager().isSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we can't
         // properly verify them
         return;
     }
-
-    auto self = shared_from_this();
-    std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(self));
-
-    auto msgTracker = std::make_shared<MsgCapacityTracker>(weak, stellarMsg);
 
     mApp.postOnMainThread(
         [weak, msgTracker, cat, port = mApp.getConfig().PEER_PORT]() {
