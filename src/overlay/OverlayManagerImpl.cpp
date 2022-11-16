@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/OverlayManagerImpl.h"
+#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
@@ -1171,14 +1172,43 @@ OverlayManagerImpl::getMaxDemandSize() const
 }
 
 void
-OverlayManagerImpl::recordTxPullLatency(Hash const& hash)
+OverlayManagerImpl::recordTxPullLatency(Hash const& hash,
+                                        std::shared_ptr<Peer> peer)
 {
     auto it = mDemandHistoryMap.find(hash);
-    if (it != mDemandHistoryMap.end() && !it->second.latencyRecorded)
+    auto now = mApp.getClock().now();
+    if (it != mDemandHistoryMap.end())
     {
-        auto delta = mApp.getClock().now() - it->second.firstDemanded;
-        mOverlayMetrics.mTxPullLatency.Update(delta);
-        it->second.latencyRecorded = true;
+        // Record end-to-end pull time
+        if (!it->second.latencyRecorded)
+        {
+            auto delta = now - it->second.firstDemanded;
+            mOverlayMetrics.mTxPullLatency.Update(delta);
+            it->second.latencyRecorded = true;
+            CLOG_DEBUG(
+                Overlay,
+                "Pulled transaction {} in {} milliseconds, asked {} peers",
+                hexAbbrev(hash),
+                std::chrono::duration_cast<std::chrono::milliseconds>(delta)
+                    .count(),
+                it->second.peers.size());
+        }
+
+        // Record pull time from individual peer
+        auto peerIt = it->second.peers.find(peer->getPeerID());
+        if (peerIt != it->second.peers.end())
+        {
+            auto delta = now - peerIt->second;
+            mOverlayMetrics.mPeerTxPullLatency.Update(delta);
+            peer->getPeerMetrics().mPullLatency.Update(delta);
+            CLOG_DEBUG(
+                Overlay,
+                "Pulled transaction {} in {} milliseconds from peer {}",
+                hexAbbrev(hash),
+                std::chrono::duration_cast<std::chrono::milliseconds>(delta)
+                    .count(),
+                peer->toString());
+        }
     }
 }
 
@@ -1289,7 +1319,14 @@ OverlayManagerImpl::demand()
             while (demand.size() < getMaxDemandSize() &&
                    peer->getTxAdvertQueue().size() > 0 && !addedNewDemand)
             {
-                auto txHash = peer->getTxAdvertQueue().pop();
+                auto hashPair = peer->getTxAdvertQueue().pop();
+                auto txHash = hashPair.first;
+                if (hashPair.second)
+                {
+                    auto delta = now - *(hashPair.second);
+                    mOverlayMetrics.mAdvertQueueDelay.Update(delta);
+                    peer->getPeerMetrics().mAdvertQueueDelay.Update(delta);
+                }
 
                 switch (demandStatus(txHash, peer))
                 {
@@ -1302,8 +1339,16 @@ OverlayManagerImpl::demand()
                         // hash.
                         mPendingDemands.push(txHash);
                         mDemandHistoryMap[txHash].firstDemanded = now;
+                        CLOG_DEBUG(Overlay, "Demand tx {}, asking peer {}",
+                                   hexAbbrev(txHash), peer->toString());
                     }
-                    mDemandHistoryMap[txHash].peers.insert(peer->getPeerID());
+                    else
+                    {
+                        CLOG_DEBUG(Overlay, "Timeout for tx {}, asking peer {}",
+                                   hexAbbrev(txHash), peer->toString());
+                    }
+                    mDemandHistoryMap[txHash].peers.emplace(peer->getPeerID(),
+                                                            now);
                     mDemandHistoryMap[txHash].lastDemanded = now;
                     addedNewDemand = true;
                     break;

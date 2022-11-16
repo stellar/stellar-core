@@ -312,9 +312,17 @@ Peer::getJsonInfo(bool compact) const
     res["ver"] = getRemoteVersion();
     res["olver"] = (int)getRemoteOverlayVersion();
     res["flow_control"] = getFlowControlJsonInfo(compact);
-    res["pull_mode"] = isPullModeEnabled();
+    res["pull_mode"]["enabled"] = isPullModeEnabled();
     if (!compact)
     {
+        if (isPullModeEnabled())
+        {
+            res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
+                mPeerMetrics.mAdvertQueueDelay.GetSnapshot()
+                    .get75thPercentile());
+            res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
+                mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
+        }
         res["message_read"] =
             static_cast<Json::UInt64>(mPeerMetrics.mMessageRead);
         res["message_write"] =
@@ -1512,7 +1520,7 @@ Peer::recvTransaction(StellarMessage const& msg)
             // is coming from a node that we didn't demand it from.
             // Peers with pull mode enabled should send txns only if demanded.
             mApp.getOverlayManager().recordTxPullLatency(
-                transaction->getFullHash());
+                transaction->getFullHash(), shared_from_this());
         }
 
         // add it to our current set
@@ -1523,6 +1531,19 @@ Peer::recvTransaction(StellarMessage const& msg)
               recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
         {
             mApp.getOverlayManager().forgetFloodedMsg(msgID);
+            CLOG_DEBUG(Overlay,
+                       "Peer::recvTransaction Discarded transaction {} from {}",
+                       hexAbbrev(transaction->getFullHash()), toString());
+        }
+        else
+        {
+            bool dup =
+                recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+            CLOG_DEBUG(
+                Overlay,
+                "Peer::recvTransaction Received {} transaction {} from {}",
+                (dup ? "duplicate" : "unique"),
+                hexAbbrev(transaction->getFullHash()), toString());
         }
     }
 }
@@ -2044,6 +2065,12 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mOutboundQueueDelayDemand(medida::Timer(PEER_METRICS_DURATION_UNIT,
                                               PEER_METRICS_RATE_UNIT,
                                               PEER_METRICS_WINDOW_SIZE))
+    , mAdvertQueueDelay(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                      PEER_METRICS_RATE_UNIT,
+                                      PEER_METRICS_WINDOW_SIZE))
+    , mPullLatency(medida::Timer(PEER_METRICS_DURATION_UNIT,
+                                 PEER_METRICS_RATE_UNIT,
+                                 PEER_METRICS_WINDOW_SIZE))
     , mUniqueFloodBytesRecv(0)
     , mDuplicateFloodBytesRecv(0)
     , mUniqueFetchBytesRecv(0)
@@ -2077,7 +2104,8 @@ Peer::queueTxHashToAdvertise(Hash const& txHash)
     if (mTxHashesToAdvertise.size() == TX_ADVERT_VECTOR_MAX_SIZE)
     {
         CLOG_TRACE(Overlay,
-                   "mTxHashesToAdvertise is full, dropping the txn hash");
+                   "mTxHashesToAdvertise is full, dropping the txn hash {}",
+                   hexAbbrev(txHash));
         return;
     }
 
@@ -2118,9 +2146,6 @@ Peer::sendTxDemand(TxDemandVector&& demands)
         msg->type(FLOOD_DEMAND);
         msg->floodDemand().txHashes = std::move(demands);
         std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
-        CLOG_TRACE(Overlay, "Peer::sendTxDemand -- demanding {} txns from {}",
-                   msg->floodDemand().txHashes.size(),
-                   mApp.getConfig().toShortString(getPeerID()));
         getOverlayMetrics().mMessagesDemanded.Mark(
             msg->floodDemand().txHashes.size());
         mApp.postOnMainThread(
@@ -2148,9 +2173,6 @@ Peer::flushAdvert()
         mTxHashesToAdvertise.clear();
         auto msg = std::make_shared<StellarMessage>(adv);
         std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
-        CLOG_TRACE(Overlay, "Peer::flushAdvert -- flushing {} tx hashes to {}",
-                   msg->floodAdvert().txHashes.size(),
-                   mApp.getConfig().toShortString(getPeerID()));
         mApp.postOnMainThread(
             [weak, msg = std::move(msg)]() {
                 auto strong = weak.lock();
