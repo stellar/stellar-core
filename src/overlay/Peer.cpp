@@ -322,6 +322,8 @@ Peer::getJsonInfo(bool compact) const
                     .get75thPercentile());
             res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
                 mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
+            res["pull_mode"]["demand_timeouts"] =
+                static_cast<Json::UInt64>(mPeerMetrics.mDemandTimeouts);
         }
         res["message_read"] =
             static_cast<Json::UInt64>(mPeerMetrics.mMessageRead);
@@ -1526,7 +1528,7 @@ Peer::recvTransaction(StellarMessage const& msg)
         // add it to our current set
         // and make sure it is valid
         auto recvRes = mApp.getHerder().recvTransaction(transaction, false);
-
+        bool pulledRelevantTx = false;
         if (!(recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
               recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
         {
@@ -1539,11 +1541,23 @@ Peer::recvTransaction(StellarMessage const& msg)
         {
             bool dup =
                 recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+            if (!dup)
+            {
+                pulledRelevantTx = true;
+            }
             CLOG_DEBUG(
                 Overlay,
                 "Peer::recvTransaction Received {} transaction {} from {}",
                 (dup ? "duplicate" : "unique"),
                 hexAbbrev(transaction->getFullHash()), toString());
+        }
+
+        if (isPullModeEnabled())
+        {
+            auto const& om = mApp.getOverlayManager().getOverlayMetrics();
+            auto& meter = pulledRelevantTx ? om.mPulledRelevantTxs
+                                           : om.mPulledIrrelevantTxs;
+            meter.Mark();
         }
     }
 }
@@ -2071,6 +2085,7 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mPullLatency(medida::Timer(PEER_METRICS_DURATION_UNIT,
                                  PEER_METRICS_RATE_UNIT,
                                  PEER_METRICS_WINDOW_SIZE))
+    , mDemandTimeouts(0)
     , mUniqueFloodBytesRecv(0)
     , mDuplicateFloodBytesRecv(0)
     , mUniqueFetchBytesRecv(0)

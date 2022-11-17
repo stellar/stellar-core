@@ -103,6 +103,10 @@ struct OverlayMetrics
     medida::Timer& mPeerTxPullLatency;
     medida::Timer& mAdvertQueueDelay;
 
+    medida::Meter& mDemandTimeouts;
+    medida::Meter& mPulledRelevantTxs;
+    medida::Meter& mPulledIrrelevantTxs;
+
     medida::Meter& mAbandonedDemandMeter;
 
     medida::Meter& mMessagesBroadcast;

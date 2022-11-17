@@ -85,6 +85,9 @@ overlay.flood.unfulfilled-banned         | meter     | transactions we failed to
 overlay.flood.unfulfilled-unknown        | meter     | transactions we failed to fulfilled since they are unknown
 overlay.flood.tx-pull-latency            | timer     | time between the first demand and the first time we receive the txn
 overlay.flood.peer-tx-pull-latency       | timer     | time to pull a transaction from a peer
+overlay.demand.timeout                   | meter     | pull mode timeouts
+overlay.flood.relevant-txs               | meter     | relevant transactions pulled from peers
+overlay.flood.irrelevant-txs             | meter     | irrelevant transactions pulled from peers
 overlay.flood.advert-delay               | timer     | time each advert sits in the inbound queue
 overlay.flood.abandoned-demands          | meter     | tx hash pull demands that no peers responded
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer

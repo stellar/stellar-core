@@ -1344,6 +1344,8 @@ OverlayManagerImpl::demand()
                     }
                     else
                     {
+                        getOverlayMetrics().mDemandTimeouts.Mark();
+                        ++(peer->getPeerMetrics().mDemandTimeouts);
                         CLOG_DEBUG(Overlay, "Timeout for tx {}, asking peer {}",
                                    hexAbbrev(txHash), peer->toString());
                     }
