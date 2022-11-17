@@ -114,7 +114,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         };
 
         // see if the transactions got propagated properly
-        simulation->crankUntil(checkSim, std::chrono::seconds(60), true);
+        simulation->crankUntil(checkSim, std::chrono::seconds(60), false);
 
         for (auto n : nodes)
         {
@@ -139,6 +139,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
     SECTION("transaction flooding")
     {
+        TransactionFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 
@@ -150,7 +151,10 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             auto account = TestAccount{*inApp, sources[i]};
             auto tx1 = account.tx(
                 {createAccount(dest.getPublicKey(), txAmount)}, expectedSeq);
-
+            if (!testTransaction)
+            {
+                testTransaction = tx1;
+            }
             // this is basically a modified version of Peer::recvTransaction
             auto msg = tx1->toStellarMessage();
             auto res = inApp->getHerder().recvTransaction(tx1, false);
@@ -277,6 +281,49 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                     return res;
                 };
                 test(injectTransaction, advertCheck, true);
+
+                SECTION("advertise same transaction after some time")
+                {
+                    auto nodes = simulation->getNodes();
+                    auto hashesAdvertised = [&](Application::pointer app) {
+                        return app->getMetrics()
+                            .NewMeter({"overlay", "flood", "advertised"},
+                                      "message")
+                            .count();
+                    };
+
+                    for (auto const& node : nodes)
+                    {
+                        auto before = hashesAdvertised(node);
+                        node->getOverlayManager().broadcastMessage(
+                            testTransaction->toStellarMessage(), false,
+                            testTransaction->getFullHash());
+                        REQUIRE(before == hashesAdvertised(node));
+                    }
+
+                    // Now crank for some time and trigger cleanups
+                    auto numLedgers =
+                        nodes[0]->getConfig().MAX_SLOTS_TO_REMEMBER +
+                        nodes[0]->getLedgerManager().getLastClosedLedgerNum();
+                    simulation->crankUntil(
+                        [&] {
+                            return simulation->haveAllExternalized(numLedgers,
+                                                                   1);
+                        },
+                        numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                        false);
+
+                    // Ensure old transaction gets re-broadcasted
+                    for (auto const& node : nodes)
+                    {
+                        auto before = hashesAdvertised(node);
+                        node->getOverlayManager().broadcastMessage(
+                            testTransaction->toStellarMessage(), false,
+                            testTransaction->getFullHash());
+
+                        REQUIRE(before + 1 == hashesAdvertised(node));
+                    }
+                }
             }
             SECTION("pull mode with 4 nodes")
             {

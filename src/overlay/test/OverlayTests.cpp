@@ -1886,6 +1886,12 @@ auto numTxHashesAdvertised = [](std::shared_ptr<Application> app) {
         .count();
 };
 
+auto numFulfilled = [](std::shared_ptr<Application> app) {
+    return app->getMetrics()
+        .NewMeter({"overlay", "flood", "fulfilled"}, "message")
+        .count();
+};
+
 TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 {
     VirtualClock clock;
@@ -1990,6 +1996,89 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 
         REQUIRE(numDemandSent(apps[2]) == 1);
         REQUIRE(numUnknownDemand(apps[0]) == 1);
+    }
+
+    SECTION("do not advertise to peers that know about tx")
+    {
+        auto root = TestAccount::createRoot(*apps[0]);
+        auto tx = root.tx({txtest::createAccount(
+            txtest::getAccount("acc").getPublicKey(), 100)});
+        auto adv = createAdvert(std::vector<std::shared_ptr<StellarMessage>>{
+            std::make_shared<StellarMessage>(tx->toStellarMessage())});
+        auto twoNodesRecvTx = [&]() {
+            // Node0 and Node1 know about tx0 and will advertise it to Node2
+            REQUIRE(apps[0]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(apps[1]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        };
+
+        SECTION("pull mode enabled on all")
+        {
+            twoNodesRecvTx();
+
+            // Give enough time for Node2 to issue a demand and receive tx0
+            testutil::crankFor(clock, std::chrono::seconds(1));
+
+            REQUIRE(numDemandSent(apps[2]) == 1);
+            // Either Node0 or Node1 fulfill the demand
+            auto fulfilled = numFulfilled(apps[0]) + numFulfilled(apps[1]);
+            REQUIRE(fulfilled == 1);
+            // After receiving a transaction, Node2 does not advertise it to
+            // anyone because others already know about it
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "flood-advert"})
+                        .count() == 2);
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "transaction"})
+                        .count() == 1);
+            REQUIRE(numTxHashesAdvertised(apps[2]) == 0);
+        }
+        SECTION("pull mode disabled on Node3")
+        {
+            // Add another node with pull mode disabled, so it will flood
+            // transactions directly
+            Config cfg = getTestConfig(3);
+            cfg.ENABLE_PULL_MODE = false;
+            apps.push_back(createTestApplication(clock, cfg));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[2], *apps[3]));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[3]));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[1], *apps[3]));
+
+            testutil::crankFor(clock, std::chrono::seconds(5));
+
+            // Node0 and Node1 know about tx0 and will advertise it to Node2
+            // Node3 will flood the transaction directly
+            twoNodesRecvTx();
+            REQUIRE(apps[3]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            // Give enough time for Node2 to receive tx0 from Node3 and adverts
+            // from Node0 and Node1
+            testutil::crankFor(clock, std::chrono::seconds(1));
+
+            // No demands sent, no fulfilling occurs
+            REQUIRE(numDemandSent(apps[2]) == 0);
+            REQUIRE(numFulfilled(apps[0]) == 0);
+            REQUIRE(numFulfilled(apps[1]) == 0);
+            REQUIRE(numFulfilled(apps[3]) == 0);
+            // After receiving a transaction, Node2 does not advertise/broadcast
+            // it to anyone because others already know about it
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "flood-advert"})
+                        .count() == 2);
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "transaction"})
+                        .count() == 1);
+            REQUIRE(numTxHashesAdvertised(apps[2]) == 0);
+        }
     }
 
     SECTION("sanity check - demand")
