@@ -111,16 +111,7 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 When building on OSX, here's some dependencies you'll need:
 - Install xcode
 - Install [homebrew](https://brew.sh)
-- `brew install libsodium`
-- `brew install libtool`
-- `brew install autoconf`
-- `brew install automake`
-- `brew install pkg-config`
-- `brew install libpq` (required for postgres)
-- `brew install openssl` (required for postgres)
-- `brew install parallel` (required for running tests)
-- `brew install ccache` (required for enabling ccache)
-- `brew install bison` (the version that comes with the OS is too old)
+- `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison`
 
 You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
 ```zsh
