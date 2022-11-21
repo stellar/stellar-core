@@ -19,7 +19,8 @@ namespace stellar
 namespace shortHash
 {
 void initialize();
-std::array<unsigned char, crypto_shorthash_KEYBYTES> getShortHashInitKey();
+std::array<unsigned char, crypto_shorthash_KEYBYTES> const&
+getShortHashInitKey();
 #ifdef BUILD_TESTS
 void seed(unsigned int);
 #endif

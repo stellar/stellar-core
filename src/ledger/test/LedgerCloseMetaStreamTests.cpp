@@ -418,11 +418,19 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
         cfg.METADATA_DEBUG_LEDGERS);
     bool gotToExpectedSize = false;
     auto& lm = app->getLedgerManager();
+    bool debugFilesGenerated = false;
+    auto const& debugFilePath =
+        FlushAndRotateMetaDebugWork::getMetaDebugDirPath(bucketDir);
     while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
     {
         clock.crank(false);
-        if (app->getWorkScheduler().allChildrenDone() &&
-            lm.getLastClosedLedgerNum() >= cfg.METADATA_DEBUG_LEDGERS)
+        // Don't check for debug files until the directory has been generated
+        if (!debugFilesGenerated)
+        {
+            debugFilesGenerated = fs::exists(debugFilePath);
+        }
+
+        if (app->getWorkScheduler().allChildrenDone() && debugFilesGenerated)
         {
             auto files =
                 FlushAndRotateMetaDebugWork::listMetaDebugFiles(bucketDir);

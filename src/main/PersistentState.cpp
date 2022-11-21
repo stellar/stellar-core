@@ -172,6 +172,14 @@ void
 PersistentState::setRebuildForType(LedgerEntryType let)
 {
     ZoneScoped;
+
+    // Only allow rebuilds for offer table if BucketListDB enabled, other tables
+    // don't exist
+    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && let != OFFER)
+    {
+        return;
+    }
+
     updateDb(getStoreStateName(kRebuildLedger, let), "1");
 }
 

@@ -110,7 +110,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
         bloom_parameters params;
         params.projected_element_count = estimatedNumElems;
         params.false_positive_probability = 0.001; // 1 in 1000
-        crypto_shorthash_keygen(shortHash::getShortHashInitKey().data());
+        params.random_seed = shortHash::getShortHashInitKey();
         params.compute_optimal_parameters();
         mFilter = std::make_unique<bloom_filter>(params);
         estimatedIndexEntries = fileSize / mPageSize;

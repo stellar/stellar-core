@@ -25,13 +25,13 @@ initialize()
     crypto_shorthash_keygen(gKey);
 }
 
-std::array<unsigned char, crypto_shorthash_KEYBYTES>
+std::array<unsigned char, crypto_shorthash_KEYBYTES> const&
 getShortHashInitKey()
 {
     std::lock_guard<std::mutex> guard(gKeyMutex);
     std::array<unsigned char, crypto_shorthash_KEYBYTES> arr;
     std::copy(std::begin(gKey), std::end(gKey), arr.begin());
-    return arr;
+    return std::move(arr);
 }
 
 #ifdef BUILD_TESTS

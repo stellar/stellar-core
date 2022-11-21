@@ -154,12 +154,9 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
-
-        // Rebuild offer table even when bucketlist is enabled, otherwise only
-        // rebuild table if db is enabled
-        if (ps.shouldRebuildForType(t) && (!blEnabled || t == OFFER))
+        if (ps.shouldRebuildForType(t))
         {
-            toRebuild.insert(t);
+            toRebuild.emplace(t);
             continue;
         }
 
