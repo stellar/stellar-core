@@ -23,7 +23,7 @@ class TxAdvertQueue
   private:
     Application& mApp;
 
-    std::deque<Hash> mIncomingTxHashes;
+    std::deque<std::pair<Hash, VirtualClock::time_point>> mIncomingTxHashes;
     std::list<Hash> mTxHashesToRetry;
 
   public:
@@ -31,7 +31,7 @@ class TxAdvertQueue
 
     size_t size() const;
 
-    Hash pop();
+    std::pair<Hash, std::optional<VirtualClock::time_point>> pop();
 
     void queueAndMaybeTrim(TxAdvertVector const& hash);
     void appendHashesToRetryAndMaybeTrim(std::list<Hash>& list);

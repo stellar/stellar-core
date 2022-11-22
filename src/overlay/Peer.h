@@ -122,7 +122,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
         medida::Timer mOutboundQueueDelayTxs;
         medida::Timer mOutboundQueueDelayAdvert;
         medida::Timer mOutboundQueueDelayDemand;
+        medida::Timer mAdvertQueueDelay;
+        medida::Timer mPullLatency;
 
+        uint64_t mDemandTimeouts;
         uint64_t mUniqueFloodBytesRecv;
         uint64_t mDuplicateFloodBytesRecv;
         uint64_t mUniqueFetchBytesRecv;

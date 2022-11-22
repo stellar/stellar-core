@@ -146,6 +146,16 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "flood", "unfulfilled-unknown"}, "message"))
     , mTxPullLatency(
           app.getMetrics().NewTimer({"overlay", "flood", "tx-pull-latency"}))
+    , mPeerTxPullLatency(app.getMetrics().NewTimer(
+          {"overlay", "flood", "peer-tx-pull-latency"}))
+    , mAdvertQueueDelay(
+          app.getMetrics().NewTimer({"overlay", "flood", "advert-delay"}))
+    , mDemandTimeouts(app.getMetrics().NewMeter(
+          {"overlay", "demand", "timeout"}, "timeout"))
+    , mPulledRelevantTxs(app.getMetrics().NewMeter(
+          {"overlay", "flood", "relevant-txs"}, "transaction"))
+    , mPulledIrrelevantTxs(app.getMetrics().NewMeter(
+          {"overlay", "flood", "irrelevant-txs"}, "transaction"))
     , mAbandonedDemandMeter(app.getMetrics().NewMeter(
           {"overlay", "flood", "abandoned-demands"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(

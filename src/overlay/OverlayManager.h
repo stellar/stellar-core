@@ -189,7 +189,8 @@ class OverlayManager
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
 
-    virtual void recordTxPullLatency(Hash const& hash) = 0;
+    virtual void recordTxPullLatency(Hash const& hash,
+                                     std::shared_ptr<Peer> peer) = 0;
 
     virtual size_t getMaxAdvertSize() const = 0;
 

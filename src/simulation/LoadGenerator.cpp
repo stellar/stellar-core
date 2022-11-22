@@ -368,8 +368,8 @@ LoadGenerator::submitPaymentOrPretendTx(GeneratedLoadConfig const& cfg,
         if (cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER ||
-             status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
-                 code == txINSUFFICIENT_FEE))
+             (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
+              code == txINSUFFICIENT_FEE)))
         {
             // Rollback the seq num of the test account as we regenerate the
             // transaction.

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/TransactionQueue.h"
+#include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxQueueLimiter.h"
@@ -369,6 +370,8 @@ TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
     as.mQueueSizeOps -= ops;
     mTxQueueLimiter->removeTransaction(tstx.mTx);
     mKnownTxHashes.erase(tstx.mTx->getFullHash());
+    CLOG_DEBUG(Tx, "Dropping {} transaction",
+               hexAbbrev(tstx.mTx->getFullHash()));
     if (!tstx.mBroadcasted)
     {
         as.mBroadcastQueueOps -= ops;
@@ -658,6 +661,8 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
     {
         auto& bannedFront = mBannedTransactions.front();
         bannedFront.emplace(h);
+        CLOG_DEBUG(Tx, "Ban applied transaction {}", hexAbbrev(h));
+
         // do not mark metric for banning as this is the result of normal flow
         // of operations
     }
@@ -690,6 +695,7 @@ TransactionQueue::ban(Transactions const& banTxs)
     {
         auto& transactions = transactionsByAccount[tx->getSourceID()];
         transactions.emplace_back(tx);
+        CLOG_DEBUG(Tx, "Ban transaction {}", hexAbbrev(tx->getFullHash()));
         if (bannedFront.emplace(tx->getFullHash()).second)
         {
             mBannedTransactionsCounter.inc();
@@ -799,6 +805,8 @@ TransactionQueue::shift()
                 //     !it->second.mTransactions.empty()
                 // otherwise we couldn't have reached this line.
                 prepareDropTransaction(it->second, toBan);
+                CLOG_DEBUG(Tx, "Ban transaction {}",
+                           hexAbbrev(toBan.mTx->getFullHash()));
                 bannedFront.insert(toBan.mTx->getFullHash());
             }
             mBannedTransactionsCounter.inc(
