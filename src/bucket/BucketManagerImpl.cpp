@@ -864,22 +864,35 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
     }
 }
 
-medida::TimerContext
+medida::Timer&
 BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
 {
     mBucketListDBQueryMeter.Mark();
-    return mApp.getMetrics()
-        .NewTimer({"bucketlistDB", "bulk", label})
-        .TimeScope();
+    auto iter = mBucketListDBBulkTimers.find(label);
+    if (iter == mBucketListDBBulkTimers.end())
+    {
+        auto& metric =
+            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
+        iter = mBucketListDBBulkTimers.emplace(label, metric).first;
+    }
+
+    return iter->second;
 }
 
-medida::TimerContext
-BucketManagerImpl::getPointLoadTimer(std::string const& label) const
+medida::Timer&
+BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
 {
     mBucketListDBQueryMeter.Mark();
-    return mApp.getMetrics()
-        .NewTimer({"bucketlistDB", "point", label})
-        .TimeScope();
+    auto iter = mBucketListDBPointTimers.find(t);
+    if (iter == mBucketListDBPointTimers.end())
+    {
+        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
+        auto& metric =
+            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
+        iter = mBucketListDBPointTimers.emplace(t, metric).first;
+    }
+
+    return iter->second;
 }
 
 std::shared_ptr<LedgerEntry>
@@ -887,8 +900,7 @@ BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
 {
     releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
                          getConfig().EXPERIMENTAL_BUCKETLIST_DB);
-    auto timer = getPointLoadTimer(
-        xdr::xdr_traits<LedgerEntryType>::enum_name(k.type()));
+    auto timer = getPointLoadTimer(k.type()).TimeScope();
     return mBucketList->getLedgerEntry(k);
 }
 
@@ -898,7 +910,7 @@ BucketManagerImpl::loadKeys(
 {
     releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
                          getConfig().EXPERIMENTAL_BUCKETLIST_DB);
-    auto timer = getBulkLoadTimer("prefetch");
+    auto timer = getBulkLoadTimer("prefetch").TimeScope();
     return mBucketList->loadKeys(keys);
 }
 
@@ -908,7 +920,7 @@ BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
 {
     releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
                          getConfig().EXPERIMENTAL_BUCKETLIST_DB);
-    auto timer = getBulkLoadTimer("poolshareTrustlines");
+    auto timer = getBulkLoadTimer("poolshareTrustlines").TimeScope();
     return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
         accountID, asset, getConfig());
 }
@@ -919,7 +931,7 @@ BucketManagerImpl::loadInflationWinners(size_t maxWinners,
 {
     releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
                          getConfig().EXPERIMENTAL_BUCKETLIST_DB);
-    auto timer = getBulkLoadTimer("inflationWinners");
+    auto timer = getBulkLoadTimer("inflationWinners").TimeScope();
     return mBucketList->loadInflationWinners(maxWinners, minBalance);
 }
 

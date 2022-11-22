@@ -31,6 +31,12 @@ bucket.batch.objectsadded                | meter     | number of objects added p
 bucket.memory.shared                     | counter   | number of buckets referenced (excluding publish queue)
 bucket.merge-time.level-<X>              | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                        | timer     | time to merge two buckets
+bucketlistDB.bloom.misses                | meter     | number of bloom filter false positives
+bucketlistDB.query.loads                 | meter     | number of BucketListDB load queries
+bucketlistDB.bulk.inflationWinners       | timer     | time to load inflation winners
+bucketlistDB.bulk.poolshareTrustlines    | timer     | time to load poolshare trustlines by accountID and assetID
+bucketlistDB.bulk.prefetch               | timer     | time to prefetch
+bucketlistDB.point.<X>                   | timer     | time to load single entry of type <X>
 herder.pending-txs.age0                  | counter   | number of gen0 pending transactions
 herder.pending-txs.age1                  | counter   | number of gen1 pending transactions
 herder.pending-txs.age2                  | counter   | number of gen2 pending transactions

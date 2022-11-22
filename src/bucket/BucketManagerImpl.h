@@ -48,6 +48,9 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mSharedBucketsSize;
     medida::Meter& mBucketListDBQueryMeter;
     medida::Meter& mBucketListDBBloomMisses;
+    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
+        mBucketListDBPointTimers{};
+    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
     MergeCounters mMergeCounters;
 
     bool const mDeleteEntireBucketDirInDtor;
@@ -74,8 +77,8 @@ class BucketManagerImpl : public BucketManager
     void deleteEntireBucketDir();
     bool renameBucket(std::string const& src, std::string const& dst);
 
-    medida::TimerContext getBulkLoadTimer(std::string const& label) const;
-    medida::TimerContext getPointLoadTimer(std::string const& label) const;
+    medida::Timer& getBulkLoadTimer(std::string const& label) const;
+    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
