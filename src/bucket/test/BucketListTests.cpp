@@ -151,8 +151,8 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                     auto const& lev = bl.getLevel(j);
                     auto currSz = countEntries(lev.getCurr());
                     auto snapSz = countEntries(lev.getSnap());
-                    CHECK(currSz <= BucketList::levelHalf(j) * 100);
-                    CHECK(snapSz <= BucketList::levelHalf(j) * 100);
+                    CHECK(currSz <= BucketList::mask(j) * 100);
+                    CHECK(snapSz <= BucketList::mask(j) * 100);
                 }
             }
         });
@@ -290,7 +290,7 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
 
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
-            std::vector<uint32_t> ledgers = {BucketList::levelHalf(i),
+            std::vector<uint32_t> ledgers = {BucketList::mask(i),
                                              BucketList::levelSize(i)};
             for (auto j : ledgers)
             {
@@ -500,7 +500,7 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
     // is always empty.
     for (uint32_t level = 0; level < BucketList::kNumLevels - 1; ++level)
     {
-        uint32_t const half = BucketList::levelHalf(level);
+        uint32_t const half = BucketList::mask(level);
 
         // Use binary search (assuming that it does reach steady state)
         // to find the ledger where the snap at this level first reaches
@@ -644,8 +644,8 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
 
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG_INFO(Bucket, "levelHalf({}) = {} (formally)", level,
-                  formatU32(BucketList::levelHalf(level)));
+        CLOG_INFO(Bucket, "mask({}) = {} (formally)", level,
+                  formatU32(BucketList::mask(level)));
     }
 
     for (uint32_t probe : {0x100, 0x10000, 0x1000000})
@@ -689,7 +689,7 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
             if (level != 0 && BucketList::levelShouldSpill(ledger, level - 1))
             {
                 uint32_t nextChangeLedger =
-                    ledger + BucketList::levelHalf(level - 1);
+                    ledger + BucketList::mask(level - 1);
                 if (BucketList::levelShouldSpill(nextChangeLedger, level))
                 {
                     nonMergeCommitEvents[level].push_back(ledger);

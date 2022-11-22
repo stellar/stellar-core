@@ -86,8 +86,7 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
     {
         // Round down the current ledger to when the merge was started, and
         // re-start the merge via prepare, mimicking the logic in `addBatch`
-        auto mergeStartLedger =
-            roundDown(ledger, BucketList::levelHalf(level - 1));
+        auto mergeStartLedger = roundDown(ledger, BucketList::mask(level - 1));
 
         // Subtle: We're "preparing the next state" of this level's mCurr, which
         // is *either* mCurr merged with snap, or else just snap (if mCurr is
@@ -96,7 +95,7 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
         // levels's spill-size away from a snap of its own.  Eg. level 1 at
         // ledger 6 (2 away from 8, its next snap), or level 2 at ledger 24 (8
         // away from 32, its next snap). See diagram above.
-        uint32_t nextChangeLedger = mergeStartLedger + levelHalf(level - 1);
+        uint32_t nextChangeLedger = mergeStartLedger + mask(level - 1);
         if (levelShouldSpill(nextChangeLedger, level))
         {
             return true;
@@ -225,23 +224,23 @@ BucketList::levelSize(uint32_t level)
     return 1UL << (2 * (level + 1));
 }
 
-// levelHalf is the idealized size of a half-level for algorithmic-boundary
+// mask is the idealized size of a half-level for algorithmic-boundary
 // purposes; in practice the oldest level at any moment has a different size.
 // We list the values here for reference:
 //
-// levelHalf(0)  =       2=0x000002
-// levelHalf(1)  =       8=0x000008
-// levelHalf(2)  =      32=0x000020
-// levelHalf(3)  =     128=0x000080
-// levelHalf(4)  =     512=0x000200
-// levelHalf(5)  =    2048=0x000800
-// levelHalf(6)  =    8192=0x002000
-// levelHalf(7)  =   32768=0x008000
-// levelHalf(8)  =  131072=0x020000
-// levelHalf(9)  =  524288=0x080000
-// levelHalf(10) = 2097152=0x200000
+// mask(0)  =       2=0x000002
+// mask(1)  =       8=0x000008
+// mask(2)  =      32=0x000020
+// mask(3)  =     128=0x000080
+// mask(4)  =     512=0x000200
+// mask(5)  =    2048=0x000800
+// mask(6)  =    8192=0x002000
+// mask(7)  =   32768=0x008000
+// mask(8)  =  131072=0x020000
+// mask(9)  =  524288=0x080000
+// mask(10) = 2097152=0x200000
 uint32_t
-BucketList::levelHalf(uint32_t level)
+BucketList::mask(uint32_t level)
 {
     return levelSize(level) >> 1;
 }
@@ -257,7 +256,7 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
     }
 
     auto const size = levelSize(level);
-    auto const half = levelHalf(level);
+    auto const half = mask(level);
     if (level != BucketList::kNumLevels - 1 && roundDown(ledger, half) != 0)
     {
         uint32_t const sizeDelta = 1UL << (2 * level - 1);
@@ -268,7 +267,7 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
         }
 
         auto const prevSize = levelSize(level - 1);
-        auto const prevHalf = levelHalf(level - 1);
+        auto const prevHalf = mask(level - 1);
         uint32_t previousRelevantLedger = std::max(
             {roundDown(ledger - 1, prevHalf), roundDown(ledger - 1, prevSize),
              roundDown(ledger - 1, half), roundDown(ledger - 1, size)});
@@ -305,7 +304,7 @@ BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
     }
     else if (roundDown(ledger, levelSize(level)) != 0)
     {
-        return levelHalf(level);
+        return mask(level);
     }
     else
     {
@@ -591,7 +590,7 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
         return false;
     }
 
-    return (ledger == roundDown(ledger, levelHalf(level)) ||
+    return (ledger == roundDown(ledger, mask(level)) ||
             ledger == roundDown(ledger, levelSize(level)));
 }
 
@@ -712,7 +711,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
         /*
         CLOG_DEBUG(Bucket, "curr={}, half(i-1)={}, size(i-1)={},
         roundDown(curr,half)={}, roundDown(curr,size)={}", currLedger,
-        levelHalf(i-1), levelSize(i-1), roundDown(currLedger, levelHalf(i-1)),
+        mask(i-1), levelSize(i-1), roundDown(currLedger, mask(i-1)),
         roundDown(currLedger, levelSize(i-1)));
         */
         if (levelShouldSpill(currLedger, i - 1))
@@ -841,8 +840,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
 
             // Round down the current ledger to when the merge was started, and
             // re-start the merge via prepare, mimicking the logic in `addBatch`
-            auto mergeStartLedger =
-                roundDown(ledger, BucketList::levelHalf(i - 1));
+            auto mergeStartLedger = roundDown(ledger, BucketList::mask(i - 1));
             level.prepare(
                 app, mergeStartLedger, version, snap, /* shadows= */ {},
                 !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);

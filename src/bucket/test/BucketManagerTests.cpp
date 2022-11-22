@@ -939,10 +939,10 @@ class StopAndRestartBucketMergesTest
     void
     calculateDesignatedLedgers()
     {
-        uint32_t spillFreq = BucketList::levelHalf(mDesignatedLevel);
-        uint32_t prepFreq = (mDesignatedLevel == 0
-                                 ? 1
-                                 : BucketList::levelHalf(mDesignatedLevel - 1));
+        uint32_t spillFreq = BucketList::mask(mDesignatedLevel);
+        uint32_t prepFreq =
+            (mDesignatedLevel == 0 ? 1
+                                   : BucketList::mask(mDesignatedLevel - 1));
 
         uint32_t const SPILLCOUNT = 5;
         uint32_t const PREPCOUNT = 5;

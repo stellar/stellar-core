@@ -297,7 +297,7 @@ getAvailableTimeForMerge(Application& app, uint32_t level)
     auto closeTime = app.getConfig().getExpectedLedgerCloseTime();
     if (level >= 1)
     {
-        return closeTime * BucketList::levelHalf(level - 1);
+        return closeTime * BucketList::mask(level - 1);
     }
     return closeTime;
 }

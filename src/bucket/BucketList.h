@@ -146,12 +146,12 @@ namespace stellar
 //  10    0x2_aaab=[      0x1,  0x2_aaab]   ---------- empty -----------
 //
 // The sizes of the "snap" buckets _for levels that are full_ correspond exactly
-// to the values of the levelHalf() function: (4^(level+1))/2. I.e. 0x2, 0x8,
+// to the values of the mask() function: (4^(level+1))/2. I.e. 0x2, 0x8,
 // 0x20, 0x80, 0x200, etc.
 //
 // The sizes of the "curr" buckets _for levels that are full_ cycle over time
-// between 1 and 4 times the size of levelHalf() of the _previous_ level (where
-// 4x the previous levelHalf is the _current_ level's levelHalf).
+// between 1 and 4 times the size of mask() of the _previous_ level (where
+// 4x the previous mask is the _current_ level's mask).
 //
 // For example, the curr bucket on level 5 grows in units of 0x200 ledgers, as
 // snap buckets of size 0x200 spill in from level 4. In the picture above it is
@@ -416,7 +416,7 @@ class BucketList
     static uint32_t levelSize(uint32_t level);
 
     // Returns half the size of a given level, in ledgers.
-    static uint32_t levelHalf(uint32_t level);
+    static uint32_t mask(uint32_t level);
 
     // Returns the size of curr on a given level and ledger, in ledgers,
     // assuming that every ledger is present.
