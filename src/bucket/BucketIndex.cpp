@@ -302,6 +302,10 @@ BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(mKeysToOffset.size()));
 
+    // Search for the key in the index before checking the bloom filter so we
+    // return the correct iterator to the caller. This may be slightly less
+    // effecient then checking the bloom filter first, but the filter's primary
+    // purpose is to avoid disk lookups, not to avoid in-memory index search.
     auto internalStart = std::get<typename IndexT::const_iterator>(start);
     auto keyIter =
         std::lower_bound(internalStart, mKeysToOffset.end(), k,

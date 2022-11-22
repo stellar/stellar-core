@@ -177,7 +177,7 @@ class BucketIndexTest
             // Not actual size, as there may be duplicated elements, but good
             // enough
             auto subsetSize = 500;
-            for (size_t j = 0; j < subsetSize; ++j)
+            for (auto j = 0; j < subsetSize; ++j)
             {
                 auto iter = mKeysToSearch.begin();
                 std::advance(

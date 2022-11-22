@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/LedgerCmp.h"
+#include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 #include <atomic>
 #include <filesystem>
@@ -45,6 +46,7 @@ class BucketIndex : public NonMovableOrCopyable
         RangeEntry(LedgerKey low, LedgerKey high)
             : lowerBound(low), upperBound(high)
         {
+            releaseAssert(low < high || low == high);
         }
     };
 
