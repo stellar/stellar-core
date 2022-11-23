@@ -151,7 +151,8 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
     mBuf.reset();
     mOut.close();
 
-    return std::pair<std::string, uint256>(mFilename, mHasher.finish());
+    return std::pair<std::string, uint256>(mFilename.string(),
+                                           mHasher.finish());
 };
 
 TestBucketGenerator::TestBucketGenerator(
@@ -642,7 +643,7 @@ Application::pointer
 CatchupSimulation::createCatchupApplication(uint32_t count,
                                             Config::TestDbMode dbMode,
                                             std::string const& appName,
-                                            bool publish)
+                                            bool publish, bool useBucketListDB)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -653,6 +654,7 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
+    mCfgs.back().EXPERIMENTAL_BUCKETLIST_DB = useBucketListDB;
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),

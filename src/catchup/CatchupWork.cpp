@@ -4,12 +4,14 @@
 
 #include "catchup/CatchupWork.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/ApplyBufferedLedgersWork.h"
 #include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
+#include "catchup/IndexBucketsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
@@ -236,9 +238,19 @@ CatchupWork::downloadApplyBuckets()
         version = mVerifiedLedgerRangeStart.header.ledgerVersion;
     }
 
-    auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, *mBucketHAS, version);
-
+    std::shared_ptr<ApplyBucketsWork> applyBuckets;
+    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+    {
+        // Only apply offers to SQL DB when BucketList lookup is enabled
+        auto filter = [](LedgerEntryType t) { return t == OFFER; };
+        applyBuckets = std::make_shared<ApplyBucketsWork>(
+            mApp, mBuckets, *mBucketHAS, version, filter);
+    }
+    else
+    {
+        applyBuckets = std::make_shared<ApplyBucketsWork>(mApp, mBuckets,
+                                                          *mBucketHAS, version);
+    }
     seq.push_back(applyBuckets);
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
                                           seq, RETRY_NEVER);

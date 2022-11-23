@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 
@@ -37,13 +38,13 @@ LedgerTxnRoot::Impl::loadLiquidityPool(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM liquiditypool "
                       "WHERE poolasset= :poolasset";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(liquidityPoolEntryStr));
     st.exchange(soci::use(poolAsset));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("liquiditypool");
+        auto timer = mApp.getDatabase().getSelectTimer("liquiditypool");
         st.execute(true);
     }
     if (!st.got_data())
@@ -161,9 +162,9 @@ LedgerTxnRoot::Impl::bulkLoadLiquidityPool(
 {
     if (!keys.empty())
     {
-        BulkLoadLiquidityPoolOperation op(mDatabase, keys);
+        BulkLoadLiquidityPoolOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {
@@ -250,8 +251,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteLiquidityPool(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteLiquidityPoolOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteLiquidityPoolOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 class BulkUpsertLiquidityPoolOperation
@@ -381,33 +382,37 @@ void
 LedgerTxnRoot::Impl::bulkUpsertLiquidityPool(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertLiquidityPoolOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertLiquidityPoolOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropLiquidityPools()
+LedgerTxnRoot::Impl::dropLiquidityPools(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS liquiditypool;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS liquiditypool;";
-    // The primary key is poolasset (the base-64 opaque TrustLineAsset
-    // containing the PoolID) instead of poolid (the base-64 opaque PoolID)
-    // so that we can perform the join in load pool share trust lines by account
-    // and asset.
-    mDatabase.getSession() << "CREATE TABLE liquiditypool ("
-                           << "poolasset    TEXT " << coll << " PRIMARY KEY, "
-                           << "asseta       TEXT " << coll << " NOT NULL, "
-                           << "assetb       TEXT " << coll << " NOT NULL, "
-                           << "ledgerentry  TEXT NOT NULL, "
-                           << "lastmodified INT NOT NULL);";
-    mDatabase.getSession() << "CREATE INDEX liquiditypoolasseta "
-                           << "ON liquiditypool(asseta);";
-    mDatabase.getSession() << "CREATE INDEX liquiditypoolassetb "
-                           << "ON liquiditypool(assetb);";
+    if (rebuild)
+    {
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        // The primary key is poolasset (the base-64 opaque TrustLineAsset
+        // containing the PoolID) instead of poolid (the base-64 opaque PoolID)
+        // so that we can perform the join in load pool share trust lines by
+        // account and asset.
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE liquiditypool ("
+            << "poolasset    TEXT " << coll << " PRIMARY KEY, "
+            << "asseta       TEXT " << coll << " NOT NULL, "
+            << "assetb       TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT NOT NULL, "
+            << "lastmodified INT NOT NULL);";
+        mApp.getDatabase().getSession() << "CREATE INDEX liquiditypoolasseta "
+                                        << "ON liquiditypool(asseta);";
+        mApp.getDatabase().getSession() << "CREATE INDEX liquiditypoolassetb "
+                                        << "ON liquiditypool(assetb);";
+    }
 }
 }

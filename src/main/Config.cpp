@@ -138,6 +138,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
+    EXPERIMENTAL_BUCKETLIST_DB = false;
+    EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
+    EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -971,6 +974,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "EXPERIMENTAL_PRECAUTION_DELAY_META")
             {
                 EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB")
+            {
+                EXPERIMENTAL_BUCKETLIST_DB = readBool(item);
+            }
+            else if (item.first ==
+                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT")
+            {
+                EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
+                    readInt<size_t>(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF")
+            {
+                EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
             }
             else if (item.first == "METADATA_DEBUG_LEDGERS")
             {

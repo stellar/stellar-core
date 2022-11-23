@@ -261,6 +261,23 @@ class Config : public std::enable_shared_from_this<Config>
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
 
+    // A config parameter that when set uses the BucketList as the primary
+    // key-value store for LedgerEntry lookups
+    bool EXPERIMENTAL_BUCKETLIST_DB;
+
+    // Page size exponent used by BucketIndex when indexing ranges of
+    // BucketEntry's. If set to 0, BucketEntry's are individually indexed.
+    // Otherwise, pageSize ==
+    // 2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+
+    // Size, in MB, determining whether a bucket should have an individual
+    // key index or a key range index. If bucket size is below this value, range
+    // based index will be used. If set to 0, all buckets are range indexed. If
+    // index page size == 0, value ingnored and all buckets have individual key
+    // index.
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF;
+
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY_MISC;
@@ -503,7 +520,6 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryModeWithoutMinimalDB() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
-
     void logBasicInfo();
     void setNoListen();
     void setNoPublish();

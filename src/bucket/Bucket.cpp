@@ -17,6 +17,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "ledger/LedgerHashUtils.h"
 #include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
@@ -24,16 +25,39 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
-#include <fmt/format.h>
 #include <future>
 
 namespace stellar
 {
 
-Bucket::Bucket(std::string const& filename, Hash const& hash)
-    : mFilename(filename), mHash(hash)
+BucketIndex const&
+Bucket::getIndex() const
+{
+    ZoneScoped;
+    releaseAssertOrThrow(!mFilename.empty());
+    releaseAssertOrThrow(mIndex);
+    return *mIndex;
+}
+
+bool
+Bucket::isIndexed() const
+{
+    return static_cast<bool>(mIndex);
+}
+
+void
+Bucket::setIndex(std::unique_ptr<BucketIndex const>&& index)
+{
+    releaseAssertOrThrow(!mIndex);
+    mIndex = std::move(index);
+}
+
+Bucket::Bucket(std::string const& filename, Hash const& hash,
+               std::unique_ptr<BucketIndex const>&& index)
+    : mFilename(filename), mHash(hash), mIndex(std::move(index))
 {
     releaseAssert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
@@ -48,13 +72,25 @@ Bucket::Bucket()
 {
 }
 
+XDRInputFileStream&
+Bucket::getStream()
+{
+    if (!mStream)
+    {
+        mStream = std::make_unique<XDRInputFileStream>();
+        releaseAssertOrThrow(!mFilename.empty());
+        mStream->open(mFilename.string());
+    }
+    return *mStream;
+}
+
 Hash const&
 Bucket::getHash() const
 {
     return mHash;
 }
 
-std::string const&
+std::filesystem::path const&
 Bucket::getFilename() const
 {
     return mFilename;
@@ -80,6 +116,171 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
         ++iter;
     }
     return false;
+}
+
+bool
+Bucket::isEmpty() const
+{
+    if (mFilename.empty() || isZero(mHash))
+    {
+        releaseAssertOrThrow(mFilename.empty() && isZero(mHash));
+        return true;
+    }
+
+    return false;
+}
+
+void
+Bucket::freeIndex()
+{
+    mIndex.reset(nullptr);
+    mStream.reset(nullptr);
+}
+
+std::optional<BucketEntry>
+Bucket::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
+                         size_t pageSize)
+{
+    ZoneScoped;
+    auto& stream = getStream();
+    stream.seek(pos);
+
+    BucketEntry be;
+    if (pageSize == 0)
+    {
+        if (stream.readOne(be))
+        {
+            return std::make_optional(be);
+        }
+    }
+    else if (stream.readPage(be, k, pageSize))
+    {
+        return std::make_optional(be);
+    }
+
+    // Mark entry miss for metrics
+    getIndex().markBloomMiss();
+    return std::nullopt;
+}
+
+std::optional<BucketEntry>
+Bucket::getBucketEntry(LedgerKey const& k)
+{
+    ZoneScoped;
+    auto pos = getIndex().lookup(k);
+    if (pos.has_value())
+    {
+        return getEntryAtOffset(k, pos.value(), getIndex().getPageSize());
+    }
+
+    return std::nullopt;
+}
+
+// When searching for an entry, BucketList calls this function on every bucket.
+// Since the input is sorted, we do a binary search for the first key in keys.
+// If we find the entry, we remove the found key from keys so that later buckets
+// do not load shadowed entries. If we don't find the entry, we do not remove it
+// from keys so that it will be searched for again at a lower level.
+void
+Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                 std::vector<LedgerEntry>& result)
+{
+    auto currKeyIt = keys.begin();
+    auto const& index = getIndex();
+    auto indexIter = index.begin();
+    while (currKeyIt != keys.end() && indexIter != index.end())
+    {
+        auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
+        indexIter = newIndexIter;
+        if (offOp)
+        {
+            auto entryOp =
+                getEntryAtOffset(*currKeyIt, *offOp, getIndex().getPageSize());
+            if (entryOp)
+            {
+                if (entryOp->type() != DEADENTRY)
+                {
+                    result.push_back(entryOp->liveEntry());
+                }
+
+                currKeyIt = keys.erase(currKeyIt);
+                continue;
+            }
+        }
+
+        ++currKeyIt;
+    }
+}
+
+void
+Bucket::loadPoolShareTrustLinessByAccount(
+    AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+    UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
+    LedgerKeySet& liquidityPoolKeys)
+{
+    // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
+    // poolshare trusline for the given accountID
+    auto trustlineCheck = [&accountID](auto const& entry) {
+        return entry.type() == TRUSTLINE &&
+               entry.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE &&
+               entry.trustLine().accountID == accountID;
+    };
+
+    // Get upper and lower bound for poolshare trustline range associated
+    // with this account
+    auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
+    if (searchRange.first == 0)
+    {
+        // No poolshare trustlines, exit
+        return;
+    }
+
+    BucketEntry be;
+    auto& stream = getStream();
+    stream.seek(searchRange.first);
+    while (stream && stream.pos() < searchRange.second && stream.readOne(be))
+    {
+        LedgerEntry entry;
+        switch (be.type())
+        {
+        case LIVEENTRY:
+        case INITENTRY:
+            entry = be.liveEntry();
+            break;
+        case DEADENTRY:
+        {
+            auto key = be.deadEntry();
+
+            // If we find a valid trustline key and we have not seen the
+            // key yet, mark it as dead so we do not load a shadowed version
+            // later
+            if (trustlineCheck(key))
+            {
+                deadTrustlines.emplace(key);
+            }
+            continue;
+        }
+        case METAENTRY:
+        default:
+            throw std::invalid_argument("Indexed METAENTRY");
+        }
+
+        // If this is a pool share trustline that matches the accountID and
+        // is not shadowed, add it to results
+        if (trustlineCheck(entry.data) &&
+            deadTrustlines.find(LedgerEntryKey(entry)) == deadTrustlines.end())
+        {
+            auto const& poolshareID =
+                entry.data.trustLine().asset.liquidityPoolID();
+
+            LedgerKey key;
+            key.type(LIQUIDITY_POOL);
+            key.liquidityPool().liquidityPoolID = poolshareID;
+
+            liquidityPoolKeyToTrustline.emplace(key, entry);
+            liquidityPoolKeys.emplace(key);
+        }
+    }
 }
 
 #ifdef BUILD_TESTS
@@ -174,7 +375,9 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
-    return out.getBucket(bucketManager);
+
+    return out.getBucket(bucketManager,
+                         bucketManager.getConfig().EXPERIMENTAL_BUCKETLIST_DB);
 }
 
 static void
@@ -668,7 +871,9 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
-    return out.getBucket(bucketManager, &mk);
+    return out.getBucket(bucketManager,
+                         bucketManager.getConfig().EXPERIMENTAL_BUCKETLIST_DB,
+                         &mk);
 }
 
 uint32_t

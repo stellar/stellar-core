@@ -10,6 +10,7 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionMetaFrame.h"
 #include "util/UnorderedSet.h"
+#include "util/types.h"
 #include <optional>
 
 namespace stellar

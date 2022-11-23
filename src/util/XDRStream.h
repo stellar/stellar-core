@@ -10,6 +10,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
@@ -76,12 +77,34 @@ class XDRInputFileStream
         return mSize;
     }
 
-    size_t
+    std::streamoff
     pos()
     {
         releaseAssertOrThrow(!mIn.fail());
-
         return mIn.tellg();
+    }
+
+    void
+    seek(size_t pos)
+    {
+        releaseAssertOrThrow(!mIn.fail());
+        mIn.seekg(pos);
+    }
+
+    static inline uint32_t
+    getXDRSize(char* buf)
+    {
+        // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
+        // (high bit of high byte).
+        uint32_t sz = 0;
+        sz |= static_cast<uint8_t>(buf[0] & '\x7f');
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[1]);
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[2]);
+        sz <<= 8;
+        sz |= static_cast<uint8_t>(buf[3]);
+        return sz;
     }
 
     template <typename T>
@@ -92,20 +115,18 @@ class XDRInputFileStream
         char szBuf[4];
         if (!mIn.read(szBuf, 4))
         {
-            return false;
+            if (mIn.eof())
+            {
+                mIn.clear(std::ios_base::eofbit);
+                return false;
+            }
+            else
+            {
+                throw xdr::xdr_runtime_error("IO failure in readOne");
+            }
         }
 
-        // Read 4 bytes of size, big-endian, with XDR 'continuation' bit cleared
-        // (high bit of high byte).
-        uint32_t sz = 0;
-        sz |= static_cast<uint8_t>(szBuf[0] & '\x7f');
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[1]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[2]);
-        sz <<= 8;
-        sz |= static_cast<uint8_t>(szBuf[3]);
-
+        auto sz = getXDRSize(szBuf);
         if (mSizeLimit != 0 && sz > mSizeLimit)
         {
             return false;
@@ -116,11 +137,82 @@ class XDRInputFileStream
         }
         if (!mIn.read(mBuf.data(), sz))
         {
-            throw xdr::xdr_runtime_error("malformed XDR file");
+            throw xdr::xdr_runtime_error(
+                "malformed XDR file or IO failure in readOne");
         }
+
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
         xdr::xdr_argpack_archive(g, out);
         return true;
+    }
+
+    // `readPage` reads records of XDR type `T` from the stream into output
+    // variable `out`, until it has exceeded `pageSize` bytes or until it finds
+    // an `out` value for which `getBucketLedgerKey(out) == key`. It returns
+    // `true` if it located such a value, or false if it failed to find one.
+    template <typename T>
+    bool
+    readPage(T& out, LedgerKey const& key, size_t pageSize)
+    {
+        ZoneScoped;
+        if (mBuf.size() != pageSize)
+        {
+            mBuf.resize(pageSize);
+        }
+
+        if (!mIn.read(mBuf.data(), pageSize))
+        {
+            if (mIn.eof())
+            {
+                // Hitting eof just means there's not a full pageSize
+                // worth of data left in the file. Not a problem: resize our
+                // buffer down to the amount the page we _did_ manage to read.
+                mBuf.resize(mIn.gcount());
+                mIn.clear(std::ios_base::eofbit);
+            }
+            else
+            {
+                throw xdr::xdr_runtime_error("IO failure in readPage");
+            }
+        }
+
+        size_t xdrStart = 0;
+        while (xdrStart + 4 <= mBuf.size())
+        {
+            const uint32_t xdrSz = getXDRSize(mBuf.data() + xdrStart);
+            xdrStart += 4;
+            const size_t xdrEnd = xdrStart + xdrSz;
+
+            // If entry continues past end of buffer, temporarily expand
+            // it and load the extra bytes. The buffer will be resized
+            // back to pageSize in the next readPage.
+            if (xdrEnd > mBuf.size())
+            {
+                const size_t extraStart = mBuf.size();
+                const size_t extraSz = xdrEnd - extraStart;
+                mBuf.resize(xdrEnd);
+                releaseAssert(extraStart + extraSz == mBuf.size());
+                if (!mIn.read(mBuf.data() + extraStart, extraSz))
+                {
+                    throw xdr::xdr_runtime_error(
+                        "malformed XDR file or IO failure in readPage");
+                }
+            }
+
+            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+            releaseAssert(xdrStart <= xdrEnd);
+            releaseAssert(xdrEnd <= mBuf.size());
+            xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
+            xdr::xdr_argpack_archive(g, out);
+            if (getBucketLedgerKey(out) == key)
+            {
+                return true;
+            }
+
+            xdrStart = xdrEnd;
+        }
+
+        return false;
     }
 };
 

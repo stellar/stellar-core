@@ -46,6 +46,11 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+    medida::Meter& mBucketListDBQueryMeter;
+    medida::Meter& mBucketListDBBloomMisses;
+    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
+        mBucketListDBPointTimers{};
+    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
     MergeCounters mMergeCounters;
 
     bool const mDeleteEntireBucketDirInDtor;
@@ -72,6 +77,9 @@ class BucketManagerImpl : public BucketManager
     void deleteEntireBucketDir();
     bool renameBucket(std::string const& src, std::string const& dst);
 
+    medida::Timer& getBulkLoadTimer(std::string const& label) const;
+    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
+
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
     uint32_t mFakeTestProtocolVersion;
@@ -97,9 +105,10 @@ class BucketManagerImpl : public BucketManager
     TmpDirManager& getTmpDirManager() override;
     std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes,
-                      MergeKey* mergeKey = nullptr) override;
+                      size_t nObjects, size_t nBytes, MergeKey* mergeKey,
+                      std::unique_ptr<BucketIndex const> index) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
+    std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 
     std::shared_future<std::shared_ptr<Bucket>>
@@ -117,6 +126,19 @@ class BucketManagerImpl : public BucketManager
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
+    void maybeSetIndex(std::shared_ptr<Bucket> b,
+                       std::unique_ptr<BucketIndex const>&& index) override;
+
+    std::shared_ptr<LedgerEntry>
+    getLedgerEntry(LedgerKey const& k) const override;
+    std::vector<LedgerEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
+    std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset) const override;
+    std::vector<InflationWinner>
+    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
+    medida::Meter& getBloomMissMeter() const override;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
@@ -128,11 +150,13 @@ class BucketManagerImpl : public BucketManager
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 #endif
 
-    std::set<Hash> getReferencedBuckets() const override;
+    std::set<Hash> getBucketListReferencedBuckets() const override;
+    std::set<Hash> getAllReferencedBuckets() const override;
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has,
-                     uint32_t maxProtocolVersion) override;
+    void restartMerges(HistoryArchiveState const& has,
+                       uint32_t maxProtocolVersion) override;
+    void assumeState(HistoryArchiveState const& has) override;
     void shutdown() override;
 
     bool isShutdown() const override;
@@ -149,6 +173,8 @@ class BucketManagerImpl : public BucketManager
         std::function<bool(LedgerEntry const&)> const& acceptEntry) override;
 
     std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork() override;
+
+    Config const& getConfig() const override;
 };
 
 #define SKIP_1 50

@@ -177,7 +177,8 @@ struct BucketListGenerator
                 {
                     out.put(*in);
                 }
-                auto b = out.getBucket(bmApply);
+                auto b =
+                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
             }
             {
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
@@ -187,7 +188,8 @@ struct BucketListGenerator
                 {
                     out.put(*in);
                 }
-                auto b = out.getBucket(bmApply);
+                auto b =
+                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
             }
         }
         return HistoryArchiveState(
@@ -299,7 +301,7 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
     }
 
     BasicWork::State
-    onRun() override
+    doWork() override
     {
         if (!mAdded)
         {
@@ -323,7 +325,7 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 mAdded = true;
             }
         }
-        auto r = ApplyBucketsWork::onRun();
+        auto r = ApplyBucketsWork::doWork();
         if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mAdded);
@@ -353,7 +355,7 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     }
 
     BasicWork::State
-    onRun() override
+    doWork() override
     {
         if (!mDeleted)
         {
@@ -487,7 +489,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     }
 
     BasicWork::State
-    onRun() override
+    doWork() override
     {
         if (!mModified)
         {

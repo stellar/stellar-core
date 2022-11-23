@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "bucket/BucketTests.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "catchup/test/CatchupWorkTests.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
@@ -715,6 +715,18 @@ TEST_CASE("History catchup with different modes",
     }
 }
 
+TEST_CASE("History catchup with BucketListDB enabled",
+          "[history][catchup][bucketindex]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+    auto app = catchupSimulation.createCatchupApplication(
+        64, Config::TESTDB_ON_DISK_SQLITE, "app", /*publish=*/false,
+        /*useBucketListDB=*/true);
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
+}
+
 TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
           "[history][catchup]")
 {
@@ -1121,7 +1133,7 @@ TEST_CASE_VERSIONS(
     cfg = tcfg.configure(cfg, true);
     VirtualClock clock;
 
-    BucketTests::for_versions_with_differing_bucket_logic(
+    BucketTestUtils::for_versions_with_differing_bucket_logic(
         cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
             auto& hm = app->getHistoryManager();

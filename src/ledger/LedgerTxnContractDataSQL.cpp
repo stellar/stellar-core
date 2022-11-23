@@ -5,6 +5,7 @@
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 
@@ -30,14 +31,14 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
     std::string sql = "SELECT ledgerentry "
                       "FROM contractdata "
                       "WHERE contractID = :contractID AND key = :key";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(contractDataEntryStr));
     st.exchange(soci::use(contractID));
     st.exchange(soci::use(key));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("contractdata");
+        auto timer = mApp.getDatabase().getSelectTimer("contractdata");
         st.execute(true);
     }
     if (!st.got_data())
@@ -177,9 +178,9 @@ LedgerTxnRoot::Impl::bulkLoadContractData(
 {
     if (!keys.empty())
     {
-        BulkLoadContractDataOperation op(mDatabase, keys);
+        BulkLoadContractDataOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {
@@ -276,8 +277,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteContractData(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteContractDataOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkDeleteContractDataOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 class BulkUpsertContractDataOperation
@@ -394,33 +395,37 @@ void
 LedgerTxnRoot::Impl::bulkUpsertContractData(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertContractDataOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    BulkUpsertContractDataOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropContractData()
+LedgerTxnRoot::Impl::dropContractData(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS contractdata;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS contractdata;";
-    mDatabase.getSession() << "CREATE TABLE contractdata ("
-                           << "contractid   TEXT " << coll << " NOT NULL, "
-                           << "key TEXT " << coll << " NOT NULL, "
-                           << "ledgerentry  TEXT " << coll << " NOT NULL, "
-                           << "lastmodified INT NOT NULL, "
-                           << "PRIMARY KEY  (contractid, key));";
-    if (!mDatabase.isSqlite())
+    if (rebuild)
     {
-        mDatabase.getSession() << "ALTER TABLE contractdata "
-                               << "ALTER COLUMN contractid "
-                               << "TYPE TEXT COLLATE \"C\","
-                               << "ALTER COLUMN key "
-                               << "TYPE TEXT COLLATE \"C\";";
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE contractdata ("
+            << "contractid   TEXT " << coll << " NOT NULL, "
+            << "key TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "lastmodified INT NOT NULL, "
+            << "PRIMARY KEY  (contractid, key));";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession() << "ALTER TABLE contractdata "
+                                            << "ALTER COLUMN contractid "
+                                            << "TYPE TEXT COLLATE \"C\","
+                                            << "ALTER COLUMN key "
+                                            << "TYPE TEXT COLLATE \"C\";";
+        }
     }
 }
 

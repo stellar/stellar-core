@@ -684,7 +684,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     Application::pointer app = Application::create(clock, cfg, false);
 
     uint256 zero;
-    Bucket bucket(bucketFile, zero);
+    Bucket bucket(bucketFile, zero, nullptr);
     bucket.apply(*app);
 }
 

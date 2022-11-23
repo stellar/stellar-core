@@ -7,6 +7,7 @@
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
@@ -54,7 +55,7 @@ ApplyBucketsWork::ApplyBucketsWork(
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
     std::function<bool(LedgerEntryType)> onlyApply)
-    : BasicWork(app, "apply-buckets", BasicWork::RETRY_NEVER)
+    : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mEntryTypeFilter(onlyApply)
@@ -93,7 +94,7 @@ ApplyBucketsWork::getBucket(std::string const& hash)
 }
 
 void
-ApplyBucketsWork::onReset()
+ApplyBucketsWork::doReset()
 {
     ZoneScoped;
     CLOG_INFO(History, "Applying buckets");
@@ -155,6 +156,7 @@ ApplyBucketsWork::onReset()
     mLevel = BucketList::kNumLevels - 1;
     mApplying = false;
     mDelayChecked = false;
+    mSpawnedAssumeStateWork = false;
 
     mSnapBucket.reset();
     mCurrBucket.reset();
@@ -202,78 +204,86 @@ ApplyBucketsWork::startLevel()
 }
 
 BasicWork::State
-ApplyBucketsWork::onRun()
+ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
-    if (mApp.getLedgerManager().rebuildingInMemoryState() && !mDelayChecked)
+    // Step 1: apply buckets. Step 2: assume state
+    if (!mSpawnedAssumeStateWork)
     {
-        mDelayChecked = true;
-        auto delay =
-            mApp.getConfig().ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
-        if (delay != std::chrono::seconds::zero())
+        if (mApp.getLedgerManager().rebuildingInMemoryState() && !mDelayChecked)
         {
-            CLOG_INFO(History, "Delay bucket application by {} seconds",
-                      delay.count());
-            setupWaitingCallback(delay);
-            return State::WORK_WAITING;
+            mDelayChecked = true;
+            auto delay = mApp.getConfig()
+                             .ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING;
+            if (delay != std::chrono::seconds::zero())
+            {
+                CLOG_INFO(History, "Delay bucket application by {} seconds",
+                          delay.count());
+                setupWaitingCallback(delay);
+                return State::WORK_WAITING;
+            }
         }
-    }
 
-    // Check if we're at the beginning of the new level
-    if (isLevelComplete())
-    {
-        startLevel();
-    }
-
-    // The structure of these if statements is motivated by the following:
-    // 1. mCurrApplicator should never be advanced if mSnapApplicator is
-    //    not false. Otherwise it is possible for curr to modify the
-    //    database when the invariants for snap are checked.
-    // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
-    //    if there is nothing to be applied.
-    if (mSnapApplicator)
-    {
-        TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
-        if (*mSnapApplicator)
+        // Check if we're at the beginning of the new level
+        if (isLevelComplete())
         {
-            advance("snap", *mSnapApplicator);
+            startLevel();
+        }
+
+        // The structure of these if statements is motivated by the following:
+        // 1. mCurrApplicator should never be advanced if mSnapApplicator is
+        //    not false. Otherwise it is possible for curr to modify the
+        //    database when the invariants for snap are checked.
+        // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
+        //    if there is nothing to be applied.
+        if (mSnapApplicator)
+        {
+            TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
+            if (*mSnapApplicator)
+            {
+                advance("snap", *mSnapApplicator);
+                return State::WORK_RUNNING;
+            }
+            mApp.getInvariantManager().checkOnBucketApply(
+                mSnapBucket, mApplyState.currentLedger, mLevel, false,
+                mEntryTypeFilter);
+            mSnapApplicator.reset();
+            mSnapBucket.reset();
+            mApp.getCatchupManager().bucketsApplied();
+        }
+        if (mCurrApplicator)
+        {
+            TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
+            if (*mCurrApplicator)
+            {
+                advance("curr", *mCurrApplicator);
+                return State::WORK_RUNNING;
+            }
+            mApp.getInvariantManager().checkOnBucketApply(
+                mCurrBucket, mApplyState.currentLedger, mLevel, true,
+                mEntryTypeFilter);
+            mCurrApplicator.reset();
+            mCurrBucket.reset();
+            mApp.getCatchupManager().bucketsApplied();
+        }
+
+        if (mLevel != 0)
+        {
+            --mLevel;
+            CLOG_DEBUG(History, "ApplyBuckets : starting next level: {}",
+                       mLevel);
             return State::WORK_RUNNING;
         }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mSnapBucket, mApplyState.currentLedger, mLevel, false,
-            mEntryTypeFilter);
-        mSnapApplicator.reset();
-        mSnapBucket.reset();
-        mApp.getCatchupManager().bucketsApplied();
-    }
-    if (mCurrApplicator)
-    {
-        TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
-        if (*mCurrApplicator)
-        {
-            advance("curr", *mCurrApplicator);
-            return State::WORK_RUNNING;
-        }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mCurrBucket, mApplyState.currentLedger, mLevel, true,
-            mEntryTypeFilter);
-        mCurrApplicator.reset();
-        mCurrBucket.reset();
-        mApp.getCatchupManager().bucketsApplied();
+
+        CLOG_INFO(History, "ApplyBuckets : done, assuming state");
+
+        // After all buckets applied, spawn assumeState work
+        addWork<AssumeStateWork>(mApplyState, mMaxProtocolVersion);
+        mSpawnedAssumeStateWork = true;
     }
 
-    if (mLevel != 0)
-    {
-        --mLevel;
-        CLOG_DEBUG(History, "ApplyBuckets : starting next level: {}", mLevel);
-        return State::WORK_RUNNING;
-    }
-
-    CLOG_INFO(History, "ApplyBuckets : done, restarting merges");
-    mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
-
-    return State::WORK_SUCCESS;
+    return checkChildrenStatus();
 }
 
 void
@@ -328,9 +338,14 @@ ApplyBucketsWork::isLevelComplete()
 std::string
 ApplyBucketsWork::getStatus() const
 {
-    auto size = mTotalSize == 0 ? 0 : (100 * mAppliedSize / mTotalSize);
-    return fmt::format(
-        FMT_STRING("Applying buckets {:d}%. Currently on level {:d}"), size,
-        mLevel);
+    if (!mSpawnedAssumeStateWork)
+    {
+        auto size = mTotalSize == 0 ? 0 : (100 * mAppliedSize / mTotalSize);
+        return fmt::format(
+            FMT_STRING("Applying buckets {:d}%. Currently on level {:d}"), size,
+            mLevel);
+    }
+
+    return Work::getStatus();
 }
 }

@@ -5,9 +5,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/FutureBucket.h"
+#include "bucket/LedgerCmp.h"
 #include "overlay/StellarXDR.h"
 #include "xdrpp/message.h"
 #include <future>
+#include <optional>
+#include <set>
 
 namespace stellar
 {
@@ -92,7 +95,7 @@ namespace stellar
 // Formally:
 // ---------
 //
-// Define mask(v,m) = (v & ~(m-1))
+// Define roundDown(v,m) = (v & ~(m-1))
 // Define size(i) = 1 << (2*(i+1))
 // Define half(i) = size(i) >> 1
 // Define prev(i) = size(i-1)
@@ -105,8 +108,8 @@ namespace stellar
 // hold objects changed _in some range of ledgers_.
 //
 // for i in range(0, levels(k)):
-//   curr(i) covers range (mask(k,half(i)), mask(k,prev(i))]
-//   snap(i) covers range (mask(k,size(i)), mask(k,half(i))]
+//   curr(i) covers range (roundDown(k,half(i)), roundDown(k,prev(i))]
+//   snap(i) covers range (roundDown(k,size(i)), roundDown(k,half(i))]
 //
 // In practice, the final implementation we settled on wound up having a sort of
 // off-by-one error in the initial population of each level (see "initial level
@@ -341,6 +344,8 @@ namespace stellar
 
 class Application;
 class Bucket;
+class Config;
+struct InflationWinner;
 
 namespace testutil
 {
@@ -392,9 +397,12 @@ class BucketListDepth
 
 class BucketList
 {
-    // Helper for calculating `levelShouldSpill`
-    static uint32_t mask(uint32_t v, uint32_t m);
     std::vector<BucketLevel> mLevels;
+
+    // Loops through all buckets, starting with curr at level 0, then snap at
+    // level 0, etc. Calls f on each bucket. Exits early if function
+    // returns true
+    void loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const;
 
   public:
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
@@ -447,6 +455,19 @@ class BucketList
     // the concatenation of each level's hash, each of which in turn is the hash
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
+
+    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
+
+    std::vector<LedgerEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
+
+    std::vector<LedgerEntry>
+    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
+                                             Asset const& asset,
+                                             Config const& cfg) const;
+
+    std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
+                                                      int64_t minBalance) const;
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a

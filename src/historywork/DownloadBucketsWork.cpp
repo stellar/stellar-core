@@ -94,10 +94,12 @@ DownloadBucketsWork::yieldMoreWork()
         if (self)
         {
             auto bucketPath = ft.localPath_nogz();
-            auto b = app.getBucketManager().adoptFileAsBucket(bucketPath,
-                                                              hexToBin256(hash),
-                                                              /*objectsPut=*/0,
-                                                              /*bytesPut=*/0);
+            auto b = app.getBucketManager().adoptFileAsBucket(
+                bucketPath, hexToBin256(hash),
+                /*objectsPut=*/0,
+                /*bytesPut=*/0,
+                /*mergeKey=*/nullptr,
+                /*index=*/nullptr);
             self->mBuckets[hash] = b;
         }
         return true;

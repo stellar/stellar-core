@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
+#include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 #include <ledger/LedgerHashUtils.h>
@@ -267,6 +268,7 @@ enum class TransactionMode
     READ_WRITE_WITH_SQL_TXN
 };
 
+class Application;
 class Database;
 struct InflationVotes;
 struct LedgerEntry;
@@ -451,35 +453,35 @@ class AbstractLedgerTxnParent
 
     // Delete all account ledger entries in the database. Will throw when called
     // on anything other than a (real or stub) root LedgerTxn.
-    virtual void dropAccounts() = 0;
+    virtual void dropAccounts(bool rebuild) = 0;
 
     // Delete all account-data ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropData() = 0;
+    virtual void dropData(bool rebuild) = 0;
 
     // Delete all offer ledger entries. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
-    virtual void dropOffers() = 0;
+    virtual void dropOffers(bool rebuild) = 0;
 
     // Delete all trustline ledger entries. Will throw when called on anything
     // other than a (real or stub) root LedgerTxn.
-    virtual void dropTrustLines() = 0;
+    virtual void dropTrustLines(bool rebuild) = 0;
 
     // Delete all claimable balance ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropClaimableBalances() = 0;
+    virtual void dropClaimableBalances(bool rebuild) = 0;
 
     // Delete all liquidity pool ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropLiquidityPools() = 0;
+    virtual void dropLiquidityPools(bool rebuild) = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Delete all contract data ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropContractData() = 0;
+    virtual void dropContractData(bool rebuild) = 0;
 
     // Delete all config setting ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropConfigSettings() = 0;
+    virtual void dropConfigSettings(bool rebuild) = 0;
 #endif
     // Return the current cache hit rate for prefetched ledger entries, as a
     // fraction from 0.0 to 1.0. Will throw when called on anything other than a
@@ -772,15 +774,15 @@ class LedgerTxn : public AbstractLedgerTxn
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const override;
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
-    void dropAccounts() override;
-    void dropData() override;
-    void dropOffers() override;
-    void dropTrustLines() override;
-    void dropClaimableBalances() override;
-    void dropLiquidityPools() override;
+    void dropAccounts(bool rebuild) override;
+    void dropData(bool rebuild) override;
+    void dropOffers(bool rebuild) override;
+    void dropTrustLines(bool rebuild) override;
+    void dropClaimableBalances(bool rebuild) override;
+    void dropLiquidityPools(bool rebuild) override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void dropContractData() override;
-    void dropConfigSettings() override;
+    void dropContractData(bool rebuild) override;
+    void dropConfigSettings(bool rebuild) override;
 #endif
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
@@ -813,7 +815,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::unique_ptr<Impl> const mImpl;
 
   public:
-    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize,
+    explicit LedgerTxnRoot(Application& app, size_t entryCacheSize,
                            size_t prefetchBatchSize
 #ifdef BEST_OFFER_DEBUGGING
                            ,
@@ -834,15 +836,15 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
-    void dropAccounts() override;
-    void dropData() override;
-    void dropOffers() override;
-    void dropTrustLines() override;
-    void dropClaimableBalances() override;
-    void dropLiquidityPools() override;
+    void dropAccounts(bool rebuild) override;
+    void dropData(bool rebuild) override;
+    void dropOffers(bool rebuild) override;
+    void dropTrustLines(bool rebuild) override;
+    void dropClaimableBalances(bool rebuild) override;
+    void dropLiquidityPools(bool rebuild) override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void dropContractData() override;
-    void dropConfigSettings() override;
+    void dropContractData(bool rebuild) override;
+    void dropConfigSettings(bool rebuild) override;
 #endif
 
 #ifdef BUILD_TESTS

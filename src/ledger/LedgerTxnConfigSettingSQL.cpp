@@ -5,6 +5,7 @@
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 
@@ -29,13 +30,13 @@ LedgerTxnRoot::Impl::loadConfigSetting(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM configsettings "
                       "WHERE configsettingid = :configsettingid";
-    auto prep = mDatabase.getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(configSettingEntryStr));
     st.exchange(soci::use(configSettingID));
     st.define_and_bind();
     {
-        auto timer = mDatabase.getSelectTimer("configsetting");
+        auto timer = mApp.getDatabase().getSelectTimer("configsetting");
         st.execute(true);
     }
     if (!st.got_data())
@@ -146,9 +147,9 @@ LedgerTxnRoot::Impl::bulkLoadConfigSettings(
 {
     if (!keys.empty())
     {
-        bulkLoadConfigSettingsOperation op(mDatabase, keys);
+        bulkLoadConfigSettingsOperation op(mApp.getDatabase(), keys);
         return populateLoadedEntries(
-            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
     }
     else
     {
@@ -238,8 +239,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteConfigSettings(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    bulkDeleteConfigSettingsOperation op(mDatabase, cons, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    bulkDeleteConfigSettingsOperation op(mApp.getDatabase(), cons, entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 class bulkUpsertConfigSettingsOperation
@@ -353,24 +354,28 @@ void
 LedgerTxnRoot::Impl::bulkUpsertConfigSettings(
     std::vector<EntryIterator> const& entries)
 {
-    bulkUpsertConfigSettingsOperation op(mDatabase, entries);
-    mDatabase.doDatabaseTypeSpecificOperation(op);
+    bulkUpsertConfigSettingsOperation op(mApp.getDatabase(), entries);
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::dropConfigSettings()
+LedgerTxnRoot::Impl::dropConfigSettings(bool rebuild)
 {
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mDatabase.getSimpleCollationClause();
+    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS configsettings;";
 
-    mDatabase.getSession() << "DROP TABLE IF EXISTS configsettings;";
-    mDatabase.getSession() << "CREATE TABLE configsettings ("
-                           << "configsettingid INT PRIMARY KEY, "
-                           << "ledgerentry  TEXT " << coll << " NOT NULL, "
-                           << "lastmodified INT NOT NULL);";
+    if (rebuild)
+    {
+        std::string coll = mApp.getDatabase().getSimpleCollationClause();
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE configsettings ("
+            << "configsettingid INT PRIMARY KEY, "
+            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "lastmodified INT NOT NULL);";
+    }
 }
 }
 #endif
