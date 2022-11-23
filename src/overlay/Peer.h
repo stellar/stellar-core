@@ -58,7 +58,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 {
 
   public:
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL = 20;
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET = 23;
     static constexpr std::chrono::seconds PEER_SEND_MODE_IDLE_TIMEOUT =
         std::chrono::seconds(60);

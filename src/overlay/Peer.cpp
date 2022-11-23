@@ -816,14 +816,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     case SEND_MORE:
     {
-        if (mRemoteOverlayVersion < Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-        {
-            drop("Peer sent SEND_MORE that it doesn't support",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
         cat = "CTRL";
 
         if (stellarMsg.sendMoreMessage().numMessages == 0)
@@ -1875,13 +1867,8 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     // Subtle: after successful auth, must send sendMore message first to tell
-    // the other peer if this node prefers to flow control the traffic or not
-    if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL &&
-        mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-    {
-        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
-    }
+    // the other peer about the local node's reading capacity.
+    sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
 
     if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
         mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=

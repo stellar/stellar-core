@@ -1647,17 +1647,6 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
                 3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
             std::runtime_error);
     }
-    SECTION("one peer doesn't support flow control")
-    {
-        configs[2].OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
-        setupSimulation();
-        REQUIRE_THROWS_AS(
-            simulation->crankUntil(
-                [&] { return simulation->haveAllExternalized(2, 1); },
-                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
-            std::runtime_error);
-    }
 }
 
 PeerBareAddress
