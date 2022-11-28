@@ -368,7 +368,7 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
                 mDeleted = true;
             }
         }
-        auto r = ApplyBucketsWork::onRun();
+        auto r = ApplyBucketsWork::doWork();
         if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mDeleted);
@@ -532,7 +532,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 mModified = true;
             }
         }
-        auto r = ApplyBucketsWork::onRun();
+        auto r = ApplyBucketsWork::doWork();
         if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mModified);
