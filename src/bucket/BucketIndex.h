@@ -94,5 +94,6 @@ class BucketIndex : public NonMovableOrCopyable
     virtual Iterator end() const = 0;
 
     virtual void markBloomMiss() const = 0;
+    virtual void markBloomLookup() const = 0;
 };
 }

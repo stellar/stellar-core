@@ -120,6 +120,8 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "query", "loads"}, "query"))
     , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
+    , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
+          {"bucketlistDB", "bloom", "lookups"}, "bloom"))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -939,6 +941,12 @@ medida::Meter&
 BucketManagerImpl::getBloomMissMeter() const
 {
     return mBucketListDBBloomMisses;
+}
+
+medida::Meter&
+BucketManagerImpl::getBloomLookupMeter() const
+{
+    return mBucketListDBBloomLookups;
 }
 
 void

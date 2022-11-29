@@ -48,6 +48,7 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mSharedBucketsSize;
     medida::Meter& mBucketListDBQueryMeter;
     medida::Meter& mBucketListDBBloomMisses;
+    medida::Meter& mBucketListDBBloomLookups;
     mutable UnorderedMap<LedgerEntryType, medida::Timer&>
         mBucketListDBPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
@@ -139,6 +140,7 @@ class BucketManagerImpl : public BucketManager
     std::vector<InflationWinner>
     loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
     medida::Meter& getBloomMissMeter() const override;
+    medida::Meter& getBloomLookupMeter() const override;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
