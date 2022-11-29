@@ -43,12 +43,13 @@ makeBinary(T begin, T end)
 
 template <typename T>
 SCVal
-makeContract(T begin, T end)
+makeWasmRefScContractCode(T const& hash)
 {
     SCVal val(SCValType::SCV_OBJECT);
     val.obj().activate().type(stellar::SCO_CONTRACT_CODE);
-    val.obj()->contractCode().type(stellar::SCCONTRACT_CODE_WASM);
-    val.obj()->contractCode().wasm().assign(begin, end);
+    val.obj()->contractCode().type(stellar::SCCONTRACT_CODE_WASM_REF);
+    std::copy(hash.begin(), hash.end(),
+              val.obj()->contractCode().wasm_id().begin());
     return val;
 }
 
@@ -69,10 +70,9 @@ makeSymbol(std::string const& str)
 }
 
 static void
-submitOpToCreateContract(Application& app, Operation const& op,
-                         RustBuf const& contract, Hash const& contractID,
-                         SCVal const& wasmKey, bool expectSuccess,
-                         bool expectEntry)
+submitOpToInstallContractCode(Application& app, Operation const& op,
+                              Hash const& expectedWasmHash,
+                              xdr::opaque_vec<SCVAL_LIMIT> const& expectedWasm)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
@@ -80,79 +80,99 @@ submitOpToCreateContract(Application& app, Operation const& op,
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-    REQUIRE(tx->apply(app, ltx, txm) == expectSuccess);
+    REQUIRE(tx->apply(app, ltx, txm));
     ltx.commit();
 
-    auto contractCodeObj =
-        makeContract(contract.data.begin(), contract.data.end());
     // verify contract code is correct
-    LedgerTxn ltx2(app.getLedgerTxnRoot());
-    auto ltxe2 = loadContractData(ltx2, contractID, wasmKey);
-    REQUIRE(static_cast<bool>(ltxe2) == expectEntry);
-    // FIXME: it's a little weird that we put a contractBin in and get a
-    // contractCodeObj out. This is probably a residual error from before an API
-    // change. See https://github.com/stellar/rs-soroban-env/issues/369
-    REQUIRE((!expectEntry ||
-             ltxe2.current().data.contractData().val == contractCodeObj));
+    {
+        LedgerTxn ltx2(app.getLedgerTxnRoot());
+        auto ltxe2 = loadContractCode(ltx2, expectedWasmHash);
+        REQUIRE(ltxe2);
+        REQUIRE(ltxe2.current().data.contractCode().code == expectedWasm);
+    }
 }
 
-static LedgerKey
-createContractFromSource(Application& app, RustBuf const& contract,
-                         uint256 const& salt, bool expectSuccess,
-                         bool expectEntry)
+static void
+submitOpToCreateContract(Application& app, Operation const& op,
+                         Hash const& contractID, Hash const& expectedWasmHash,
+                         SCVal const& sourceRefKey)
+{
+    // submit operation
+    auto root = TestAccount::createRoot(app);
+    auto tx = transactionFrameFromOps(app.getNetworkID(), root, {op}, {});
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(tx->apply(app, ltx, txm));
+    ltx.commit();
+
+    // verify contract code reference is correct
+    {
+        LedgerTxn ltx2(app.getLedgerTxnRoot());
+        auto ltxe2 = loadContractData(ltx2, contractID, sourceRefKey);
+        REQUIRE(ltxe2);
+        REQUIRE(ltxe2.current().data.contractData().val ==
+                makeWasmRefScContractCode(expectedWasmHash));
+    }
+}
+
+static xdr::xvector<LedgerKey>
+deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
+                                uint256 salt = sha256("salt"))
 {
     auto root = TestAccount::createRoot(app);
 
+    // Install contract code
+    Operation installOp;
+    installOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& installHF = installOp.body.invokeHostFunctionOp();
+    installHF.function.type(HOST_FUNCTION_TYPE_INSTALL_CONTRACT_CODE);
+    auto& installContractArgs = installHF.function.installContractCodeArgs();
+    installContractArgs.code.assign(contractWasm.data.begin(),
+                                    contractWasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = xdrSha256(installContractArgs);
+    installHF.footprint.readWrite = {contractCodeLedgerKey};
+    submitOpToInstallContractCode(app, installOp,
+                                  contractCodeLedgerKey.contractCode().hash,
+                                  installContractArgs.code);
+
+    // Deploy the contract instance
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_SOURCE_ACCOUNT);
     preImage.sourceAccountContractID().sourceAccount = root.getPublicKey();
     preImage.sourceAccountContractID().salt = salt;
+    preImage.sourceAccountContractID().networkID = app.getNetworkID();
     auto contractID = xdrSha256(preImage);
+    Operation createOp;
+    createOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& createHF = createOp.body.invokeHostFunctionOp();
+    createHF.function.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.function.createContractArgs();
+    createContractArgs.contractID.type(CONTRACT_ID_FROM_SOURCE_ACCOUNT);
+    createContractArgs.contractID.salt() = salt;
 
-    // Create operation
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp();
-    ihf.function = HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT;
+    createContractArgs.source.type(SCCONTRACT_CODE_WASM_REF);
+    createContractArgs.source.wasm_id() =
+        contractCodeLedgerKey.contractCode().hash;
 
-    auto contractBin = makeBinary(contract.data.begin(), contract.data.end());
-    ihf.parameters = {contractBin, makeBinary(salt.begin(), salt.end())};
+    SCVal scContractSourceRefKey(SCValType::SCV_STATIC);
+    scContractSourceRefKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
 
-    SCVal wasmKey(SCValType::SCV_STATIC);
-    wasmKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
+    LedgerKey contractSourceRefLedgerKey;
+    contractSourceRefLedgerKey.type(CONTRACT_DATA);
+    contractSourceRefLedgerKey.contractData().contractID = contractID;
+    contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
 
-    LedgerKey lk;
-    lk.type(CONTRACT_DATA);
-    lk.contractData().contractID = contractID;
-    lk.contractData().key = wasmKey;
+    createHF.footprint.readOnly = {contractCodeLedgerKey};
+    createHF.footprint.readWrite = {contractSourceRefLedgerKey};
 
-    ihf.footprint.readWrite = {lk};
-
-    submitOpToCreateContract(app, op, contract, contractID, wasmKey,
-                             expectSuccess, expectEntry);
-    return lk;
-}
-
-static LedgerKey
-deployContract(Application& app, RustBuf const& contract, HostFunction fn,
-               uint256 salt = sha256("salt"))
-{
-    switch (fn)
-    {
-    case HostFunction::HOST_FN_CREATE_CONTRACT_WITH_ED25519:
-    {
-        throw std::runtime_error(
-            "HOST_FN_CREATE_CONTRACT_WITH_ED25519 currently not supported");
-    }
-    case HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT:
-    {
-        return createContractFromSource(app, contract, salt, true, true);
-    }
-    case HostFunction::HOST_FN_INVOKE_CONTRACT:
-        throw std::runtime_error("Invalid HostFunction");
-    default:
-        throw std::runtime_error("Unknown HostFunction");
-    }
+    submitOpToCreateContract(app, createOp, contractID,
+                             contractCodeLedgerKey.contractCode().hash,
+                             scContractSourceRefKey);
+    return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
 
 TEST_CASE("invoke host function", "[tx][contract]")
@@ -165,17 +185,18 @@ TEST_CASE("invoke host function", "[tx][contract]")
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
     {
-        auto addI32 = [&](HostFunction fn) {
-            auto contract = deployContract(*app, addI32Wasm, fn);
-            auto const& contractID = contract.contractData().contractID;
+        auto addI32 = [&]() {
+            auto contractKeys =
+                deployContractWithSourceAccount(*app, addI32Wasm);
+            auto const& contractID = contractKeys[0].contractData().contractID;
 
             auto call = [&](SCVec const& parameters, bool success) {
                 Operation op;
                 op.body.type(INVOKE_HOST_FUNCTION);
                 auto& ihf = op.body.invokeHostFunctionOp();
-                ihf.function = HOST_FN_INVOKE_CONTRACT;
-                ihf.parameters = parameters;
-                ihf.footprint.readOnly = {contract};
+                ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+                ihf.function.invokeArgs() = parameters;
+                ihf.footprint.readOnly = contractKeys;
 
                 auto tx = transactionFrameFromOps(app->getNetworkID(), root,
                                                   {op}, {});
@@ -239,16 +260,15 @@ TEST_CASE("invoke host function", "[tx][contract]")
         };
         SECTION("create with source -  add i32")
         {
-            addI32(HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT);
+            addI32();
         }
     }
 
     SECTION("contract data")
     {
-        auto contract = deployContract(
-            *app, contractDataWasm,
-            HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT);
-        auto const& contractID = contract.contractData().contractID;
+        auto contractKeys =
+            deployContractWithSourceAccount(*app, contractDataWasm);
+        auto const& contractID = contractKeys[0].contractData().contractID;
 
         auto checkContractData = [&](SCVal const& key, SCVal const* val) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -275,12 +295,12 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_INVOKE_CONTRACT;
-            ihf.parameters.emplace_back(
+            ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+            ihf.function.invokeArgs().emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
-            ihf.parameters.emplace_back(makeSymbol("put"));
-            ihf.parameters.emplace_back(keySymbol);
-            ihf.parameters.emplace_back(valSymbol);
+            ihf.function.invokeArgs().emplace_back(makeSymbol("put"));
+            ihf.function.invokeArgs().emplace_back(keySymbol);
+            ihf.function.invokeArgs().emplace_back(valSymbol);
             ihf.footprint.readOnly = readOnly;
             ihf.footprint.readWrite = readWrite;
 
@@ -303,7 +323,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
         };
 
         auto put = [&](std::string const& key, std::string const& val) {
-            putWithFootprint(key, val, {contract},
+            putWithFootprint(key, val, contractKeys,
                              {contractDataKey(contractID, makeSymbol(key))},
                              true);
         };
@@ -317,11 +337,11 @@ TEST_CASE("invoke host function", "[tx][contract]")
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
             auto& ihf = op.body.invokeHostFunctionOp();
-            ihf.function = HOST_FN_INVOKE_CONTRACT;
-            ihf.parameters.emplace_back(
+            ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+            ihf.function.invokeArgs().emplace_back(
                 makeBinary(contractID.begin(), contractID.end()));
-            ihf.parameters.emplace_back(makeSymbol("del"));
-            ihf.parameters.emplace_back(keySymbol);
+            ihf.function.invokeArgs().emplace_back(makeSymbol("del"));
+            ihf.function.invokeArgs().emplace_back(keySymbol);
             ihf.footprint.readOnly = readOnly;
             ihf.footprint.readWrite = readWrite;
 
@@ -344,7 +364,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
         };
 
         auto del = [&](std::string const& key) {
-            delWithFootprint(key, {contract},
+            delWithFootprint(key, contractKeys,
                              {contractDataKey(contractID, makeSymbol(key))},
                              true);
         };
@@ -353,13 +373,15 @@ TEST_CASE("invoke host function", "[tx][contract]")
         put("key2", "val2a");
 
         // Failure: contract data isn't in footprint
-        putWithFootprint("key1", "val1b", {contract}, {}, false);
-        delWithFootprint("key1", {contract}, {}, false);
+        putWithFootprint("key1", "val1b", contractKeys, {}, false);
+        delWithFootprint("key1", contractKeys, {}, false);
 
         // Failure: contract data is read only
-        auto cdk = contractDataKey(contractID, makeSymbol("key2"));
-        putWithFootprint("key2", "val2b", {contract, cdk}, {}, false);
-        delWithFootprint("key2", {contract, cdk}, {}, false);
+        auto readOnlyFootprint = contractKeys;
+        readOnlyFootprint.push_back(
+            contractDataKey(contractID, makeSymbol("key2")));
+        putWithFootprint("key2", "val2b", readOnlyFootprint, {}, false);
+        delWithFootprint("key2", readOnlyFootprint, {}, false);
 
         put("key1", "val1c");
         put("key2", "val2c");
@@ -377,10 +399,8 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
 
     auto const complexWasm = rust_bridge::get_test_wasm_complex();
 
-    auto contract = deployContract(
-        *app, complexWasm,
-        HostFunction::HOST_FN_CREATE_CONTRACT_WITH_SOURCE_ACCOUNT);
-    auto const& contractID = contract.contractData().contractID;
+    auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
+    auto const& contractID = contractKeys[0].contractData().contractID;
 
     auto scContractID = makeBinary(contractID.begin(), contractID.end());
     auto scFunc = makeSymbol("go");
@@ -388,26 +408,18 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
     auto& ihf = op.body.invokeHostFunctionOp();
-    ihf.function = HOST_FN_INVOKE_CONTRACT;
-    ihf.parameters = {scContractID, scFunc};
+    ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.function.invokeArgs() = {scContractID, scFunc};
 
     AccountID source;
     auto res = InvokeHostFunctionOpFrame::preflight(*app, ihf, source);
-
-    // Contract reads just the WASM entry.
-    SCVal contractCodeKey(SCValType::SCV_STATIC);
-    contractCodeKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
-    LedgerKey wasmKey;
-    wasmKey.type(CONTRACT_DATA);
-    wasmKey.contractData().contractID = contractID;
-    wasmKey.contractData().key = contractCodeKey;
 
     // Contract writes a single `data` CONTRACT_DATA entry.
     LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
     dataKey.contractData().contractID = contractID;
     dataKey.contractData().key = makeSymbol("data");
 
-    ihf.footprint.readOnly.emplace_back(wasmKey);
+    ihf.footprint.readOnly = contractKeys;
     ihf.footprint.readWrite.emplace_back(dataKey);
 
     auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});

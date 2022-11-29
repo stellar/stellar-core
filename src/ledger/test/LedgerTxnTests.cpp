@@ -114,9 +114,12 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
                 leBase.data.contractData().contractID;
             le.data.contractData().key = leBase.data.contractData().key;
             break;
+        case CONTRACT_CODE:
+            le.data.contractCode() =
+                LedgerTestUtils::generateValidContractCodeEntry();
+            le.data.contractCode().hash = leBase.data.contractCode().hash;
+            break;
 #endif
-        default:
-            REQUIRE(false);
         }
     } while (le == leBase);
     return le;

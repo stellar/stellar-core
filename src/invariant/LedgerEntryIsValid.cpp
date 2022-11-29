@@ -127,6 +127,8 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         return checkIsValid(le.data.contractData(), previous, version);
+    case CONTRACT_CODE:
+        return checkIsValid(le.data.contractCode(), previous, version);
     case CONFIG_SETTING:
         return checkIsValid(le.data.configSetting(), previous, version);
 #endif
@@ -497,6 +499,15 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
 {
     return {};
 }
+
+std::string
+LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
+                                 LedgerEntry const* previous,
+                                 uint32 version) const
+{
+    return {};
+}
+
 std::string
 LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
                                  LedgerEntry const* previous,

@@ -151,6 +151,11 @@ InMemoryLedgerTxnRoot::dropContractData(bool)
 }
 
 void
+InMemoryLedgerTxnRoot::dropContractCode(bool)
+{
+}
+
+void
 InMemoryLedgerTxnRoot::dropConfigSettings(bool)
 {
 }

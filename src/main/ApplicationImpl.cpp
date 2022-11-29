@@ -206,6 +206,10 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
                     app.getLedgerTxnRoot().dropContractData(shouldRebuild);
                     break;
+                case CONTRACT_CODE:
+                    LOG_INFO(DEFAULT_LOG, "Dropping contractcode");
+                    app.getLedgerTxnRoot().dropContractCode(shouldRebuild);
+                    break;
                 case CONFIG_SETTING:
                     LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
                     app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);

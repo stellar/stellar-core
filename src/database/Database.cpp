@@ -240,6 +240,7 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 20:
         mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
         mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
+        mApp.getPersistentState().setRebuildForType(CONTRACT_CODE);
         break;
 #endif
     default:

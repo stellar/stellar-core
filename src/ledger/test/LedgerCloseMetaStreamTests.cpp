@@ -427,7 +427,7 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
         // Don't check for debug files until the directory has been generated
         if (!debugFilesGenerated)
         {
-            debugFilesGenerated = fs::exists(debugFilePath);
+            debugFilesGenerated = fs::exists(debugFilePath.string());
         }
 
         if (app->getWorkScheduler().allChildrenDone() && debugFilesGenerated)

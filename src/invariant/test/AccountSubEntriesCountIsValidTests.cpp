@@ -62,7 +62,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
              le.data.type() == LIQUIDITY_POOL
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
              || le.data.type() == CONFIG_SETTING ||
-             le.data.type() == CONTRACT_DATA
+             le.data.type() == CONTRACT_DATA || le.data.type() == CONTRACT_CODE
 #endif
     );
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
@@ -98,6 +98,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
+    case CONTRACT_CODE:
 #endif
     default:
         abort();
@@ -122,6 +123,7 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
+    case CONTRACT_CODE:
 #endif
         break;
     case OFFER:

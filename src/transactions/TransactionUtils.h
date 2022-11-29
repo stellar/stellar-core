@@ -144,6 +144,7 @@ LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx, Hash const& contractID,
                                 SCVal const& dataKey);
+LedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
 #endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,

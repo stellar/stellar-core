@@ -87,6 +87,8 @@ struct LedgerEntryIdCmp
             return lexCompare(a.contractData().contractID,
                               b.contractData().contractID, a.contractData().key,
                               b.contractData().key);
+        case CONTRACT_CODE:
+            return a.contractCode().hash < b.contractCode().hash;
         case CONFIG_SETTING:
             return a.configSetting().configSettingID <
                    b.configSetting().configSettingID;
