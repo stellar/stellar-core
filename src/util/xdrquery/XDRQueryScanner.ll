@@ -1,15 +1,19 @@
 /* Copyright 2022 Stellar Development Foundation and contributors. Licensed
    under the Apache License, Version 2.0. See the COPYING file at the root
    of this distribution or at http://www.apache.org/licenses/LICENSE-2.0 */
-%{
+%top{
 #ifdef _MSC_VER
+#include <stdint.h>
 #include <io.h>
 #define popen _popen
 #define pclose _pclose
 #define access _access
 #define isatty _isatty
 #define fileno _fileno
-#else
+#endif
+}
+%{
+#ifndef _MSC_VER
 #include <unistd.h>
 #define register
 #endif
