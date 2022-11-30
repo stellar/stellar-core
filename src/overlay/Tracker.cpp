@@ -21,8 +21,8 @@
 namespace stellar
 {
 
-static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
-static int const MAX_REBUILD_FETCH_LIST = 10;
+std::chrono::milliseconds const Tracker::MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+int const Tracker::MAX_REBUILD_FETCH_LIST = 10;
 
 Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     : mAskPeer(askPeer)

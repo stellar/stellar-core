@@ -83,9 +83,11 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         createTestApplication<ApplicationStub>(clock, getTestConfig(0));
 
     std::vector<Peer::pointer> asked;
+    std::vector<VirtualClock::time_point> askedTP;
     std::vector<Hash> received;
     ItemFetcher itemFetcher(*app, [&](Peer::pointer peer, Hash hash) {
-        asked.push_back(peer);
+        asked.emplace_back(peer);
+        askedTP.emplace_back(clock.now());
         peer->sendGetQuorumSet(hash);
     });
 
@@ -221,41 +223,147 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             LoopbackPeerConnection connection2(*app, *other2);
             auto peer2 = connection2.getInitiator();
-            SECTION("fetching once works")
+
+            auto waitConn = [&]() {
+                // wait for peers to be setup
+                while (!peer1->isAuthenticated() || !peer2->isAuthenticated())
+                {
+                    clock.crank(false);
+                    clock.sleep_for(std::chrono::milliseconds(100));
+                }
+            };
+
+            SECTION("success")
             {
-                auto zeroEnvelope1 = makeEnvelope(0);
-                itemFetcher.fetch(zero, zeroEnvelope1);
-            }
-            SECTION("fetching twice does not trigger any additional network "
+                waitConn();
+
+                REQUIRE(asked.size() == 0);
+
+                SECTION("fetching once works")
+                {
+                    auto zeroEnvelope1 = makeEnvelope(0);
+                    itemFetcher.fetch(zero, zeroEnvelope1);
+                }
+                SECTION(
+                    "fetching twice does not trigger any additional network "
                     "activity")
+                {
+                    auto zeroEnvelope1 = makeEnvelope(0);
+                    auto zeroEnvelope2 = makeEnvelope(0);
+                    itemFetcher.fetch(zero, zeroEnvelope1);
+                    itemFetcher.fetch(zero, zeroEnvelope2);
+                }
+
+                // itemFetcher asked the first peer
+                REQUIRE(asked.size() == 1);
+
+                // wait enough time that item fetcher should be asking the other
+                // peer (but not too long as we don't want to retry)
+                auto crankFor = [&](std::chrono::milliseconds t) {
+                    auto timeout = clock.now() + t;
+                    while (clock.now() < timeout)
+                    {
+                        clock.crank(false);
+                        clock.sleep_for(std::chrono::milliseconds(500));
+                    }
+                };
+
+                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_REPLY * 2);
+
+                REQUIRE(asked.size() == 2);
+
+                itemFetcher.recv(zero, timer);
+
+                // crank for a while, nothing should happen now that we received
+                // what we were looking for
+                crankFor(std::chrono::minutes(1));
+
+                REQUIRE(asked.size() == 2);
+
+                REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 1);
+                REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 1);
+            }
+            SECTION("not found")
             {
                 auto zeroEnvelope1 = makeEnvelope(0);
-                auto zeroEnvelope2 = makeEnvelope(0);
                 itemFetcher.fetch(zero, zeroEnvelope1);
-                itemFetcher.fetch(zero, zeroEnvelope2);
+                REQUIRE(asked.size() == 0); // no connections yet
+
+                waitConn();
+
+                auto testNotFound = [&](bool respond) {
+                    int constexpr ITERATIONS = 100;
+                    for (auto i = ITERATIONS; i != 0; --i)
+                    {
+                        // first, check that we're at the begining of an
+                        // iteration
+                        auto askCountBefore1 =
+                            std::count(asked.begin(), asked.end(), peer1);
+                        auto askCountBefore2 =
+                            std::count(asked.begin(), asked.end(), peer2);
+                        REQUIRE(askCountBefore1 == askCountBefore2);
+                        size_t lastAsked = asked.size();
+                        // now, crank until we've asked both peers again
+                        while ((asked.size() != (lastAsked + 2)) &&
+                               clock.crank(false) > 0)
+                        {
+                            if (respond)
+                            {
+                                // if a request was done, pretend the peer
+                                // replied
+                                if (lastAsked != asked.size())
+                                {
+                                    itemFetcher.doesntHave(zero, asked.back());
+                                }
+                            }
+                            clock.sleep_for(std::chrono::milliseconds(100));
+                        }
+                    }
+                    REQUIRE(asked.size() == askedTP.size());
+                    REQUIRE(asked.size() % 2 == 0);
+                    VirtualClock::time_point prevGroup;
+
+                    for (size_t i = 0; i < asked.size(); i += 2)
+                    {
+                        // check for alternation within an iteration
+                        REQUIRE(asked[i] != asked[i + 1]);
+
+                        auto refTP = askedTP[i];
+                        auto delta = askedTP[i + 1] - refTP;
+                        // check time when alternating between peers
+                        if (respond)
+                        {
+                            // response should be fast
+                            REQUIRE(delta < std::chrono::milliseconds(200));
+                        }
+                        else
+                        {
+                            REQUIRE(delta >=
+                                    Tracker::MS_TO_WAIT_FOR_FETCH_REPLY);
+                        }
+                        if (i > 0)
+                        {
+                            auto deltaGroup = refTP - prevGroup;
+                            // gap between groups depend on number of retries
+                            auto nextTry =
+                                Tracker::MS_TO_WAIT_FOR_FETCH_REPLY *
+                                std::min(Tracker::MAX_REBUILD_FETCH_LIST,
+                                         (static_cast<int>(i - 1)) / 2);
+                            REQUIRE(deltaGroup >= nextTry);
+                        }
+                        prevGroup = askedTP[i + 1];
+                    }
+                };
+
+                SECTION("peers timeout")
+                {
+                    testNotFound(false);
+                }
+                SECTION("peers actively respond not found")
+                {
+                    testNotFound(true);
+                }
             }
-            REQUIRE(asked.size() == 0);
-
-            while (asked.size() < 4)
-            {
-                clock.crank(true);
-            }
-
-            itemFetcher.recv(zero, timer);
-
-            // crank for a while
-            constexpr auto elapsed = std::chrono::minutes(1);
-            auto const later = clock.now() + elapsed;
-            while (clock.crank(false) > 0 && clock.now() < later)
-            {
-                clock.sleep_for(std::chrono::milliseconds(500));
-            }
-
-            REQUIRE(asked.size() == 4);
-
-            REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
-            REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
-
             testutil::shutdownWorkScheduler(*other2);
             testutil::shutdownWorkScheduler(*other1);
             testutil::shutdownWorkScheduler(*app);
