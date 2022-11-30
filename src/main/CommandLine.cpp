@@ -502,6 +502,16 @@ parseCatchup(std::string const& catchup, std::string const& hash,
         throw std::runtime_error(errorMessage);
     }
 
+    Hash validHash;
+    try
+    {
+        validHash = hexToBin256(hash);
+    }
+    catch (std::exception&)
+    {
+        throw std::runtime_error("Invalid trusted hash");
+    }
+
     try
     {
         auto mode = extraValidation
@@ -516,8 +526,7 @@ parseCatchup(std::string const& catchup, std::string const& hash,
         else
         {
             return CatchupConfiguration(
-                {ledger, std::make_optional<Hash>(hexToBin256(hash))}, count,
-                mode);
+                {ledger, std::make_optional<Hash>(validHash)}, count, mode);
         }
     }
     catch (std::exception&)
@@ -901,12 +910,12 @@ runCatchup(CommandLineArgs const& args)
                 }
                 else if (hash.empty() && !forceUntrusted)
                 {
-                    CLOG_WARNING(
-                        History,
+                    std::string msg =
                         "Unsafe command: use --trusted-checkpoint-hashes or "
                         "--trusted-hash to ensure catchup integrity. If you "
                         "want to run untrusted catchup, use "
-                        "--force-untrusted-catchup.");
+                        "--force-untrusted-catchup";
+                    throw std::runtime_error(msg);
                 }
 
                 Json::Value catchupInfo;
