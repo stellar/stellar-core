@@ -1318,6 +1318,9 @@
     <ClCompile Include="..\..\src\bucket\BucketIndex.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2291,6 +2294,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketIndex.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\bloom_filter.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\clara.hpp">
+      <Filter>lib</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

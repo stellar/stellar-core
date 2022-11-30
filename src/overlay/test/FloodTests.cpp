@@ -284,7 +284,6 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
                 SECTION("advertise same transaction after some time")
                 {
-                    auto nodes = simulation->getNodes();
                     auto hashesAdvertised = [&](Application::pointer app) {
                         return app->getMetrics()
                             .NewMeter({"overlay", "flood", "advertised"},

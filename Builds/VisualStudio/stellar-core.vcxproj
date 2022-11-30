@@ -444,6 +444,7 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
+    <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp" />
@@ -864,7 +865,9 @@ exit /b 0
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\lib\bloom_filter.hpp" />
     <ClInclude Include="..\..\lib\catch.hpp" />
+    <ClInclude Include="..\..\lib\clara.hpp" />
     <ClInclude Include="..\..\lib\util\finally.h" />
     <ClInclude Include="..\..\lib\fmt\include\fmt\format.h" />
     <ClInclude Include="..\..\lib\util\siphash.h" />
