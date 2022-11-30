@@ -1388,6 +1388,32 @@ runVersion(CommandLineArgs const&)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
               << std::endl;
+
+    std::cout << "soroban-env-host: " << std::endl;
+
+    std::cout << "    package version: "
+              << rust_bridge::get_soroban_env_pkg_version().c_str()
+              << std::endl;
+
+    std::cout << "    git version: "
+              << rust_bridge::get_soroban_env_git_version().c_str()
+              << std::endl;
+
+    std::cout << "    interface version: "
+              << rust_bridge::get_soroban_env_interface_version() << std::endl;
+
+    std::cout << "    rs-stellar-xdr:" << std::endl;
+
+    std::cout << "        package version: "
+              << rust_bridge::get_soroban_xdr_bindings_pkg_version().c_str()
+              << std::endl;
+    std::cout << "        git version: "
+              << rust_bridge::get_soroban_xdr_bindings_git_version().c_str()
+              << std::endl;
+    std::cout
+        << "        base XDR git version: "
+        << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_version().c_str()
+        << std::endl;
 #endif
     return 0;
 }
@@ -1484,7 +1510,8 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
         if (!generate)
         {
             // Check if special `simulate` archive is present in the config
-            // If so, ensure we're getting historical data from it exclusively
+            // If so, ensure we're getting historical data from it
+            // exclusively
             if (found != config.HISTORY.end())
             {
                 auto simArchive = *found;
@@ -1532,8 +1559,8 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
         app->getWorkScheduler().executeWork<WorkSequence>(
             "download-simulate-seq", seq);
 
-        // Publish all simulated transactions to a simulated archive to avoid
-        // re-generating and signing them
+        // Publish all simulated transactions to a simulated archive to
+        // avoid re-generating and signing them
         if (generate)
         {
             publish(app);

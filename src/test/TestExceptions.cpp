@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestExceptions.h"
+#include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
@@ -510,6 +511,24 @@ throwIf(LiquidityPoolWithdrawResult const& result)
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+throwIf(InvokeHostFunctionResult const& result)
+{
+    switch (result.code())
+    {
+    case INVOKE_HOST_FUNCTION_MALFORMED:
+        throw ex_INVOKE_HOST_FUNCTION_MALFORMED{};
+    case INVOKE_HOST_FUNCTION_TRAPPED:
+        throw ex_INVOKE_HOST_FUNCTION_TRAPPED{};
+    case INVOKE_HOST_FUNCTION_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+#endif
+
 void
 throwIf(TransactionResult const& result)
 {
@@ -624,6 +643,11 @@ throwIf(TransactionResult const& result)
     case LIQUIDITY_POOL_WITHDRAW:
         throwIf(opResult.tr().liquidityPoolWithdrawResult());
         break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case INVOKE_HOST_FUNCTION:
+        throwIf(opResult.tr().invokeHostFunctionResult());
+        break;
+#endif
     }
 }
 }
