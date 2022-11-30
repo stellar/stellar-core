@@ -432,9 +432,16 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
 
     // Contract should have emitted a single event carrying a `Bytes` value.
     REQUIRE(txm.getXDR().v3().events.size() == 1);
-    REQUIRE(txm.getXDR().v3().events.at(0).type == ContractEventType::CONTRACT);
-    REQUIRE(txm.getXDR().v3().events.at(0).body.v0().data.obj()->type() ==
-            SCO_BYTES);
+    REQUIRE(txm.getXDR().v3().events.at(0).events.size() == 1);
+    REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
+            ContractEventType::CONTRACT);
+    REQUIRE(txm.getXDR()
+                .v3()
+                .events.at(0)
+                .events.at(0)
+                .body.v0()
+                .data.obj()
+                ->type() == SCO_BYTES);
 }
 
 #endif

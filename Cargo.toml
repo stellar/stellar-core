@@ -2,10 +2,10 @@
 members = ["src/rust"]
 
 [patch.crates-io]
-stellar-xdr = { git = "https://github.com/stellar/rs-stellar-xdr", rev = "5fd7c7d4" }
-wasmi = { package = "soroban-wasmi", git = "https://github.com/stellar/wasmi", rev = "d1ec0036" }
-soroban-env-common = { git = "https://github.com/stellar/rs-soroban-env", rev = "f5d64c9" }
-soroban-native-sdk-macros = { git = "https://github.com/stellar/rs-soroban-env", rev = "f5d64c9" }
+stellar-xdr = { git = "https://github.com/stellar/rs-stellar-xdr", rev = "2775f4b6" }
+wasmi = { package = "soroban-wasmi", git = "https://github.com/stellar/wasmi", rev = "862b32f5" }
+soroban-env-common = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70" }
+soroban-native-sdk-macros = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70" }
 
 [profile.release]
 codegen-units = 1

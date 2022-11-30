@@ -100,6 +100,24 @@ mod rust_bridge {
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
+
+        // Return the env cargo package version used to build this binary.
+        fn get_soroban_env_pkg_version() -> String;
+
+        // Return the env git version used to build this binary.
+        fn get_soroban_env_git_version() -> String;
+
+        // Return the env interface version used to build this binary.
+        fn get_soroban_env_interface_version() -> u64;
+
+        // Return the rust XDR bindings cargo package version used to build this binary.
+        fn get_soroban_xdr_bindings_pkg_version() -> String;
+
+        // Return the rust XDR bindings git version used to build this binary.
+        fn get_soroban_xdr_bindings_git_version() -> String;
+
+        // Return the rust XDR bindings' input XDR definitions git version used to build this binary.
+        fn get_soroban_xdr_bindings_base_xdr_git_version() -> String;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -140,4 +158,28 @@ use crate::log::init_logging;
 
 fn get_rustc_version() -> String {
     rustc_simple_version::RUSTC_VERSION.to_string()
+}
+
+fn get_soroban_env_pkg_version() -> String {
+    soroban_env_host::VERSION.pkg.to_string()
+}
+
+fn get_soroban_env_git_version() -> String {
+    soroban_env_host::VERSION.rev.to_string()
+}
+
+fn get_soroban_env_interface_version() -> u64 {
+    soroban_env_host::VERSION.interface
+}
+
+fn get_soroban_xdr_bindings_pkg_version() -> String {
+    soroban_env_host::VERSION.xdr.pkg.to_string()
+}
+
+fn get_soroban_xdr_bindings_git_version() -> String {
+    soroban_env_host::VERSION.xdr.rev.to_string()
+}
+
+fn get_soroban_xdr_bindings_base_xdr_git_version() -> String {
+    soroban_env_host::VERSION.xdr.xdr.to_string()
 }

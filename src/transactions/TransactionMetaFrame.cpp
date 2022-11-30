@@ -256,7 +256,8 @@ TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
         // Do nothing, until v3 we don't create events.
         break;
     case 3:
-        vecAppend(mTransactionMeta.v3().events, std::move(events));
+        mTransactionMeta.v3().events.emplace_back(
+            OperationEvents{std::move(events)});
         break;
     default:
         releaseAssert(false);
