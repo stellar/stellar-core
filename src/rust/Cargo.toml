@@ -14,7 +14,5 @@ cxx = "1.0"
 im-rc = "15.0.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
-soroban-env-host = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70", features = [
-    "vm",
-] }
-soroban-test-wasms = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70" }
+soroban-env-host = { version = "0.0.10", features = [ "vm" ] }
+soroban-test-wasms = { git = "https://github.com/stellar/rs-soroban-env", rev = "c1480516" }
