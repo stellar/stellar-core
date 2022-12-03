@@ -861,7 +861,10 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
-    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp" />
+    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
