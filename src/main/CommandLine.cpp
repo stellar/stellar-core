@@ -1281,6 +1281,7 @@ run(CommandLineArgs const& args)
                     cfg.MODE_STORES_HISTORY_MISC = false;
                     cfg.MODE_USES_IN_MEMORY_LEDGER = false;
                     cfg.MODE_ENABLES_BUCKETLIST = false;
+                    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 

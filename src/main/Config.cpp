@@ -1877,6 +1877,7 @@ Config::setInMemoryMode()
     MODE_STORES_HISTORY_MISC = false;
     MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
+    EXPERIMENTAL_BUCKETLIST_DB = false;
 }
 
 bool
