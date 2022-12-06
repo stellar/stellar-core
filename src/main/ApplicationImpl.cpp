@@ -448,7 +448,7 @@ ApplicationImpl::reportCfgMetrics()
 }
 
 Json::Value
-ApplicationImpl::getJsonInfo()
+ApplicationImpl::getJsonInfo(bool verbose)
 {
     auto root = Json::Value{};
 
@@ -476,6 +476,20 @@ ApplicationImpl::getJsonInfo()
     }
 
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
+
+    if (verbose)
+    {
+        auto has = lm.getLastClosedLedgerHAS();
+        auto& levels = info["ledger"]["bucketlist"];
+        for (auto const& l : has.currentBuckets)
+        {
+            Json::Value levelInfo;
+            levelInfo["curr"] = l.curr;
+            levelInfo["snap"] = l.snap;
+            levels.append(levelInfo);
+        }
+    }
+
     info["peers"]["pending_count"] = getOverlayManager().getPendingPeersCount();
     info["peers"]["authenticated_count"] =
         getOverlayManager().getAuthenticatedPeersCount();
@@ -525,11 +539,11 @@ ApplicationImpl::getJsonInfo()
 }
 
 void
-ApplicationImpl::reportInfo()
+ApplicationImpl::reportInfo(bool verbose)
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
-    std::cout << getJsonInfo().toStyledString() << std::endl;
+    std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
 
 std::shared_ptr<BasicWork>

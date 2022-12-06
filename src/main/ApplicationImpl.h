@@ -112,9 +112,9 @@ class ApplicationImpl : public Application
 
     virtual void reportCfgMetrics() override;
 
-    virtual Json::Value getJsonInfo() override;
+    virtual Json::Value getJsonInfo(bool verbose) override;
 
-    virtual void reportInfo() override;
+    virtual void reportInfo(bool verbose) override;
 
     virtual std::shared_ptr<BasicWork>
     scheduleSelfCheck(bool waitUntilNextCheckpoint) override;

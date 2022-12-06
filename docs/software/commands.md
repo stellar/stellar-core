@@ -184,9 +184,9 @@ format.
   `droppeer?node=NODE_ID[&ban=D]`<br>
   Drops peer identified by NODE_ID, when D is 1 the peer is also banned.
 
-* **info**
+* **info[?compact=true]**
   Returns information about the server in JSON format (sync state, connected
-  peers, etc).
+  peers, etc). When `compact` is set to `false`, adds additional information
 
 * **ll**  
   `ll?level=L[&partition=P]`<br>

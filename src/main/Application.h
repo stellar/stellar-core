@@ -277,10 +277,10 @@ class Application
     virtual void reportCfgMetrics() = 0;
 
     // Get information about the instance as JSON object
-    virtual Json::Value getJsonInfo() = 0;
+    virtual Json::Value getJsonInfo(bool verbose) = 0;
 
     // Report information about the instance to standard logging
-    virtual void reportInfo() = 0;
+    virtual void reportInfo(bool verbose) = 0;
 
     // Schedule background work to do some (basic, online) self-checks.
     // Returns a WorkSequence that can be monitored for completion.
