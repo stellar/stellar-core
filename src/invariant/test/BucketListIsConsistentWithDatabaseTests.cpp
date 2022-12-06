@@ -169,27 +169,28 @@ struct BucketListGenerator
             auto& level = blGenerate.getLevel(i);
             auto meta = testutil::testBucketMetadata(vers);
             auto keepDead = BucketList::keepDeadEntries(i);
-            {
+
+            auto writeBucketFile = [&](auto b) {
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
                                          mergeCounters, mClock.getIOContext(),
                                          /*doFsync=*/true);
-                for (BucketInputIterator in(level.getCurr()); in; ++in)
+                for (BucketInputIterator in(b); in; ++in)
                 {
                     out.put(*in);
                 }
-                auto b =
+
+                auto bucket =
                     out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
-            }
+            };
+            writeBucketFile(level.getCurr());
+            writeBucketFile(level.getSnap());
+
+            auto& next = level.getNext();
+            if (next.hasOutputHash())
             {
-                BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
-                                         mergeCounters, mClock.getIOContext(),
-                                         /*doFsync=*/true);
-                for (BucketInputIterator in(level.getSnap()); in; ++in)
-                {
-                    out.put(*in);
-                }
-                auto b =
-                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
+                auto nextBucket = next.resolve();
+                REQUIRE(nextBucket);
+                writeBucketFile(nextBucket);
             }
         }
         return HistoryArchiveState(

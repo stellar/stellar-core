@@ -248,11 +248,8 @@ class BucketManager : NonMovableOrCopyable
 
     // Assume state from `has` in BucketList: find and attach all buckets in
     // `has`, set current BL. Note: Does not restart merging
-    virtual void assumeState(HistoryArchiveState const& has) = 0;
-
-    // Restart BucketList Merges
-    virtual void restartMerges(HistoryArchiveState const& has,
-                               uint32_t maxProtocolVersion) = 0;
+    virtual void assumeState(HistoryArchiveState const& has,
+                             uint32_t maxProtocolVersion) = 0;
 
     virtual void shutdown() = 0;
 
