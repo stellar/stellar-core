@@ -12,6 +12,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestUtils.h"
@@ -1868,30 +1869,6 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
     }
 }
 
-auto numDemandSent = [](std::shared_ptr<Application> app) {
-    return app->getOverlayManager()
-        .getOverlayMetrics()
-        .mSendFloodDemandMeter.count();
-};
-
-auto numUnknownDemand = [](std::shared_ptr<Application> app) {
-    return app->getMetrics()
-        .NewMeter({"overlay", "flood", "unfulfilled-unknown"}, "message")
-        .count();
-};
-
-auto numTxHashesAdvertised = [](std::shared_ptr<Application> app) {
-    return app->getMetrics()
-        .NewMeter({"overlay", "flood", "advertised"}, "message")
-        .count();
-};
-
-auto numFulfilled = [](std::shared_ptr<Application> app) {
-    return app->getMetrics()
-        .NewMeter({"overlay", "flood", "fulfilled"}, "message")
-        .count();
-};
-
 TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 {
     VirtualClock clock;
@@ -1981,8 +1958,8 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         testutil::crankFor(
             clock, 3 * apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
 
-        REQUIRE(numDemandSent(apps[2]) == 1);
-        REQUIRE(numUnknownDemand(apps[0]) == 1);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
 
         // 10 seconds is long enough for a few timeouts to fire
         // but not long enough for the pending demand record to drop.
@@ -1994,8 +1971,8 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         testutil::crankFor(
             clock, 3 * apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
 
-        REQUIRE(numDemandSent(apps[2]) == 1);
-        REQUIRE(numUnknownDemand(apps[0]) == 1);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
     }
 
     SECTION("do not advertise to peers that know about tx")
@@ -2020,9 +1997,11 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
             // Give enough time for Node2 to issue a demand and receive tx0
             testutil::crankFor(clock, std::chrono::seconds(1));
 
-            REQUIRE(numDemandSent(apps[2]) == 1);
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
             // Either Node0 or Node1 fulfill the demand
-            auto fulfilled = numFulfilled(apps[0]) + numFulfilled(apps[1]);
+            auto fulfilled =
+                overlaytestutils::getFulfilledDemandCount(apps[0]) +
+                overlaytestutils::getFulfilledDemandCount(apps[1]);
             REQUIRE(fulfilled == 1);
             // After receiving a transaction, Node2 does not advertise it to
             // anyone because others already know about it
@@ -2034,7 +2013,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         ->getMetrics()
                         .NewTimer({"overlay", "recv", "transaction"})
                         .count() == 1);
-            REQUIRE(numTxHashesAdvertised(apps[2]) == 0);
+            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
         }
         SECTION("pull mode disabled on Node3")
         {
@@ -2063,10 +2042,10 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
             testutil::crankFor(clock, std::chrono::seconds(1));
 
             // No demands sent, no fulfilling occurs
-            REQUIRE(numDemandSent(apps[2]) == 0);
-            REQUIRE(numFulfilled(apps[0]) == 0);
-            REQUIRE(numFulfilled(apps[1]) == 0);
-            REQUIRE(numFulfilled(apps[3]) == 0);
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[0]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[1]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[3]) == 0);
             // After receiving a transaction, Node2 does not advertise/broadcast
             // it to anyone because others already know about it
             REQUIRE(apps[2]
@@ -2077,7 +2056,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         ->getMetrics()
                         .NewTimer({"overlay", "recv", "transaction"})
                         .count() == 1);
-            REQUIRE(numTxHashesAdvertised(apps[2]) == 0);
+            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
         }
     }
 
@@ -2101,9 +2080,9 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
                                       epsilon);
 
-        REQUIRE(numDemandSent(apps[2]) == 2);
-        REQUIRE(numUnknownDemand(apps[0]) == 1);
-        REQUIRE(numUnknownDemand(apps[1]) == 1);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 1);
     }
 
     SECTION("exact same advert from two peers")
@@ -2127,12 +2106,12 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
                                       epsilon);
 
-        REQUIRE(numDemandSent(apps[2]) == 2);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
         {
             // Node 2 is supposed to split the 5 demands evenly between Node 0
             // and Node 1 with no overlap.
-            auto n0 = numUnknownDemand(apps[0]);
-            auto n1 = numUnknownDemand(apps[1]);
+            auto n0 = overlaytestutils::getUnknownDemandCount(apps[0]);
+            auto n1 = overlaytestutils::getUnknownDemandCount(apps[1]);
             REQUIRE(std::min(n0, n1) == 2);
             REQUIRE(std::max(n0, n1) == 3);
             REQUIRE((n0 + n1) == 5);
@@ -2146,9 +2125,9 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                        epsilon);
 
         // Now both nodes should have gotten demands for all the 5 txn hashes.
-        REQUIRE(numDemandSent(apps[2]) == 4);
-        REQUIRE(numUnknownDemand(apps[0]) == 5);
-        REQUIRE(numUnknownDemand(apps[1]) == 5);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 4);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 5);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 5);
     }
 
     SECTION("overlapping adverts")
@@ -2173,13 +2152,13 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
                                       epsilon);
 
-        REQUIRE(numDemandSent(apps[2]) == 2);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
 
         {
             // Node 0 should get a demand for tx 1 and one of {tx 0, tx 3}.
             // Node 1 should get a demand for tx 2 and one of {tx 0, tx 3}.
-            REQUIRE(numUnknownDemand(apps[0]) == 2);
-            REQUIRE(numUnknownDemand(apps[1]) == 2);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 2);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 2);
         }
 
         // Wait long enough so the first round of demands expire and the second
@@ -2190,9 +2169,9 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
 
         // Node 0 should get a demand for the other member of {tx 0, tx 3}.
         // The same for Node 1.
-        REQUIRE(numDemandSent(apps[2]) == 4);
-        REQUIRE(numUnknownDemand(apps[0]) == 3);
-        REQUIRE(numUnknownDemand(apps[1]) == 3);
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 4);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 3);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 3);
     }
 
     SECTION("randomize peers")
@@ -2221,12 +2200,12 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
             testutil::crankFor(
                 clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
 
-            REQUIRE(numDemandSent(apps[2]) == i * 4 + 2);
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == i * 4 + 2);
             {
                 // Node 2 should split the 5 txn hashes
                 // evenly among Node 0 and Node 1.
-                auto n0 = numUnknownDemand(apps[0]);
-                auto n1 = numUnknownDemand(apps[1]);
+                auto n0 = overlaytestutils::getUnknownDemandCount(apps[0]);
+                auto n1 = overlaytestutils::getUnknownDemandCount(apps[1]);
                 REQUIRE(std::max(n0, n1) == i * numTxns + 3);
                 REQUIRE(std::min(n0, n1) == i * numTxns + 2);
                 if (n0 < n1)
@@ -2244,8 +2223,10 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
             testutil::crankFor(
                 clock,
                 apps[2]->getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS + epsilon);
-            REQUIRE(numUnknownDemand(apps[0]) == (i + 1) * numTxns);
-            REQUIRE(numUnknownDemand(apps[1]) == (i + 1) * numTxns);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) ==
+                    (i + 1) * numTxns);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) ==
+                    (i + 1) * numTxns);
         }
 
         // In each of the 300 rounds, both peer0 and peer1 have
@@ -2372,12 +2353,12 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Node 1 advertised 5 txn hashes to each of Node 2 and Node 3.
-    REQUIRE(numTxHashesAdvertised(node1) == numAccounts);
-    REQUIRE(numTxHashesAdvertised(node2) == 0);
+    REQUIRE(overlaytestutils::getAdvertisedHashCount(node1) == numAccounts);
+    REQUIRE(overlaytestutils::getAdvertisedHashCount(node2) == 0);
 
     // As this is a "happy path", there should be no unknown demands.
-    REQUIRE(numUnknownDemand(node1) == 0);
-    REQUIRE(numUnknownDemand(node2) == 0);
+    REQUIRE(overlaytestutils::getUnknownDemandCount(node1) == 0);
+    REQUIRE(overlaytestutils::getUnknownDemandCount(node2) == 0);
 }
 
 TEST_CASE("overlay pull mode with many peers",
@@ -2434,6 +2415,6 @@ TEST_CASE("overlay pull mode with many peers",
     // it's likely that they'll happen in 10 minutes.
     testutil::crankFor(clock, std::chrono::minutes(10));
 
-    REQUIRE(numDemandSent(apps[0]) == maxRetry);
+    REQUIRE(overlaytestutils::getSentDemandCount(apps[0]) == maxRetry);
 }
 }
