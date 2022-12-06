@@ -46,11 +46,11 @@ jobs:
           sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
       - name: install tool chain
         run: |
-          sudo apt-get -y install libstdc++-8-dev clang-format-10 ccache
+          sudo apt-get -y install libstdc++-10-dev clang-format-12 ccache
           if test "${{ matrix.toolchain }}" = "gcc" ; then
-            sudo apt-get -y install cpp-8 gcc-8 g++-8
+            sudo apt-get -y install cpp-10 gcc-10 g++-10
           else
-            sudo apt-get -y install clang-10 llvm-10
+            sudo apt-get -y install clang-12 llvm-12
           fi
       - name: install dependencies
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev

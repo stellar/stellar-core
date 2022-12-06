@@ -94,8 +94,8 @@ If you do not have cURL installed
 ## clang-format
 
 For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
-* note that the version of clang-format used currently is 10.0 (other versions may not format the same way).
-* we recommend downloading 10.0 from http://releases.llvm.org/download.html
+* note that the version of clang-format used currently is 12.0 (other versions may not format the same way).
+* we recommend downloading 12.0 from http://releases.llvm.org/download.html
 
 # Build on Windows using the Windows Subsystem for Linux
 To setup the subsystem, go to https://msdn.microsoft.com/en-us/commandline/wsl/install_guide

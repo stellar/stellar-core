@@ -58,27 +58,27 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++17
-    - `clang` >= 10.0
-    - `g++` >= 8.0
+    - `clang` >= 12.0
+    - `g++` >= 10.0
 - `pkg-config`
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
-- `clang-format-10` (for `make format` to work)
+- `clang-format-12` (for `make format` to work)
 - `perl`
 - `libunwind-dev`
 
 ### Ubuntu
 
-#### Ubuntu 18.04
+#### Ubuntu 20.04
 You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core with the latest version of the llvm toolchain.
 
 Alternatively, if you want to just depend on stock Ubuntu, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
-Ubuntu 18.04 has clang-10 available, that you can install with
+Ubuntu 20.04 has clang-12 available, that you can install with
 
-    # install clang-10 toolchain
-    sudo apt-get install clang-10
+    # install clang-12 toolchain
+    sudo apt-get install clang-12
 
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
@@ -95,17 +95,17 @@ After installing packages, head to [building with clang and libc++](#building-wi
     # common packages
     sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
     # if using clang
-    sudo apt-get install clang-10
+    sudo apt-get install clang-12
     # clang with libstdc++
-    sudo apt-get install gcc-8
+    sudo apt-get install gcc-10
     # if using g++ or building with libstdc++
-    # sudo apt-get install gcc-8 g++-8 cpp-8
+    # sudo apt-get install gcc-10 g++-10 cpp-10
 
 In order to make changes, you'll need to install the proper version of clang-format.
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
 
-    sudo apt-get install clang-format-10
+    sudo apt-get install clang-format-12
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
@@ -130,7 +130,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-10 ./configure` or `CXX=g++-8 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-12 ./configure` or `CXX=g++-10 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.
@@ -141,15 +141,15 @@ On some systems, building with `libc++`, [LLVM's version of the standard library
 
 NB: there are newer versions available of both clang and libc++, you will have to use the versions suited for your system.
 
-You may need to install additional packages for this, for example, on Linux Ubuntu 18.04 LTS with clang-10:
+You may need to install additional packages for this, for example, on Linux Ubuntu 20.04 LTS with clang-12:
 
     # install libc++ headers
-    sudo apt-get install libc++-10-dev libc++abi-10-dev
+    sudo apt-get install libc++-12-dev libc++abi-12-dev
 
 Here are sample steps to achieve this:
 
-    export CC=clang-10
-    export CXX=clang++-10
+    export CC=clang-12
+    export CXX=clang++-12
     export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
     export CXXFLAGS="$CFLAGS -stdlib=libc++"
     git clone https://github.com/stellar/stellar-core.git
