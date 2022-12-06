@@ -63,10 +63,10 @@ improvements described above).
 
 note: you may have to provide a default clang/clang++, this can be done in many ways.
 
-For example, this makes clang-10 the default:
+For example, this makes clang-12 the default:
 
 ```
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-10   81 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-10    --slave /usr/share/man/man1/clang.1.gz clang.1.gz /usr/share/man/man1/clang-10.1.gz --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-10 --slave /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-10
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12   81 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12    --slave /usr/share/man/man1/clang.1.gz clang.1.gz /usr/share/man/man1/clang-12.1.gz --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-12  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-12 --slave /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-12
 ```
 
 ## Building an instrumented stellar-core

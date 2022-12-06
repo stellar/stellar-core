@@ -250,7 +250,7 @@ if test "$FS_WORKS" = "no"; then
 fi
 
 # prefer 10 as it's the one we use
-AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-10 clang-format])
+AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-12 clang-format])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
 AX_VALGRIND_CHECK

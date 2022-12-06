@@ -5,7 +5,7 @@ RUN apt-get update && \
     apt-get -y install iproute2 procps lsb-release \
                        git build-essential pkg-config autoconf automake libtool \
                        bison flex libpq-dev parallel libunwind-dev \
-                       clang-10 libc++abi-10-dev libc++-10-dev \
+                       clang-12 libc++abi-12-dev libc++-12-dev \
                        postgresql curl
 
 COPY . stellar-core/
@@ -13,8 +13,8 @@ WORKDIR stellar-core
 RUN git clean -dXf
 RUN git submodule foreach --recursive git clean -dXf
 
-ARG CC=clang-10
-ARG CXX=clang++-10
+ARG CC=clang-12
+ARG CXX=clang++-12
 ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
 ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
 ARG CONFIGURE_FLAGS='--enable-tracy --enable-sdfprefs --enable-next-protocol-version-unsafe-for-production'
@@ -30,7 +30,7 @@ RUN make install
 FROM ubuntu:focal
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get -y install libunwind8 postgresql curl sqlite iproute2 libc++abi1-10 libc++1-10
+    apt-get -y install libunwind8 postgresql curl sqlite iproute2 libc++abi1-12 libc++1-12
 
 COPY --from=buildstage /usr/local/bin/stellar-core /usr/local/bin/stellar-core
 EXPOSE 11625
