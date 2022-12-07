@@ -573,6 +573,10 @@ uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
     uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    if (ct == 0)
+    {
+        return 0;
+    }
     uint64_t now = mApp.timeNow();
     return (now > ct) ? (now - ct) : 0;
 }
