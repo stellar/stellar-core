@@ -36,7 +36,7 @@ RUN printf "Y" | apt-get install clang-format
 
 WORKDIR /usr/src
 ARG LIB_VERSION
-RUN git clone --depth 1 -b ${LIB_VERSION} git@github.com:tbcasoft/stellar-core.git
+RUN git clone --depth 1 -b ${LIB_VERSION} git@github.com:tbcasoft/stellar-core.git .
 
 WORKDIR /usr/src/stellar-core
 
