@@ -326,10 +326,13 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::info(std::string const&, std::string& retStr)
+CommandHandler::info(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
-    retStr = mApp.getJsonInfo().toStyledString();
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    retStr = mApp.getJsonInfo(retMap["compact"] == "false").toStyledString();
 }
 
 static bool

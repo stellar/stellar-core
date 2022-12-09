@@ -1201,7 +1201,7 @@ runOfflineInfo(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
 
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        showOfflineInfo(configOption.getConfig());
+        showOfflineInfo(configOption.getConfig(), true);
         return 0;
     });
 }
