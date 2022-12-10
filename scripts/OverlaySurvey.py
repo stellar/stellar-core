@@ -65,9 +65,11 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
 
 
 def send_requests(peer_list, params, request_url):
+    print("Requesting %s for %s peers" % (request_url, len(peer_list)))
     for key in peer_list:
         params["node"] = key
         requests.get(url=request_url, params=params)
+    print("Done")
 
 
 def check_results(data, graph, merged_results):
@@ -201,7 +203,9 @@ def run_survey(args):
         # allow time for results
         time.sleep(1)
 
+        print("Fetching survey result")
         data = requests.get(url=survey_result).json()
+        print("Done")
 
         result_node_list = check_results(data, graph, merged_results)
 
@@ -212,7 +216,7 @@ def run_survey(args):
         for key in result_node_list:
             if key not in sent_requests:
                 peer_list.append(key)
-
+        new_peers = len(peer_list)
         # retry for incomplete nodes
         for key in merged_results:
             node = merged_results[key]
@@ -220,6 +224,8 @@ def run_survey(args):
                 peer_list.append(key)
             if node["totalOutbound"] > len(node["outboundPeers"]):
                 peer_list.append(key)
+        print("New peers: %s  Retrying: %s" %(new_peers, len(peer_list)-new_peers))
+
 
     if nx.is_empty(graph):
         print("Graph is empty!")
