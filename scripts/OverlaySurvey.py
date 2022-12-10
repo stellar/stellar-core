@@ -128,6 +128,8 @@ def augment(args):
             for prop in desired_properties:
                 if prop in obj:
                     val = obj[prop]
+                    if val is None:
+                        continue
                     if type(val) is dict:
                         val = json.dumps(val)
                     prop_dict['sb_{}'.format(prop)] = val
