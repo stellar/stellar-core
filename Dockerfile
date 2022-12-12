@@ -40,6 +40,7 @@ RUN git clone --depth 1 -b ${LIB_VERSION} git@github.com:tbcasoft/stellar-core.g
 
 #RUN echo "=== About to run  autogen.sh ==="
 RUN ./autogen.sh
+RUN ./configure
 RUN echo "=== About to run  make, output stored in make.output file ==="
 RUN make clean
 RUN make &> make.output
