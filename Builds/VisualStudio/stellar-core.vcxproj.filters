@@ -936,6 +936,9 @@
     <ClCompile Include="..\..\src\overlay\test\OverlayTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\OverlayTestUtils.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\PeerManagerTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
@@ -1931,6 +1934,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\test\OverlayTestUtils.h">
+      <Filter>overlay\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h">
       <Filter>overlay\tests</Filter>
