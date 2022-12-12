@@ -56,6 +56,7 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
                        numTotalInboundPeers=parent_info[
                            "numTotalInboundPeers"
                        ])
+
     if "numTotalOutboundPeers" in parent_info:
         results["totalOutbound"] = parent_info["numTotalOutboundPeers"]
         graph.add_node(parent_key,
@@ -64,11 +65,23 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
                        ])
 
 
+request_count = 0
+
+
 def send_requests(peer_list, params, request_url):
     print("Requesting %s for %s peers" % (request_url, len(peer_list)))
+    limit = 10
+    # Submit `limit` queries roughly every ledger
     for key in peer_list:
         params["node"] = key
         requests.get(url=request_url, params=params)
+        print("Send request to %s" % key)
+        global request_count
+        request_count += 1
+        if (request_count % limit) == 0:
+            print("Submitted %i queries, sleep for ~1 ledger" % limit)
+            time.sleep(5)
+
     print("Done")
 
 
@@ -112,9 +125,43 @@ def analyze(args):
     sys.exit(0)
 
 
+def get_tier1_stats(augmented_directed_graph):
+    '''
+    Helper function to help analyze transitive quorum. Must only be called on a graph augmented with StellarBeat info
+    '''
+    graph = augmented_directed_graph.to_undirected()
+    tier1_nodes = [node for node, attr in graph.nodes(
+        data=True) if 'isTier1' in attr and attr['isTier1'] == True]
+
+    all_node_average = []
+    for node in tier1_nodes:
+        distances = []
+        for other_node in tier1_nodes:
+            if node != other_node:
+                dist = nx.shortest_path_length(graph, node, other_node)
+                distances.append(dist)
+        avg_for_one_node = sum(distances)/len(distances)
+        print("Average distance from %s to everyone else in Tier1: %.2f" %
+              (nx.get_node_attributes(graph, 'sb_name')[node], avg_for_one_node))
+        all_node_average.append(avg_for_one_node)
+
+    if len(tier1_nodes):
+        print("Average distance between all Tier1 nodes %.2f" %
+              (sum(all_node_average)/len(all_node_average)))
+
+        # Get average degree among Tier1 nodes
+        degrees = [degree for (node, degree) in graph.degree()
+                   if node in tier1_nodes]
+        print("Average degree among Tier1 nodes: %.2f" %
+              (sum(degrees)/len(degrees)))
+
+
 def augment(args):
     graph = nx.read_graphml(args.graphmlInput)
     data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
+    transitive_quorum = requests.get(
+        "https://api.stellarbeat.io/v1/").json()["transitiveQuorumSet"]
+
     for obj in data:
         if graph.has_node(obj["publicKey"]):
             desired_properties = ["quorumSet",
@@ -136,6 +183,16 @@ def augment(args):
                         val = json.dumps(val)
                     prop_dict['sb_{}'.format(prop)] = val
             graph.add_node(obj["publicKey"], **prop_dict)
+
+    # Record Tier1 nodes
+    for key in transitive_quorum:
+        if graph.has_node(key):
+            graph.add_node(key, isTier1=True)
+        else:
+            print("Warning: Tier1 node %s is not found in the survey data" % key)
+
+    # Print a little more info about the quorum
+    get_tier1_stats(graph)
     nx.write_graphml(graph, args.graphmlOutput)
     sys.exit(0)
 
@@ -162,12 +219,12 @@ def run_survey(args):
     # reset survey
     requests.get(url=stop_survey)
 
-    peer_list = []
+    peer_list = set()
     if args.nodeList:
         # include nodes from file
         f = open(args.nodeList, "r")
         for node in f:
-            peer_list.append(node.rstrip('\n'))
+            peer_list.add(node.rstrip('\n'))
 
     peers_params = {'fullkeys': "true"}
 
@@ -177,20 +234,19 @@ def run_survey(args):
     # seed initial peers off of /peers endpoint
     if peers["inbound"]:
         for peer in peers["inbound"]:
-            peer_list.append(peer["id"])
+            peer_list.add(peer["id"])
     if peers["outbound"]:
         for peer in peers["outbound"]:
-            peer_list.append(peer["id"])
+            peer_list.add(peer["id"])
 
-    graph.add_node(requests
-                   .get(url + "/scp?limit=0&fullkeys=true")
-                   .json()
-                   ["you"],
+    self_name = requests.get(url + "/scp?limit=0&fullkeys=true").json()["you"]
+    graph.add_node(self_name,
                    version=requests.get(url + "/info").json()["info"]["build"],
                    numTotalInboundPeers=len(peers["inbound"] or []),
                    numTotalOutboundPeers=len(peers["outbound"] or []))
 
     sent_requests = set()
+    heard_from = set()
 
     while True:
         send_requests(peer_list, params, survey_request)
@@ -198,7 +254,7 @@ def run_survey(args):
         for peer in peer_list:
             sent_requests.add(peer)
 
-        peer_list = []
+        peer_list = set()
 
         # allow time for results
         time.sleep(1)
@@ -207,25 +263,40 @@ def run_survey(args):
         data = requests.get(url=survey_result).json()
         print("Done")
 
+        if "topology" in data:
+            for key in data["topology"]:
+                if data["topology"][key] is not None:
+                    heard_from.add(key)
+
+        waiting_to_hear = set()
+        for node in sent_requests:
+            if node not in heard_from and node != self_name:
+                waiting_to_hear.add(node)
+                print("Have not received response from %s" % node)
+
+        print("Still waiting for survey results from %i nodes" %
+              len(waiting_to_hear))
+
         result_node_list = check_results(data, graph, merged_results)
 
         if "surveyInProgress" in data and data["surveyInProgress"] is False:
+            print("Survey complete")
             break
 
         # try new nodes
         for key in result_node_list:
             if key not in sent_requests:
-                peer_list.append(key)
+                peer_list.add(key)
         new_peers = len(peer_list)
         # retry for incomplete nodes
         for key in merged_results:
             node = merged_results[key]
             if node["totalInbound"] > len(node["inboundPeers"]):
-                peer_list.append(key)
+                peer_list.add(key)
             if node["totalOutbound"] > len(node["outboundPeers"]):
-                peer_list.append(key)
-        print("New peers: %s  Retrying: %s" %(new_peers, len(peer_list)-new_peers))
-
+                peer_list.add(key)
+        print("New peers: %s  Retrying: %s" %
+              (new_peers, len(peer_list)-new_peers))
 
     if nx.is_empty(graph):
         print("Graph is empty!")
@@ -244,7 +315,8 @@ def flatten(args):
     output_graph = []
     graph = nx.read_graphml(args.graphmlInput).to_undirected()
     for node, attr in graph.nodes(data=True):
-        new_attr = {"publicKey": node, "peers": list(map(str, graph.adj[node]))}
+        new_attr = {"publicKey": node, "peers": list(
+            map(str, graph.adj[node]))}
         for key in attr:
             try:
                 new_attr[key] = json.loads(attr[key])
@@ -310,16 +382,16 @@ def main():
     parser_augment.set_defaults(func=augment)
 
     parser_flatten = subparsers.add_parser("flatten",
-                                            help="Flatten a directed graph into "
-                                            "an undirected graph in JSON")
+                                           help="Flatten a directed graph into "
+                                           "an undirected graph in JSON")
     parser_flatten.add_argument("-gmli",
-                                 "--graphmlInput",
-                                 required=True,
-                                 help="input file containing a directed graph")
+                                "--graphmlInput",
+                                required=True,
+                                help="input file containing a directed graph")
     parser_flatten.add_argument("-json",
-                                 "--jsonOutput",
-                                 required=True,
-                                 help="output JSON file for the flattened graph")
+                                "--jsonOutput",
+                                required=True,
+                                help="output JSON file for the flattened graph")
     parser_flatten.set_defaults(func=flatten)
 
     args = argument_parser.parse_args()
