@@ -34,12 +34,12 @@ RUN printf "Y" | apt-get install git build-essential pkg-config autoconf dh-auto
 # It’s used to format your c++ code before creating a pull request.
 RUN printf "Y" | apt-get install clang-format
 
-WORKDIR /usr/src/stellar-core
+WORKDIR /usr/src
 ARG LIB_VERSION
 RUN git clone --depth 1 -b ${LIB_VERSION} git@github.com:tbcasoft/stellar-core.git .
 
 #RUN echo "=== About to run  autogen.sh ==="
-./autogen.sh
+RUN ./autogen.sh
 RUN echo "=== About to run  make, output stored in make.output file ==="
-make clean
-make &> make.output
+RUN make clean
+RUN make &> make.output
