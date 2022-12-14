@@ -2527,19 +2527,15 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         return false;
     }
 
-    // Database only holds offers if BucketListDB is enabled
-    if (bucketListDBEnabled)
+    // Don't accumulate entry types that are supported by BucketListDB when it
+    // is enabled
+    auto type = iter.key().ledgerKey().type();
+    if (bucketListDBEnabled && !BucketIndex::typeNotSupported(type))
     {
-        if (iter.key().ledgerKey().type() == OFFER)
-        {
-            accum(iter, mOffersToUpsert, mOffersToDelete);
-            return true;
-        }
-
         return false;
     }
 
-    switch (iter.key().ledgerKey().type())
+    switch (type)
     {
     case ACCOUNT:
         accum(iter, mAccountsToUpsert, mAccountsToDelete);
@@ -2715,14 +2711,14 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
 
-    auto bucketKVStore = mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB;
+    auto bucketListDBEnabled = mApp.getConfig().isUsingBucketListDB();
     auto bleca = BulkLedgerEntryChangeAccumulator();
     [[maybe_unused]] int64_t counter{0};
     try
     {
         while ((bool)iter)
         {
-            if (bleca.accumulate(iter, bucketKVStore))
+            if (bleca.accumulate(iter, bucketListDBEnabled))
             {
                 ++counter;
             }
@@ -2952,7 +2948,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         }
     };
 
-    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+    if (mApp.getConfig().isUsingBucketListDB())
     {
         LedgerKeySet keysToSearch;
         for (auto const& key : keys)
@@ -3472,7 +3468,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
     std::vector<LedgerEntry> trustLines;
     try
     {
-        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+        if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
                 mApp.getBucketManager()
@@ -3536,7 +3532,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 {
     try
     {
-        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+        if (mApp.getConfig().isUsingBucketListDB())
         {
             return mApp.getBucketManager().loadInflationWinners(maxWinners,
                                                                 minVotes);
@@ -3592,7 +3588,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     std::shared_ptr<LedgerEntry const> entry;
     try
     {
-        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && key.type() != OFFER)
+        if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
             entry = mApp.getBucketManager().getLedgerEntry(key);
         }

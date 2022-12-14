@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
+#include "main/PersistentState.h"
 #include "medida/timer.h"
 #include "util/XDRCereal.h"
 #include <chrono>
@@ -195,6 +196,13 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         for (auto const& pair : bucketLedgerMap)
         {
+            // Don't check entry types in BucketListDB when enabled
+            if (mApp.getConfig().isUsingBucketListDB() &&
+                !BucketIndex::typeNotSupported(pair.first.type()))
+            {
+                continue;
+            }
+
             counts.countLiveEntry(pair.second);
             std::string s;
             timer.Time([&]() { s = checkAgainstDatabase(ltx, pair.second); });
@@ -222,12 +230,32 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     {
         auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
                                             has.currentLedger);
-        auto s =
-            counts.checkDbEntryCounts(mApp, range, [](auto) { return true; });
+
+        // If BucketListDB enabled, only types not supported by BucketListDB
+        // should be in SQL DB
+        std::function<bool(LedgerEntryType)> filter;
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            filter = BucketIndex::typeNotSupported;
+        }
+        else
+        {
+            filter = [](LedgerEntryType) { return true; };
+        }
+
+        auto s = counts.checkDbEntryCounts(mApp, range, filter);
         if (!s.empty())
         {
             throw std::runtime_error(s);
         }
+    }
+
+    if (mApp.getConfig().isUsingBucketListDB() &&
+        mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+            BucketIndex::DBBackendState)
+    {
+        throw std::runtime_error("BucketListDB enabled but BucketListDB flag "
+                                 "not set in PersistentState.");
     }
 }
 

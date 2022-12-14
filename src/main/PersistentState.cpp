@@ -175,7 +175,7 @@ PersistentState::setRebuildForType(LedgerEntryType let)
 
     // Only allow rebuilds for offer table if BucketListDB enabled, other tables
     // don't exist
-    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB && let != OFFER)
+    if (mApp.getConfig().isUsingBucketListDB() && let != OFFER)
     {
         return;
     }

@@ -898,8 +898,7 @@ BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
 std::shared_ptr<LedgerEntry>
 BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
 {
-    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
-                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
     auto timer = getPointLoadTimer(k.type()).TimeScope();
     return mBucketList->getLedgerEntry(k);
 }
@@ -908,8 +907,7 @@ std::vector<LedgerEntry>
 BucketManagerImpl::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
 {
-    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
-                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
     auto timer = getBulkLoadTimer("prefetch").TimeScope();
     return mBucketList->loadKeys(keys);
 }
@@ -918,8 +916,7 @@ std::vector<LedgerEntry>
 BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset) const
 {
-    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
-                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
     auto timer = getBulkLoadTimer("poolshareTrustlines").TimeScope();
     return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
         accountID, asset, getConfig());
@@ -929,8 +926,7 @@ std::vector<InflationWinner>
 BucketManagerImpl::loadInflationWinners(size_t maxWinners,
                                         int64_t minBalance) const
 {
-    releaseAssertOrThrow(getConfig().MODE_ENABLES_BUCKETLIST &&
-                         getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
     auto timer = getBulkLoadTimer("inflationWinners").TimeScope();
     return mBucketList->loadInflationWinners(maxWinners, minBalance);
 }
