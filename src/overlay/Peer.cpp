@@ -65,7 +65,6 @@ Peer::Peer(Application& app, PeerRole role)
           std::make_optional<VirtualClock::time_point>(app.getClock().now()))
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
-    , mFlowControlState(Peer::FlowControlState::DONT_KNOW)
     , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
                 app.getConfig().PEER_READING_CAPACITY}
     , mTxAdvertQueue(app)
@@ -93,28 +92,28 @@ Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 void
 Peer::beginMesssageProcessing(StellarMessage const& msg)
 {
-    // Check if flow control is enabled on the local node
-    if (flowControlEnabled() == Peer::FlowControlState::ENABLED)
+    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
+                  mCapacity.mFloodCapacity);
+    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
+                  mCapacity.mTotalCapacity);
+    releaseAssert(mCapacity.mTotalCapacity > 0);
+    mCapacity.mTotalCapacity--;
+
+    if (mApp.getOverlayManager().isFloodMessage(msg))
     {
-        releaseAssert(mCapacity.mTotalCapacity > 0);
-        mCapacity.mTotalCapacity--;
-
-        if (mApp.getOverlayManager().isFloodMessage(msg))
+        if (mCapacity.mFloodCapacity == 0)
         {
-            if (mCapacity.mFloodCapacity == 0)
-            {
-                drop("unexpected flood message, peer at capacity",
-                     Peer::DropDirection::WE_DROPPED_REMOTE,
-                     Peer::DropMode::IGNORE_WRITE_QUEUE);
-                return;
-            }
+            drop("unexpected flood message, peer at capacity",
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            return;
+        }
 
-            mCapacity.mFloodCapacity--;
-            if (mCapacity.mFloodCapacity == 0)
-            {
-                CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
-                           mApp.getConfig().toShortString(getPeerID()));
-            }
+        mCapacity.mFloodCapacity--;
+        if (mCapacity.mFloodCapacity == 0)
+        {
+            CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
+                       mApp.getConfig().toShortString(getPeerID()));
         }
     }
 }
@@ -257,10 +256,8 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
             drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
-        else if (flowControlEnabled() == Peer::FlowControlState::ENABLED &&
-                 mNoOutboundCapacity &&
-                 (now - *mNoOutboundCapacity) >=
-                     Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
+        else if (mNoOutboundCapacity && (now - *mNoOutboundCapacity) >=
+                                            Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
         {
             drop("idle timeout (no new flood requests)",
                  Peer::DropDirection::WE_DROPPED_REMOTE,
@@ -285,15 +282,9 @@ Peer::getFlowControlJsonInfo(bool compact) const
 {
     Json::Value res;
     std::string stateStr;
-    bool reportCapacity =
-        flowControlEnabled() == Peer::FlowControlState::ENABLED;
-    if (reportCapacity)
-    {
-        res["local_capacity"]["reading"] =
-            (Json::UInt64)mCapacity.mTotalCapacity;
-        res["local_capacity"]["flood"] = (Json::UInt64)mCapacity.mFloodCapacity;
-        res["peer_capacity"] = (Json::UInt64)mOutboundCapacity;
-    }
+    res["local_capacity"]["reading"] = (Json::UInt64)mCapacity.mTotalCapacity;
+    res["local_capacity"]["flood"] = (Json::UInt64)mCapacity.mFloodCapacity;
+    res["peer_capacity"] = (Json::UInt64)mOutboundCapacity;
 
     if (!compact)
     {
@@ -697,18 +688,9 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 
     if (mApp.getOverlayManager().isFloodMessage(*msg))
     {
-        auto flowControl = flowControlEnabled();
-        if (flowControl == Peer::FlowControlState::DONT_KNOW)
-        {
-            // Drop any flood messages while flow control is being set
-            return;
-        }
-        else if (flowControl == Peer::FlowControlState::ENABLED)
-        {
-            addMsgAndMaybeTrimQueue(msg);
-            maybeSendNextBatch();
-            return;
-        }
+        addMsgAndMaybeTrimQueue(msg);
+        maybeSendNextBatch();
+        return;
     }
 
     sendAuthenticatedMessage(*msg);
@@ -844,36 +826,15 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     case SEND_MORE:
     {
-        if (mRemoteOverlayVersion < Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-        {
-            drop("Peer sent SEND_MORE that it doesn't support",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
-        if (mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-        {
-            drop("does not support SEND_MORE",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
         cat = "CTRL";
 
         if (stellarMsg.sendMoreMessage().numMessages == 0)
         {
-            auto msg = flowControlEnabled() == Peer::FlowControlState::ENABLED
-                           ? "unexpected SEND_MORE message"
-                           : "must enable flow control";
-            drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE,
+            drop("unexpected SEND_MORE message",
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
-
-        mFlowControlState = Peer::FlowControlState::ENABLED;
 
         if (stellarMsg.sendMoreMessage().numMessages >
             UINT64_MAX - mOutboundCapacity)
@@ -1000,9 +961,6 @@ void
 Peer::recvSendMore(StellarMessage const& msg)
 {
     ZoneScoped;
-    // Flow control must be "on"
-    auto fc = flowControlEnabled();
-    releaseAssert(fc != Peer::FlowControlState::DONT_KNOW);
     releaseAssert(msg.sendMoreMessage().numMessages > 0);
 
     CLOG_TRACE(Overlay, "Peer {} sent SEND_MORE {}",
@@ -1011,32 +969,13 @@ Peer::recvSendMore(StellarMessage const& msg)
 
     // SEND_MORE means we can free some capacity, and dump the next batch of
     // messages onto the writing queue
-    if (fc == Peer::FlowControlState::ENABLED)
-    {
-        maybeSendNextBatch();
-    }
+    maybeSendNextBatch();
 }
 
 bool
 Peer::hasReadingCapacity() const
 {
-    return flowControlEnabled() != Peer::FlowControlState::ENABLED ||
-           mCapacity.mTotalCapacity > 0;
-}
-
-Peer::FlowControlState
-Peer::flowControlEnabled() const
-{
-    if (mFlowControlState == Peer::FlowControlState::DONT_KNOW)
-    {
-        return Peer::FlowControlState::DONT_KNOW;
-    }
-    if (mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
-        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-    {
-        return Peer::FlowControlState::DISABLED;
-    }
-    return mFlowControlState;
+    return mCapacity.mTotalCapacity > 0;
 }
 
 void
@@ -1165,8 +1104,6 @@ Peer::maybeSendNextBatch()
 {
     ZoneScoped;
 
-    releaseAssert(flowControlEnabled() == Peer::FlowControlState::ENABLED);
-
     auto oldOutboundCapacity = mOutboundCapacity;
     for (int i = 0; i < mOutboundQueues.size(); i++)
     {
@@ -1234,8 +1171,7 @@ Peer::maybeSendNextBatch()
 void
 Peer::endMessageProcessing(StellarMessage const& msg)
 {
-    if (shouldAbort() ||
-        flowControlEnabled() != Peer::FlowControlState::ENABLED)
+    if (shouldAbort())
     {
         return;
     }
@@ -1267,6 +1203,10 @@ Peer::endMessageProcessing(StellarMessage const& msg)
         mIsPeerThrottled = false;
         scheduleRead();
     }
+    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
+                  mCapacity.mFloodCapacity);
+    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
+                  mCapacity.mTotalCapacity);
 }
 
 void
@@ -1850,8 +1790,7 @@ Peer::recvHello(Hello const& elo)
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
-        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION ||
-        mRemoteOverlayVersion < Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
+        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
         CLOG_DEBUG(Overlay, "Protocol = [{},{}] expected: [{},{}]",
                    mRemoteOverlayMinVersion, mRemoteOverlayVersion,
@@ -1963,13 +1902,8 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     // Subtle: after successful auth, must send sendMore message first to tell
-    // the other peer if this node prefers to flow control the traffic or not
-    if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL &&
-        mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL)
-    {
-        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
-    }
+    // the other peer about the local node's reading capacity.
+    sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
 
     if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
         mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=

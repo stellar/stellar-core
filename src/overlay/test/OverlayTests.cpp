@@ -137,21 +137,19 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
     auto cfg2 = getTestConfig(1);
 
     auto runTest = [&](std::vector<Config> expectedCfgs,
-                       Peer::FlowControlState expectedState,
-                       bool sendIllegalSendMore = false) {
-        REQUIRE(expectedState != Peer::FlowControlState::DONT_KNOW);
+                       bool expectAuthenticated, bool sendIllegalSendMore) {
         auto app1 = createTestApplication(clock, expectedCfgs[0]);
         auto app2 = createTestApplication(clock, expectedCfgs[1]);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
 
-        if (expectedState == Peer::FlowControlState::ENABLED)
+        auto const dropReason = "unexpected SEND_MORE message";
+
+        if (expectAuthenticated)
         {
             REQUIRE(conn.getInitiator()->isAuthenticated());
             REQUIRE(conn.getAcceptor()->isAuthenticated());
-            REQUIRE(conn.getInitiator()->flowControlEnabled() == expectedState);
-            REQUIRE(conn.getAcceptor()->flowControlEnabled() == expectedState);
             REQUIRE(conn.getInitiator()->checkCapacity(
                 cfg2.PEER_FLOOD_READING_CAPACITY));
             REQUIRE(conn.getAcceptor()->checkCapacity(
@@ -165,17 +163,11 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 testutil::crankSome(clock);
                 REQUIRE(!conn.getInitiator()->isConnected());
                 REQUIRE(!conn.getAcceptor()->isConnected());
-                REQUIRE(conn.getAcceptor()->getDropReason() ==
-                        "unexpected SEND_MORE message");
+                REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
             }
         }
         else
         {
-            auto dropReason =
-                cfg2.OVERLAY_PROTOCOL_VERSION <
-                        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL
-                    ? "wrong protocol version"
-                    : "must enable flow control";
             REQUIRE(!conn.getInitiator()->isConnected());
             REQUIRE(!conn.getAcceptor()->isConnected());
             REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
@@ -190,12 +182,12 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
         SECTION("basic")
         {
             // Successfully enabled flow control
-            runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, false);
+            runTest({cfg1, cfg2}, true, false);
         }
         SECTION("bad peer")
         {
             // Try to disable flow control after enabling
-            runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, true);
+            runTest({cfg1, cfg2}, true, true);
         }
     }
     SECTION("one disables")
@@ -203,14 +195,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
         // Peer tries to disable flow control during auth
         // Set capacity to 0 so that the peer sends SEND_MORE with numMessages=0
         cfg2.PEER_FLOOD_READING_CAPACITY = 0;
-        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
-    }
-    SECTION("one does not support")
-    {
-        // Peer is not on minimum supported version
-        cfg2.OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
-        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
+        runTest({cfg1, cfg2}, false, false);
     }
 }
 
@@ -234,11 +219,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     testutil::crankSome(clock);
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
-
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
 
     // tx is invalid, but it doesn't matter
     StellarMessage msg;
@@ -276,11 +256,6 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
 
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-
     StellarMessage msg;
     msg.type(TRANSACTION);
     REQUIRE(conn.getAcceptor()->getOutboundCapacity() == 1);
@@ -314,11 +289,6 @@ TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
     testutil::crankSome(clock);
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
-
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
 
     // Set outbound capacity close to max on initiator
     auto& cap = conn.getInitiator()->getOutboundCapacity();
@@ -1678,17 +1648,6 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
                 3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
             std::runtime_error);
     }
-    SECTION("one peer doesn't support flow control")
-    {
-        configs[2].OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
-        setupSimulation();
-        REQUIRE_THROWS_AS(
-            simulation->crankUntil(
-                [&] { return simulation->haveAllExternalized(2, 1); },
-                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
-            std::runtime_error);
-    }
 }
 
 PeerBareAddress
@@ -1899,10 +1858,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
     {
         REQUIRE(conn->getInitiator()->isAuthenticated());
         REQUIRE(conn->getAcceptor()->isAuthenticated());
-        REQUIRE(conn->getInitiator()->flowControlEnabled() ==
-                Peer::FlowControlState::ENABLED);
-        REQUIRE(conn->getAcceptor()->flowControlEnabled() ==
-                Peer::FlowControlState::ENABLED);
     }
 
     auto createTxn = [](auto n) {
@@ -2392,10 +2347,6 @@ TEST_CASE("overlay pull mode with many peers",
     {
         REQUIRE(conn->getInitiator()->isAuthenticated());
         REQUIRE(conn->getAcceptor()->isAuthenticated());
-        REQUIRE(conn->getInitiator()->flowControlEnabled() ==
-                Peer::FlowControlState::ENABLED);
-        REQUIRE(conn->getAcceptor()->flowControlEnabled() ==
-                Peer::FlowControlState::ENABLED);
     }
 
     StellarMessage adv, emptyMsg;

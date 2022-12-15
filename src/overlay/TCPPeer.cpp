@@ -702,22 +702,18 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
         return;
     }
 
-    std::string connectionType =
-        isFlowControlled() ? "flow-controlled" : "not flow-controlled";
     if (mState != GOT_AUTH)
     {
-        CLOG_DEBUG(Overlay, "TCPPeer::drop {} {} in state {} we called:{}",
-                   connectionType, toString(), mState, mRole);
+        CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
+                   toString(), mState, mRole);
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG_INFO(Overlay, "Dropping {} peer {}, reason {}", connectionType,
-                  toString(), reason);
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
     }
     else
     {
-        CLOG_INFO(Overlay, "{} peer {} dropped us, reason {}", connectionType,
-                  toString(), reason);
+        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
     }
 
     mState = CLOSING;
