@@ -31,6 +31,7 @@ bucket.batch.objectsadded                | meter     | number of objects added p
 bucket.memory.shared                     | counter   | number of buckets referenced (excluding publish queue)
 bucket.merge-time.level-<X>              | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                        | timer     | time to merge two buckets
+bucketlistDB.bloom.lookups               | meter     | number of bloom filter lookups
 bucketlistDB.bloom.misses                | meter     | number of bloom filter false positives
 bucketlistDB.query.loads                 | meter     | number of BucketListDB load queries
 bucketlistDB.bulk.inflationWinners       | timer     | time to load inflation winners

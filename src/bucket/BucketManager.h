@@ -219,6 +219,7 @@ class BucketManager : NonMovableOrCopyable
     loadInflationWinners(size_t maxWinners, int64_t minBalance) const = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
+    virtual medida::Meter& getBloomLookupMeter() const = 0;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next

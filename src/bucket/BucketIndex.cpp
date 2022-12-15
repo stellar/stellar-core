@@ -45,7 +45,8 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     IndexT mKeysToOffset{};
     std::streamoff const mPageSize{};
     std::unique_ptr<bloom_filter> mFilter{};
-    medida::Meter& mBloomMisses;
+    medida::Meter& mBloomMissMeter;
+    medida::Meter& mBloomLookupMeter;
 
     BucketIndexImpl(BucketManager const& bm,
                     std::filesystem::path const& filename,
@@ -84,13 +85,16 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     }
 
     virtual void markBloomMiss() const override;
+    virtual void markBloomLookup() const override;
 };
 
 template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize)
-    : mPageSize(pageSize), mBloomMisses(bm.getBloomMissMeter())
+    : mPageSize(pageSize)
+    , mBloomMissMeter(bm.getBloomMissMeter())
+    , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
     ZoneScoped;
     releaseAssert(!filename.empty());
@@ -114,6 +118,14 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
         params.compute_optimal_parameters();
         mFilter = std::make_unique<bloom_filter>(params);
         estimatedIndexEntries = fileSize / mPageSize;
+        CLOG_DEBUG(
+            Bucket,
+            "Bloom filter initialized with params: projected element count "
+            "{} false positive probability: {}, number of hashes: {}, "
+            "table size: {}",
+            params.projected_element_count, params.false_positive_probability,
+            params.optimal_parameters.number_of_hashes,
+            params.optimal_parameters.table_size);
     }
     else
     {
@@ -174,7 +186,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
 
     CLOG_DEBUG(Bucket, "Indexed {} positions in {}", mKeysToOffset.size(),
                filename.filename());
-    if (estimatedNumElems < count)
+    if (std::is_same<IndexT, RangeIndex>::value && estimatedNumElems < count)
     {
         CLOG_WARNING(Bucket,
                      "Underestimated bloom filter size. Estimated entry "
@@ -313,6 +325,7 @@ BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
 
     // If the key is not in the bloom filter or in the lower bounded index
     // entry, return nullopt
+    markBloomLookup();
     if ((mFilter && !mFilter->contains(std::hash<stellar::LedgerKey>()(k))) ||
         keyIter == mKeysToOffset.end() || keyNotInIndexEntry(k, keyIter->first))
     {
@@ -372,6 +385,19 @@ template <>
 void
 BucketIndexImpl<BucketIndex::RangeIndex>::markBloomMiss() const
 {
-    mBloomMisses.Mark();
+    mBloomMissMeter.Mark();
+}
+
+template <class IndexT>
+void
+BucketIndexImpl<IndexT>::markBloomLookup() const
+{
+}
+
+template <>
+void
+BucketIndexImpl<BucketIndex::RangeIndex>::markBloomLookup() const
+{
+    mBloomLookupMeter.Mark();
 }
 }
