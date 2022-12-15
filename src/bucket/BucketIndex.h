@@ -59,6 +59,9 @@ class BucketIndex : public NonMovableOrCopyable
 
     inline static const std::string DBBackendState = "bl";
 
+    // Returns true if LedgerEntryType not supported by BucketListDB
+    static bool typeNotSupported(LedgerEntryType t);
+
     // Builds index for given bucketfile. This is expensive (> 20 seconds for
     // the largest buckets) and should only be called once. If pageSize == 0 or
     // if file size is less than the cutoff, individual key index is used.

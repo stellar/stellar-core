@@ -377,7 +377,7 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     }
 
     return out.getBucket(bucketManager,
-                         bucketManager.getConfig().EXPERIMENTAL_BUCKETLIST_DB);
+                         bucketManager.getConfig().isUsingBucketListDB());
 }
 
 static void
@@ -872,8 +872,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     }
     MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
     return out.getBucket(bucketManager,
-                         bucketManager.getConfig().EXPERIMENTAL_BUCKETLIST_DB,
-                         &mk);
+                         bucketManager.getConfig().isUsingBucketListDB(), &mk);
 }
 
 uint32_t

@@ -34,6 +34,12 @@ getDummyPoolShareTrustlineKey(AccountID const& accountID, uint8_t fill)
     return key;
 }
 
+bool
+BucketIndex::typeNotSupported(LedgerEntryType t)
+{
+    return t == OFFER;
+}
+
 // Index maps a range of BucketEntry's to the associated offset
 // within the bucket file. Index stored as vector of pairs:
 // First: LedgerKey/Key ranges sorted in the same scheme as LedgerEntryCmp
@@ -260,7 +266,7 @@ BucketIndex::createIndex(BucketManager const& bm,
 {
     ZoneScoped;
     auto const& cfg = bm.getConfig();
-    releaseAssertOrThrow(cfg.EXPERIMENTAL_BUCKETLIST_DB);
+    releaseAssertOrThrow(cfg.isUsingBucketListDB());
     releaseAssertOrThrow(!filename.empty());
 
     auto pageSizeExp = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;

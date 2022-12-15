@@ -150,7 +150,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     std::set<LedgerEntryType> toDrop;
     std::set<LedgerEntryType> toRebuild;
     auto& ps = app.getPersistentState();
-    auto blEnabled = app.getConfig().EXPERIMENTAL_BUCKETLIST_DB;
+    auto bucketListDBEnabled = app.getConfig().isUsingBucketListDB();
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
@@ -161,7 +161,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
         }
 
         // If bucketlist is enabled, drop all tables except for offers
-        if (let != OFFER && blEnabled)
+        if (let != OFFER && bucketListDBEnabled)
         {
             toDrop.emplace(t);
         }
@@ -690,36 +690,48 @@ ApplicationImpl::validateAndLogConfig()
 
     if (mConfig.EXPERIMENTAL_BUCKETLIST_DB)
     {
-        mPersistentState->setState(PersistentState::kDBBackend,
-                                   BucketIndex::DBBackendState);
-        auto pageSizeExp =
-            mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
-        if (pageSizeExp != 0)
+        if (mConfig.isUsingBucketListDB())
         {
-            // If the page size is less than 256 bytes, it is essentially
-            // indexing individual keys, so page size should be set to 0
-            // instead.
-            if (pageSizeExp < 8)
+            mPersistentState->setState(PersistentState::kDBBackend,
+                                       BucketIndex::DBBackendState);
+            auto pageSizeExp =
+                mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+            if (pageSizeExp != 0)
             {
-                throw std::invalid_argument(
-                    "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                    "must be at least 8 or set to 0 for individual entry "
-                    "indexing");
+                // If the page size is less than 256 bytes, it is essentially
+                // indexing individual keys, so page size should be set to 0
+                // instead.
+                if (pageSizeExp < 8)
+                {
+                    throw std::invalid_argument(
+                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "must be at least 8 or set to 0 for individual entry "
+                        "indexing");
+                }
+
+                // Check if pageSize will cause overflow
+                if (pageSizeExp > 31)
+                {
+                    throw std::invalid_argument(
+                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "must be less than 32");
+                }
             }
 
-            // Check if pageSize will cause overflow
-            if (pageSizeExp > 31)
-            {
-                throw std::invalid_argument(
-                    "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                    "must be less than 32");
-            }
+            CLOG_INFO(
+                Bucket,
+                "BucketListDB enabled: pageSizeExponent: {} indexCutOff: {}MB",
+                pageSizeExp, mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF);
         }
-
-        CLOG_INFO(
-            Bucket,
-            "BucketListDB enabled: pageSizeExponent: {} indexCutOff: {}MB",
-            pageSizeExp, mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF);
+        else
+        {
+            CLOG_WARNING(
+                Bucket,
+                "EXPERIMENTAL_BUCKETLIST_DB flag set but "
+                "BucketListDB not enabled. To enable BucketListDB, "
+                "MODE_ENABLES_BUCKETLIST must be set and --in-memory flag "
+                "must not be used.");
+        }
     }
     else if (mPersistentState->getState(PersistentState::kDBBackend) ==
              BucketIndex::DBBackendState)

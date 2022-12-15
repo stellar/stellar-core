@@ -1908,6 +1908,13 @@ Config::isInMemoryMode() const
 }
 
 bool
+Config::isUsingBucketListDB() const
+{
+    return EXPERIMENTAL_BUCKETLIST_DB && !MODE_USES_IN_MEMORY_LEDGER &&
+           MODE_ENABLES_BUCKETLIST;
+}
+
+bool
 Config::isInMemoryModeWithoutMinimalDB() const
 {
     return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;

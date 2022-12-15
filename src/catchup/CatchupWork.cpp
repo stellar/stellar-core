@@ -239,12 +239,13 @@ CatchupWork::downloadApplyBuckets()
     }
 
     std::shared_ptr<ApplyBucketsWork> applyBuckets;
-    if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+    if (mApp.getConfig().isUsingBucketListDB())
     {
-        // Only apply offers to SQL DB when BucketList lookup is enabled
-        auto filter = [](LedgerEntryType t) { return t == OFFER; };
+        // Only apply unsupported BucketListDB types to SQL DB when BucketList
+        // lookup is enabled
         applyBuckets = std::make_shared<ApplyBucketsWork>(
-            mApp, mBuckets, *mBucketHAS, version, filter);
+            mApp, mBuckets, *mBucketHAS, version,
+            BucketIndex::typeNotSupported);
     }
     else
     {

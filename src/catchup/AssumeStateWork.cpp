@@ -27,7 +27,7 @@ AssumeStateWork::doWork()
         std::vector<std::shared_ptr<BasicWork>> seq;
 
         mApp.getBucketManager().assumeState(mHas);
-        if (mApp.getConfig().EXPERIMENTAL_BUCKETLIST_DB)
+        if (mApp.getConfig().isUsingBucketListDB())
         {
             seq.push_back(std::make_shared<IndexBucketsWork>(mApp));
         }
