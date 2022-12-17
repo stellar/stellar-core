@@ -19,20 +19,28 @@ set -x
 # rust-toolchain.toml. This file will pick it up automatically.
 RUST_VERSION=$(perl -ne 'if (/channel\s+=\s+"(\d+\.\d+)"/) { print $1 }' rust-toolchain.toml)
 
-# The host triple should basically never change. But just in case.
-HOST_TRIPLE=x86_64-unknown-linux-gnu
-
 # This is the SHA256 if the rustup-init binary (which is the same as rustup --
 # it renames itself) and should be retrieved from a trusted source (eg. the rust
 # website and/or by running sha256sum on a local copy of rustup you believe to
 # be legitimate). The canonical URL for the SHA256 checksum provided here is:
 #
 # https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init.sha256
+# https://static.rust-lang.org/rustup/dist/aarach64-unknown-linux-gnu/rustup-init.sha256
 #
 # Rustup is an installer, not the compiler, and the installer changes fairly
 # rarely, often a year between releases or more. This checksum will only need
 # to be updated when there's a new rustup (installer) release.
-RUSTUP_SHA256=5cc9ffd1026e82e7fb2eec2121ad71f4b0f044e88bca39207b3f6b769aaa799c
+case "$(uname -m)" in
+  "x86_64"*)
+    HOST_TRIPLE=x86_64-unknown-linux-gnu
+    RUSTUP_SHA256=5cc9ffd1026e82e7fb2eec2121ad71f4b0f044e88bca39207b3f6b769aaa799c
+  ;;
+  "aarch64"*)
+    HOST_TRIPLE=aarch64-unknown-linux-gnu
+    RUSTUP_SHA256=e189948e396d47254103a49c987e7fb0e5dd8e34b200aa4481ecc4b8e41fb929
+  ;;
+  *) echo "Unrecognized operating system / architecture: $(uname)"; exit 1 ;;
+esac
 
 # We download rustup-init from a URL adjacent to the SHA256 file above, and
 # check that it matches the expected SHA256 wired-in to this file, and then run
