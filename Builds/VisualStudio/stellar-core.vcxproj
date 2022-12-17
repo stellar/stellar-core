@@ -526,7 +526,6 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp" />
-    <ClCompile Include="..\..\src\overlay\test\OverlayTestUtils.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp" />

@@ -28,6 +28,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdrpp/autocheck.h"
 
 #include <lib/catch.hpp>
 
@@ -533,6 +534,16 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 }
 
 TxSetResultMeta
+closeLedger(Application& app, TxSetFrameConstPtr txSet)
+{
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
+}
+
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               TxSetFrameConstPtr txSet)
 {
@@ -787,6 +798,29 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
 {
     auto op = payment(to, asset, amount);
     return transactionFromOperations(app, from, seq, {op});
+}
+
+TransactionFramePtr
+createSimpleDexTx(Application& app, TestAccount& account, int nbOps,
+                  uint32_t fee)
+{
+    std::vector<Operation> ops;
+    Asset asset1(ASSET_TYPE_NATIVE);
+    Asset asset2(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(asset2.alphaNum4().assetCode, "USD");
+    int nonDexOps = autocheck::generator<size_t>()(nbOps - 1);
+    for (int i = 0; i < nbOps - nonDexOps; ++i)
+    {
+        ops.emplace_back(
+            manageBuyOffer(i + 1, asset1, asset2, Price{2, 5}, 10));
+    }
+    for (int i = nbOps - nonDexOps; i < nbOps; ++i)
+    {
+        ops.emplace_back(payment(account.getPublicKey(), 1000));
+    }
+    stellar::shuffle(ops.begin(), ops.end(), autocheck::rng());
+    return transactionFromOperations(app, account, account.nextSequenceNumber(),
+                                     ops, fee);
 }
 
 Asset

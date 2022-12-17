@@ -374,6 +374,22 @@ class Config : public std::enable_shared_from_this<Config>
     // first time
     time_t MAXIMUM_LEDGER_CLOSETIME_DRIFT;
 
+    // Maximum allowed number of DEX-related operations in the transaction set.
+    //
+    // Transaction is considered to have DEX-related operations if it has path
+    // payments or manage offer operations.
+    //
+    // Setting this to non-nullopt value results in the following:
+    // - The node will limit the number of accepted DEX-related transactions
+    //   proportional to `MAX_DEX_TX_OPERATIONS_IN_TX_SET / maxTxSetSize`
+    //   (ledger header parameter).
+    // - The node will broadcast less DEX-related transactions according to the
+    //   proportion above.
+    // - Starting from protocol 20 the node will nominate TX sets that respect
+    //   this limit and potentially have DEX-related transactions surge-priced
+    //   against each other.
+    std::optional<uint32_t> MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
     uint32_t OVERLAY_PROTOCOL_MIN_VERSION; // min overlay version understood

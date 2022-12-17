@@ -138,7 +138,8 @@ class TxSetFrame : public NonMovableOrCopyable
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
                Transactions const& txs);
 
-    // Computes the fees for transactions in this set.
+    // Computes the fees for transactions in this set based on information from
+    // the non-generalized tx set.
     // This has to be `const` in combination with `mutable` fee-related fields
     // in order to accommodate one specific case: legacy (non-generalized) tx
     // sets received from the peers don't include the fee information and we
@@ -146,7 +147,8 @@ class TxSetFrame : public NonMovableOrCopyable
     // Hence we lazily compute the fees in `getTxBaseFee` for such TxSetFrames.
     // This can be cleaned up after the protocol migration as non-generalized tx
     // sets won't exist in the network anymore.
-    void computeTxFees(LedgerHeader const& lclHeader) const;
+    void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader) const;
+
     void computeContentsHash();
 
     std::optional<Hash> mHash;
@@ -158,8 +160,17 @@ class TxSetFrame : public NonMovableOrCopyable
                        bool useBaseFee, std::optional<int64_t> baseFee);
     void applySurgePricing(Application& app);
 
+    void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
+                                           int64_t lowestBaseFee,
+                                           bool enableLogging) const;
+
     void computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
                        bool enableLogging) const;
+
+    void computeTxFees(LedgerHeader const& ledgerHeader,
+                       SurgePricingLaneConfig const& surgePricingConfig,
+                       std::vector<int64_t> const& lowestLaneFee,
+                       std::vector<bool> const& hadTxNotFittingLane);
 
     bool const mIsGeneralized;
 

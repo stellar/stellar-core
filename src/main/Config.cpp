@@ -236,6 +236,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     HALT_ON_INTERNAL_TRANSACTION_ERROR = false;
 
+    MAX_DEX_TX_OPERATIONS_IN_TX_SET = std::nullopt;
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -1370,6 +1371,19 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
             {
                 FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "MAX_DEX_TX_OPERATIONS_IN_TX_SET")
+            {
+                auto value = readInt<uint32_t>(item);
+                if (value > 0 && value < MAX_OPS_PER_TX + 2)
+                {
+                    throw std::invalid_argument(fmt::format(
+                        "MAX_DEX_TX_OPERATIONS_IN_TX_SET must be either 0 or "
+                        "at least {} in order to not drop any transactions.",
+                        MAX_OPS_PER_TX + 2));
+                }
+                MAX_DEX_TX_OPERATIONS_IN_TX_SET =
+                    value == 0 ? std::nullopt : std::make_optional(value);
             }
             else
             {

@@ -16,7 +16,7 @@ SimApplyOrderTxSetFrame::SimApplyOrderTxSetFrame(
     Transactions const& txsInApplyOrder)
     : TxSetFrame(lclHeader, txsInApplyOrder), mTxsInApplyOrder(txsInApplyOrder)
 {
-    computeTxFees(lclHeader.header);
+    computeTxFeesForNonGeneralizedSet(lclHeader.header);
     computeContentsHash();
 }
 

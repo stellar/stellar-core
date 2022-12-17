@@ -65,10 +65,14 @@ computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
 
 }
 
-TxQueueLimiter::TxQueueLimiter(uint32 multiplier, LedgerManager& lm)
-    : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
+TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app)
+    : mPoolLedgerMultiplier(multiplier), mLedgerManager(app.getLedgerManager())
 {
-    mEvictedFeeBid = {0, 0};
+    auto maxDexOps = app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+    if (maxDexOps)
+    {
+        mMaxDexOperations = *maxDexOps * multiplier;
+    }
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -116,17 +120,27 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          TransactionFrameBasePtr const& oldTx,
-                         std::vector<TxStackPtr>& txsToEvict)
+                         std::vector<std::pair<TxStackPtr, bool>>& txsToEvict)
 {
     // We cannot normally initialize transaction queue in the constructor
     // because `maxQueueSizeOps()` may not be initialized. Hence we initialize
     // lazily during the add/reset.
     if (mTxs == nullptr)
     {
-        resetTxs();
+        reset();
     }
 
-    int64_t minFeeToBeatEvicted = computeBetterFee(mEvictedFeeBid, *newTx);
+    // If some transactions were evicted from this or generic lane, make sure
+    // that the new transaction is better (even if it fits otherwise). This
+    // guarantees that we don't replace transactions with higher bids with
+    // transactions with lower bids and less operations.
+    int64_t minFeeToBeatEvicted = std::max(
+        computeBetterFee(
+            mLaneEvictedFeeBid[mSurgePricingLaneConfig->getLane(*newTx)],
+            *newTx),
+        computeBetterFee(
+            mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE],
+            *newTx));
     if (minFeeToBeatEvicted > 0)
     {
         return std::make_pair(false, minFeeToBeatEvicted);
@@ -141,29 +155,54 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
         releaseAssert(oldTxOps <= newTxOps);
         txOpsDiscount = newTxOps - oldTxOps;
     }
-    // Update the operation limits in case upgrade happened. This is cheap
+    // Update the operation limit in case upgrade happened. This is cheap
     // enough to happen unconditionally without relying on upgrade triggers.
-    mTxs->updateOpsLimit(maxQueueSizeOps());
+    mSurgePricingLaneConfig->updateGenericLaneLimit(maxQueueSizeOps());
     return mTxs->canFitWithEviction(*newTx, txOpsDiscount, txsToEvict);
 }
 
 void
 TxQueueLimiter::evictTransactions(
-    std::vector<TxStackPtr> const& txsToEvict, uint32_t opsToFit,
+    std::vector<std::pair<TxStackPtr, bool>> const& txsToEvict,
+    TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
+    auto opsToFit = txToFit.getNumOperations();
+    auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
     uint32_t maxOps = maxQueueSizeOps();
-    for (auto const& evictedStack : txsToEvict)
+    for (auto const& [evictedStack, evictedDueToLaneLimit] : txsToEvict)
     {
         auto tx = evictedStack->getTopTx();
-        mEvictedFeeBid = {tx->getFeeBid(), tx->getNumOperations()};
+        if (evictedDueToLaneLimit)
+        {
+            // If tx has been evicted due to lane limit, then all the following
+            // txs in this lane have to beat it. However, other txs could still
+            // fit with a lower fee.
+            mLaneEvictedFeeBid[mSurgePricingLaneConfig->getLane(*tx)] = {
+                tx->getFeeBid(), tx->getNumOperations()};
+        }
+        else
+        {
+            // If tx has been evicted before reaching the lane limit, we just
+            // add it to generic lane, so that every new tx has to beat it.
+            mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE] = {
+                tx->getFeeBid(), tx->getNumOperations()};
+        }
+
         evict(tx);
         // While we guarantee `txsToEvict` to have enough operations to fit new
         // operations, the eviction itself may remove transactions with high seq
         // nums and hence make space sooner than expected.
         if (mTxs->sizeOps() + opsToFit <= maxOps)
         {
-            break;
+            // If the tx is not in generic lane, then we need to make sure that
+            // there is enough space in the respective limited lane.
+            if (txToFitLane == SurgePricingPriorityQueue::GENERIC_LANE ||
+                mTxs->laneOps(txToFitLane) + opsToFit <=
+                    mSurgePricingLaneConfig->getLaneOpsLimits()[txToFitLane])
+            {
+                break;
+            }
         }
     }
     // It should be guaranteed to fit the required operations after the
@@ -174,22 +213,26 @@ TxQueueLimiter::evictTransactions(
 void
 TxQueueLimiter::reset()
 {
-    resetTxs();
+    mSurgePricingLaneConfig = std::make_shared<DexLimitingLaneConfig>(
+        maxQueueSizeOps(), mMaxDexOperations);
+    mTxs = std::make_unique<SurgePricingPriorityQueue>(
+        /* isHighestPriority */ false, mSurgePricingLaneConfig,
+        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+    mStackForTx.clear();
     resetEvictionState();
 }
 
 void
 TxQueueLimiter::resetEvictionState()
 {
-    mEvictedFeeBid = {0, 0};
-}
-
-void
-TxQueueLimiter::resetTxs()
-{
-    mTxs = std::make_unique<SurgePricingPriorityQueue>(
-        /* isHighestPriority */ false, maxQueueSizeOps(),
-        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
-    mStackForTx.clear();
+    if (mSurgePricingLaneConfig != nullptr)
+    {
+        mLaneEvictedFeeBid.assign(
+            mSurgePricingLaneConfig->getLaneOpsLimits().size(), {0, 0});
+    }
+    else
+    {
+        releaseAssert(mLaneEvictedFeeBid.empty());
+    }
 }
 }
