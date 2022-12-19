@@ -2,7 +2,7 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.66"
 
 [lib]
 name = "rust_stellar_core"
@@ -18,9 +18,9 @@ rustc-simple-version = "0.1.0"
 [dependencies.soroban-env-host]
 version = "0.0.11"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "85cabe5"
+rev = "86a38f3"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "85cabe5"
+rev = "86a38f3"
