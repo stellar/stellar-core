@@ -108,15 +108,15 @@ elif test $CXX = 'g++'; then
 fi
 
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
-export CFLAGS="-O2 -g1"
-export CXXFLAGS="-w -O2 -g1"
+export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
+export CXXFLAGS="-w $CFLAGS"
 
 # quarantine_size_mb / malloc_context_size : reduce memory usage to avoid
 # crashing in tests that churn a lot of memory
 # disable leak detection: this requires the container to be run with
 # "--cap-add SYS_PTRACE" or "--privileged"
 # as the leak detector relies on ptrace
-export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0"
+export ASAN_OPTIONS="quarantine_size_mb=100:malloc_context_size=4:detect_leaks=0:strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:log_path=stdout"
 
 echo "config_flags = $config_flags"
 
