@@ -364,7 +364,9 @@ Peer::sendAuth()
     StellarMessage msg;
     msg.type(AUTH);
 
-    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE)
+    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE ||
+        mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
+            Peer::FIRST_VERSION_REQUIRING_PULL_MODE)
     {
         // If the peer's overlay version indicates that
         // they might attempt a non-pull-mode connection,
@@ -374,6 +376,12 @@ Peer::sendAuth()
         // overlay version by now.
         msg.auth().flags = AUTH_MSG_FLAG_PULL_MODE_REQUESTED;
     }
+#ifdef BUILD_TESTS
+    if (mOverrideDisablePullModeForTesting)
+    {
+        msg.auth().flags = 0;
+    }
+#endif
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }

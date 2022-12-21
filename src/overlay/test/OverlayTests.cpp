@@ -329,6 +329,56 @@ TEST_CASE("failed auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+TEST_CASE("pull mode compatibility older overlay version",
+          "[overlay][connections][pullmode]")
+{
+    // Node 0 has the latest overlay version. Node 1 has an old overlay version
+    // and enables/disables pull mode. Node 0 refuses to connect if disabled.
+    // Note: This test will become obsolete once the min overlay version becomes
+    // 27 (=FIRST_VERSION_REQUIRING_PULL_MODE).
+    // Node 0 will drop Node 1 due to an incompatible overlay version not
+    // because of the pull mode flag.
+
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    cfg2.OVERLAY_PROTOCOL_VERSION = Peer::FIRST_VERSION_REQUIRING_PULL_MODE - 1;
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    SECTION("older version intending to enable pull mode")
+    {
+        // This is perfectly valid as long as the overlay version is acceptable.
+        // The peer's version indicates that the operator has the option to
+        // disable pull mode, but the operator intends to turn on pull mode.
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isConnected());
+        REQUIRE(conn.getAcceptor()->isConnected());
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+    }
+    SECTION("older version intending to disable pull mode")
+    {
+        // The operator intends to turn off pull mode.
+        // The latest version refuses to connect to such a peer.
+        conn.getAcceptor()->overrideDisablePullModeForTesting();
+        testutil::crankSome(clock);
+
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getAcceptor()->getDropReason() == "pull mode must be on");
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+    }
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
 TEST_CASE("outbound queue filtering", "[overlay][connections]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);

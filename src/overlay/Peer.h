@@ -336,6 +336,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     bool mShuttingDown{false};
 
+#ifdef BUILD_TESTS
+    // For testing purposes, sometimes we want to force
+    // to disable the pull mode flag in the auth
+    // message. Set this optional bool value to force it.
+    // This will be obsolete once the min overlay version
+    // becomes >= FIRST_VERSION_REQUIRING_PULL_MODE.
+    bool mOverrideDisablePullModeForTesting{false};
+#endif
+
   public:
     Peer(Application& app, PeerRole role);
 
