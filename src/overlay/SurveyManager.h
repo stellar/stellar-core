@@ -68,23 +68,25 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
 
     Application& mApp;
 
-    std::unique_ptr<VirtualTimer> mSurveyThrottleTimer;
-    VirtualClock::time_point mSurveyExpirationTime;
+    // Timer for expiring
+        std::unique_ptr<VirtualTimer> mSurveyExpirationTimer;
+        VirtualClock::time_point mSurveyExpirationTime;
 
-    uint32_t const NUM_LEDGERS_BEFORE_IGNORE;
-    uint32_t const MAX_REQUEST_LIMIT_PER_LEDGER;
+        uint32_t const NUM_LEDGERS_BEFORE_IGNORE;
+        uint32_t const MAX_REQUEST_LIMIT_PER_LEDGER;
 
-    std::optional<SurveyMessageCommandType> mRunningSurveyType;
-    Curve25519Secret mCurve25519SecretKey;
-    Curve25519Public mCurve25519PublicKey;
-    SurveyMessageLimiter mMessageLimiter;
+        std::optional<SurveyMessageCommandType> mRunningSurveyType;
+        Curve25519Secret mCurve25519SecretKey;
+        Curve25519Public mCurve25519PublicKey;
+        SurveyMessageLimiter mMessageLimiter;
 
-    UnorderedSet<NodeID> mPeersToSurvey;
-    std::queue<NodeID> mPeersToSurveyQueue;
+        UnorderedSet<NodeID> mPeersToSurvey;
+        std::queue<NodeID> mPeersToSurveyQueue;
 
-    std::chrono::seconds const SURVEY_THROTTLE_TIMEOUT_SEC;
+        std::chrono::seconds const SURVEY_THROTTLE_TIMEOUT_SEC;
 
-    UnorderedSet<NodeID> mBadResponseNodes;
-    Json::Value mResults;
-};
-}
+        UnorderedSet<NodeID> mBadResponseNodes;
+        Json::Value mResults;
+    };
+  }
+
