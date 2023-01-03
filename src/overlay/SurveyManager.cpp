@@ -466,7 +466,8 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
 void
 SurveyManager::topOffRequests(SurveyMessageCommandType type)
 {
-    if (mApp.getClock().now() > mSurveyExpirationTime)
+    // Only stop the survey if all pending requests have been processed
+    if (mApp.getClock().now() > mSurveyExpirationTime && mPeersToSurvey.empty())
     {
         stopSurvey();
         return;
