@@ -9,6 +9,7 @@
 namespace stellar
 {
 
+class Bucket;
 struct HistoryArchiveState;
 
 class AssumeStateWork : public Work
@@ -16,6 +17,10 @@ class AssumeStateWork : public Work
     HistoryArchiveState const& mHas;
     uint32_t const mMaxProtocolVersion;
     bool mWorkSpawned{false};
+
+    // Keep strong reference to buckets in HAS so they are not garbage
+    // collected during indexing
+    std::vector<std::shared_ptr<Bucket>> mBuckets{};
 
   public:
     AssumeStateWork(Application& app, HistoryArchiveState const& has,

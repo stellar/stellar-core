@@ -32,11 +32,14 @@ class IndexBucketsWork : public Work
         bool onAbort() override;
     };
 
+    std::vector<std::shared_ptr<Bucket>> const& mBuckets;
+
     bool mWorkSpawned{false};
     void spawnWork();
 
   public:
-    IndexBucketsWork(Application& app);
+    IndexBucketsWork(Application& app,
+                     std::vector<std::shared_ptr<Bucket>> const& buckets);
 
   protected:
     State doWork() override;

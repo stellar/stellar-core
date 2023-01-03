@@ -11,7 +11,6 @@
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/DownloadApplyTxsWork.h"
-#include "catchup/IndexBucketsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "herder/Herder.h"
 #include "history/FileTransferInfo.h"

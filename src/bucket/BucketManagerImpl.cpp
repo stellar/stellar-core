@@ -987,15 +987,8 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 }
 
 void
-BucketManagerImpl::restartMerges(HistoryArchiveState const& has,
-                                 uint32_t maxProtocolVersion)
-{
-    mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
-    cleanupStaleFiles();
-}
-
-void
-BucketManagerImpl::assumeState(HistoryArchiveState const& has)
+BucketManagerImpl::assumeState(HistoryArchiveState const& has,
+                               uint32_t maxProtocolVersion)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1010,10 +1003,38 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
                 "Missing bucket files while assuming saved BucketList state");
         }
 
+        auto const& nextFuture = has.currentBuckets.at(i).next;
+        std::shared_ptr<Bucket> nextBucket = nullptr;
+        if (nextFuture.hasOutputHash())
+        {
+            nextBucket =
+                getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+            if (!nextBucket)
+            {
+                throw std::runtime_error("Missing future bucket files while "
+                                         "assuming saved BucketList state");
+            }
+        }
+
+        // Buckets on the BucketList should always be indexed when BucketListDB
+        // enabled
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            releaseAssert(curr->isEmpty() || curr->isIndexed());
+            releaseAssert(snap->isEmpty() || snap->isIndexed());
+            if (nextBucket)
+            {
+                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
+            }
+        }
+
         mBucketList->getLevel(i).setCurr(curr);
         mBucketList->getLevel(i).setSnap(snap);
-        mBucketList->getLevel(i).setNext(has.currentBuckets.at(i).next);
+        mBucketList->getLevel(i).setNext(nextFuture);
     }
+
+    mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    cleanupStaleFiles();
 }
 
 void
