@@ -101,7 +101,7 @@ class DexLimitingLaneConfig : public SurgePricingLaneConfig
 
     size_t getLane(TransactionFrameBase const& tx) const override;
     std::vector<uint32_t> const& getLaneOpsLimits() const override;
-    virtual void updateGenericLaneLimit(uint32_t limit);
+    virtual void updateGenericLaneLimit(uint32_t limit) override;
 
   private:
     size_t getTxLane(TransactionFrameBase const& tx) const;
