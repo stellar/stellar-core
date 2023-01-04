@@ -502,10 +502,13 @@ parseCatchup(std::string const& catchup, std::string const& hash,
         throw std::runtime_error(errorMessage);
     }
 
-    Hash validHash;
+    std::optional<Hash> validHash;
     try
     {
-        validHash = hexToBin256(hash);
+        if (!hash.empty())
+        {
+            validHash = std::make_optional<Hash>(hexToBin256(hash));
+        }
     }
     catch (std::exception&)
     {
@@ -518,6 +521,13 @@ parseCatchup(std::string const& catchup, std::string const& hash,
                         ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
                         : CatchupConfiguration::Mode::OFFLINE_BASIC;
         auto ledger = parseLedger(catchup.substr(0, separatorIndex));
+        if (ledger == CatchupConfiguration::CURRENT)
+        {
+            CLOG_WARNING(History,
+                         "Catching up to `current` ledger of an untrusted "
+                         "archive. If you want to ensure validity of replayed "
+                         "data, pass ledger number and trusted hash instead.");
+        }
         auto count = parseLedgerCount(catchup.substr(separatorIndex + 1));
         if (hash.empty())
         {
@@ -525,8 +535,8 @@ parseCatchup(std::string const& catchup, std::string const& hash,
         }
         else
         {
-            return CatchupConfiguration(
-                {ledger, std::make_optional<Hash>(validHash)}, count, mode);
+            releaseAssert(validHash.has_value());
+            return CatchupConfiguration({ledger, validHash}, count, mode);
         }
     }
     catch (std::exception&)
@@ -908,7 +918,8 @@ runCatchup(CommandLineArgs const& args)
                     app->resetLedgerState();
                     lm.startNewLedger();
                 }
-                else if (hash.empty() && !forceUntrusted)
+                else if (hash.empty() && !forceUntrusted &&
+                         cc.toLedger() != CatchupConfiguration::CURRENT)
                 {
                     std::string msg =
                         "Unsafe command: use --trusted-checkpoint-hashes or "
