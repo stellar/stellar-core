@@ -294,15 +294,12 @@ Peer::getFlowControlJsonInfo(bool compact) const
         res["outbound_queue_delay_txs_p75"] = static_cast<Json::UInt64>(
             mPeerMetrics.mOutboundQueueDelayTxs.GetSnapshot()
                 .get75thPercentile());
-        if (mPullModeEnabled)
-        {
-            res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
-                    .get75thPercentile());
-            res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
-                    .get75thPercentile());
-        }
+        res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
+                .get75thPercentile());
+        res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
+                .get75thPercentile());
     }
 
     return res;
@@ -318,19 +315,14 @@ Peer::getJsonInfo(bool compact) const
     res["ver"] = getRemoteVersion();
     res["olver"] = (int)getRemoteOverlayVersion();
     res["flow_control"] = getFlowControlJsonInfo(compact);
-    res["pull_mode"]["enabled"] = isPullModeEnabled();
     if (!compact)
     {
-        if (isPullModeEnabled())
-        {
-            res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mAdvertQueueDelay.GetSnapshot()
-                    .get75thPercentile());
-            res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
-            res["pull_mode"]["demand_timeouts"] =
-                static_cast<Json::UInt64>(mPeerMetrics.mDemandTimeouts);
-        }
+        res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mAdvertQueueDelay.GetSnapshot().get75thPercentile());
+        res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
+        res["pull_mode"]["demand_timeouts"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mDemandTimeouts);
         res["message_read"] =
             static_cast<Json::UInt64>(mPeerMetrics.mMessageRead);
         res["message_write"] =
@@ -875,16 +867,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case FLOOD_ADVERT:
     case FLOOD_DEMAND:
     {
-        if (!mPullModeEnabled &&
-            (msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND))
-        {
-            drop(fmt::format("Peer sent {}, but pull mode is disabled",
-                             xdr::xdr_traits<MessageType>::enum_name(msgType)),
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
         ignoreIfOutOfSync = true;
@@ -1477,14 +1459,8 @@ Peer::recvTransaction(StellarMessage const& msg)
         mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
                                                   msgID);
 
-        if (isPullModeEnabled())
-        {
-            // It does not make sense to record the latency if the transaction
-            // is coming from a node that we didn't demand it from.
-            // Peers with pull mode enabled should send txns only if demanded.
-            mApp.getOverlayManager().recordTxPullLatency(
-                transaction->getFullHash(), shared_from_this());
-        }
+        mApp.getOverlayManager().recordTxPullLatency(transaction->getFullHash(),
+                                                     shared_from_this());
 
         // add it to our current set
         // and make sure it is valid
@@ -1513,13 +1489,10 @@ Peer::recvTransaction(StellarMessage const& msg)
                 hexAbbrev(transaction->getFullHash()), toString());
         }
 
-        if (isPullModeEnabled())
-        {
-            auto const& om = mApp.getOverlayManager().getOverlayMetrics();
-            auto& meter = pulledRelevantTx ? om.mPulledRelevantTxs
-                                           : om.mPulledIrrelevantTxs;
-            meter.Mark();
-        }
+        auto const& om = mApp.getOverlayManager().getOverlayMetrics();
+        auto& meter =
+            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
+        meter.Mark();
     }
 }
 
@@ -2068,12 +2041,6 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mBannedMessageUnfulfilled(0)
     , mUnknownMessageUnfulfilled(0)
 {
-}
-
-bool
-Peer::isPullModeEnabled() const
-{
-    return mPullModeEnabled;
 }
 
 void

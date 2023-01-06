@@ -1969,49 +1969,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                         .count() == 1);
             REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
         }
-        SECTION("pull mode disabled on Node3")
-        {
-            // Add another node with pull mode disabled, so it will flood
-            // transactions directly
-            Config cfg = getTestConfig(3);
-            cfg.ENABLE_PULL_MODE = false;
-            apps.push_back(createTestApplication(clock, cfg));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[2], *apps[3]));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[3]));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[1], *apps[3]));
-
-            testutil::crankFor(clock, std::chrono::seconds(5));
-
-            // Node0 and Node1 know about tx0 and will advertise it to Node2
-            // Node3 will flood the transaction directly
-            twoNodesRecvTx();
-            REQUIRE(apps[3]->getHerder().recvTransaction(tx, true) ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-            // Give enough time for Node2 to receive tx0 from Node3 and adverts
-            // from Node0 and Node1
-            testutil::crankFor(clock, std::chrono::seconds(1));
-
-            // No demands sent, no fulfilling occurs
-            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[0]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[1]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[3]) == 0);
-            // After receiving a transaction, Node2 does not advertise/broadcast
-            // it to anyone because others already know about it
-            REQUIRE(apps[2]
-                        ->getMetrics()
-                        .NewTimer({"overlay", "recv", "flood-advert"})
-                        .count() == 2);
-            REQUIRE(apps[2]
-                        ->getMetrics()
-                        .NewTimer({"overlay", "recv", "transaction"})
-                        .count() == 1);
-            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
-        }
     }
 
     SECTION("sanity check - demand")
@@ -2193,57 +2150,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
     for (auto& app : apps)
     {
         testutil::shutdownWorkScheduler(*app);
-    }
-}
-
-TEST_CASE("pull mode enable only if both request", "[overlay][pullmode]")
-{
-    VirtualClock clock;
-    auto test = [&](auto node1PullMode, auto node2PullMode) {
-        Config cfg1 = getTestConfig(1);
-        if (!node1PullMode)
-        {
-            cfg1.OVERLAY_PROTOCOL_VERSION =
-                Peer::FIRST_VERSION_SUPPORTING_PULL_MODE - 1;
-        }
-        auto app1 = createTestApplication(clock, cfg1);
-        Config cfg2 = getTestConfig(2);
-        if (!node2PullMode)
-        {
-            cfg2.OVERLAY_PROTOCOL_VERSION =
-                Peer::FIRST_VERSION_SUPPORTING_PULL_MODE - 1;
-        }
-        auto app2 = createTestApplication(clock, cfg2);
-
-        auto conn = std::make_shared<LoopbackPeerConnection>(*app1, *app2);
-        testutil::crankSome(clock);
-
-        if (node1PullMode && node2PullMode)
-        {
-            REQUIRE(conn->getInitiator()->isConnected());
-            REQUIRE(conn->getAcceptor()->isConnected());
-        }
-        else
-        {
-            REQUIRE(!conn->getInitiator()->isConnected());
-            REQUIRE(!conn->getAcceptor()->isConnected());
-        }
-    };
-    SECTION("both have pull mode")
-    {
-        test(true, true);
-    }
-    SECTION("acceptor disabled pull mode")
-    {
-        test(true, false);
-    }
-    SECTION("initiator disabled pull mode")
-    {
-        test(false, true);
-    }
-    SECTION("both disabled pull mode")
-    {
-        test(false, false);
     }
 }
 

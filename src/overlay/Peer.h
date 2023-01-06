@@ -315,7 +315,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void maybeSendNextBatch();
 
-    bool mPullModeEnabled{false};
     TxAdvertQueue mTxAdvertQueue;
 
     // How many _hashes_ in total are queued?
@@ -449,7 +448,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    bool isPullModeEnabled() const;
     void sendTxDemand(TxDemandVector&& demands);
     void fulfillDemand(FloodDemand const& dmd);
     void queueTxHashToAdvertise(Hash const& hash);
