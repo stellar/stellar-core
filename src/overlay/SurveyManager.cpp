@@ -19,7 +19,7 @@ uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 SurveyManager::SurveyManager(Application& app)
     : mApp(app)
     , mSurveyThrottleTimer(std::make_unique<VirtualTimer>(mApp))
-    , NUM_LEDGERS_BEFORE_IGNORE(6)
+    , NUM_LEDGERS_BEFORE_IGNORE(12) // ~60 seconds
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
@@ -466,7 +466,8 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
 void
 SurveyManager::topOffRequests(SurveyMessageCommandType type)
 {
-    if (mApp.getClock().now() > mSurveyExpirationTime)
+    // Only stop the survey if all pending requests have been processed
+    if (mApp.getClock().now() > mSurveyExpirationTime && mPeersToSurvey.empty())
     {
         stopSurvey();
         return;
