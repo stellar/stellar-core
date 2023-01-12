@@ -18,23 +18,35 @@ TEST_CASE("topology encrypted response memory check",
           "[overlay][survey][topology]")
 {
     SurveyResponseBody body;
-    body.type(SURVEY_TOPOLOGY);
 
-    auto& topologyBody = body.topologyResponseBody();
+    auto doTest = [&](auto& body) {
+        // Fill up the PeerStatLists
+        for (uint32_t i = 0; i < PeerStatList::max_size(); ++i)
+        {
+            PeerStats s;
+            s.versionStr = std::string(s.versionStr.max_size(), 'a');
+            body.inboundPeers.push_back(s);
+            body.outboundPeers.push_back(s);
+        }
 
-    // Fill up the PeerStatLists
-    for (uint32_t i = 0; i < PeerStatList::max_size(); ++i)
+        auto publicKey = curve25519DerivePublic(curve25519RandomSecret());
+        // this will throw if EncryptedBody is too small
+        curve25519Encrypt<EncryptedBody::max_size()>(publicKey,
+                                                     xdr::xdr_to_opaque(body));
+    };
+
+    SECTION("V0")
     {
-        PeerStats s;
-        s.versionStr = std::string(s.versionStr.max_size(), 'a');
-        topologyBody.inboundPeers.push_back(s);
-        topologyBody.outboundPeers.push_back(s);
+        body.type(SURVEY_TOPOLOGY_RESPONSE_V0);
+        auto& topologyBody = body.topologyResponseBodyV0();
+        doTest(topologyBody);
     }
-
-    auto publicKey = curve25519DerivePublic(curve25519RandomSecret());
-    // this will throw if EncryptedBody is too small
-    curve25519Encrypt<EncryptedBody::max_size()>(publicKey,
-                                                 xdr::xdr_to_opaque(body));
+    SECTION("V1")
+    {
+        body.type(SURVEY_TOPOLOGY_RESPONSE_V1);
+        auto& topologyBody = body.topologyResponseBodyV1();
+        doTest(topologyBody);
+    }
 }
 
 TEST_CASE("topology survey", "[overlay][survey][topology]")
@@ -146,6 +158,20 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
             topology[keyStrList[B]]["outboundPeers"][1]["nodeId"].asString()};
 
         REQUIRE(expectedOutboundPeers == actualOutboundPeers);
+
+        // Peer counts are correct
+        REQUIRE(topology[keyStrList[B]]["numTotalInboundPeers"].asUInt64() ==
+                1);
+        REQUIRE(topology[keyStrList[B]]["numTotalOutboundPeers"].asUInt64() ==
+                expectedOutboundPeers.size());
+        REQUIRE(topology[keyStrList[B]]["maxInboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[B])
+                    ->getConfig()
+                    .MAX_ADDITIONAL_PEER_CONNECTIONS);
+        REQUIRE(topology[keyStrList[B]]["maxOutboundPeerCount"].asUInt64() ==
+                simulation->getNode(keyList[B])
+                    ->getConfig()
+                    .TARGET_PEER_CONNECTIONS);
 
         sendRequest(keyList[A], keyList[C]);
         sendRequest(keyList[A], keyList[E]);

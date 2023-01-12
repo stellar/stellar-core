@@ -253,20 +253,34 @@ void
 SurveyManager::processTopologyResponse(NodeID const& surveyedPeerID,
                                        SurveyResponseBody const& body)
 {
-    releaseAssert(body.type() == SURVEY_TOPOLOGY);
-
-    auto const& topologyBody = body.topologyResponseBody();
     auto& peerResults =
         mResults["topology"][KeyUtils::toStrKey(surveyedPeerID)];
+    auto populatePeerResults = [&](auto const& topologyBody) {
+        auto& inboundResults = peerResults["inboundPeers"];
+        auto& outboundResults = peerResults["outboundPeers"];
 
-    auto& inboundResults = peerResults["inboundPeers"];
-    auto& outboundResults = peerResults["outboundPeers"];
+        peerResults["numTotalInboundPeers"] =
+            topologyBody.totalInboundPeerCount;
+        peerResults["numTotalOutboundPeers"] =
+            topologyBody.totalOutboundPeerCount;
 
-    peerResults["numTotalInboundPeers"] = topologyBody.totalInboundPeerCount;
-    peerResults["numTotalOutboundPeers"] = topologyBody.totalOutboundPeerCount;
+        recordResults(inboundResults, topologyBody.inboundPeers);
+        recordResults(outboundResults, topologyBody.outboundPeers);
+    };
 
-    recordResults(inboundResults, topologyBody.inboundPeers);
-    recordResults(outboundResults, topologyBody.outboundPeers);
+    bool extendedSurveyType = body.type() == SURVEY_TOPOLOGY_RESPONSE_V1;
+    if (extendedSurveyType)
+    {
+        auto const& topologyBody = body.topologyResponseBodyV1();
+        populatePeerResults(topologyBody);
+        peerResults["maxInboundPeerCount"] = topologyBody.maxInboundPeerCount;
+        peerResults["maxOutboundPeerCount"] = topologyBody.maxOutboundPeerCount;
+    }
+    else
+    {
+        auto const& topologyBody = body.topologyResponseBodyV0();
+        populatePeerResults(topologyBody);
+    }
 }
 
 void
@@ -287,9 +301,9 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
     response.commandType = SURVEY_TOPOLOGY;
 
     SurveyResponseBody body;
-    body.type(SURVEY_TOPOLOGY);
+    body.type(SURVEY_TOPOLOGY_RESPONSE_V1);
 
-    auto& topologyBody = body.topologyResponseBody();
+    auto& topologyBody = body.topologyResponseBodyV1();
 
     auto const& randomInboundPeers =
         mApp.getOverlayManager().getRandomInboundAuthenticatedPeers();
@@ -306,6 +320,10 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
         static_cast<uint32_t>(randomInboundPeers.size());
     topologyBody.totalOutboundPeerCount =
         static_cast<uint32_t>(randomOutboundPeers.size());
+    topologyBody.maxInboundPeerCount =
+        mApp.getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS;
+    topologyBody.maxOutboundPeerCount =
+        mApp.getConfig().TARGET_PEER_CONNECTIONS;
 
     try
     {
@@ -564,13 +582,6 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
 std::string
 SurveyManager::commandTypeName(SurveyMessageCommandType type)
 {
-    switch (type)
-    {
-    case SURVEY_TOPOLOGY:
-        return "SURVEY_TOPOLOGY";
-    default:
-        throw std::runtime_error(
-            fmt::format(FMT_STRING("Unknown commandType={}"), type));
-    }
+    return xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
 }
 }
