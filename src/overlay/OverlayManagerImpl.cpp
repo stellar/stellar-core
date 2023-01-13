@@ -310,11 +310,8 @@ OverlayManagerImpl::start()
             },
             VirtualTimer::onFailureNoop);
     }
-    if (mApp.getConfig().ENABLE_PULL_MODE)
-    {
-        // Start demanding.
-        demand();
-    }
+    // Start demanding.
+    demand();
 }
 
 void
@@ -695,7 +692,6 @@ OverlayManagerImpl::updateSizeCounters()
     mOverlayMetrics.mPendingPeersSize.set_count(getPendingPeersCount());
     mOverlayMetrics.mAuthenticatedPeersSize.set_count(
         getAuthenticatedPeersCount());
-    mOverlayMetrics.mPullModePercent.set_count(getPullModePercentage());
 }
 
 void
@@ -858,24 +854,6 @@ OverlayManagerImpl::getPendingPeersCount() const
 {
     return static_cast<int>(mInboundPeers.mPending.size() +
                             mOutboundPeers.mPending.size());
-}
-
-int64_t
-OverlayManagerImpl::getPullModePercentage() const
-{
-    auto allPeers = getAuthenticatedPeers();
-    if (allPeers.empty())
-    {
-        return 0;
-    }
-
-    auto pullModeCount =
-        std::count_if(allPeers.begin(), allPeers.end(), [&](auto const& item) {
-            return item.second->isPullModeEnabled();
-        });
-
-    auto pct = static_cast<double>(pullModeCount) / allPeers.size() * 100;
-    return std::llround(pct);
 }
 
 int
@@ -1299,16 +1277,7 @@ OverlayManagerImpl::demand()
         }
     }
 
-    auto authenticatedPeers = getAuthenticatedPeers();
-    std::vector<Peer::pointer> pullModePeers;
-    for (auto const& peer : authenticatedPeers)
-    {
-        if (peer.second->isPullModeEnabled())
-        {
-            pullModePeers.push_back(peer.second);
-        }
-    }
-    stellar::shuffle(pullModePeers.begin(), pullModePeers.end(), gRandomEngine);
+    auto peers = getRandomAuthenticatedPeers();
 
     auto const& cfg = mApp.getConfig();
 
@@ -1318,7 +1287,7 @@ OverlayManagerImpl::demand()
     do
     {
         anyNewDemand = false;
-        for (auto const& peer : pullModePeers)
+        for (auto const& peer : peers)
         {
             auto& demPair = demandMap[peer];
             auto& demand = demPair.first;
@@ -1373,7 +1342,7 @@ OverlayManagerImpl::demand()
         }
     } while (anyNewDemand);
 
-    for (auto const& peer : pullModePeers)
+    for (auto const& peer : peers)
     {
         // We move `demand` here and also pass `retry` as a reference
         // which gets appended. Don't touch `demand` or `retry` after here.

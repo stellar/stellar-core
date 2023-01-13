@@ -329,6 +329,56 @@ TEST_CASE("failed auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+TEST_CASE("pull mode compatibility older overlay version",
+          "[overlay][connections][pullmode]")
+{
+    // Node 0 has the latest overlay version. Node 1 has an old overlay version
+    // and enables/disables pull mode. Node 0 refuses to connect if disabled.
+    // Note: This test will become obsolete once the min overlay version becomes
+    // 27 (=FIRST_VERSION_REQUIRING_PULL_MODE).
+    // Node 0 will drop Node 1 due to an incompatible overlay version not
+    // because of the pull mode flag.
+
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    cfg2.OVERLAY_PROTOCOL_VERSION = Peer::FIRST_VERSION_REQUIRING_PULL_MODE - 1;
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    SECTION("older version intending to enable pull mode")
+    {
+        // This is perfectly valid as long as the overlay version is acceptable.
+        // The peer's version indicates that the operator has the option to
+        // disable pull mode, but the operator intends to turn on pull mode.
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isConnected());
+        REQUIRE(conn.getAcceptor()->isConnected());
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+    }
+    SECTION("older version intending to disable pull mode")
+    {
+        // The operator intends to turn off pull mode.
+        // The latest version refuses to connect to such a peer.
+        conn.getAcceptor()->overrideDisablePullModeForTesting();
+        testutil::crankSome(clock);
+
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getAcceptor()->getDropReason() == "pull mode must be on");
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+    }
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
 TEST_CASE("outbound queue filtering", "[overlay][connections]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -1840,7 +1890,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         Config cfg = getTestConfig(i);
         cfg.FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(200);
         cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
-        cfg.ENABLE_PULL_MODE = true;
         // Using a small tx set size such as 50 may lead to an unexpectedly
         // small advert/demand size limit.
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
@@ -1960,49 +2009,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
             REQUIRE(fulfilled == 1);
             // After receiving a transaction, Node2 does not advertise it to
             // anyone because others already know about it
-            REQUIRE(apps[2]
-                        ->getMetrics()
-                        .NewTimer({"overlay", "recv", "flood-advert"})
-                        .count() == 2);
-            REQUIRE(apps[2]
-                        ->getMetrics()
-                        .NewTimer({"overlay", "recv", "transaction"})
-                        .count() == 1);
-            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
-        }
-        SECTION("pull mode disabled on Node3")
-        {
-            // Add another node with pull mode disabled, so it will flood
-            // transactions directly
-            Config cfg = getTestConfig(3);
-            cfg.ENABLE_PULL_MODE = false;
-            apps.push_back(createTestApplication(clock, cfg));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[2], *apps[3]));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[3]));
-            connections.push_back(
-                std::make_shared<LoopbackPeerConnection>(*apps[1], *apps[3]));
-
-            testutil::crankFor(clock, std::chrono::seconds(5));
-
-            // Node0 and Node1 know about tx0 and will advertise it to Node2
-            // Node3 will flood the transaction directly
-            twoNodesRecvTx();
-            REQUIRE(apps[3]->getHerder().recvTransaction(tx, true) ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-            // Give enough time for Node2 to receive tx0 from Node3 and adverts
-            // from Node0 and Node1
-            testutil::crankFor(clock, std::chrono::seconds(1));
-
-            // No demands sent, no fulfilling occurs
-            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[0]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[1]) == 0);
-            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[3]) == 0);
-            // After receiving a transaction, Node2 does not advertise/broadcast
-            // it to anyone because others already know about it
             REQUIRE(apps[2]
                         ->getMetrics()
                         .NewTimer({"overlay", "recv", "flood-advert"})
@@ -2197,62 +2203,6 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
     }
 }
 
-TEST_CASE("pull mode enable only if both request", "[overlay][pullmode]")
-{
-    VirtualClock clock;
-    auto test = [&](auto node1, auto node2) {
-        Config cfg1 = getTestConfig(1);
-        cfg1.ENABLE_PULL_MODE = node1;
-        auto app1 = createTestApplication(clock, cfg1);
-        Config cfg2 = getTestConfig(2);
-        cfg2.ENABLE_PULL_MODE = node2;
-        auto app2 = createTestApplication(clock, cfg2);
-
-        auto conn = std::make_shared<LoopbackPeerConnection>(*app1, *app2);
-        testutil::crankSome(clock);
-
-        REQUIRE(conn->getInitiator()->isAuthenticated());
-        REQUIRE(conn->getAcceptor()->isAuthenticated());
-        REQUIRE(conn->getInitiator()->isPullModeEnabled() == false);
-        REQUIRE(conn->getAcceptor()->isPullModeEnabled() == false);
-
-        SECTION("peer does not follow the protocol")
-        {
-            StellarMessage adv, emptyMsg;
-            adv.type(FLOOD_ADVERT);
-            adv.floodAdvert().txHashes.push_back(xdrSha256(emptyMsg));
-            conn->getInitiator()->sendMessage(
-                std::make_shared<StellarMessage>(adv));
-            testutil::crankSome(clock);
-
-            if (node1 && node2)
-            {
-                REQUIRE(conn->getInitiator()->isAuthenticated());
-                REQUIRE(conn->getAcceptor()->isAuthenticated());
-            }
-            else
-            {
-                REQUIRE(!conn->getInitiator()->isConnected());
-                REQUIRE(!conn->getAcceptor()->isConnected());
-                REQUIRE(conn->getAcceptor()->getDropReason() ==
-                        "Peer sent FLOOD_ADVERT, but pull mode is disabled");
-            }
-        }
-    };
-    SECTION("acceptor disabled pull mode")
-    {
-        test(true, false);
-    }
-    SECTION("initiator disabled pull mode")
-    {
-        test(false, true);
-    }
-    SECTION("both disabled pull mode")
-    {
-        test(false, false);
-    }
-}
-
 TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -2272,8 +2222,6 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     for (auto i = 0; i < 2; i++)
     {
         auto cfg = getTestConfig(i + 1);
-
-        cfg.ENABLE_PULL_MODE = true;
         configs.push_back(cfg);
     }
 
@@ -2330,7 +2278,6 @@ TEST_CASE("overlay pull mode with many peers",
     for (auto i = 0; i < numNodes; i++)
     {
         Config cfg = getTestConfig(i);
-        cfg.ENABLE_PULL_MODE = true;
         apps.push_back(createTestApplication(clock, cfg));
     }
 

@@ -294,15 +294,12 @@ Peer::getFlowControlJsonInfo(bool compact) const
         res["outbound_queue_delay_txs_p75"] = static_cast<Json::UInt64>(
             mPeerMetrics.mOutboundQueueDelayTxs.GetSnapshot()
                 .get75thPercentile());
-        if (mPullModeEnabled)
-        {
-            res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
-                    .get75thPercentile());
-            res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
-                    .get75thPercentile());
-        }
+        res["outbound_queue_delay_advert_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayAdvert.GetSnapshot()
+                .get75thPercentile());
+        res["outbound_queue_delay_demand_p75"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mOutboundQueueDelayDemand.GetSnapshot()
+                .get75thPercentile());
     }
 
     return res;
@@ -318,19 +315,14 @@ Peer::getJsonInfo(bool compact) const
     res["ver"] = getRemoteVersion();
     res["olver"] = (int)getRemoteOverlayVersion();
     res["flow_control"] = getFlowControlJsonInfo(compact);
-    res["pull_mode"]["enabled"] = isPullModeEnabled();
     if (!compact)
     {
-        if (isPullModeEnabled())
-        {
-            res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mAdvertQueueDelay.GetSnapshot()
-                    .get75thPercentile());
-            res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
-                mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
-            res["pull_mode"]["demand_timeouts"] =
-                static_cast<Json::UInt64>(mPeerMetrics.mDemandTimeouts);
-        }
+        res["pull_mode"]["advert_delay"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mAdvertQueueDelay.GetSnapshot().get75thPercentile());
+        res["pull_mode"]["pull_latency"] = static_cast<Json::UInt64>(
+            mPeerMetrics.mPullLatency.GetSnapshot().get75thPercentile());
+        res["pull_mode"]["demand_timeouts"] =
+            static_cast<Json::UInt64>(mPeerMetrics.mDemandTimeouts);
         res["message_read"] =
             static_cast<Json::UInt64>(mPeerMetrics.mMessageRead);
         res["message_write"] =
@@ -371,10 +363,25 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
-    if (mApp.getConfig().ENABLE_PULL_MODE)
+
+    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE ||
+        mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
+            Peer::FIRST_VERSION_REQUIRING_PULL_MODE)
     {
+        // If the peer's overlay version indicates that
+        // they might attempt a non-pull-mode connection,
+        // then we should explicitly communicate the intention to
+        // use pull mode. HELLO includes the overlay version and
+        // is exchanged before AUTH, so we should have the remote
+        // overlay version by now.
         msg.auth().flags = AUTH_MSG_FLAG_PULL_MODE_REQUESTED;
     }
+#ifdef BUILD_TESTS
+    if (mOverrideDisablePullModeForTesting)
+    {
+        msg.auth().flags = 0;
+    }
+#endif
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -868,16 +875,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case FLOOD_ADVERT:
     case FLOOD_DEMAND:
     {
-        if (!mPullModeEnabled &&
-            (msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND))
-        {
-            drop(fmt::format("Peer sent {}, but pull mode is disabled",
-                             xdr::xdr_traits<MessageType>::enum_name(msgType)),
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
         ignoreIfOutOfSync = true;
@@ -1470,14 +1467,8 @@ Peer::recvTransaction(StellarMessage const& msg)
         mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
                                                   msgID);
 
-        if (isPullModeEnabled())
-        {
-            // It does not make sense to record the latency if the transaction
-            // is coming from a node that we didn't demand it from.
-            // Peers with pull mode enabled should send txns only if demanded.
-            mApp.getOverlayManager().recordTxPullLatency(
-                transaction->getFullHash(), shared_from_this());
-        }
+        mApp.getOverlayManager().recordTxPullLatency(transaction->getFullHash(),
+                                                     shared_from_this());
 
         // add it to our current set
         // and make sure it is valid
@@ -1506,13 +1497,10 @@ Peer::recvTransaction(StellarMessage const& msg)
                 hexAbbrev(transaction->getFullHash()), toString());
         }
 
-        if (isPullModeEnabled())
-        {
-            auto const& om = mApp.getOverlayManager().getOverlayMetrics();
-            auto& meter = pulledRelevantTx ? om.mPulledRelevantTxs
-                                           : om.mPulledIrrelevantTxs;
-            meter.Mark();
-        }
+        auto const& om = mApp.getOverlayManager().getOverlayMetrics();
+        auto& meter =
+            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
+        meter.Mark();
     }
 }
 
@@ -1905,13 +1893,14 @@ Peer::recvAuth(StellarMessage const& msg)
     // the other peer about the local node's reading capacity.
     sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
 
-    if (mRemoteOverlayVersion >= Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
-        mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
-            Peer::FIRST_VERSION_SUPPORTING_PULL_MODE &&
-        msg.auth().flags == AUTH_MSG_FLAG_PULL_MODE_REQUESTED &&
-        mApp.getConfig().ENABLE_PULL_MODE)
+    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE &&
+        msg.auth().flags != AUTH_MSG_FLAG_PULL_MODE_REQUESTED)
     {
-        mPullModeEnabled = true;
+        // If the remote version is high enough, then we know that they only
+        // accept pull-mode connections. Otherwise, we'll drop them unless
+        // they explicitly request pull mode.
+        sendErrorAndDrop(ERR_LOAD, "pull mode must be on",
+                         Peer::DropMode::FLUSH_WRITE_QUEUE);
     }
 
     // Ask for SCP data _after_ the flow control message
@@ -2060,12 +2049,6 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
     , mBannedMessageUnfulfilled(0)
     , mUnknownMessageUnfulfilled(0)
 {
-}
-
-bool
-Peer::isPullModeEnabled() const
-{
-    return mPullModeEnabled;
 }
 
 void
