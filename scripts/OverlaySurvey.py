@@ -1,4 +1,56 @@
 #!/usr/bin/env python
+"""
+Script to trigger network survey and record results. Sample survey result:
+{
+    "topology" :
+    {
+      "GDZPYXO3HC3GC6CCNTJH7BNURRH5VJTPDP5YALGNDCTPNDCSR74QBH3H" : {
+         "inboundPeers" : [
+            {
+               "bytesRead" : 218480,
+               "bytesWritten" : 225188,
+               "duplicateFetchBytesRecv" : 0,
+               "duplicateFetchMessageRecv" : 0,
+               "duplicateFloodBytesRecv" : 173296,
+               "duplicateFloodMessageRecv" : 443,
+               "messagesRead" : 511,
+               "messagesWritten" : 522,
+               "nodeId" : "GB4HZXA2IALAMH4CIA5CBLOITQT45CC3275MNRQ4VTYJCFKJW2AHHMXP",
+               "secondsConnected" : 4,
+               "uniqueFetchBytesRecv" : 0,
+               "uniqueFetchMessageRecv" : 0,
+               "uniqueFloodBytesRecv" : 10288,
+               "uniqueFloodMessageRecv" : 26,
+               "version" : "v19.5.0-126-gcdf8d018-dirty"
+            }
+         ],
+         "maxInboundPeerCount" : 64,
+         "maxOutboundPeerCount" : 8,
+         "numTotalInboundPeers" : 6,
+         "numTotalOutboundPeers" : 8,
+         "outboundPeers" : [
+            {
+               "bytesRead" : 220540,
+               "bytesWritten" : 224720,
+               "duplicateFetchBytesRecv" : 0,
+               "duplicateFetchMessageRecv" : 0,
+               "duplicateFloodBytesRecv" : 186584,
+               "duplicateFloodMessageRecv" : 473,
+               "messagesRead" : 517,
+               "messagesWritten" : 521,
+               "nodeId" : "GARM4GDQIQ2Z4SN5OXPG4XVHWZMKYEYTHY2X4TTP2TD2FDRAQOZIVJVX",
+               "secondsConnected" : 4,
+               "uniqueFetchBytesRecv" : 0,
+               "uniqueFetchMessageRecv" : 0,
+               "uniqueFloodBytesRecv" : 10612,
+               "uniqueFloodMessageRecv" : 27,
+               "version" : "v19.5.0-126-gcdf8d018-dirty"
+            }
+         ]
+      }
+    }
+}
+"""
 
 import argparse
 from collections import defaultdict
@@ -62,6 +114,20 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
         graph.add_node(parent_key,
                        numTotalOutboundPeers=parent_info[
                            "numTotalOutboundPeers"
+                       ])
+
+    if "maxInboundPeerCount" in parent_info:
+        results["maxInboundPeerCount"] = parent_info["maxInboundPeerCount"]
+        graph.add_node(parent_key,
+                       maxInboundPeerCount=parent_info[
+                           "maxInboundPeerCount"
+                       ])
+
+    if "maxOutboundPeerCount" in parent_info:
+        results["maxOutboundPeerCount"] = parent_info["maxOutboundPeerCount"]
+        graph.add_node(parent_key,
+                       maxOutboundPeerCount=parent_info[
+                           "maxOutboundPeerCount"
                        ])
 
 
@@ -202,6 +268,8 @@ def run_survey(args):
     merged_results = defaultdict(lambda: {
         "totalInbound": 0,
         "totalOutbound": 0,
+        "maxInboundPeerCount": 0,
+        "maxOutboundPeerCount": 0,
         "inboundPeers": {},
         "outboundPeers": {}
     })
