@@ -600,7 +600,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 
     LedgerHeader header;
     header.ledgerVersion =
-        static_cast<uint32_t>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     header.scpValue.closeTime = headerTime;
 
     Upgrades::UpgradeParameters scheduledUpgrades;
@@ -725,13 +725,13 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) - 1;
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
     auto app = createTestApplication(clock, cfg);
 
     // Need to actually execute the upgrade to v20 to get the config
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
-                             CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION)));
+                             SOROBAN_PROTOCOL_VERSION)));
 
     auto configUpgradeSet = makeTestConfigUpgradeSet(32768);
 
@@ -769,7 +769,7 @@ TEST_CASE("config upgrade in network", "[upgrades][overlay]")
             cfg.USE_CONFIG_FOR_GENESIS = false;
             /*cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(
-                    CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) -
+                    SOROBAN_PROTOCOL_VERSION) -
                 1;*/
             return cfg;
         });
@@ -815,7 +815,7 @@ TEST_CASE("config upgrade in network", "[upgrades][overlay]")
     {
         Upgrades::UpgradeParameters upgrades;
         upgrades.mProtocolVersion = std::make_optional<uint32>(
-            static_cast<uint32>(CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION));
+            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
         upgrades.mUpgradeTime =
             lclCloseTime + Herder::EXP_LEDGER_TIMESPAN_SECONDS;
         node->getHerder().setUpgrades(upgrades);
@@ -829,7 +829,7 @@ TEST_CASE("config upgrade in network", "[upgrades][overlay]")
                         .getLastClosedLedgerHeader()
                         .header.ledgerVersion ==
                     static_cast<uint32_t>(
-                        CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION))
+                        SOROBAN_PROTOCOL_VERSION))
             {
                 upgradeLedger =
                     nodes[0]->getLedgerManager().getLastClosedLedgerNum();
@@ -2051,7 +2051,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(
-                                 CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION) -
+                                 SOROBAN_PROTOCOL_VERSION) -
                              1));
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -2059,7 +2059,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     }
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
-                             CONFIGURATION_IN_LEDGER_PROTOCOL_VERSION)));
+                             SOROBAN_PROTOCOL_VERSION)));
 
     LedgerTxn ltx(app->getLedgerTxnRoot());
     auto maxContractSizeEntry =
