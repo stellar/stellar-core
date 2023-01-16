@@ -9,8 +9,8 @@ title: Ledger
   data. Ledgers are linked together in a _ledger chain_. Each ledger has a
   sequence number that tells you where in the chain it falls.
 
-- **Ledger chain**: This is an ever increasing list of ledgers. Each ledger
-  points to the previous one thus forming a chain of history stretching back in
+- **Ledger chain**: This is an ever-increasing list of ledgers. Each ledger
+  points to the previous one, thus forming a chain of history stretching back in
   time.
 
 - **Ledger header**: The ledger's header contains meta data about the ledger,
@@ -29,12 +29,12 @@ performance needs.
     `EntryFrame`: `AccountFrame`, `TrustFrame`, and `OfferFrame` in
     [`src/ledger`](/src/ledger)).
 
- 2. The ledger chain is represented in the the ledger headers as hashes linking
-    each hedger to the previous one. The spine of the chain is lightweight data
+ 2. The ledger chain is represented in the ledger headers as hashes linking
+    each hedger to the previous one. The spine of the chain is a lightweight data
     structure that can be scanned quickly to confirm that the current ledger is
-    part of a trusted unbroken chain.
+    part of a trusted, unbroken chain.
 
- 3. In addition to being stored in the database, ledgers entries are stored on
+ 3. In addition to being stored in the database, ledger entries are stored on
     disk in a linearized format using a specific arrangement of
     exponentially-larger buckets, called the _bucket list_. This representation
     achieves two different goals. First, it makes it possible to compute the
