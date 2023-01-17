@@ -29,7 +29,9 @@ enum class LoadGenMode
 {
     CREATE,
     PAY,
-    PRETEND
+    PRETEND,
+    // Mix of payments and DEX-related transactions.
+    MIXED_TXS,
 };
 
 struct GeneratedLoadConfig
@@ -63,6 +65,8 @@ struct GeneratedLoadConfig
     // the load generation will fail after a couple of retries.
     // Does not affect account creation.
     bool skipLowFeeTxs = false;
+    // Percentage (from 0 to 100) of DEX transactions
+    uint32_t dexTxPercent = 0;
 };
 
 class LoadGenerator
@@ -90,6 +94,7 @@ class LoadGenerator
     {
         medida::Meter& mAccountCreated;
         medida::Meter& mNativePayment;
+        medida::Meter& mManageOfferOps;
         medida::Meter& mPretendOps;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
@@ -161,12 +166,17 @@ class LoadGenerator
     std::pair<TestAccountPtr, TransactionFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
+                       uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFramePtr>
     pretendTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
+                           uint32_t opCount,
+                           std::optional<uint32_t> maxGeneratedFeeRate);
     void maybeHandleFailedTx(TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,
                              TransactionResultCode code);
@@ -179,8 +189,10 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t batchSize, uint32_t ledgerNum);
-    uint32_t submitPaymentOrPretendTx(GeneratedLoadConfig const& cfg,
-                                      uint32_t ledgerNum, uint32_t opCount);
+    bool submitTx(GeneratedLoadConfig const& cfg,
+                  std::function<std::pair<LoadGenerator::TestAccountPtr,
+                                          TransactionFramePtr>()>
+                      generateTx);
     void waitTillComplete(bool isCreate);
     void waitTillCompleteWithoutChecks();
 

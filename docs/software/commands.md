@@ -321,7 +321,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)]`
+    (create|pay|pretend|mixed_txs)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -337,6 +337,10 @@ format.
     the # of ops / tx and how often they appear. More specifically, the
     probability that a transaction contains `COUNT[i]` ops is `DISTRIBUTION
     [i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...)`.
+  * `mixed_txs` mode generates a mix of DEX and non-DEX transactions
+    (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
+    The fraction of DEX transactions generated is defined by the `dextxpercent`
+    parameter (accepts integer value from 0 to 100).
 
   Non-`create` load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every
