@@ -1505,6 +1505,19 @@ Config::adjust()
         }
     }
 
+    // Ensure outbound connections are capped based on inbound rate
+    constexpr int MIN_INBOUND_FACTOR(3);
+    int limit = MAX_ADDITIONAL_PEER_CONNECTIONS / MIN_INBOUND_FACTOR +
+                MIN_INBOUND_FACTOR;
+    if (static_cast<int>(TARGET_PEER_CONNECTIONS) > limit)
+    {
+        TARGET_PEER_CONNECTIONS = limit;
+        LOG_WARNING(DEFAULT_LOG,
+                    "Adjusted TARGET_PEER_CONNECTIONS to {} due to "
+                    "insufficient MAX_ADDITIONAL_PEER_CONNECTIONS={}",
+                    limit, MAX_ADDITIONAL_PEER_CONNECTIONS);
+    }
+
     auto const originalMaxAdditionalPeerConnections =
         MAX_ADDITIONAL_PEER_CONNECTIONS;
     auto const originalTargetPeerConnections = TARGET_PEER_CONNECTIONS;
