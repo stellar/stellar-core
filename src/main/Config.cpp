@@ -19,6 +19,7 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include "overlay/OverlayManager.h"
 #include "util/UnorderedSet.h"
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -53,7 +54,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
-    "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING"};
+    "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
+    "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -158,6 +160,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = false;
+    ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING = false;
     ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING = false;
     ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
         std::chrono::seconds::zero();
@@ -1506,9 +1509,9 @@ Config::adjust()
     }
 
     // Ensure outbound connections are capped based on inbound rate
-    constexpr int MIN_INBOUND_FACTOR(3);
-    int limit = MAX_ADDITIONAL_PEER_CONNECTIONS / MIN_INBOUND_FACTOR +
-                MIN_INBOUND_FACTOR;
+    int limit =
+        MAX_ADDITIONAL_PEER_CONNECTIONS / OverlayManager::MIN_INBOUND_FACTOR +
+        OverlayManager::MIN_INBOUND_FACTOR;
     if (static_cast<int>(TARGET_PEER_CONNECTIONS) > limit)
     {
         TARGET_PEER_CONNECTIONS = limit;

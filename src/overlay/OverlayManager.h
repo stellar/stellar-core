@@ -54,6 +54,8 @@ class SurveyManager;
 class OverlayManager
 {
   public:
+    static int constexpr MIN_INBOUND_FACTOR = 3;
+
     static std::unique_ptr<OverlayManager> create(Application& app);
 
     // Drop all PeerRecords from the Database

@@ -126,6 +126,7 @@ class OverlayManagerTests
         cfg.TARGET_PEER_CONNECTIONS = 5;
         cfg.KNOWN_PEERS = threePeers;
         cfg.PREFERRED_PEERS = fourPeers;
+        cfg.ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING = true;
         app = createTestApplication<ApplicationStub>(clock, cfg);
     }
 

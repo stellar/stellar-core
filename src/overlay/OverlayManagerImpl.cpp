@@ -639,10 +639,16 @@ OverlayManagerImpl::availableOutboundPendingSlots() const
 int
 OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
 {
-    if (mOutboundPeers.mAuthenticated.size() <
-        mApp.getConfig().TARGET_PEER_CONNECTIONS)
+    auto adjustedTarget =
+        mInboundPeers.mAuthenticated.size() == 0 &&
+                !mApp.getConfig()
+                     .ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING
+            ? OverlayManager::MIN_INBOUND_FACTOR
+            : mApp.getConfig().TARGET_PEER_CONNECTIONS;
+
+    if (mOutboundPeers.mAuthenticated.size() < adjustedTarget)
     {
-        return static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS -
+        return static_cast<int>(adjustedTarget -
                                 mOutboundPeers.mAuthenticated.size());
     }
     else
