@@ -188,6 +188,10 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
 
+    // A config parameter that skips adjustment of target outbound connections
+    // based on the inbound connections.
+    bool ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING;
+
     // A config parameter that forces replay to use the newest bucket logic;
     // this implicitly means that replay will _not_ check bucket-list hashes
     // along the way, but rather will use the stated hashes from ledger headers
