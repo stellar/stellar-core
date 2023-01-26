@@ -83,7 +83,7 @@ class HerderImpl : public Herder
     }
 
     bool
-    isTracking() const
+    isTracking() const override
     {
         return mState == State::HERDER_TRACKING_NETWORK_STATE;
     }

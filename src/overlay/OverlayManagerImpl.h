@@ -86,8 +86,10 @@ class OverlayManagerImpl : public OverlayManager
     RandomEvictionCache<uint64_t, bool> mMessageCache;
 
     void tick();
+    void updateTimerAndMaybeDropRandomPeer(bool shouldDrop);
     VirtualTimer mTimer;
     VirtualTimer mPeerIPTimer;
+    std::optional<VirtualClock::time_point> mLastOutOfSyncReconnect;
 
     friend class OverlayManagerTests;
 

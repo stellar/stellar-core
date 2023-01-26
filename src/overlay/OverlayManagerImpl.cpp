@@ -44,6 +44,8 @@ using namespace std;
 
 constexpr std::chrono::seconds PEER_IP_RESOLVE_DELAY(600);
 constexpr std::chrono::seconds PEER_IP_RESOLVE_RETRY_DELAY(10);
+constexpr std::chrono::seconds OUT_OF_SYNC_RECONNECT_DELAY(60);
+
 // Regardless of the number of failed attempts &
 // FLOOD_DEMAND_BACKOFF_DELAY_MS it doesn't make much sense to wait much
 // longer than 2 seconds between re-issuing demands.
@@ -517,6 +519,62 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
     return count;
 }
 
+void
+OverlayManagerImpl::updateTimerAndMaybeDropRandomPeer(bool shouldDrop)
+{
+    // If we haven't heard from the network for a while, try randomly
+    // disconnecting a peer in hopes of picking a better one. (preferred peers
+    // aren't affected as we always want to stay connected)
+    auto now = mApp.getClock().now();
+    if (!mApp.getHerder().isTracking())
+    {
+        if (mLastOutOfSyncReconnect)
+        {
+            // We've been out of sync, check if it's time to drop a peer
+            if (now - *mLastOutOfSyncReconnect > OUT_OF_SYNC_RECONNECT_DELAY &&
+                shouldDrop)
+            {
+                auto allPeers = getOutboundAuthenticatedPeers();
+                std::vector<std::pair<NodeID, Peer::pointer>> nonPreferredPeers;
+                std::copy_if(std::begin(allPeers), std::end(allPeers),
+                             std::back_inserter(nonPreferredPeers),
+                             [&](auto const& peer) {
+                                 return !mApp.getOverlayManager().isPreferred(
+                                     peer.second.get());
+                             });
+                if (!nonPreferredPeers.empty())
+                {
+                    auto peerToDrop = rand_element(nonPreferredPeers);
+                    peerToDrop.second->sendErrorAndDrop(
+                        ERR_LOAD, "random disconnect due to out of sync",
+                        Peer::DropMode::IGNORE_WRITE_QUEUE);
+                }
+                // Reset the timer to throttle dropping peers
+                mLastOutOfSyncReconnect =
+                    std::make_optional<VirtualClock::time_point>(now);
+            }
+            else
+            {
+                // Still waiting for the timeout or outbound capacity
+                return;
+            }
+        }
+        else
+        {
+            // Start a timer after going out of sync. Note that we still want to
+            // wait for OUT_OF_SYNC_RECONNECT_DELAY for Herder recovery logic to
+            // trigger.
+            mLastOutOfSyncReconnect =
+                std::make_optional<VirtualClock::time_point>(now);
+        }
+    }
+    else
+    {
+        // Reset timer when in-sync
+        mLastOutOfSyncReconnect.reset();
+    }
+}
+
 // called every PEER_AUTHENTICATION_TIMEOUT + 1=3 seconds
 void
 OverlayManagerImpl::tick()
@@ -592,6 +650,16 @@ OverlayManagerImpl::tick()
         releaseAssert(pendingUsedByPreferred <= availablePendingSlots);
         availablePendingSlots -= pendingUsedByPreferred;
     }
+
+    // Only trigger reconnecting if:
+    //   * no outbound slots are available
+    //   * we didn't establish any new preferred peers connections (those
+    //      will evict regular peers anyway)
+    bool shouldDrop =
+        availableAuthenticatedSlots == 0 && availablePendingSlots > 0;
+    updateTimerAndMaybeDropRandomPeer(shouldDrop);
+
+    availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
 
     // Second, if there is capacity for pending and authenticated outbound
     // connections, connect to more peers. Note: connect even if
