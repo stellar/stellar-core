@@ -1814,6 +1814,101 @@ TEST_CASE("peer is purged from database after few failures",
     REQUIRE(!peerManager.load(localhost(cfg2.PEER_PORT)).second);
 }
 
+TEST_CASE("disconnected topology recovery")
+{
+    auto cfgs = std::vector<Config>{};
+    auto peers = std::vector<std::string>{};
+
+    for (int i = 0; i < 8; ++i)
+    {
+        auto cfg = getTestConfig(i + 1);
+        cfgs.push_back(cfg);
+        peers.push_back("127.0.0.1:" + std::to_string(cfg.PEER_PORT));
+    }
+
+    auto doTest = [&](bool usePreferred) {
+        auto simulation = Topologies::separate(
+            7, 0.5, Simulation::OVER_LOOPBACK,
+            sha256(getTestConfig().NETWORK_PASSPHRASE), [&](int i) {
+                auto cfg = cfgs[i];
+                cfg.TARGET_PEER_CONNECTIONS = 1;
+                if (usePreferred)
+                {
+                    cfg.PREFERRED_PEERS = peers;
+                }
+                else
+                {
+                    cfg.KNOWN_PEERS = peers;
+                }
+                cfg.RUN_STANDALONE = false;
+                return cfg;
+            });
+        auto nodeIDs = simulation->getNodeIDs();
+
+        // Disconnected graph 0-1-2-3 and 4-5-6
+        simulation->addConnection(nodeIDs[0], nodeIDs[1]);
+        simulation->addConnection(nodeIDs[1], nodeIDs[2]);
+        simulation->addConnection(nodeIDs[2], nodeIDs[3]);
+        simulation->addConnection(nodeIDs[3], nodeIDs[0]);
+
+        simulation->addConnection(nodeIDs[6], nodeIDs[4]);
+        simulation->addConnection(nodeIDs[4], nodeIDs[5]);
+        simulation->addConnection(nodeIDs[5], nodeIDs[6]);
+
+        simulation->startAllNodes();
+
+        // Make sure connections are authenticated
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
+        auto nodes = simulation->getNodes();
+        for (auto const& node : nodes)
+        {
+            REQUIRE(node->getOverlayManager().getAuthenticatedPeersCount() ==
+                    2);
+        }
+
+        simulation->crankForAtLeast(
+            std::chrono::seconds(
+                Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS.count() + 1),
+            false);
+
+        // Herder is not tracking (did not hear externalize from the network)
+        REQUIRE(!nodes[4]->getHerder().isTracking());
+        REQUIRE(!nodes[5]->getHerder().isTracking());
+        REQUIRE(!nodes[6]->getHerder().isTracking());
+
+        // LM is "synced" from the LCL perspective
+        REQUIRE(nodes[4]->getLedgerManager().isSynced());
+        REQUIRE(nodes[5]->getLedgerManager().isSynced());
+        REQUIRE(nodes[6]->getLedgerManager().isSynced());
+
+        // Crank long enough for overlay recovery to kick in
+        simulation->crankForAtLeast(std::chrono::minutes(2), false);
+
+        // If regular peers: Herder is now tracking due to reconnect
+        // If preferred: Herder is still out of sync since no reconnects
+        // happened
+        REQUIRE(nodes[4]->getHerder().isTracking() == !usePreferred);
+        REQUIRE(nodes[5]->getHerder().isTracking() == !usePreferred);
+        REQUIRE(nodes[6]->getHerder().isTracking() == !usePreferred);
+
+        // If regular peers: because we received a newer ledger, LM is now
+        // "catching up" If preferred peers: no new ledgers heard, still
+        // "synced"
+        REQUIRE(nodes[4]->getLedgerManager().isSynced() == usePreferred);
+        REQUIRE(nodes[5]->getLedgerManager().isSynced() == usePreferred);
+        REQUIRE(nodes[6]->getLedgerManager().isSynced() == usePreferred);
+    };
+
+    SECTION("regular peers")
+    {
+        doTest(false);
+    }
+    SECTION("preferred peers")
+    {
+        doTest(true);
+    }
+}
+
 TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
           "[txset][overlay]")
 {
