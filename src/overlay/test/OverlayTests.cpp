@@ -436,6 +436,34 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
             peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                 constructSCPMsg(env));
         }
+
+        // Always keep most recent checkpoint messages
+        REQUIRE(scpQueue.size() == 2);
+    }
+    SECTION("SCP messages, checkpoint too old")
+    {
+        // Advance to next checkpoint
+        auto nextCheckpoint =
+            node->getHistoryManager().firstLedgerAfterCheckpointContaining(lcl);
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(nextCheckpoint, 1);
+            },
+            2 * (nextCheckpoint - lcl) * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+            false);
+
+        envs = herder.getSCP().getLatestMessagesSend(nextCheckpoint);
+        auto checkpointFreq =
+            node->getHistoryManager().getCheckpointFrequency();
+        for (auto& env : envs)
+        {
+            env.statement.slotIndex -= checkpointFreq;
+            constructSCPMsg(env);
+            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
+                constructSCPMsg(env));
+        }
+
+        // Check that old checkpoint has been deleted
         REQUIRE(scpQueue.empty());
     }
     SECTION("txs, limit reached")
@@ -1887,7 +1915,7 @@ TEST_CASE("disconnected topology recovery")
         REQUIRE(nodes[6]->getLedgerManager().isSynced());
 
         // Crank long enough for overlay recovery to kick in
-        simulation->crankForAtLeast(std::chrono::seconds(90), false);
+        simulation->crankForAtLeast(std::chrono::seconds(180), false);
 
         // If regular peers: Herder is now tracking due to reconnect
         // If preferred: Herder is still out of sync since no reconnects

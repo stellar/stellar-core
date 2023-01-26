@@ -90,5 +90,13 @@ class CatchupManagerImpl : public CatchupManager
     void bucketsApplied(uint32_t num) override;
     void txSetsApplied(uint32_t num) override;
     void fileDownloaded(std::string type, uint32_t num) override;
+
+#ifdef BUILD_TESTS
+    std::map<uint32_t, LedgerCloseData> const&
+    getBufferedLedgers() const
+    {
+        return mSyncingLedgers;
+    }
+#endif
 };
 }

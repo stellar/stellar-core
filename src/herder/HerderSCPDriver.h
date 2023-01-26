@@ -123,7 +123,7 @@ class HerderSCPDriver : public SCPDriver
     ValueWrapperPtr wrapValue(Value const& sv) override;
 
     // clean up older slots
-    void purgeSlots(uint64_t maxSlotIndex);
+    void purgeSlots(uint64_t maxSlotIndex, uint64 slotToKeep);
 
     double getExternalizeLag(NodeID const& id) const;
 

@@ -9,6 +9,8 @@ std::chrono::seconds const Herder::MAX_SCP_TIMEOUT_SECONDS(240);
 std::chrono::seconds const Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS(35);
 std::chrono::seconds const Herder::OUT_OF_SYNC_RECOVERY_TIMER =
     std::chrono::seconds(10);
+std::chrono::seconds const Herder::SEND_LATEST_CHECKPOINT_DELAY =
+    std::chrono::seconds(2);
 std::chrono::seconds constexpr Herder::MAX_TIME_SLIP_SECONDS;
 std::chrono::seconds const Herder::NODE_EXPIRATION_SECONDS(240);
 // the value of LEDGER_VALIDITY_BRACKET should be in the order of

@@ -14,6 +14,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 
+#include "catchup/CatchupManagerImpl.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "herder/HerderUtils.h"
@@ -2927,6 +2928,98 @@ TEST_CASE("SCP State", "[herder][acceptance]")
 
         // Now, ensure all new tx sets have been persisted
         checkTxSetHashesPersisted(app, std::nullopt);
+    }
+}
+
+TEST_CASE("SCP checkpoint", "[catchup][herder]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(v0NodeID);
+
+    Config cfg1 = getTestConfig(1);
+    Config cfg2 = getTestConfig(2);
+    cfg2.FORCE_SCP = false;
+    cfg2.MODE_DOES_CATCHUP = true;
+    cfg1.MODE_DOES_CATCHUP = false;
+
+    auto mainNode = simulation->addNode(v0SecretKey, qSet, &cfg1);
+    simulation->startAllNodes();
+    auto& hm = mainNode->getHistoryManager();
+    auto firstCheckpoint = hm.firstLedgerAfterCheckpointContaining(1);
+
+    // Crank until we are halfway through the second checkpoint
+    simulation->crankUntil(
+        [&]() {
+            return simulation->haveAllExternalized(firstCheckpoint + 32, 1);
+        },
+        2 * (firstCheckpoint + 32) * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+        false);
+
+    SECTION("GC old checkpoints")
+    {
+        HerderImpl& herder = static_cast<HerderImpl&>(mainNode->getHerder());
+
+        // Should have MAX_SLOTS_TO_REMEMBER slots + checkpoint slot
+        REQUIRE(herder.getSCP().getKnownSlotsCount() ==
+                mainNode->getConfig().MAX_SLOTS_TO_REMEMBER + 1);
+
+        auto secondCheckpoint =
+            hm.firstLedgerAfterCheckpointContaining(firstCheckpoint);
+
+        // Crank until we complete the 2nd checkpoint
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(secondCheckpoint, 1);
+            },
+            2 * 32 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        REQUIRE(mainNode->getLedgerManager().getLastClosedLedgerNum() ==
+                secondCheckpoint);
+
+        // Checkpoint is within [lcl, lcl - MAX_SLOTS_TO_REMEMBER], so we
+        // should only have MAX_SLOTS_TO_REMEMBER slots
+        REQUIRE(herder.getSCP().getKnownSlotsCount() ==
+                mainNode->getConfig().MAX_SLOTS_TO_REMEMBER);
+    }
+
+    SECTION("Out of sync node receives checkpoint")
+    {
+        // Start out of sync node
+        auto outOfSync = simulation->addNode(v1SecretKey, qSet, &cfg2);
+        simulation->addPendingConnection(v0NodeID, v1NodeID);
+        simulation->startAllNodes();
+        auto& cm =
+            static_cast<CatchupManagerImpl&>(outOfSync->getCatchupManager());
+
+        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // catchup
+        auto f = [&]() {
+            simulation->crankUntil(
+                [&]() {
+                    return cm.isCatchupInitialized() &&
+                           cm.getCatchupWorkState() ==
+                               BasicWork::State::WORK_RUNNING;
+                },
+                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+        };
+
+        // History archves have not been configured, so this should throw once
+        // catchup starts
+        REQUIRE_THROWS_WITH(f(), "No GET-enabled history archive in config");
+
+        auto const& bufferedLedgers = cm.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers.empty());
+        REQUIRE(bufferedLedgers.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
     }
 }
 

@@ -76,7 +76,7 @@ class ItemFetcher : private NonMovableOrCopyable
      * below some @p slotIndex). Can also remove @see Tracker instances when
      * non needed anymore.
      */
-    void stopFetchingBelow(uint64 slotIndex);
+    void stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep);
 
     /**
      * Called when given @p peer informs that it does not have data identified
@@ -96,7 +96,7 @@ class ItemFetcher : private NonMovableOrCopyable
 #endif
 
   protected:
-    void stopFetchingBelowInternal(uint64 slotIndex);
+    void stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep);
 
     Application& mApp;
     std::map<Hash, std::shared_ptr<Tracker>> mTrackers;

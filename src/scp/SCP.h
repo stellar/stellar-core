@@ -86,8 +86,8 @@ class SCP
                                   bool fullKeys = false, uint64 index = 0);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
-    // than the specified `maxSlotIndex`.
-    void purgeSlots(uint64 maxSlotIndex);
+    // than the specified `maxSlotIndex` except for slotToKeep slot.
+    void purgeSlots(uint64 maxSlotIndex, uint64 slotToKeep);
 
     // Returns whether the local node is a validator.
     bool isValidator();
@@ -146,6 +146,12 @@ class SCP
     std::string envToStr(SCPEnvelope const& envelope,
                          bool fullKeys = false) const;
     std::string envToStr(SCPStatement const& st, bool fullKeys = false) const;
+
+    uint64
+    getHighestKnownSlotIndex()
+    {
+        return mKnownSlots.empty() ? 0 : mKnownSlots.rbegin()->first;
+    }
 
   private:
     // Calculate the state of the node for the given slot index.

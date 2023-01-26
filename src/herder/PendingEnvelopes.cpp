@@ -655,9 +655,9 @@ PendingEnvelopes::readySlots()
 }
 
 void
-PendingEnvelopes::eraseBelow(uint64 slotIndex)
+PendingEnvelopes::eraseBelow(uint64 slotIndex, uint64 slotToKeep)
 {
-    stopAllBelow(slotIndex);
+    stopAllBelow(slotIndex, slotToKeep);
 
     // report only for the highest slot that we're purging
     reportCostOutliersForSlot(slotIndex - 1, true);
@@ -666,7 +666,14 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     {
         if (iter->first < slotIndex)
         {
-            iter = mEnvelopes.erase(iter);
+            if (iter->first == slotToKeep)
+            {
+                ++iter;
+            }
+            else
+            {
+                iter = mEnvelopes.erase(iter);
+            }
         }
         else
             break;
@@ -675,7 +682,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     // 0 is special mark for data that we do not know the slot index
     // it is used for state loaded from database
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex;
+        return i.first != 0 && i.first < slotIndex && i.first != slotToKeep;
     });
 
     cleanKnownData();
@@ -683,21 +690,26 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 }
 
 void
-PendingEnvelopes::stopAllBelow(uint64 slotIndex)
+PendingEnvelopes::stopAllBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     // Before we purge a slot, check if any envelopes are still in
     // "fetching" mode and attempt to record cost
     for (auto it = mEnvelopes.begin();
          it != mEnvelopes.end() && it->first < slotIndex; it++)
     {
+        if (it->first == slotToKeep)
+        {
+            continue;
+        }
+
         auto& envs = it->second;
         for (auto const& env : envs.mFetchingEnvelopes)
         {
             recordReceivedCost(env.first);
         }
     }
-    mTxSetFetcher.stopFetchingBelow(slotIndex);
-    mQuorumSetFetcher.stopFetchingBelow(slotIndex);
+    mTxSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
+    mQuorumSetFetcher.stopFetchingBelow(slotIndex, slotToKeep);
 }
 
 void

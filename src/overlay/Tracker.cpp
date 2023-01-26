@@ -52,13 +52,14 @@ Tracker::pop()
 
 // returns false if no one cares about this guy anymore
 bool
-Tracker::clearEnvelopesBelow(uint64 slotIndex)
+Tracker::clearEnvelopesBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
-        if (iter->second.statement.slotIndex < slotIndex)
+        if (auto index = iter->second.statement.slotIndex;
+            index < slotIndex && index != slotToKeep)
         {
             iter = mWaitingEnvelopes.erase(iter);
         }

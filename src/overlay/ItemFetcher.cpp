@@ -100,22 +100,24 @@ ItemFetcher::fetchingFor(Hash const& itemHash) const
 }
 
 void
-ItemFetcher::stopFetchingBelow(uint64 slotIndex)
+ItemFetcher::stopFetchingBelow(uint64 slotIndex, uint64 slotToKeep)
 {
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
     mApp.postOnMainThread(
-        [this, slotIndex]() { stopFetchingBelowInternal(slotIndex); },
+        [this, slotIndex, slotToKeep]() {
+            stopFetchingBelowInternal(slotIndex, slotToKeep);
+        },
         "ItemFetcher: stopFetchingBelow");
 }
 
 void
-ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex)
+ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex, uint64 slotToKeep)
 {
     ZoneScoped;
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
-        if (!iter->second->clearEnvelopesBelow(slotIndex))
+        if (!iter->second->clearEnvelopesBelow(slotIndex, slotToKeep))
         {
             iter = mTrackers.erase(iter);
         }
