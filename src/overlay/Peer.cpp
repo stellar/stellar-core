@@ -50,6 +50,13 @@ using namespace soci;
 
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
+static constexpr size_t OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3; // 3 MB
+
+size_t
+Peer::getOutboundQueueByteLimit() const
+{
+    return OUTBOUND_TX_QUEUE_BYTE_LIMIT;
+}
 
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
@@ -65,8 +72,6 @@ Peer::Peer(Application& app, PeerRole role)
           std::make_optional<VirtualClock::time_point>(app.getClock().now()))
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
-    , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
-                app.getConfig().PEER_READING_CAPACITY}
     , mTxAdvertQueue(app)
     , mAdvertTimer(app)
     , mAdvertHistory(ADVERT_CACHE_SIZE)
@@ -1067,6 +1072,10 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     case TRANSACTION:
     {
         msgQInd = 1;
+        if (mFlowControlBytes)
+        {
+            mTxQueueByteCount += mFlowControlBytes->getMsgResourceCount(*msg);
+        }
     }
     break;
     case FLOOD_DEMAND:
@@ -1095,11 +1104,25 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     uint32_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     if (type == TRANSACTION)
     {
+        // Depending on flow control mode, restrict max number of bytes in the
+        // outbound tx queue
+        while (mFlowControlBytes &&
+               mTxQueueByteCount > getOutboundQueueByteLimit())
+        {
+            dropped++;
+            size_t s = mFlowControlBytes->getMsgResourceCount(
+                *(queue.front().mMessage));
+            releaseAssert(mTxQueueByteCount >= s);
+            mTxQueueByteCount -= s;
+            queue.pop_front();
+            getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
+        }
+
         if (queue.size() > limit)
         {
-            dropped = queue.size() - limit;
-            queue.erase(queue.begin(), queue.begin() + dropped);
-            getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
+            auto droppedByCount = queue.size() - limit;
+            queue.erase(queue.begin(), queue.begin() + droppedByCount);
+            getOverlayMetrics().mOutboundQueueDropTxs.Mark(droppedByCount);
         }
     }
     else if (type == SCP_MESSAGE)

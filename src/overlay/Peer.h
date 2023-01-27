@@ -321,6 +321,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     size_t mAdvertQueueTxHashCount{0};
     size_t mDemandQueueTxHashCount{0};
 
+    size_t mTxQueueByteCount{0};
+
     // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
     // of flood messages, then periodically flush the advert and await a
     // _demand_ message with a list of flood messages to send. Adverts are
@@ -366,6 +368,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendMessage(std::shared_ptr<StellarMessage const> msg,
                      bool log = true);
+    virtual size_t getOutboundQueueByteLimit() const;
 
     PeerRole
     getRole() const
