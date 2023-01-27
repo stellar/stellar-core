@@ -128,7 +128,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 27;
-    OVERLAY_PROTOCOL_VERSION = 27;
+    OVERLAY_PROTOCOL_VERSION = 28;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -223,6 +223,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_READING_CAPACITY = 200;
     PEER_FLOOD_READING_CAPACITY = 200;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
+
+    PEER_FLOOD_READING_CAPACITY_BYTES = 100000;
+    FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 20000;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -950,11 +953,24 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
             if (item.first == "PEER_READING_CAPACITY")
             {
-                PEER_READING_CAPACITY = readInt<uint32_t>(item, 2);
+                PEER_READING_CAPACITY = readInt<uint32_t>(item, 1);
             }
             else if (item.first == "PEER_FLOOD_READING_CAPACITY")
             {
                 PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
+            {
+                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "PEER_FLOOD_READING_CAPACITY_BYTES")
+            {
+                PEER_FLOOD_READING_CAPACITY_BYTES = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES")
+            {
+                FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
+                    readInt<uint32_t>(item, 1);
             }
             else if (item.first == "PEER_PORT")
             {
@@ -1394,10 +1410,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                     std::chrono::microseconds(readInt<uint32_t>(item));
             }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
-            }
             else if (item.first == "MAX_DEX_TX_OPERATIONS_IN_TX_SET")
             {
                 auto value = readInt<uint32_t>(item);
@@ -1431,6 +1443,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: FLOW_CONTROL_SEND_MORE_BATCH_SIZE "
                 "can't be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >
+            PEER_FLOOD_READING_CAPACITY_BYTES)
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES "
+                "can't be greater than PEER_FLOOD_READING_CAPACITY_BYTES";
             throw std::runtime_error(msg);
         }
 
