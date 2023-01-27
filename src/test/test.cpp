@@ -243,6 +243,12 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.RUN_STANDALONE = true;
         thisConfig.FORCE_SCP = true;
 
+        thisConfig.PEER_READING_CAPACITY = 20;
+        thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
+        thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
+        thisConfig.PEER_FLOOD_READING_CAPACITY_BYTES = 3000;
+        thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1000;
+
         thisConfig.MANUAL_CLOSE = true;
 
         thisConfig.TEST_CASES_ENABLED = true;

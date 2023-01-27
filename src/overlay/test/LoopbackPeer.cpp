@@ -494,8 +494,34 @@ LoopbackPeerConnection::getAcceptor() const
 }
 
 bool
-LoopbackPeer::checkCapacity(uint64_t expectedOutboundCapacity) const
+LoopbackPeer::checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const
 {
-    return expectedOutboundCapacity == mOutboundCapacity;
+    // Outbound capacity is equal to the config on the other node
+    bool flowControlInBytes = mFlowControlBytes && otherPeer->mFlowControlBytes;
+    bool isValid =
+        otherPeer->getApp().getConfig().PEER_FLOOD_READING_CAPACITY ==
+        mFlowControlMessages->getOutboundCapacity();
+    if (flowControlInBytes)
+    {
+        isValid = isValid && (otherPeer->getApp()
+                                  .getConfig()
+                                  .PEER_FLOOD_READING_CAPACITY_BYTES ==
+                              mFlowControlBytes->getOutboundCapacity());
+    }
+
+    return isValid;
+}
+
+size_t
+LoopbackPeer::getOutboundQueueByteLimit() const
+{
+    if (mOutboundQueueLimit)
+    {
+        return *mOutboundQueueLimit;
+    }
+    else
+    {
+        return Peer::getOutboundQueueByteLimit();
+    }
 }
 }

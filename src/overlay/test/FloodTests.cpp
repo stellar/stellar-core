@@ -80,7 +80,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // Wait until all nodes externalize
             simulation->crankUntil(
                 [&]() { return simulation->haveAllExternalized(2, 1); },
-                std::chrono::seconds(1), false);
+                std::chrono::seconds(10), false);
             for (auto const& n : nodes)
             {
                 REQUIRE(n->getLedgerManager().isSynced());
@@ -193,8 +193,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         {
             SECTION("loopback")
             {
-                simulation = Topologies::core(
-                    4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen2);
+                simulation = Topologies::core(4, 1, Simulation::OVER_LOOPBACK,
+                                              networkID, cfgGen2);
                 test(injectTransaction, ackedTransactions, true);
             }
             SECTION("tcp")

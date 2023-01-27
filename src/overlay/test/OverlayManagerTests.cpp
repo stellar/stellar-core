@@ -38,7 +38,14 @@ class PeerStub : public Peer
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
-        mOutboundCapacity = std::numeric_limits<uint32>::max();
+        mFlowControlMessages =
+            std::make_unique<FlowControlCapacityMessages>(app, mPeerID);
+        mFlowControlBytes =
+            std::make_unique<FlowControlCapacityBytes>(app, mPeerID);
+        mFlowControlMessages->setOutboundCapacity(
+            std::numeric_limits<uint32>::max());
+        mFlowControlBytes->setOutboundCapacity(
+            std::numeric_limits<uint32>::max());
     }
     virtual std::string
     getIP() const override

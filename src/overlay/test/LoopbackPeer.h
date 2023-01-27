@@ -74,6 +74,7 @@ class LoopbackPeer : public Peer
     size_t getMessagesQueued() const;
 
     virtual void scheduleRead() override;
+    virtual size_t getOutboundQueueByteLimit() const override;
 
     Stats const& getStats() const;
 
@@ -114,6 +115,20 @@ class LoopbackPeer : public Peer
 
     void clearInAndOutQueues();
 
+    void
+    setOutboundQueueLimit(size_t bytes)
+    {
+        mOutboundQueueLimit = std::make_optional<size_t>(bytes);
+    }
+
+    size_t
+    getTxQueueByteCount() const
+    {
+        return mTxQueueByteCount;
+    }
+
+    std::optional<size_t> mOutboundQueueLimit;
+
     std::string
     getDropReason() const
     {
@@ -126,17 +141,24 @@ class LoopbackPeer : public Peer
         return mOutboundQueues;
     }
 
-    uint64_t&
-    getOutboundCapacity()
+    std::unique_ptr<FlowControlCapacityMessages> const&
+    getFlowControlCapacityMessages() const
     {
-        return mOutboundCapacity;
+        return mFlowControlMessages;
     }
 
-    bool checkCapacity(uint64_t expectedOutboundCapacity) const;
+    std::unique_ptr<FlowControlCapacityBytes> const&
+    getFlowControlCapacityBytes() const
+    {
+        return mFlowControlBytes;
+    }
+
+    bool checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const;
 
     std::string getIP() const override;
 
     using Peer::addMsgAndMaybeTrimQueue;
+    using Peer::recvMessage;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;
