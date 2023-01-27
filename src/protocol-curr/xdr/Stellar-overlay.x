@@ -27,6 +27,12 @@ struct SendMore
     uint32 numMessages;
 };
 
+struct SendMoreExtended
+{
+    uint32 numMessages;
+    uint32 numBytes;
+};
+
 struct AuthCert
 {
     Curve25519Public pubkey;
@@ -83,7 +89,7 @@ struct PeerAddress
     uint32 numFailures;
 };
 
-// Next ID: 18
+// Next ID: 21
 enum MessageType
 {
     ERROR_MSG = 0,
@@ -112,6 +118,8 @@ enum MessageType
     SURVEY_RESPONSE = 15,
 
     SEND_MORE = 16,
+    SEND_MORE_EXTENDED = 20,
+
     FLOOD_ADVERT = 18,
     FLOOD_DEMAND = 19
 };
@@ -274,7 +282,8 @@ case GET_SCP_STATE:
     uint32 getSCPLedgerSeq; // ledger seq requested ; if 0, requests the latest
 case SEND_MORE:
     SendMore sendMoreMessage;
-
+case SEND_MORE_EXTENDED:
+    SendMoreExtended sendMoreExtendedMessage;
 // Pull mode
 case FLOOD_ADVERT:
      FloodAdvert floodAdvert;
