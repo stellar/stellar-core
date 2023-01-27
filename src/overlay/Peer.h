@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "lib/json/json.h"
 #include "medida/timer.h"
+#include "overlay/FlowControlCapacity.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxAdvertQueue.h"
@@ -66,6 +67,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
     static constexpr uint32_t FIRST_VERSION_REQUIRING_PULL_MODE = 27;
+    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
+        28;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -185,12 +188,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::weak_ptr<Peer> getPeer();
     };
 
-    struct ReadingCapacity
-    {
-        uint64_t mFloodCapacity;
-        uint64_t mTotalCapacity;
-    };
-
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
     // Priority 1 - transactions
@@ -203,16 +200,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // How many flood messages have we received and processed since sending
     // SEND_MORE to this peer
-    uint64_t mFloodMsgsProcessed{0};
-
-    // How many flood messages can we send to this peer
-    uint64_t mOutboundCapacity{0};
+    uint64_t mFloodDataProcessed{0};
+    uint64_t mFloodDataProcessedBytes{0};
 
     // Is this peer currently throttled due to lack of capacity
     bool mIsPeerThrottled{false};
 
     // Does local node have capacity to read from this peer
     bool hasReadingCapacity() const;
+    bool hasOutboundCapacity(StellarMessage const& msg) const;
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -239,7 +235,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
-    ReadingCapacity mCapacity;
+
+    std::unique_ptr<FlowControlCapacityMessages> mFlowControlMessages;
+    std::unique_ptr<FlowControlCapacityBytes> mFlowControlBytes;
 
     OverlayMetrics& getOverlayMetrics();
 
@@ -279,6 +277,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
     void sendSendMore(uint32_t numMessages);
+    void sendSendMore(uint32_t numMessages, uint32_t numBytes);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -468,5 +467,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     };
 
     friend class LoopbackPeer;
+
+    static uint32_t getNumMessages(StellarMessage const& msg);
 };
 }

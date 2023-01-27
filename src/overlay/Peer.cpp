@@ -92,29 +92,13 @@ Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 void
 Peer::beginMesssageProcessing(StellarMessage const& msg)
 {
-    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
-                  mCapacity.mFloodCapacity);
-    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
-                  mCapacity.mTotalCapacity);
-    releaseAssert(mCapacity.mTotalCapacity > 0);
-    mCapacity.mTotalCapacity--;
-
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if ((mFlowControlMessages &&
+         !mFlowControlMessages->lockLocalCapacity(msg)) ||
+        (mFlowControlBytes && !mFlowControlBytes->lockLocalCapacity(msg)))
     {
-        if (mCapacity.mFloodCapacity == 0)
-        {
-            drop("unexpected flood message, peer at capacity",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-
-        mCapacity.mFloodCapacity--;
-        if (mCapacity.mFloodCapacity == 0)
-        {
-            CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
-                       mApp.getConfig().toShortString(getPeerID()));
-        }
+        drop("unexpected flood message, peer at capacity",
+             Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -282,9 +266,27 @@ Peer::getFlowControlJsonInfo(bool compact) const
 {
     Json::Value res;
     std::string stateStr;
-    res["local_capacity"]["reading"] = (Json::UInt64)mCapacity.mTotalCapacity;
-    res["local_capacity"]["flood"] = (Json::UInt64)mCapacity.mFloodCapacity;
-    res["peer_capacity"] = (Json::UInt64)mOutboundCapacity;
+    if (mFlowControlMessages->getCapacity().mTotalCapacity)
+    {
+        res["local_capacity"]["reading"] =
+            (Json::UInt64)(*mFlowControlMessages->getCapacity().mTotalCapacity);
+    }
+    res["local_capacity"]["flood"] =
+        (Json::UInt64)mFlowControlMessages->getCapacity().mFloodCapacity;
+    res["peer_capacity"] =
+        (Json::UInt64)mFlowControlMessages->getOutboundCapacity();
+    if (mFlowControlBytes)
+    {
+        if (mFlowControlBytes->getCapacity().mTotalCapacity)
+        {
+            res["local_capacity_bytes"]["reading"] = (Json::UInt64)(
+                *mFlowControlBytes->getCapacity().mTotalCapacity);
+        }
+        res["local_capacity_bytes"]["flood"] =
+            (Json::UInt64)mFlowControlBytes->getCapacity().mFloodCapacity;
+        res["peer_capacity_bytes"] =
+            (Json::UInt64)mFlowControlBytes->getOutboundCapacity();
+    }
 
     if (!compact)
     {
@@ -603,6 +605,8 @@ Peer::msgSummary(StellarMessage const& msg)
         return SurveyManager::getMsgSummary(msg);
     case SEND_MORE:
         return "SENDMORE";
+    case SEND_MORE_EXTENDED:
+        return "SENDMORE_EXTENDED";
     case FLOOD_ADVERT:
         return "FLODADVERT";
     case FLOOD_DEMAND:
@@ -683,6 +687,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         getOverlayMetrics().mSendSurveyResponseMeter.Mark();
         break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
         getOverlayMetrics().mSendSendMoreMeter.Mark();
         break;
     case FLOOD_ADVERT:
@@ -811,6 +816,13 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
     recvMessage(msg.v0().message);
 }
 
+uint32_t
+Peer::getNumMessages(StellarMessage const& msg)
+{
+    return msg.type() == SEND_MORE ? msg.sendMoreMessage().numMessages
+                                   : msg.sendMoreExtendedMessage().numMessages;
+}
+
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
@@ -832,19 +844,47 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         Peer::recvRawMessage(stellarMsg);
         return;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
     {
         cat = "CTRL";
+        bool sendMoreExtendedType =
+            mFlowControlBytes && stellarMsg.type() == SEND_MORE_EXTENDED;
+        bool sendMoreType =
+            !mFlowControlBytes && stellarMsg.type() == SEND_MORE;
 
-        if (stellarMsg.sendMoreMessage().numMessages == 0)
+        if (!(sendMoreExtendedType || sendMoreType))
         {
-            drop("unexpected SEND_MORE message",
+            drop(fmt::format("unexpected message type {}",
+                             xdr::xdr_traits<MessageType>::enum_name(msgType)),
                  Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
 
-        if (stellarMsg.sendMoreMessage().numMessages >
-            UINT64_MAX - mOutboundCapacity)
+        if (getNumMessages(stellarMsg) == 0 ||
+            (mFlowControlBytes &&
+             stellarMsg.sendMoreExtendedMessage().numBytes == 0))
+        {
+            drop(fmt::format("invalid message {}",
+                             xdr::xdr_traits<MessageType>::enum_name(msgType)),
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            return;
+        }
+
+        auto overflow =
+            getNumMessages(stellarMsg) >
+            (UINT64_MAX - mFlowControlMessages->getOutboundCapacity());
+        if (mFlowControlBytes)
+        {
+            overflow =
+                overflow ||
+                (mFlowControlBytes->getOutboundCapacity() > 0 &&
+                 stellarMsg.sendMoreExtendedMessage().numBytes >
+                     (UINT64_MAX - mFlowControlBytes->getOutboundCapacity()));
+        }
+
+        if (overflow)
         {
             drop("Peer capacity overflow",
                  Peer::DropDirection::WE_DROPPED_REMOTE,
@@ -853,13 +893,12 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         }
 
         mNoOutboundCapacity.reset();
-        if (mOutboundCapacity == 0 &&
-            stellarMsg.sendMoreMessage().numMessages != 0)
+
+        mFlowControlMessages->releaseOutboundCapacity(stellarMsg);
+        if (mFlowControlBytes)
         {
-            CLOG_DEBUG(Overlay, "Got outbound capacity for peer {}",
-                       mApp.getConfig().toShortString(getPeerID()));
+            mFlowControlBytes->releaseOutboundCapacity(stellarMsg);
         }
-        mOutboundCapacity += stellarMsg.sendMoreMessage().numMessages;
         break;
     }
 
@@ -955,14 +994,34 @@ Peer::sendSendMore(uint32_t numMessages)
 }
 
 void
+Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
+{
+    ZoneScoped;
+    StellarMessage m;
+    m.type(SEND_MORE_EXTENDED);
+    m.sendMoreExtendedMessage().numMessages = numMessages;
+    m.sendMoreExtendedMessage().numBytes = numBytes;
+
+    auto msgPtr = std::make_shared<StellarMessage const>(m);
+    sendMessage(msgPtr);
+}
+
+void
 Peer::recvSendMore(StellarMessage const& msg)
 {
     ZoneScoped;
-    releaseAssert(msg.sendMoreMessage().numMessages > 0);
+    releaseAssert(getNumMessages(msg) > 0);
+    if (mFlowControlBytes)
+    {
+        releaseAssert(msg.type() == SEND_MORE_EXTENDED);
+        releaseAssert(msg.sendMoreExtendedMessage().numBytes > 0);
+    }
 
-    CLOG_TRACE(Overlay, "Peer {} sent SEND_MORE {}",
+    CLOG_TRACE(Overlay, "{}: Peer {} sent SEND_MORE {}",
+               mApp.getConfig().toShortString(
+                   mApp.getConfig().NODE_SEED.getPublicKey()),
                mApp.getConfig().toShortString(getPeerID()),
-               msg.sendMoreMessage().numMessages);
+               getNumMessages(msg));
 
     // SEND_MORE means we can free some capacity, and dump the next batch of
     // messages onto the writing queue
@@ -972,7 +1031,22 @@ Peer::recvSendMore(StellarMessage const& msg)
 bool
 Peer::hasReadingCapacity() const
 {
-    return mCapacity.mTotalCapacity > 0;
+    if (!isAuthenticated())
+    {
+        return true;
+    }
+    releaseAssert(mFlowControlMessages);
+    return mFlowControlMessages->hasReadingCapacity() &&
+           (!mFlowControlBytes || mFlowControlBytes->hasReadingCapacity());
+}
+
+bool
+Peer::hasOutboundCapacity(StellarMessage const& msg) const
+{
+    releaseAssert(isAuthenticated() || shouldAbort());
+    releaseAssert(mFlowControlMessages);
+    return mFlowControlMessages->hasOutboundCapacity(msg) &&
+           (!mFlowControlBytes || mFlowControlBytes->hasOutboundCapacity(msg));
 }
 
 void
@@ -1101,18 +1175,29 @@ Peer::maybeSendNextBatch()
 {
     ZoneScoped;
 
-    auto oldOutboundCapacity = mOutboundCapacity;
+    int sent = 0;
     for (int i = 0; i < mOutboundQueues.size(); i++)
     {
         auto& queue = mOutboundQueues[i];
-        while (!queue.empty() && mOutboundCapacity > 0)
+        while (!queue.empty())
         {
             auto& front = queue.front();
-            sendAuthenticatedMessage(*(front.mMessage));
+            auto const& msg = *(front.mMessage);
+            if (!hasOutboundCapacity(msg))
+            {
+                break;
+            }
+
+            sendAuthenticatedMessage(msg);
+            ++sent;
             auto& om = mApp.getOverlayManager().getOverlayMetrics();
 
             auto const& diff = mApp.getClock().now() - front.mTimeEmplaced;
-            mOutboundCapacity--;
+            mFlowControlMessages->lockOutboundCapacity(msg);
+            if (mFlowControlBytes)
+            {
+                mFlowControlBytes->lockOutboundCapacity(msg);
+            }
             switch (front.mMessage->type())
             {
             case TRANSACTION:
@@ -1148,9 +1233,11 @@ Peer::maybeSendNextBatch()
             default:
                 abort();
             }
-            if (mOutboundCapacity == 0)
+            if (!hasOutboundCapacity(msg))
             {
-                CLOG_DEBUG(Overlay, "No outbound capacity for peer {}",
+                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
+                           mApp.getConfig().toShortString(
+                               mApp.getConfig().NODE_SEED.getPublicKey()),
                            mApp.getConfig().toShortString(getPeerID()));
                 mNoOutboundCapacity =
                     std::make_optional<VirtualClock::time_point>(
@@ -1160,39 +1247,56 @@ Peer::maybeSendNextBatch()
         }
     }
 
-    CLOG_TRACE(Overlay, "Peer {}: send next flood batch of {}",
-               mApp.getConfig().toShortString(getPeerID()),
-               (oldOutboundCapacity - mOutboundCapacity));
+    CLOG_TRACE(Overlay, "{} Peer {}: send next flood batch of {}",
+               mApp.getConfig().toShortString(
+                   mApp.getConfig().NODE_SEED.getPublicKey()),
+               mApp.getConfig().toShortString(getPeerID()), sent);
 }
 
 void
 Peer::endMessageProcessing(StellarMessage const& msg)
 {
-    if (shouldAbort())
+    if (shouldAbort() || !mFlowControlMessages)
     {
         return;
     }
 
-    mCapacity.mTotalCapacity++;
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    mFloodDataProcessed += mFlowControlMessages->releaseLocalCapacity(msg);
+    if (mFlowControlBytes)
     {
-        if (mCapacity.mFloodCapacity == 0)
-        {
-            CLOG_DEBUG(Overlay, "Got flood capacity for peer {}",
-                       mApp.getConfig().toShortString(getPeerID()));
-        }
-        mCapacity.mFloodCapacity++;
-        mFloodMsgsProcessed++;
+        mFloodDataProcessedBytes +=
+            mFlowControlBytes->releaseLocalCapacity(msg);
+    }
 
-        if (mFloodMsgsProcessed ==
-            mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE)
+    releaseAssert(mFloodDataProcessed <=
+                  mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
+    bool shouldSendMore = mFloodDataProcessed ==
+                          mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
+
+    if (mFlowControlBytes)
+    {
+        shouldSendMore =
+            shouldSendMore ||
+            mFloodDataProcessedBytes >=
+                mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
+    }
+
+    if (shouldSendMore)
+    {
+        if (mFlowControlBytes)
         {
-            sendSendMore(mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
-            mFloodMsgsProcessed = 0;
+            sendSendMore(mFloodDataProcessed, mFloodDataProcessedBytes);
         }
+        else
+        {
+            sendSendMore(mFloodDataProcessed);
+        }
+        mFloodDataProcessed = 0;
+        mFloodDataProcessedBytes = 0;
     }
 
     // Got some capacity back, can schedule more reads now
+    releaseAssert(hasReadingCapacity());
     if (mIsPeerThrottled)
     {
         CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
@@ -1200,10 +1304,6 @@ Peer::endMessageProcessing(StellarMessage const& msg)
         mIsPeerThrottled = false;
         scheduleRead();
     }
-    releaseAssert(mApp.getConfig().PEER_FLOOD_READING_CAPACITY >=
-                  mCapacity.mFloodCapacity);
-    releaseAssert(mApp.getConfig().PEER_READING_CAPACITY >=
-                  mCapacity.mTotalCapacity);
 }
 
 void
@@ -1347,6 +1447,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     }
     break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
     {
         auto t = getOverlayMetrics().mRecvSendMoreTimer.TimeScope();
         recvSendMore(stellarMsg);
@@ -1889,9 +1990,29 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
+    auto const& cfg = mApp.getConfig();
     // Subtle: after successful auth, must send sendMore message first to tell
     // the other peer about the local node's reading capacity.
-    sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY);
+    if (mRemoteOverlayVersion >=
+            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
+        cfg.OVERLAY_PROTOCOL_VERSION >=
+            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES)
+    {
+        mFlowControlBytes =
+            std::make_unique<FlowControlCapacityBytes>(mApp, getPeerID());
+    }
+
+    mFlowControlMessages =
+        std::make_unique<FlowControlCapacityMessages>(mApp, getPeerID());
+    if (mFlowControlBytes)
+    {
+        sendSendMore(cfg.PEER_FLOOD_READING_CAPACITY,
+                     cfg.PEER_FLOOD_READING_CAPACITY_BYTES);
+    }
+    else
+    {
+        sendSendMore(cfg.PEER_FLOOD_READING_CAPACITY);
+    }
 
     if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE &&
         msg.auth().flags != AUTH_MSG_FLAG_PULL_MODE_REQUESTED)
