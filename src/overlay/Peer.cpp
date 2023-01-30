@@ -1078,6 +1078,35 @@ Peer::recvDontHave(StellarMessage const& msg)
 }
 
 void
+Peer::sendTxSet(TxSetFrameConstPtr txSet)
+{
+    StellarMessage newMsg;
+    if (txSet->isGeneralizedTxSet())
+    {
+        if (mRemoteOverlayVersion <
+            Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
+        {
+            // The peer wouldn't be able to accept the generalized tx set,
+            // but it wouldn't be correct to say we don't have it. So we
+            // just let the request to timeout.
+            return;
+        }
+        newMsg.type(GENERALIZED_TX_SET);
+        txSet->toXDR(newMsg.generalizedTxSet());
+    }
+    else
+    {
+        newMsg.type(TX_SET);
+        txSet->toXDR(newMsg.txSet());
+    }
+
+    auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
+    CLOG_INFO(Overlay, "Peer::recvGetTxSet found the tx set for {}, sending it",
+              hexAbbrev(txSet->getContentsHash()));
+    sendMessage(newMsgPtr);
+}
+
+void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
@@ -1105,10 +1134,15 @@ Peer::recvGetTxSet(StellarMessage const& msg)
         }
 
         auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
+        CLOG_INFO(Overlay,
+                  "Peer::recvGetTxSet found the tx set for {}, sending it back",
+                  hexAbbrev(msg.txSetHash()));
         self->sendMessage(newMsgPtr);
     }
     else
     {
+        CLOG_INFO(Overlay, "Peer::recvGetTxSet sending DONT_HAVE for {}",
+                  hexAbbrev(msg.txSetHash()));
         // Technically we don't exactly know what is the kind of the tx set
         // missing, however both TX_SET and GENERALIZED_TX_SET get the same
         // treatment when missing, so it should be ok to maybe send the
@@ -1142,6 +1176,21 @@ Peer::recvTxSet(StellarMessage const& msg)
     ZoneScoped;
     auto frame = TxSetFrame::makeFromWire(mApp, msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
+    CLOG_INFO(Overlay,
+              "Peer::recvTxSet received {}, trying to fulfill pending requests",
+              hexAbbrev(frame->getContentsHash()));
+    for (auto& weakPeer : mApp.getOverlayManager()
+                              .mPendingTxSetRequests[frame->getContentsHash()])
+    {
+        auto peer = weakPeer.lock();
+        if (peer)
+        {
+            peer->sendTxSet(frame);
+        }
+    }
+    mApp.getOverlayManager()
+        .mPendingTxSetRequests[frame->getContentsHash()]
+        .clear();
 }
 
 void

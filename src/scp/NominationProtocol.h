@@ -41,6 +41,7 @@ class NominationProtocol
     Value mPreviousValue;
 
     bool isNewerStatement(NodeID const& nodeID, SCPNomination const& st);
+    bool processedNewerStatement(NodeID const& nodeID, SCPNomination const& st);
 
     // returns true if 'p' is a subset of 'v'
     // also sets 'notEqual' if p and v differ

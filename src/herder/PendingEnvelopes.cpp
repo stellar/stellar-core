@@ -361,6 +361,20 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
+            if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+            {
+                auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(
+                    envelope.statement);
+                auto mQSet = mApp.getHerder().getQSet(qSetH);
+                if (mQSet != nullptr)
+                {
+                    // The qset has been fetched.
+                    // Not all tx sets haven't been fetched,
+                    // but we should process this nomination statement
+                    // in case we can vote for some/all of them.
+                    envelopeReady(envelope);
+                }
+            }
             // else just keep waiting for it to come in
             // and refresh fetchers as needed
             startFetch(envelope);

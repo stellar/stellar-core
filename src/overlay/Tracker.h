@@ -55,7 +55,10 @@ class Tracker
     LogSlowExecution mFetchTime;
 
   public:
-    static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY;
+    // Overwrite this with TX_SET_BACKOFF_DELAY_MS
+    // For the prototype, I made this a regular variable (not a const)
+    // but I'm not sure if it's a good idea.
+    static std::chrono::milliseconds MS_TO_WAIT_FOR_FETCH_REPLY;
     static int const MAX_REBUILD_FETCH_LIST;
     /**
      * Create Tracker that tracks data identified by @p hash. @p askPeer

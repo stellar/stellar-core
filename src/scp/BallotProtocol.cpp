@@ -188,7 +188,7 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     auto validationRes = validateValues(statement);
 
     // If the value is not valid, we just ignore it.
-    if (validationRes == SCPDriver::kInvalidValue)
+    if (validationRes <= SCPDriver::kVoteToNominate)
     {
         if (self)
         {

@@ -155,6 +155,10 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
                    tracker->size());
 
         timer.Update(tracker->getDuration());
+        CLOG_INFO(Overlay, "Recv {} : latency {} ms", hexAbbrev(itemHash),
+                  std::chrono::duration_cast<std::chrono::milliseconds>(
+                      tracker->getDuration())
+                      .count());
         while (!tracker->empty())
         {
             mApp.getHerder().recvSCPEnvelope(tracker->pop());

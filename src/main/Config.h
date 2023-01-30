@@ -501,6 +501,8 @@ class Config : public std::enable_shared_from_this<Config>
     static constexpr size_t const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr size_t const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
+    std::chrono::milliseconds TX_SET_BACKOFF_DELAY_MS;
+
     // survey config
     std::set<PublicKey> SURVEYOR_KEYS;
 

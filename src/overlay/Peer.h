@@ -27,6 +27,7 @@ static auto const MAX_MESSAGE_SIZE = 0x1000000;
 static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
+class TxSetFrame;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
@@ -243,6 +244,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvSurveyRequestMessage(StellarMessage const& msg);
     void recvSurveyResponseMessage(StellarMessage const& msg);
     void recvSendMore(StellarMessage const& msg);
+
+    void sendTxSet(std::shared_ptr<TxSetFrame const> txSet);
 
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);

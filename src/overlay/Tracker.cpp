@@ -21,7 +21,8 @@
 namespace stellar
 {
 
-std::chrono::milliseconds const Tracker::MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+// Overwrite this with TX_SET_BACKOFF_DELAY_MS
+std::chrono::milliseconds Tracker::MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 int const Tracker::MAX_REBUILD_FETCH_LIST = 10;
 
 Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
@@ -35,6 +36,7 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     , mFetchTime("fetch-" + hexAbbrev(hash), LogSlowExecution::Mode::MANUAL)
 {
     releaseAssert(mAskPeer);
+    MS_TO_WAIT_FOR_FETCH_REPLY = app.getConfig().TX_SET_BACKOFF_DELAY_MS;
 }
 
 Tracker::~Tracker()
@@ -190,6 +192,7 @@ Tracker::tryNextPeer()
         // we have asked all our peers, reset the list and try again after a
         // pause
         mNumListRebuild++;
+        CLOG_INFO(Overlay, "increment mNumListRebuild to {}", mNumListRebuild);
         mPeersAsked.clear();
 
         CLOG_TRACE(Overlay, "tryNextPeer {} restarting fetch #{}",

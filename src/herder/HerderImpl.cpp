@@ -795,6 +795,17 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         {
             std::string txt("FETCHING");
             ZoneText(txt.c_str(), txt.size());
+            // If nomination, we should still process this.
+            if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+            {
+                auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(
+                    envelope.statement);
+                auto mQSet = mApp.getHerder().getQSet(qSetH);
+                if (mQSet != nullptr)
+                {
+                    processSCPQueue();
+                }
+            }
         }
         else if (status == Herder::ENVELOPE_STATUS_PROCESSED)
         {

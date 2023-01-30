@@ -110,6 +110,18 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
         std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
     }
 
+    if (mSuspendTxFlooding)
+    {
+        AuthenticatedMessage am;
+        {
+            xdr::xdr_from_msg(msg, am);
+        }
+        if (am.v0().message.type() == TRANSACTION)
+        {
+            return;
+        }
+    }
+
     TimestampedMessage tsm;
     tsm.mMessage = std::move(msg);
     tsm.mEnqueuedTime = mApp.getClock().now();

@@ -27,6 +27,22 @@ NominationProtocol::NominationProtocol(Slot& slot)
 }
 
 bool
+NominationProtocol::processedNewerStatement(NodeID const& nodeID,
+                                            SCPNomination const& st)
+{
+    auto oldp = mLatestNominations.find(nodeID);
+    if (oldp == mLatestNominations.end())
+    {
+        return false;
+    }
+    else
+    {
+        return isNewerStatement(
+            st, oldp->second->getStatement().pledges.nominate());
+    }
+}
+
+bool
 NominationProtocol::isNewerStatement(NodeID const& nodeID,
                                      SCPNomination const& st)
 {
@@ -348,6 +364,10 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
         {
             valueToNominate = mSlot.getSCPDriver().wrapValue(value);
         }
+        else if (vl == SCPDriver::kVoteToNominate)
+        {
+            valueToNominate = mSlot.getSCPDriver().wrapValue(value);
+        }
         else
         {
             valueToNominate = extractValidValue(value);
@@ -391,7 +411,10 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
     auto const& st = envelope->getStatement();
     auto const& nom = st.pledges.nominate();
 
-    if (!isNewerStatement(st.nodeID, nom))
+    // If we've processed the same envelope, we'll process it again
+    // since the validity of values might have changed
+    // (e.g., tx set fetch)
+    if (processedNewerStatement(st.nodeID, nom))
         return SCP::EnvelopeState::INVALID;
 
     if (!isSane(st))
@@ -464,6 +487,8 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
             {
                 mCandidates.emplace(a);
                 newCandidates = true;
+                CLOG_INFO(SCP, "new candidate value {}",
+                          mSlot.getSCP().getValueString(a->getValue()));
                 // Stop the timer, as there's no need to continue nominating,
                 // per the whitepaper:
                 // "As soon as `v` has a candidate value, however, it must cease
@@ -585,6 +610,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         auto ins = mVotes.insert(value);
         if (ins.second)
         {
+            CLOG_INFO(SCP, "We're a leader, adding a new value {}",
+                      mSlot.getSCP().getValueString(value->getValue()));
             updated = true;
             mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
                                                  value->getValue());

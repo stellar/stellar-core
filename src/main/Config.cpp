@@ -224,6 +224,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FLOOD_ADVERT_PERIOD_MS = std::chrono::milliseconds(100);
     FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(500);
 
+    TX_SET_BACKOFF_DELAY_MS = std::chrono::milliseconds(1500);
+
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
@@ -1271,6 +1273,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     throw std::invalid_argument(
                         "bad value for FLOOD_ARB_TX_DAMPING_FACTOR");
                 }
+            }
+            else if (item.first == "TX_SET_BACKOFF_DELAY_MS")
+            {
+                TX_SET_BACKOFF_DELAY_MS =
+                    std::chrono::milliseconds(readInt<int>(item, 1));
             }
             else if (item.first == "PREFERRED_PEERS")
             {

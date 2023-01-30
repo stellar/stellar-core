@@ -2956,4 +2956,69 @@ TEST_CASE("overlay pull mode with many peers",
 
     REQUIRE(getSentDemandCount(apps[0]) == maxRetry);
 }
+
+TEST_CASE("overlay tx set fetching test", "[overlay][acceptance]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+    SIMULATION_CREATE_NODE(Node3);
+
+    // Not at all a safe quorum set
+    // but this ensures that node 1 is definitely node 1's leader,
+    // so it'll definitely nominate the generated load right away.
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    auto node1 = simulation->addNode(vNode1SecretKey, qSet);
+    auto node2 = simulation->addNode(vNode2SecretKey, qSet);
+    auto node3 = simulation->addNode(vNode3SecretKey, qSet);
+
+    // Node 1 <-> Node 2 <-> Node 3
+    // When Node 3 first hears about a nonempty tx set from Node 2,
+    // Node 2 doesn't have the tx set yet. (only the hash)
+    simulation->addConnection(vNode1NodeID, vNode2NodeID);
+    simulation->addConnection(vNode2NodeID, vNode3NodeID);
+    auto con1 = simulation->getLoopbackConnection(vNode1NodeID, vNode2NodeID);
+    auto con2 = simulation->getLoopbackConnection(vNode2NodeID, vNode3NodeID);
+    con1->getInitiator()->suspendTxFlooding();
+    con1->getAcceptor()->suspendTxFlooding();
+    con2->getAcceptor()->suspendTxFlooding();
+
+    simulation->startAllNodes();
+
+    REQUIRE(node1->getLedgerManager().isSynced());
+    REQUIRE(node2->getLedgerManager().isSynced());
+    REQUIRE(node3->getLedgerManager().isSynced());
+
+    auto& loadGen = node1->getLoadGenerator();
+    auto const numAccounts = 1;
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ numAccounts,
+                                                /* txRate */ 1,
+                                                /* batchSize */ 1));
+
+    auto& loadGenDone =
+        node1->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Node 1 is its own quorum. So when Node 1 generates the load,
+    // it immediately closes a ledger with it.
+    // Remember that ledger, and let the other three nodes catch up to it.
+    auto ledger = node1->getLedgerManager().getLastClosedLedgerNum();
+
+    // As long as all the other nodes can catch up to `ledger`,
+    // we can be certain that they were able to get all the tx sets.
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(ledger, 10); },
+        ledger * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
 }

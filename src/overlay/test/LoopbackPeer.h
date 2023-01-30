@@ -35,6 +35,15 @@ class LoopbackPeer : public Peer
 
     bool mDamageCert{false};
     bool mDamageAuth{false};
+
+    // Test tx set flooding by suspending tx flooding.
+    // If we allow tx flooding, it is possible that
+    // nodes don't need to flood tx sets because
+    // nodes may have the exact same txns
+    // in their TransactionQueue.
+    // This is more likely to be true
+    // esp in test environments with not many real-world obstacles.
+    bool mSuspendTxFlooding{false};
     std::bernoulli_distribution mDuplicateProb{0.0};
     std::bernoulli_distribution mReorderProb{0.0};
     std::bernoulli_distribution mDamageProb{0.0};
@@ -109,6 +118,12 @@ class LoopbackPeer : public Peer
 
     double getReorderProbability() const;
     void setReorderProbability(double d);
+
+    void
+    suspendTxFlooding()
+    {
+        mSuspendTxFlooding = true;
+    }
 
     void clearInAndOutQueues();
 
