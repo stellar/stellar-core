@@ -25,5 +25,5 @@
 	ignore = dirty
 [submodule "src/protocol-next/xdr"]
 	path = src/protocol-next/xdr
-	url = https://github.com/dmkozh/stellar-xdr-next.git
+	url = https://github.com/stellar/stellar-xdr
 	branch = next

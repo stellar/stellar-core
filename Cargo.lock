@@ -580,7 +580,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#90ea20243dd10512f8b75a80241effbcc26d6632"
+source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#b93d4b2b7a7bd84a1d4195577c9e98d6fd25bccd"
 dependencies = [
  "crate-git-revision",
  "soroban-env-macros",
@@ -592,7 +592,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-host"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#90ea20243dd10512f8b75a80241effbcc26d6632"
+source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#b93d4b2b7a7bd84a1d4195577c9e98d6fd25bccd"
 dependencies = [
  "backtrace",
  "curve25519-dalek",
@@ -614,7 +614,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-macros"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#90ea20243dd10512f8b75a80241effbcc26d6632"
+source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#b93d4b2b7a7bd84a1d4195577c9e98d6fd25bccd"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -629,7 +629,7 @@ dependencies = [
 [[package]]
 name = "soroban-native-sdk-macros"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#90ea20243dd10512f8b75a80241effbcc26d6632"
+source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#b93d4b2b7a7bd84a1d4195577c9e98d6fd25bccd"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -640,7 +640,7 @@ dependencies = [
 [[package]]
 name = "soroban-test-wasms"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#90ea20243dd10512f8b75a80241effbcc26d6632"
+source = "git+https://github.com/dmkozh/rs-soroban-env.git?branch=auth_next#b93d4b2b7a7bd84a1d4195577c9e98d6fd25bccd"
 
 [[package]]
 name = "soroban-wasmi"
@@ -694,7 +694,7 @@ dependencies = [
 [[package]]
 name = "stellar-xdr"
 version = "0.0.12"
-source = "git+https://github.com/dmkozh/rs-stellar-xdr.git?branch=auth_next#2bcb3ed47c867634f2e2b9a8fbfc65cd03dd0f4e"
+source = "git+https://github.com/stellar/rs-stellar-xdr?rev=763b104#763b104d0eb0147c0be94620254c223677fd4b7b"
 dependencies = [
  "base64",
  "crate-git-revision",

@@ -29,8 +29,8 @@ features = ["vm"]
 
 [dependencies.stellar-xdr]
 version = "0.0.12"
-git = "https://github.com/dmkozh/rs-stellar-xdr.git"
-branch = "auth_next"
+git = "https://github.com/stellar/rs-stellar-xdr"
+rev = "763b104"
 default-features = false
 
 [dependencies.soroban-test-wasms]
