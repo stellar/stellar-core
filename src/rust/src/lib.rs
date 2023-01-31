@@ -38,6 +38,7 @@ mod rust_bridge {
     struct InvokeHostFunctionOutput {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
+        diagnostic_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
@@ -46,6 +47,7 @@ mod rust_bridge {
     struct PreflightHostFunctionOutput {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
+        diagnostic_events: Vec<RustBuf>,
         storage_footprint: RustBuf,
         cpu_insns: u64,
         mem_bytes: u64,

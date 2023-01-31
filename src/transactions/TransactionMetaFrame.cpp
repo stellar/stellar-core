@@ -263,6 +263,23 @@ TransactionMetaFrame::pushContractEvents(xdr::xvector<OperationEvents>&& events)
     }
 }
 
+void
+TransactionMetaFrame::pushDiagnosticEvents(
+    xdr::xvector<OperationDiagnosticEvents>&& events)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        // Do nothing, until v3 we don't create events.
+        break;
+    case 3:
+        mTransactionMeta.v3().diagnosticEvents = std::move(events);
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
 Hash
 TransactionMetaFrame::getHashOfMetaHashes(TransactionMeta const& tm)
 {

@@ -15,9 +15,9 @@ use std::{cell::RefCell, fmt::Display, io::Cursor, panic, pin::Pin, rc::Rc};
 
 use soroban_env_host::{
     budget::Budget,
-    events::{DebugError, DebugEvent, Events, HostEvent},
+    events::{DebugError, DebugEvent, Event, Events},
     storage::{self, AccessType, Footprint, FootprintMap, SnapshotSource, Storage, StorageMap},
-    xdr,
+    xdr::{self, ContractEvent, DiagnosticEvent},
     xdr::{
         AccountId, ContractAuth, HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint,
         LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
@@ -80,6 +80,17 @@ fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
 fn xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
     let data = xdr_to_vec_u8(t)?;
     Ok(RustBuf { data })
+}
+
+fn event_to_diagnostic_event_rust_buf(
+    ev: &ContractEvent,
+    failed_call: bool,
+) -> Result<RustBuf, HostError> {
+    let dev = DiagnosticEvent {
+        in_successful_contract_call: !failed_call,
+        event: ev.clone(),
+    };
+    xdr_to_rust_buf(&dev)
 }
 
 fn xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
@@ -234,18 +245,44 @@ fn extract_contract_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
     events
         .0
         .iter()
-        .filter_map(|e| match e {
-            HostEvent::Contract(ce) => Some(xdr_to_rust_buf(ce)),
-            HostEvent::Debug(_) => None,
+        .filter_map(|e| {
+            if e.failed_call {
+                return None;
+            }
+
+            match &e.event {
+                Event::Contract(ce) => Some(xdr_to_rust_buf(ce)),
+                Event::Debug(_) => None,
+                Event::StructuredDebug(_) => None,
+            }
+        })
+        .collect()
+}
+
+// Note that this also includes Contract events so the ordering between
+// Contract and StructuredDebug events can be preserved. This does mean that
+// the Contract events will be duplicated in the meta if diagnostics are on - in
+// the hashed portion of the meta, and in the non-hashed diagnostic events.
+fn extract_diagnostic_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
+    events
+        .0
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Contract(ce) => Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call)),
+            Event::Debug(_) => None,
+            Event::StructuredDebug(ce) => {
+                Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call))
+            }
         })
         .collect()
 }
 
 fn log_debug_events(events: &Events) {
     for e in events.0.iter() {
-        match e {
-            HostEvent::Contract(_) => (),
-            HostEvent::Debug(de) => debug!("contract HostEvent::Debug: {}", de),
+        match &e.event {
+            Event::Contract(_) => (),
+            Event::Debug(de) => debug!("contract HostEvent::Debug: {}", de),
+            Event::StructuredDebug(sd) => debug!("contract HostEvent::StructuredDebug: {:?}", sd),
         }
     }
 }
@@ -321,9 +358,11 @@ fn invoke_host_function_or_maybe_panic(
     let modified_ledger_entries =
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map, &budget)?;
     let contract_events = extract_contract_events(&events)?;
+    let diagnostic_events = extract_diagnostic_events(&events)?;
     Ok(InvokeHostFunctionOutput {
         result_value,
         contract_events,
+        diagnostic_events,
         modified_ledger_entries,
         cpu_insns: budget.get_cpu_insns_count(),
         mem_bytes: budget.get_mem_bytes_count(),
@@ -484,11 +523,13 @@ fn preflight_host_function_or_maybe_panic(
         &budget,
     )?)?;
     let contract_events = extract_contract_events(&events)?;
+    let diagnostic_events = extract_diagnostic_events(&events)?;
     let result_value = xdr_to_rust_buf(&val)?;
 
     Ok(PreflightHostFunctionOutput {
         result_value,
         contract_events,
+        diagnostic_events,
         storage_footprint,
         cpu_insns: budget.get_cpu_insns_count(),
         mem_bytes: budget.get_mem_bytes_count(),

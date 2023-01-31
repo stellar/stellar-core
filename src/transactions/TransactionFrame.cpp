@@ -122,6 +122,12 @@ TransactionFrame::pushContractEvents(OperationEvents const& evts)
 {
     mEvents.emplace_back(evts);
 }
+
+void
+TransactionFrame::pushDiagnosticEvents(OperationDiagnosticEvents const& evts)
+{
+    mDiagnosticEvents.emplace_back(evts);
+}
 #endif
 
 TransactionEnvelope const&
@@ -1170,6 +1176,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
 
             outerMeta.pushContractEvents(std::move(mEvents));
+            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
 #endif
         }
         else

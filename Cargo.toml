@@ -1,6 +1,13 @@
 [workspace]
 members = ["src/rust"]
 
+#[patch."https://github.com/stellar/rs-soroban-env"]
+#soroban-env-common = { path = "../rs-soroban-env/soroban-env-common" }
+#soroban-env-host = { path = "../rs-soroban-env/soroban-env-host/" }
+
+#[patch."https://github.com/stellar/rs-stellar-xdr"]
+#stellar-xdr = { path = "../rs-stellar-xdr/" }
+
 # [patch.crates-io]
 # stellar-xdr = { git = "https://github.com/stellar/rs-stellar-xdr", rev = "2775f4b6" }
 # wasmi = { package = "soroban-wasmi", git = "https://github.com/stellar/wasmi", rev = "862b32f5" }

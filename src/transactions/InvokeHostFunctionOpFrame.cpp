@@ -87,6 +87,23 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
     throw std::runtime_error("InvokeHostFunctionOpFrame::doApply needs Config");
 }
 
+void
+InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
+    Config const& cfg, InvokeHostFunctionOutput const& output)
+{
+    if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        OperationDiagnosticEvents diagnosticEvents;
+        for (auto const& e : output.diagnostic_events)
+        {
+            DiagnosticEvent evt;
+            xdr::xdr_from_opaque(e.data, evt);
+            diagnosticEvents.events.emplace_back(evt);
+        }
+        mParentTx.pushDiagnosticEvents(diagnosticEvents);
+    }
+}
+
 struct HostFunctionMetrics
 {
     medida::MetricsRegistry& mMetrics;
@@ -347,6 +364,8 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         events.events.push_back(evt);
     }
     mParentTx.pushContractEvents(events);
+
+    maybePopulateDiagnosticEvents(cfg, out);
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     xdr::xdr_from_opaque(out.result_value.data, innerResult().success());
