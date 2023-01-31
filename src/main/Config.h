@@ -260,6 +260,9 @@ class Config : public std::enable_shared_from_this<Config>
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES` bytes
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
+    // For testing only, remove later
+    uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
+
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;
