@@ -24,6 +24,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "rust/RustBridge.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include <crypto/SHA.h>
 
 namespace stellar
 {
@@ -37,9 +38,11 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
     info.protocol_version = hdr.ledgerVersion;
     info.sequence_number = hdr.ledgerSeq;
     info.timestamp = hdr.scpValue.closeTime;
-    for (auto c : cfg.NETWORK_PASSPHRASE)
+    // TODO: move network id to config to not recompute hash
+    auto networkID = sha256(cfg.NETWORK_PASSPHRASE);
+    for (auto c : networkID)
     {
-        info.network_passphrase.push_back(static_cast<unsigned char>(c));
+        info.network_id.push_back(static_cast<unsigned char>(c));
     }
     return info;
 }
@@ -267,6 +270,17 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         metrics.noteWriteEntry(lk, nByte);
     }
 
+    rust::Vec<CxxBuf> contractAuthEntryCxxBufs;
+    if (mInvokeHostFunction.function.type() ==
+        HOST_FUNCTION_TYPE_INVOKE_CONTRACT)
+    {
+        contractAuthEntryCxxBufs.reserve(mInvokeHostFunction.auth.size());
+        for (auto const& authEntry : mInvokeHostFunction.auth)
+        {
+            contractAuthEntryCxxBufs.push_back(toCxxBuf(authEntry));
+        }
+    }
+
     InvokeHostFunctionOutput out;
     try
     {
@@ -274,6 +288,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         out = rust_bridge::invoke_host_function(
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
+            contractAuthEntryCxxBufs,
             getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
         metrics.mSuccess = true;
     }

@@ -7,6 +7,9 @@ members = ["src/rust"]
 # soroban-env-common = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70" }
 # soroban-native-sdk-macros = { git = "https://github.com/stellar/rs-soroban-env", rev = "eda2ab70" }
 
+[patch.crates-io]
+stellar-xdr = { git = "https://github.com/dmkozh/rs-stellar-xdr.git", branch = "auth_next" }
+
 [profile.release]
 codegen-units = 1
 lto = true
