@@ -155,12 +155,15 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
         SECTION("basic capacity accounting")
         {
+            conn.getInitiator()->setOutboundQueueLimit(txSize * 2);
+
             // Basic capacity math
             conn.getInitiator()->sendMessage(
                 std::make_shared<StellarMessage>(msg));
             REQUIRE(conn.getInitiator()
                         ->getFlowControlCapacityBytes()
                         ->getOutboundCapacity() == expectedCapacity);
+            REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
 
             conn.getAcceptor()->recvMessage(msg);
             REQUIRE(conn.getAcceptor()
