@@ -1103,10 +1103,18 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     uint32_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     if (type == TRANSACTION)
     {
-        // Depending on flow control mode, restrict max number of bytes in the
-        // outbound tx queue
-        while (mFlowControlBytes &&
-               mTxQueueByteCount > getOutboundQueueByteLimit())
+        auto isOverLimit = [&](auto const& queue) {
+            bool overLimit = queue.size() > limit;
+            if (mFlowControlBytes)
+            {
+                overLimit = overLimit ||
+                            mTxQueueByteCount > getOutboundQueueByteLimit();
+            }
+            return overLimit;
+        };
+
+        // Trim based on either message count limit or byte limit
+        while (isOverLimit(queue))
         {
             dropped++;
             size_t s = mFlowControlBytes->getMsgResourceCount(
@@ -1114,15 +1122,8 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
             releaseAssert(mTxQueueByteCount >= s);
             mTxQueueByteCount -= s;
             queue.pop_front();
-            getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
         }
-
-        if (queue.size() > limit)
-        {
-            auto droppedByCount = queue.size() - limit;
-            queue.erase(queue.begin(), queue.begin() + droppedByCount);
-            getOverlayMetrics().mOutboundQueueDropTxs.Mark(droppedByCount);
-        }
+        getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
     }
     else if (type == SCP_MESSAGE)
     {
@@ -1226,6 +1227,12 @@ Peer::maybeSendNextBatch()
             {
                 om.mOutboundQueueDelayTxs.Update(diff);
                 mPeerMetrics.mOutboundQueueDelayTxs.Update(diff);
+                if (mFlowControlBytes)
+                {
+                    size_t s = mFlowControlBytes->getMsgResourceCount(msg);
+                    releaseAssert(mTxQueueByteCount >= s);
+                    mTxQueueByteCount -= s;
+                }
             }
             break;
             case SCP_MESSAGE:

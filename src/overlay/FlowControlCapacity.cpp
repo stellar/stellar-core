@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -18,6 +19,7 @@ FlowControlCapacity::FlowControlCapacity(Application& app, NodeID nodeID)
 void
 FlowControlCapacity::checkCapacityInvariants() const
 {
+    ZoneScoped;
     auto limits = getCapacityLimits();
     releaseAssert(getCapacityLimits().mFloodCapacity >=
                   mCapacity.mFloodCapacity);
@@ -35,6 +37,7 @@ FlowControlCapacity::checkCapacityInvariants() const
 void
 FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 {
+    ZoneScoped;
     if (mApp.getOverlayManager().isFloodMessage(msg))
     {
         releaseAssert(hasOutboundCapacity(msg));
@@ -45,6 +48,7 @@ FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 bool
 FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
 {
+    ZoneScoped;
     checkCapacityInvariants();
     auto msgResources = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
@@ -75,6 +79,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
 uint64_t
 FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
 {
+    ZoneScoped;
     uint64_t releasedFloodCapacity = 0;
     size_t resourcesFreed = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
@@ -122,6 +127,7 @@ FlowControlCapacityMessages::getMsgResourceCount(StellarMessage const& msg)
 void
 FlowControlCapacityMessages::releaseOutboundCapacity(StellarMessage const& msg)
 {
+    ZoneScoped;
     releaseAssert(msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED);
     auto numMessages = Peer::getNumMessages(msg);
     if (!hasOutboundCapacity(msg) && numMessages != 0)
@@ -161,6 +167,7 @@ FlowControlCapacityBytes::getMsgResourceCount(StellarMessage const& msg)
 void
 FlowControlCapacityBytes::releaseOutboundCapacity(StellarMessage const& msg)
 {
+    ZoneScoped;
     releaseAssert(msg.type() == SEND_MORE_EXTENDED);
     if (!hasOutboundCapacity(msg) &&
         (msg.sendMoreExtendedMessage().numBytes != 0))

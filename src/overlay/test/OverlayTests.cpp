@@ -687,6 +687,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
         StellarMessage msg;
         msg.type(TRANSACTION);
+        auto byteSize = xdr::xdr_argpack_size(msg);
         SECTION("trim based on message count")
         {
             for (uint32_t i = 0; i < limit + 10; ++i)
@@ -697,12 +698,13 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
 
             REQUIRE(peer->getTxQueueByteCount() <
                     peer->getOutboundQueueByteLimit());
+            REQUIRE(peer->getTxQueueByteCount() == (limit * byteSize));
             REQUIRE(txQueue.size() == limit);
         }
         SECTION("trim based on byte count")
         {
-            auto byteLimit = xdr::xdr_argpack_size(msg);
-            peer->setOutboundQueueLimit(byteLimit);
+            // Can fit at most 1 message
+            peer->setOutboundQueueLimit(byteSize * 3 / 2);
 
             for (uint32_t i = 0; i < 3; ++i)
             {
@@ -710,7 +712,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                     std::make_shared<StellarMessage const>(msg));
             }
 
-            REQUIRE(peer->getTxQueueByteCount() == byteLimit);
+            REQUIRE(peer->getTxQueueByteCount() == byteSize);
             REQUIRE(txQueue.size() == 1);
         }
     }
