@@ -303,7 +303,7 @@ fn invoke_host_function_or_maybe_panic(
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
-    host.set_authorization_entries(auth_entries);
+    host.set_authorization_entries(auth_entries)?;
 
     debug!(
         target: TX,
