@@ -288,8 +288,8 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         out = rust_bridge::invoke_host_function(
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
-            contractAuthEntryCxxBufs,
-            getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
+            contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
+            ledgerEntryCxxBufs);
         metrics.mSuccess = true;
     }
     catch (std::exception&)
