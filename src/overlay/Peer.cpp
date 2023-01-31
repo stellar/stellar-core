@@ -52,6 +52,12 @@ using namespace soci;
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 
+size_t
+Peer::getOutboundQueueByteLimit() const
+{
+    return mApp.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
+}
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
