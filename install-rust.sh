@@ -19,6 +19,14 @@ set -x
 # rust-toolchain.toml. This file will pick it up automatically.
 RUST_VERSION=$(perl -ne 'if (/channel\s+=\s+"(\d+\.\d+)"/) { print $1 }' rust-toolchain.toml)
 
+# A specific version of rustup is selected for checksum stability. This install
+# script is intended to continue to work even after new versions of rustup are
+# released and it will continue to do so if we pin to a specific version. If we
+# do not pin to a specific version the checksums will fail for previously tagged
+# versions of core if the repository is cloned and this script is triggered
+# either manually or via one of the Docker image build processes.
+RUSTUP_VERSION=1.25.1
+
 # This is the SHA256 if the rustup-init binary (which is the same as rustup --
 # it renames itself) and should be retrieved from a trusted source (eg. the rust
 # website and/or by running sha256sum on a local copy of rustup you believe to
@@ -50,7 +58,7 @@ esac
 # check their PGP signatures match the Rust project's signing key (the signing
 # key is embedded in rustup).
 rm -f rustup-init
-curl --fail --output rustup-init "https://static.rust-lang.org/rustup/dist/${HOST_TRIPLE}/rustup-init"
+curl --fail --output rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${HOST_TRIPLE}/rustup-init"
 echo "${RUSTUP_SHA256} rustup-init" | sha256sum --check
 chmod 0755 rustup-init
 ./rustup-init -y --verbose --profile default --default-host "${HOST_TRIPLE}" --default-toolchain "${RUST_VERSION}"
