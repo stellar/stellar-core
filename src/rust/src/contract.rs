@@ -201,10 +201,6 @@ fn build_storage_map_from_xdr_ledger_entries(
 fn build_contract_auth_entries_from_xdr(
     contract_auth_entries_xdr: &Vec<CxxBuf>,
 ) -> Result<Vec<ContractAuth>, CoreHostError> {
-    // contract_auth_entries_xdr
-    //     .iter()
-    //     .map(|buf| xdr_from_cxx_buf::<ContractAuth>(buf))
-    //     .collect::<Result<Vec<ContractAuth>, CoreHostError>>()
     let mut res = vec![];
     for buf in contract_auth_entries_xdr {
         res.push(xdr_from_cxx_buf::<ContractAuth>(buf)?);
