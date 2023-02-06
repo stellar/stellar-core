@@ -17,22 +17,10 @@ rustc-simple-version = "0.1.0"
 
 [dependencies.soroban-env-host]
 version = "0.0.12"
-git = "https://github.com/dmkozh/rs-soroban-env.git"
-branch = "auth_next"
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "0682a7006e07b64704fcddb8b92e86d420652248"
 features = ["vm"]
-
-[dependencies.soroban-env-common]
-version = "0.0.12"
-git = "https://github.com/dmkozh/rs-soroban-env.git"
-branch = "auth_next"
-features = ["vm"]
-
-[dependencies.stellar-xdr]
-version = "0.0.12"
-git = "https://github.com/stellar/rs-stellar-xdr"
-rev = "763b104"
-default-features = false
 
 [dependencies.soroban-test-wasms]
-git = "https://github.com/dmkozh/rs-soroban-env.git"
-branch = "auth_next"
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "0682a7006e07b64704fcddb8b92e86d420652248"
