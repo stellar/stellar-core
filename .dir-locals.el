@@ -20,5 +20,4 @@
          (c-file-style . "stroustrup")
          (eval . (add-to-list 'auto-mode-alist '("\\.h\\'" . c++-mode)))
          (eval . (if (boundp 'c-offsets-alist)
-                     (add-to-list 'c-offsets-alist '(innamespace . -))))
-	 )))
+                     (add-to-list 'c-offsets-alist '(innamespace . -)))))))
