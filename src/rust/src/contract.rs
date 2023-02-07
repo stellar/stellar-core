@@ -19,9 +19,10 @@ use soroban_env_host::{
     storage::{self, AccessType, Footprint, FootprintMap, SnapshotSource, Storage, StorageMap},
     xdr,
     xdr::{
-        AccountId, HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint, LedgerKey,
-        LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData, LedgerKeyTrustLine,
-        ReadXdr, ScHostContextErrorCode, ScUnknownErrorCode, WriteXdr, XDR_FILES_SHA256,
+        AccountId, ContractAuth, HostFunction, LedgerEntry, LedgerEntryData, LedgerFootprint,
+        LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
+        LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode, ScUnknownErrorCode, WriteXdr,
+        XDR_FILES_SHA256,
     },
     Host, HostError, LedgerInfo,
 };
@@ -33,7 +34,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             protocol_version: c.protocol_version,
             sequence_number: c.sequence_number,
             timestamp: c.timestamp,
-            network_passphrase: c.network_passphrase,
+            network_id: c.network_id.try_into().unwrap(),
             base_reserve: c.base_reserve,
         }
     }
@@ -197,6 +198,16 @@ fn build_storage_map_from_xdr_ledger_entries(
     Ok(map)
 }
 
+fn build_contract_auth_entries_from_xdr(
+    contract_auth_entries_xdr: &Vec<CxxBuf>,
+) -> Result<Vec<ContractAuth>, CoreHostError> {
+    let mut res = vec![];
+    for buf in contract_auth_entries_xdr {
+        res.push(xdr_from_cxx_buf::<ContractAuth>(buf)?);
+    }
+    Ok(res)
+}
+
 /// Iterates over the storage map and serializes the read-write ledger entries
 /// back to XDR.
 fn build_xdr_ledger_entries_from_storage_map(
@@ -249,6 +260,7 @@ pub(crate) fn invoke_host_function(
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
+    contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
@@ -257,6 +269,7 @@ pub(crate) fn invoke_host_function(
             hf_buf,
             footprint_buf,
             source_account_buf,
+            contract_auth_entries,
             ledger_info,
             ledger_entries,
         )
@@ -271,6 +284,7 @@ fn invoke_host_function_or_maybe_panic(
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
+    contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
@@ -281,9 +295,11 @@ fn invoke_host_function_or_maybe_panic(
     let footprint = build_storage_footprint_from_xdr(&budget, footprint_buf)?;
     let map = build_storage_map_from_xdr_ledger_entries(&budget, &footprint, ledger_entries)?;
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
+    let auth_entries = build_contract_auth_entries_from_xdr(contract_auth_entries)?;
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
+    host.set_authorization_entries(auth_entries)?;
 
     debug!(
         target: TX,

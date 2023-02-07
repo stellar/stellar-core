@@ -16,11 +16,11 @@ base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
 
 [dependencies.soroban-env-host]
-version = "0.0.11"
+version = "0.0.12"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "258b86d"
+rev = "d65b04f1793c48471995bf67850fffee53b90bd2"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "258b86d"
+rev = "d65b04f1793c48471995bf67850fffee53b90bd2"

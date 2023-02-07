@@ -68,7 +68,7 @@ mod rust_bridge {
         pub protocol_version: u32,
         pub sequence_number: u32,
         pub timestamp: u64,
-        pub network_passphrase: Vec<u8>,
+        pub network_id: Vec<u8>,
         pub base_reserve: u32,
     }
 
@@ -82,6 +82,7 @@ mod rust_bridge {
             hf_buf: &CxxBuf,
             footprint: &CxxBuf,
             source_account: &CxxBuf,
+            contract_auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
         ) -> Result<InvokeHostFunctionOutput>;
