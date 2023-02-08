@@ -447,6 +447,7 @@ fn preflight_host_function_or_maybe_panic(
 
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
+    host.switch_to_recording_auth();
 
     debug!(
         target: TX,
