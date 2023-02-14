@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get -y install iproute2 procps lsb-release \
                        git build-essential pkg-config autoconf automake libtool \
-                       bison flex libpq-dev parallel libunwind-dev \
+                       bison flex sed perl libpq-dev parallel libunwind-dev \
                        clang-12 libc++abi-12-dev libc++-12-dev \
                        postgresql curl
 

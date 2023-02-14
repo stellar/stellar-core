@@ -62,6 +62,7 @@ presumably depend on your operating system's setting might cause inconsistencies
       * `Bison`
       * `gcc`
       * `sed`
+      * `perl`
       * `curl`
     * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
 * Download and install cygwin 64 bit build from https://cygwin.com/install.html
@@ -71,6 +72,7 @@ presumably depend on your operating system's setting might cause inconsistencies
         * `curl` (command line)
         * `gcc-core`
         * `sed`
+        * `perl`
     * Add `c:\cygwin64\bin` to the end of `%PATH%` (at least for Visual Studio)
 
     > Note: if you're going to use 'cp'and 'mkdir' from cygwin (tests do),
