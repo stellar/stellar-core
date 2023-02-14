@@ -5,6 +5,11 @@
 # of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 set -e
+
+# Without this, ACTUAL_NUM_TESTS will be set to 0 if
+# stellar-core throws an exception below.
+set -o pipefail
+
 export COMMAND="$1"
 if [[ -z "$NUM_PARTITIONS" ]]; then
     NUM_PARTITIONS=1
@@ -38,6 +43,8 @@ perl -e '
          my $test_spec = $ARGV[1];
          my $test_partitions_dir = $ARGV[2];
          my @all_tests = shuffle `./stellar-core test --ll FATAL --list-test-names-only "$test_spec"`;
+         if ($?) {die "stellar-core failed";}
+
          for (my $p = 0; $p < $num_partitions; $p++) {
              open(my $out, ">", "$test_partitions_dir/test-partition-$p.txt");
              for (my $i = $p; $i < @all_tests; $i+=$num_partitions) {
@@ -56,6 +63,11 @@ done
 ACTUAL_NUM_TESTS=$(./stellar-core test --ll FATAL --list-test-names-only "$TEST_SPEC" | awk 'END{print NR}')
 if [[ $NUM_TESTS -ne $ACTUAL_NUM_TESTS ]]; then
     echo "Partitions contain $NUM_TESTS tests, while stellar-core lists $ACTUAL_NUM_TESTS tests"
+    exit 1
+fi
+
+if [[ $NUM_TESTS -eq 0 ]]; then
+    echo "NUM_TESTS is 0 so no tests will be run"
     exit 1
 fi
 
