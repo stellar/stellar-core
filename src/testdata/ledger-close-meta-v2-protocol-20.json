@@ -179,7 +179,7 @@
                 {
                     "result": {
                         "transactionHash": "0db2322d85e9d8ea2421559922bb6107429650ebdad304c907480853d465c10d",
-                        "hashOfMetaHashes": "27ba723b7c0d7a177eec2737834f631a08732c371bb4bfc8dbd37ec698f69ccd"
+                        "hashOfMetaHashes": "10c44d9bf34aab2900919aac3e1e815b9c61d4be567ba206373567fa17228432"
                     },
                     "feeProcessing": [
                         {
@@ -595,11 +595,7 @@
                                 }
                             ],
                             "txChangesAfter": [],
-                            "events": [
-                                {
-                                    "events": []
-                                }
-                            ],
+                            "events": [],
                             "txResult": {
                                 "feeCharged": 100,
                                 "result": {
@@ -622,7 +618,7 @@
                             },
                             "hashes": [
                                 "0737d31b38576c80823e6aa85b45a09ff78745fa3abd6ef8d405ba2533d66172",
-                                "cbbc48750debb8535093b3deaf88ac7f4cff87425576a58de2bac754acdb4616",
+                                "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
                                 "af84e88b1979ab15bfcdbfde2fcd6c9d3a070d86f80cf0ee7fbe11107f998e06"
                             ]
                         }
@@ -631,7 +627,7 @@
                 {
                     "result": {
                         "transactionHash": "66efe325ead9f52082c8908b7813bd96793fd5ff0f1e50fdc50b23f68938dd4d",
-                        "hashOfMetaHashes": "d72450f80f9b67f0e46f0b2cb898d91d3616611494a40cb46cdfcbe7f4e2ed15"
+                        "hashOfMetaHashes": "847cc25b01018aec5d3e1e22b2d8a1c3804675ee6ea9811d75828437558686a5"
                     },
                     "feeProcessing": [
                         {
@@ -931,11 +927,7 @@
                                 }
                             ],
                             "txChangesAfter": [],
-                            "events": [
-                                {
-                                    "events": []
-                                }
-                            ],
+                            "events": [],
                             "txResult": {
                                 "feeCharged": 300,
                                 "result": {
@@ -979,7 +971,7 @@
                             },
                             "hashes": [
                                 "5e76866b312f53a1b1aa40b9c6bf0bde5c5d8735857c5c18e64f9a59f6528433",
-                                "cbbc48750debb8535093b3deaf88ac7f4cff87425576a58de2bac754acdb4616",
+                                "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
                                 "378b89ef6afaa954ea5f891347e31aae15a5504756a384feeabc47e0f60e7217"
                             ]
                         }
