@@ -128,6 +128,8 @@ class Herder
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
+    virtual bool isTracking() const = 0;
+
 #ifdef BUILD_TESTS
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
