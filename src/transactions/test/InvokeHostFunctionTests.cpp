@@ -440,11 +440,14 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
         ltx.commit();
         txm.finalizeHashes();
 
-        REQUIRE(txm.getXDR().v3().events.at(0).events.size() == 3);
-        for (auto const& e : txm.getXDR().v3().events.at(0).events)
+        for (size_t i = 0; i < 3; ++i)
         {
-            REQUIRE(e.type == ContractEventType::CONTRACT);
-            REQUIRE(e.body.v0().data.obj()->type() == SCO_BYTES);
+            REQUIRE(txm.getXDR().v3().events.at(i).events.size() == 1);
+            for (auto const& e : txm.getXDR().v3().events.at(i).events)
+            {
+                REQUIRE(e.type == ContractEventType::CONTRACT);
+                REQUIRE(e.body.v0().data.obj()->type() == SCO_BYTES);
+            }
         }
     }
 }

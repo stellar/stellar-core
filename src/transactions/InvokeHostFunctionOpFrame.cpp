@@ -337,14 +337,16 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
+    OperationEvents events;
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
         metrics.mEmitEventByte += buf.data.size();
         ContractEvent evt;
         xdr::xdr_from_opaque(buf.data, evt);
-        mParentTx.pushContractEvent(evt);
+        events.events.push_back(evt);
     }
+    mParentTx.pushContractEvents(events);
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     xdr::xdr_from_opaque(out.result_value.data, innerResult().success());

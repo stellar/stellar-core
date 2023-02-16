@@ -118,9 +118,9 @@ TransactionFrame::clearCached()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionFrame::pushContractEvent(ContractEvent const& evt)
+TransactionFrame::pushContractEvents(OperationEvents const& evts)
 {
-    mEvents.emplace_back(evt);
+    mEvents.emplace_back(evts);
 }
 #endif
 
@@ -1162,6 +1162,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            auto isSmartTx = mOperations.at(0)->isSmartOperation();
+            if ((isSmartTx && mOperations.size() != mEvents.size()) ||
+                (!isSmartTx && !mEvents.empty()))
+            {
+                throw std::runtime_error("events mismatch");
+            }
+
             outerMeta.pushContractEvents(std::move(mEvents));
 #endif
         }

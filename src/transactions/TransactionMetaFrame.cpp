@@ -247,7 +247,7 @@ TransactionMetaFrame::finalizeHashes()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
+TransactionMetaFrame::pushContractEvents(xdr::xvector<OperationEvents>&& events)
 {
     releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
@@ -256,8 +256,7 @@ TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
         // Do nothing, until v3 we don't create events.
         break;
     case 3:
-        mTransactionMeta.v3().events.emplace_back(
-            OperationEvents{std::move(events)});
+        mTransactionMeta.v3().events = std::move(events);
         break;
     default:
         releaseAssert(false);
