@@ -445,6 +445,16 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         return std::make_shared<StellarMessage const>(msg);
     };
 
+    auto testTimeBasedTrimming =
+        [&](std::deque<Peer::QueuedOutboundMessage> const& queue,
+            StellarMessage const& msg) {
+            peer->addMsgAndMaybeTrimQueue(
+                std::make_shared<StellarMessage const>(msg));
+            REQUIRE(queue.size() == 1);
+            simulation->setCurrentVirtualTime(node->getClock().now() +
+                                              std::chrono::minutes(2));
+        };
+
     SECTION("SCP messages, slot too old")
     {
         for (auto& env : envs)
@@ -458,16 +468,27 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     }
     SECTION("txs, limit reached")
     {
-        uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
-        for (uint32_t i = 0; i < limit + 10; ++i)
+        SECTION("count-based")
         {
-            StellarMessage msg;
-            msg.type(TRANSACTION);
-            peer->addMsgAndMaybeTrimQueue(
-                std::make_shared<StellarMessage const>(msg));
+            uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
+            for (uint32_t i = 0; i < limit + 10; ++i)
+            {
+                StellarMessage msg;
+                msg.type(TRANSACTION);
+                peer->addMsgAndMaybeTrimQueue(
+                    std::make_shared<StellarMessage const>(msg));
+            }
+            REQUIRE(txQueue.size() == limit);
         }
-
-        REQUIRE(txQueue.size() == limit);
+        SECTION("time-based")
+        {
+            for (uint32_t i = 0; i < 10; ++i)
+            {
+                StellarMessage msg;
+                msg.type(TRANSACTION);
+                testTimeBasedTrimming(txQueue, msg);
+            }
+        }
     }
     SECTION("obsolete SCP messages")
     {
@@ -531,39 +552,59 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     }
     SECTION("advert demand limit reached")
     {
-        uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
-        for (uint32_t i = 0; i < limit + 10; ++i)
+        SECTION("count-based")
         {
+            uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
+            for (uint32_t i = 0; i < limit + 10; ++i)
+            {
+                StellarMessage adv, dem, txn;
+                adv.type(FLOOD_ADVERT);
+                dem.type(FLOOD_DEMAND);
+                adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
+                dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+                peer->addMsgAndMaybeTrimQueue(
+                    std::make_shared<StellarMessage const>(adv));
+                peer->addMsgAndMaybeTrimQueue(
+                    std::make_shared<StellarMessage const>(dem));
+            }
+
+            REQUIRE(advertQueue.size() == limit);
+            REQUIRE(demandQueue.size() == limit);
+
             StellarMessage adv, dem, txn;
             adv.type(FLOOD_ADVERT);
             dem.type(FLOOD_DEMAND);
-            adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
-            dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+            for (auto i = 0; i < 2; i++)
+            {
+                adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
+                dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+            }
+
             peer->addMsgAndMaybeTrimQueue(
                 std::make_shared<StellarMessage const>(adv));
             peer->addMsgAndMaybeTrimQueue(
                 std::make_shared<StellarMessage const>(dem));
+
+            REQUIRE(advertQueue.size() == limit - 1);
+            REQUIRE(demandQueue.size() == limit - 1);
         }
-
-        REQUIRE(advertQueue.size() == limit);
-        REQUIRE(demandQueue.size() == limit);
-
-        StellarMessage adv, dem, txn;
-        adv.type(FLOOD_ADVERT);
-        dem.type(FLOOD_DEMAND);
-        for (auto i = 0; i < 2; i++)
+        SECTION("time-based")
         {
-            adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
-            dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+            Hash hash;
+            advertQueue.clear();
+            demandQueue.clear();
+            for (uint32_t i = 0; i < 10; ++i)
+            {
+                StellarMessage adv, dem;
+                adv.type(FLOOD_ADVERT);
+                adv.floodAdvert().txHashes.push_back(hash);
+                testTimeBasedTrimming(advertQueue, adv);
+
+                dem.type(FLOOD_DEMAND);
+                dem.floodDemand().txHashes.push_back(hash);
+                testTimeBasedTrimming(demandQueue, dem);
+            }
         }
-
-        peer->addMsgAndMaybeTrimQueue(
-            std::make_shared<StellarMessage const>(adv));
-        peer->addMsgAndMaybeTrimQueue(
-            std::make_shared<StellarMessage const>(dem));
-
-        REQUIRE(advertQueue.size() == limit - 1);
-        REQUIRE(demandQueue.size() == limit - 1);
     }
 }
 

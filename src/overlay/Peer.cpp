@@ -44,6 +44,8 @@ namespace stellar
 {
 
 constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
+constexpr std::chrono::seconds const OUTBOUND_QUEUE_TIMEOUT =
+    std::chrono::seconds(30);
 
 using namespace std;
 using namespace soci;
@@ -975,6 +977,16 @@ Peer::hasReadingCapacity() const
     return mCapacity.mTotalCapacity > 0;
 }
 
+bool
+dropMessageAfterTimeout(Peer::QueuedOutboundMessage const& queuedMsg,
+                        VirtualClock::time_point now)
+{
+    auto const& msg = *(queuedMsg.mMessage);
+    bool dropType = msg.type() == TRANSACTION || msg.type() == FLOOD_ADVERT ||
+                    msg.type() == FLOOD_DEMAND;
+    return dropType && (now - queuedMsg.mTimeEmplaced > OUTBOUND_QUEUE_TIMEOUT);
+}
+
 void
 Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 {
@@ -983,6 +995,8 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     releaseAssert(msg);
     auto type = msg->type();
     size_t msgQInd = 0;
+    auto now = mApp.getClock().now();
+
     switch (type)
     {
     case SCP_MESSAGE:
@@ -1025,8 +1039,13 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         {
             dropped = queue.size() - limit;
             queue.erase(queue.begin(), queue.begin() + dropped);
-            getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
         }
+        while (!queue.empty() && dropMessageAfterTimeout(queue.front(), now))
+        {
+            ++dropped;
+            queue.pop_front();
+        }
+        getOverlayMetrics().mOutboundQueueDropTxs.Mark(dropped);
     }
     else if (type == SCP_MESSAGE)
     {
@@ -1065,7 +1084,8 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     else if (type == FLOOD_ADVERT)
     {
-        while (mAdvertQueueTxHashCount > limit)
+        while (mAdvertQueueTxHashCount > limit ||
+               (!queue.empty() && dropMessageAfterTimeout(queue.front(), now)))
         {
             dropped++;
             size_t s = queue.front().mMessage->floodAdvert().txHashes.size();
@@ -1077,7 +1097,8 @@ Peer::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     else if (type == FLOOD_DEMAND)
     {
-        while (mDemandQueueTxHashCount > limit)
+        while (mDemandQueueTxHashCount > limit ||
+               (!queue.empty() && dropMessageAfterTimeout(queue.front(), now)))
         {
             dropped++;
             size_t s = queue.front().mMessage->floodDemand().txHashes.size();
