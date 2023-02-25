@@ -1887,14 +1887,14 @@ TEST_CASE("disconnected topology recovery")
         auto nodeIDs = simulation->getNodeIDs();
 
         // Disconnected graph 0-1-2-3 and 4-5-6
-        simulation->addConnection(nodeIDs[0], nodeIDs[1]);
-        simulation->addConnection(nodeIDs[1], nodeIDs[2]);
-        simulation->addConnection(nodeIDs[2], nodeIDs[3]);
-        simulation->addConnection(nodeIDs[3], nodeIDs[0]);
+        simulation->addPendingConnection(nodeIDs[0], nodeIDs[1]);
+        simulation->addPendingConnection(nodeIDs[1], nodeIDs[2]);
+        simulation->addPendingConnection(nodeIDs[2], nodeIDs[3]);
+        simulation->addPendingConnection(nodeIDs[3], nodeIDs[0]);
 
-        simulation->addConnection(nodeIDs[6], nodeIDs[4]);
-        simulation->addConnection(nodeIDs[4], nodeIDs[5]);
-        simulation->addConnection(nodeIDs[5], nodeIDs[6]);
+        simulation->addPendingConnection(nodeIDs[6], nodeIDs[4]);
+        simulation->addPendingConnection(nodeIDs[4], nodeIDs[5]);
+        simulation->addPendingConnection(nodeIDs[5], nodeIDs[6]);
 
         simulation->startAllNodes();
 

@@ -41,6 +41,7 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     , mQuorumSetAdjuster(qSetAdjust)
 {
     mIdleApp = Application::create(mClock, newConfig());
+    mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
 }
 
 Simulation::~Simulation()
@@ -116,13 +117,25 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     Application::pointer app;
     if (newDB)
     {
-        app = Application::create(*clock, *cfg, newDB);
+        if (mMode == OVER_LOOPBACK)
+        {
+            app =
+                createTestApplication<ApplicationLoopbackOverlay, Simulation&>(
+                    *clock, *cfg, *this, newDB, false);
+        }
+        else
+        {
+            app = createTestApplication(*clock, *cfg, newDB, false);
+        }
     }
     else
     {
         app = setupApp(*cfg, *clock, startAtLedger, startAtHash);
     }
     mNodes.emplace(nodeKey.getPublicKey(), Node{clock, app});
+
+    mPeerMap.emplace(app->getConfig().PEER_PORT,
+                     std::weak_ptr<Application>(app));
 
     return app;
 }
@@ -156,6 +169,7 @@ Simulation::removeNode(NodeID const& id)
     if (it != mNodes.end())
     {
         auto node = it->second;
+        mPeerMap.erase(node.mApp->getConfig().PEER_PORT);
         mNodes.erase(it);
         node.mApp->gracefulStop();
         while (node.mClock->crank(false) > 0)
@@ -165,6 +179,25 @@ Simulation::removeNode(NodeID const& id)
             dropAllConnections(id);
         }
     }
+}
+
+Application::pointer
+Simulation::getAppFromPeerMap(unsigned short peerPort)
+{
+    releaseAssert(mMode == OVER_LOOPBACK);
+    auto it = mPeerMap.find(peerPort);
+    if (it == mPeerMap.end())
+    {
+        return nullptr;
+    }
+
+    auto app = it->second.lock();
+    if (app)
+    {
+        return app;
+    }
+
+    return nullptr;
 }
 
 void
@@ -655,18 +688,20 @@ Simulation::crankUntil(VirtualClock::system_time_point timePoint,
 Config
 Simulation::newConfig()
 {
+    Config cfg;
     if (mConfigGen)
     {
-        return mConfigGen(mConfigCount++);
+        cfg = mConfigGen(mConfigCount++);
     }
     else
     {
-        Config res = getTestConfig(mConfigCount++);
-        res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-        res.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        cfg = getTestConfig(mConfigCount++);
+        cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-        return res;
     }
+
+    return cfg;
 }
 
 class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
@@ -714,5 +749,37 @@ Simulation::metricsSummary(string domain)
         }
     }
     return out.str();
+}
+
+bool
+LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
+                                      bool forceoutbound)
+{
+    CLOG_INFO(Overlay, "Connect to {}", address.toString());
+    auto currentConnection = getConnectedPeer(address);
+    if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
+                                                    Peer::REMOTE_CALLED_US))
+    {
+        if (availableOutboundPendingSlots() <= 0)
+        {
+            CLOG_DEBUG(Overlay,
+                       "Peer rejected - all outbound pending connections "
+                       "taken: {}",
+                       address.toString());
+            return false;
+        }
+        getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
+        auto& app = static_cast<ApplicationLoopbackOverlay&>(mApp);
+        auto otherApp = app.getSim().getAppFromPeerMap(address.getPort());
+        auto res = LoopbackPeer::initiate(mApp, *otherApp);
+        return res.first->getState() == Peer::CONNECTED;
+    }
+    else
+    {
+        CLOG_ERROR(Overlay,
+                   "trying to connect to a node we're already connected to {}",
+                   address.toString());
+        return false;
+    }
 }
 }

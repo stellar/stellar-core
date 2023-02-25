@@ -9,9 +9,11 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/medida.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "simulation/LoadGenerator.h"
+#include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -60,6 +62,8 @@ class Simulation
     void startAllNodes();
     void stopAllNodes();
     void removeNode(NodeID const& id);
+
+    Application::pointer getAppFromPeerMap(unsigned short peerPort);
 
     // returns true if all nodes have externalized
     // triggers and exception if a node externalized higher than num+maxSpread
@@ -111,5 +115,50 @@ class Simulation
     QuorumSetAdjuster mQuorumSetAdjuster;
 
     std::chrono::milliseconds const quantum = std::chrono::milliseconds(100);
+
+    // Map PEER_PORT to Application
+    std::unordered_map<unsigned short, std::weak_ptr<Application>> mPeerMap;
+};
+
+class LoopbackOverlayManager : public OverlayManagerImpl
+{
+  public:
+    LoopbackOverlayManager(Application& app) : OverlayManagerImpl(app)
+    {
+    }
+    virtual bool connectToImpl(PeerBareAddress const& address,
+                               bool forceoutbound) override;
+};
+
+class ApplicationLoopbackOverlay : public TestApplication
+{
+    Simulation& mSim;
+
+  public:
+    ApplicationLoopbackOverlay(VirtualClock& clock, Config const& cfg,
+                               Simulation& sim)
+        : TestApplication(clock, cfg), mSim(sim)
+    {
+    }
+
+    virtual LoopbackOverlayManager&
+    getOverlayManager() override
+    {
+        auto& overlay = ApplicationImpl::getOverlayManager();
+        return static_cast<LoopbackOverlayManager&>(overlay);
+    }
+
+    Simulation&
+    getSim()
+    {
+        return mSim;
+    }
+
+  private:
+    virtual std::unique_ptr<OverlayManager>
+    createOverlayManager() override
+    {
+        return std::make_unique<LoopbackOverlayManager>(*this);
+    }
 };
 }
