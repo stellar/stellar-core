@@ -29,6 +29,9 @@
 
 #include "util/siphash.h"
 #include <Tracy.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/types/vector.hpp>
 
 static const std::size_t bits_per_char = 0x08; // 8 bits in 1 char(unsigned)
 
@@ -482,6 +485,15 @@ class bloom_filter
     hash_count()
     {
         return hash_count_;
+    }
+
+    template <class Archive>
+    void
+    serialize(Archive& ar)
+    {
+        ar(bit_table_, hash_count_, table_size_, projected_element_count_,
+           inserted_element_count_, random_seed_,
+           desired_false_positive_probability_);
     }
 
   protected:

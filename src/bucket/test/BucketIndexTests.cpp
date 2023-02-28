@@ -5,6 +5,7 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
+#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
@@ -13,6 +14,8 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
+
+#include "lib/bloom_filter.hpp"
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -23,7 +26,7 @@ namespace BucketManagerTests
 class BucketIndexTest
 {
   protected:
-    VirtualClock mClock;
+    std::unique_ptr<VirtualClock> mClock;
     std::shared_ptr<BucketTestApplication> mApp;
     BucketManager& mBM;
     LedgerManagerForBucketTests& mLm;
@@ -64,12 +67,18 @@ class BucketIndexTest
 
   public:
     BucketIndexTest(Config& cfg, uint32_t levels = 6)
-        : mClock()
-        , mApp(createTestApplication<BucketTestApplication>(mClock, cfg))
+        : mClock(new VirtualClock())
+        , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mBM(mApp->getBucketManager())
         , mLm(mApp->getLedgerManager())
         , mLevelsToBuild(levels)
     {
+    }
+
+    BucketManager&
+    getBM() const
+    {
+        return mBM;
     }
 
     virtual void
@@ -217,6 +226,15 @@ class BucketIndexTest
             auto entryPtr = mBM.getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
+    }
+
+    void
+    restartWithConfig(Config const& cfg)
+    {
+        mApp.reset();
+        mClock.reset(new VirtualClock());
+        mApp =
+            createTestApplication<BucketTestApplication>(*mClock, cfg, false);
     }
 };
 
@@ -412,5 +430,85 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
     };
 
     testAllIndexTypes(f);
+}
+
+TEST_CASE("serialize bucket indexes", "[bucketindex]")
+{
+    Config cfg(getTestConfig());
+
+    // First 3 levels individual, last 3 range index
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+
+    auto test = BucketIndexTest(cfg);
+    test.buildGeneralTest();
+
+    auto& bm = test.getBM();
+    for (auto const& bucketHash : bm.getBucketListReferencedBuckets())
+    {
+        if (isZero(bucketHash))
+        {
+            continue;
+        }
+
+        // Check if index files are saved
+        auto indexFilename = bm.bucketFilename(bucketHash, /*isIndex=*/true);
+        REQUIRE(fs::exists(indexFilename));
+
+        auto bucket = bm.getBucketByHash(bucketHash);
+        auto onDiskIndex =
+            BucketIndex::load(bm, indexFilename, bucket->getSize());
+        REQUIRE(onDiskIndex);
+
+        auto& originalIndex = bucket->getIndexForTesting();
+        REQUIRE((originalIndex == *onDiskIndex));
+    }
+}
+
+TEST_CASE("on disk index out of date", "[bucketindex]")
+{
+    // Generate a one level BucketList with an individual index
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+    auto test = BucketIndexTest(cfg, 1);
+    test.buildGeneralTest();
+
+    auto& bm = test.getBM();
+    auto buckets = bm.getBucketListReferencedBuckets();
+    for (auto const& bucketHash : buckets)
+    {
+        if (isZero(bucketHash))
+        {
+            continue;
+        }
+
+        // Check if index files are saved
+        auto indexFilename = bm.bucketFilename(bucketHash, /*isIndex=*/true);
+        REQUIRE(fs::exists(indexFilename));
+    }
+
+    // Restart app with different config to test that indexes created with
+    // different config settings are not loaded from disk
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
+
+    // When the app restarts, indexes are loaded from disk. If an index file is
+    // outdated, it is deleted. By setting persist index to false, no new
+    // indexes will be written, so we can check the existence of the index file
+    // to see if we properly dropped the outdated files
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = false;
+
+    test.restartWithConfig(cfg);
+    for (auto const& bucketHash : buckets)
+    {
+        if (isZero(bucketHash))
+        {
+            continue;
+        }
+
+        // Check if index file has been deleted
+        auto indexFilename = bm.bucketFilename(bucketHash, /*isIndex=*/true);
+        REQUIRE(!fs::exists(indexFilename));
+    }
 }
 }

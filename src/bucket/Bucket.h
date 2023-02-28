@@ -38,7 +38,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     std::filesystem::path const mFilename;
     Hash const mHash;
     size_t mSize{0};
-    bool mLazyIndex;
 
     std::unique_ptr<BucketIndex const> mIndex{};
 
@@ -132,6 +131,13 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
+
+    BucketIndex const&
+    getIndexForTesting() const
+    {
+        return getIndex();
+    }
+
 #endif // BUILD_TESTS
 
     // Create a fresh bucket from given vectors of init (created) and live

@@ -134,15 +134,26 @@ const std::string BucketManagerImpl::kLockFilename = "stellar-core.lock";
 namespace
 {
 std::string
-bucketBasename(std::string const& bucketHexHash)
+bucketBasename(std::string const& bucketHexHash, bool isIndex)
 {
-    return "bucket-" + bucketHexHash + ".xdr";
+    auto str = "bucket-" + bucketHexHash;
+    if (isIndex)
+    {
+        str += ".index";
+    }
+    else
+    {
+        str += ".xdr";
+    }
+
+    return str;
 }
 
+// Returns true if file is a bucket XDR file or a bucket index file
 bool
 isBucketFile(std::string const& name)
 {
-    static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
+    static std::regex re("^bucket-[a-z0-9]{64}((\\.xdr(\\.gz)?)|(\\.index))$");
     return std::regex_match(name, re);
 };
 
@@ -154,16 +165,17 @@ extractFromFilename(std::string const& name)
 }
 
 std::string
-BucketManagerImpl::bucketFilename(std::string const& bucketHexHash)
+BucketManagerImpl::bucketFilename(std::string const& bucketHexHash,
+                                  bool isIndex) const
 {
-    std::string basename = bucketBasename(bucketHexHash);
+    std::string basename = bucketBasename(bucketHexHash, isIndex);
     return getBucketDir() + "/" + basename;
 }
 
 std::string
-BucketManagerImpl::bucketFilename(Hash const& hash)
+BucketManagerImpl::bucketFilename(Hash const& hash, bool isIndex) const
 {
-    return bucketFilename(binToHex(hash));
+    return bucketFilename(binToHex(hash), isIndex);
 }
 
 std::string const&
@@ -412,7 +424,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     }
     else
     {
-        std::string canonicalName = bucketFilename(hash);
+        std::string canonicalName = bucketFilename(hash, /*isIndex=*/false);
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
         if (!renameBucket(filename, canonicalName))
@@ -497,7 +509,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                    binToHex(hash), i->second->getFilename());
         return i->second;
     }
-    std::string canonicalName = bucketFilename(hash);
+    std::string canonicalName = bucketFilename(hash, /*isIndex=*/false);
     if (fs::exists(canonicalName))
     {
         CLOG_TRACE(Bucket,
@@ -505,8 +517,31 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                    "new one",
                    binToHex(hash));
 
+        auto indexFilename = bucketFilename(hash, /*isIndex=*/true);
+
+        std::unique_ptr<BucketIndex const> index{nullptr};
+        if (fs::exists(indexFilename))
+        {
+            index = BucketIndex::load(*this, indexFilename,
+                                      fs::size(canonicalName));
+
+            // If we could not load the index from the file, file is out of date
+            // so delete it
+            if (index)
+            {
+                CLOG_DEBUG(Bucket, "Loaded index from file: {}", indexFilename);
+            }
+            else
+            {
+                auto timer = LogSlowExecution("Delete outdated index file");
+                CLOG_WARNING(Bucket, "Dropping outdated index file: {}",
+                             indexFilename);
+                std::remove(indexFilename.c_str());
+            }
+        }
+
         auto p =
-            std::make_shared<Bucket>(canonicalName, hash, /*index=*/nullptr);
+            std::make_shared<Bucket>(canonicalName, hash, std::move(index));
         mSharedBuckets.emplace(hash, p);
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
@@ -751,6 +786,9 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                 std::filesystem::remove(filename);
                 auto gzfilename = filename.string() + ".gz";
                 std::remove(gzfilename.c_str());
+                auto indexFilename =
+                    bucketFilename(j->second->getHash(), /*isIndex=*/true);
+                std::filesystem::remove(indexFilename);
             }
 
             // Dropping this bucket means we'll no longer be able to
@@ -979,7 +1017,7 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
     std::vector<std::string> result;
     std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
                  [&](std::string b) {
-                     auto filename = bucketFilename(b);
+                     auto filename = bucketFilename(b, /*isIndex=*/false);
                      return !isZero(hexToBin256(b)) && !fs::exists(filename);
                  });
 

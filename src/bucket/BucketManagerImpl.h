@@ -89,14 +89,15 @@ class BucketManagerImpl : public BucketManager
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
-    std::string bucketFilename(std::string const& bucketHexHash);
-    std::string bucketFilename(Hash const& hash);
+    std::string bucketFilename(std::string const& bucketHexHash,
+                               bool isIndex) const;
 
   public:
     BucketManagerImpl(Application& app);
     ~BucketManagerImpl() override;
     void initialize() override;
     void dropAll() override;
+    std::string bucketFilename(Hash const& hash, bool isIndex) const override;
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;

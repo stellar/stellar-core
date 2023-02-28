@@ -186,6 +186,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
     VirtualClock clock;
     Config cfg = getTestConfig();
     cfg.MANUAL_CLOSE = false;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
 
@@ -217,15 +218,26 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             CHECK(b1.use_count() == 5);
         }
 
+        // Take pointer by reference to not mess up use_count()
+        auto dropBucket = [&](std::shared_ptr<Bucket>& b) {
+            std::string filename = b->getFilename().string();
+            std::string indexFilename =
+                app->getBucketManager().bucketFilename(b->getHash(),
+                                                       /*isIndex=*/true);
+            CHECK(fs::exists(filename));
+            CHECK(fs::exists(indexFilename));
+            CLOG_FATAL(Bucket, "{}", indexFilename);
+            b.reset();
+            app->getBucketManager().forgetUnreferencedBuckets();
+            CHECK(!fs::exists(filename));
+            CHECK(!fs::exists(indexFilename));
+        };
+
         // Bucket is now only referenced by b1 and the BucketManager.
         CHECK(b1.use_count() == 2);
 
         // Drop bucket ourselves then purge bucketManager.
-        std::string filename = b1->getFilename().string();
-        CHECK(fs::exists(filename));
-        b1.reset();
-        app->getBucketManager().forgetUnreferencedBuckets();
-        CHECK(!fs::exists(filename));
+        dropBucket(b1);
 
         // Try adding a bucket to the BucketManager's bucketlist
         auto& bl = app->getBucketManager().getBucketList();
@@ -249,11 +261,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         CHECK(b1.use_count() == 2);
 
         // Drop it again.
-        filename = b1->getFilename().string();
-        CHECK(fs::exists(filename));
-        b1.reset();
-        app->getBucketManager().forgetUnreferencedBuckets();
-        CHECK(!fs::exists(filename));
+        dropBucket(b1);
     });
 }
 

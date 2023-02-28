@@ -718,10 +718,12 @@ ApplicationImpl::validateAndLogConfig()
                 }
             }
 
-            CLOG_INFO(
-                Bucket,
-                "BucketListDB enabled: pageSizeExponent: {} indexCutOff: {}MB",
-                pageSizeExp, mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF);
+            CLOG_INFO(Bucket,
+                      "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
+                      "{}MB, persist indexes: {}",
+                      pageSizeExp,
+                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF,
+                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX);
         }
         else
         {

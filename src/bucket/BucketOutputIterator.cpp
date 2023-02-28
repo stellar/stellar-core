@@ -151,7 +151,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index = BucketIndex::createIndex(bucketManager, mFilename);
+            index = BucketIndex::createIndex(bucketManager, mFilename, hash);
         }
     }
 
