@@ -57,7 +57,7 @@ RUN apt-get update \
 #    && apt-get update
 
 # Install common compilation tools
-RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev curl
+RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex sed perl libpq-dev parallel libunwind-dev curl
 
 # Update compiler tools
 RUN apt-get -y install libstdc++-10-dev clang-format-12 ccache

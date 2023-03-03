@@ -65,7 +65,7 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
 - `clang-format-12` (for `make format` to work)
-- `perl`
+- `sed` and `perl`
 - `libunwind-dev`
 
 ### Ubuntu
@@ -93,7 +93,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
 
 #### Installing packages
     # common packages
-    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
+    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel sed perl
     # if using clang
     sudo apt-get install clang-12
     # clang with libstdc++
@@ -111,7 +111,7 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 When building on OSX, here's some dependencies you'll need:
 - Install xcode
 - Install [homebrew](https://brew.sh)
-- `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison`
+- `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison sed perl`
 
 You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
 ```zsh
