@@ -337,14 +337,16 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
+    OperationEvents events;
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
         metrics.mEmitEventByte += buf.data.size();
         ContractEvent evt;
         xdr::xdr_from_opaque(buf.data, evt);
-        mParentTx.pushContractEvent(evt);
+        events.events.push_back(evt);
     }
+    mParentTx.pushContractEvents(events);
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     xdr::xdr_from_opaque(out.result_value.data, innerResult().success());
@@ -354,11 +356,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 bool
 InvokeHostFunctionOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    if (mParentTx.getNumOperations() > 1)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_MALFORMED);
-        return false;
-    }
     return true;
 }
 
@@ -458,6 +455,12 @@ InvokeHostFunctionOpFrame::preflight(Application& app,
         root["detail"] = e.what();
     }
     return root;
+}
+
+bool
+InvokeHostFunctionOpFrame::isSmartOperation() const
+{
+    return true;
 }
 
 }

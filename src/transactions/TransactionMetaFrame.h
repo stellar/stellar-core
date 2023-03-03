@@ -30,7 +30,7 @@ class TransactionMetaFrame
     TransactionMeta const& getXDR() const;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void pushContractEvents(xdr::xvector<ContractEvent>&& events);
+    void pushContractEvents(xdr::xvector<OperationEvents>&& events);
     static Hash getHashOfMetaHashes(TransactionMeta const&);
 #endif
 

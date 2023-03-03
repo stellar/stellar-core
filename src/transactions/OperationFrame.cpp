@@ -285,6 +285,12 @@ OperationFrame::isDexOperation() const
     return false;
 }
 
+bool
+OperationFrame::isSmartOperation() const
+{
+    return false;
+}
+
 void
 OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {

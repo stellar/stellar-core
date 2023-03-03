@@ -118,9 +118,9 @@ TransactionFrame::clearCached()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionFrame::pushContractEvent(ContractEvent const& evt)
+TransactionFrame::pushContractEvents(OperationEvents const& evts)
 {
-    mEvents.emplace_back(evt);
+    mEvents.emplace_back(evts);
 }
 #endif
 
@@ -481,6 +481,27 @@ TransactionFrame::extraSignersExist() const
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+TransactionFrame::validateSmartOpsConsistency() const
+{
+    if (mOperations.empty())
+    {
+        return true;
+    }
+    bool wasSmart = mOperations[0]->isSmartOperation();
+    for (auto const& op : mOperations)
+    {
+        bool isSmart = op->isSmartOperation();
+        if (isSmart != wasSmart)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
@@ -627,6 +648,17 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
             }
         }
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Check that smart ops are not mixed with classic ops. Eventually we
+    // should separately classify 'smart' transactions, but for now a simple
+    // check should be sufficient.
+    if (!validateSmartOpsConsistency())
+    {
+        getResult().result.code(txMALFORMED);
+        return false;
+    }
+#endif
 
     if (getNumOperations() == 0)
     {
@@ -1130,10 +1162,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            // ContractEvents should only occur in InvokeHostFunctionOps which
-            // should only occur in txs with a single op. This is enforced in
-            // InvokeHostFunctionOpFrame::doCheckValid but re-assert here.
-            releaseAssertOrThrow(mEvents.empty() || mOperations.size() == 1);
+            auto isSmartTx = mOperations.at(0)->isSmartOperation();
+            if ((isSmartTx && mOperations.size() != mEvents.size()) ||
+                (!isSmartTx && !mEvents.empty()))
+            {
+                throw std::runtime_error("events mismatch");
+            }
+
             outerMeta.pushContractEvents(std::move(mEvents));
 #endif
         }

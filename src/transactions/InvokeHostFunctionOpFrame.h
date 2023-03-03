@@ -48,6 +48,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     {
         return res.tr().invokeHostFunctionResult().code();
     }
+
+    virtual bool isSmartOperation() const override;
 };
 }
 #endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
