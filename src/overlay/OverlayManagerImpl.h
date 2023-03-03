@@ -125,6 +125,7 @@ class OverlayManagerImpl : public OverlayManager
     int const MAX_RETRY_COUNT = 15;
     std::chrono::milliseconds retryDelayDemand(int numAttemptsMade) const;
     size_t getMaxDemandSize() const;
+    int availableOutboundPendingSlots() const;
 
   public:
     OverlayManagerImpl(Application& app);
@@ -216,7 +217,6 @@ class OverlayManagerImpl : public OverlayManager
 
     bool moveToAuthenticated(Peer::pointer peer);
 
-    int availableOutboundPendingSlots() const;
     int availableOutboundAuthenticatedSlots() const;
     int nonPreferredAuthenticatedCount() const;
 

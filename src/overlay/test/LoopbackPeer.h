@@ -64,6 +64,11 @@ class LoopbackPeer : public Peer
     {
     }
     LoopbackPeer(Application& app, PeerRole role);
+
+    static std::pair<std::shared_ptr<LoopbackPeer>,
+                     std::shared_ptr<LoopbackPeer>>
+    initiate(Application& app, Application& otherApp);
+
     void drop(std::string const& reason, DropDirection dropDirection,
               DropMode dropMode) override;
 

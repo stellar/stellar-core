@@ -33,6 +33,49 @@ LoopbackPeer::getIP() const
     return "127.0.0.1";
 }
 
+std::pair<std::shared_ptr<LoopbackPeer>, std::shared_ptr<LoopbackPeer>>
+LoopbackPeer::initiate(Application& app, Application& otherApp)
+{
+    auto peer = make_shared<LoopbackPeer>(app, Peer::WE_CALLED_REMOTE);
+    auto otherPeer =
+        make_shared<LoopbackPeer>(otherApp, Peer::REMOTE_CALLED_US);
+
+    peer->mRemote = otherPeer;
+    peer->mState = Peer::CONNECTED;
+
+    otherPeer->mRemote = peer;
+    otherPeer->mState = Peer::CONNECTED;
+
+    peer->mAddress = PeerBareAddress(otherPeer->getIP(),
+                                     otherPeer->getApp().getConfig().PEER_PORT);
+    otherPeer->mAddress =
+        PeerBareAddress{peer->getIP(), peer->getApp().getConfig().PEER_PORT};
+
+    app.getOverlayManager().addOutboundConnection(peer);
+    otherApp.getOverlayManager().addInboundConnection(otherPeer);
+    // if connection was dropped during addPendingPeer, we don't want do call
+    // connectHandler
+    if (peer->mState != Peer::CONNECTED || otherPeer->mState != Peer::CONNECTED)
+    {
+        return std::pair(peer, otherPeer);
+    }
+
+    peer->startRecurrentTimer();
+    otherPeer->startRecurrentTimer();
+
+    std::weak_ptr<LoopbackPeer> init = peer;
+    peer->getApp().postOnMainThread(
+        [init]() {
+            auto inC = init.lock();
+            if (inC)
+            {
+                inC->connectHandler(asio::error_code());
+            }
+        },
+        "LoopbackPeer: connect");
+    return std::pair(peer, otherPeer);
+}
+
 AuthCert
 LoopbackPeer::getAuthCert()
 {
@@ -106,6 +149,20 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
     if (mState == CLOSING)
     {
         return;
+    }
+
+    if (mState != GOT_AUTH)
+    {
+        CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
+                   toString(), mState, mRole);
+    }
+    else if (direction == Peer::DropDirection::WE_DROPPED_REMOTE)
+    {
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+    }
+    else
+    {
+        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
     }
 
     mDropReason = reason;
@@ -437,39 +494,10 @@ LoopbackPeer::setReorderProbability(double d)
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                                                Application& acceptor)
-    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::WE_CALLED_REMOTE))
-    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::REMOTE_CALLED_US))
 {
-    mInitiator->mRemote = mAcceptor;
-    mInitiator->mState = Peer::CONNECTED;
-
-    mAcceptor->mRemote = mInitiator;
-    mAcceptor->mState = Peer::CONNECTED;
-
-    initiator.getOverlayManager().addOutboundConnection(mInitiator);
-    acceptor.getOverlayManager().addInboundConnection(mAcceptor);
-
-    // if connection was dropped during addPendingPeer, we don't want do call
-    // connectHandler
-    if (mInitiator->mState != Peer::CONNECTED ||
-        mAcceptor->mState != Peer::CONNECTED)
-    {
-        return;
-    }
-
-    mInitiator->startRecurrentTimer();
-    mAcceptor->startRecurrentTimer();
-
-    std::weak_ptr<LoopbackPeer> init = mInitiator;
-    mInitiator->getApp().postOnMainThread(
-        [init]() {
-            auto inC = init.lock();
-            if (inC)
-            {
-                inC->connectHandler(asio::error_code());
-            }
-        },
-        "LoopbackPeer: connect");
+    auto res = LoopbackPeer::initiate(initiator, acceptor);
+    mInitiator = res.first;
+    mAcceptor = res.second;
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()
