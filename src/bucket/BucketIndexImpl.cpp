@@ -460,7 +460,7 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
         releaseAssert(!in.mData.filter);
     }
 
-    for (auto i = 0; i < mData.keysToOffset.size(); ++i)
+    for (size_t i = 0; i < mData.keysToOffset.size(); ++i)
     {
         auto const& lhsPair = mData.keysToOffset[i];
         auto const& rhsPair = in.mData.keysToOffset[i];

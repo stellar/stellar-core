@@ -28,8 +28,6 @@ class BucketIndexTest
   protected:
     std::unique_ptr<VirtualClock> mClock;
     std::shared_ptr<BucketTestApplication> mApp;
-    BucketManager& mBM;
-    LedgerManagerForBucketTests& mLm;
 
     // Mapping of Key->value that BucketList should return
     UnorderedMap<LedgerKey, LedgerEntry> mTestEntries;
@@ -69,8 +67,6 @@ class BucketIndexTest
     BucketIndexTest(Config& cfg, uint32_t levels = 6)
         : mClock(new VirtualClock())
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
-        , mBM(mApp->getBucketManager())
-        , mLm(mApp->getLedgerManager())
         , mLevelsToBuild(levels)
     {
     }
@@ -78,7 +74,7 @@ class BucketIndexTest
     BucketManager&
     getBM() const
     {
-        return mBM;
+        return mApp->getBucketManager();
     }
 
     virtual void
@@ -94,7 +90,8 @@ class BucketIndexTest
                     mKeysToSearch.emplace(LedgerEntryKey(e));
                 }
             }
-            mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
         };
 
         buildBucketList(f);
@@ -121,8 +118,9 @@ class BucketIndexTest
                     mTestEntries.erase(k);
                 }
 
-                mLm.setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
-                                                            toDestroy);
+                mApp->getLedgerManager()
+                    .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
+                                                             toDestroy);
                 toDestroy.clear();
                 toUpdate.clear();
             }
@@ -146,7 +144,8 @@ class BucketIndexTest
                     }
                 }
 
-                mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+                mApp->getLedgerManager()
+                    .setNextLedgerEntryBatchForBucketTesting({}, entries, {});
             }
         };
 
@@ -157,14 +156,14 @@ class BucketIndexTest
     run()
     {
         // Test bulk load lookup
-        auto loadResult = mBM.loadKeys(mKeysToSearch);
+        auto loadResult = getBM().loadKeys(mKeysToSearch);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = mBM.getLedgerEntry(key);
+            auto entryPtr = getBM().getLedgerEntry(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -205,7 +204,7 @@ class BucketIndexTest
                 }
             }
 
-            auto blLoad = mBM.loadKeys(searchSubset);
+            auto blLoad = getBM().loadKeys(searchSubset);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -218,12 +217,12 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(mBM.loadKeys(invalidKeys).size() == 0);
+        REQUIRE(getBM().loadKeys(invalidKeys).size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = mBM.getLedgerEntry(key);
+            auto entryPtr = getBM().getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -314,7 +313,8 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 mTestEntries.erase(iter);
             }
 
-            mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, toShadow);
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, toShadow);
         };
 
         BucketIndexTest::buildBucketList(f);
@@ -350,7 +350,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto loadResult = mBM.loadPoolShareTrustLinesByAccountAndAsset(
+        auto loadResult = getBM().loadPoolShareTrustLinesByAccountAndAsset(
             mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
@@ -473,8 +473,7 @@ TEST_CASE("on disk index out of date", "[bucketindex]")
     auto test = BucketIndexTest(cfg, 1);
     test.buildGeneralTest();
 
-    auto& bm = test.getBM();
-    auto buckets = bm.getBucketListReferencedBuckets();
+    auto buckets = test.getBM().getBucketListReferencedBuckets();
     for (auto const& bucketHash : buckets)
     {
         if (isZero(bucketHash))
@@ -483,7 +482,8 @@ TEST_CASE("on disk index out of date", "[bucketindex]")
         }
 
         // Check if index files are saved
-        auto indexFilename = bm.bucketFilename(bucketHash, /*isIndex=*/true);
+        auto indexFilename =
+            test.getBM().bucketFilename(bucketHash, /*isIndex=*/true);
         REQUIRE(fs::exists(indexFilename));
     }
 
@@ -507,7 +507,8 @@ TEST_CASE("on disk index out of date", "[bucketindex]")
         }
 
         // Check if index file has been deleted
-        auto indexFilename = bm.bucketFilename(bucketHash, /*isIndex=*/true);
+        auto indexFilename =
+            test.getBM().bucketFilename(bucketHash, /*isIndex=*/true);
         REQUIRE(!fs::exists(indexFilename));
     }
 }
