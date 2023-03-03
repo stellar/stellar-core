@@ -6,6 +6,7 @@
 
 #include "xdr/Stellar-ledger.h"
 
+#include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"
 #include <optional>
@@ -20,6 +21,10 @@ class Database;
 struct LedgerHeader;
 struct LedgerUpgrade;
 
+class ConfigUpgradeSetFrame;
+using ConfigUpgradeSetFrameConstPtr =
+    std::shared_ptr<ConfigUpgradeSetFrame const>;
+
 class Upgrades
 {
   public:
@@ -27,6 +32,9 @@ class Upgrades
     // upgrades
     static std::chrono::hours const UPDGRADE_EXPIRATION_HOURS;
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    static uint32_t const CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20;
+#endif
     struct UpgradeParameters
     {
         UpgradeParameters()
@@ -53,7 +61,11 @@ class Upgrades
         std::optional<uint32> mFlags;
 
         std::string toJson() const;
-        void fromJson(std::string const& s);
+        void fromJson(std::string const& s, stellar::AbstractLedgerTxn& ltx);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
+#endif
     };
 
     Upgrades()
@@ -66,11 +78,12 @@ class Upgrades
     UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade>
-    createUpgradesFor(LedgerHeader const& header) const;
+    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& header,
+                                                 AbstractLedgerTxn& ltx) const;
 
     // apply upgrade to ledger header
-    static void applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx);
+    static void applyTo(LedgerUpgrade const& upgrade, Application& app,
+                        AbstractLedgerTxn& ltx);
 
     // convert upgrade value to string
     static std::string toString(LedgerUpgrade const& upgrade);
@@ -89,13 +102,14 @@ class Upgrades
     // If the upgrade could be deserialized then lupgrade is set
     static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
                                            LedgerUpgrade& lupgrade,
-                                           LedgerHeader const& header,
-                                           uint32_t maxLedgerVersion);
+                                           Application& app,
+                                           AbstractLedgerTxn& ltx,
+                                           LedgerHeader const& header);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                 bool nomination, Config const& cfg,
+                 bool nomination, Application& app,
                  LedgerHeader const& header) const;
 
     // constructs a human readable string that represents
@@ -125,7 +139,8 @@ class Upgrades
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
-    bool isValidForNomination(LedgerUpgrade const& upgrade,
+    bool isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
+                              AbstractLedgerTxn& ltx,
                               LedgerHeader const& header) const;
 
     static void applyVersionUpgrade(AbstractLedgerTxn& ltx,
@@ -134,4 +149,51 @@ class Upgrades
     static void applyReserveUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t newReserve);
 };
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+// ConfigUpgradeSetFrame contains a ConfigUpgradeSet that
+// was retrieved from the ledger given a ConfigUpgradeSetKey. The
+// ConfigUpgradeSetKey will be converted to a ContractData LedgerKey, and the
+// ContractData LedgerEntry retreived with that will have a val of SCV_BYTES
+// containing a serialized ConfigUpgradeSet. The ConfigUpgradeSetKey is what
+// validators vote on during upgrades. The hash in the key must match the sha256
+// hash of the ConfigUpgradeSet.
+class ConfigUpgradeSetFrame
+{
+  public:
+    static ConfigUpgradeSetFrameConstPtr
+    makeFromKey(AbstractLedgerTxn& ltx, ConfigUpgradeSetKey const& key);
+
+    ConfigUpgradeSet const& toXDR() const;
+
+    ConfigUpgradeSetKey const& getKey() const;
+
+    bool upgradeNeeded(AbstractLedgerTxn& ltx,
+                       LedgerHeader const& lclHeader) const;
+
+    void applyTo(AbstractLedgerTxn& ltx) const;
+
+    bool isConsistentWith(
+        ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;
+
+    Upgrades::UpgradeValidity isValidForApply() const;
+
+    std::string encodeAsString() const;
+
+    std::string toJson() const;
+
+  private:
+    ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR,
+                          ConfigUpgradeSetKey const& key);
+
+    static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
+
+    bool isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
+                    ConfigUpgradeSetKey const& key) const;
+
+    ConfigUpgradeSet mConfigUpgradeSet;
+    ConfigUpgradeSetKey mKey;
+    bool mValidXDR;
+};
+#endif
 }
