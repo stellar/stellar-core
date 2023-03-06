@@ -383,14 +383,14 @@ impl Pfc {
 }
 
 impl SnapshotSource for Pfc {
-    fn get(&self, key: &LedgerKey) -> Result<LedgerEntry, HostError> {
-        let kv = xdr_to_vec_u8(key)?;
+    fn get(&self, key: &Rc<LedgerKey>) -> Result<Rc<LedgerEntry>, HostError> {
+        let kv = xdr_to_vec_u8(key.as_ref())?;
         let lev = self.with_cb(|cb| cb.get_ledger_entry(&kv))?;
-        xdr_from_cxx_buf(&lev)
+        xdr_from_cxx_buf(&lev).map(|le| Rc::new(le))
     }
 
-    fn has(&self, key: &LedgerKey) -> Result<bool, HostError> {
-        let kv = xdr_to_vec_u8(key)?;
+    fn has(&self, key: &Rc<LedgerKey>) -> Result<bool, HostError> {
+        let kv = xdr_to_vec_u8(key.as_ref())?;
         self.with_cb(|cb| cb.has_ledger_entry(&kv))
     }
 }
