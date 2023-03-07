@@ -2852,7 +2852,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     auto simulation = Topologies::core(
         4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.MAX_SLOTS_TO_REMEMBER = 10;
+            cfg.MAX_SLOTS_TO_REMEMBER = 12;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
             return cfg;
@@ -2921,7 +2921,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     }
     // Let the network to externalize 1 more ledger.
     simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(12, 10); },
+        [&]() { return simulation->haveAllExternalized(12, 12); },
         Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
 
     auto getLedgerTxSet = [](Application& node, uint32_t ledger) {
