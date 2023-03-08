@@ -35,9 +35,8 @@ template <typename T>
 SCVal
 makeBinary(T begin, T end)
 {
-    SCVal val(SCValType::SCV_OBJECT);
-    val.obj().activate().type(SCO_BYTES);
-    val.obj()->bin().assign(begin, end);
+    SCVal val(SCValType::SCV_BYTES);
+    val.bytes().assign(begin, end);
     return val;
 }
 
@@ -45,11 +44,10 @@ template <typename T>
 SCVal
 makeWasmRefScContractCode(T const& hash)
 {
-    SCVal val(SCValType::SCV_OBJECT);
-    val.obj().activate().type(stellar::SCO_CONTRACT_CODE);
-    val.obj()->contractCode().type(stellar::SCCONTRACT_CODE_WASM_REF);
-    std::copy(hash.begin(), hash.end(),
-              val.obj()->contractCode().wasm_id().begin());
+    SCVal val(SCValType::SCV_CONTRACT_EXECUTABLE);
+    val.exec().type(SCContractExecutableType::SCCONTRACT_EXECUTABLE_WASM_REF);
+
+    std::copy(hash.begin(), hash.end(), val.exec().wasm_id().begin());
     return val;
 }
 
@@ -138,12 +136,11 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     createContractArgs.contractID.type(CONTRACT_ID_FROM_SOURCE_ACCOUNT);
     createContractArgs.contractID.salt() = salt;
 
-    createContractArgs.source.type(SCCONTRACT_CODE_WASM_REF);
+    createContractArgs.source.type(SCCONTRACT_EXECUTABLE_WASM_REF);
     createContractArgs.source.wasm_id() =
         contractCodeLedgerKey.contractCode().hash;
 
-    SCVal scContractSourceRefKey(SCValType::SCV_STATIC);
-    scContractSourceRefKey.ic() = SCStatic::SCS_LEDGER_KEY_CONTRACT_CODE;
+    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
 
     LedgerKey contractSourceRefLedgerKey;
     contractSourceRefLedgerKey.type(CONTRACT_DATA);
@@ -200,7 +197,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 ltx.commit();
                 SCVal resultVal;
                 resultVal.type(stellar::SCV_STATUS);
-                resultVal.status().type(SCStatusType::SST_UNKNOWN_ERROR);
+                resultVal.error().type(SCStatusType::SST_UNKNOWN_ERROR);
                 if (tx->getResult().result.code() == txSUCCESS &&
                     !tx->getResult().result.results().empty())
                 {
@@ -421,13 +418,9 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
         REQUIRE(txm.getXDR().v3().events.size() == 1);
         REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
                 ContractEventType::CONTRACT);
-        REQUIRE(txm.getXDR()
-                    .v3()
-                    .events.at(0)
-                    .events.at(0)
-                    .body.v0()
-                    .data.obj()
-                    ->type() == SCO_BYTES);
+        REQUIRE(
+            txm.getXDR().v3().events.at(0).events.at(0).body.v0().data.type() ==
+            SCV_BYTES);
     }
     SECTION("multiple ops")
     {
@@ -446,7 +439,7 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
             for (auto const& e : txm.getXDR().v3().events.at(i).events)
             {
                 REQUIRE(e.type == ContractEventType::CONTRACT);
-                REQUIRE(e.body.v0().data.obj()->type() == SCO_BYTES);
+                REQUIRE(e.body.v0().data.type() == SCV_BYTES);
             }
         }
     }

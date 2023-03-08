@@ -146,8 +146,8 @@ struct HostFunctionMetrics
     isCodeKey(LedgerKey const& lk)
     {
         return lk.type() == CONTRACT_DATA &&
-               lk.contractData().key.type() == SCValType::SCV_STATIC &&
-               lk.contractData().key.ic() == SCS_LEDGER_KEY_CONTRACT_CODE;
+               lk.contractData().key.type() ==
+                   SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE;
     }
 
     void
