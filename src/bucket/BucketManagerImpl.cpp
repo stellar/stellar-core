@@ -362,7 +362,8 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 }
 
 bool
-BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
+BucketManagerImpl::renameBucketDirFile(std::string const& src,
+                                       std::string const& dst)
 {
     ZoneScoped;
     if (mApp.getConfig().DISABLE_XDR_FSYNC)
@@ -423,14 +424,14 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         std::string canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
-        if (!renameBucket(filename, canonicalName))
+        if (!renameBucketDirFile(filename, canonicalName))
         {
             std::string err("Failed to rename bucket :");
             err += strerror(errno);
             // it seems there is a race condition with external systems
             // retry after sleeping for a second works around the problem
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (!renameBucket(filename, canonicalName))
+            if (!renameBucketDirFile(filename, canonicalName))
             {
                 // if rename fails again, surface the original error
                 throw std::runtime_error(err);

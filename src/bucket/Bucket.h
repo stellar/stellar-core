@@ -57,6 +57,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     std::optional<BucketEntry>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
 
+    static std::string randomFileName(std::string const& tmpDir,
+                                      std::string ext);
+
   public:
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
@@ -123,7 +126,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
-    static LedgerKey getBucketLedgerKey(BucketEntry const& be);
+    static std::string randomBucketName(std::string const& tmpDir);
+    static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,

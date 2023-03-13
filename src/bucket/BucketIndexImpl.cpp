@@ -23,6 +23,8 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <thread>
+
 namespace stellar
 {
 
@@ -62,7 +64,7 @@ BucketIndex::typeNotSupported(LedgerEntryType t)
 }
 
 template <class IndexT>
-BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
+BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize,
                                          Hash const& hash)
@@ -178,15 +180,46 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
 
     if (bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX)
     {
-        auto timer = LogSlowExecution("Saving index");
-        std::filesystem::path indexFilename = bm.bucketIndexFilename(hash);
-        CLOG_DEBUG(Bucket, "Saving bucket index: {}", indexFilename);
+        saveToDisk(bm, hash);
+    }
+}
 
+template <class IndexT>
+void
+BucketIndexImpl<IndexT>::saveToDisk(BucketManager& bm, Hash const& hash) const
+{
+    ZoneScoped;
+    releaseAssert(bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX);
+    auto timer = LogSlowExecution("Saving index");
+
+    std::filesystem::path tmpFilename =
+        Bucket::randomBucketIndexName(bm.getTmpDir());
+    CLOG_DEBUG(Bucket, "Saving bucket index for {}: {}", hexAbbrev(hash),
+               tmpFilename);
+
+    {
         std::ofstream out;
         out.exceptions(std::ios::failbit | std::ios::badbit);
-        out.open(indexFilename, std::ios_base::binary | std::ios_base::trunc);
+        out.open(tmpFilename, std::ios_base::binary | std::ios_base::trunc);
         cereal::BinaryOutputArchive ar(out);
         ar(mData);
+    }
+
+    std::filesystem::path canonicalName = bm.bucketIndexFilename(hash);
+    CLOG_DEBUG(Bucket, "Adopting bucket index file {} as {}", tmpFilename,
+               canonicalName);
+    if (!bm.renameBucketDirFile(tmpFilename, canonicalName))
+    {
+        std::string err("Failed to rename bucket index :");
+        err += strerror(errno);
+        // it seems there is a race condition with external systems
+        // retry after sleeping for a second works around the problem
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        if (!bm.renameBucketDirFile(tmpFilename, canonicalName))
+        {
+            // if rename fails again, surface the original error
+            throw std::runtime_error(err);
+        }
     }
 }
 
@@ -259,7 +292,7 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 }
 
 std::unique_ptr<BucketIndex const>
-BucketIndex::createIndex(BucketManager const& bm,
+BucketIndex::createIndex(BucketManager& bm,
                          std::filesystem::path const& filename,
                          Hash const& hash)
 {

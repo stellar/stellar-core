@@ -52,13 +52,15 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     medida::Meter& mBloomMissMeter;
     medida::Meter& mBloomLookupMeter;
 
-    BucketIndexImpl(BucketManager const& bm,
-                    std::filesystem::path const& filename,
+    BucketIndexImpl(BucketManager& bm, std::filesystem::path const& filename,
                     std::streamoff pageSize, Hash const& hash);
 
     template <class Archive>
     BucketIndexImpl(BucketManager const& bm, Archive& ar,
                     std::streamoff pageSize);
+
+    // Saves index to disk, overwriting any preexisting file for this index
+    void saveToDisk(BucketManager& bm, Hash const& hash) const;
 
     friend BucketIndex;
 

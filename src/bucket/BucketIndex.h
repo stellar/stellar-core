@@ -84,7 +84,7 @@ class BucketIndex : public NonMovableOrCopyable
     // if file size is less than the cutoff, individual key index is used.
     // Otherwise range index is used, with the range defined by pageSize.
     static std::unique_ptr<BucketIndex const>
-    createIndex(BucketManager const& bm, std::filesystem::path const& filename,
+    createIndex(BucketManager& bm, std::filesystem::path const& filename,
                 Hash const& hash);
 
     // Loads index from given file. If file does not exist or if saved

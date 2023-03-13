@@ -52,7 +52,7 @@ IndexBucketsWork::IndexWork::postWork()
                 return;
             }
 
-            auto const& bm = app.getBucketManager();
+            auto& bm = app.getBucketManager();
             auto indexFilename =
                 bm.bucketIndexFilename(self->mBucket->getHash());
 
