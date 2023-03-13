@@ -64,8 +64,8 @@ class BucketIndexTest
     }
 
   public:
-    BucketIndexTest(Config& cfg, uint32_t levels = 6)
-        : mClock(new VirtualClock())
+    BucketIndexTest(Config const& cfg, uint32_t levels = 6)
+        : mClock(std::make_unique<VirtualClock>())
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
     {
@@ -230,8 +230,11 @@ class BucketIndexTest
     void
     restartWithConfig(Config const& cfg)
     {
+        mApp->gracefulStop();
+        while (mClock->crank(false))
+            ;
         mApp.reset();
-        mClock.reset(new VirtualClock());
+        mClock = std::make_unique<VirtualClock>();
         mApp =
             createTestApplication<BucketTestApplication>(*mClock, cfg, false);
     }
@@ -432,45 +435,15 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
     testAllIndexTypes(f);
 }
 
-TEST_CASE("serialize bucket indexes", "[bucketindex]")
+TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
     // First 3 levels individual, last 3 range index
     cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
     cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
 
     auto test = BucketIndexTest(cfg);
-    test.buildGeneralTest();
-
-    auto& bm = test.getBM();
-    for (auto const& bucketHash : bm.getBucketListReferencedBuckets())
-    {
-        if (isZero(bucketHash))
-        {
-            continue;
-        }
-
-        // Check if index files are saved
-        auto indexFilename = bm.bucketIndexFilename(bucketHash);
-        REQUIRE(fs::exists(indexFilename));
-
-        auto bucket = bm.getBucketByHash(bucketHash);
-        auto onDiskIndex =
-            BucketIndex::load(bm, indexFilename, bucket->getSize());
-        REQUIRE(onDiskIndex);
-
-        auto& originalIndex = bucket->getIndexForTesting();
-        REQUIRE((originalIndex == *onDiskIndex));
-    }
-}
-
-TEST_CASE("on disk index out of date", "[bucketindex]")
-{
-    // Generate a one level BucketList with an individual index
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-    auto test = BucketIndexTest(cfg, 1);
     test.buildGeneralTest();
 
     auto buckets = test.getBM().getBucketListReferencedBuckets();
@@ -484,20 +457,25 @@ TEST_CASE("on disk index out of date", "[bucketindex]")
         // Check if index files are saved
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         REQUIRE(fs::exists(indexFilename));
+
+        auto b = test.getBM().getBucketByHash(bucketHash);
+        REQUIRE(b->isIndexed());
+
+        auto onDiskIndex =
+            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+        REQUIRE(onDiskIndex);
+
+        auto& inMemoryIndex = b->getIndexForTesting();
+        REQUIRE((inMemoryIndex == *onDiskIndex));
     }
 
     // Restart app with different config to test that indexes created with
-    // different config settings are not loaded from disk
+    // different config settings are not loaded from disk. These params will
+    // invalidate every index in BL
     cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
     cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
-
-    // When the app restarts, indexes are loaded from disk. If an index file is
-    // outdated, it is deleted. By setting persist index to false, no new
-    // indexes will be written, so we can check the existence of the index file
-    // to see if we properly dropped the outdated files
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = false;
-
     test.restartWithConfig(cfg);
+
     for (auto const& bucketHash : buckets)
     {
         if (isZero(bucketHash))
@@ -505,10 +483,19 @@ TEST_CASE("on disk index out of date", "[bucketindex]")
             continue;
         }
 
-        // Check if index file has been deleted
+        // Check if in-memory index has correct params
+        auto b = test.getBM().getBucketByHash(bucketHash);
+        REQUIRE(!b->isEmpty());
+        REQUIRE(b->isIndexed());
+
+        auto& inMemoryIndex = b->getIndexForTesting();
+        REQUIRE(inMemoryIndex.getPageSize() == (1UL << 10));
+
+        // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
-        // REQUIRE(!fs::exists(indexFilename));
-        // TODO: Make this test more robust
+        auto onDiskIndex =
+            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+        REQUIRE((inMemoryIndex == *onDiskIndex));
     }
 }
 }
