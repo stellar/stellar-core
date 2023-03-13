@@ -239,6 +239,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     HALT_ON_INTERNAL_TRANSACTION_ERROR = false;
 
     MAX_DEX_TX_OPERATIONS_IN_TX_SET = std::nullopt;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
+#endif
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -1361,6 +1366,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
             }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            else if (item.first == "ENABLE_SOROBAN_DIAGNOSTIC_EVENTS")
+            {
+                ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
+            }
+#endif
             else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")
             {
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =

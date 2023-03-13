@@ -81,6 +81,7 @@ mod rust_bridge {
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
+            enable_diagnostics: bool,
             hf_buf: &CxxBuf,
             footprint: &CxxBuf,
             source_account: &CxxBuf,

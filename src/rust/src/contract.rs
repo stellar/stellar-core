@@ -24,7 +24,7 @@ use soroban_env_host::{
         LedgerKeyTrustLine, ReadXdr, ScHostContextErrorCode, ScUnknownErrorCode, WriteXdr,
         XDR_FILES_SHA256,
     },
-    Host, HostError, LedgerInfo,
+    DiagnosticLevel, Host, HostError, LedgerInfo,
 };
 use std::error::Error;
 
@@ -294,6 +294,7 @@ fn log_debug_events(events: &Events) {
 /// result, events and modified ledger entries. Ledger entries not returned have
 /// been deleted.
 pub(crate) fn invoke_host_function(
+    enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
@@ -303,6 +304,7 @@ pub(crate) fn invoke_host_function(
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
+            enable_diagnostics,
             hf_buf,
             footprint_buf,
             source_account_buf,
@@ -318,6 +320,7 @@ pub(crate) fn invoke_host_function(
 }
 
 fn invoke_host_function_or_maybe_panic(
+    enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
@@ -337,6 +340,9 @@ fn invoke_host_function_or_maybe_panic(
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
     host.set_authorization_entries(auth_entries)?;
+    if enable_diagnostics {
+        host.set_diagnostic_level(DiagnosticLevel::Debug);
+    }
 
     debug!(
         target: TX,

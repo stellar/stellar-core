@@ -499,6 +499,15 @@ class Config : public std::enable_shared_from_this<Config>
     // The default value is false.
     bool HALT_ON_INTERNAL_TRANSACTION_ERROR;
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // If set to true, env will return additional diagnostic Soroban events
+    // that are not part of the protocol. These events will be put into a list
+    // in the non-hashed portion of the meta, and this list will contain all
+    // events so ordering can be maintained between all events. The default
+    // value is false, and this should not be enabled on validators.
+    bool ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
+#endif
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of

@@ -303,6 +303,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         auto timeScope = metrics.getExecTimer();
         out = rust_bridge::invoke_host_function(
+            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
             contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
