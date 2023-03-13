@@ -73,8 +73,8 @@ class BucketIndex : public NonMovableOrCopyable
     using Iterator = std::variant<RangeIndex::const_iterator,
                                   IndividualIndex::const_iterator>;
 
-    inline static const std::string DBBackendState = "bl";
-    inline static const uint32_t BucketIndexVersion = 1;
+    inline static const std::string DB_BACKEND_STATE = "bl";
+    inline static const uint32_t BUCKET_INDEX_VERSION = 1;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -85,7 +85,7 @@ class BucketIndex : public NonMovableOrCopyable
     // Otherwise range index is used, with the range defined by pageSize.
     static std::unique_ptr<BucketIndex const>
     createIndex(BucketManager const& bm, std::filesystem::path const& filename,
-                uint256 const& hash);
+                Hash const& hash);
 
     // Loads index from given file. If file does not exist or if saved
     // index does not have same parameters as current config, return null

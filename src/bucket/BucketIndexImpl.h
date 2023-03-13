@@ -33,7 +33,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         void
         save(Archive& ar) const
         {
-            auto version = BucketIndexVersion;
+            auto version = BUCKET_INDEX_VERSION;
             ar(version, pageSize, keysToOffset, filter);
         }
 
@@ -54,7 +54,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 
     BucketIndexImpl(BucketManager const& bm,
                     std::filesystem::path const& filename,
-                    std::streamoff pageSize, uint256 const& hash);
+                    std::streamoff pageSize, Hash const& hash);
 
     template <class Archive>
     BucketIndexImpl(BucketManager const& bm, Archive& ar,

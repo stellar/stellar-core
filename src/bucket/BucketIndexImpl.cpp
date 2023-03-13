@@ -11,6 +11,7 @@
 #include "util/Fs.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
 #include "util/XDRStream.h"
 
 #include "lib/bloom_filter.hpp"
@@ -54,23 +55,6 @@ effectivePageSize(Config const& cfg, size_t bucketSize)
     return pageSizeExp == 0 ? 0 : 1UL << pageSizeExp;
 }
 
-template <class Archive>
-void
-save(Archive& ar, LedgerKey const& k)
-{
-    auto raw = xdr::xdr_to_opaque(k);
-    ar(raw);
-}
-
-template <class Archive>
-void
-load(Archive& ar, LedgerKey& k)
-{
-    Value raw;
-    ar(raw);
-    xdr::xdr_from_opaque(raw, k);
-}
-
 bool
 BucketIndex::typeNotSupported(LedgerEntryType t)
 {
@@ -81,7 +65,7 @@ template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize,
-                                         uint256 const& hash)
+                                         Hash const& hash)
     : mBloomMissMeter(bm.getBloomMissMeter())
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
@@ -277,7 +261,7 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(BucketManager const& bm,
                          std::filesystem::path const& filename,
-                         uint256 const& hash)
+                         Hash const& hash)
 {
     ZoneScoped;
     auto const& cfg = bm.getConfig();
@@ -333,7 +317,7 @@ BucketIndex::load(BucketManager const& bm,
 
     // Make sure on-disk index was built with correct version and config
     // parameters before deserializing whole file
-    if (version != BucketIndexVersion ||
+    if (version != BUCKET_INDEX_VERSION ||
         pageSize != effectivePageSize(bm.getConfig(), bucketFileSize))
     {
         return {};
