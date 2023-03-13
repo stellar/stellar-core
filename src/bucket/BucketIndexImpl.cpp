@@ -195,8 +195,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager const& bm,
     if (bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX)
     {
         auto timer = LogSlowExecution("Saving index");
-        std::filesystem::path indexFilename =
-            bm.bucketFilename(hash, /*isIndex=*/true);
+        std::filesystem::path indexFilename = bm.bucketIndexFilename(hash);
         CLOG_DEBUG(Bucket, "Saving bucket index: {}", indexFilename);
 
         std::ofstream out;

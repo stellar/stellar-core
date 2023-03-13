@@ -222,8 +222,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         auto dropBucket = [&](std::shared_ptr<Bucket>& b) {
             std::string filename = b->getFilename().string();
             std::string indexFilename =
-                app->getBucketManager().bucketFilename(b->getHash(),
-                                                       /*isIndex=*/true);
+                app->getBucketManager().bucketIndexFilename(b->getHash());
             CHECK(fs::exists(filename));
             CHECK(fs::exists(indexFilename));
             CLOG_FATAL(Bucket, "{}", indexFilename);
