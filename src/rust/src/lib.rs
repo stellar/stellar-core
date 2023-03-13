@@ -35,7 +35,10 @@ mod rust_bridge {
         hash: String,
     }
 
+    // If success is false, the only thing that may be populated is
+    // diagnostic_events. The rest of the fields should be ignored.
     struct InvokeHostFunctionOutput {
+        success: bool,
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         diagnostic_events: Vec<RustBuf>,

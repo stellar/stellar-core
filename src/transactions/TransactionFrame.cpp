@@ -1182,6 +1182,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         else
         {
             markResultFailed();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+#endif
         }
         return success;
     }

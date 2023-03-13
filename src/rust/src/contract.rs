@@ -358,14 +358,24 @@ fn invoke_host_function_or_maybe_panic(
         Ok(rv) => xdr_to_rust_buf(&rv)?,
         Err(err) => {
             debug!(target: TX, "invocation failed: {}", err);
-            return Err(err.into());
+            return Ok(InvokeHostFunctionOutput {
+                success: false,
+                result_value: RustBuf { data: vec![] },
+                contract_events: vec![],
+                diagnostic_events: extract_diagnostic_events(&events)?,
+                modified_ledger_entries: vec![],
+                cpu_insns: 0,
+                mem_bytes: 0,
+            });
         }
     };
+
     let modified_ledger_entries =
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map, &budget)?;
     let contract_events = extract_contract_events(&events)?;
     let diagnostic_events = extract_diagnostic_events(&events)?;
     Ok(InvokeHostFunctionOutput {
+        success: true,
         result_value,
         contract_events,
         diagnostic_events,

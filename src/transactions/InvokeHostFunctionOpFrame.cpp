@@ -309,6 +309,14 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
             contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
             ledgerEntryCxxBufs);
         metrics.mSuccess = true;
+
+        if (!out.success)
+        {
+            maybePopulateDiagnosticEvents(cfg, out);
+
+            innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
+            return false;
+        }
     }
     catch (std::exception&)
     {
