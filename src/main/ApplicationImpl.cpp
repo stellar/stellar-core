@@ -723,7 +723,7 @@ ApplicationImpl::validateAndLogConfig()
                       "{}MB, persist indexes: {}",
                       pageSizeExp,
                       mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF,
-                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX);
+                      mConfig.isPersistingBucketListDBIndexes());
         }
         else
         {

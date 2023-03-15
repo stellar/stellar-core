@@ -56,7 +56,7 @@ IndexBucketsWork::IndexWork::postWork()
             auto indexFilename =
                 bm.bucketIndexFilename(self->mBucket->getHash());
 
-            if (bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX &&
+            if (bm.getConfig().isPersistingBucketListDBIndexes() &&
                 fs::exists(indexFilename))
             {
                 self->mIndex = BucketIndex::load(bm, indexFilename,

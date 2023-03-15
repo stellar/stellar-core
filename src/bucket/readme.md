@@ -97,3 +97,5 @@ lookup speed and memory overhead. The following configuration flags control thes
 - `EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX`
   - When set to true, BucketListDB indexes are saved to disk to avoid reindexing
     on startup. Defaults to true, should only be set to false for testing purposes.
+    Validators do not currently support persisted indexes. If NODE_IS_VALIDATOR=true,
+    this value is ingnored and indexes are never persisted.

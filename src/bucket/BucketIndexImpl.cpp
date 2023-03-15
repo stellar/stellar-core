@@ -178,7 +178,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         ZoneValue(static_cast<int64_t>(count));
     }
 
-    if (bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX)
+    if (bm.getConfig().isPersistingBucketListDBIndexes())
     {
         saveToDisk(bm, hash);
     }
@@ -189,7 +189,7 @@ void
 BucketIndexImpl<IndexT>::saveToDisk(BucketManager& bm, Hash const& hash) const
 {
     ZoneScoped;
-    releaseAssert(bm.getConfig().EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX);
+    releaseAssert(bm.getConfig().isPersistingBucketListDBIndexes());
     auto timer = LogSlowExecution("Saving index");
 
     std::filesystem::path tmpFilename =

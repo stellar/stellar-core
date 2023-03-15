@@ -1945,6 +1945,13 @@ Config::isUsingBucketListDB() const
 }
 
 bool
+Config::isPersistingBucketListDBIndexes() const
+{
+    return isUsingBucketListDB() && EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX &&
+           !NODE_IS_VALIDATOR;
+}
+
+bool
 Config::isInMemoryModeWithoutMinimalDB() const
 {
     return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;

@@ -282,6 +282,9 @@ class Config : public std::enable_shared_from_this<Config>
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
     // This should only be set to false for testing purposes
+    // Validators do not currently support persisted indexes. If
+    // NODE_IS_VALIDATOR=true, this value is ingnored and indexes are never
+    // persisted.
     bool EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX;
 
     // A config parameter that stores historical data, such as transactions,
@@ -541,6 +544,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;
+    bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
     void logBasicInfo();

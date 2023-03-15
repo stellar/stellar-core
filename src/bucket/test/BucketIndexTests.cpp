@@ -442,6 +442,11 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
     // First 3 levels individual, last 3 range index
     cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
     cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+
+    // Node is not a validator, so indexes will persist
+    cfg.NODE_IS_VALIDATOR = false;
+    cfg.FORCE_SCP = false;
 
     auto test = BucketIndexTest(cfg);
     test.buildGeneralTest();
