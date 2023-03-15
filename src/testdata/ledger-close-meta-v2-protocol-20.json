@@ -620,7 +620,8 @@
                                 "0737d31b38576c80823e6aa85b45a09ff78745fa3abd6ef8d405ba2533d66172",
                                 "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
                                 "af84e88b1979ab15bfcdbfde2fcd6c9d3a070d86f80cf0ee7fbe11107f998e06"
-                            ]
+                            ],
+                            "diagnosticEvents": []
                         }
                     }
                 },
@@ -973,7 +974,8 @@
                                 "5e76866b312f53a1b1aa40b9c6bf0bde5c5d8735857c5c18e64f9a59f6528433",
                                 "df3f619804a92fdb4057192dc43dd748ea778adc52bc498ce80524c014b81119",
                                 "378b89ef6afaa954ea5f891347e31aae15a5504756a384feeabc47e0f60e7217"
-                            ]
+                            ],
+                            "diagnosticEvents": []
                         }
                     }
                 }
