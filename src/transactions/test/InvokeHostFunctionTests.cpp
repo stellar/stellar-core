@@ -373,75 +373,184 @@ TEST_CASE("invoke host function", "[tx][contract]")
     }
 }
 
-TEST_CASE("complex contract with preflight", "[tx][contract]")
+TEST_CASE("failed invocation with diagnostics", "[tx][contract]")
 {
+    // This test calls the add_i32 contract with two numbers that cause an
+    // overflow. Because we have diagnostics on, we will see two events - The
+    // diagnostic "fn_call" event, and the event that the add_i32 contract
+    // emits.
+
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
 
-    auto const complexWasm = rust_bridge::get_test_wasm_complex();
-
-    auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
+    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
+    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
     auto const& contractID = contractKeys[0].contractData().contractID;
-
     auto scContractID = makeBinary(contractID.begin(), contractID.end());
-    auto scFunc = makeSymbol("go");
+
+    auto sc1 = makeI32(7);
+    auto scMax = makeI32(INT32_MAX);
+    SCVec parameters = {scContractID, makeSymbol("add"), sc1, scMax};
 
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
     auto& ihf = op.body.invokeHostFunctionOp();
     ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.function.invokeArgs() = {scContractID, scFunc};
-
-    AccountID source;
-    auto res = InvokeHostFunctionOpFrame::preflight(*app, ihf, source);
-
-    // Contract writes a single `data` CONTRACT_DATA entry.
-    LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
-    dataKey.contractData().contractID = contractID;
-    dataKey.contractData().key = makeSymbol("data");
-
+    ihf.function.invokeArgs() = parameters;
     ihf.footprint.readOnly = contractKeys;
-    ihf.footprint.readWrite.emplace_back(dataKey);
 
-    SECTION("single op")
-    {
-        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
-        txm.finalizeHashes();
+    auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(!tx->apply(*app, ltx, txm));
+    ltx.commit();
+    txm.finalizeHashes();
 
-        // Contract should have emitted a single event carrying a `Bytes` value.
-        REQUIRE(txm.getXDR().v3().events.size() == 1);
-        REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
-                ContractEventType::CONTRACT);
-        REQUIRE(
-            txm.getXDR().v3().events.at(0).events.at(0).body.v0().data.type() ==
-            SCV_BYTES);
-    }
-    SECTION("multiple ops")
-    {
-        auto tx = transactionFrameFromOps(app->getNetworkID(), root,
-                                          {op, op, op}, {});
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
-        txm.finalizeHashes();
+    REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
+    auto const& opEvents = txm.getXDR().v3().diagnosticEvents.at(0).events;
+    REQUIRE(opEvents.size() == 2);
 
-        for (size_t i = 0; i < 3; ++i)
+    auto const& call_ev = opEvents.at(0);
+    REQUIRE(!call_ev.inSuccessfulContractCall);
+    REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(call_ev.event.body.v0().data.type() == SCV_VEC);
+
+    auto const& contract_ev = opEvents.at(1);
+    REQUIRE(!contract_ev.inSuccessfulContractCall);
+    REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
+    REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
+}
+
+TEST_CASE("complex contract with preflight", "[tx][contract]")
+{
+    auto complexTest = [&](bool enableDiagnostics) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = enableDiagnostics;
+        auto app = createTestApplication(clock, cfg);
+        auto root = TestAccount::createRoot(*app);
+
+        auto const complexWasm = rust_bridge::get_test_wasm_complex();
+
+        auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
+        auto const& contractID = contractKeys[0].contractData().contractID;
+
+        auto scContractID = makeBinary(contractID.begin(), contractID.end());
+        auto scFunc = makeSymbol("go");
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp();
+        ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.function.invokeArgs() = {scContractID, scFunc};
+
+        AccountID source;
+        auto res = InvokeHostFunctionOpFrame::preflight(*app, ihf, source);
+
+        // Contract writes a single `data` CONTRACT_DATA entry.
+        LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
+        dataKey.contractData().contractID = contractID;
+        dataKey.contractData().key = makeSymbol("data");
+
+        ihf.footprint.readOnly = contractKeys;
+        ihf.footprint.readWrite.emplace_back(dataKey);
+
+        auto verifyDiagnosticEvents =
+            [&](xdr::xvector<DiagnosticEvent> events) {
+                REQUIRE(events.size() == 3);
+
+                auto call_ev = events.at(0);
+                REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
+                REQUIRE(call_ev.event.body.v0().data.type() == SCV_VEC);
+
+                auto contract_ev = events.at(1);
+                REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
+                REQUIRE(contract_ev.event.body.v0().data.type() == SCV_BYTES);
+
+                // There's no data in the event data
+                auto return_ev = events.at(2);
+                REQUIRE(return_ev.event.type == ContractEventType::DIAGNOSTIC);
+                REQUIRE(return_ev.event.body.v0().data.type() == SCV_VOID);
+            };
+
+        SECTION("single op")
         {
-            REQUIRE(txm.getXDR().v3().events.at(i).events.size() == 1);
-            for (auto const& e : txm.getXDR().v3().events.at(i).events)
+            auto tx =
+                transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+            txm.finalizeHashes();
+
+            // Contract should have emitted a single event carrying a `Bytes`
+            // value.
+            REQUIRE(txm.getXDR().v3().events.size() == 1);
+            REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
+                    ContractEventType::CONTRACT);
+            REQUIRE(txm.getXDR()
+                        .v3()
+                        .events.at(0)
+                        .events.at(0)
+                        .body.v0()
+                        .data.type() == SCV_BYTES);
+
+            if (enableDiagnostics)
             {
-                REQUIRE(e.type == ContractEventType::CONTRACT);
-                REQUIRE(e.body.v0().data.type() == SCV_BYTES);
+                REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
+                verifyDiagnosticEvents(
+                    txm.getXDR().v3().diagnosticEvents.at(0).events);
+            }
+            else
+            {
+                REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 0);
             }
         }
+        SECTION("multiple ops")
+        {
+            auto tx = transactionFrameFromOps(app->getNetworkID(), root,
+                                              {op, op, op}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+            txm.finalizeHashes();
+
+            for (size_t i = 0; i < 3; ++i)
+            {
+                if (enableDiagnostics)
+                {
+                    REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 3);
+                    verifyDiagnosticEvents(
+                        txm.getXDR().v3().diagnosticEvents.at(i).events);
+                }
+                else
+                {
+                    REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 0);
+                }
+
+                for (auto const& e : txm.getXDR().v3().events.at(i).events)
+                {
+                    REQUIRE(e.type == ContractEventType::CONTRACT);
+                    REQUIRE(e.body.v0().data.type() == SCV_BYTES);
+                }
+            }
+        }
+    };
+
+    SECTION("diagnostics enabled")
+    {
+        complexTest(true);
+    }
+    SECTION("diagnostics disabled")
+    {
+        complexTest(false);
     }
 }
 
