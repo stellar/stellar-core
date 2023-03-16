@@ -252,7 +252,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 
     if (mApp.getConfig().isUsingBucketListDB() &&
         mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
-            BucketIndex::DBBackendState)
+            BucketIndex::DB_BACKEND_STATE)
     {
         throw std::runtime_error("BucketListDB enabled but BucketListDB flag "
                                  "not set in PersistentState.");

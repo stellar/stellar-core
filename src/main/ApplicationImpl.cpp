@@ -693,7 +693,7 @@ ApplicationImpl::validateAndLogConfig()
         if (mConfig.isUsingBucketListDB())
         {
             mPersistentState->setState(PersistentState::kDBBackend,
-                                       BucketIndex::DBBackendState);
+                                       BucketIndex::DB_BACKEND_STATE);
             auto pageSizeExp =
                 mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
             if (pageSizeExp != 0)
@@ -718,10 +718,12 @@ ApplicationImpl::validateAndLogConfig()
                 }
             }
 
-            CLOG_INFO(
-                Bucket,
-                "BucketListDB enabled: pageSizeExponent: {} indexCutOff: {}MB",
-                pageSizeExp, mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF);
+            CLOG_INFO(Bucket,
+                      "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
+                      "{}MB, persist indexes: {}",
+                      pageSizeExp,
+                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF,
+                      mConfig.isPersistingBucketListDBIndexes());
         }
         else
         {
@@ -734,7 +736,7 @@ ApplicationImpl::validateAndLogConfig()
         }
     }
     else if (mPersistentState->getState(PersistentState::kDBBackend) ==
-             BucketIndex::DBBackendState)
+             BucketIndex::DB_BACKEND_STATE)
     {
         throw std::invalid_argument(
             "To downgrade from EXPERIMENTAL_BUCKETLIST_DB, run "

@@ -166,6 +166,14 @@ BucketManagerImpl::bucketFilename(Hash const& hash)
     return bucketFilename(binToHex(hash));
 }
 
+std::string
+BucketManagerImpl::bucketIndexFilename(Hash const& hash) const
+{
+    auto hashStr = binToHex(hash);
+    auto basename = "bucket-" + hashStr + ".index";
+    return getBucketDir() + "/" + basename;
+}
+
 std::string const&
 BucketManagerImpl::getTmpDir()
 {
@@ -354,7 +362,8 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 }
 
 bool
-BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
+BucketManagerImpl::renameBucketDirFile(std::string const& src,
+                                       std::string const& dst)
 {
     ZoneScoped;
     if (mApp.getConfig().DISABLE_XDR_FSYNC)
@@ -415,14 +424,14 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         std::string canonicalName = bucketFilename(hash);
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
-        if (!renameBucket(filename, canonicalName))
+        if (!renameBucketDirFile(filename, canonicalName))
         {
             std::string err("Failed to rename bucket :");
             err += strerror(errno);
             // it seems there is a race condition with external systems
             // retry after sleeping for a second works around the problem
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (!renameBucket(filename, canonicalName))
+            if (!renameBucketDirFile(filename, canonicalName))
             {
                 // if rename fails again, surface the original error
                 throw std::runtime_error(err);
@@ -693,6 +702,10 @@ BucketManagerImpl::cleanupStaleFiles()
             // called again
             auto fullName = getBucketDir() + "/" + f;
             std::remove(fullName.c_str());
+
+            // GC index as well
+            auto indexFilename = bucketIndexFilename(hash);
+            std::remove(indexFilename.c_str());
         }
     }
 }
@@ -751,6 +764,8 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                 std::filesystem::remove(filename);
                 auto gzfilename = filename.string() + ".gz";
                 std::remove(gzfilename.c_str());
+                auto indexFilename = bucketIndexFilename(j->second->getHash());
+                std::remove(indexFilename.c_str());
             }
 
             // Dropping this bucket means we'll no longer be able to

@@ -5,6 +5,7 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
+#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
@@ -13,6 +14,8 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
+
+#include "lib/bloom_filter.hpp"
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -23,10 +26,8 @@ namespace BucketManagerTests
 class BucketIndexTest
 {
   protected:
-    VirtualClock mClock;
+    std::unique_ptr<VirtualClock> mClock;
     std::shared_ptr<BucketTestApplication> mApp;
-    BucketManager& mBM;
-    LedgerManagerForBucketTests& mLm;
 
     // Mapping of Key->value that BucketList should return
     UnorderedMap<LedgerKey, LedgerEntry> mTestEntries;
@@ -63,13 +64,17 @@ class BucketIndexTest
     }
 
   public:
-    BucketIndexTest(Config& cfg, uint32_t levels = 6)
-        : mClock()
-        , mApp(createTestApplication<BucketTestApplication>(mClock, cfg))
-        , mBM(mApp->getBucketManager())
-        , mLm(mApp->getLedgerManager())
+    BucketIndexTest(Config const& cfg, uint32_t levels = 6)
+        : mClock(std::make_unique<VirtualClock>())
+        , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
     {
+    }
+
+    BucketManager&
+    getBM() const
+    {
+        return mApp->getBucketManager();
     }
 
     virtual void
@@ -85,7 +90,8 @@ class BucketIndexTest
                     mKeysToSearch.emplace(LedgerEntryKey(e));
                 }
             }
-            mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, {});
         };
 
         buildBucketList(f);
@@ -112,8 +118,9 @@ class BucketIndexTest
                     mTestEntries.erase(k);
                 }
 
-                mLm.setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
-                                                            toDestroy);
+                mApp->getLedgerManager()
+                    .setNextLedgerEntryBatchForBucketTesting({}, toUpdate,
+                                                             toDestroy);
                 toDestroy.clear();
                 toUpdate.clear();
             }
@@ -137,7 +144,8 @@ class BucketIndexTest
                     }
                 }
 
-                mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+                mApp->getLedgerManager()
+                    .setNextLedgerEntryBatchForBucketTesting({}, entries, {});
             }
         };
 
@@ -148,14 +156,14 @@ class BucketIndexTest
     run()
     {
         // Test bulk load lookup
-        auto loadResult = mBM.loadKeys(mKeysToSearch);
+        auto loadResult = getBM().loadKeys(mKeysToSearch);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = mBM.getLedgerEntry(key);
+            auto entryPtr = getBM().getLedgerEntry(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -196,7 +204,7 @@ class BucketIndexTest
                 }
             }
 
-            auto blLoad = mBM.loadKeys(searchSubset);
+            auto blLoad = getBM().loadKeys(searchSubset);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -209,14 +217,26 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(mBM.loadKeys(invalidKeys).size() == 0);
+        REQUIRE(getBM().loadKeys(invalidKeys).size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = mBM.getLedgerEntry(key);
+            auto entryPtr = getBM().getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
+    }
+
+    void
+    restartWithConfig(Config const& cfg)
+    {
+        mApp->gracefulStop();
+        while (mClock->crank(false))
+            ;
+        mApp.reset();
+        mClock = std::make_unique<VirtualClock>();
+        mApp =
+            createTestApplication<BucketTestApplication>(*mClock, cfg, false);
     }
 };
 
@@ -296,7 +316,8 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 mTestEntries.erase(iter);
             }
 
-            mLm.setNextLedgerEntryBatchForBucketTesting({}, entries, toShadow);
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, entries, toShadow);
         };
 
         BucketIndexTest::buildBucketList(f);
@@ -332,7 +353,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto loadResult = mBM.loadPoolShareTrustLinesByAccountAndAsset(
+        auto loadResult = getBM().loadPoolShareTrustLinesByAccountAndAsset(
             mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
@@ -412,5 +433,74 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
     };
 
     testAllIndexTypes(f);
+}
+
+TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+
+    // First 3 levels individual, last 3 range index
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+
+    // Node is not a validator, so indexes will persist
+    cfg.NODE_IS_VALIDATOR = false;
+    cfg.FORCE_SCP = false;
+
+    auto test = BucketIndexTest(cfg);
+    test.buildGeneralTest();
+
+    auto buckets = test.getBM().getBucketListReferencedBuckets();
+    for (auto const& bucketHash : buckets)
+    {
+        if (isZero(bucketHash))
+        {
+            continue;
+        }
+
+        // Check if index files are saved
+        auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
+        REQUIRE(fs::exists(indexFilename));
+
+        auto b = test.getBM().getBucketByHash(bucketHash);
+        REQUIRE(b->isIndexed());
+
+        auto onDiskIndex =
+            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+        REQUIRE(onDiskIndex);
+
+        auto& inMemoryIndex = b->getIndexForTesting();
+        REQUIRE((inMemoryIndex == *onDiskIndex));
+    }
+
+    // Restart app with different config to test that indexes created with
+    // different config settings are not loaded from disk. These params will
+    // invalidate every index in BL
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
+    test.restartWithConfig(cfg);
+
+    for (auto const& bucketHash : buckets)
+    {
+        if (isZero(bucketHash))
+        {
+            continue;
+        }
+
+        // Check if in-memory index has correct params
+        auto b = test.getBM().getBucketByHash(bucketHash);
+        REQUIRE(!b->isEmpty());
+        REQUIRE(b->isIndexed());
+
+        auto& inMemoryIndex = b->getIndexForTesting();
+        REQUIRE(inMemoryIndex.getPageSize() == (1UL << 10));
+
+        // Check if on-disk index rewritten with correct config params
+        auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
+        auto onDiskIndex =
+            BucketIndex::load(test.getBM(), indexFilename, b->getSize());
+        REQUIRE((inMemoryIndex == *onDiskIndex));
+    }
 }
 }

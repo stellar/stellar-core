@@ -38,7 +38,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     std::filesystem::path const mFilename;
     Hash const mHash;
     size_t mSize{0};
-    bool mLazyIndex;
 
     std::unique_ptr<BucketIndex const> mIndex{};
 
@@ -57,6 +56,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // reads until key is found or the end of the page.
     std::optional<BucketEntry>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
+
+    static std::string randomFileName(std::string const& tmpDir,
+                                      std::string ext);
 
   public:
     // Create an empty bucket. The empty bucket has hash '000000...' and its
@@ -124,7 +126,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
-    static LedgerKey getBucketLedgerKey(BucketEntry const& be);
+    static std::string randomBucketName(std::string const& tmpDir);
+    static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
@@ -132,6 +135,13 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
+
+    BucketIndex const&
+    getIndexForTesting() const
+    {
+        return getIndex();
+    }
+
 #endif // BUILD_TESTS
 
     // Create a fresh bucket from given vectors of init (created) and live

@@ -52,8 +52,35 @@ IndexBucketsWork::IndexWork::postWork()
                 return;
             }
 
-            self->mIndex = BucketIndex::createIndex(
-                app.getBucketManager(), self->mBucket->getFilename());
+            auto& bm = app.getBucketManager();
+            auto indexFilename =
+                bm.bucketIndexFilename(self->mBucket->getHash());
+
+            if (bm.getConfig().isPersistingBucketListDBIndexes() &&
+                fs::exists(indexFilename))
+            {
+                self->mIndex = BucketIndex::load(bm, indexFilename,
+                                                 self->mBucket->getSize());
+
+                // If we could not load the index from the file, file is out of
+                // date and will be overwritten when we create a new index
+                if (!self->mIndex)
+                {
+                    CLOG_WARNING(Bucket, "Outdated index file: {}",
+                                 indexFilename);
+                }
+                else
+                {
+                    CLOG_DEBUG(Bucket, "Loaded index from file: {}",
+                               indexFilename);
+                }
+            }
+
+            if (!self->mIndex)
+            {
+                self->mIndex = BucketIndex::createIndex(
+                    bm, self->mBucket->getFilename(), self->mBucket->getHash());
+            }
 
             app.postOnMainThread(
                 [weak]() {

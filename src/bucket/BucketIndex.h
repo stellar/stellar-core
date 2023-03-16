@@ -13,6 +13,8 @@
 #include <optional>
 #include <variant>
 
+#include <cereal/archives/binary.hpp>
+
 namespace stellar
 {
 
@@ -43,10 +45,24 @@ class BucketIndex : public NonMovableOrCopyable
         LedgerKey lowerBound;
         LedgerKey upperBound;
 
+        RangeEntry() = default;
         RangeEntry(LedgerKey low, LedgerKey high)
             : lowerBound(low), upperBound(high)
         {
             releaseAssert(low < high || low == high);
+        }
+
+        inline bool
+        operator==(RangeEntry const& in) const
+        {
+            return lowerBound == in.lowerBound && upperBound == in.upperBound;
+        }
+
+        template <class Archive>
+        void
+        serialize(Archive& ar)
+        {
+            ar(lowerBound, upperBound);
         }
     };
 
@@ -57,7 +73,8 @@ class BucketIndex : public NonMovableOrCopyable
     using Iterator = std::variant<RangeIndex::const_iterator,
                                   IndividualIndex::const_iterator>;
 
-    inline static const std::string DBBackendState = "bl";
+    inline static const std::string DB_BACKEND_STATE = "bl";
+    inline static const uint32_t BUCKET_INDEX_VERSION = 1;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -67,7 +84,14 @@ class BucketIndex : public NonMovableOrCopyable
     // if file size is less than the cutoff, individual key index is used.
     // Otherwise range index is used, with the range defined by pageSize.
     static std::unique_ptr<BucketIndex const>
-    createIndex(BucketManager const& bm, std::filesystem::path const& filename);
+    createIndex(BucketManager& bm, std::filesystem::path const& filename,
+                Hash const& hash);
+
+    // Loads index from given file. If file does not exist or if saved
+    // index does not have same parameters as current config, return null
+    static std::unique_ptr<BucketIndex const>
+    load(BucketManager const& bm, std::filesystem::path const& filename,
+         size_t bucketFileSize);
 
     virtual ~BucketIndex() = default;
 
@@ -98,5 +122,9 @@ class BucketIndex : public NonMovableOrCopyable
 
     virtual void markBloomMiss() const = 0;
     virtual void markBloomLookup() const = 0;
+
+#ifdef BUILD_TESTS
+    virtual bool operator==(BucketIndex const& inRaw) const = 0;
+#endif
 };
 }

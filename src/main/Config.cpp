@@ -143,6 +143,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_BUCKETLIST_DB = false;
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
+    EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -996,6 +997,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF")
             {
                 EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX")
+            {
+                EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = readBool(item);
             }
             else if (item.first == "METADATA_DEBUG_LEDGERS")
             {
@@ -1948,6 +1953,13 @@ Config::isUsingBucketListDB() const
 {
     return EXPERIMENTAL_BUCKETLIST_DB && !MODE_USES_IN_MEMORY_LEDGER &&
            MODE_ENABLES_BUCKETLIST;
+}
+
+bool
+Config::isPersistingBucketListDBIndexes() const
+{
+    return isUsingBucketListDB() && EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX &&
+           !NODE_IS_VALIDATOR;
 }
 
 bool

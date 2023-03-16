@@ -94,3 +94,8 @@ lookup speed and memory overhead. The following configuration flags control thes
    `RangeIndex` is used.
     Default value is 20 MB, which indexes the first ~3 levels with the `IndividualIndex`.
     Larger values speed up lookups but increase memory usage.
+- `EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX`
+  - When set to true, BucketListDB indexes are saved to disk to avoid reindexing
+    on startup. Defaults to true, should only be set to false for testing purposes.
+    Validators do not currently support persisted indexes. If NODE_IS_VALIDATOR=true,
+    this value is ingnored and indexes are never persisted.

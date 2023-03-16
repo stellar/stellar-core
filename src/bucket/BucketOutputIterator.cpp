@@ -14,25 +14,6 @@
 namespace stellar
 {
 
-namespace
-{
-std::string
-randomBucketName(std::string const& tmpDir)
-{
-    ZoneScoped;
-    for (;;)
-    {
-        std::string name =
-            tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ".xdr";
-        std::ifstream ifile(name);
-        if (!ifile)
-        {
-            return name;
-        }
-    }
-}
-}
-
 /**
  * Helper class that points to an output tempfile. Absorbs BucketEntries and
  * hashes them while writing to either destination. Produces a Bucket when done.
@@ -42,7 +23,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
                                            BucketMetadata const& meta,
                                            MergeCounters& mc,
                                            asio::io_context& ctx, bool doFsync)
-    : mFilename(randomBucketName(tmpDir))
+    : mFilename(Bucket::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
@@ -151,7 +132,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index = BucketIndex::createIndex(bucketManager, mFilename);
+            index = BucketIndex::createIndex(bucketManager, mFilename, hash);
         }
     }
 

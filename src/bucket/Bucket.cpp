@@ -344,6 +344,34 @@ Bucket::convertToBucketEntry(bool useInit,
     return bucket;
 }
 
+std::string
+Bucket::randomFileName(std::string const& tmpDir, std::string ext)
+{
+    ZoneScoped;
+    for (;;)
+    {
+        std::string name =
+            tmpDir + "/tmp-bucket-" + binToHex(randomBytes(8)) + ext;
+        std::ifstream ifile(name);
+        if (!ifile)
+        {
+            return name;
+        }
+    }
+}
+
+std::string
+Bucket::randomBucketName(std::string const& tmpDir)
+{
+    return randomFileName(tmpDir, ".xdr");
+}
+
+std::string
+Bucket::randomBucketIndexName(std::string const& tmpDir)
+{
+    return randomFileName(tmpDir, ".index");
+}
+
 std::shared_ptr<Bucket>
 Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
               std::vector<LedgerEntry> const& initEntries,
