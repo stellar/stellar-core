@@ -7,6 +7,7 @@
 #include "xdr/Stellar-transaction.h"
 #include <medida/metrics_registry.h>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
 #include "transactions/OperationFrame.h"
 
 namespace stellar
@@ -20,6 +21,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     {
         return mResult.tr().invokeHostFunctionResult();
     }
+
+    void maybePopulateDiagnosticEvents(Config const& cfg,
+                                       InvokeHostFunctionOutput const& output);
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 

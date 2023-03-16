@@ -49,6 +49,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionResult mResult;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     xdr::xvector<OperationEvents> mEvents;
+    xdr::xvector<OperationDiagnosticEvents> mDiagnosticEvents;
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -169,6 +170,7 @@ class TransactionFrame : public TransactionFrameBase
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(OperationEvents const& evts);
+    void pushDiagnosticEvents(OperationDiagnosticEvents const& evts);
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;

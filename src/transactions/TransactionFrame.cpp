@@ -122,6 +122,12 @@ TransactionFrame::pushContractEvents(OperationEvents const& evts)
 {
     mEvents.emplace_back(evts);
 }
+
+void
+TransactionFrame::pushDiagnosticEvents(OperationDiagnosticEvents const& evts)
+{
+    mDiagnosticEvents.emplace_back(evts);
+}
 #endif
 
 TransactionEnvelope const&
@@ -1170,11 +1176,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
 
             outerMeta.pushContractEvents(std::move(mEvents));
+            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
 #endif
         }
         else
         {
             markResultFailed();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+#endif
         }
         return success;
     }

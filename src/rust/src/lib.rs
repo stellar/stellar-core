@@ -35,9 +35,13 @@ mod rust_bridge {
         hash: String,
     }
 
+    // If success is false, the only thing that may be populated is
+    // diagnostic_events. The rest of the fields should be ignored.
     struct InvokeHostFunctionOutput {
+        success: bool,
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
+        diagnostic_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
@@ -46,6 +50,7 @@ mod rust_bridge {
     struct PreflightHostFunctionOutput {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
+        diagnostic_events: Vec<RustBuf>,
         storage_footprint: RustBuf,
         cpu_insns: u64,
         mem_bytes: u64,
@@ -79,6 +84,7 @@ mod rust_bridge {
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> Vec<XDRFileHash>;
         fn invoke_host_function(
+            enable_diagnostics: bool,
             hf_buf: &CxxBuf,
             footprint: &CxxBuf,
             source_account: &CxxBuf,

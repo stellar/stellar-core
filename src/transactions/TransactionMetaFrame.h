@@ -31,6 +31,7 @@ class TransactionMetaFrame
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(xdr::xvector<OperationEvents>&& events);
+    void pushDiagnosticEvents(xdr::xvector<OperationDiagnosticEvents>&& events);
     static Hash getHashOfMetaHashes(TransactionMeta const&);
 #endif
 
