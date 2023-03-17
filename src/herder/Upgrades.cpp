@@ -205,40 +205,41 @@ Upgrades::getParameters() const
 }
 
 std::vector<LedgerUpgrade>
-Upgrades::createUpgradesFor(LedgerHeader const& header,
+Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
                             AbstractLedgerTxn& ltx) const
 {
     auto result = std::vector<LedgerUpgrade>{};
-    if (!timeForUpgrade(header.scpValue.closeTime))
+    if (!timeForUpgrade(lclHeader.scpValue.closeTime))
     {
         return result;
     }
 
     if (mParams.mProtocolVersion &&
-        (header.ledgerVersion != *mParams.mProtocolVersion))
+        (lclHeader.ledgerVersion != *mParams.mProtocolVersion))
     {
         result.emplace_back(LEDGER_UPGRADE_VERSION);
         result.back().newLedgerVersion() = *mParams.mProtocolVersion;
     }
-    if (mParams.mBaseFee && (header.baseFee != *mParams.mBaseFee))
+    if (mParams.mBaseFee && (lclHeader.baseFee != *mParams.mBaseFee))
     {
         result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
         result.back().newBaseFee() = *mParams.mBaseFee;
     }
     if (mParams.mMaxTxSetSize &&
-        (header.maxTxSetSize != *mParams.mMaxTxSetSize))
+        (lclHeader.maxTxSetSize != *mParams.mMaxTxSetSize))
     {
         result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
         result.back().newMaxTxSetSize() = *mParams.mMaxTxSetSize;
     }
-    if (mParams.mBaseReserve && (header.baseReserve != *mParams.mBaseReserve))
+    if (mParams.mBaseReserve &&
+        (lclHeader.baseReserve != *mParams.mBaseReserve))
     {
         result.emplace_back(LEDGER_UPGRADE_BASE_RESERVE);
         result.back().newBaseReserve() = *mParams.mBaseReserve;
     }
     if (mParams.mFlags)
     {
-        if (LedgerHeaderUtils::getFlags(header) != *mParams.mFlags)
+        if (LedgerHeaderUtils::getFlags(lclHeader) != *mParams.mFlags)
         {
             result.emplace_back(LEDGER_UPGRADE_FLAGS);
             result.back().newFlags() = *mParams.mFlags;

@@ -78,7 +78,7 @@ class Upgrades
     UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& header,
+    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& lclHeader,
                                                  AbstractLedgerTxn& ltx) const;
 
     // apply upgrade to ledger header
