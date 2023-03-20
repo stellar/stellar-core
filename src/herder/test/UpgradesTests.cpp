@@ -2690,23 +2690,66 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
         initUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
         ltx.commit();
     }
+    {
+        // Check roundtrip serialization
+        std::string upgradesJson, encodedConfigUpgradeSet;
+        auto json = initUpgrades.toJson();
 
-    std::string upgradesJson, encodedConfigUpgradeSet;
-    auto json = initUpgrades.toJson();
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        Upgrades::UpgradeParameters restoredUpgrades;
+        restoredUpgrades.fromJson(json, ltx);
+        REQUIRE(restoredUpgrades.mUpgradeTime == initUpgrades.mUpgradeTime);
+        REQUIRE(*restoredUpgrades.mBaseFee == 10000);
+        REQUIRE(*restoredUpgrades.mProtocolVersion == 20);
+        REQUIRE(!restoredUpgrades.mMaxTxSetSize);
+        REQUIRE(!restoredUpgrades.mBaseReserve);
 
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    Upgrades::UpgradeParameters restoredUpgrades;
-    restoredUpgrades.fromJson(json, ltx);
-    REQUIRE(restoredUpgrades.mUpgradeTime == initUpgrades.mUpgradeTime);
-    REQUIRE(*restoredUpgrades.mBaseFee == 10000);
-    REQUIRE(*restoredUpgrades.mProtocolVersion == 20);
-    REQUIRE(!restoredUpgrades.mMaxTxSetSize);
-    REQUIRE(!restoredUpgrades.mBaseReserve);
+        REQUIRE(!restoredUpgrades.mFlags);
 
-    REQUIRE(!restoredUpgrades.mFlags);
-    
-    REQUIRE(restoredUpgrades.mConfigUpgradeSetKey ==
-            initUpgrades.mConfigUpgradeSetKey);
+        REQUIRE(restoredUpgrades.mConfigUpgradeSetKey ==
+                initUpgrades.mConfigUpgradeSetKey);
+    }
+
+    {
+        // Set upgrade in herder and then check Json
+        app->getHerder().setUpgrades(initUpgrades);
+        auto upgradesJson = app->getHerder().getUpgradesJson();
+        REQUIRE(upgradesJson == R"({
+   "configupgradeinfo" : {
+      "configupgradeset" : {
+         "updatedEntry" : [
+            {
+               "configSettingID" : 0,
+               "contractMaxSizeBytes" : 32768
+            }
+         ]
+      },
+      "configupgradesetkey" : {
+         "data" : "A2X1x61JPcqp3xe1AxsI6w3fqehhW6iU16Tn5HV32eiPU4K5Q3ayQUPGrHt7nMSvsWFD86wQYI9P6fiJD9kI+w==",
+         "nullopt" : false
+      }
+   },
+   "fee" : {
+      "data" : 10000,
+      "nullopt" : false
+   },
+   "flags" : {
+      "nullopt" : true
+   },
+   "maxtxsize" : {
+      "nullopt" : true
+   },
+   "reserve" : {
+      "nullopt" : true
+   },
+   "time" : 1666464812,
+   "version" : {
+      "data" : 20,
+      "nullopt" : false
+   }
+}
+)");
+    }
 }
 
 #endif

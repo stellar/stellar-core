@@ -129,6 +129,38 @@ Upgrades::UpgradeParameters::toJson() const
     return out.str();
 }
 
+std::string
+Upgrades::UpgradeParameters::toDebugJson(stellar::AbstractLedgerTxn& ltx) const
+{
+    Json::Value upgradesJson;
+    Json::Reader reader;
+    reader.parse(toJson(), upgradesJson);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (mConfigUpgradeSetKey)
+    {
+        // combine the key and actual config upgrade set under a single Json
+        // value
+        upgradesJson["configupgradeinfo"]["configupgradesetkey"] =
+            upgradesJson["configupgradesetkey"];
+        upgradesJson.removeMember("configupgradesetkey");
+
+        auto upgradeSetPtr =
+            ConfigUpgradeSetFrame::makeFromKey(ltx, *mConfigUpgradeSetKey);
+        if (upgradeSetPtr)
+        {
+            Json::Value configUpgradeSetJson;
+            Json::Reader reader;
+            reader.parse(upgradeSetPtr->toJson(), configUpgradeSetJson);
+            upgradesJson["configupgradeinfo"]["configupgradeset"] =
+                configUpgradeSetJson;
+        }
+    }
+#endif
+    Json::StyledWriter writer;
+    return writer.write(upgradesJson);
+}
+
 static std::string
 rewriteOptionalFieldKeys(std::string s)
 {
