@@ -50,6 +50,7 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/TxFloodManager.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -274,6 +275,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mDatabase = createDatabase();
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
+    mTxFloodManager = createTxFloodManager();
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
@@ -851,6 +853,10 @@ ApplicationImpl::gracefulStop()
     {
         mHerder->shutdown();
     }
+    if (mTxFloodManager)
+    {
+        mTxFloodManager->shutdown();
+    }
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
@@ -1308,6 +1314,12 @@ ApplicationImpl::getOverlayManager()
     return *mOverlayManager;
 }
 
+TxFloodManager&
+ApplicationImpl::getTxFloodManager()
+{
+    return *mTxFloodManager;
+}
+
 Database&
 ApplicationImpl::getDatabase() const
 {
@@ -1407,6 +1419,12 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+std::unique_ptr<TxFloodManager>
+ApplicationImpl::createTxFloodManager()
+{
+    return TxFloodManager::create(*this);
 }
 
 std::unique_ptr<LedgerManager>

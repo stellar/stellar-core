@@ -2198,7 +2198,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         links[1][2]->sendMessage(adv, false);
 
         // Give enough time to:
-        // 1) call `demand`, and
+        // 1) call `demand` exactly once, and
         // 2) send the demands out.
         testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
                                       epsilon);

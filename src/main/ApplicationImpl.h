@@ -70,6 +70,7 @@ class ApplicationImpl : public Application
     virtual HerderPersistence& getHerderPersistence() override;
     virtual InvariantManager& getInvariantManager() override;
     virtual OverlayManager& getOverlayManager() override;
+    virtual TxFloodManager& getTxFloodManager() override;
     virtual Database& getDatabase() const override;
     virtual PersistentState& getPersistentState() override;
     virtual CommandHandler& getCommandHandler() override;
@@ -151,6 +152,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<OverlayManager> mOverlayManager;
+    std::unique_ptr<TxFloodManager> mTxFloodManager;
     std::unique_ptr<CatchupManager> mCatchupManager;
     std::unique_ptr<HerderPersistence> mHerderPersistence;
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
@@ -215,6 +217,7 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<Herder> createHerder();
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
+    virtual std::unique_ptr<TxFloodManager> createTxFloodManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();
     virtual std::unique_ptr<Database> createDatabase();
 

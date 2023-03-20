@@ -315,22 +315,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void maybeSendNextBatch();
 
-    TxAdvertQueue mTxAdvertQueue;
-
     // How many _hashes_ in total are queued?
     // NB: Each advert & demand contains a _vector_ of tx hashes.
     size_t mAdvertQueueTxHashCount{0};
     size_t mDemandQueueTxHashCount{0};
 
-    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
-    // of flood messages, then periodically flush the advert and await a
-    // _demand_ message with a list of flood messages to send. Adverts are
-    // typically smaller than full messages and batching them means we also
-    // amortize the authentication framing.
-    TxAdvertVector mTxHashesToAdvertise;
-    void flushAdvert();
-    VirtualTimer mAdvertTimer;
-    void startAdvertTimer();
     // transaction hash -> ledger number
     RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
 
@@ -459,13 +448,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendTxDemand(TxDemandVector&& demands);
     void fulfillDemand(FloodDemand const& dmd);
-    void queueTxHashToAdvertise(Hash const& hash);
-    void queueTxHashAndMaybeTrim(Hash const& hash);
-    TxAdvertQueue&
-    getTxAdvertQueue()
-    {
-        return mTxAdvertQueue;
-    };
 
     friend class LoopbackPeer;
 };

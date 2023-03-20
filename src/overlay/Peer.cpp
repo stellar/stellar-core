@@ -21,6 +21,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
+#include "overlay/TxFloodManager.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -69,8 +70,6 @@ Peer::Peer(Application& app, PeerRole role)
     , mPeerMetrics(app.getClock().now())
     , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
                 app.getConfig().PEER_READING_CAPACITY}
-    , mTxAdvertQueue(app)
-    , mAdvertTimer(app)
     , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
     mPingSentTime = PING_NOT_SENT;
@@ -403,7 +402,6 @@ Peer::shutdown()
     }
     mShuttingDown = true;
     mRecurringTimer.cancel();
-    mAdvertTimer.cancel();
 }
 
 void
@@ -1488,7 +1486,7 @@ Peer::recvTransaction(StellarMessage const& msg)
         mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
                                                   msgID);
 
-        mApp.getOverlayManager().recordTxPullLatency(transaction->getFullHash(),
+        mApp.getTxFloodManager().recordTxPullLatency(transaction->getFullHash(),
                                                      shared_from_this());
 
         // add it to our current set
@@ -2007,7 +2005,8 @@ Peer::recvFloodAdvert(StellarMessage const& msg)
     {
         rememberHash(hash, seq);
     }
-    mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
+    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes,
+                                                   shared_from_this());
 }
 
 void
@@ -2073,50 +2072,6 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
 }
 
 void
-Peer::queueTxHashToAdvertise(Hash const& txHash)
-{
-    if (mTxHashesToAdvertise.empty())
-    {
-        startAdvertTimer();
-    }
-
-    if (mTxHashesToAdvertise.size() == TX_ADVERT_VECTOR_MAX_SIZE)
-    {
-        CLOG_TRACE(Overlay,
-                   "mTxHashesToAdvertise is full, dropping the txn hash {}",
-                   hexAbbrev(txHash));
-        return;
-    }
-
-    mTxHashesToAdvertise.emplace_back(txHash);
-
-    // Flush adverts at the earliest of the following two conditions:
-    // 1. The number of hashes reaches the threshold.
-    // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
-    if (mTxHashesToAdvertise.size() ==
-        mApp.getOverlayManager().getMaxAdvertSize())
-    {
-        flushAdvert();
-    }
-}
-
-void
-Peer::startAdvertTimer()
-{
-    if (shouldAbort())
-    {
-        return;
-    }
-    mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
-    mAdvertTimer.async_wait([this](asio::error_code const& error) {
-        if (!error)
-        {
-            flushAdvert();
-        }
-    });
-}
-
-void
 Peer::sendTxDemand(TxDemandVector&& demands)
 {
     if (demands.size() > 0)
@@ -2137,30 +2092,6 @@ Peer::sendTxDemand(TxDemandVector&& demands)
             },
             "sendTxDemand");
         ++mPeerMetrics.mTxDemandSent;
-    }
-}
-
-void
-Peer::flushAdvert()
-{
-    if (mTxHashesToAdvertise.size() > 0)
-    {
-        StellarMessage adv;
-        adv.type(FLOOD_ADVERT);
-
-        adv.floodAdvert().txHashes = std::move(mTxHashesToAdvertise);
-        mTxHashesToAdvertise.clear();
-        auto msg = std::make_shared<StellarMessage>(adv);
-        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
-        mApp.postOnMainThread(
-            [weak, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
-            },
-            "flushAdvert");
     }
 }
 
