@@ -67,7 +67,12 @@ RUN apt-get -y install cpp-10 gcc-10 g++-10
 # clang
 RUN apt-get -y install clang-12 llvm-12
 # rust
-RUN ./install-rust.sh
+# there is a bug in vscode's handling of devcontainer contexts that means
+# we can't access files outside this directory even with build.context,
+# but since we're building inside a container and only doing so for local
+# development, the security risks of running the normal rustup installer
+# are considerably less; for now we will tolerate them.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH "/root/.cargo/bin:$PATH"
 
 # clang by default
