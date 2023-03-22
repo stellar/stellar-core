@@ -801,8 +801,16 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() =
             ConfigUpgradeSetKey{contractID, upgradeHash};
-        REQUIRE_THROWS_AS(executeUpgrade(*app, ledgerUpgrade),
-                          std::runtime_error);
+        executeUpgrade(*app, ledgerUpgrade);
+
+        // upgrade was ignored
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto maxContractSizeEntry =
+            ltx.load(getMaxContractSizeKey()).current().data.configSetting();
+        REQUIRE(maxContractSizeEntry.configSettingID() ==
+                CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+        REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() ==
+                Upgrades::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20);
     }
 
     SECTION("known config upgrade set is applied")
@@ -2525,23 +2533,25 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
     SECTION("invalid version changes")
     {
         // Version upgrade to unsupported
-        REQUIRE_THROWS(executeUpgrade(
-            *app, makeProtocolVersionUpgrade(
-                      Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1)));
+        executeUpgrade(*app,
+                       makeProtocolVersionUpgrade(
+                           Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1),
+                       true);
 
         executeUpgrade(*app, makeProtocolVersionUpgrade(
                                  Config::CURRENT_LEDGER_PROTOCOL_VERSION));
 
         // Version downgrade
-        REQUIRE_THROWS(executeUpgrade(
-            *app, makeProtocolVersionUpgrade(
-                      Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1)));
+        executeUpgrade(*app,
+                       makeProtocolVersionUpgrade(
+                           Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1),
+                       true);
     }
     SECTION("Invalid flags")
     {
         // Base Fee / Base Reserve to 0
-        REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
-        REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
+        executeUpgrade(*app, makeBaseFeeUpgrade(0), true);
+        executeUpgrade(*app, makeBaseReserveUpgrade(0), true);
 
         if (cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION > 0)
         {
@@ -2550,9 +2560,8 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION));
         }
 
-        for_versions_to(17, *app, [&] {
-            REQUIRE_THROWS(executeUpgrade(*app, makeFlagsUpgrade(1)));
-        });
+        for_versions_to(
+            17, *app, [&] { executeUpgrade(*app, makeFlagsUpgrade(1), true); });
 
         for_versions_from(18, *app, [&] {
             auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
@@ -2566,8 +2575,8 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
                 ;
             REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
 
-            REQUIRE_THROWS(executeUpgrade(
-                *app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1)));
+            executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1),
+                           true);
 
             // success
             executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS));

@@ -740,12 +740,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         case Upgrades::UpgradeValidity::VALID:
             break;
         case Upgrades::UpgradeValidity::XDR_INVALID:
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("Unknown upgrade at index {:d}"), i));
+        {
+            CLOG_ERROR(Ledger, "Unknown upgrade at index {}", i);
+            continue;
+        }
         case Upgrades::UpgradeValidity::INVALID:
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("Invalid upgrade at index {:d}: {}"), i,
-                            xdr_to_string(lupgrade, "LedgerUpgrade")));
+        {
+            CLOG_ERROR(Ledger, "Invalid upgrade at index {}: {}", i,
+                       xdr_to_string(lupgrade, "LedgerUpgrade"));
+            continue;
+        }
         }
 
         try
