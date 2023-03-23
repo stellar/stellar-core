@@ -1318,11 +1318,11 @@
     <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketIndex.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp">
       <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1935,9 +1935,6 @@
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\test\OverlayTestUtils.h">
-      <Filter>overlay\tests</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h">
       <Filter>overlay\tests</Filter>
     </ClInclude>
@@ -2298,14 +2295,18 @@
     <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketIndex.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\bloom_filter.hpp">
       <Filter>lib</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\clara.hpp">
       <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\test\TxAdvertQueue.h" />
+    <ClInclude Include="..\..\src\bucket\BucketIndex.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h">
+      <Filter>bucket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
