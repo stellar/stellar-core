@@ -188,5 +188,9 @@ fn get_soroban_xdr_bindings_git_version() -> String {
 }
 
 fn get_soroban_xdr_bindings_base_xdr_git_version() -> String {
-    soroban_env_host::VERSION.xdr.xdr.to_string()
+    match soroban_env_host::VERSION.xdr.xdr {
+        "next" => soroban_env_host::VERSION.xdr.xdr_next.to_string(),
+        "curr" => soroban_env_host::VERSION.xdr.xdr_curr.to_string(),
+        _ => "unknown configuration".to_string()
+    }
 }
