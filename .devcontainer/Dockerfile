@@ -67,7 +67,6 @@ RUN apt-get -y install cpp-10 gcc-10 g++-10
 # clang
 RUN apt-get -y install clang-12 llvm-12
 # rust
-RUN ./install-rust.sh
 ENV PATH "/root/.cargo/bin:$PATH"
 
 # clang by default
