@@ -362,17 +362,17 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 }
 
 bool
-BucketManagerImpl::renameBucketDirFile(std::string const& src,
-                                       std::string const& dst)
+BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
+                                       std::filesystem::path const& dst)
 {
     ZoneScoped;
     if (mApp.getConfig().DISABLE_XDR_FSYNC)
     {
-        return rename(src.c_str(), dst.c_str()) == 0;
+        return rename(src.string().c_str(), dst.string().c_str()) == 0;
     }
     else
     {
-        return fs::durableRename(src, dst, getBucketDir());
+        return fs::durableRename(src.string(), dst.string(), getBucketDir());
     }
 }
 

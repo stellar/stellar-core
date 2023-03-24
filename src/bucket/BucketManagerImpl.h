@@ -104,8 +104,8 @@ class BucketManagerImpl : public BucketManager
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
-    bool renameBucketDirFile(std::string const& src,
-                             std::string const& dst) override;
+    bool renameBucketDirFile(std::filesystem::path const& src,
+                             std::filesystem::path const& dst) override;
     std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       size_t nObjects, size_t nBytes, MergeKey* mergeKey,

@@ -300,7 +300,7 @@ BucketIndex::createIndex(BucketManager& bm,
     auto const& cfg = bm.getConfig();
     releaseAssertOrThrow(cfg.isUsingBucketListDB());
     releaseAssertOrThrow(!filename.empty());
-    auto pageSize = effectivePageSize(cfg, fs::size(filename));
+    auto pageSize = effectivePageSize(cfg, fs::size(filename.string()));
 
     try
     {

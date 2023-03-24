@@ -8,6 +8,7 @@
 			"APT_MIRROR": "${localEnv:APT_MIRROR}"
 		}
 	},
+	"onCreateCommand": "./install-rust.sh",
 	// The optional 'runArgs' property can be used to specify additional runtime arguments.
 	"runArgs": [
 		// Uncomment the line if you will use a ptrace-based debugger like C++, Go, and Rust.

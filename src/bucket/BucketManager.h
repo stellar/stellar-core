@@ -114,8 +114,8 @@ class BucketManager : NonMovableOrCopyable
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
     virtual BucketList& getBucketList() = 0;
-    virtual bool renameBucketDirFile(std::string const& src,
-                                     std::string const& dst) = 0;
+    virtual bool renameBucketDirFile(std::filesystem::path const& src,
+                                     std::filesystem::path const& dst) = 0;
 
     virtual medida::Timer& getMergeTimer() = 0;
 
