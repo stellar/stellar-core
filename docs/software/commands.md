@@ -296,6 +296,12 @@ format.
         When specified it must match one of the protocol versions supported
         by the node and should be greater than ledgerVersion from the current
         ledger<br>
+    * `configupgradesetkey` (base64 encoded XDR serialized `ConfigUpgradeSetKey`)
+        this key will be converted to a ContractData LedgerKey, and the
+        ContractData LedgerEntry retrieved with that will have a val of SCV_BYTES
+        containing a serialized ConfigUpgradeSet. Each ConfigSettingEntry in the
+        ConfigUpgradeSet will be used to update the existing network ConfigSettingEntry
+        that exists at the corresponding CONFIG_SETTING LedgerKey.
 
 * **surveytopology**
   `surveytopology?duration=DURATION&node=NODE_ID`<br>
