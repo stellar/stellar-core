@@ -60,6 +60,14 @@ makeI32(int32_t i32)
 }
 
 static SCVal
+makeU64(uint64_t u64)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u64;
+    return val;
+}
+
+static SCVal
 makeSymbol(std::string const& str)
 {
     SCVal val(SCV_SYMBOL);
@@ -266,13 +274,12 @@ TEST_CASE("invoke host function", "[tx][contract]")
             }
         };
 
-        auto putWithFootprint = [&](std::string const& key,
-                                    std::string const& val,
+        auto putWithFootprint = [&](std::string const& key, uint64_t val,
                                     xdr::xvector<LedgerKey> const& readOnly,
                                     xdr::xvector<LedgerKey> const& readWrite,
                                     bool success) {
             auto keySymbol = makeSymbol(key);
-            auto valSymbol = makeSymbol(val);
+            auto valU64 = makeU64(val);
 
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
@@ -282,7 +289,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
                 makeBinary(contractID.begin(), contractID.end()));
             ihf.function.invokeArgs().emplace_back(makeSymbol("put"));
             ihf.function.invokeArgs().emplace_back(keySymbol);
-            ihf.function.invokeArgs().emplace_back(valSymbol);
+            ihf.function.invokeArgs().emplace_back(valU64);
             ihf.footprint.readOnly = readOnly;
             ihf.footprint.readWrite = readWrite;
 
@@ -295,7 +302,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             {
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
-                checkContractData(keySymbol, &valSymbol);
+                checkContractData(keySymbol, &valU64);
             }
             else
             {
@@ -304,7 +311,7 @@ TEST_CASE("invoke host function", "[tx][contract]")
             }
         };
 
-        auto put = [&](std::string const& key, std::string const& val) {
+        auto put = [&](std::string const& key, uint64_t val) {
             putWithFootprint(key, val, contractKeys,
                              {contractDataKey(contractID, makeSymbol(key))},
                              true);
@@ -351,22 +358,22 @@ TEST_CASE("invoke host function", "[tx][contract]")
                              true);
         };
 
-        put("key1", "val1a");
-        put("key2", "val2a");
+        put("key1", 0);
+        put("key2", 21);
 
         // Failure: contract data isn't in footprint
-        putWithFootprint("key1", "val1b", contractKeys, {}, false);
+        putWithFootprint("key1", 88, contractKeys, {}, false);
         delWithFootprint("key1", contractKeys, {}, false);
 
         // Failure: contract data is read only
         auto readOnlyFootprint = contractKeys;
         readOnlyFootprint.push_back(
             contractDataKey(contractID, makeSymbol("key2")));
-        putWithFootprint("key2", "val2b", readOnlyFootprint, {}, false);
+        putWithFootprint("key2", 888888, readOnlyFootprint, {}, false);
         delWithFootprint("key2", readOnlyFootprint, {}, false);
 
-        put("key1", "val1c");
-        put("key2", "val2c");
+        put("key1", 9);
+        put("key2", UINT64_MAX);
 
         del("key1");
         del("key2");
