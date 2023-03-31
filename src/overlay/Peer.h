@@ -25,6 +25,7 @@ typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
+class FlowControl;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -67,8 +68,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::seconds(300);
 
     bool peerKnowsHash(Hash const& hash);
-    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
-
     typedef std::shared_ptr<Peer> pointer;
 
     enum PeerState
@@ -111,10 +110,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
         medida::Timer mMessageDelayInWriteQueueTimer;
         medida::Timer mMessageDelayInAsyncWriteTimer;
-        medida::Timer mOutboundQueueDelaySCP;
-        medida::Timer mOutboundQueueDelayTxs;
-        medida::Timer mOutboundQueueDelayAdvert;
-        medida::Timer mOutboundQueueDelayDemand;
         medida::Timer mAdvertQueueDelay;
         medida::Timer mPullLatency;
 
@@ -149,13 +144,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
-    struct QueuedOutboundMessage
-    {
-        std::shared_ptr<StellarMessage const> mMessage;
-        VirtualClock::time_point mTimeEmplaced;
-    };
-
-    Json::Value getFlowControlJsonInfo(bool compact) const;
     Json::Value getJsonInfo(bool compact) const;
 
   protected:
@@ -166,6 +154,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
+
+    std::shared_ptr<FlowControl> mFlowControl;
 
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
@@ -179,34 +169,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::weak_ptr<Peer> getPeer();
     };
 
-    struct ReadingCapacity
-    {
-        uint64_t mFloodCapacity;
-        uint64_t mTotalCapacity;
-    };
-
-    // Outbound queues indexes by priority
-    // Priority 0 - SCP messages
-    // Priority 1 - transactions
-    // Priority 2 - flood demands
-    // Priority 3 - flood adverts
-    std::array<std::deque<QueuedOutboundMessage>, 4> mOutboundQueues;
-
-    // This methods drops obsolete load from the outbound queue
-    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
-
-    // How many flood messages have we received and processed since sending
-    // SEND_MORE to this peer
-    uint64_t mFloodMsgsProcessed{0};
-
-    // How many flood messages can we send to this peer
-    uint64_t mOutboundCapacity{0};
-
     // Is this peer currently throttled due to lack of capacity
     bool mIsPeerThrottled{false};
 
     // Does local node have capacity to read from this peer
-    bool hasReadingCapacity() const;
+    bool canRead() const;
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -223,7 +190,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mRecurringTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
-    std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     VirtualClock::time_point mEnqueueTimeOfLastWrite;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
@@ -233,7 +199,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
-    ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
 
@@ -272,7 +237,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
-    void sendSendMore(uint32_t numMessages);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -298,23 +262,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void startRecurrentTimer();
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
+    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
 
     void sendAuthenticatedMessage(StellarMessage const& msg);
-
-    void beginMesssageProcessing(StellarMessage const& msg);
+    void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
-
-    void maybeSendNextBatch();
-
     TxAdvertQueue mTxAdvertQueue;
-
-    // How many _hashes_ in total are queued?
-    // NB: Each advert & demand contains a _vector_ of tx hashes.
-    size_t mAdvertQueueTxHashCount{0};
-    size_t mDemandQueueTxHashCount{0};
 
     // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
     // of flood messages, then periodically flush the advert and await a
@@ -445,5 +401,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     };
 
     friend class LoopbackPeer;
+
+#ifdef BUILD_TESTS
+    std::shared_ptr<FlowControl>
+    getFlowControl() const
+    {
+        return mFlowControl;
+    }
+#endif
 };
 }
