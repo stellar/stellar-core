@@ -17,12 +17,6 @@
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 
-namespace medida
-{
-class Timer;
-class Meter;
-}
-
 namespace stellar
 {
 
@@ -433,23 +427,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
-
-    virtual void
-    writeHandler(asio::error_code const& error, size_t bytes_transferred,
-                 size_t messages_transferred)
-    {
-    }
-
-    virtual void
-    readHeaderHandler(asio::error_code const& error, size_t bytes_transferred)
-    {
-    }
-
-    virtual void
-    readBodyHandler(asio::error_code const& error, size_t bytes_transferred,
-                    size_t expected_length)
-    {
-    }
 
     virtual void drop(std::string const& reason, DropDirection dropDirection,
                       DropMode dropMode) = 0;
