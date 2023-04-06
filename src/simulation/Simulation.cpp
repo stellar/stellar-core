@@ -755,7 +755,7 @@ bool
 LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
                                       bool forceoutbound)
 {
-    CLOG_INFO(Overlay, "Connect to {}", address.toString());
+    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -771,6 +771,10 @@ LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
         auto& app = static_cast<ApplicationLoopbackOverlay&>(mApp);
         auto otherApp = app.getSim().getAppFromPeerMap(address.getPort());
+        if (!otherApp)
+        {
+            return false;
+        }
         auto res = LoopbackPeer::initiate(mApp, *otherApp);
         return res.first->getState() == Peer::CONNECTED;
     }
