@@ -515,12 +515,17 @@ Simulation::crankAllNodes(int nbTicks)
 }
 
 bool
-Simulation::haveAllExternalized(uint32 num, uint32 maxSpread)
+Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
+                                bool validatorsOnly)
 {
     uint32_t min = UINT32_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
         auto app = it->second.mApp;
+        if (validatorsOnly && !app->getConfig().NODE_IS_VALIDATOR)
+        {
+            continue;
+        }
         auto n = app->getLedgerManager().getLastClosedLedgerNum();
         LOG_DEBUG(DEFAULT_LOG, "{} @ ledger#: {}", app->getConfig().PEER_PORT,
                   n);
