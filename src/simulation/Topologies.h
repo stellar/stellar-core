@@ -44,7 +44,8 @@ class Topologies
     // nNodes with same qSet - no connection created
     static Simulation::pointer
     separate(int nNodes, double quorumThresoldFraction, Simulation::Mode mode,
-             Hash const& networkID, Simulation::ConfigGen confGen = nullptr,
+             Hash const& networkID, int numWatchers = 0,
+             Simulation::ConfigGen confGen = nullptr,
              Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
     // multi-tier quorum (core4 + mid-tier nodes that depend on 2 nodes of
