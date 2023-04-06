@@ -282,9 +282,11 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 
 LedgerHeader executeUpgrades(Application& app,
-                             xdr::xvector<UpgradeType, 6> const& upgrades);
+                             xdr::xvector<UpgradeType, 6> const& upgrades,
+                             bool upgradesIgnored = false);
 
-LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade);
+LedgerHeader executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
+                            bool upgradeIgnored = false);
 
 void
 depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,

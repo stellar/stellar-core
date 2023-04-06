@@ -1143,8 +1143,9 @@ TEST_CASE_VERSIONS(
             while (hm.getPublishQueueCount() != 1)
             {
                 uint32_t ledger = lm.getLastClosedLedgerNum() + 1;
-                bl.addBatch(*app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
-                            LedgerTestUtils::generateValidLedgerEntries(8), {});
+                bl.addBatch(
+                    *app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
+                    LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
                 clock.crank(true);
             }
 

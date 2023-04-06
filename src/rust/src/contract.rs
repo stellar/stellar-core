@@ -560,7 +560,10 @@ pub(crate) fn get_test_wasm_add_i32() -> Result<RustBuf, Box<dyn Error>> {
 }
 pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn Error>> {
     Ok(RustBuf {
-        data: soroban_test_wasms::CONTRACT_DATA.iter().cloned().collect(),
+        data: soroban_test_wasms::CONTRACT_STORAGE
+            .iter()
+            .cloned()
+            .collect(),
     })
 }
 

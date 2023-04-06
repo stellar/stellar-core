@@ -1127,7 +1127,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     auto newUpgrades = emptyUpgradeSteps;
 
     // see if we need to include some upgrades
-    auto upgrades = mUpgrades.createUpgradesFor(lcl.header);
+    std::vector<LedgerUpgrade> upgrades;
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        upgrades = mUpgrades.createUpgradesFor(lcl.header, ltx);
+    }
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
@@ -1193,7 +1197,8 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 std::string
 HerderImpl::getUpgradesJson()
 {
-    return mUpgrades.getParameters().toJson();
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    return mUpgrades.getParameters().toDebugJson(ltx);
 }
 
 void
@@ -1744,7 +1749,9 @@ HerderImpl::restoreUpgrades()
     if (!s.empty())
     {
         Upgrades::UpgradeParameters p;
-        p.fromJson(s);
+
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        p.fromJson(s, ltx);
         try
         {
             // use common code to set status

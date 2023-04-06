@@ -38,11 +38,18 @@ void makeValid(LedgerHeaderHistoryEntry& lh,
                HistoryManager::LedgerVerificationStatus state);
 
 LedgerEntry generateValidLedgerEntry(size_t b = 3);
-std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
+LedgerEntry generateValidLedgerEntryOfType(LedgerEntryType type);
 
-// Use this instead of generator<LedgerKey> to avoid CONFIG_SETTING
-LedgerKey generateLedgerKey(size_t n);
-std::vector<LedgerKey> generateLedgerKeys(size_t n);
+std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
+std::vector<LedgerEntry> generateValidUniqueLedgerEntries(size_t n);
+
+std::vector<LedgerKey> generateValidLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
+
+LedgerEntry generateValidLedgerEntryWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b = 3);
+std::vector<LedgerEntry> generateValidLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
 
 AccountEntry generateValidAccountEntry(size_t b = 3);
 std::vector<AccountEntry> generateValidAccountEntries(size_t n);

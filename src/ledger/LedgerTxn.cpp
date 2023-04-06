@@ -439,6 +439,18 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
 }
 
 void
+LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+        key.ledgerKey().type() == CONFIG_SETTING)
+    {
+        throw std::runtime_error("Configuration settings cannot be erased.");
+    }
+#endif
+}
+
+void
 LedgerTxn::commit() noexcept
 {
     getImpl()->commit();
@@ -735,6 +747,7 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     {
         throw std::runtime_error("Key does not exist");
     }
+    throwIfErasingConfig(key);
 
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
@@ -762,6 +775,7 @@ LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
+    throwIfErasingConfig(key);
 
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
@@ -2563,8 +2577,13 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         accum(iter, mContractCodeToUpsert, mContractCodeToDelete);
         break;
     case CONFIG_SETTING:
-        accum(iter, mConfigSettingsToUpsert, mConfigSettingsToDelete);
+    {
+        // Configuration can not be deleted.
+        releaseAssert(iter.entryExists());
+        std::vector<EntryIterator> emptyEntries;
+        accum(iter, mConfigSettingsToUpsert, emptyEntries);
         break;
+    }
 #endif
     default:
         abort();
@@ -2657,13 +2676,6 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         bulkUpsertConfigSettings(upsertConfigSettings);
         upsertConfigSettings.clear();
     }
-    auto& deleteConfigSettings = bleca.getConfigSettingsToDelete();
-    if (deleteConfigSettings.size() > bufferThreshold)
-    {
-        bulkDeleteConfigSettings(deleteConfigSettings, cons);
-        deleteConfigSettings.clear();
-    }
-
     auto& upsertContractData = bleca.getContractDataToUpsert();
     if (upsertContractData.size() > bufferThreshold)
     {

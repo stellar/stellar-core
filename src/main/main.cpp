@@ -199,6 +199,14 @@ checkXDRFileIdentity()
                             cpp.first, cpp.second));
         }
     }
+
+    if (stellar::XDR_FILES_SHA256.size() != rustHashes.size())
+    {
+        throw std::runtime_error(
+            fmt::format("Number of xdr hashes don't match between C++ and "
+                        "Rust. C++ size = {} and Rust size = {}.",
+                        stellar::XDR_FILES_SHA256.size(), rustHashes.size()));
+    }
 }
 #endif
 

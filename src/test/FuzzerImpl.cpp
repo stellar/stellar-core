@@ -243,7 +243,7 @@ generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
     // Generate unvalidated ledger entry keys.
     std::generate(firstUnvalidatedLedgerKey, end, []() {
         size_t const entrySize = 3;
-        return LedgerTestUtils::generateLedgerKey(entrySize);
+        return autocheck::generator<LedgerKey>()(entrySize);
     });
 }
 

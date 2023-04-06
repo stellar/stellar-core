@@ -568,6 +568,28 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32>(retMap, "protocolversion");
         p.mFlags = parseOptionalParam<uint32>(retMap, "flags");
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        auto configXdrIter = retMap.find("configupgradesetkey");
+        if (configXdrIter != retMap.end())
+        {
+            std::vector<uint8_t> buffer;
+            decoder::decode_b64(configXdrIter->second, buffer);
+            ConfigUpgradeSetKey key;
+            xdr::xdr_from_opaque(buffer, key);
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
+
+            if (!ptr ||
+                ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+            {
+                retStr = "Error setting configUpgradeSet";
+                return;
+            }
+
+            p.mConfigUpgradeSetKey = key;
+        }
+#endif
         mApp.getHerder().setUpgrades(p);
     }
     else if (s == "clear")

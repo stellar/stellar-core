@@ -1061,6 +1061,7 @@ The network settings are:
   * the maximum number of operations that can be included in a given ledger close
   * the cost (fee) associated with processing operations
   * the base reserve used to calculate the lumen balance needed to store things in the ledger
+  * generalized network settings stored in ConfigSettingEntries.
 
 When the network time is later than the `upgradetime` specified in
 the upgrade settings, the validator will vote to update the network

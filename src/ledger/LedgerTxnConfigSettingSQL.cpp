@@ -157,92 +157,6 @@ LedgerTxnRoot::Impl::bulkLoadConfigSettings(
     }
 }
 
-class bulkDeleteConfigSettingsOperation
-    : public DatabaseTypeSpecificOperation<void>
-{
-    Database& mDb;
-    LedgerTxnConsistency mCons;
-    std::vector<int32_t> mConfigSettingIDs;
-
-  public:
-    bulkDeleteConfigSettingsOperation(Database& db, LedgerTxnConsistency cons,
-                                      std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
-    {
-        mConfigSettingIDs.reserve(entries.size());
-        for (auto const& e : entries)
-        {
-            releaseAssert(!e.entryExists());
-            throwIfNotConfigSetting(e.key().ledgerKey().type());
-            mConfigSettingIDs.emplace_back(
-                e.key().ledgerKey().configSetting().configSettingID);
-        }
-    }
-
-    void
-    doSociGenericOperation()
-    {
-        std::string sql =
-            "DELETE FROM configsettings WHERE configsettingid = :id";
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(mConfigSettingIDs));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("configsetting");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) !=
-                mConfigSettingIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-
-    void
-    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
-    {
-        doSociGenericOperation();
-    }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strConfigSettingIDs;
-        marshalToPGArray(pg->conn_, strConfigSettingIDs, mConfigSettingIDs);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::INT[])) "
-                          "DELETE FROM configsettings "
-                          "WHERE configsettingid IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strConfigSettingIDs));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("configsetting");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) !=
-                mConfigSettingIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
-};
-
-void
-LedgerTxnRoot::Impl::bulkDeleteConfigSettings(
-    std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
-{
-    bulkDeleteConfigSettingsOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
-}
-
 class bulkUpsertConfigSettingsOperation
     : public DatabaseTypeSpecificOperation<void>
 {
@@ -257,7 +171,7 @@ class bulkUpsertConfigSettingsOperation
         throwIfNotConfigSetting(entry.data.type());
 
         mConfigSettingIDs.emplace_back(
-            entry.data.configSetting().configSettingID);
+            entry.data.configSetting().configSettingID());
         mConfigSettingEntries.emplace_back(toOpaqueBase64(entry));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));

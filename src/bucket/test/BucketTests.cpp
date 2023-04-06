@@ -62,12 +62,14 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
         Application::pointer app = createTestApplication(clock, cfg);
 
         CLOG_DEBUG(Bucket, "Generating 10000 random ledger entries");
-        std::vector<LedgerEntry> live(9000);
-        std::vector<LedgerKey> dead(1000);
-        for (auto& e : live)
-            e = LedgerTestUtils::generateValidLedgerEntry(3);
-        for (auto& e : dead)
-            e = LedgerTestUtils::generateLedgerKey(3);
+        auto live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
+        auto dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+            {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                CONFIG_SETTING
+#endif
+            },
+            1000);
         CLOG_DEBUG(Bucket, "Hashing entries");
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
@@ -78,10 +80,14 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
             CLOG_DEBUG(Bucket,
                        "Merging 10000 new ledger entries into {} entry bucket",
                        (i * 10000));
-            for (auto& e : live)
-                e = LedgerTestUtils::generateValidLedgerEntry(3);
-            for (auto& e : dead)
-                e = LedgerTestUtils::generateLedgerKey(3);
+            live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
+            dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    CONFIG_SETTING
+#endif
+                },
+                1000);
             {
                 b1 = Bucket::merge(
                     app->getBucketManager(),
@@ -193,12 +199,16 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
 
         SECTION("random dead entries annihilates live entries")
         {
-            std::vector<LedgerEntry> live(100);
+            std::vector<LedgerEntry> live =
+                LedgerTestUtils::generateValidUniqueLedgerEntries(100);
             std::vector<LedgerKey> dead;
             for (auto& e : live)
             {
-                e = LedgerTestUtils::generateValidLedgerEntry(10);
-                if (rand_flip())
+                if (rand_flip()
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    && e.data.type() != CONFIG_SETTING
+#endif
+                )
                 {
                     dead.push_back(LedgerEntryKey(e));
                 }
@@ -225,12 +235,9 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
 
         SECTION("random live entries overwrite live entries in any order")
         {
-            std::vector<LedgerEntry> live(100);
+            std::vector<LedgerEntry> live =
+                LedgerTestUtils::generateValidUniqueLedgerEntries(100);
             std::vector<LedgerKey> dead;
-            for (auto& e : live)
-            {
-                e = LedgerTestUtils::generateValidLedgerEntry(10);
-            }
             std::shared_ptr<Bucket> b1 = Bucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
@@ -258,7 +265,12 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (rand_flip())
                 {
-                    e = LedgerTestUtils::generateValidLedgerEntry(10);
+                    e = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                            CONFIG_SETTING
+#endif
+                        });
                     ++liveCount;
                 }
             }

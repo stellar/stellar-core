@@ -206,7 +206,6 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     mContractDataUpsert = 0;
     mContractDataDelete = 0;
     mConfigSettingUpsert = 0;
-    mConfigSettingDelete = 0;
 }
 
 void
@@ -215,8 +214,8 @@ BucketApplicator::Counters::getRates(
     uint64_t& tu_sec, uint64_t& td_sec, uint64_t& ou_sec, uint64_t& od_sec,
     uint64_t& du_sec, uint64_t& dd_sec, uint64_t& cu_sec, uint64_t& cd_sec,
     uint64_t& lu_sec, uint64_t& ld_sec, uint64_t& cdu_sec, uint64_t& cdd_sec,
-    uint64_t& ccu_sec, uint64_t& ccd_sec, uint64_t& csu_sec, uint64_t& csd_sec,
-    uint64_t& T_sec, uint64_t& total)
+    uint64_t& ccu_sec, uint64_t& ccd_sec, uint64_t& csu_sec, uint64_t& T_sec,
+    uint64_t& total)
 {
     VirtualClock::duration dur = now - mStarted;
     auto usec = std::chrono::duration_cast<std::chrono::microseconds>(dur);
@@ -225,7 +224,7 @@ BucketApplicator::Counters::getRates(
             mTrustLineDelete + mOfferUpsert + mOfferDelete + mDataUpsert +
             mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete +
             mLiquidityPoolUpsert + mLiquidityPoolDelete + mContractDataUpsert +
-            mContractDataDelete + mConfigSettingUpsert + mConfigSettingDelete;
+            mContractDataDelete + mConfigSettingUpsert;
     au_sec = (mAccountUpsert * 1000000) / usecs;
     ad_sec = (mAccountDelete * 1000000) / usecs;
     tu_sec = (mTrustLineUpsert * 1000000) / usecs;
@@ -243,7 +242,6 @@ BucketApplicator::Counters::getRates(
     ccu_sec = (mContractCodeUpsert * 1000000) / usecs;
     ccd_sec = (mContractCodeDelete * 1000000) / usecs;
     csu_sec = (mConfigSettingUpsert * 1000000) / usecs;
-    csd_sec = (mConfigSettingDelete * 1000000) / usecs;
     T_sec = (total * 1000000) / usecs;
 }
 
@@ -254,28 +252,27 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
         cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec, cdd_sec, ccu_sec, ccd_sec,
-        csu_sec, csd_sec, T_sec, total;
+        csu_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
              dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec, cdd_sec, ccu_sec,
-             ccd_sec, csu_sec, csd_sec, T_sec, total);
+             ccd_sec, csu_sec, T_sec, total);
     CLOG_INFO(Bucket,
               "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
               "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} "
-              "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} csd{} T:{}",
+              "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} T:{}",
               total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
               od_sec, du_sec, dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec,
-              cdd_sec, ccu_sec, ccd_sec, csu_sec, csd_sec, T_sec);
+              cdd_sec, ccu_sec, ccd_sec, csu_sec, T_sec);
     CLOG_INFO(Bucket,
               "Entry-counts for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
               "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} "
-              "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} csd:{}",
+              "cdu:{} cdd:{} ccu:{} ccd:{} csu:{}",
               total, level, bucketName, mAccountUpsert, mAccountDelete,
               mTrustLineUpsert, mTrustLineDelete, mOfferUpsert, mOfferDelete,
               mDataUpsert, mDataDelete, mClaimableBalanceUpsert,
               mClaimableBalanceDelete, mLiquidityPoolUpsert,
               mLiquidityPoolDelete, mContractDataUpsert, mContractDataDelete,
-              mContractCodeUpsert, mContractCodeDelete, mConfigSettingUpsert,
-              mConfigSettingDelete);
+              mContractCodeUpsert, mContractCodeDelete, mConfigSettingUpsert);
 }
 
 void
@@ -285,17 +282,17 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
         cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec, cdd_sec, ccu_sec, ccd_sec,
-        csu_sec, csd_sec, T_sec, total;
+        csu_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
              dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec, cdd_sec, ccu_sec,
-             ccd_sec, csu_sec, csd_sec, T_sec, total);
+             ccd_sec, csu_sec, T_sec, total);
     CLOG_DEBUG(Bucket,
                "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
                "ou:{} od:{} du:{} dd:{} cu:{} cd:{} lu:{} ld:{} "
-               "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} csd{} T:{}",
+               "cdu:{} cdd:{} ccu:{} ccd:{} csu:{} T:{}",
                total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
                od_sec, du_sec, dd_sec, cu_sec, cd_sec, lu_sec, ld_sec, cdu_sec,
-               cdd_sec, ccu_sec, ccd_sec, csu_sec, csd_sec, T_sec);
+               cdd_sec, ccu_sec, ccd_sec, csu_sec, T_sec);
 }
 
 void
@@ -366,7 +363,6 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             ++mContractCodeDelete;
             break;
         case CONFIG_SETTING:
-            ++mConfigSettingDelete;
             break;
 #endif
         }
