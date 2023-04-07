@@ -8,9 +8,24 @@
 namespace stellar
 {
 
-TxAdvertQueue::TxAdvertQueue(Application& app) : mApp(app)
+constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
+
+TxAdvertQueue::TxAdvertQueue(Application& app) : mApp(app) , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
 }
+
+bool
+TxAdvertQueue::peerKnowsHash(Hash const& hash)
+{
+    return mAdvertHistory.exists(hash);
+}
+
+void
+TxAdvertQueue::rememberHash(Hash const& hash, uint32_t ledgerSeq)
+{
+    mAdvertHistory.put(hash, ledgerSeq);
+}
+
 
 size_t
 TxAdvertQueue::size() const
@@ -29,8 +44,13 @@ TxAdvertQueue::appendHashesToRetryAndMaybeTrim(std::list<Hash>& list)
 }
 
 void
-TxAdvertQueue::queueAndMaybeTrim(TxAdvertVector const& txHashes)
+TxAdvertQueue::queueAndMaybeTrim(TxAdvertVector const& txHashes, uint32_t seq)
 {
+    for (auto const& hash : txHashes)
+    {
+        rememberHash(hash, seq);
+    }
+
     auto it = txHashes.begin();
     size_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     if (txHashes.size() > limit)
@@ -73,6 +93,13 @@ TxAdvertQueue::pop()
         return std::make_pair(
             h.first, std::make_optional<VirtualClock::time_point>(h.second));
     }
+}
+
+void 
+TxAdvertQueue::clearBelow(uint32_t ledgerSeq)
+{
+    mAdvertHistory.erase_if(
+        [&](uint32_t const& seq) { return seq < ledgerSeq; });
 }
 
 }

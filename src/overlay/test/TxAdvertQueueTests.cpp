@@ -29,7 +29,7 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes);
+    advertQueue.queueAndMaybeTrim(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
     REQUIRE(advertQueue.size() == limit);
 
     advertQueue.appendHashesToRetryAndMaybeTrim(retry);
@@ -51,7 +51,7 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes);
+    advertQueue.queueAndMaybeTrim(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
     advertQueue.appendHashesToRetryAndMaybeTrim(retry);
     REQUIRE(advertQueue.size() == ((limit / 2) * 2));
     for (uint32_t i = 0; i < limit / 2; i++)

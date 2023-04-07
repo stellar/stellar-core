@@ -26,6 +26,18 @@ TxFloodManager::TxFloodManager(Application& app)
 {
 }
 
+bool 
+TxFloodManager::peerKnowsHash(Hash const& txHash, Peer::pointer peer)
+{
+    ZoneScoped;
+    auto it = mQueuedIncomingAdverts.find(peer);
+    if (it != mQueuedIncomingAdverts.end())
+    {
+        return it->second->peerKnowsHash(txHash);
+    }
+    return false;
+}
+
 std::unique_ptr<TxFloodManager>
 TxFloodManager::create(Application& app)
 {
@@ -107,16 +119,17 @@ TxFloodManager::queueOutgoingTxHash(Hash const& txHash, Peer::pointer peer)
 }
 
 void
-TxFloodManager::queueIncomingTxAdvert(TxAdvertVector const& advert,
+TxFloodManager::queueIncomingTxAdvert(TxAdvertVector const& advert, uint32_t ledgerSeq, 
                                       Peer::pointer peer)
 {
     bool emptyQueue = mQueuedIncomingAdverts.empty();
-    if (mQueuedIncomingAdverts.find(peer) == mQueuedIncomingAdverts.end())
+    auto it = mQueuedIncomingAdverts.find(peer);
+    if (it == mQueuedIncomingAdverts.end())
     {
-        TxAdvertQueue newVec(mApp);
-        mQueuedIncomingAdverts.insert({peer, newVec});
+        mQueuedIncomingAdverts.emplace(std::make_pair(peer, std::make_unique<TxAdvertQueue>(mApp)));
+        
     }
-    mQueuedIncomingAdverts.find(peer)->second.queueAndMaybeTrim(advert);
+    it->second->queueAndMaybeTrim(advert, ledgerSeq);
     if (emptyQueue)
     {
         startDemandTimer();
@@ -265,12 +278,13 @@ TxFloodManager::demand()
             auto& retry = demPair.second;
             bool addedNewDemand = false;
 
-            if (mQueuedIncomingAdverts.find(peer) ==
+            auto it = mQueuedIncomingAdverts.find(peer);
+            if (it ==
                 mQueuedIncomingAdverts.end())
             {
                 continue;
             }
-            auto& queue = mQueuedIncomingAdverts.find(peer)->second;
+            auto& queue = *(it->second);
             while (demand.size() < getMaxDemandSize() && queue.size() > 0 &&
                    !addedNewDemand)
             {
@@ -326,13 +340,12 @@ TxFloodManager::demand()
         {
             continue;
         }
-        if (mQueuedIncomingAdverts.find(peer) == mQueuedIncomingAdverts.end())
+        auto it = mQueuedIncomingAdverts.find(peer);
+        if (it == mQueuedIncomingAdverts.end())
         {
-            TxAdvertQueue newVec(mApp);
-            mQueuedIncomingAdverts.insert({peer, newVec});
+            mQueuedIncomingAdverts.emplace(peer, std::make_unique<TxAdvertQueue>(mApp));
         }
-        mQueuedIncomingAdverts.find(peer)
-            ->second.appendHashesToRetryAndMaybeTrim(demandMap[peer].second);
+        it->second->appendHashesToRetryAndMaybeTrim(demandMap[peer].second);
     }
 
     // mPendingDemands and mDemandHistoryMap must always contain exactly the
@@ -405,6 +418,15 @@ TxFloodManager::getMaxAdvertSize() const
     res = std::max<size_t>(1, res);
     res = std::min<size_t>(TX_ADVERT_VECTOR_MAX_SIZE, res);
     return res;
+}
+
+void
+TxFloodManager::clearBelow(uint32_t ledgerSeq)
+{
+    for (auto& pair : mQueuedIncomingAdverts)
+    {
+        pair.second->clearBelow(ledgerSeq);
+    }
 }
 
 }

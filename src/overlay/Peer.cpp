@@ -44,7 +44,6 @@
 namespace stellar
 {
 
-constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
 constexpr std::chrono::seconds const OUTBOUND_QUEUE_TIMEOUT =
     std::chrono::seconds(30);
 
@@ -70,24 +69,11 @@ Peer::Peer(Application& app, PeerRole role)
     , mPeerMetrics(app.getClock().now())
     , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
                 app.getConfig().PEER_READING_CAPACITY}
-    , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
-}
-
-bool
-Peer::peerKnowsHash(Hash const& hash)
-{
-    return mAdvertHistory.exists(hash);
-}
-
-void
-Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
-{
-    mAdvertHistory.put(hash, ledgerSeq);
 }
 
 void
@@ -2001,19 +1987,8 @@ void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
     auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
-    for (auto const& hash : msg.floodAdvert().txHashes)
-    {
-        rememberHash(hash, seq);
-    }
-    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes,
+    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes, seq,
                                                    shared_from_this());
-}
-
-void
-Peer::clearBelow(uint32_t ledgerSeq)
-{
-    mAdvertHistory.erase_if(
-        [&](uint32_t const& seq) { return seq < ledgerSeq; });
 }
 
 void

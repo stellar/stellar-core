@@ -28,6 +28,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include "overlay/TxFloodManager.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -746,10 +747,7 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
-    for (auto const& peer : getAuthenticatedPeers())
-    {
-        peer.second->clearBelow(ledgerSeq);
-    }
+    mApp.getTxFloodManager().clearBelow(ledgerSeq);
 }
 
 void

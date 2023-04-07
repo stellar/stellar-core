@@ -11,7 +11,6 @@
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxAdvertQueue.h"
-#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
@@ -71,9 +70,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // PEER_METRICS_WINDOW_SIZE-second time window.
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
-
-    bool peerKnowsHash(Hash const& hash);
-    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
     typedef std::shared_ptr<Peer> pointer;
 
@@ -320,9 +316,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     size_t mAdvertQueueTxHashCount{0};
     size_t mDemandQueueTxHashCount{0};
 
-    // transaction hash -> ledger number
-    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
-
     bool mShuttingDown{false};
 
 #ifdef BUILD_TESTS
@@ -344,7 +337,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void shutdown();
-    void clearBelow(uint32_t ledgerSeq);
 
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);

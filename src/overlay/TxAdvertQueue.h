@@ -5,6 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
+#include "util/RandomEvictionCache.h"
+#include "util/HashOfHash.h"
 
 namespace stellar
 {
@@ -26,6 +28,12 @@ class TxAdvertQueue
     std::deque<std::pair<Hash, VirtualClock::time_point>> mIncomingTxHashes;
     std::list<Hash> mTxHashesToRetry;
 
+    // Cache seen hashes for a bit to avoid re-broadcasting the same data
+    // transaction hash -> ledger number
+    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
+
+    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
+
   public:
     TxAdvertQueue(Application& app);
 
@@ -33,7 +41,9 @@ class TxAdvertQueue
 
     std::pair<Hash, std::optional<VirtualClock::time_point>> pop();
 
-    void queueAndMaybeTrim(TxAdvertVector const& hash);
+    void queueAndMaybeTrim(TxAdvertVector const& hash, uint32_t seq);
     void appendHashesToRetryAndMaybeTrim(std::list<Hash>& list);
+    bool peerKnowsHash(Hash const& hash);
+    void clearBelow(uint32_t ledgerSeq);
 };
 }
