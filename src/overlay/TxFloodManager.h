@@ -24,9 +24,6 @@ namespace stellar
  *
  */
 
-// TODO: demand logic is self-contained
-// TODO: public facing incoming advert 
-// TODO: public facing outgoing advert 
 class TxFloodManager : private NonMovableOrCopyable
 {
   public:
@@ -34,8 +31,8 @@ class TxFloodManager : private NonMovableOrCopyable
     static std::unique_ptr<TxFloodManager> create(Application& app);
 
     void queueOutgoingTxHash(Hash const& hash, Peer::pointer peer);
-    void queueIncomingTxAdvert(TxAdvertVector const& advert,
-                               uint32_t ledgerSeq, Peer::pointer peer);
+    void queueIncomingTxAdvert(TxAdvertVector const& advert, uint32_t ledgerSeq,
+                               Peer::pointer peer);
     bool peerKnowsHash(Hash const& hash, Peer::pointer peer);
 
     void recordTxPullLatency(Hash const& hash, std::shared_ptr<Peer> peer);
@@ -55,7 +52,8 @@ class TxFloodManager : private NonMovableOrCopyable
     void startAdvertTimer();
 
     // Use weak ptrs?
-    UnorderedMap<Peer::pointer, std::unique_ptr<TxAdvertQueue>> mQueuedIncomingAdverts;
+    UnorderedMap<Peer::pointer, std::unique_ptr<TxAdvertQueue>>
+        mQueuedIncomingAdverts;
     UnorderedMap<Peer::pointer, TxAdvertVector> mQueuedOutgoingAdverts;
     VirtualTimer mAdvertTimer;
     VirtualTimer mDemandTimer;

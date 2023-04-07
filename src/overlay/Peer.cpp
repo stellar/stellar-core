@@ -1987,8 +1987,8 @@ void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
     auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
-    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes, seq,
-                                                   shared_from_this());
+    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes,
+                                                   seq, shared_from_this());
 }
 
 void

@@ -20,6 +20,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
+#include "overlay/TxFloodManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -28,7 +29,6 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include "overlay/TxFloodManager.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"

@@ -126,7 +126,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
     {
         releaseAssert(peer.second->isAuthenticated());
         bool pullMode = msg.type() == TRANSACTION;
-        bool hasAdvert = pullMode && mApp.getTxFloodManager().peerKnowsHash(hash.value(), peer.second);
+        bool hasAdvert = pullMode && mApp.getTxFloodManager().peerKnowsHash(
+                                         hash.value(), peer.second);
 
         if (peersTold.insert(peer.second->toString()).second && !hasAdvert)
         {

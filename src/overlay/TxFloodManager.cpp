@@ -26,7 +26,7 @@ TxFloodManager::TxFloodManager(Application& app)
 {
 }
 
-bool 
+bool
 TxFloodManager::peerKnowsHash(Hash const& txHash, Peer::pointer peer)
 {
     ZoneScoped;
@@ -97,9 +97,8 @@ TxFloodManager::queueOutgoingTxHash(Hash const& txHash, Peer::pointer peer)
 
     if (outgoingAdverts.size() == TX_ADVERT_VECTOR_MAX_SIZE)
     {
-        CLOG_TRACE(Overlay,
-                   "{}'s tx hash queue is full, dropping {}",
-                    peer->toString(), hexAbbrev(txHash));
+        CLOG_TRACE(Overlay, "{}'s tx hash queue is full, dropping {}",
+                   peer->toString(), hexAbbrev(txHash));
         return;
     }
 
@@ -119,15 +118,15 @@ TxFloodManager::queueOutgoingTxHash(Hash const& txHash, Peer::pointer peer)
 }
 
 void
-TxFloodManager::queueIncomingTxAdvert(TxAdvertVector const& advert, uint32_t ledgerSeq, 
-                                      Peer::pointer peer)
+TxFloodManager::queueIncomingTxAdvert(TxAdvertVector const& advert,
+                                      uint32_t ledgerSeq, Peer::pointer peer)
 {
     bool emptyQueue = mQueuedIncomingAdverts.empty();
     auto it = mQueuedIncomingAdverts.find(peer);
     if (it == mQueuedIncomingAdverts.end())
     {
-        mQueuedIncomingAdverts.emplace(std::make_pair(peer, std::make_unique<TxAdvertQueue>(mApp)));
-        
+        mQueuedIncomingAdverts.emplace(
+            std::make_pair(peer, std::make_unique<TxAdvertQueue>(mApp)));
     }
     it->second->queueAndMaybeTrim(advert, ledgerSeq);
     if (emptyQueue)
@@ -279,8 +278,7 @@ TxFloodManager::demand()
             bool addedNewDemand = false;
 
             auto it = mQueuedIncomingAdverts.find(peer);
-            if (it ==
-                mQueuedIncomingAdverts.end())
+            if (it == mQueuedIncomingAdverts.end())
             {
                 continue;
             }
@@ -343,7 +341,8 @@ TxFloodManager::demand()
         auto it = mQueuedIncomingAdverts.find(peer);
         if (it == mQueuedIncomingAdverts.end())
         {
-            mQueuedIncomingAdverts.emplace(peer, std::make_unique<TxAdvertQueue>(mApp));
+            mQueuedIncomingAdverts.emplace(
+                peer, std::make_unique<TxAdvertQueue>(mApp));
         }
         it->second->appendHashesToRetryAndMaybeTrim(demandMap[peer].second);
     }

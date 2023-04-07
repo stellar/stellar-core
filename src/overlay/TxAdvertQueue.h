@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
-#include "util/RandomEvictionCache.h"
 #include "util/HashOfHash.h"
+#include "util/RandomEvictionCache.h"
 
 namespace stellar
 {

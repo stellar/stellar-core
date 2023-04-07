@@ -10,7 +10,8 @@ namespace stellar
 
 constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
 
-TxAdvertQueue::TxAdvertQueue(Application& app) : mApp(app) , mAdvertHistory(ADVERT_CACHE_SIZE)
+TxAdvertQueue::TxAdvertQueue(Application& app)
+    : mApp(app), mAdvertHistory(ADVERT_CACHE_SIZE)
 {
 }
 
@@ -25,7 +26,6 @@ TxAdvertQueue::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 {
     mAdvertHistory.put(hash, ledgerSeq);
 }
-
 
 size_t
 TxAdvertQueue::size() const
@@ -95,7 +95,7 @@ TxAdvertQueue::pop()
     }
 }
 
-void 
+void
 TxAdvertQueue::clearBelow(uint32_t ledgerSeq)
 {
     mAdvertHistory.erase_if(
