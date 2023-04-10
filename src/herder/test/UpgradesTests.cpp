@@ -13,6 +13,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
@@ -804,13 +805,10 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         executeUpgrade(*app, ledgerUpgrade);
 
         // upgrade was ignored
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto maxContractSizeEntry =
-            ltx.load(getMaxContractSizeKey()).current().data.configSetting();
-        REQUIRE(maxContractSizeEntry.configSettingID() ==
-                CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-        REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() ==
-                Upgrades::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .maxContractSizeBytes() ==
+                InitialContractNetworkConfig::MAX_CONTRACT_SIZE);
     }
 
     SECTION("known config upgrade set is applied")
@@ -828,7 +826,68 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             ltx.load(getMaxContractSizeKey()).current().data.configSetting();
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-        REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() == 32768);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .maxContractSizeBytes() == 32768);
+    }
+    SECTION("multi-item config upgrade set is applied")
+    {
+        // Verify values pre-upgrade
+        REQUIRE(
+            app->getLedgerManager()
+                .getLastContractNetworkConfig()
+                .feeRatePerInstructionsIncrement() ==
+            InitialContractNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .ledgerMaxInstructions() ==
+                InitialContractNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .memoryLimit() ==
+                InitialContractNetworkConfig::MEMORY_LIMIT);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .txMaxInstructions() ==
+                InitialContractNetworkConfig::TX_MAX_INSTRUCTIONS);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .feeHistorical1KB() ==
+                InitialContractNetworkConfig::FEE_HISTORICAL_1KB);
+        ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+        {
+            ConfigUpgradeSet configUpgradeSetXdr;
+            auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
+            configEntry.configSettingID(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
+            configEntry.contractCompute().feeRatePerInstructionsIncrement = 111;
+            configEntry.contractCompute().ledgerMaxInstructions = 222;
+            configEntry.contractCompute().memoryLimit = 333;
+            configEntry.contractCompute().txMaxInstructions = 444;
+            auto& configEntry2 =
+                configUpgradeSetXdr.updatedEntry.emplace_back();
+            configEntry2.configSettingID(
+                CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
+            configEntry2.contractHistoricalData().feeHistorical1KB = 555;
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
+            ltx.commit();
+        }
+        executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .feeRatePerInstructionsIncrement() == 111);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .ledgerMaxInstructions() == 222);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .memoryLimit() == 333);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .txMaxInstructions() == 444);
+        REQUIRE(app->getLedgerManager()
+                    .getLastContractNetworkConfig()
+                    .feeHistorical1KB() == 555);
     }
 }
 
@@ -1974,7 +2033,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     REQUIRE(maxContractSizeEntry.configSettingID() ==
             CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() ==
-            Upgrades::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20);
+            InitialContractNetworkConfig::MAX_CONTRACT_SIZE);
 }
 #endif
 

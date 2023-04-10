@@ -117,10 +117,6 @@ namespace stellar
 
 std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-uint32_t const Upgrades::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20(65536);
-#endif
-
 std::string
 Upgrades::UpgradeParameters::toJson() const
 {
@@ -1191,30 +1187,6 @@ upgradeFromProtocol15To16(AbstractLedgerTxn& ltx)
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-static void
-createConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                         AbstractLedgerTxn& ltxRoot)
-{
-    LedgerEntry e;
-    e.data.type(CONFIG_SETTING);
-    e.data.configSetting() = configSetting;
-    LedgerTxn ltx(ltxRoot);
-    ltx.create(e);
-    ltx.commit();
-}
-
-static void
-initializeConfigs(AbstractLedgerTxn& ltx)
-{
-    ConfigSettingEntry contractMaxSize(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-    contractMaxSize.contractMaxSizeBytes() =
-        Upgrades::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20;
-    createConfigSettingEntry(contractMaxSize, ltx);
-}
-
-#endif
-
 static bool
 needUpgradeToVersion(ProtocolVersion targetVersion, uint32_t prevVersion,
                      uint32_t newVersion)
@@ -1243,7 +1215,7 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(SOROBAN_PROTOCOL_VERSION, prevVersion, newVersion))
     {
-        initializeConfigs(ltx);
+        ContractNetworkConfig::createLedgerEntriesForV20(ltx);
     }
 #endif
 }
@@ -1435,6 +1407,17 @@ ConfigUpgradeSetFrame::isValidForApply() const
         {
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
             valid = configEntry.contractMaxSizeBytes() > 0;
+            break;
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_HOST_LOGIC_VERSION:
+            // For now none of these settings have any semantical value.
+            // Validation should be implemented when implementing/tuning
+            // the respective settings.
+            valid = true;
             break;
         }
         if (!valid)

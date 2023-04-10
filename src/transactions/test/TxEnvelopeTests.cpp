@@ -65,11 +65,20 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto txSet = TxSetFrame::makeFromTransactions(
         TxSetFrame::Transactions{tx1, tx2}, *app, 0, 0);
 
-    // Sort for apply re-orders transaction set
     auto txs = txSet->getTxsInApplyOrder();
     REQUIRE(txs.size() == 2);
-    REQUIRE(txs[1]->getFullHash() == tx1->getFullHash());
-    REQUIRE(txs[0]->getFullHash() == tx2->getFullHash());
+    // Sort for apply re-orders transaction set based on the contents hash
+    if (lessThanXored(tx1->getFullHash(), tx2->getFullHash(),
+                      txSet->getContentsHash()))
+    {
+        REQUIRE(txs[0]->getFullHash() == tx1->getFullHash());
+        REQUIRE(txs[1]->getFullHash() == tx2->getFullHash());
+    }
+    else
+    {
+        REQUIRE(txs[1]->getFullHash() == tx1->getFullHash());
+        REQUIRE(txs[0]->getFullHash() == tx2->getFullHash());
+    }
 }
 
 TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")

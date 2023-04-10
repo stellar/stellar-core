@@ -130,7 +130,14 @@ struct BucketListGenerator
     virtual std::vector<LedgerEntry>
     generateLiveEntries(AbstractLedgerTxn& ltx)
     {
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(5);
+        auto entries =
+            LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    CONFIG_SETTING
+#endif
+                },
+                5);
         for (auto& le : entries)
         {
             le.lastModifiedLedgerSeq = mLedgerSeq;
