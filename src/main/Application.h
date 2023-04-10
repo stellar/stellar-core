@@ -36,7 +36,6 @@ class Herder;
 class HerderPersistence;
 class InvariantManager;
 class OverlayManager;
-class TxFloodManager;
 class Database;
 class PersistentState;
 class CommandHandler;
@@ -216,7 +215,6 @@ class Application
     virtual HerderPersistence& getHerderPersistence() = 0;
     virtual InvariantManager& getInvariantManager() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
-    virtual TxFloodManager& getTxFloodManager() = 0;
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;
     virtual CommandHandler& getCommandHandler() = 0;

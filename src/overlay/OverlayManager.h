@@ -90,6 +90,8 @@ class OverlayManager
         return recvFloodedMsgID(msg, peer, msgID);
     }
 
+    virtual void recvTransaction(Hash const& txHash, Peer::pointer peer) = 0;
+
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers

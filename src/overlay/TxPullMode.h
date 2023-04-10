@@ -11,6 +11,8 @@
 namespace stellar
 {
 
+class Peer;
+
 // TxAdvertQueue class stores and properly trims incoming tx hashes
 // and also maintains retries.
 //
@@ -20,7 +22,7 @@ namespace stellar
 // queue is empty, then we look at mIncomingTxHashes and pop the first element.
 // Both mIncomingTxHashes and mTxHashesToRetry are FIFO.
 
-class TxAdvertQueue
+class TxPullMode
 {
   private:
     Application& mApp;
@@ -31,19 +33,28 @@ class TxAdvertQueue
     // Cache seen hashes for a bit to avoid re-broadcasting the same data
     // transaction hash -> ledger number
     RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
+    TxAdvertVector mOutgoingTxHashes;
+    VirtualTimer mAdvertTimer;
+    std::weak_ptr<Peer> mWeakPeer;
 
     void rememberHash(Hash const& hash, uint32_t ledgerSeq);
+    void flushAdvert();
+    void startAdvertTimer();
+    size_t getMaxAdvertSize() const;
 
   public:
-    TxAdvertQueue(Application& app);
+    TxPullMode(Application& app, std::weak_ptr<Peer> peer);
 
     size_t size() const;
+    std::pair<Hash, std::optional<VirtualClock::time_point>>
+    popIncomingAdvert();
+    void queueOutgoingAdvert(Hash const& txHash);
+    void queueIncomingAdvert(TxAdvertVector const& hash, uint32_t seq);
+    void retryIncomingAdvert(std::list<Hash>& list);
 
-    std::pair<Hash, std::optional<VirtualClock::time_point>> pop();
+    bool seenAdvert(Hash const& hash);
 
-    void queueAndMaybeTrim(TxAdvertVector const& hash, uint32_t seq);
-    void appendHashesToRetryAndMaybeTrim(std::list<Hash>& list);
-    bool peerKnowsHash(Hash const& hash);
     void clearBelow(uint32_t ledgerSeq);
+    void shutdown();
 };
 }

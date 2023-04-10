@@ -15,6 +15,7 @@
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
+#include "overlay/TxFloodManager.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -94,6 +95,7 @@ class OverlayManagerImpl : public OverlayManager
     friend class OverlayManagerTests;
 
     Floodgate mFloodGate;
+    TxFloodManager mTxFloodManager;
 
     std::shared_ptr<SurveyManager> mSurveyManager;
 
@@ -106,6 +108,8 @@ class OverlayManagerImpl : public OverlayManager
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
                           Hash& msgID) override;
+    void recvTransaction(Hash const& txHash, Peer::pointer peer) override;
+
     void forgetFloodedMsg(Hash const& msgID) override;
     bool
     broadcastMessage(StellarMessage const& msg, bool force = false,

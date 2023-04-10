@@ -10,7 +10,6 @@
 #include "medida/timer.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
-#include "overlay/TxAdvertQueue.h"
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
@@ -30,6 +29,7 @@ typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
+class TxPullMode;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -168,6 +168,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
+    std::shared_ptr<TxPullMode> mTxPullMode;
 
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
@@ -345,6 +346,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
+    void sendAdvert(Hash const& txHash);
+    void retryAdvert(std::list<Hash>& hashes);
+    bool hasAdvert();
+    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
 
     void sendMessage(std::shared_ptr<StellarMessage const> msg,
                      bool log = true);
@@ -440,6 +445,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendTxDemand(TxDemandVector&& demands);
     void fulfillDemand(FloodDemand const& dmd);
+    bool peerKnowsHash(Hash const& hash);
+    void clearBelow(uint32_t ledgerSeq);
 
     friend class LoopbackPeer;
 };

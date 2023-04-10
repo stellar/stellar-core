@@ -22,6 +22,7 @@
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxFloodManager.h"
+#include "overlay/TxPullMode.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -388,6 +389,19 @@ Peer::shutdown()
     }
     mShuttingDown = true;
     mRecurringTimer.cancel();
+    if (mTxPullMode)
+    {
+        mTxPullMode->shutdown();
+    }
+}
+
+void
+Peer::clearBelow(uint32_t seq)
+{
+    if (mTxPullMode)
+    {
+        mTxPullMode->clearBelow(seq);
+    }
 }
 
 void
@@ -1469,11 +1483,11 @@ Peer::recvTransaction(StellarMessage const& msg)
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
         Hash msgID;
-        mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
-                                                  msgID);
+        auto self = shared_from_this();
+        mApp.getOverlayManager().recvFloodedMsgID(msg, self, msgID);
 
-        mApp.getTxFloodManager().recordTxPullLatency(transaction->getFullHash(),
-                                                     shared_from_this());
+        mApp.getOverlayManager().recvTransaction(transaction->getFullHash(),
+                                                 self);
 
         // add it to our current set
         // and make sure it is valid
@@ -1908,6 +1922,8 @@ Peer::recvAuth(StellarMessage const& msg)
                          Peer::DropMode::FLUSH_WRITE_QUEUE);
     }
 
+    mTxPullMode = std::make_shared<TxPullMode>(mApp, self);
+
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
     sendGetScpState(low);
@@ -1986,9 +2002,9 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
+    releaseAssert(mTxPullMode);
     auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
-    mApp.getTxFloodManager().queueIncomingTxAdvert(msg.floodAdvert().txHashes,
-                                                   seq, shared_from_this());
+    mTxPullMode->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
 }
 
 void
@@ -2109,6 +2125,62 @@ Peer::fulfillDemand(FloodDemand const& dmd)
             }
         }
     }
+}
+
+bool
+Peer::peerKnowsHash(Hash const& hash)
+{
+    if (mTxPullMode)
+    {
+        return mTxPullMode->seenAdvert(hash);
+    }
+    return false;
+}
+
+void
+Peer::sendAdvert(Hash const& hash)
+{
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+    mTxPullMode->queueOutgoingAdvert(hash);
+}
+
+void
+Peer::retryAdvert(std::list<Hash>& hashes)
+{
+    if (mTxPullMode)
+    {
+        mTxPullMode->retryIncomingAdvert(hashes);
+    }
+}
+
+bool
+Peer::hasAdvert()
+{
+    if (mTxPullMode)
+    {
+        return mTxPullMode->size() > 0;
+    }
+
+    return false;
+}
+
+std::pair<Hash, std::optional<VirtualClock::time_point>>
+Peer::popAdvert()
+{
+    if (!hasAdvert())
+    {
+        throw std::runtime_error("No advert to pop");
+    }
+
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+
+    return mTxPullMode->popIncomingAdvert();
 }
 
 }

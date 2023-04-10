@@ -126,16 +126,14 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
     {
         releaseAssert(peer.second->isAuthenticated());
         bool pullMode = msg.type() == TRANSACTION;
-        bool hasAdvert = pullMode && mApp.getTxFloodManager().peerKnowsHash(
-                                         hash.value(), peer.second);
+        bool hasAdvert = pullMode && peer.second->peerKnowsHash(hash.value());
 
         if (peersTold.insert(peer.second->toString()).second && !hasAdvert)
         {
             if (pullMode)
             {
                 mMessagesAdvertised.Mark();
-                mApp.getTxFloodManager().queueOutgoingTxHash(hash.value(),
-                                                             peer.second);
+                peer.second->sendAdvert(hash.value());
             }
             else
             {

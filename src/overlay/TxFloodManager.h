@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Peer.h"
-#include "overlay/TxAdvertQueue.h"
 #include "util/NonCopyable.h"
 
 namespace medida
@@ -30,35 +29,18 @@ class TxFloodManager : private NonMovableOrCopyable
     explicit TxFloodManager(Application& app);
     static std::unique_ptr<TxFloodManager> create(Application& app);
 
-    void queueOutgoingTxHash(Hash const& hash, Peer::pointer peer);
-    void queueIncomingTxAdvert(TxAdvertVector const& advert, uint32_t ledgerSeq,
-                               Peer::pointer peer);
-    bool peerKnowsHash(Hash const& hash, Peer::pointer peer);
-
     void recordTxPullLatency(Hash const& hash, std::shared_ptr<Peer> peer);
 
+    void start();
     void shutdown();
-
-    void clearBelow(uint32_t seq);
 
   private:
     Application& mApp;
 
-    bool mShuttingDown;
-
     void startDemandTimer();
     void demand();
-    void flushAdvert(Peer::pointer peer);
-    void startAdvertTimer();
-
-    // Use weak ptrs?
-    UnorderedMap<Peer::pointer, std::unique_ptr<TxAdvertQueue>>
-        mQueuedIncomingAdverts;
-    UnorderedMap<Peer::pointer, TxAdvertVector> mQueuedOutgoingAdverts;
-    VirtualTimer mAdvertTimer;
     VirtualTimer mDemandTimer;
 
-    size_t getMaxAdvertSize() const;
     size_t getMaxDemandSize() const;
 
     struct DemandHistory
@@ -84,6 +66,5 @@ class TxFloodManager : private NonMovableOrCopyable
     // no one has the transaction.
     int const MAX_RETRY_COUNT = 15;
     std::chrono::milliseconds retryDelayDemand(int numAttemptsMade) const;
-    int availableOutboundPendingSlots() const;
 };
 }

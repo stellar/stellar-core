@@ -273,6 +273,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
+    , mTxFloodManager(app)
     , mSurveyManager(make_shared<SurveyManager>(app))
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
@@ -307,6 +308,9 @@ OverlayManagerImpl::start()
             },
             VirtualTimer::onFailureNoop);
     }
+
+    // Start demand logic
+    mTxFloodManager.start();
 }
 
 void
@@ -747,7 +751,10 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
-    mApp.getTxFloodManager().clearBelow(ledgerSeq);
+    for (auto& peer : getAuthenticatedPeers())
+    {
+        peer.second->clearBelow(ledgerSeq);
+    }
 }
 
 void
@@ -1018,6 +1025,13 @@ OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
 }
 
 void
+OverlayManagerImpl::recvTransaction(Hash const& hash, Peer::pointer peer)
+{
+    ZoneScoped;
+    mTxFloodManager.recordTxPullLatency(hash, peer);
+}
+
+void
 OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 {
     ZoneScoped;
@@ -1085,6 +1099,8 @@ OverlayManagerImpl::shutdown()
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
+
+    mTxFloodManager.shutdown();
 
     // Stop ticking and resolving peers
     mTimer.cancel();

@@ -5,18 +5,19 @@
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "overlay/TxAdvertQueue.h"
+#include "overlay/TxPullMode.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
 namespace stellar
 {
-TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
+TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig(0);
     auto app = createTestApplication(clock, cfg);
-    TxAdvertQueue advertQueue(*app);
+    std::weak_ptr<Peer> weak;
+    TxPullMode advertQueue(*app, weak);
     auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
 
@@ -29,18 +30,18 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
+    advertQueue.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
     REQUIRE(advertQueue.size() == limit);
 
-    advertQueue.appendHashesToRetryAndMaybeTrim(retry);
+    advertQueue.retryIncomingAdvert(retry);
     REQUIRE(advertQueue.size() == limit);
 
     for (uint32_t i = 0; i < limit; i++)
     {
-        // Since the TxAdvertQueue is "FIFO",
+        // Since the advert queue is "FIFO",
         // the retry hashes gets popped first.
         // Therefore, we should only have the new hashes.
-        auto h = advertQueue.pop().first;
+        auto h = advertQueue.popIncomingAdvert().first;
         REQUIRE(h == getHash(i));
     }
     REQUIRE(advertQueue.size() == 0);
@@ -51,19 +52,19 @@ TEST_CASE("TxAdvertQueueTests", "[flood][pullmode][acceptance]")
         hashes.push_back(getHash(i));
         retry.push_back(getHash(limit + i));
     }
-    advertQueue.queueAndMaybeTrim(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
-    advertQueue.appendHashesToRetryAndMaybeTrim(retry);
+    advertQueue.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
+    advertQueue.retryIncomingAdvert(retry);
     REQUIRE(advertQueue.size() == ((limit / 2) * 2));
     for (uint32_t i = 0; i < limit / 2; i++)
     {
         // We pop retry hashes first.
-        auto h = advertQueue.pop().first;
+        auto h = advertQueue.popIncomingAdvert().first;
         REQUIRE(h == getHash(limit + i));
     }
     for (uint32_t i = 0; i < limit / 2; i++)
     {
         // We pop new hashes next.
-        auto h = advertQueue.pop().first;
+        auto h = advertQueue.popIncomingAdvert().first;
         REQUIRE(h == getHash(i));
     }
     REQUIRE(advertQueue.size() == 0);

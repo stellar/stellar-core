@@ -2395,6 +2395,9 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     REQUIRE(overlaytestutils::getAdvertisedHashCount(node1) == numAccounts);
     REQUIRE(overlaytestutils::getAdvertisedHashCount(node2) == 0);
 
+    REQUIRE(overlaytestutils::getSentDemandCount(node2) > 0);
+    REQUIRE(overlaytestutils::getFulfilledDemandCount(node1) == numAccounts);
+
     // As this is a "happy path", there should be no unknown demands.
     REQUIRE(overlaytestutils::getUnknownDemandCount(node1) == 0);
     REQUIRE(overlaytestutils::getUnknownDemandCount(node2) == 0);

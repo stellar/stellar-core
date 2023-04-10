@@ -21,21 +21,8 @@ namespace stellar
 // longer than 2 seconds between re-issuing demands.
 constexpr std::chrono::seconds MAX_DELAY_DEMAND{2};
 
-TxFloodManager::TxFloodManager(Application& app)
-    : mApp(app), mAdvertTimer(app), mDemandTimer(app)
+TxFloodManager::TxFloodManager(Application& app) : mApp(app), mDemandTimer(app)
 {
-}
-
-bool
-TxFloodManager::peerKnowsHash(Hash const& txHash, Peer::pointer peer)
-{
-    ZoneScoped;
-    auto it = mQueuedIncomingAdverts.find(peer);
-    if (it != mQueuedIncomingAdverts.end())
-    {
-        return it->second->peerKnowsHash(txHash);
-    }
-    return false;
 }
 
 std::unique_ptr<TxFloodManager>
@@ -45,105 +32,15 @@ TxFloodManager::create(Application& app)
 }
 
 void
-TxFloodManager::flushAdvert(Peer::pointer peer)
+TxFloodManager::start()
 {
-    auto& outgoingAdverts = mQueuedOutgoingAdverts[peer];
-    if (outgoingAdverts.size() > 0)
-    {
-        StellarMessage adv;
-        adv.type(FLOOD_ADVERT);
-
-        adv.floodAdvert().txHashes = std::move(outgoingAdverts);
-        auto msg = std::make_shared<StellarMessage>(adv);
-        std::weak_ptr<Peer> weak(peer);
-        mQueuedOutgoingAdverts.erase(peer);
-        mApp.postOnMainThread(
-            [weak, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
-            },
-            "flushAdvert");
-    }
-}
-
-void
-TxFloodManager::startAdvertTimer()
-{
-    if (mShuttingDown)
-    {
-        return;
-    }
-    mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
-    mAdvertTimer.async_wait([this](asio::error_code const& error) {
-        if (!error)
-        {
-            auto peers = mApp.getOverlayManager().getRandomAuthenticatedPeers();
-            for (auto& peer : peers)
-            {
-                flushAdvert(peer);
-            }
-        }
-    });
-}
-
-void
-TxFloodManager::queueOutgoingTxHash(Hash const& txHash, Peer::pointer peer)
-{
-    auto const empty = mQueuedIncomingAdverts.empty();
-    auto& outgoingAdverts = mQueuedOutgoingAdverts[peer];
-
-    if (outgoingAdverts.size() == TX_ADVERT_VECTOR_MAX_SIZE)
-    {
-        CLOG_TRACE(Overlay, "{}'s tx hash queue is full, dropping {}",
-                   peer->toString(), hexAbbrev(txHash));
-        return;
-    }
-
-    outgoingAdverts.emplace_back(txHash);
-
-    // Flush adverts at the earliest of the following two conditions:
-    // 1. The number of hashes reaches the threshold.
-    // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
-    if (outgoingAdverts.size() == getMaxAdvertSize())
-    {
-        flushAdvert(peer);
-    }
-    if (empty)
-    {
-        startAdvertTimer();
-    }
-}
-
-void
-TxFloodManager::queueIncomingTxAdvert(TxAdvertVector const& advert,
-                                      uint32_t ledgerSeq, Peer::pointer peer)
-{
-    bool emptyQueue = mQueuedIncomingAdverts.empty();
-    auto it = mQueuedIncomingAdverts.find(peer);
-    if (it == mQueuedIncomingAdverts.end())
-    {
-        mQueuedIncomingAdverts.emplace(
-            std::make_pair(peer, std::make_unique<TxAdvertQueue>(mApp)));
-    }
-    it->second->queueAndMaybeTrim(advert, ledgerSeq);
-    if (emptyQueue)
-    {
-        startDemandTimer();
-    }
+    demand();
 }
 
 void
 TxFloodManager::shutdown()
 {
-    if (mShuttingDown)
-    {
-        return;
-    }
-    mShuttingDown = true;
-    mAdvertTimer.cancel();
+    mDemandTimer.cancel();
 }
 
 size_t
@@ -231,10 +128,6 @@ void
 TxFloodManager::demand()
 {
     ZoneScoped;
-    if (mShuttingDown)
-    {
-        return;
-    }
     auto const now = mApp.getClock().now();
 
     auto& om = mApp.getOverlayManager().getOverlayMetrics();
@@ -277,16 +170,10 @@ TxFloodManager::demand()
             auto& retry = demPair.second;
             bool addedNewDemand = false;
 
-            auto it = mQueuedIncomingAdverts.find(peer);
-            if (it == mQueuedIncomingAdverts.end())
-            {
-                continue;
-            }
-            auto& queue = *(it->second);
-            while (demand.size() < getMaxDemandSize() && queue.size() > 0 &&
+            while (demand.size() < getMaxDemandSize() && peer->hasAdvert() &&
                    !addedNewDemand)
             {
-                auto hashPair = queue.pop();
+                auto hashPair = peer->popAdvert();
                 auto txHash = hashPair.first;
                 if (hashPair.second)
                 {
@@ -334,17 +221,7 @@ TxFloodManager::demand()
         // We move `demand` here and also pass `retry` as a reference
         // which gets appended. Don't touch `demand` or `retry` after here.
         peer->sendTxDemand(std::move(demandMap[peer].first));
-        if (demandMap[peer].second.empty())
-        {
-            continue;
-        }
-        auto it = mQueuedIncomingAdverts.find(peer);
-        if (it == mQueuedIncomingAdverts.end())
-        {
-            mQueuedIncomingAdverts.emplace(
-                peer, std::make_unique<TxAdvertQueue>(mApp));
-        }
-        it->second->appendHashesToRetryAndMaybeTrim(demandMap[peer].second);
+        peer->retryAdvert(demandMap[peer].second);
     }
 
     // mPendingDemands and mDemandHistoryMap must always contain exactly the
@@ -392,39 +269,6 @@ TxFloodManager::recordTxPullLatency(Hash const& hash,
                     .count(),
                 peer->toString());
         }
-    }
-}
-
-size_t
-TxFloodManager::getMaxAdvertSize() const
-{
-    auto const& cfg = mApp.getConfig();
-    auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
-    double opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
-    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    double opsToFloodPerLedgerDbl =
-        opRatePerLedger * static_cast<double>(maxOps);
-    releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
-    int64_t opsToFloodPerLedger = static_cast<int64_t>(opsToFloodPerLedgerDbl);
-
-    size_t res = static_cast<size_t>(bigDivideOrThrow(
-        opsToFloodPerLedger, cfg.FLOOD_ADVERT_PERIOD_MS.count(),
-        ledgerCloseTime, Rounding::ROUND_UP));
-
-    res = std::max<size_t>(1, res);
-    res = std::min<size_t>(TX_ADVERT_VECTOR_MAX_SIZE, res);
-    return res;
-}
-
-void
-TxFloodManager::clearBelow(uint32_t ledgerSeq)
-{
-    for (auto& pair : mQueuedIncomingAdverts)
-    {
-        pair.second->clearBelow(ledgerSeq);
     }
 }
 
