@@ -1324,6 +1324,9 @@
     <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2307,6 +2310,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\NetworkConfig.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

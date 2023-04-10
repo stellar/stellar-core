@@ -236,6 +236,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
+
     ledgerClosed(ltx);
     ltx.commit();
 }
@@ -251,6 +252,11 @@ LedgerManagerImpl::startNewLedger()
         ledger.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
         ledger.baseReserve = cfg.TESTING_UPGRADE_RESERVE;
         ledger.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        ContractNetworkConfig::initializeGenesisLedgerForTesting(
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx);
+        updateNetworkConfig(ltx);
+        ltx.commit();
     }
 
     startNewLedger(ledger);
@@ -366,14 +372,17 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                         }
                     }
                     advanceLedgerPointers(header.current());
+                    updateNetworkConfig(ltx);
                 }
                 handler();
             }
         }
         else
         {
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
             advanceLedgerPointers(ltx.loadHeader().current());
+            updateNetworkConfig(ltx);
         }
     }
 }
@@ -427,7 +436,7 @@ LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
-    auto& lh = mLastClosedLedger.header;
+    auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
     else
@@ -466,6 +475,12 @@ uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
     return mLastClosedLedger.header.ledgerSeq;
+}
+
+ContractNetworkConfig const&
+LedgerManagerImpl::getLastContractNetworkConfig() const
+{
+    return mLastContractNetworkConfig;
 }
 
 // called by txherder
@@ -726,7 +741,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     }
 
     ltx.loadHeader().current().txSetResultHash = txResultSetFrame.getXDRHash();
-
+    bool upgradeHappened = false;
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
@@ -776,6 +791,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                               static_cast<int>(i + 1));
             }
             ltxUpgrade.commit();
+            upgradeHappened = true;
         }
         catch (std::runtime_error& e)
         {
@@ -786,7 +802,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
-
+    // Technically only a subset of upgrades affects network configuration, but
+    // it's simpler/safer to just refresh it for any upgrade (sometimes as a
+    // no-op).
+    if (upgradeHappened)
+    {
+        updateNetworkConfig(ltx);
+    }
     ledgerClosed(ltx);
 
     if (ledgerData.getExpectedHash() &&
@@ -918,6 +940,7 @@ LedgerManagerImpl::setLastClosedLedger(
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
     storeCurrentLedger(header.current(), storeInDB);
+    updateNetworkConfig(ltx);
     ltx.commit();
 
     mRebuildInMemoryState = false;
@@ -934,6 +957,9 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
             "MANUAL_CLOSE and RUN_STANDALONE");
     }
     advanceLedgerPointers(header, false);
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    updateNetworkConfig(ltx);
 }
 
 void
@@ -1062,6 +1088,17 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
+}
+
+void
+LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
+{
+    LedgerTxn ltx(rootLtx, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mLastContractNetworkConfig.loadFromLedger(ltx);
+    }
 }
 
 static bool

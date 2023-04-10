@@ -518,6 +518,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
@@ -948,6 +949,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
+    <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
