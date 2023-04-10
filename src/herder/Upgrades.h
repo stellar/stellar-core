@@ -32,9 +32,6 @@ class Upgrades
     // upgrades
     static std::chrono::hours const UPDGRADE_EXPIRATION_HOURS;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    static uint32_t const CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES_V20;
-#endif
     struct UpgradeParameters
     {
         UpgradeParameters()

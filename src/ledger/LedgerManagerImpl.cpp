@@ -222,7 +222,14 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
+    auto const& cfg = mApp.getConfig();
+
     ltx.loadHeader().current() = genesisLedger;
+    if (cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        SorobanNetworkConfig::initializeGenesisLedgerForTesting(
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx);
+    }
 
     LedgerEntry rootEntry;
     rootEntry.lastModifiedLedgerSeq = 1;
@@ -427,7 +434,7 @@ LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
-    auto& lh = mLastClosedLedger.header;
+    auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
     else
@@ -466,6 +473,17 @@ uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
     return mLastClosedLedger.header.ledgerSeq;
+}
+
+SorobanNetworkConfig const&
+LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+{
+    if (!mLastSorobanNetworkConfig)
+    {
+        maybeUpdateNetworkConfig(false, ltx);
+    }
+
+    return *mLastSorobanNetworkConfig;
 }
 
 // called by txherder
@@ -726,7 +744,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     }
 
     ltx.loadHeader().current().txSetResultHash = txResultSetFrame.getXDRHash();
-
+    bool upgradeHappened = false;
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
@@ -776,6 +794,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                               static_cast<int>(i + 1));
             }
             ltxUpgrade.commit();
+            upgradeHappened = true;
         }
         catch (std::runtime_error& e)
         {
@@ -786,6 +805,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
+    // Technically only a subset of upgrades affects network configuration, but
+    // it's simpler/safer to just refresh it for any upgrade (sometimes as a
+    // no-op).
+
+    maybeUpdateNetworkConfig(upgradeHappened, ltx);
 
     ledgerClosed(ltx);
 
@@ -1062,6 +1086,28 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
+}
+
+void
+LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
+                                            AbstractLedgerTxn& rootLtx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!upgradeHappened && mLastSorobanNetworkConfig)
+    {
+        return;
+    }
+    if (!mLastSorobanNetworkConfig)
+    {
+        mLastSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
+    }
+    LedgerTxn ltx(rootLtx, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mLastSorobanNetworkConfig->loadFromLedger(ltx);
+    }
+#endif
 }
 
 static bool

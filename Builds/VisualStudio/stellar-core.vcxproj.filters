@@ -954,12 +954,6 @@
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\FlowControl.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1329,6 +1323,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp">
       <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FlowControl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1953,12 +1956,6 @@
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\FlowControl.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2319,6 +2316,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\NetworkConfig.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FlowControl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

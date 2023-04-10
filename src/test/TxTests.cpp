@@ -1593,21 +1593,6 @@ LedgerHeader
 executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
                 bool upgradesIgnored)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerKey key(LedgerEntryType::CONFIG_SETTING);
-    key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
-    std::optional<LedgerEntry> currConfigSetting;
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto ltxe = ltx.load(key);
-        if (ltxe)
-        {
-            currConfigSetting = ltxe.current();
-        }
-    }
-#endif
-
     auto& lm = app.getLedgerManager();
     auto currLh = app.getLedgerManager().getLastClosedLedgerHeader().header;
 
@@ -1628,21 +1613,6 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
         {
             REQUIRE(currLh.ext.v1().flags == newHeader.ext.v1().flags);
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            auto ltxe = ltx.load(key);
-            if (currConfigSetting)
-            {
-                REQUIRE((ltxe && *currConfigSetting == ltxe.current()));
-            }
-            else
-            {
-                REQUIRE(!ltxe);
-            }
-        }
-#endif
     }
     return lm.getLastClosedLedgerHeader().header;
 };
