@@ -97,6 +97,25 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
             pullMode.queueOutgoingAdvert(getHash(maxAdvert));
             REQUIRE(pullMode.outgoingSize() == 0);
         }
+        SECTION("ensure outgoing queue is capped")
+        {
+            VirtualClock clock2;
+            Config cfg2 = getTestConfig(1);
+            // Set max tx set size to something really high
+            cfg2.TESTING_UPGRADE_MAX_TX_SET_SIZE =
+                TX_ADVERT_VECTOR_MAX_SIZE * 100;
+            auto app2 = createTestApplication(clock2, cfg2);
+            TxPullMode pullMode2(*app2, weak);
+            // getMaxAdvertSize takes the limit into account
+            REQUIRE(pullMode2.getMaxAdvertSize() <= TX_ADVERT_VECTOR_MAX_SIZE);
+
+            for (uint32_t i = 0; i < TX_ADVERT_VECTOR_MAX_SIZE; i++)
+            {
+                pullMode.queueOutgoingAdvert(getHash(i));
+            }
+
+            REQUIRE(pullMode.outgoingSize() == 0);
+        }
     }
 }
 }
