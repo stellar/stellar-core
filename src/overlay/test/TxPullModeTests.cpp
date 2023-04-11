@@ -14,59 +14,89 @@ namespace stellar
 TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0);
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 200;
     auto app = createTestApplication(clock, cfg);
     std::weak_ptr<Peer> weak;
-    TxPullMode advertQueue(*app, weak);
+    TxPullMode pullMode(*app, weak);
     auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
 
-    std::list<Hash> retry;
+    SECTION("incoming adverts")
+    {
+        std::list<Hash> retry;
 
-    // Check the trimming logic for incoming adverts.
-    TxAdvertVector hashes;
-    for (uint32_t i = 0; i < limit; i++)
-    {
-        hashes.push_back(getHash(i));
-        retry.push_back(getHash(limit + i));
-    }
-    advertQueue.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
-    REQUIRE(advertQueue.size() == limit);
+        // Check the trimming logic for incoming adverts.
+        TxAdvertVector hashes;
+        for (uint32_t i = 0; i < limit; i++)
+        {
+            hashes.push_back(getHash(i));
+            retry.push_back(getHash(limit + i));
+        }
+        pullMode.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
+        REQUIRE(pullMode.size() == limit);
 
-    advertQueue.retryIncomingAdvert(retry);
-    REQUIRE(advertQueue.size() == limit);
+        pullMode.retryIncomingAdvert(retry);
+        REQUIRE(pullMode.size() == limit);
 
-    for (uint32_t i = 0; i < limit; i++)
-    {
-        // Since the advert queue is "FIFO",
-        // the retry hashes gets popped first.
-        // Therefore, we should only have the new hashes.
-        auto h = advertQueue.popIncomingAdvert().first;
-        REQUIRE(h == getHash(i));
+        for (uint32_t i = 0; i < limit; i++)
+        {
+            // Since the advert queue is "FIFO",
+            // the retry hashes gets popped first.
+            // Therefore, we should only have the new hashes.
+            auto h = pullMode.popIncomingAdvert().first;
+            REQUIRE(h == getHash(i));
+        }
+        REQUIRE(pullMode.size() == 0);
+        hashes.clear();
+        retry.clear();
+        for (uint32_t i = 0; i < (limit / 2); i++)
+        {
+            hashes.push_back(getHash(i));
+            retry.push_back(getHash(limit + i));
+        }
+        pullMode.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
+        pullMode.retryIncomingAdvert(retry);
+        REQUIRE(pullMode.size() == ((limit / 2) * 2));
+        for (uint32_t i = 0; i < limit / 2; i++)
+        {
+            // We pop retry hashes first.
+            auto h = pullMode.popIncomingAdvert().first;
+            REQUIRE(h == getHash(limit + i));
+        }
+        for (uint32_t i = 0; i < limit / 2; i++)
+        {
+            // We pop new hashes next.
+            auto h = pullMode.popIncomingAdvert().first;
+            REQUIRE(h == getHash(i));
+        }
+        REQUIRE(pullMode.size() == 0);
     }
-    REQUIRE(advertQueue.size() == 0);
-    hashes.clear();
-    retry.clear();
-    for (uint32_t i = 0; i < (limit / 2); i++)
+    SECTION("outgoing adverts")
     {
-        hashes.push_back(getHash(i));
-        retry.push_back(getHash(limit + i));
+        // Check that the timer flushes the queue
+        SECTION("flush advert after some time")
+        {
+            pullMode.queueOutgoingAdvert(getHash(0));
+            REQUIRE(1 < TX_ADVERT_VECTOR_MAX_SIZE);
+            REQUIRE(1 < pullMode.getMaxAdvertSize());
+
+            REQUIRE(pullMode.outgoingSize() == 1);
+            testutil::crankFor(clock, std::chrono::seconds(1));
+            REQUIRE(pullMode.outgoingSize() == 0);
+        }
+        SECTION("flush advert when at capacity")
+        {
+            auto maxAdvert = pullMode.getMaxAdvertSize();
+            for (uint32_t i = 0; i < maxAdvert - 1; i++)
+            {
+                pullMode.queueOutgoingAdvert(getHash(i));
+            }
+
+            REQUIRE(pullMode.outgoingSize() == maxAdvert - 1);
+            pullMode.queueOutgoingAdvert(getHash(maxAdvert));
+            REQUIRE(pullMode.outgoingSize() == 0);
+        }
     }
-    advertQueue.queueIncomingAdvert(hashes, LedgerManager::GENESIS_LEDGER_SEQ);
-    advertQueue.retryIncomingAdvert(retry);
-    REQUIRE(advertQueue.size() == ((limit / 2) * 2));
-    for (uint32_t i = 0; i < limit / 2; i++)
-    {
-        // We pop retry hashes first.
-        auto h = advertQueue.popIncomingAdvert().first;
-        REQUIRE(h == getHash(limit + i));
-    }
-    for (uint32_t i = 0; i < limit / 2; i++)
-    {
-        // We pop new hashes next.
-        auto h = advertQueue.popIncomingAdvert().first;
-        REQUIRE(h == getHash(i));
-    }
-    REQUIRE(advertQueue.size() == 0);
 }
 }

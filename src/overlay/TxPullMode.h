@@ -40,18 +40,25 @@ class TxPullMode
     void rememberHash(Hash const& hash, uint32_t ledgerSeq);
     void flushAdvert();
     void startAdvertTimer();
-    size_t getMaxAdvertSize() const;
 
   public:
     TxPullMode(Application& app, std::weak_ptr<Peer> peer);
 
     size_t size() const;
+#ifdef BUILD_TESTS
+    size_t
+    outgoingSize() const
+    {
+        return mOutgoingTxHashes.size();
+    }
+#endif
     std::pair<Hash, std::optional<VirtualClock::time_point>>
     popIncomingAdvert();
     void queueOutgoingAdvert(Hash const& txHash);
     void queueIncomingAdvert(TxAdvertVector const& hash, uint32_t seq);
     void retryIncomingAdvert(std::list<Hash>& list);
 
+    size_t getMaxAdvertSize() const;
     bool seenAdvert(Hash const& hash);
 
     void clearBelow(uint32_t ledgerSeq);

@@ -70,17 +70,6 @@ TxPullMode::queueOutgoingAdvert(Hash const& txHash)
         startAdvertTimer();
     }
 
-    if (mOutgoingTxHashes.size() == TX_ADVERT_VECTOR_MAX_SIZE)
-    {
-        auto peer = mWeakPeer.lock();
-        if (peer)
-        {
-            CLOG_TRACE(Overlay, "{}'s tx hash queue is full, dropping {}",
-                       peer->toString(), hexAbbrev(txHash));
-        }
-        return;
-    }
-
     mOutgoingTxHashes.emplace_back(txHash);
 
     // Flush adverts at the earliest of the following two conditions:
