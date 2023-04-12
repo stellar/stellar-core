@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
+#include "main/Config.h"
 #include <memory>
 
 namespace stellar
@@ -20,7 +21,12 @@ struct LedgerTxnDelta;
 class ConservationOfLumens : public Invariant
 {
   public:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConservationOfLumens(Hash const& lumenContractID,
+                         SCVal const& balanceSymbol, SCVal const& amountSymbol);
+#else
     ConservationOfLumens();
+#endif
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
@@ -30,5 +36,12 @@ class ConservationOfLumens : public Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta) override;
+
+  private:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    Hash const mLumenContractID;
+    SCVal const mBalanceSymbol;
+    SCVal const mAmountSymbol;
+#endif
 };
 }
