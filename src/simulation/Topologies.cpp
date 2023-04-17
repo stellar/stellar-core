@@ -87,7 +87,7 @@ Topologies::cycle4(Hash const& networkID, Simulation::ConfigGen confGen,
 Simulation::pointer
 Topologies::separate(int nNodes, double quorumThresoldFraction,
                      Simulation::Mode mode, Hash const& networkID,
-                     Simulation::ConfigGen confGen,
+                     int numWatchers, Simulation::ConfigGen confGen,
                      Simulation::QuorumSetAdjuster qSetAdjust)
 {
     Simulation::pointer simulation =
@@ -113,6 +113,13 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
     {
         simulation->addNode(k, qSet);
     }
+
+    for (int i = 0; i < numWatchers; i++)
+    {
+        simulation->addNode(
+            SecretKey::fromSeed(sha256("NODE_SEED_WATCHER_" + to_string(i))),
+            qSet);
+    }
     return simulation;
 }
 
@@ -123,7 +130,7 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
                  Simulation::QuorumSetAdjuster qSetAdjust)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
-                                           networkID, confGen, qSetAdjust);
+                                           networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
@@ -146,7 +153,7 @@ Topologies::cycle(int nNodes, double quorumThresoldFraction,
                   Simulation::QuorumSetAdjuster qSetAdjust)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
-                                           networkID, confGen, qSetAdjust);
+                                           networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);
@@ -167,7 +174,7 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
                           Simulation::QuorumSetAdjuster qSetAdjust)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
-                                           networkID, confGen, qSetAdjust);
+                                           networkID, 0, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
     assert(static_cast<int>(nodes.size()) == nNodes);

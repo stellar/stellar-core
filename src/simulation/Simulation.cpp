@@ -515,12 +515,17 @@ Simulation::crankAllNodes(int nbTicks)
 }
 
 bool
-Simulation::haveAllExternalized(uint32 num, uint32 maxSpread)
+Simulation::haveAllExternalized(uint32 num, uint32 maxSpread,
+                                bool validatorsOnly)
 {
     uint32_t min = UINT32_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
         auto app = it->second.mApp;
+        if (validatorsOnly && !app->getConfig().NODE_IS_VALIDATOR)
+        {
+            continue;
+        }
         auto n = app->getLedgerManager().getLastClosedLedgerNum();
         LOG_DEBUG(DEFAULT_LOG, "{} @ ledger#: {}", app->getConfig().PEER_PORT,
                   n);
@@ -755,7 +760,7 @@ bool
 LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
                                       bool forceoutbound)
 {
-    CLOG_INFO(Overlay, "Connect to {}", address.toString());
+    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -771,6 +776,10 @@ LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
         auto& app = static_cast<ApplicationLoopbackOverlay&>(mApp);
         auto otherApp = app.getSim().getAppFromPeerMap(address.getPort());
+        if (!otherApp)
+        {
+            return false;
+        }
         auto res = LoopbackPeer::initiate(mApp, *otherApp);
         return res.first->getState() == Peer::CONNECTED;
     }
