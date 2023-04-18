@@ -202,11 +202,11 @@ struct HostFunctionMetrics
         mWriteKeyByte += xdr::xdr_size(lk);
         if (isCodeKey(lk))
         {
-            mReadCodeByte += n;
+            mWriteCodeByte += n;
         }
         else
         {
-            mReadDataByte += n;
+            mWriteDataByte += n;
         }
     }
 
