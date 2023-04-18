@@ -47,15 +47,6 @@ mod rust_bridge {
         mem_bytes: u64,
     }
 
-    struct PreflightHostFunctionOutput {
-        result_value: RustBuf,
-        contract_events: Vec<RustBuf>,
-        diagnostic_events: Vec<RustBuf>,
-        storage_footprint: RustBuf,
-        cpu_insns: u64,
-        mem_bytes: u64,
-    }
-
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
     // understand.
     #[namespace = "stellar"]
@@ -114,13 +105,6 @@ mod rust_bridge {
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
         ) -> Result<InvokeHostFunctionOutput>;
-        fn preflight_host_function(
-            host_logic_version: u32,
-            hf_buf: &CxxVector<u8>,
-            source_account: &CxxVector<u8>,
-            ledger_info: CxxLedgerInfo,
-            cb: UniquePtr<PreflightCallbacks>,
-        ) -> Result<PreflightHostFunctionOutput>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
@@ -164,13 +148,6 @@ mod rust_bridge {
         type LogLevel;
         fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> bool;
         fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
-
-        // This declares a type used by Rust to call back to C++ to access
-        // a ledger snapshot and record other information related to a preflight
-        // request.
-        type PreflightCallbacks;
-        fn get_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<CxxBuf>;
-        fn has_ledger_entry(self: Pin<&mut PreflightCallbacks>, key: &Vec<u8>) -> Result<bool>;
     }
 }
 
@@ -203,13 +180,9 @@ pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Err
     })
 }
 
-use cxx::CxxVector;
-use cxx::UniquePtr;
 use rust_bridge::CxxBuf;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::InvokeHostFunctionOutput;
-use rust_bridge::PreflightCallbacks;
-use rust_bridge::PreflightHostFunctionOutput;
 use rust_bridge::RustBuf;
 use rust_bridge::VersionNumPair;
 use rust_bridge::VersionStringPair;
@@ -338,13 +311,14 @@ pub fn check_lockfile_has_expected_dep_trees() {
     );
 }
 
-// This is a trait that abstracts the translation from host logic version numbers
-// (which are assigned by stellar-core, as the embedder of the host) and host
-// `LegacyEpoch` values (which are added to the host as needed for replay). It also
-// abstracts over the fact that a version of the host might not have a definition
-// for `LegacyEpoch` yet at all, nor a method on `Host` to install one. This trait
-// is called from _within_ the body of contract::{invoke,preflight}_host_function,
-// but has a different implementation for each of {hi,lo}::soroban_env_host::Host.
+// This is a trait that abstracts the translation from host logic version
+// numbers (which are assigned by stellar-core, as the embedder of the host) and
+// host `LegacyEpoch` values (which are added to the host as needed for replay).
+// It also abstracts over the fact that a version of the host might not have a
+// definition for `LegacyEpoch` yet at all, nor a method on `Host` to install
+// one. This trait is called from _within_ the body of
+// contract::invoke_host_function, but has a different implementation for each
+// of {hi,lo}::soroban_env_host::Host.
 trait SetHostLogicVersion {
     fn set_logic_version(&self, version: u32);
 }
@@ -484,39 +458,6 @@ pub(crate) fn invoke_host_function(
             contract_auth_entries,
             ledger_info,
             ledger_entries,
-        )
-    }
-}
-
-pub(crate) fn preflight_host_function(
-    host_logic_version: u32,
-    hf_buf: &CxxVector<u8>,
-    source_account_buf: &CxxVector<u8>,
-    ledger_info: CxxLedgerInfo,
-    cb: UniquePtr<PreflightCallbacks>,
-) -> Result<PreflightHostFunctionOutput, Box<dyn std::error::Error>> {
-    if host_logic_version > hi::LOGIC_VERSION {
-        Err(Box::new(rust_bridge::BridgeError::VersionNotYetSupported))
-    } else if host_logic_version == lo::LOGIC_VERSION {
-        lo::contract::preflight_host_function(
-            host_logic_version,
-            hf_buf,
-            source_account_buf,
-            ledger_info,
-            cb,
-        )
-    } else {
-        // We will execute `hi` for host logic versions equal to
-        // `hi::LOGIC_VERSION` _and_ versions strictly less than
-        // `lo::LOGIC_VERSION`. The former run with no modification, the latter
-        // potentially with a `LegacyEpoch` to activate backward-compatibility
-        // legacy code paths.
-        hi::contract::preflight_host_function(
-            host_logic_version,
-            hf_buf,
-            source_account_buf,
-            ledger_info,
-            cb,
         )
     }
 }

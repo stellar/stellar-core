@@ -40,10 +40,6 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                  medida::MetricsRegistry& metrics) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
-    static Json::Value preflight(Application& app,
-                                 InvokeHostFunctionOp const& op,
-                                 AccountID const& sourceAccount);
-
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

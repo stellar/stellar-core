@@ -116,7 +116,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    addRoute("preflight", &CommandHandler::preflight);
     addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
 #endif
     addRoute("upgrades", &CommandHandler::upgrades);
@@ -703,36 +702,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-void
-CommandHandler::preflight(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    Json::Value root;
-
-    std::map<std::string, std::string> paramMap;
-    http::server::server::parseParams(params, paramMap);
-    std::string blob = paramMap["blob"];
-    std::string sourceAcct = paramMap["source_account"];
-    if (!blob.empty())
-    {
-        AccountID acct;
-        if (!sourceAcct.empty())
-        {
-            acct = KeyUtils::fromStrKey<PublicKey>(sourceAcct);
-        }
-        InvokeHostFunctionOp op;
-        fromOpaqueBase64(op, blob);
-        root = InvokeHostFunctionOpFrame::preflight(mApp, op, acct);
-    }
-    else
-    {
-        throw std::invalid_argument(
-            "Must specify an InvokeHostFunctionOp blob: preflight?blob=<op in "
-            "base64 XDR format>[&source_account=<strkey>]");
-    }
-    retStr = Json::FastWriter().write(root);
-}
-
 void
 CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
 {
