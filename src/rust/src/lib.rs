@@ -255,6 +255,49 @@ mod hi {
     pub(crate) mod contract;
 }
 
+use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
+
+fn check_lockfile_has_expected_dep_tree(
+    lockfile: &Lockfile,
+    hi_or_lo: &str,
+    logic_version: u32,
+    package_hash: &str,
+    expected: &str,
+) {
+    let pkg = lockfile
+        .packages
+        .iter()
+        .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
+        .expect("locating host package in Cargo.lock");
+
+    let tree = lockfile
+        .dependency_tree()
+        .expect("calculating global dep tree of Cargo.lock");
+
+    let node = tree.nodes()[&pkg.into()];
+
+    let mut tree_buf = Vec::new();
+    tree.render(&mut tree_buf, node, EdgeDirection::Outgoing, true)
+        .expect("rendering dep tree");
+
+    let tree_str = format!(
+        "Logic version: {}\nDependency tree:\n{}",
+        logic_version,
+        String::from_utf8_lossy(&tree_buf)
+    );
+
+    if tree_str != expected {
+        eprintln!(
+            "Expected '{}' host dependency tree (in host-dep-tree-{}.txt):",
+            hi_or_lo, hi_or_lo
+        );
+        eprintln!("---\n{}\n---", expected);
+        eprintln!("Found '{}' host dependency tree (in Cargo.lock):", hi_or_lo);
+        eprintln!("---\n{}\n---", tree_str);
+        panic!("Unexpected '{}' host dependency tree", hi_or_lo);
+    }
+}
+
 // This function performs a crude dynamic check that the contents of Cargo.lock
 // against-which the current binary was compiled specified _exactly_ the same
 // host dep trees that are stored (redundantly, graphically) in the files
@@ -276,71 +319,23 @@ pub fn check_lockfile_has_expected_dep_trees() {
     static EXPECTED_HOST_DEP_TREE_LO: &'static str = include_str!("host-dep-tree-lo.txt");
     static EXPECTED_HOST_DEP_TREE_HI: &'static str = include_str!("host-dep-tree-hi.txt");
 
-    use cargo_lock::dependency::graph::EdgeDirection::Outgoing;
-    use cargo_lock::Lockfile;
-
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
-    let lo_pkg = lockfile
-        .packages
-        .iter()
-        .find(|p| {
-            p.name.as_str() == "soroban-env-host"
-                && package_matches_hash(p, self::lo::soroban_env_host::VERSION.rev)
-        })
-        .expect("locating lo host package in Cargo.lock");
-
-    let hi_pkg = lockfile
-        .packages
-        .iter()
-        .find(|p| {
-            p.name.as_str() == "soroban-env-host"
-                && package_matches_hash(p, self::hi::soroban_env_host::VERSION.rev)
-        })
-        .expect("locating hi host package in Cargo.lock");
-
-    let tree = lockfile
-        .dependency_tree()
-        .expect("calculating global dep tree of Cargo.lock");
-
-    let lo_node = tree.nodes()[&lo_pkg.into()];
-    let hi_node = tree.nodes()[&hi_pkg.into()];
-
-    let mut lo_tree = Vec::new();
-    let mut hi_tree = Vec::new();
-    tree.render(&mut lo_tree, lo_node, Outgoing, true)
-        .expect("rendering lo dep tree");
-    tree.render(&mut hi_tree, hi_node, Outgoing, true)
-        .expect("rendering hi dep tree");
-
-    let lo_tree_str = format!(
-        "Logic version: {}\nDependency tree:\n{}",
+    check_lockfile_has_expected_dep_tree(
+        &lockfile,
+        "lo",
         self::lo::LOGIC_VERSION,
-        String::from_utf8_lossy(&lo_tree)
+        self::lo::soroban_env_host::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_LO,
     );
-
-    let hi_tree_str = format!(
-        "Logic version: {}\nDependency tree:\n{}",
+    check_lockfile_has_expected_dep_tree(
+        &lockfile,
+        "hi",
         self::hi::LOGIC_VERSION,
-        String::from_utf8_lossy(&hi_tree)
+        self::hi::soroban_env_host::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_HI,
     );
-
-    if lo_tree_str != EXPECTED_HOST_DEP_TREE_LO {
-        eprintln!("Expected 'lo' host dependency tree (in host-dep-tree-lo.txt):");
-        eprintln!("{}", EXPECTED_HOST_DEP_TREE_LO);
-        eprintln!("Found 'lo' host dependency tree (in Cargo.lock):");
-        eprintln!("{}", lo_tree_str);
-        panic!("Unexpected 'lo' host dependency tree");
-    }
-
-    if hi_tree_str != EXPECTED_HOST_DEP_TREE_HI {
-        eprintln!("Expected 'hi' host dependency tree (in host-dep-tree-hi.txt):");
-        eprintln!("{}", EXPECTED_HOST_DEP_TREE_HI);
-        eprintln!("Found 'hi' host dependency tree (in Cargo.lock):");
-        eprintln!("{}", hi_tree_str);
-        panic!("Unexpected 'hi' host dependency tree");
-    }
 }
 
 // This is a trait that abstracts the translation from host logic version numbers

@@ -95,7 +95,7 @@ the above arrangement:
     over time, just detect and emit an error telling users to upgrade.
 
 As we will see, neither of these characteristics hold in the world of soroban,
-so we will need some new mechsnisms.
+so we will need some new mechanisms.
 
 ## The soroban host
 
@@ -151,7 +151,7 @@ maximum will continue to advance as the interface is evolved.
 
 If a contract has a higher minimum environment interface version number than a
 host's maximum, it means the contract is too new for the host, and there is no
-way for the host to run the contract. This case is rejected with an erro: the
+way for the host to run the contract. This case is rejected with an error: the
 old host is only weakly forward-compatible with new contracts.
 
 If a contract has minimum environment interface version number within a host's
@@ -297,16 +297,16 @@ aspects of the process are important to understand:
     `hi=N+1`. In other words it's only _possible_ for a network upgrade to occur
     as a transition from running on `lo` to running on `hi`.
   
-  - Once the network upgrade has occurred, there is a _second phase_ in which
-    the network continues to run on logic version `N+1`, but it shifts from `hi`
-    to `lo` to _prepare_ for the next upgrade. In other words, a new version of
-    stellar-core is prepared and deployed that can still run host logic version
-    `N+1`, but runs it as `lo` rather than `hi`. Instead, `hi` is advanced to
-    host logic version `N+2`, and host logic version `N` is _expired_ from the
-    new version of stellar-core. In the process of expiring direct support for
-    host logic version `N`, some backward compatibility code may be added to
-    host logic version `N+2`, in the form of a new `LegacyEpoch` in
-    soroban-env-host.
+  - Once the network upgrade has occurred, the network is running as `hi` and so
+    cannot do another upgrade yet, because upgrades are always transitions from
+    `lo` to `hi`. Rather, while the network remains on logic version `N+1` a
+    subsequent version of stellar-core will be prepared and deployed that can
+    still run host logic version `N+1`, but runs it as `lo` rather than `hi`. In
+    this subsequent version, `hi` is advanced to host logic version `N+2`, and
+    host logic version `N` is _expired_ from stellar-core. In the process of
+    expiring direct support for host logic version `N`, some backward
+    compatibility code may be added to host logic version `N+2`, in the form of
+    a new `LegacyEpoch` in soroban-env-host.
 
 ### LegacyEpochs
 
@@ -397,6 +397,22 @@ full upgrade cycle, including fixing the bug and preserving it under a
      to stellar-core's impl of `SetHostLogicVersion` for
      `hi::soroban_env_host::Host` that maps logic version `75` to
      `hi::LedgerEpoch::BadBinSearch`, which is present in `hi`.
+
+Note that every time stellar-core starts up, it performs a cross check between
+the dependency trees of `lo` and `hi` that it was compiled with (extracted from
+`Cargo.lock`), and the contents of two "expected dependency trees" stored in the
+files `host-dep-tree-lo.txt` and `host-dep-tree-hi.txt`. All of these files are
+compiled-in (as string constants) to stellar-core, so any change to them will
+require a recompile; they exist as a cross-check, to help ensure that developers
+do not accidentally change dependencies by taking a stray update to
+`Cargo.lock`.
+
+The easiest way to update `host-dep-tree-lo.txt` or `host-dep-tree-hi.txt` is
+just to run stellar-core without having updated them: it will exit with an error
+that prints both what was expected and what was found, and you can copy and
+paste the value from the found case back into the expected file, and recompile.
+Just be sure to inspect and confirm that the changes you're committing are those
+you intend.
 
 ## Contract spec subtyping
 
