@@ -10,8 +10,6 @@
 #include "medida/timer.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
-#include "overlay/TxAdvertQueue.h"
-#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
@@ -31,6 +29,7 @@ typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
+class TxPullMode;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -71,9 +70,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // PEER_METRICS_WINDOW_SIZE-second time window.
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
-
-    bool peerKnowsHash(Hash const& hash);
-    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
     typedef std::shared_ptr<Peer> pointer;
 
@@ -172,6 +168,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
+    std::shared_ptr<TxPullMode> mTxPullMode;
 
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
@@ -315,24 +312,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void maybeSendNextBatch();
 
-    TxAdvertQueue mTxAdvertQueue;
-
     // How many _hashes_ in total are queued?
     // NB: Each advert & demand contains a _vector_ of tx hashes.
     size_t mAdvertQueueTxHashCount{0};
     size_t mDemandQueueTxHashCount{0};
-
-    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
-    // of flood messages, then periodically flush the advert and await a
-    // _demand_ message with a list of flood messages to send. Adverts are
-    // typically smaller than full messages and batching them means we also
-    // amortize the authentication framing.
-    TxAdvertVector mTxHashesToAdvertise;
-    void flushAdvert();
-    VirtualTimer mAdvertTimer;
-    void startAdvertTimer();
-    // transaction hash -> ledger number
-    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
 
     bool mShuttingDown{false};
 
@@ -355,7 +338,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void shutdown();
-    void clearBelow(uint32_t ledgerSeq);
 
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
@@ -364,6 +346,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
+    void sendAdvert(Hash const& txHash);
+    void retryAdvert(std::list<Hash>& hashes);
+    bool hasAdvert();
+    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
 
     void sendMessage(std::shared_ptr<StellarMessage const> msg,
                      bool log = true);
@@ -459,13 +445,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendTxDemand(TxDemandVector&& demands);
     void fulfillDemand(FloodDemand const& dmd);
-    void queueTxHashToAdvertise(Hash const& hash);
-    void queueTxHashAndMaybeTrim(Hash const& hash);
-    TxAdvertQueue&
-    getTxAdvertQueue()
-    {
-        return mTxAdvertQueue;
-    };
+    bool peerKnowsHash(Hash const& hash);
+    void clearBelow(uint32_t ledgerSeq);
 
     friend class LoopbackPeer;
 };

@@ -90,6 +90,8 @@ class OverlayManager
         return recvFloodedMsgID(msg, peer, msgID);
     }
 
+    virtual void recvTransaction(Hash const& txHash, Peer::pointer peer) = 0;
+
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
@@ -187,11 +189,6 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-
-    virtual void recordTxPullLatency(Hash const& hash,
-                                     std::shared_ptr<Peer> peer) = 0;
-
-    virtual size_t getMaxAdvertSize() const = 0;
 
     virtual ~OverlayManager()
     {
