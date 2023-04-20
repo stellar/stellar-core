@@ -25,9 +25,6 @@ class TransactionResultSetFrame
 
   private:
     TransactionResultSet mTransactionResultSet;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    TransactionResultSetV2 mTransactionResultSetV2;
-#endif
 
     int mVersion;
 };

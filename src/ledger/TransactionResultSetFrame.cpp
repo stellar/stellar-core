@@ -30,11 +30,6 @@ TransactionResultSetFrame::reserveResults(size_t n)
     case 1:
         mTransactionResultSet.results.reserve(n);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        mTransactionResultSetV2.results.reserve(n);
-        break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -49,15 +44,6 @@ TransactionResultSetFrame::pushMetaAndResultPair(
         mTransactionResultSet.results.emplace_back();
         mTransactionResultSet.results.back() = rp;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        mTransactionResultSetV2.results.emplace_back();
-        mTransactionResultSetV2.results.back().transactionHash =
-            rp.transactionHash;
-        mTransactionResultSetV2.results.back().hashOfMetaHashes =
-            TransactionMetaFrame::getHashOfMetaHashes(tm);
-        break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -74,10 +60,6 @@ TransactionResultSetFrame::getXDRHash()
     {
     case 1:
         return xdrSha256(mTransactionResultSet);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        return xdrSha256(mTransactionResultSetV2);
-#endif
     default:
         releaseAssert(false);
     }
