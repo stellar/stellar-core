@@ -58,12 +58,12 @@ class TCPPeer : public Peer
 
     void writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred,
-                      std::size_t messages_transferred) override;
+                      std::size_t messages_transferred);
     void readHeaderHandler(asio::error_code const& error,
-                           std::size_t bytes_transferred) override;
+                           std::size_t bytes_transferred);
     void readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred,
-                         std::size_t expected_length) override;
+                         std::size_t expected_length);
     void shutdown();
 
   public:

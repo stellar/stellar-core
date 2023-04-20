@@ -431,7 +431,7 @@ TCPPeer::scheduleRead()
         return;
     }
 
-    releaseAssert(hasReadingCapacity());
+    releaseAssert(canRead());
 
     assertThreadIsMain();
     if (shouldAbort())
@@ -449,7 +449,7 @@ TCPPeer::startRead()
 {
     ZoneScoped;
     assertThreadIsMain();
-    releaseAssert(hasReadingCapacity());
+    releaseAssert(canRead());
     if (shouldAbort())
     {
         return;
@@ -503,7 +503,7 @@ TCPPeer::startRead()
                 }
                 noteFullyReadBody(length);
                 recvMessage();
-                if (!hasReadingCapacity())
+                if (!canRead())
                 {
                     // Break and wait until more capacity frees up
                     CLOG_DEBUG(Overlay, "Throttle reading from peer {}!",
@@ -520,7 +520,7 @@ TCPPeer::startRead()
         else
         {
             // No throttling - we just read a header, so we must have capacity
-            releaseAssert(hasReadingCapacity());
+            releaseAssert(canRead());
 
             // We read a header synchronously, but don't have enough data in the
             // buffered_stream to read the body synchronously. Pretend we just
@@ -648,7 +648,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         // sequence happens after the first read of a single large input-buffer
         // worth of input. Even when we weren't preempted, we still bounce off
         // the per-peer scheduler queue here, to balance input across peers.
-        if (!hasReadingCapacity())
+        if (!canRead())
         {
             // No more capacity after processing this message
             CLOG_DEBUG(Overlay,
@@ -667,7 +667,7 @@ TCPPeer::recvMessage()
 {
     ZoneScoped;
     assertThreadIsMain();
-    releaseAssert(hasReadingCapacity());
+    releaseAssert(canRead());
 
     try
     {

@@ -228,7 +228,7 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
 void
 LoopbackPeer::processInQueue()
 {
-    if (!hasReadingCapacity())
+    if (!canRead())
     {
         mIsPeerThrottled = true;
         return;
@@ -525,6 +525,7 @@ LoopbackPeerConnection::getAcceptor() const
 bool
 LoopbackPeer::checkCapacity(uint64_t expectedOutboundCapacity) const
 {
-    return expectedOutboundCapacity == mOutboundCapacity;
+    return expectedOutboundCapacity ==
+           getFlowControl()->getFlowControlCapacity()->getOutboundCapacity();
 }
 }

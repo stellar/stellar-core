@@ -126,7 +126,8 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             {
                 // if flow control is enabled, ensure it can't be disabled, and
                 // the misbehaving peer gets dropped
-                conn.getInitiator()->sendSendMore(0);
+                conn.getInitiator()->getFlowControl()->sendSendMoreForTesting(
+                    0, conn.getInitiator());
                 testutil::crankSome(clock);
                 REQUIRE(!conn.getInitiator()->isConnected());
                 REQUIRE(!conn.getAcceptor()->isConnected());
@@ -258,11 +259,14 @@ TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
     REQUIRE(conn.getAcceptor()->isAuthenticated());
 
     // Set outbound capacity close to max on initiator
-    auto& cap = conn.getInitiator()->getOutboundCapacity();
-    cap = UINT64_MAX - 1;
+    conn.getInitiator()
+        ->getFlowControl()
+        ->getFlowControlCapacity()
+        ->setOutboundCapacity(UINT64_MAX - 1);
 
     // Acceptor sends request for more that overflows capacity
-    conn.getAcceptor()->sendSendMore(2);
+    conn.getAcceptor()->getFlowControl()->sendSendMoreForTesting(
+        2, conn.getAcceptor());
     testutil::crankSome(clock);
 
     REQUIRE(!conn.getInitiator()->isConnected());
@@ -413,9 +417,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     };
 
     auto testTimeBasedTrimming =
-        [&](std::deque<Peer::QueuedOutboundMessage> const& queue,
+        [&](std::deque<FlowControl::QueuedOutboundMessage> const& queue,
             StellarMessage const& msg) {
-            peer->addMsgAndMaybeTrimQueue(
+            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                 std::make_shared<StellarMessage const>(msg));
             REQUIRE(queue.size() == 1);
             simulation->setCurrentVirtualTime(node->getClock().now() +
@@ -429,7 +433,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
             env.statement.slotIndex =
                 lcl - node->getConfig().MAX_SLOTS_TO_REMEMBER;
             constructSCPMsg(env);
-            peer->addMsgAndMaybeTrimQueue(constructSCPMsg(env));
+            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
+                constructSCPMsg(env));
         }
         REQUIRE(scpQueue.empty());
     }
@@ -442,7 +447,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
             {
                 StellarMessage msg;
                 msg.type(TRANSACTION);
-                peer->addMsgAndMaybeTrimQueue(
+                peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                     std::make_shared<StellarMessage const>(msg));
             }
             REQUIRE(txQueue.size() == limit);
@@ -463,7 +468,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         {
             for (auto& env : envs)
             {
-                peer->addMsgAndMaybeTrimQueue(constructSCPMsg(env));
+                peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
+                    constructSCPMsg(env));
             }
 
             // Only latest SCP messages, nothing is trimmed
@@ -481,9 +487,12 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                         auto envCopy = env;
                         envCopy.statement.pledges.type(SCP_ST_PREPARE);
 
-                        peer->addMsgAndMaybeTrimQueue(constructSCPMsg(envCopy));
+                        peer->getFlowControl()
+                            ->addToQueueAndMaybeTrimForTesting(
+                                constructSCPMsg(envCopy));
                     }
-                    peer->addMsgAndMaybeTrimQueue(constructSCPMsg(env));
+                    peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
+                        constructSCPMsg(env));
                 }
             };
             SECTION("trim prepare, keep nomination")
@@ -529,9 +538,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                 dem.type(FLOOD_DEMAND);
                 adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
                 dem.floodDemand().txHashes.push_back(xdrSha256(txn));
-                peer->addMsgAndMaybeTrimQueue(
+                peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                     std::make_shared<StellarMessage const>(adv));
-                peer->addMsgAndMaybeTrimQueue(
+                peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                     std::make_shared<StellarMessage const>(dem));
             }
 
@@ -547,9 +556,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                 dem.floodDemand().txHashes.push_back(xdrSha256(txn));
             }
 
-            peer->addMsgAndMaybeTrimQueue(
+            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                 std::make_shared<StellarMessage const>(adv));
-            peer->addMsgAndMaybeTrimQueue(
+            peer->getFlowControl()->addToQueueAndMaybeTrimForTesting(
                 std::make_shared<StellarMessage const>(dem));
 
             REQUIRE(advertQueue.size() == limit - 1);
