@@ -741,18 +741,18 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx, *txSet, ledgerCloseMeta);
 
-    TransactionResultSetFrame txResultSetFrame(
-        ltx.loadHeader().current().ledgerVersion);
-    txResultSetFrame.reserveResults(txs.size());
-    applyTransactions(*txSet, txs, ltx, txResultSetFrame, ledgerCloseMeta);
+    TransactionResultSet txResultSet;
+    txResultSet.results.reserve(txs.size());
+    applyTransactions(*txSet, txs, ltx, txResultSet, ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
                    *txSet);
     }
 
-    ltx.loadHeader().current().txSetResultHash = txResultSetFrame.getXDRHash();
+    ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
     bool upgradeHappened = false;
+
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
@@ -1272,7 +1272,7 @@ LedgerManagerImpl::prefetchTransactionData(
 void
 LedgerManagerImpl::applyTransactions(
     TxSetFrame const& txSet, std::vector<TransactionFrameBasePtr> const& txs,
-    AbstractLedgerTxn& ltx, TransactionResultSetFrame& txResultSetFrame,
+    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
@@ -1304,12 +1304,13 @@ LedgerManagerImpl::applyTransactions(
                    tx->getSeqNum(),
                    mApp.getConfig().toShortString(tx->getSourceID()));
         tx->apply(mApp, ltx, tm);
-        tm.finalizeHashes();
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();
 
-        txResultSetFrame.pushMetaAndResultPair(tm.getXDR(), results);
+        // First gather the TransactionResultPair into the TxResultSet for
+        // hashing into the ledger header.
+        txResultSet.results.emplace_back(results);
 
         // Then potentially add that TRP and its associated TransactionMeta
         // into the associated slot of any LedgerCloseMeta we're collecting.
@@ -1332,12 +1333,8 @@ LedgerManagerImpl::applyTransactions(
         if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            // See bug https://github.com/stellar/stellar-core/issues/3555 -- we
-            // need to decide if we are going to keep storing the V1 txResultSet
-            // here, or want to store txResultSetV2 or something else, when
-            // running on post-soroban ledgers.
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
-                             txResultSetFrame.getV1XDR());
+                             txResultSet);
         }
     }
 

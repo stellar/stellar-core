@@ -494,7 +494,6 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
     REQUIRE(!tx->apply(*app, ltx, txm));
     ltx.commit();
-    txm.finalizeHashes();
 
     REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
     auto const& opEvents = txm.getXDR().v3().diagnosticEvents.at(0).events;
@@ -574,7 +573,6 @@ TEST_CASE("complex contract", "[tx][soroban]")
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
-            txm.finalizeHashes();
 
             // Contract should have emitted a single event carrying a `Bytes`
             // value.

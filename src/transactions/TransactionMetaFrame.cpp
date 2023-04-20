@@ -71,7 +71,6 @@ TransactionMetaFrame::getChangesBefore() const
 void
 TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -90,7 +89,6 @@ TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
 void
 TransactionMetaFrame::clearOperationMetas()
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -109,7 +107,6 @@ TransactionMetaFrame::clearOperationMetas()
 void
 TransactionMetaFrame::pushOperationMetas(xdr::xvector<OperationMeta>&& opMetas)
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -144,7 +141,6 @@ TransactionMetaFrame::getNumOperations() const
 void
 TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges&& changes)
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -163,7 +159,6 @@ TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges&& changes)
 void
 TransactionMetaFrame::clearTxChangesAfter()
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -179,52 +174,10 @@ TransactionMetaFrame::clearTxChangesAfter()
     }
 }
 
-void
-TransactionMetaFrame::finalizeHashes()
-{
-    releaseAssert(!mHashesFinalized);
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        // Do nothing, until v3 we have no hashes.
-        break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 3:
-    {
-        // Calculate 2 hashes as described in CAP-0056:
-        //
-        //  hash[0] = sha256(txChangesBefore, operations, txChangesAfter)
-        //  hash[1] = sha256(events)
-        //
-        // These will, in turn, be combined into a single hash in
-        // getHashOfMetaHashes below
-
-        normalizeMeta(mTransactionMeta);
-
-        SHA256 sha;
-
-        sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().txChangesBefore));
-        sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().operations));
-        sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().txChangesAfter));
-        mTransactionMeta.v3().hashes[0] = sha.finish();
-
-        sha.reset();
-        sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().events));
-        mTransactionMeta.v3().hashes[1] = sha.finish();
-    }
-    break;
-#endif
-    default:
-        releaseAssert(false);
-    }
-    mHashesFinalized = true;
-}
-
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 TransactionMetaFrame::pushContractEvents(xdr::xvector<OperationEvents>&& events)
 {
-    releaseAssert(!mHashesFinalized);
     switch (mTransactionMeta.v())
     {
     case 2:
@@ -255,24 +208,11 @@ TransactionMetaFrame::pushDiagnosticEvents(
     }
 }
 
-Hash
-TransactionMetaFrame::getHashOfMetaHashes(TransactionMeta const& tm)
-{
-    // We should only ever be calling this on a v3 txmeta.
-    releaseAssert(tm.v() == 3);
-    SHA256 sha;
-    for (auto h : tm.v3().hashes)
-    {
-        sha.add(h);
-    }
-    return sha.finish();
-}
 #endif
 
 TransactionMeta const&
 TransactionMetaFrame::getXDR() const
 {
-    releaseAssert(mHashesFinalized);
     return mTransactionMeta;
 }
 }
