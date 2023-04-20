@@ -25,7 +25,6 @@ class TransactionMetaFrame
     void pushTxChangesAfter(LedgerEntryChanges&& changes);
     void clearTxChangesAfter();
 
-    void setTxResult(TransactionResult const& res);
     void finalizeHashes();
     TransactionMeta const& getXDR() const;
 

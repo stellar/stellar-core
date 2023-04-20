@@ -362,7 +362,6 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
-        tm.setTxResult(tx->getResult());
         tm.finalizeHashes();
         recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }

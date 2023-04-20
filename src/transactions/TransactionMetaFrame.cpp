@@ -180,25 +180,6 @@ TransactionMetaFrame::clearTxChangesAfter()
 }
 
 void
-TransactionMetaFrame::setTxResult(TransactionResult const& res)
-{
-    releaseAssert(!mHashesFinalized);
-    switch (mTransactionMeta.v())
-    {
-    case 2:
-        // Do nothing, until v3 we emit the txresult elsewhere.
-        break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 3:
-        mTransactionMeta.v3().txResult = res;
-        break;
-#endif
-    default:
-        releaseAssert(false);
-    }
-}
-
-void
 TransactionMetaFrame::finalizeHashes()
 {
     releaseAssert(!mHashesFinalized);
@@ -210,15 +191,13 @@ TransactionMetaFrame::finalizeHashes()
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
     {
-        // Calculate 3 hashes as described in CAP-0056:
+        // Calculate 2 hashes as described in CAP-0056:
         //
         //  hash[0] = sha256(txChangesBefore, operations, txChangesAfter)
         //  hash[1] = sha256(events)
-        //  hash[2] = sha256(txResult)
         //
         // These will, in turn, be combined into a single hash in
-        // getHashOfMetaHashes below, which fills in the
-        // TransactionResultPairV2.hashOfMetaHashes value in various contexts.
+        // getHashOfMetaHashes below
 
         normalizeMeta(mTransactionMeta);
 
@@ -232,10 +211,6 @@ TransactionMetaFrame::finalizeHashes()
         sha.reset();
         sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().events));
         mTransactionMeta.v3().hashes[1] = sha.finish();
-
-        sha.reset();
-        sha.add(xdr::xdr_to_opaque(mTransactionMeta.v3().txResult));
-        mTransactionMeta.v3().hashes[2] = sha.finish();
     }
     break;
 #endif
