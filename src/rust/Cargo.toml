@@ -18,9 +18,9 @@ rustc-simple-version = "0.1.0"
 [dependencies.soroban-env-host]
 version = "0.0.15"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ef87058f07ad67eeba4c350a6b6af82bd17f916"
+rev = "83ab1b0e2ce7e08d33d686ed4b4ea0564b454160"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ef87058f07ad67eeba4c350a6b6af82bd17f916"
+rev = "83ab1b0e2ce7e08d33d686ed4b4ea0564b454160"
