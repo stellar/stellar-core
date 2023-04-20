@@ -740,6 +740,8 @@ exit /b 0
     <ClCompile Include="..\..\src\main\test\SelfCheckTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
+    <ClCompile Include="..\..\src\overlay\FlowControl.cpp" />
+    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
@@ -1093,6 +1095,8 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
+    <ClCompile Include="..\..\src\overlay\FlowControl.h" />
+    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
