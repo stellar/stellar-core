@@ -49,27 +49,6 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
     return info;
 }
 
-uint32_t
-getHostLogicVersion(AbstractLedgerTxn& ltx)
-{
-    LedgerKey hostLogicVersionLedgerKey;
-    hostLogicVersionLedgerKey.type(CONFIG_SETTING);
-    hostLogicVersionLedgerKey.configSetting().configSettingID =
-        CONFIG_SETTING_CONTRACT_HOST_LOGIC_VERSION;
-    auto hostLogicVersionConfigEntry =
-        ltx.loadWithoutRecord(hostLogicVersionLedgerKey);
-    if (hostLogicVersionConfigEntry)
-    {
-        return hostLogicVersionConfigEntry.current()
-            .data.configSetting()
-            .contractHostLogicVersion();
-    }
-    // Default host logic version is the 'hi' host version
-    // wired-in to the current binary
-    return static_cast<uint32_t>(
-        rust_bridge::get_soroban_host_logic_versions().hi);
-}
-
 template <typename T>
 std::vector<uint8_t>
 toVec(T const& t)
@@ -265,8 +244,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     HostFunctionMetrics metrics(metricsReg,
                                 mInvokeHostFunction.function.type());
 
-    uint32_t hostLogicVersion = getHostLogicVersion(ltx);
-
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
     ledgerEntryCxxBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
@@ -313,7 +290,8 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         auto timeScope = metrics.getExecTimer();
         out = rust_bridge::invoke_host_function(
-            hostLogicVersion, cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
+            cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
+            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
             contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),

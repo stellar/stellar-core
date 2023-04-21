@@ -19,12 +19,10 @@ question by merely recognizing it and failing clearly, in an informative
 fashion. Strong compatibility means that the code "handles" the context by
 continuing to function correctly.
 
-Version relationships will be managed by 4 separate mechanisms:
+Version relationships will be managed by 2 separate mechanisms:
 
   1. The "protocol" version number.
-  2. The "environment interface" version number.
-  3. The "host logic" version number.
-  4. The contract spec subtyping relationship.
+  2. The contract spec-compatibility relationship.
 
 ## Stellar-core
 
@@ -110,42 +108,201 @@ The soroban host necessarily participates in _two_ versioning relationships:
     new soroban host can process a new transaction in a ledger with a new ledger
     protocol version, but that transaction may still invoke an old contract.
 
-In addition to this first complication (the host-contract version relationship)
-there is also a potentially worse complication:
+As with stellar-core itself, both of these relationships will mediated
+through the protocol version, but there is a new complication:
 
   - The soroban host is a much larger piece of software than the classic
     stellar-core transaction subsystem, and much of it is written by third
     parties, so it is much harder for us (SDF) to maintain precise control over
     its semantics from one version to the next.
 
-To handle for these two complications, we have two new mechanisms:
+As a result of this complication, the network has a much higher risk of
+experiencing a loss of consensus (thus divergence, a halt or split) due to minor
+differences between the the _versions of the soroban host_ embedded each peer,
+even if all peers are in consensus about the current declared protocol number.
 
-  1. The environment interface version number. This is a number similar to the
-     stellar-core protocol number -- in that it will only be increased through
-     consensus and will be recorded in the ledger -- but it can vary more often
-     and can be used to capture additional nuances in the relationship between
-     host and contract, that go beyond changes captured by the protocol version
-     number.
+To mitigate this risk, we introduce two new concepts -- canonical protocol
+semantics and pinned soroban version trees -- as well as a new, more cautious
+two-phase structure for performing upgrades to the soroban host.
 
-  2. The host logic version number. This is a number that indicates the _exact_
-     (bit-for-bit) implementation of the host source code (and its entire
-     dependency tree) that we execute a given ledger against. This number is
-     also stored in the ledger and can only be upgraded by consensus.
+### Canonical protocol semantics
 
-### The environment interface version number
+Assume we can (socio-politically) identify a transitive quorum of peers as "the
+canonical quorum" of a network, for the sake of versioning (eg. the "Tier 1"
+peers), so we can speak of the network being "on" a given protocol version.
 
-The environment interface version number increases any time the environment
-interface changes, which includes any protocol version number bump.  In theory
-the environment interface version number could just be the protocol number, but
-during development of soroban we wanted the freedom to expire experimental
-versions of the environment interface, so it got its own number.
+For any given protocol `N`, after the network has transitioned to protocol
+`N+1`, we define "the canonical semantics of protocol `N`" as the sequence of
+ledgers (transaction inputs, outputs, and exact ledger header, identified by
+hash) that were recorded by the network while it was on protocol `N`.
 
-Every contract has a minimum environment interface version number written into
-it.
+Note that "the canonical semantics" of protocol `N` only has a fixed meaning
+once the network has transitioned _off_ `N`. It is not useful or meaningful to
+speak of the canonical semantics of protocol `N` while the network is still on
+`N`, as the set grows moment-to-moment as new ledgers are closed.
 
-Every host has both a minimum and maximum supported environment interface
-version number. The minimum will freeze when we finalize the interface. The
-maximum will continue to advance as the interface is evolved.
+### Pinned soroban version trees
+
+Soroban is a Rust program and therefore follows Rust's particular approach to
+versioning: when a release of (say) the soroban-env-host package is made, it
+specifies its dependencies symbolically, with some wiggle room for "compatible
+upgrades" (and even more wiggle room in transitive dependencies we don't
+control). All of the wiggle room is "resolved" to _specific_ versions of each
+transitive dependency by the package manager cargo only when the package is
+embedded into a final application, like stellar-core.
+
+It is quite easy to accidentally cause cargo to re-resolve dependencies, and
+thus alter the version of a dependency (or transitive dependency) embedded in
+stellar-core this way. And as we'll see below, we're (at times) going to wind up
+with _two_ entire sets of soroban packages embedded in stellar-core, which makes
+things even more confusing and fragile. So to make this process less error-prone
+we snapshot and version (in git) and embed (in stellar-core) a secondary textual
+manifest of the exact dependency tree (with hash identities) of each intended
+soroban version, that is cross-checked against the _actual_ soroban versions
+compiled-in to stellar-core, on startup.
+
+### Two-phase upgrades
+
+To define the upgrade process, we must assume as a precondition that the network
+is already _running_ a set of non-diverging versions of stellar-core. The peers
+of the network may have different minor versions, but we assume they are
+sufficiently similar that they continue to close ledgers in strict
+consensus. Our job is to define how to _maintain_ this assumption, inductively,
+on each upgrade.
+
+If we are upgrading parts of stellar-core _outside_ of soroban, we follow the
+usual rules: protocol-level changes must be versioned via on-chain protocol
+version upgrades, non-protocol changes can ship in minor versions. The soroban
+versions embedded in stellar-core need not change; as we'll see below the new
+protocol will just be considered an extension of the protocols to run on the
+`curr` version of soroban and so will automatically run on it.
+
+If we are upgrading soroban, we follow the same _general_ strategy we we do for
+stellar-core:
+
+  - Changes to soroban we believe (with very high confidence) are
+    non-semantics-changing, we can ship as a "non-protocol" change, just
+    modifying a pinned version of soroban embedded in stellar-core.
+
+  - Changes to soroban we know to be introducing new functionality are "soroban
+    protocol changes", as in normal stellar-core, and will be gated on the new
+    protocol number.
+
+However, there is also a new category of change with soroban: those where we are
+not _sure_ whether the change in question will or won't change semantics. These
+introduce complications:
+
+  - Since they _might_ change semantics, we have to treat such changes as
+    "soroban protocol changes" as well (and cut over to running the new code
+    using a protocol-number gate) even though the change might do nothing. Only
+    way to be safe.
+
+  - Since we don't know _where_ the new code might change semantics, we can't
+    put a protocol-number gate on specific lines of code; we put the gate on the
+    _entire_ tree of dependencies containing the soroban host, and compile
+    _multiple copies_ of the soroban host into stellar-core, simultaneously. At
+    least during the upgrade.
+
+  - Because we don't want to keep an ever-growing set of soroban versions
+    compiled-in to the same stellar-core binary, we arrange to keep up to
+    _two_ versions at any given time, and we do migrations in two phases,
+    first _adding_ support for a new version and then later _expiring_
+    support for the previous version.
+
+More formally:
+
+  - All versions of soroban can observe the current ledger protocol number; it
+    is installed while setting up the soroban host. This can be used to add
+    backward-compatibility code to soroban that is gated on specific protocol
+    versions.
+
+  - At any given time we have a version of `soroban-env-host` compiled into
+    stellar-core under the alias `soroban-env-host-curr`.
+
+  - We define a second _optional_ version of soroban which may be compiled in to
+    stellar-core under the alias `soroban-env-host-next` (which also defines the
+    Rust "feature" `soroban-env-host-next` on which `cfg()` conditions can be
+    applied).
+
+  - When `#[cfg(feature="soroban-env-host-next")]` a conditional branch is added
+    to the Rust call path that invokes a host function to test the protocol
+    number of the ledger being closed and, if it's equal to
+    `Config::CURRENT_LEDGER_PROTOCOL_VERSION`, invoke the host function on
+    `soroban-env-host-next`. Ledgers with earlier protocol versions invoke host
+    functions on the `soroban-env-host-curr` copy, as do any ledgers when the
+    feature is compiled-out.
+
+  - Due to the way Rust's module system works, the `next` version can only be
+    compiled-in if it represents a different package version number of soroban
+    than the `curr` version.
+
+  - When doing a "soroban protocol change", we follow a "two phase" process:
+
+    - Phase 1 is "adding support for a new protocol and upgrading to it":
+
+	- Assume the current network is running protocol `N` and the C++
+	  constant `Config::CURRENT_LEDGER_PROTOCOL_VERSION` (which is the
+	  _maximum_ protocol supported by stellar-core) is equal to `N`. If this
+	  assumption doesn't hold it means you have already released a version
+	  `V` of stellar-core with `Config::CURRENT_LEDGER_PROTOCOL_VERSION`
+	  ahead of the network version `N`, and you need to upgrade the
+	  network's version `N` before proceeding, because stellar-core version
+	  `V` is not going to treat the upgrade to `N` as a "soroban protocol
+	  change".
+
+	- Increment (in C++) the `Config::CURRENT_LEDGER_PROTOCOL_VERSION`,
+	  i.e. set it to `N+1` which is the version you are now _defining_
+	  as a "soroban protocol change".
+
+	- Let `R` be the current version of soroban.
+
+	- Let `S` be the new version of soroban with the change you want.
+
+	- Set the `soroban-env-host-next` package specification in `Cargo.toml`
+	  to refer to version `S`.
+
+	- Compile the Rust code with `--feature=soroban-env-host-next`, which
+	  will compile-in the second copy of the `soroban-env-host`, but
+	  continue to run the network's current version `N` and earlier
+	  protocols `P < Config::CURRENT_LEDGER_PROTOCOL_VERSION` on the
+	  existing `soroban-env-host-curr` version.
+
+	- Release a version of stellar-core built this way. This will be the
+          first version of stellar-core in the field with any support for
+          protocol `N+1`, and it will be built with two versions of soroban, and
+          configured to switch from `soroban-env-host-curr` to
+          `soroban-end-host-next` exactly when it transitions from protocol `N`
+          to `N+1`.
+
+	- Run the protocol upgrade by consensus.
+
+    - Phase 2 is "expiring support for an old protocol":
+
+        - Set the `soroban-env-host-curr` package specification in `Cargo.toml`
+          to the now-active version `S` of soroban. Doing this expires the old
+          version `R` that was originally used to record protocol version `N`,
+          leaving only the new version `S` (which may or may not replay `N`).
+
+        - Recompile _without_ `--feature=soroban-env-host-next` (at this point
+          `curr` and `next` are both `S` anyways).
+
+        - Now that protocol `N` is inactive on the network, the canonical
+          semantics for `N` are well defined: whatever was recorded. All that
+          remains is to ensure `N` (and earlier) can be replayed faithfully on
+          `S`. Replay all ledgers that were recorded under protocol `N`, and
+          then further all ledgers before `N`, on this build of stellar-core. If
+          it works, you're done. If it does not work, you've discovered what you
+          might or might not have been expecting: semantic differences between
+          `R` and `S`. Add backward-compatibility code to a point-release update
+          `S.x` of soroban immediately after `S` (making sure you do not pull in
+          any _other_ semantics-altering changes) and update the `Cargo.toml`
+          spec to have `soroban-env-host-curr` as `S.x`.
+
+        - Release this new version of stellar-core. Versions in the field are
+          now a mixture of some with both `R` and `S`, and some with just `S.x`,
+          but (in theory) both can replay all the same history, and behave the
+          same way on all new ledgers.
+
 
 ### Host compatibility with contracts
 
@@ -199,221 +356,6 @@ symmetric cases:
     backward compatible host and asking them to write "as forward-compatibly as
     they can" (or want to be).
 
-### The host logic version number
-
-A host logic version number designates an _exact_ version of the
-soroban-env-host crate, including the exact versions of all of its
-transitive dependencies.
-
-The ledger stores a `CONFIG_SETING_CONTRACT_HOST_LOGIC_VERSION` entry
-that designates the exact logic version that each ledger was initially
-recorded under. Because this is part of the ledger, it is a consensus
-value: every peer in consensus has the _exact same_ version of the
-soroban host. This is different from stellar network protocol
-versions, where it's possible to have peers in consensus but on
-slightly different minor versions of stellar-core (eg. 19.2 and 19.3
-might be in consensus). The host logic versions are more exact.
-
-Host logic version numbers are assigned _by the embedder_ (that is:
-stellar-core) rather than soroban-env-host. There are two reasons
-for this:
-
-  - Every increase to a host logic version number is a "heavy"
-    operation that requires a network-consensus-based "upgrade" to the
-    config setting. The host might want to make multiple small releases of
-    before the embedder commits to upgrading the network from host
-    logic version N to N+1, so consecutive host logic version numbers don't
-    necessarily reflect consecutive host releases.
-
-  - Cargo happens to resolve dependency version specifications at the
-    "final" site of compilation, which is the embedder. In other
-    words, the soroban-env-host crate literally _can't tell_ which
-    precise versions of some of its transitive dependencies will be
-    resolved to in a given embedding. Even if it specifies exact
-    versions of its direct dependencies, indirect dependencies will
-    have looser version specifications that resolve differently at
-    different times. Only the top-level Cargo.lock file in
-    stellar-core specifies an exact configuration.
-
-There are two unusual consequences of this arrangement:
-
-  - In order to do an "upgrade" on the network at all -- that atomically
-    switches from host logic version N to N+1 at a single ledger boundary -- we
-    have to actually keep _two versions_ of the soroban-env-host crate (and all
-    of its dependencies) compiled into stellar-core at all times. Rust allows
-    this, but it's a bit tricky and we have added some safety mechanisms to make
-    it harder to make mistakes.
-
-  - Any backward-compatibility code in soroban-env-host that we add to emulate
-    past versions during replay has to be gated on some value _other_ than a
-    host logic version number, because soroban-env-host doesn't know what a host
-    logic version number even is. As a consequence we gate backward
-    compatibility code in soroban-env-host using an enum called `LegacyEpoch`.
-
-We'll discuss these in some detail below, as well as give a worked
-example of upgrading.
-
-## Lo and hi versions
-
-As mentioned above, at any given time stellar-core has two versions
-of soroban-env-host compiled in. These are symbolically called `lo`
-and `hi`, and the host logic version of `hi` is always defined to be
-one greater than the host logic version of `lo`.
-
-### Invocation
-
-When invoking a contract host function (which is technically what happens when
-we "run a smart-contract transaction"), stellar-core loads the intended host
-logic version `N` from the ledger and decides which of `hi` and `lo` to build a
-host and invoke a function on, considering 3 possible cases:
-
-  - If `N > hi::VERSION`, then `N` is "from the future" and no invocation can
-    happen on on this version of stellar-core. It needs to upgrade. The
-    invocation fails. This is weak forward compatibility.
-
-  - If `N == hi::VERSION` or `N = lo::VERSION`, then the invocation is made done
-    on a `Host` from `hi` or `lo` as appropriate.
-
-  - If `N < lo::VERSION`, then `N` is translated to some `LegacyEpoch` that
-    soroban-env-host can understand, and the invocation is made on a `Host` from
-    `hi`, configured to emulate that `LegacyEpoch`. This is strong backward
-    compatibility.
-
-It may be counterintuitive that in the third case the call is run on `hi` rather
-than `lo`, but as we will see in the worked example, it's not possible to add
-new backward-compatibility code to `lo` to emulate a given `LegacyEpoch` by the
-time we need to add it, so to allow adding such as we discover the need for it
-during upgrades, we always replay legacy ledgers on `hi`.
-
-### Upgrading
-
-Upgrading stellar-core to a new version of soroban-env-host requires care. Two
-aspects of the process are important to understand:
-
-  - The upgrade will eventually be "activated" in the network, meaning that the
-    network will vote to upgrade from some host logic version `N` to `N+1`, and
-    this transition will occur synchronously across all nodes in consensus. This
-    in turn means that when the upgrade occurs, all nodes must have `lo=N` and
-    `hi=N+1`. In other words it's only _possible_ for a network upgrade to occur
-    as a transition from running on `lo` to running on `hi`.
-  
-  - Once the network upgrade has occurred, the network is running as `hi` and so
-    cannot do another upgrade yet, because upgrades are always transitions from
-    `lo` to `hi`. Rather, while the network remains on logic version `N+1` a
-    subsequent version of stellar-core will be prepared and deployed that can
-    still run host logic version `N+1`, but runs it as `lo` rather than `hi`. In
-    this subsequent version, `hi` is advanced to host logic version `N+2`, and
-    host logic version `N` is _expired_ from stellar-core. In the process of
-    expiring direct support for host logic version `N`, some backward
-    compatibility code may be added to host logic version `N+2`, in the form of
-    a new `LegacyEpoch` in soroban-env-host.
-
-### LegacyEpochs
-
-A `LegacyEpoch` is just an ordered symbolic value -- a Rust `enum` -- that
-denotes some time period in the past when the logic of soroban-env-host was
-different than it is by default now. The special value `LegacyEpoch::Current` is
-always the highest `LegacyEpoch` and always denotes the default, current
-behaviour.
-
-We separate `LegacyEpoch` values from host logic version numbers because, as
-mentioned before, host logic version numbers "don't mean anything" to the host,
-they're assigned by the embedder (stellar-core), and it would be confusing to
-have logic version numbers chosen by stellar-core appear inside the host.
-
-Further, the host logic that stellar-core numbers as version `N` may or may not
-be "exactly compatible" with the logic stellar-core numbers as `N+1`, so we may
-or may not need to add `LegacyEpoch` values when assigning new logic version
-numbers. Indeed the only real way we can _judge_ compatibility at all is by
-taking the ledgers that were recorded on the network with logic version `N` and
-replaying them on logic `N+1` and seeing if their outcomes differ in any
-observable way.
-
-If, when we do such a replay, we see a difference, we add a new `LegacyEpoch` to
-soroban-env-host describing the _way `N` differed_ that _was actually observed_
-during the replayed history segment, and then add an entry to stellar-core's
-invocation path mapping its logic version `N` to the host's new `LegacyEpoch`.
-At this point stellar-core can expire support for its logic version `N`, because
-it's able to emulate `N` on future version (it can actually only emulate version
-`N` on version `N+2`, due to the way upgrades are sequenced; see the example
-below).
-
-## Worked example
-
-This is a general example that covers all the main points above.
-
-Suppose the network has a consensus `CONFIG_SETING_CONTRACT_HOST_LOGIC_VERSION`
-set to `75`. Suppose that there is a mix of versions of stellar-core in the
-field, some with `lo=75` and some with `hi=75`. Suppose also that there is a bug
-in `75` such that it does binary search slightly wrong (not so wrong as to never
-work, but wrong enough that it's a bug). We will proceed through describing a
-full upgrade cycle, including fixing the bug and preserving it under a
-`LegacyEpoch` for backward compatibility.
-
-  1. Since _some_ nodes exist with `lo=75`, they must have `hi=76`, which means
-     that stellar-core development has already assigned the host logic version
-     `76` to some version of soroban-env-host. This in turn means that before
-     anything else can be done, we must upgrade _all_ nodes to that release,
-     with `lo=75` and `hi=76`.
-
-  2. Once all nodes are running with `lo=75` and `hi=76`, they must agree to
-     arm an upgrade to set `CONFIG_SETING_CONTRACT_HOST_LOGIC_VERSION=76`.
-     Eventually this upgrade occurs (nothing more can happen until it does).
-
-  3. Now we proceed to phase 2 of the upgrade process. We're going to work on
-     a new version of stelar-core defining logic version `77`, as well as expiring
-     logic version `75`. This new version, in other words, will have `lo=76` and
-     `hi=77`.
-
-  4. To do this, we update `lo::VERSION` to `76` in stellar-core; `hi::VERSION`
-     automatically becomes `77` since it is defined as `lo::VERSION+1`. We then
-     adjust git references and release version numbers in stellar-core's
-     `Cargo.toml`, setting `soroban-env-host-lo` to what `soroban-env-host-hi`
-     previously pointed to, and setting `soroban-env-host-hi` to some new
-     release of the host.
-
-  5. Next we evaluate whether we can emulate the segment of history that was
-     recorded under logic version `75` on later versions. We won't be able to
-     add any backward-compatibility changes to `76` if we need to, since `76` is
-     already deployed, but we can adjust the still-in-development logic version
-     `77`, so we do a replay of the `75` ledgers on `77`. Since the network is
-     on `76` there are no new `75` transactions being recorded, and we can
-     safely do this replay offline on a development workstation.
-
-  6. If the `75` ledgers replay without any divergence on `77`, the upgrade is
-     clean and we need no `LedgerEpoch`, we can just drop `75`. But suppose the
-     binary search bug in `75` was fixed in the host in `76` (or `77`), and
-     suppose some transaction recorded under `75` exercised it, so diverges on
-     replay under `77`. Before we can proceed we must modify the host further
-     (and redefine `77` to include the modification). We add a new `LedgerEpoch`
-     covering the _old_ behaviour, call it `LedgerEpoch::BadBinSearch`, and add
-     a branch like `self.is_in_legacy_epoch(LegacyEpoch::BadBinSearch)` to the
-     host that activates backward-compatibility code.
-
-  7. Finally we have a version of the host that can emulate `75` for replay,
-     i.e. a version we're comfortable calling `77`. We update the `Cargo.toml`
-     in stellar-core to point its `soroban-env-host-hi` to the chosen host
-     version (containing the new backward-compatibility code), then add a case
-     to stellar-core's impl of `SetHostLogicVersion` for
-     `hi::soroban_env_host::Host` that maps logic version `75` to
-     `hi::LedgerEpoch::BadBinSearch`, which is present in `hi`.
-
-Note that every time stellar-core starts up, it performs a cross check between
-the dependency trees of `lo` and `hi` that it was compiled with (extracted from
-`Cargo.lock`), and the contents of two "expected dependency trees" stored in the
-files `host-dep-tree-lo.txt` and `host-dep-tree-hi.txt`. All of these files are
-compiled-in (as string constants) to stellar-core, so any change to them will
-require a recompile; they exist as a cross-check, to help ensure that developers
-do not accidentally change dependencies by taking a stray update to
-`Cargo.lock`.
-
-The easiest way to update `host-dep-tree-lo.txt` or `host-dep-tree-hi.txt` is
-just to run stellar-core without having updated them: it will exit with an error
-that prints both what was expected and what was found, and you can copy and
-paste the value from the found case back into the expected file, and recompile.
-Just be sure to inspect and confirm that the changes you're committing are those
-you intend.
-
-## Contract spec subtyping
+## Contract spec-compatibility relation
 
 TBD.

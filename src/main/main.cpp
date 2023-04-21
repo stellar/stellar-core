@@ -163,7 +163,9 @@ void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
-    rust::Vec<XDRFileHash> rustHashes = get_xdr_hashes().hi;
+    auto all_hashes = get_xdr_hashes();
+    rust::Vec<XDRFileHash> rustHashes =
+        all_hashes.next.empty() ? all_hashes.curr : all_hashes.next;
     for (auto const& cpp : stellar::XDR_FILES_SHA256)
     {
         if (cpp.first.empty())

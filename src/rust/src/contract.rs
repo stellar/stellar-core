@@ -5,7 +5,6 @@
 use crate::{
     log::partition::TX,
     rust_bridge::{CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, RustBuf, XDRFileHash},
-    SetHostLogicVersion,
 };
 use log::debug;
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
@@ -41,7 +40,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
 }
 
 #[derive(Debug)]
-enum CoreHostError {
+pub(crate) enum CoreHostError {
     Host(HostError),
     General(&'static str),
 }
@@ -294,7 +293,6 @@ fn log_debug_events(events: &Events) {
 /// result, events and modified ledger entries. Ledger entries not returned have
 /// been deleted.
 pub(crate) fn invoke_host_function(
-    host_logic_version: u32,
     enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
@@ -305,7 +303,6 @@ pub(crate) fn invoke_host_function(
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
-            host_logic_version,
             enable_diagnostics,
             hf_buf,
             footprint_buf,
@@ -322,7 +319,6 @@ pub(crate) fn invoke_host_function(
 }
 
 fn invoke_host_function_or_maybe_panic(
-    host_logic_version: u32,
     enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
@@ -340,7 +336,6 @@ fn invoke_host_function_or_maybe_panic(
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let auth_entries = build_contract_auth_entries_from_xdr(contract_auth_entries)?;
     let host = Host::with_storage_and_budget(storage, budget);
-    host.set_logic_version(host_logic_version);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
     host.set_authorization_entries(auth_entries)?;

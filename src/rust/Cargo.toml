@@ -14,14 +14,15 @@ cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
 
-[dependencies.soroban-env-host-lo]
+[dependencies.soroban-env-host-curr]
 version = "0.0.14"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "75b21696b0636bd145b7acb47a6fed4621b05978"
 features = ["vm"]
 
-[dependencies.soroban-env-host-hi]
+[dependencies.soroban-env-host-next]
+optional = true
 version = "0.0.15"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"

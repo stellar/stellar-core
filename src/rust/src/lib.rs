@@ -74,18 +74,18 @@ mod rust_bridge {
     }
 
     struct VersionStringPair {
-        lo: String,
-        hi: String,
+        curr: String,
+        next: String,
     }
 
     struct VersionNumPair {
-        lo: u64,
-        hi: u64,
+        curr: u64,
+        next: u64,
     }
 
     struct XDRHashesPair {
-        lo: Vec<XDRFileHash>,
-        hi: Vec<XDRFileHash>,
+        curr: Vec<XDRFileHash>,
+        next: Vec<XDRFileHash>,
     }
 
     // The extern "Rust" block declares rust stuff we're going to export to C++.
@@ -96,7 +96,7 @@ mod rust_bridge {
         fn get_xdr_hashes() -> XDRHashesPair;
         fn check_lockfile_has_expected_dep_trees();
         fn invoke_host_function(
-            host_logic_version: u32,
+            config_max_protocol: u32,
             enable_diagnostics: bool,
             hf_buf: &CxxBuf,
             footprint: &CxxBuf,
@@ -133,8 +133,8 @@ mod rust_bridge {
         // Return the rust XDR bindings' input XDR definitions git versions used to build this binary.
         fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair;
 
-        // Return the host logic versions designating the lo and hi host environments in this binary.
-        fn get_soroban_host_logic_versions() -> VersionNumPair;
+        // Return true if configured with cfg(feature="soroban-env-host-next")
+        fn has_soroban_next() -> bool;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -150,8 +150,6 @@ mod rust_bridge {
         fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
     }
 }
-
-// old:
 
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
@@ -209,31 +207,39 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
     false
 }
 
-// We retain _two copies_ of the soroban_env_host crate, and all of its
-// dependencies, compiled into stellar-core at all times. We refer to these two
-// versions as 'lo' and 'hi' and there is a strict process for upgrading them,
-// described in the document docs/versioning-soroban.md
+// We have at least one, but possibly two, copies of soroban compiled
+// in to stellar-core. If we have two, there's a constant `NEXT_PROTO`
+// that is used to identify ledgers that should run on `soroban_env_host_curr`;
+// later ledgers will run on `soroban_env_host_next`.
 
 #[path = "."]
-mod lo {
-    pub(crate) use soroban_env_host_lo as soroban_env_host;
-    pub(crate) const LOGIC_VERSION: u32 = 1;
+mod soroban_curr {
+    pub(crate) use soroban_env_host_curr as soroban_env_host;
     pub(crate) mod contract;
 }
 
+#[cfg(feature = "soroban-env-host-next")]
 #[path = "."]
-mod hi {
-    pub(crate) use soroban_env_host_hi as soroban_env_host;
-    pub(crate) const LOGIC_VERSION: u32 = super::lo::LOGIC_VERSION + 1;
+mod soroban_next {
+    pub(crate) use soroban_env_host_next as soroban_env_host;
     pub(crate) mod contract;
+}
+
+#[cfg(feature = "soroban-env-host-next")]
+pub fn has_soroban_next() -> bool {
+    true
+}
+
+#[cfg(not(feature = "soroban-env-host-next"))]
+pub fn has_soroban_next() -> bool {
+    false
 }
 
 use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
 
 fn check_lockfile_has_expected_dep_tree(
     lockfile: &Lockfile,
-    hi_or_lo: &str,
-    logic_version: u32,
+    curr_or_next: &str,
     package_hash: &str,
     expected: &str,
 ) {
@@ -253,95 +259,58 @@ fn check_lockfile_has_expected_dep_tree(
     tree.render(&mut tree_buf, node, EdgeDirection::Outgoing, true)
         .expect("rendering dep tree");
 
-    let tree_str = format!(
-        "Logic version: {}\nDependency tree:\n{}",
-        logic_version,
-        String::from_utf8_lossy(&tree_buf)
-    );
-
+    let tree_str = String::from_utf8_lossy(&tree_buf);
     if tree_str != expected {
         eprintln!(
             "Expected '{}' host dependency tree (in host-dep-tree-{}.txt):",
-            hi_or_lo, hi_or_lo
+            curr_or_next, curr_or_next
         );
         eprintln!("---\n{}\n---", expected);
-        eprintln!("Found '{}' host dependency tree (in Cargo.lock):", hi_or_lo);
+        eprintln!(
+            "Found '{}' host dependency tree (in Cargo.lock):",
+            curr_or_next
+        );
         eprintln!("---\n{}\n---", tree_str);
-        panic!("Unexpected '{}' host dependency tree", hi_or_lo);
+        panic!("Unexpected '{}' host dependency tree", curr_or_next);
     }
 }
 
 // This function performs a crude dynamic check that the contents of Cargo.lock
 // against-which the current binary was compiled specified _exactly_ the same
 // host dep trees that are stored (redundantly, graphically) in the files
-// host-dep-tree-lo.txt and host-dep-tree.hi, and moreover that the logic
-// version numbers we have assigned in the 'lo' and 'hi' modules below are
-// unchanged from those stored redundantly in the dep tree files.
+// host-dep-tree-curr.txt and (if applicable) host-dep-tree-next.txt.
 //
-// The contents of all 3 files are compiled-in to the binary as static strings.
-// Any discrepancy between the logical content of Cargo.lock and the two derived
-// dep trees will cause the program to abort on startup.
+// The contents of all these files are compiled-in to the binary as static
+// strings. Any discrepancy between the logical content of Cargo.lock and the
+// derived dep tree(s) will cause the program to abort on startup.
 //
 // The point of this check is twofold: to catch cases where the developer
 // accidentally bumps dependencies (which cargo does fairly easily), and also to
 // make crystal clear when doing a commit that intentionally bumps dependencies
-// which of the two _overlapping dependency trees_ is being affected, and how.
+// which of the _dependency tree(s)_ is being affected, and how.
 pub fn check_lockfile_has_expected_dep_trees() {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
 
-    static EXPECTED_HOST_DEP_TREE_LO: &'static str = include_str!("host-dep-tree-lo.txt");
-    static EXPECTED_HOST_DEP_TREE_HI: &'static str = include_str!("host-dep-tree-hi.txt");
+    static EXPECTED_HOST_DEP_TREE_CURR: &'static str = include_str!("host-dep-tree-curr.txt");
+    #[cfg(feature = "soroban-env-host-next")]
+    static EXPECTED_HOST_DEP_TREE_NEXT: &'static str = include_str!("host-dep-tree-next.txt");
 
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
     check_lockfile_has_expected_dep_tree(
         &lockfile,
-        "lo",
-        self::lo::LOGIC_VERSION,
-        self::lo::soroban_env_host::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_LO,
+        "curr",
+        soroban_env_host_curr::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_CURR,
     );
+    #[cfg(feature = "soroban-env-host-next")]
     check_lockfile_has_expected_dep_tree(
         &lockfile,
-        "hi",
-        self::hi::LOGIC_VERSION,
-        self::hi::soroban_env_host::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_HI,
+        "next",
+        soroban_env_host_next::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_NEXT,
     );
-}
-
-// This is a trait that abstracts the translation from host logic version
-// numbers (which are assigned by stellar-core, as the embedder of the host) and
-// host `LegacyEpoch` values (which are added to the host as needed for replay).
-// It also abstracts over the fact that a version of the host might not have a
-// definition for `LegacyEpoch` yet at all, nor a method on `Host` to install
-// one. This trait is called from _within_ the body of
-// contract::invoke_host_function, but has a different implementation for each
-// of {hi,lo}::soroban_env_host::Host.
-trait SetHostLogicVersion {
-    fn set_logic_version(&self, version: u32);
-}
-
-impl SetHostLogicVersion for lo::soroban_env_host::Host {
-    fn set_logic_version(&self, version: u32) {
-        // Does nothing, both because the current version of `lo` has no
-        // definition of `LegacyEpoch`, and also in general we should never
-        // run `lo` on any host logic version other than `lo::LOGIC_VERSION`
-        // if we're doing things correctly, and that should never require a
-        // `LegacyEpoch` adjustment in the `Host`.
-        assert!(version == lo::LOGIC_VERSION);
-    }
-}
-
-impl SetHostLogicVersion for hi::soroban_env_host::Host {
-    fn set_logic_version(&self, version: u32) {
-        use hi::soroban_env_host::LegacyEpoch;
-        let epoch = match version {
-            _ => LegacyEpoch::Current,
-        };
-        self.set_legacy_epoch(epoch)
-    }
 }
 
 // The remainder of the file is implementations of functions
@@ -353,58 +322,81 @@ fn get_rustc_version() -> String {
 
 fn get_soroban_env_pkg_versions() -> VersionStringPair {
     VersionStringPair {
-        lo: lo::soroban_env_host::VERSION.pkg.to_string(),
-        hi: hi::soroban_env_host::VERSION.pkg.to_string(),
+        curr: soroban_curr::soroban_env_host::VERSION.pkg.to_string(),
+        #[cfg(feature = "soroban-env-host-next")]
+        next: soroban_next::soroban_env_host::VERSION.pkg.to_string(),
+        #[cfg(not(feature = "soroban-env-host-next"))]
+        next: "".to_string(),
     }
 }
 
 fn get_soroban_env_git_versions() -> VersionStringPair {
     VersionStringPair {
-        lo: lo::soroban_env_host::VERSION.rev.to_string(),
-        hi: hi::soroban_env_host::VERSION.rev.to_string(),
+        curr: soroban_curr::soroban_env_host::VERSION.rev.to_string(),
+        #[cfg(feature = "soroban-env-host-next")]
+        next: soroban_next::soroban_env_host::VERSION.rev.to_string(),
+        #[cfg(not(feature = "soroban-env-host-next"))]
+        next: "".to_string(),
     }
 }
 
 fn get_soroban_env_interface_versions() -> VersionNumPair {
     VersionNumPair {
-        lo: lo::soroban_env_host::VERSION.interface,
-        hi: hi::soroban_env_host::VERSION.interface,
+        curr: soroban_curr::soroban_env_host::VERSION.interface,
+        #[cfg(feature = "soroban-env-host-next")]
+        next: soroban_next::soroban_env_host::VERSION.interface,
+        #[cfg(not(feature = "soroban-env-host-next"))]
+        next: 0,
     }
 }
 
 fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair {
     VersionStringPair {
-        lo: lo::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        hi: hi::soroban_env_host::VERSION.xdr.pkg.to_string(),
+        curr: soroban_curr::soroban_env_host::VERSION.xdr.pkg.to_string(),
+        #[cfg(feature = "soroban-env-host-next")]
+        next: soroban_next::soroban_env_host::VERSION.xdr.pkg.to_string(),
+        #[cfg(not(feature = "soroban-env-host-next"))]
+        next: "".to_string(),
     }
 }
 
 fn get_soroban_xdr_bindings_git_versions() -> VersionStringPair {
     VersionStringPair {
-        lo: lo::soroban_env_host::VERSION.xdr.rev.to_string(),
-        hi: hi::soroban_env_host::VERSION.xdr.rev.to_string(),
+        curr: soroban_curr::soroban_env_host::VERSION.xdr.rev.to_string(),
+        #[cfg(feature = "soroban-env-host-next")]
+        next: soroban_next::soroban_env_host::VERSION.xdr.rev.to_string(),
+        #[cfg(not(feature = "soroban-env-host-next"))]
+        next: "".to_string(),
     }
 }
 
 fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair {
-    let lo = match lo::soroban_env_host::VERSION.xdr.xdr {
-        "next" => lo::soroban_env_host::VERSION.xdr.xdr_next.to_string(),
-        "curr" => lo::soroban_env_host::VERSION.xdr.xdr_curr.to_string(),
+    let curr = match soroban_curr::soroban_env_host::VERSION.xdr.xdr {
+        "next" => soroban_curr::soroban_env_host::VERSION
+            .xdr
+            .xdr_next
+            .to_string(),
+        "curr" => soroban_curr::soroban_env_host::VERSION
+            .xdr
+            .xdr_curr
+            .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    let hi = match hi::soroban_env_host::VERSION.xdr.xdr {
-        "next" => hi::soroban_env_host::VERSION.xdr.xdr_next.to_string(),
-        "curr" => hi::soroban_env_host::VERSION.xdr.xdr_curr.to_string(),
+    #[cfg(feature = "soroban-env-host-next")]
+    let next = match soroban_next::soroban_env_host::VERSION.xdr.xdr {
+        "next" => soroban_next::soroban_env_host::VERSION
+            .xdr
+            .xdr_next
+            .to_string(),
+        "curr" => soroban_next::soroban_env_host::VERSION
+            .xdr
+            .xdr_curr
+            .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    VersionStringPair { lo, hi }
-}
-
-fn get_soroban_host_logic_versions() -> VersionNumPair {
-    VersionNumPair {
-        lo: self::lo::LOGIC_VERSION as u64,
-        hi: self::hi::LOGIC_VERSION as u64,
-    }
+    #[cfg(not(feature = "soroban-env-host-next"))]
+    let next = "".to_string();
+    VersionStringPair { curr, next }
 }
 
 impl std::fmt::Display for rust_bridge::BridgeError {
@@ -415,13 +407,16 @@ impl std::fmt::Display for rust_bridge::BridgeError {
 impl std::error::Error for rust_bridge::BridgeError {}
 
 pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
-    let lo = lo::contract::get_xdr_hashes();
-    let hi = hi::contract::get_xdr_hashes();
-    XDRHashesPair { lo, hi }
+    let curr = soroban_curr::contract::get_xdr_hashes();
+    #[cfg(feature = "soroban-env-host-next")]
+    let next = soroban_next::contract::get_xdr_hashes();
+    #[cfg(not(feature = "soroban-env-host-next"))]
+    let next = vec![];
+    XDRHashesPair { curr, next }
 }
 
 pub(crate) fn invoke_host_function(
-    host_logic_version: u32,
+    config_max_protocol: u32,
     enable_diagnostics: bool,
     hf_buf: &CxxBuf,
     footprint_buf: &CxxBuf,
@@ -430,34 +425,32 @@ pub(crate) fn invoke_host_function(
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
-    if host_logic_version > hi::LOGIC_VERSION {
-        Err(Box::new(rust_bridge::BridgeError::VersionNotYetSupported))
-    } else if host_logic_version == lo::LOGIC_VERSION {
-        lo::contract::invoke_host_function(
-            host_logic_version,
-            enable_diagnostics,
-            hf_buf,
-            footprint_buf,
-            source_account_buf,
-            contract_auth_entries,
-            ledger_info,
-            ledger_entries,
-        )
-    } else {
-        // We will execute `hi` for host logic versions equal to
-        // `hi::LOGIC_VERSION` _and_ versions strictly less than
-        // `lo::LOGIC_VERSION`. The former run with no modification, the latter
-        // potentially with a `LegacyEpoch` to activate backward-compatibility
-        // legacy code paths.
-        hi::contract::invoke_host_function(
-            host_logic_version,
-            enable_diagnostics,
-            hf_buf,
-            footprint_buf,
-            source_account_buf,
-            contract_auth_entries,
-            ledger_info,
-            ledger_entries,
-        )
+    if ledger_info.protocol_version > config_max_protocol {
+        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
+            "unsupported protocol",
+        )));
     }
+    #[cfg(feature = "soroban-env-host-next")]
+    {
+        if ledger_info.protocol_version == config_max_protocol {
+            return soroban_next::contract::invoke_host_function(
+                enable_diagnostics,
+                hf_buf,
+                footprint_buf,
+                source_account_buf,
+                contract_auth_entries,
+                ledger_info,
+                ledger_entries,
+            );
+        }
+    }
+    soroban_curr::contract::invoke_host_function(
+        enable_diagnostics,
+        hf_buf,
+        footprint_buf,
+        source_account_buf,
+        contract_auth_entries,
+        ledger_info,
+        ledger_entries,
+    )
 }
