@@ -99,5 +99,15 @@ class OperationFrame
     virtual bool isDexOperation() const;
 
     virtual bool isSmartOperation() const;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    virtual void setSmartOperationLimitsAndCostParams(
+        uint64_t cpuLimit, uint64_t memLimit,
+        std::shared_ptr<ContractCostParams const> const& cpuParams,
+        std::shared_ptr<ContractCostParams const> const& memParams);
+
+    virtual void getRemainingSmartOperationLimits(uint64_t& cpu,
+                                                  uint64_t& mem) const;
+#endif
 };
 }

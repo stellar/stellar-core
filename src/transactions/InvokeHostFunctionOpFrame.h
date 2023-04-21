@@ -27,6 +27,14 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
+    uint64_t mCpuLimit;
+
+    uint64_t mMemLimit;
+
+    std::shared_ptr<ContractCostParams const> mCpuParams;
+
+    std::shared_ptr<ContractCostParams const> mMemParams;
+
   public:
     InvokeHostFunctionOpFrame(Operation const& op, OperationResult& res,
                               TransactionFrame& parentTx);
@@ -50,6 +58,14 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     }
 
     virtual bool isSmartOperation() const override;
+
+    virtual void setSmartOperationLimitsAndCostParams(
+        uint64_t cpuLimit, uint64_t memLimit,
+        std::shared_ptr<ContractCostParams const> const& cpuParams,
+        std::shared_ptr<ContractCostParams const> const& memParams) override;
+
+    virtual void getRemainingSmartOperationLimits(uint64_t& cpu,
+                                                  uint64_t& mem) const override;
 };
 }
 #endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

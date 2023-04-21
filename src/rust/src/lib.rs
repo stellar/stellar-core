@@ -88,6 +88,13 @@ mod rust_bridge {
         prev: Vec<XDRFileHash>,
     }
 
+    struct CxxBudgetConfig {
+        pub cpu_limit: u64,
+        pub mem_limit: u64,
+        pub cpu_cost_params: CxxBuf,
+        pub mem_cost_params: CxxBuf,
+    }
+
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
@@ -104,6 +111,7 @@ mod rust_bridge {
             contract_auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
+            budget_config: &CxxBudgetConfig,
         ) -> Result<InvokeHostFunctionOutput>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
@@ -178,6 +186,7 @@ pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Err
     })
 }
 
+use rust_bridge::CxxBudgetConfig;
 use rust_bridge::CxxBuf;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::InvokeHostFunctionOutput;
@@ -439,6 +448,7 @@ pub(crate) fn invoke_host_function(
     contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    budget_config: &CxxBudgetConfig,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     if ledger_info.protocol_version > config_max_protocol {
         return Err(Box::new(soroban_curr::contract::CoreHostError::General(
@@ -467,5 +477,6 @@ pub(crate) fn invoke_host_function(
         contract_auth_entries,
         ledger_info,
         ledger_entries,
+        budget_config,
     )
 }

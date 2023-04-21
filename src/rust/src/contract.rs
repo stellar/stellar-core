@@ -4,7 +4,9 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, RustBuf, XDRFileHash},
+    rust_bridge::{
+        CxxBudgetConfig, CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, RustBuf, XDRFileHash,
+    },
 };
 use log::debug;
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
@@ -19,9 +21,9 @@ use super::soroban_env_host::{
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{self, ContractEvent, DiagnosticEvent},
     xdr::{
-        AccountId, ContractAuth, HostFunction, LedgerEntry, LedgerEntryData, LedgerKey,
-        LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData, LedgerKeyTrustLine,
-        ReadXdr, ScUnknownErrorCode, WriteXdr, XDR_FILES_SHA256,
+        AccountId, ContractAuth, ContractCostParams, HostFunction, LedgerEntry, LedgerEntryData,
+        LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
+        LedgerKeyTrustLine, ReadXdr, ScUnknownErrorCode, WriteXdr, XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
 };
@@ -300,6 +302,7 @@ pub(crate) fn invoke_host_function(
     contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    budget_config: &CxxBudgetConfig,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
@@ -310,6 +313,7 @@ pub(crate) fn invoke_host_function(
             contract_auth_entries,
             ledger_info,
             ledger_entries,
+            budget_config,
         )
     }));
     match res {
@@ -326,8 +330,17 @@ fn invoke_host_function_or_maybe_panic(
     contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    budget_config: &CxxBudgetConfig,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
-    let budget = Budget::default();
+    let cpu_cost_params = xdr_from_cxx_buf::<ContractCostParams>(&budget_config.cpu_cost_params)?;
+    let mem_cost_params = xdr_from_cxx_buf::<ContractCostParams>(&budget_config.mem_cost_params)?;
+    let budget = Budget::from_network_configs(
+        budget_config.cpu_limit,
+        budget_config.mem_limit,
+        cpu_cost_params,
+        mem_cost_params,
+    );
+
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
 

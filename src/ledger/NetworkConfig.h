@@ -9,7 +9,7 @@
 
 namespace stellar
 {
-
+    
 // Defines the initial values of the network configuration
 // settings that are applied during the protocol version upgrade.
 // These values should never be changed after the protocol upgrade
@@ -22,9 +22,9 @@ struct InitialSorobanNetworkConfig
 
     // Compute settings
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 1;
-    static constexpr int64_t TX_MAX_INSTRUCTIONS = 1;
+    static constexpr int64_t TX_MAX_INSTRUCTIONS = 40000000;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT = 1;
-    static constexpr uint32_t MEMORY_LIMIT = 1;
+    static constexpr uint32_t MEMORY_LIMIT = 0x3200000; // 50MB
 
     // Ledger access settings
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
@@ -143,6 +143,15 @@ class SorobanNetworkConfig
     // Fee for propagating 1KB of data
     int64_t feePropagateData1KB() const;
 
+    // Version of the Soroban host logic.
+    uint32_t hostLogicVersion() const;
+
+    // Cost model parameters of the Soroban host
+    ContractCostParams const& cpuCostParams() const;
+    ContractCostParams const& memCostParams() const;
+
+    static bool isValidCostParams(ContractCostParams const& params);
+
   private:
     void loadMaxContractSize(AbstractLedgerTxn& ltx);
     void loadComputeSettings(AbstractLedgerTxn& ltx);
@@ -150,6 +159,9 @@ class SorobanNetworkConfig
     void loadHistoricalSettings(AbstractLedgerTxn& ltx);
     void loadMetaDataSettings(AbstractLedgerTxn& ltx);
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
+    void loadHostLogicVersion(AbstractLedgerTxn& ltx);
+    void loadCpuCostParams(AbstractLedgerTxn& ltx);
+    void loadMemCostParams(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
 
@@ -188,6 +200,13 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxPropagateSizeBytes{};
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeePropagateData1KB{};
+
+    // Host logic version
+    uint32_t mHostLogicVersion{};
+
+    // Host cost params
+    ContractCostParams mCpuCostParams{};
+    ContractCostParams mMemCostParams{};
 };
 
 }

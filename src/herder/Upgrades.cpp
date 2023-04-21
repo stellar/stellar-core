@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -1406,19 +1407,44 @@ ConfigUpgradeSetFrame::isValidForApply() const
         switch (configEntry.configSettingID())
         {
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+        {
             valid = configEntry.contractMaxSizeBytes() > 0;
             break;
-        case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+        }
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+        {
+            auto const& compute = configEntry.contractCompute();
+            valid = (compute.ledgerMaxInstructions >= 0 &&
+                     compute.txMaxInstructions >= 0 &&
+                     compute.feeRatePerInstructionsIncrement >= 0 &&
+                     compute.memoryLimit >= 0);
+            break;
+        }
+        case ConfigSettingID::
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+        {
+            valid = ContractNetworkConfig::isValidCostParams(
+                configEntry.contractCostParamsCpuInsns());
+            break;
+        }
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+        {
+            valid = ContractNetworkConfig::isValidCostParams(
+                configEntry.contractCostParamsMemBytes());
+            break;
+        }
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HOST_LOGIC_VERSION:
+        {
             // For now none of these settings have any semantical value.
             // Validation should be implemented when implementing/tuning
             // the respective settings.
             valid = true;
             break;
+        }
         }
         if (!valid)
         {

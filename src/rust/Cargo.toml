@@ -25,9 +25,9 @@ rustc-simple-version = "0.1.0"
 
 [dependencies.soroban-env-host-curr]
 version = "0.0.15"
-git = "https://github.com/stellar/rs-soroban-env"
+git = "https://github.com/jayz22/rs-soroban-env"
 package = "soroban-env-host"
-rev = "352487c2d92670be3871e54f32bb20a117b98dbe"
+rev = "2dc42a84bf555c0b027c9697f1c6c5211e0c5e04"
 features = ["vm"]
 
 # This copy of the soroban host is _optional_ and only enabled during protocol

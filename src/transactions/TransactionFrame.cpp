@@ -36,6 +36,9 @@
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
 #include <string>
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -1107,11 +1110,34 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
         Config const& cfg = app.getConfig();
         medida::MetricsRegistry& metrics = app.getMetrics();
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        auto networkConfig =
+            app.getLedgerManager().getLastContractNetworkConfig();
+        uint64_t cpuLimit =
+            static_cast<uint64_t>(networkConfig.ledgerMaxInstructions());
+        uint64_t memLimit = static_cast<uint64_t>(networkConfig.memoryLimit());
+        auto cpuCostParams = std::make_shared<ContractCostParams const>(
+            networkConfig.cpuCostParams());
+        auto memCostParams = std::make_shared<ContractCostParams const>(
+            networkConfig.memCostParams());
+#endif
+
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerTxn ltxOp(ltxTx);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            op->setSmartOperationLimitsAndCostParams(
+                cpuLimit, memLimit, cpuCostParams, memCostParams);
+#endif
+
             bool txRes = op->apply(signatureChecker, ltxOp, cfg, metrics);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            op->getRemainingSmartOperationLimits(cpuLimit, memLimit);
+#endif
 
             if (!txRes)
             {

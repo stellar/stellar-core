@@ -35,6 +35,9 @@
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
 #include <medida/metrics_registry.h>
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
 
 namespace stellar
 {
@@ -290,6 +293,22 @@ OperationFrame::isSmartOperation() const
 {
     return false;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+OperationFrame::setSmartOperationLimitsAndCostParams(
+    uint64_t cpuLimit, uint64_t memLimit,
+    std::shared_ptr<ContractCostParams const> const& cpuParams,
+    std::shared_ptr<ContractCostParams const> const& memParams)
+{
+}
+
+void
+OperationFrame::getRemainingSmartOperationLimits(uint64_t& cpu,
+                                                 uint64_t& mem) const
+{
+}
+#endif
 
 void
 OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const

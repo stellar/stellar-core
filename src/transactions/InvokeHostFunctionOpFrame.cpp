@@ -68,6 +68,11 @@ InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
                                                      TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
     , mInvokeHostFunction(mOperation.body.invokeHostFunctionOp())
+    , mCpuLimit(0)
+    , mMemLimit(0) // limits initialized to 0, they will be set to the remaining
+                   // limits of the transaction at apply time
+    , mCpuParams(nullptr)
+    , mMemParams(nullptr)
 {
 }
 
@@ -285,6 +290,9 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         }
     }
 
+    CxxBudgetConfig budgetConfig{mCpuLimit, mMemLimit, toCxxBuf(*mCpuParams),
+                                 toCxxBuf(*mCpuParams)};
+
     InvokeHostFunctionOutput out;
     try
     {
@@ -295,7 +303,11 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
             contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
-            ledgerEntryCxxBufs);
+            ledgerEntryCxxBufs, budgetConfig);
+        mCpuLimit = mCpuLimit >= out.cpu_insns ? mCpuLimit - out.cpu_insns : 0;
+        mMemLimit = mMemLimit >= out.mem_bytes ? mMemLimit - out.mem_bytes : 0;
+        metrics.mCpuInsn = out.cpu_insns;
+        metrics.mMemByte = out.mem_bytes;
         metrics.mSuccess = true;
 
         if (!out.success)
@@ -311,9 +323,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
         return false;
     }
-
-    metrics.mCpuInsn = out.cpu_insns;
-    metrics.mMemByte = out.mem_bytes;
 
     // Create or update every entry returned
     std::unordered_set<LedgerKey> keys;
@@ -385,6 +394,26 @@ bool
 InvokeHostFunctionOpFrame::isSmartOperation() const
 {
     return true;
+}
+
+void
+InvokeHostFunctionOpFrame::setSmartOperationLimitsAndCostParams(
+    uint64_t cpuLimit, uint64_t memLimit,
+    std::shared_ptr<ContractCostParams const> const& cpuParams,
+    std::shared_ptr<ContractCostParams const> const& memParams)
+{
+    mCpuLimit = cpuLimit;
+    mMemLimit = memLimit;
+    mCpuParams = cpuParams;
+    mMemParams = memParams;
+}
+
+void
+InvokeHostFunctionOpFrame::getRemainingSmartOperationLimits(uint64_t& cpu,
+                                                            uint64_t& mem) const
+{
+    cpu = mCpuLimit;
+    mem = mMemLimit;
 }
 
 }
