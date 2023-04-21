@@ -254,15 +254,23 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_PROCESSED);
 
+        auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        auto lastCheckpointSeq =
+            app->getHistoryManager().lastLedgerBeforeCheckpointContaining(lcl);
+
         SECTION("with slotIndex difference less or equal than "
                 "MAX_SLOTS_TO_REMEMBER")
         {
-            pendingEnvelopes.eraseBelow(saneEnvelope2.statement.slotIndex -
-                                        app->getConfig().MAX_SLOTS_TO_REMEMBER);
+            pendingEnvelopes.eraseBelow(
+                saneEnvelope2.statement.slotIndex -
+                    app->getConfig().MAX_SLOTS_TO_REMEMBER,
+                lastCheckpointSeq);
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope2) ==
                     Herder::ENVELOPE_STATUS_READY);
-            pendingEnvelopes.eraseBelow(saneEnvelope3.statement.slotIndex -
-                                        app->getConfig().MAX_SLOTS_TO_REMEMBER);
+            pendingEnvelopes.eraseBelow(
+                saneEnvelope3.statement.slotIndex -
+                    app->getConfig().MAX_SLOTS_TO_REMEMBER,
+                lastCheckpointSeq);
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
                     Herder::ENVELOPE_STATUS_READY);
         }
@@ -271,7 +279,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         {
             auto minSlot = saneEnvelope3.statement.slotIndex -
                            app->getConfig().MAX_SLOTS_TO_REMEMBER;
-            pendingEnvelopes.eraseBelow(minSlot);
+            pendingEnvelopes.eraseBelow(minSlot, lastCheckpointSeq);
             auto saneQSetP = pendingEnvelopes.getQSet(saneQSetHash);
 
             // 3 as we have "p", "txSet" and SCP
@@ -280,7 +288,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(saneQSetP.use_count() == 4);
 
             // clears SCP
-            herder.getSCP().purgeSlots(minSlot);
+            herder.getSCP().purgeSlots(minSlot, lastCheckpointSeq);
             REQUIRE(txSet.use_count() == 2);
             REQUIRE(saneQSetP.use_count() == 3);
 

@@ -316,12 +316,13 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         // messages for the same slot and validator against the latest SCP
         // message and drop
         auto minSlotToRemember = mApp.getHerder().getMinLedgerSeqToRemember();
+        auto checkpointSeq = mApp.getHerder().getMostRecentCheckpointSeq();
         bool valueReplaced = false;
 
         for (auto it = queue.begin(); it != queue.end();)
         {
-            if (it->mMessage->envelope().statement.slotIndex <
-                minSlotToRemember)
+            if (auto index = it->mMessage->envelope().statement.slotIndex;
+                index < minSlotToRemember && index != checkpointSeq)
             {
                 it = queue.erase(it);
                 dropped++;

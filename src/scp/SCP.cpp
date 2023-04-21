@@ -70,12 +70,19 @@ SCP::getLocalNodeID()
 }
 
 void
-SCP::purgeSlots(uint64 maxSlotIndex)
+SCP::purgeSlots(uint64 maxSlotIndex, uint64 slotToKeep)
 {
     auto it = mKnownSlots.begin();
     while (it != mKnownSlots.end() && it->first < maxSlotIndex)
     {
-        it = mKnownSlots.erase(it);
+        if (it->first == slotToKeep)
+        {
+            it++;
+        }
+        else
+        {
+            it = mKnownSlots.erase(it);
+        }
     }
 }
 

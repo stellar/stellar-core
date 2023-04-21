@@ -46,6 +46,10 @@ class Herder
     // timeout before triggering out of sync recovery
     static std::chrono::seconds const OUT_OF_SYNC_RECOVERY_TIMER;
 
+    // Timeout before sending latest checkpoint ledger after sending current SCP
+    // state
+    static std::chrono::seconds const SEND_LATEST_CHECKPOINT_DELAY;
+
     // Maximum time slip between nodes.
     static std::chrono::seconds constexpr MAX_TIME_SLIP_SECONDS =
         std::chrono::seconds{60};
@@ -161,6 +165,11 @@ class Herder
     // Return the maximum sequence number for any tx (or 0 if none) from a given
     // sender in the pending or recent tx sets.
     virtual SequenceNumber getMaxSeqInPendingTxs(AccountID const&) = 0;
+
+    // Returns sequence number for most recent completed checkpoint that the
+    // node knows about, as derived from
+    // trackingConsensusLedgerIndex
+    virtual uint32_t getMostRecentCheckpointSeq() = 0;
 
     virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                    bool forceTrackingSCP) = 0;
