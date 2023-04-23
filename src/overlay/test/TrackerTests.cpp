@@ -107,7 +107,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
         SECTION("properly removes some old envelopes")
         {
-            REQUIRE(t.clearEnvelopesBelow(4));
+            REQUIRE(t.clearEnvelopesBelow(4, 4));
             REQUIRE(t.size() == 2);
             REQUIRE(env4 == t.pop());
             REQUIRE(env5 == t.pop());
@@ -115,8 +115,16 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 
         SECTION("properly removes all old envelopes")
         {
-            REQUIRE(!t.clearEnvelopesBelow(6));
+            REQUIRE(!t.clearEnvelopesBelow(6, 6));
             REQUIRE(t.empty());
+        }
+
+        SECTION("keeps checkpoint envelope")
+        {
+            REQUIRE(t.clearEnvelopesBelow(5, 1));
+            REQUIRE(t.size() == 2);
+            REQUIRE(env1 == t.pop());
+            REQUIRE(env5 == t.pop());
         }
     }
 }

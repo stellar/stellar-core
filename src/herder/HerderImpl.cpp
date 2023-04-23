@@ -86,6 +86,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
+    , mEarlyCatchupTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -240,6 +241,7 @@ HerderImpl::shutdown()
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
+    mEarlyCatchupTimer.cancel();
     if (mLastQuorumMapIntersectionState.mRecalculating)
     {
         // We want to interrupt any calculation-in-progress at shutdown to
@@ -607,6 +609,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
+    auto checkpoint = getMostRecentCheckpointSeq();
+    auto index = envelope.statement.slotIndex;
+
     if (isTracking())
     {
         // when tracking, we can filter messages based on the information we got
@@ -618,8 +623,11 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // ledger closing
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
+    // Allow message with a drift larger than MAXIMUM_LEDGER_CLOSETIME_DRIFT if
+    // it is a checkpoint message
     else if (!checkCloseTime(envelope, trackingConsensusLedgerIndex() <=
-                                           LedgerManager::GENESIS_LEDGER_SEQ))
+                                           LedgerManager::GENESIS_LEDGER_SEQ) &&
+             index != checkpoint)
     {
         // if we've never been in sync, we can be more aggressive in how we
         // filter messages: we can ignore messages that are unlikely to be
@@ -631,9 +639,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    // If envelopes are out of our validity brackets, we just ignore them.
-    if (envelope.statement.slotIndex > maxLedgerSeq ||
-        envelope.statement.slotIndex < minLedgerSeq)
+    // If envelopes are out of our validity brackets, or if envelope does not
+    // contain the checkpoint for early catchup, we just ignore them.
+    if ((index > maxLedgerSeq || index < minLedgerSeq) && index != checkpoint)
     {
         CLOG_TRACE(Herder, "Ignoring SCPEnvelope outside of range: {}( {},{})",
                    envelope.statement.slotIndex, minLedgerSeq, maxLedgerSeq);
@@ -726,19 +734,63 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     ZoneScoped;
     bool log = true;
     auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
+
+    auto sendSlot = [weakPeer = std::weak_ptr<Peer>(peer)](SCPEnvelope const& e,
+                                                           bool log) {
+        // If in the process of shutting down, exit early
+        auto peerPtr = weakPeer.lock();
+        if (!peerPtr)
+        {
+            return false;
+        }
+
+        StellarMessage m;
+        m.type(SCP_MESSAGE);
+        m.envelope() = e;
+        auto mPtr = std::make_shared<StellarMessage const>(m);
+        peerPtr->sendMessage(mPtr, log);
+        return true;
+    };
+
+    bool delayCheckpoint = false;
+    auto checkpoint = getMostRecentCheckpointSeq();
+    auto consensusIndex = trackingConsensusLedgerIndex();
+    auto firstSequentialLedgerSeq =
+        consensusIndex > mApp.getConfig().MAX_SLOTS_TO_REMEMBER
+            ? consensusIndex - mApp.getConfig().MAX_SLOTS_TO_REMEMBER
+            : LedgerManager::GENESIS_LEDGER_SEQ;
+
+    // If there is a gap between the latest completed checkpoint and the next
+    // saved message, we should delay sending the checkpoint ledger. Send all
+    // other messages first, then send checkpoint messages after node that is
+    // catching up knows network state. We need to do this because checkpoint
+    // message are almost always outside MAXIMUM_LEDGER_CLOSETIME_DRIFT.
+    // Checkpoint ledgers are special cased to be allowed to be outside this
+    // range, but to determine if a message is a checkpoint message, the node
+    // needs the correct trackingConsensusLedgerIndex. We send the checkpoint
+    // message after a delay so that the recieving node has time to process the
+    // initially sent messages and establish trackingConsensusLedgerIndex
+    if (checkpoint < firstSequentialLedgerSeq)
+    {
+        delayCheckpoint = true;
+    }
+
+    // Send MAX_SLOTS_TO_SEND slots
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
+        // Skip checkpoint ledger if we should delay
+        if (seq == checkpoint && delayCheckpoint)
+        {
+            return true;
+        }
+
         bool slotHadData = false;
         getSCP().processCurrentState(
             seq,
             [&](SCPEnvelope const& e) {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                auto mPtr = std::make_shared<StellarMessage const>(m);
-                peer->sendMessage(mPtr, log);
-                log = false;
                 slotHadData = true;
-                return true;
+                auto ret = sendSlot(e, log);
+                log = false;
+                return ret;
             },
             false);
         if (slotHadData)
@@ -747,6 +799,23 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         }
         return maxSlots != 0;
     });
+
+    // Out of sync node needs to recieve latest messages to determine network
+    // state before recieving checkpoint message. Delay sending checkpoint
+    // ledger to achieve this
+    if (delayCheckpoint)
+    {
+        mEarlyCatchupTimer.expires_from_now(
+            Herder::SEND_LATEST_CHECKPOINT_DELAY);
+        mEarlyCatchupTimer.async_wait(
+            [checkpoint, this, sendSlot]() {
+                getSCP().processCurrentState(
+                    checkpoint,
+                    [&](SCPEnvelope const& e) { return sendSlot(e, true); },
+                    false);
+            },
+            &VirtualTimer::onFailureNoop);
+    }
 }
 
 void
@@ -948,8 +1017,9 @@ HerderImpl::setupTriggerNextLedger()
 void
 HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
-    getHerderSCPDriver().purgeSlots(ledgerSeq);
-    mPendingEnvelopes.eraseBelow(ledgerSeq);
+    auto lastCheckpointSeq = getMostRecentCheckpointSeq();
+    getHerderSCPDriver().purgeSlots(ledgerSeq, lastCheckpointSeq);
+    mPendingEnvelopes.eraseBelow(ledgerSeq, lastCheckpointSeq);
     auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }
@@ -1020,6 +1090,14 @@ SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
     return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
+}
+
+uint32_t
+HerderImpl::getMostRecentCheckpointSeq()
+{
+    auto lastIndex = trackingConsensusLedgerIndex();
+    return mApp.getHistoryManager().firstLedgerInCheckpointContaining(
+        lastIndex);
 }
 
 void

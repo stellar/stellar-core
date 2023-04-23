@@ -67,7 +67,8 @@ class Simulation
 
     // returns true if all nodes have externalized
     // triggers and exception if a node externalized higher than num+maxSpread
-    bool haveAllExternalized(uint32 num, uint32 maxSpread);
+    bool haveAllExternalized(uint32 num, uint32 maxSpread,
+                             bool validatorsOnly = false);
 
     size_t crankNode(NodeID const& id, VirtualClock::time_point timeout);
     size_t crankAllNodes(int nbTicks = 1);

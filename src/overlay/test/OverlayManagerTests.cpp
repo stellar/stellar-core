@@ -8,6 +8,8 @@
 
 #include "database/Database.h"
 #include "lib/catch.hpp"
+#include "overlay/FlowControl.h"
+#include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "test/TestAccount.h"
@@ -27,18 +29,35 @@ using namespace txtest;
 namespace stellar
 {
 
+class FlowControlStub : public FlowControl
+{
+  public:
+    int mSent = 0;
+
+    FlowControlStub(Application& app) : FlowControl(app)
+    {
+    }
+    virtual ~FlowControlStub() = default;
+
+    virtual bool
+    maybeSendMessage(std::shared_ptr<StellarMessage const> msg) override
+    {
+        // mock flow control
+        mSent++;
+        return true;
+    }
+};
+
 class PeerStub : public Peer
 {
   public:
-    int sent = 0;
-
     PeerStub(Application& app, PeerBareAddress const& address)
         : Peer(app, WE_CALLED_REMOTE)
     {
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
-        mOutboundCapacity = std::numeric_limits<uint32>::max();
+        mFlowControl = std::make_shared<FlowControlStub>(app);
     }
     virtual std::string
     getIP() const override
@@ -53,7 +72,6 @@ class PeerStub : public Peer
     virtual void
     sendMessage(xdr::msg_ptr&& xdrBytes) override
     {
-        sent++;
     }
     virtual void
     scheduleRead() override
@@ -224,11 +242,17 @@ class OverlayManagerTests
     std::vector<int>
     sentCounts(OverlayManagerImpl& pm)
     {
+        auto getSent = [](Peer::pointer p) {
+            auto peer = static_pointer_cast<PeerStub>(p);
+            auto fc =
+                static_pointer_cast<FlowControlStub>(peer->getFlowControl());
+            return fc->mSent;
+        };
         std::vector<int> result;
         for (auto p : pm.mInboundPeers.mAuthenticated)
-            result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
+            result.push_back(getSent(p.second));
         for (auto p : pm.mOutboundPeers.mAuthenticated)
-            result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
+            result.push_back(getSent(p.second));
         return result;
     }
 

@@ -153,16 +153,17 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     if (mState != GOT_AUTH)
     {
-        CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
+        CLOG_DEBUG(Overlay, "LoopbackPeer::drop {} in state {} we called:{}",
                    toString(), mState, mRole);
     }
     else if (direction == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+        CLOG_DEBUG(Overlay, "Dropping peer {}, reason {}", toString(), reason);
     }
     else
     {
-        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
+        CLOG_DEBUG(Overlay, "peer {} dropped us, reason {}", toString(),
+                   reason);
     }
 
     mDropReason = reason;
@@ -227,7 +228,7 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
 void
 LoopbackPeer::processInQueue()
 {
-    if (!hasReadingCapacity())
+    if (!canRead())
     {
         mIsPeerThrottled = true;
         return;
@@ -524,6 +525,7 @@ LoopbackPeerConnection::getAcceptor() const
 bool
 LoopbackPeer::checkCapacity(uint64_t expectedOutboundCapacity) const
 {
-    return expectedOutboundCapacity == mOutboundCapacity;
+    return expectedOutboundCapacity ==
+           getFlowControl()->getFlowControlCapacity()->getOutboundCapacity();
 }
 }

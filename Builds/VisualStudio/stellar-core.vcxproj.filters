@@ -954,6 +954,12 @@
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FlowControl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1945,6 +1951,12 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FlowControl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h">

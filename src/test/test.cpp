@@ -304,6 +304,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.WORKER_THREADS = 2;
         thisConfig.QUORUM_INTERSECTION_CHECKER = false;
         thisConfig.METADATA_DEBUG_LEDGERS = 0;
+
+        thisConfig.PEER_READING_CAPACITY = 20;
+        thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
+        thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
 #ifdef BEST_OFFER_DEBUGGING
         thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;
 #endif

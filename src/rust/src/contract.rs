@@ -143,7 +143,7 @@ fn build_storage_footprint_from_xdr(
         read_only,
         read_write,
     } = xdr::LedgerFootprint::read_xdr(&mut Cursor::new(footprint.data.as_slice()))?;
-    let mut access = FootprintMap::new(budget)?;
+    let mut access = FootprintMap::new()?;
 
     populate_access_map(
         &mut access,
@@ -189,7 +189,7 @@ fn build_storage_map_from_xdr_ledger_entries(
     footprint: &storage::Footprint,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<StorageMap, CoreHostError> {
-    let mut map = StorageMap::new(budget)?;
+    let mut map = StorageMap::new()?;
     for buf in ledger_entries {
         let le = Rc::new(xdr_from_cxx_buf::<LedgerEntry>(buf)?);
         let key = Rc::new(ledger_entry_to_ledger_key(&le)?);
