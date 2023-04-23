@@ -14,19 +14,45 @@ cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
 
-[dependencies.soroban-env-host-curr]
-version = "0.0.14"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-host"
-rev = "75b21696b0636bd145b7acb47a6fed4621b05978"
-features = ["vm"]
+# This copy of the soroban host is always enabled, and should always point to a
+# version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
+# When upgrading from protocol N to N+1, this copy will therefore have its
+# version advance first (to enable support for N+1) even before the network has
+# voted to upgrade to it. In order to avoid divergence during such an upgrade,
+# we will simultaneously enable the `prev` copy of soroban (below), continuing
+# to point to the previous already-released soroban that only supported protocol
+# N.
 
-[dependencies.soroban-env-host-next]
-optional = true
+[dependencies.soroban-env-host-curr]
 version = "0.0.15"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "3b7bc2cc1db24c7877a585721f9c0ffc7eeefd83"
+features = ["vm"]
+
+# This copy of the soroban host is _optional_ and only enabled during protocol
+# transitions. When transitioning from protocol N to N+1, the `curr` copy
+# (above) will bump its version to one that supports protocol N+1, and we will
+# simultaneously enable this `prev` copy by building with
+# `--feature=soroban-env-host-prev` and pointing its version and git rev to the
+# last soroban released to the network that speaks protocol N. When we deploy
+# this to a network running protocol N it will run on `prev` until the upgrade,
+# then switch from `prev` to `curr` at the upgrade, and then in the next release
+# we can turn `prev` off again.
+#
+# A note on `rev` hashes: When `prev` is disabled, the rust-analyzer IDE will
+# still want it to point to some version of soroban just for auto-completion
+# (because it builds with `--all-features`). To make this work, the `rev` spec
+# below has to be different from the `rev` spec in the `curr` copy of soroban
+# above. The easiest way to make this work is to just point to one git rev 
+# before the rev specified for `curr`.
+
+[dependencies.soroban-env-host-prev]
+optional = true
+version = "0.0.15"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "c0cb12a98020286e705e5a3e6ac9bd02f49a3e88"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
@@ -37,3 +63,8 @@ rev = "3b7bc2cc1db24c7877a585721f9c0ffc7eeefd83"
 git = "https://github.com/rustsec/rustsec"
 rev = "dcc72b697e10a2d1e3d1ce70d7d7b0d5cbc41dc4"
 features = ["dependency-tree"]
+
+# This feature definition is implied by the optional=true line in the dep, but
+# writing it out in full here cross-checks that nobody _removed_ that line.
+[features]
+soroban-env-host-prev = ["dep:soroban-env-host-prev"]

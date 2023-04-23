@@ -5,7 +5,12 @@
 #include "crypto/CryptoError.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "ledger/NonSociRelatedException.h"
+#include "main/ApplicationUtils.h"
 #include "main/CommandLine.h"
+#include "main/Config.h"
+#include "main/StellarCoreVersion.h"
+#include <regex>
+#include <stdexcept>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
 #endif
@@ -163,9 +168,7 @@ void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
-    auto all_hashes = get_xdr_hashes();
-    rust::Vec<XDRFileHash> rustHashes =
-        all_hashes.next.empty() ? all_hashes.curr : all_hashes.next;
+    rust::Vec<XDRFileHash> rustHashes = get_xdr_hashes().curr;
     for (auto const& cpp : stellar::XDR_FILES_SHA256)
     {
         if (cpp.first.empty())
@@ -210,6 +213,29 @@ checkXDRFileIdentity()
                         stellar::XDR_FILES_SHA256.size(), rustHashes.size()));
     }
 }
+
+void
+checkStellarCoreMajorVersionProtocolIdentity()
+{
+    auto vers =
+        stellar::getStellarCoreMajorReleaseVersion(STELLAR_CORE_VERSION);
+    if (vers)
+    {
+        if (*vers != stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            throw std::runtime_error(
+                fmt::format("stellar-core version {} has major version {} but "
+                            "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
+                            STELLAR_CORE_VERSION, *vers,
+                            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+        }
+    }
+    else
+    {
+        std::cerr << "Warning: running non-release version "
+                  << STELLAR_CORE_VERSION << " of stellar-core";
+    }
+}
 #endif
 
 int
@@ -234,7 +260,9 @@ main(int argc, char* const* argv)
     randHash::initialize();
     xdr::marshaling_stack_limit = 1000;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    rust_bridge::check_lockfile_has_expected_dep_trees();
+    checkStellarCoreMajorVersionProtocolIdentity();
+    rust_bridge::check_lockfile_has_expected_dep_trees(
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     checkXDRFileIdentity();
 #endif
 

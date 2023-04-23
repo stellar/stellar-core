@@ -634,3 +634,20 @@ TEST_CASE("application setup", "[applicationutils]")
         }
     }
 }
+
+TEST_CASE("application major version numbers", "[applicationutils]")
+{
+    CHECK(getStellarCoreMajorReleaseVersion("v19.0.0") ==
+          std::make_optional<uint32_t>(19));
+    CHECK(getStellarCoreMajorReleaseVersion("v19.1.3") ==
+          std::make_optional<uint32_t>(19));
+    CHECK(getStellarCoreMajorReleaseVersion("v19.1.3rc0") ==
+          std::make_optional<uint32_t>(19));
+    CHECK(getStellarCoreMajorReleaseVersion("v20.0.0rc1") ==
+          std::make_optional<uint32_t>(20));
+    CHECK(getStellarCoreMajorReleaseVersion("v20.0.0HOT4") ==
+          std::make_optional<uint32_t>(20));
+    CHECK(getStellarCoreMajorReleaseVersion("v19.1.2-10") == std::nullopt);
+    CHECK(getStellarCoreMajorReleaseVersion("v19.9.0-30-g726eabdea-dirty") ==
+          std::nullopt);
+}

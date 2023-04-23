@@ -75,17 +75,17 @@ mod rust_bridge {
 
     struct VersionStringPair {
         curr: String,
-        next: String,
+        prev: String,
     }
 
     struct VersionNumPair {
         curr: u64,
-        next: u64,
+        prev: u64,
     }
 
     struct XDRHashesPair {
         curr: Vec<XDRFileHash>,
-        next: Vec<XDRFileHash>,
+        prev: Vec<XDRFileHash>,
     }
 
     // The extern "Rust" block declares rust stuff we're going to export to C++.
@@ -94,7 +94,7 @@ mod rust_bridge {
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> XDRHashesPair;
-        fn check_lockfile_has_expected_dep_trees();
+        fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32);
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -133,8 +133,8 @@ mod rust_bridge {
         // Return the rust XDR bindings' input XDR definitions git versions used to build this binary.
         fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair;
 
-        // Return true if configured with cfg(feature="soroban-env-host-next")
-        fn has_soroban_next() -> bool;
+        // Return true if configured with cfg(feature="soroban-env-host-prev")
+        fn compiled_with_soroban_prev() -> bool;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -189,6 +189,37 @@ use rust_bridge::XDRHashesPair;
 mod log;
 use crate::log::init_logging;
 
+// We have at least one, but possibly two, copies of soroban compiled
+// in to stellar-core. If we have two, ledgers that are exactly one
+// protocol _before_ the current (max-supported) protocol will run on
+// the `prev` copy of soroban. All others will run on the `curr` copy.
+// See `invoke_host_function` below.
+
+#[path = "."]
+mod soroban_curr {
+    pub(crate) use soroban_env_host_curr as soroban_env_host;
+    pub(crate) mod contract;
+}
+
+#[cfg(feature = "soroban-env-host-prev")]
+#[path = "."]
+mod soroban_prev {
+    pub(crate) use soroban_env_host_prev as soroban_env_host;
+    pub(crate) mod contract;
+}
+
+#[cfg(feature = "soroban-env-host-prev")]
+pub fn compiled_with_soroban_prev() -> bool {
+    true
+}
+
+#[cfg(not(feature = "soroban-env-host-prev"))]
+pub fn compiled_with_soroban_prev() -> bool {
+    false
+}
+
+use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
+
 fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
     // Try comparing hash to hashes in either the package checksum or the source
     // precise field
@@ -206,40 +237,10 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
     }
     false
 }
-
-// We have at least one, but possibly two, copies of soroban compiled
-// in to stellar-core. If we have two, there's a constant `NEXT_PROTO`
-// that is used to identify ledgers that should run on `soroban_env_host_curr`;
-// later ledgers will run on `soroban_env_host_next`.
-
-#[path = "."]
-mod soroban_curr {
-    pub(crate) use soroban_env_host_curr as soroban_env_host;
-    pub(crate) mod contract;
-}
-
-#[cfg(feature = "soroban-env-host-next")]
-#[path = "."]
-mod soroban_next {
-    pub(crate) use soroban_env_host_next as soroban_env_host;
-    pub(crate) mod contract;
-}
-
-#[cfg(feature = "soroban-env-host-next")]
-pub fn has_soroban_next() -> bool {
-    true
-}
-
-#[cfg(not(feature = "soroban-env-host-next"))]
-pub fn has_soroban_next() -> bool {
-    false
-}
-
-use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
-
 fn check_lockfile_has_expected_dep_tree(
+    protocol_version: u32,
     lockfile: &Lockfile,
-    curr_or_next: &str,
+    curr_or_prev: &str,
     package_hash: &str,
     expected: &str,
 ) {
@@ -248,6 +249,18 @@ fn check_lockfile_has_expected_dep_tree(
         .iter()
         .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
         .expect("locating host package in Cargo.lock");
+
+    if pkg.version.major == 0 {
+        eprintln!(
+            "Warning: soroban-env-host-{} is running a pre-release version {}",
+            curr_or_prev, pkg.version
+        );
+    } else if pkg.version.major != protocol_version as u64 {
+        panic!(
+            "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
+            curr_or_prev, pkg.version, pkg.version.major, protocol_version
+        )
+    }
 
     let tree = lockfile
         .dependency_tree()
@@ -263,22 +276,22 @@ fn check_lockfile_has_expected_dep_tree(
     if tree_str != expected {
         eprintln!(
             "Expected '{}' host dependency tree (in host-dep-tree-{}.txt):",
-            curr_or_next, curr_or_next
+            curr_or_prev, curr_or_prev
         );
-        eprintln!("---\n{}\n---", expected);
+        eprintln!("---\n{}---", expected);
         eprintln!(
             "Found '{}' host dependency tree (in Cargo.lock):",
-            curr_or_next
+            curr_or_prev
         );
-        eprintln!("---\n{}\n---", tree_str);
-        panic!("Unexpected '{}' host dependency tree", curr_or_next);
+        eprintln!("---\n{}---", tree_str);
+        panic!("Unexpected '{}' host dependency tree", curr_or_prev);
     }
 }
 
 // This function performs a crude dynamic check that the contents of Cargo.lock
 // against-which the current binary was compiled specified _exactly_ the same
 // host dep trees that are stored (redundantly, graphically) in the files
-// host-dep-tree-curr.txt and (if applicable) host-dep-tree-next.txt.
+// host-dep-tree-curr.txt and (if applicable) host-dep-tree-prev.txt.
 //
 // The contents of all these files are compiled-in to the binary as static
 // strings. Any discrepancy between the logical content of Cargo.lock and the
@@ -288,28 +301,30 @@ fn check_lockfile_has_expected_dep_tree(
 // accidentally bumps dependencies (which cargo does fairly easily), and also to
 // make crystal clear when doing a commit that intentionally bumps dependencies
 // which of the _dependency tree(s)_ is being affected, and how.
-pub fn check_lockfile_has_expected_dep_trees() {
+pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
 
     static EXPECTED_HOST_DEP_TREE_CURR: &'static str = include_str!("host-dep-tree-curr.txt");
-    #[cfg(feature = "soroban-env-host-next")]
-    static EXPECTED_HOST_DEP_TREE_NEXT: &'static str = include_str!("host-dep-tree-next.txt");
+    #[cfg(feature = "soroban-env-host-prev")]
+    static EXPECTED_HOST_DEP_TREE_PREV: &'static str = include_str!("host-dep-tree-prev.txt");
 
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
     check_lockfile_has_expected_dep_tree(
+        curr_max_protocol_version,
         &lockfile,
         "curr",
         soroban_env_host_curr::VERSION.rev,
         EXPECTED_HOST_DEP_TREE_CURR,
     );
-    #[cfg(feature = "soroban-env-host-next")]
+    #[cfg(feature = "soroban-env-host-prev")]
     check_lockfile_has_expected_dep_tree(
+        curr_max_protocol_version - 1,
         &lockfile,
-        "next",
-        soroban_env_host_next::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_NEXT,
+        "prev",
+        soroban_env_host_prev::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_PREV,
     );
 }
 
@@ -323,50 +338,50 @@ fn get_rustc_version() -> String {
 fn get_soroban_env_pkg_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-next")]
-        next: soroban_next::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-next"))]
-        next: "".to_string(),
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: soroban_prev::soroban_env_host::VERSION.pkg.to_string(),
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: "".to_string(),
     }
 }
 
 fn get_soroban_env_git_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-next")]
-        next: soroban_next::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-next"))]
-        next: "".to_string(),
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: soroban_prev::soroban_env_host::VERSION.rev.to_string(),
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: "".to_string(),
     }
 }
 
 fn get_soroban_env_interface_versions() -> VersionNumPair {
     VersionNumPair {
         curr: soroban_curr::soroban_env_host::VERSION.interface,
-        #[cfg(feature = "soroban-env-host-next")]
-        next: soroban_next::soroban_env_host::VERSION.interface,
-        #[cfg(not(feature = "soroban-env-host-next"))]
-        next: 0,
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: soroban_prev::soroban_env_host::VERSION.interface,
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: 0,
     }
 }
 
 fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-next")]
-        next: soroban_next::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-next"))]
-        next: "".to_string(),
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: soroban_prev::soroban_env_host::VERSION.xdr.pkg.to_string(),
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: "".to_string(),
     }
 }
 
 fn get_soroban_xdr_bindings_git_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-next")]
-        next: soroban_next::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-next"))]
-        next: "".to_string(),
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: soroban_prev::soroban_env_host::VERSION.xdr.rev.to_string(),
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: "".to_string(),
     }
 }
 
@@ -382,21 +397,21 @@ fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair {
             .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    #[cfg(feature = "soroban-env-host-next")]
-    let next = match soroban_next::soroban_env_host::VERSION.xdr.xdr {
-        "next" => soroban_next::soroban_env_host::VERSION
+    #[cfg(feature = "soroban-env-host-prev")]
+    let prev = match soroban_prev::soroban_env_host::VERSION.xdr.xdr {
+        "next" => soroban_prev::soroban_env_host::VERSION
             .xdr
             .xdr_next
             .to_string(),
-        "curr" => soroban_next::soroban_env_host::VERSION
+        "curr" => soroban_prev::soroban_env_host::VERSION
             .xdr
             .xdr_curr
             .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    #[cfg(not(feature = "soroban-env-host-next"))]
-    let next = "".to_string();
-    VersionStringPair { curr, next }
+    #[cfg(not(feature = "soroban-env-host-prev"))]
+    let prev = "".to_string();
+    VersionStringPair { curr, prev }
 }
 
 impl std::fmt::Display for rust_bridge::BridgeError {
@@ -408,11 +423,11 @@ impl std::error::Error for rust_bridge::BridgeError {}
 
 pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
     let curr = soroban_curr::contract::get_xdr_hashes();
-    #[cfg(feature = "soroban-env-host-next")]
-    let next = soroban_next::contract::get_xdr_hashes();
-    #[cfg(not(feature = "soroban-env-host-next"))]
-    let next = vec![];
-    XDRHashesPair { curr, next }
+    #[cfg(feature = "soroban-env-host-prev")]
+    let prev = soroban_prev::contract::get_xdr_hashes();
+    #[cfg(not(feature = "soroban-env-host-prev"))]
+    let prev = vec![];
+    XDRHashesPair { curr, prev }
 }
 
 pub(crate) fn invoke_host_function(
@@ -430,10 +445,10 @@ pub(crate) fn invoke_host_function(
             "unsupported protocol",
         )));
     }
-    #[cfg(feature = "soroban-env-host-next")]
+    #[cfg(feature = "soroban-env-host-prev")]
     {
-        if ledger_info.protocol_version == config_max_protocol {
-            return soroban_next::contract::invoke_host_function(
+        if ledger_info.protocol_version == config_max_protocol - 1 {
+            return soroban_prev::contract::invoke_host_function(
                 enable_diagnostics,
                 hf_buf,
                 footprint_buf,
