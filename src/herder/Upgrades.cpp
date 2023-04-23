@@ -534,6 +534,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (newVersion <= app.getConfig().LEDGER_PROTOCOL_VERSION);
         // and enforce versions to be strictly monotonic
         res = res && (newVersion > header.ledgerVersion);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // and enforce that any soroban-era protocol upgrade has two copies of
         // soroban compiled-in to this binary -- both `prev` and `curr` -- so
         // the upgrade can do a prev-to-curr transition
@@ -542,6 +543,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         {
             res = res && rust_bridge::compiled_with_soroban_prev();
         }
+#endif
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
