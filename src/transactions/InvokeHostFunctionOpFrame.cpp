@@ -246,7 +246,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    ledgerEntryCxxBufs.reserve(mInvokeHostFunction.footprint.readOnly.size() +
+    ledgerEntryCxxBufs.reserve(mParentTx..footprint.readOnly.size() +
                                mInvokeHostFunction.footprint.readWrite.size());
     for (auto const& lk : mInvokeHostFunction.footprint.readOnly)
     {
@@ -274,17 +274,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         metrics.noteWriteEntry(lk, nByte);
     }
 
-    rust::Vec<CxxBuf> contractAuthEntryCxxBufs;
-    if (mInvokeHostFunction.function.type() ==
-        HOST_FUNCTION_TYPE_INVOKE_CONTRACT)
-    {
-        contractAuthEntryCxxBufs.reserve(mInvokeHostFunction.auth.size());
-        for (auto const& authEntry : mInvokeHostFunction.auth)
-        {
-            contractAuthEntryCxxBufs.push_back(toCxxBuf(authEntry));
-        }
-    }
-
     InvokeHostFunctionOutput out;
     try
     {
@@ -294,7 +283,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
             cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
-            contractAuthEntryCxxBufs, getLedgerInfo(ltx, cfg),
+            getLedgerInfo(ltx, cfg),
             ledgerEntryCxxBufs);
         metrics.mSuccess = true;
 
