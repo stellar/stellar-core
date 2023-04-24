@@ -1535,7 +1535,7 @@ Config::adjust()
         OverlayManager::MIN_INBOUND_FACTOR;
     if (static_cast<int>(TARGET_PEER_CONNECTIONS) > limit)
     {
-        TARGET_PEER_CONNECTIONS = limit;
+        TARGET_PEER_CONNECTIONS = static_cast<unsigned short>(limit);
         LOG_WARNING(DEFAULT_LOG,
                     "Adjusted TARGET_PEER_CONNECTIONS to {} due to "
                     "insufficient MAX_ADDITIONAL_PEER_CONNECTIONS={}",

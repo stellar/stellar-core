@@ -1602,10 +1602,10 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
         REQUIRE(cntC == expectedTxsC);
     };
 
-    auto nonDexTx = [](TestAccount& account, int nbOps, uint32_t opFee) {
+    auto nonDexTx = [](TestAccount& account, uint32 nbOps, uint32_t opFee) {
         return makeSelfPayment(account, nbOps, opFee * nbOps);
     };
-    auto dexTx = [&](TestAccount& account, int nbOps, uint32_t opFee) {
+    auto dexTx = [&](TestAccount& account, uint32 nbOps, uint32_t opFee) {
         return createSimpleDexTx(*app, account, nbOps, opFee * nbOps);
     };
 
@@ -1850,7 +1850,7 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
         auto genTx = [&]() {
             auto account = root.create(std::to_string(nextAccId), 5000000000);
             ++nextAccId;
-            int ops = numOpsDistr(Catch::rng());
+            uint32 ops = numOpsDistr(Catch::rng());
             int fee = ops * feeDistr(Catch::rng()) + addFeeDistr(Catch::rng());
             if (isDexTxDistr(Catch::rng()) < dexOpsPercent)
             {
@@ -4240,7 +4240,8 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 txFee += curFeeOffset;
                 accountFees[accountIndex].emplace_back(txFee, isDex);
             }
-            setFee(tx, txFee);
+            REQUIRE(txFee <= std::numeric_limits<uint32>::max());
+            setFee(tx, static_cast<uint32>(txFee));
             getSignatures(tx).clear();
             tx->addSignature(source.getSecretKey());
             if (++feeGroupSize == feeGroupMaxSize)
@@ -4367,15 +4368,15 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
         // 1000*100/5000=20
         auto constexpr opsRatePerPeriod = 20;
-        auto constexpr dexOpsRatePerPeriod = 8;
-        auto broadcastPeriod =
+        auto constexpr dexOpsRatePerPeriod = 8u;
+        auto const broadcastPeriod =
             std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
         auto const delta = std::chrono::milliseconds(1);
         int noBroadcastPeriods = 0;
 
         // Make 50(=5s/100ms) broadcast 'iterations' by cranking timer for
         // broadcastPeriod.
-        for (int broadcastIter = 0; broadcastIter < 50; ++broadcastIter)
+        for (uint32_t broadcastIter = 0; broadcastIter < 50; ++broadcastIter)
         {
             // Inject new transactions from unused account in the middle of
             // ledger period.

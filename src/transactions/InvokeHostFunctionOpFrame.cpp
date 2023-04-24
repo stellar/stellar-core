@@ -444,7 +444,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     maybePopulateDiagnosticEvents(cfg, out);
 
     auto& results = success.returnValues;
-    results.resize(out.result_values.size());
+    results.resize(static_cast<uint32>(out.result_values.size()));
     for (size_t i = 0; i < results.size(); ++i)
     {
         xdr::xdr_from_opaque(out.result_values[i].data, results[i]);

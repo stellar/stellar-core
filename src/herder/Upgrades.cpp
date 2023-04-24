@@ -150,8 +150,8 @@ Upgrades::UpgradeParameters::toDebugJson(stellar::AbstractLedgerTxn& ltx) const
         if (upgradeSetPtr)
         {
             Json::Value configUpgradeSetJson;
-            Json::Reader reader;
-            reader.parse(upgradeSetPtr->toJson(), configUpgradeSetJson);
+            Json::Reader reader2;
+            reader2.parse(upgradeSetPtr->toJson(), configUpgradeSetJson);
             upgradesJson["configupgradeinfo"]["configupgradeset"] =
                 configUpgradeSetJson;
         }

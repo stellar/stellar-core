@@ -2494,15 +2494,16 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-    ihf.args.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    Operation op0;
+    op0.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf0 = op0.body.invokeHostFunctionOp().functions.emplace_back();
+    ihf0.args.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
 
     auto validateResources = [&](SorobanResources const& resources,
                                  bool valid) {
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 3'500'000, 100'000);
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op0}, {},
+                                           resources, 3'500'000, 100'000);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0) == valid);
         if (!valid)
@@ -2514,7 +2515,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
 
     SECTION("no soroban extension")
     {
-        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
+        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op0}, {});
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
         REQUIRE(tx->getResult().result.code() == txMALFORMED);
@@ -2606,7 +2607,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         SECTION("resource fee exceeds tx fee")
         {
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources,
+                                                     {op0}, {}, resources,
                                                      1'000'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2615,7 +2616,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         SECTION("tx fee is lower than tx refundable fee")
         {
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources,
+                                                     {op0}, {}, resources,
                                                      4'000'000, 4'000'001);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2623,8 +2624,9 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
         SECTION("refundable fee exceeds tx refundable fee")
         {
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 4'000'000, 100);
+            auto tx =
+                sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op0},
+                                               {}, resources, 4'000'000, 100);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
@@ -2633,8 +2635,9 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
 
     SECTION("multiple ops are not allowed")
     {
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op, op}, {}, resources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op0, op0}, {}, resources,
+                                                 100'000, 1200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
         REQUIRE(tx->getResult().result.code() == txMALFORMED);

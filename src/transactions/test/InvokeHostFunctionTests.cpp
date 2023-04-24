@@ -245,12 +245,12 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             {
                 resultVals = txm.getXDR().v3().returnValues;
 
-                InvokeHostFunctionSuccessPreImage success;
-                success.returnValues = resultVals;
-                success.events = txm.getXDR().v3().events;
+                InvokeHostFunctionSuccessPreImage success2;
+                success2.returnValues = resultVals;
+                success2.events = txm.getXDR().v3().events;
 
                 REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
-                        xdrSha256(success));
+                        xdrSha256(success2));
             }
         }
         return resultVals;

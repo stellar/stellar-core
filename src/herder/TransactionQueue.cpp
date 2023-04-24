@@ -1023,11 +1023,11 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
             mBroadcastOpCarryover.size() > DexLimitingLaneConfig::DEX_LANE
                 ? mBroadcastOpCarryover[DexLimitingLaneConfig::DEX_LANE]
                 : 0;
-        dexOpsToFlood =
-            dexOpsCarryover +
-            bigDivideOrThrow(dexOpsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
-                             cfg.getExpectedLedgerCloseTime().count() * 1000,
-                             Rounding::ROUND_UP);
+        dexOpsToFlood = dexOpsCarryover +
+                        static_cast<uint32>(bigDivideOrThrow(
+                            dexOpsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                            cfg.getExpectedLedgerCloseTime().count() * 1000ll,
+                            Rounding::ROUND_UP));
     }
     return std::make_pair(static_cast<uint32_t>(opsToFlood), dexOpsToFlood);
 }

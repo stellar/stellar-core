@@ -30,7 +30,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
     Application::pointer app = createTestApplication(clock, cfg);
 
-    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
@@ -254,9 +254,10 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_PROCESSED);
 
-        auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        auto lclNum = app->getLedgerManager().getLastClosedLedgerNum();
         auto lastCheckpointSeq =
-            app->getHistoryManager().lastLedgerBeforeCheckpointContaining(lcl);
+            app->getHistoryManager().lastLedgerBeforeCheckpointContaining(
+                lclNum);
 
         SECTION("with slotIndex difference less or equal than "
                 "MAX_SLOTS_TO_REMEMBER")
@@ -277,8 +278,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
         SECTION("with slotIndex difference bigger than MAX_SLOTS_TO_REMEMBER")
         {
-            auto minSlot = saneEnvelope3.statement.slotIndex -
-                           app->getConfig().MAX_SLOTS_TO_REMEMBER;
+            auto const minSlot = saneEnvelope3.statement.slotIndex -
+                                 app->getConfig().MAX_SLOTS_TO_REMEMBER;
             pendingEnvelopes.eraseBelow(minSlot, lastCheckpointSeq);
             auto saneQSetP = pendingEnvelopes.getQSet(saneQSetHash);
 

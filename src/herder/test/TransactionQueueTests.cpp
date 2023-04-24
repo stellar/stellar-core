@@ -1666,8 +1666,8 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
 
     TransactionFrameBasePtr noTx;
 
-    auto checkAndAddTx = [&](TestAccount& account, bool isDex, int ops, int fee,
-                             bool expected, int64 expFeeOnFailed,
+    auto checkAndAddTx = [&](TestAccount& account, bool isDex, uint32 ops,
+                             int fee, bool expected, int64 expFeeOnFailed,
                              int expEvictedOpsOnSuccess) {
         TransactionFrameBasePtr tx;
         if (isDex)
@@ -1708,7 +1708,7 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
     };
 
     auto checkAndAddWithIncreasedBid = [&](TestAccount& account, bool isDex,
-                                           int ops, int opBid,
+                                           uint32 ops, int opBid,
                                            int expectedEvicted) {
         checkAndAddTx(account, isDex, ops, ops * opBid, false, opBid * ops + 1,
                       0);
@@ -2273,7 +2273,7 @@ testReplaceByFee(bool limitSourceAccounts)
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
 
-    int numTransactions = cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT ? 1 : 3;
+    uint32_t numTransactions = cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT ? 1 : 3;
     auto setupTransactions = [&](TransactionQueueTest& test) {
         std::vector<TransactionFrameBasePtr> txs;
         for (uint32_t i = 1; i <= numTransactions; ++i)

@@ -632,14 +632,17 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     auto const& txResources = sorobanResources();
     cxxResources.instructions = txResources.instructions;
 
-    cxxResources.read_entries = txResources.footprint.readOnly.size() +
-                                txResources.footprint.readWrite.size();
-    cxxResources.write_entries = txResources.footprint.readWrite.size();
+    cxxResources.read_entries =
+        static_cast<uint32>(txResources.footprint.readOnly.size() +
+                            txResources.footprint.readWrite.size());
+    cxxResources.write_entries =
+        static_cast<uint32>(txResources.footprint.readWrite.size());
 
     cxxResources.read_bytes = txResources.readBytes;
     cxxResources.write_bytes = txResources.writeBytes;
 
-    cxxResources.transaction_size_bytes = xdr::xdr_size(mEnvelope.v1().tx);
+    cxxResources.transaction_size_bytes =
+        static_cast<uint32>(xdr::xdr_size(mEnvelope.v1().tx));
 
     cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
 

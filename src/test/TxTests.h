@@ -184,7 +184,7 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SequenceNumber seq, int64_t amount);
 
 TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
-                                      int nbOps, uint32_t fee);
+                                      uint32 nbOps, uint32_t fee);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,

@@ -816,15 +816,15 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
     {
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            configUpgradeSet = makeMaxContractSizeBytesTestUpgrade(ltx, 32768);
-            ltx.commit();
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            configUpgradeSet = makeMaxContractSizeBytesTestUpgrade(ltx2, 32768);
+            ltx2.commit();
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(app->getLedgerTxnRoot());
         auto maxContractSizeEntry =
-            ltx.load(getMaxContractSizeKey()).current().data.configSetting();
+            ltx2.load(getMaxContractSizeKey()).current().data.configSetting();
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
         REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
@@ -857,9 +857,9 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             configEntry2.configSettingID(
                 CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
             configEntry2.contractHistoricalData().feeHistorical1KB = 555;
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
-            ltx.commit();
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            configUpgradeSet = makeConfigUpgradeSet(ltx2, configUpgradeSetXdr);
+            ltx2.commit();
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
