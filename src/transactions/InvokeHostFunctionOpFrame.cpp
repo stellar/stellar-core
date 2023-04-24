@@ -5,6 +5,8 @@
 // clang-format off
 // This needs to be included first
 #include "util/GlobalChecks.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include <cstdint>
 #include <json/json.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
@@ -108,7 +110,6 @@ struct HostFunctionMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    bool mPreflight{false};
     char const* mFnType{nullptr};
 
     size_t mReadEntry{0};
@@ -131,31 +132,22 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(medida::MetricsRegistry& metrics, HostFunctionType hf,
-                        bool isPreflight)
-        : mMetrics(metrics), mPreflight(isPreflight)
+    HostFunctionMetrics(medida::MetricsRegistry& metrics, HostFunctionType hf)
+        : mMetrics(metrics)
     {
-        if (hf == HOST_FUNCTION_TYPE_INVOKE_CONTRACT)
+        switch (hf)
         {
-            if (isPreflight)
-            {
-                mFnType = "invoke-preflight";
-            }
-            else
-            {
-                mFnType = "invoke-contract";
-            }
-        }
-        else
-        {
-            if (isPreflight)
-            {
-                mFnType = "create-preflight";
-            }
-            else
-            {
-                mFnType = "create-contract";
-            }
+        case HOST_FUNCTION_TYPE_INVOKE_CONTRACT:
+            mFnType = "invoke-contract";
+            break;
+        case HOST_FUNCTION_TYPE_CREATE_CONTRACT:
+            mFnType = "create-contract";
+            break;
+        case HOST_FUNCTION_TYPE_INSTALL_CONTRACT_CODE:
+            mFnType = "install-contract-code";
+            break;
+        default:
+            throw std::runtime_error("unknown host function type");
         }
     }
 
@@ -189,11 +181,11 @@ struct HostFunctionMetrics
         mWriteKeyByte += xdr::xdr_size(lk);
         if (isCodeKey(lk))
         {
-            mReadCodeByte += n;
+            mWriteCodeByte += n;
         }
         else
         {
-            mReadDataByte += n;
+            mWriteDataByte += n;
         }
     }
 
@@ -214,15 +206,10 @@ struct HostFunctionMetrics
         mMetrics.NewMeter({"host-fn", mFnType, "read-code-byte"}, "byte")
             .Mark(mReadCodeByte);
 
-        if (!mPreflight)
-        {
-            // We don't track the ledger entry bytes written during preflight as
-            // they're not actually written anywhere, just dropped on the floor.
-            mMetrics.NewMeter({"host-fn", mFnType, "write-data-byte"}, "byte")
-                .Mark(mWriteDataByte);
-            mMetrics.NewMeter({"host-fn", mFnType, "write-code-byte"}, "byte")
-                .Mark(mWriteCodeByte);
-        }
+        mMetrics.NewMeter({"host-fn", mFnType, "write-data-byte"}, "byte")
+            .Mark(mWriteDataByte);
+        mMetrics.NewMeter({"host-fn", mFnType, "write-code-byte"}, "byte")
+            .Mark(mWriteCodeByte);
 
         mMetrics.NewMeter({"host-fn", mFnType, "emit-event"}, "event")
             .Mark(mEmitEvent);
@@ -254,8 +241,8 @@ bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
                                    medida::MetricsRegistry& metricsReg)
 {
-    HostFunctionMetrics metrics(metricsReg, mInvokeHostFunction.function.type(),
-                                false);
+    HostFunctionMetrics metrics(metricsReg,
+                                mInvokeHostFunction.function.type());
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
@@ -303,6 +290,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         auto timeScope = metrics.getExecTimer();
         out = rust_bridge::invoke_host_function(
+            cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
             cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
             toCxxBuf(mInvokeHostFunction.function),
             toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
@@ -391,98 +379,6 @@ void
 InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
-}
-
-CxxBuf
-PreflightCallbacks::get_ledger_entry(rust::Vec<uint8_t> const& key)
-{
-    LedgerKey lk;
-    xdr::xdr_from_opaque(key, lk);
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto lte = ltx.load(lk);
-    if (lte)
-    {
-        auto buf = toCxxBuf(lte.current());
-        mMetrics.noteReadEntry(lk, buf.data->size());
-        return buf;
-    }
-    else
-    {
-        throw std::runtime_error("missing key for get");
-    }
-}
-bool
-PreflightCallbacks::has_ledger_entry(rust::Vec<uint8_t> const& key)
-{
-    LedgerKey lk;
-    xdr::xdr_from_opaque(key, lk);
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto lte = ltx.load(lk);
-    mMetrics.noteReadEntry(lk, lte ? xdr::xdr_size(lte.current()) : 0);
-    return (bool)lte;
-}
-
-Json::Value
-InvokeHostFunctionOpFrame::preflight(Application& app,
-                                     InvokeHostFunctionOp const& op,
-                                     AccountID const& sourceAccount)
-{
-    HostFunctionMetrics metrics(app.getMetrics(), op.function.type(), true);
-
-    auto cb = std::make_unique<PreflightCallbacks>(app, metrics);
-
-    Json::Value root;
-    CxxLedgerInfo li;
-
-    // Scope our use of an ltx to a block here so that a new one can be opened
-    // later in the preflight callbacks.
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
-        li = getLedgerInfo(ltx, app.getConfig());
-    }
-
-    try
-    {
-        PreflightHostFunctionOutput out;
-        {
-            auto timeScope = metrics.getExecTimer();
-            out = rust_bridge::preflight_host_function(
-                toVec(op.function), toVec(sourceAccount), li, std::move(cb));
-            metrics.mSuccess = true;
-        }
-        SCVal result_value;
-        LedgerFootprint storage_footprint;
-        xdr::xdr_from_opaque(out.result_value.data, result_value);
-        xdr::xdr_from_opaque(out.storage_footprint.data, storage_footprint);
-        root["status"] = "OK";
-        root["result"] = toOpaqueBase64(result_value);
-        Json::Value events(Json::ValueType::arrayValue);
-        for (auto const& e : out.contract_events)
-        {
-            // TODO: possibly change this to a single XDR-array-of-events rather
-            // than a JSON array of separate XDR events; requires changing the
-            // XDR if we want to do this.
-            metrics.mEmitEvent++;
-            metrics.mEmitEventByte += e.data.size();
-            ContractEvent evt;
-            xdr::xdr_from_opaque(e.data, evt);
-            events.append(Json::Value(toOpaqueBase64(evt)));
-        }
-        root["events"] = events;
-        root["footprint"] = toOpaqueBase64(storage_footprint);
-        root["cpu_insns"] = Json::UInt64(out.cpu_insns);
-        root["mem_bytes"] = Json::UInt64(out.mem_bytes);
-
-        metrics.mCpuInsn = out.cpu_insns;
-        metrics.mMemByte = out.mem_bytes;
-    }
-    catch (std::exception& e)
-    {
-        root["status"] = "ERROR";
-        root["detail"] = e.what();
-    }
-    return root;
 }
 
 bool

@@ -29,11 +29,13 @@
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
+#include <charconv>
 #include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>
 #include <map>
 #include <optional>
+#include <regex>
 
 namespace stellar
 {
@@ -908,4 +910,22 @@ minimalDBForInMemoryMode(Config const& cfg)
     return fmt::format(FMT_STRING("sqlite3://{}"),
                        minimalDbPath(cfg).generic_string());
 }
+
+// Returns the major release version extracted from the git tag _if_ this is a
+// release-tagged version of stellar core (one that looks like vNN.X.Y or
+// vNN.X.YrcZ or vNN.X.YHOTZ). If its version has some other name structure
+// structure, return std::nullopt.
+std::optional<uint32_t>
+getStellarCoreMajorReleaseVersion(std::string const& vstr)
+{
+    std::regex re("^v([0-9]+)\\.[0-9]+\\.[0-9]+(rc[0-9]+|HOT[0-9]+)?$");
+    std::smatch match;
+    if (std::regex_match(vstr, match, re))
+    {
+        uint32_t vers = stoi(match.str(1));
+        return std::make_optional<uint32_t>(vers);
+    }
+    return std::nullopt;
+}
+
 }

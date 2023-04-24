@@ -55,4 +55,6 @@ void setAuthenticatedLedgerHashPair(Application::pointer app,
                                     LedgerNumHashPair& authPair,
                                     uint32_t startLedger,
                                     std::string startHash);
+std::optional<uint32_t>
+getStellarCoreMajorReleaseVersion(std::string const& vstr);
 }

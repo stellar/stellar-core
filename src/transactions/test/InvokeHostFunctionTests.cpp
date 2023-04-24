@@ -432,7 +432,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][contract]")
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 }
 
-TEST_CASE("complex contract with preflight", "[tx][contract]")
+TEST_CASE("complex contract", "[tx][contract]")
 {
     auto complexTest = [&](bool enableDiagnostics) {
         VirtualClock clock;
@@ -454,9 +454,6 @@ TEST_CASE("complex contract with preflight", "[tx][contract]")
         auto& ihf = op.body.invokeHostFunctionOp();
         ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
         ihf.function.invokeArgs() = {scContractID, scFunc};
-
-        AccountID source;
-        auto res = InvokeHostFunctionOpFrame::preflight(*app, ihf, source);
 
         // Contract writes a single `data` CONTRACT_DATA entry.
         LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
