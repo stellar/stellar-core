@@ -2271,6 +2271,9 @@
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-transaction.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
+    <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-contract-config-setting.h">
+      <Filter>xdr\generated</Filter>
+    </ClInclude>    
     <ClInclude Include="src\$(Configuration)\generated\xdr\Stellar-types.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
@@ -2508,6 +2511,9 @@
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-transaction.x">
       <Filter>xdr\next</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-contract-config-setting.x">
+      <Filter>xdr\next</Filter>
+    </CustomBuild>    
     <CustomBuild Include="..\..\src\protocol-next\xdr\Stellar-types.x">
       <Filter>xdr\next</Filter>
     </CustomBuild>

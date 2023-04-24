@@ -120,7 +120,7 @@ class TransactionFrame : public TransactionFrameBase
     bool extraSignersExist() const;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    bool validateSmartOpsConsistency() const;
+    bool validateSorobanOpsConsistency() const;
 #endif
 
   public:
@@ -238,5 +238,10 @@ class TransactionFrame : public TransactionFrameBase
     uint32 getMinSeqLedgerGap() const override;
 
     bool hasDexOperations() const override;
+
+    bool isSoroban() const override;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    SorobanResources sorobanResources() const override;
+#endif
 };
 }

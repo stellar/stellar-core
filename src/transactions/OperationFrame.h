@@ -98,6 +98,6 @@ class OperationFrame
 
     virtual bool isDexOperation() const;
 
-    virtual bool isSmartOperation() const;
+    virtual bool isSoroban() const;
 };
 }

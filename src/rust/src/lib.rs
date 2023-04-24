@@ -39,7 +39,7 @@ mod rust_bridge {
     // diagnostic_events. The rest of the fields should be ignored.
     struct InvokeHostFunctionOutput {
         success: bool,
-        result_value: RustBuf,
+        result_values: Vec<RustBuf>,
         contract_events: Vec<RustBuf>,
         diagnostic_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
@@ -95,13 +95,12 @@ mod rust_bridge {
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> XDRHashesPair;
         fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32);
-        fn invoke_host_function(
+        fn invoke_host_functions(
             config_max_protocol: u32,
             enable_diagnostics: bool,
-            hf_buf: &CxxBuf,
-            footprint: &CxxBuf,
+            hf_bufs: &Vec<CxxBuf>,
+            resources: &CxxBuf,
             source_account: &CxxBuf,
-            contract_auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
         ) -> Result<InvokeHostFunctionOutput>;
@@ -430,13 +429,12 @@ pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
     XDRHashesPair { curr, prev }
 }
 
-pub(crate) fn invoke_host_function(
+pub(crate) fn invoke_host_functions(
     config_max_protocol: u32,
     enable_diagnostics: bool,
-    hf_buf: &CxxBuf,
-    footprint_buf: &CxxBuf,
+    hf_bufs: &Vec<CxxBuf>,
+    resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
-    contract_auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
@@ -448,23 +446,21 @@ pub(crate) fn invoke_host_function(
     #[cfg(feature = "soroban-env-host-prev")]
     {
         if ledger_info.protocol_version == config_max_protocol - 1 {
-            return soroban_prev::contract::invoke_host_function(
+            return soroban_prev::contract::invoke_host_functions(
                 enable_diagnostics,
                 hf_buf,
-                footprint_buf,
+                resources_buf,
                 source_account_buf,
-                contract_auth_entries,
                 ledger_info,
                 ledger_entries,
             );
         }
     }
-    soroban_curr::contract::invoke_host_function(
+    soroban_curr::contract::invoke_host_functions(
         enable_diagnostics,
-        hf_buf,
-        footprint_buf,
+        hf_bufs,
+        resources_buf,
         source_account_buf,
-        contract_auth_entries,
         ledger_info,
         ledger_entries,
     )

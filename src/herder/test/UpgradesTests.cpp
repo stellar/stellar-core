@@ -837,7 +837,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
         REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.memoryLimit() ==
+        REQUIRE(sorobanConfig.txMemoryLimit() ==
                 InitialSorobanNetworkConfig::MEMORY_LIMIT);
         REQUIRE(sorobanConfig.txMaxInstructions() ==
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
@@ -850,7 +850,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             configEntry.configSettingID(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
             configEntry.contractCompute().feeRatePerInstructionsIncrement = 111;
             configEntry.contractCompute().ledgerMaxInstructions = 222;
-            configEntry.contractCompute().memoryLimit = 333;
+            configEntry.contractCompute().txMemoryLimit = 333;
             configEntry.contractCompute().txMaxInstructions = 444;
             auto& configEntry2 =
                 configUpgradeSetXdr.updatedEntry.emplace_back();
@@ -864,7 +864,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
         REQUIRE(sorobanConfig.ledgerMaxInstructions() == 222);
-        REQUIRE(sorobanConfig.memoryLimit() == 333);
+        REQUIRE(sorobanConfig.txMemoryLimit() == 333);
         REQUIRE(sorobanConfig.txMaxInstructions() == 444);
         REQUIRE(sorobanConfig.feeHistorical1KB() == 555);
     }

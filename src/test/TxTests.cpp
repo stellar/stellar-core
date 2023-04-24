@@ -1548,7 +1548,12 @@ static TransactionEnvelope
 envelopeFromOps(Hash const& networkID, TestAccount& source,
                 std::vector<Operation> const& ops,
                 std::vector<SecretKey> const& opKeys,
-                std::optional<PreconditionsV2> cond = std::nullopt)
+                std::optional<PreconditionsV2> cond = std::nullopt
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                ,
+                std::optional<SorobanResources> sorobanResources = std::nullopt
+#endif
+)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
@@ -1562,7 +1567,13 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
         tx.v1().tx.cond.type(PRECOND_V2);
         tx.v1().tx.cond.v2() = *cond;
     }
-
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (sorobanResources)
+    {
+        tx.v1().tx.ext.v(1);
+        tx.v1().tx.ext.sorobanData().resources = *sorobanResources;
+    }
+#endif
     sign(networkID, source, tx.v1());
     for (auto const& opKey : opKeys)
     {
@@ -1580,6 +1591,19 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TransactionFrameBasePtr
+sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                               std::vector<Operation> const& ops,
+                               std::vector<SecretKey> const& opKeys,
+                               SorobanResources const& resources)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys, std::nullopt,
+                                   std::make_optional(resources)));
+}
+#endif
 
 LedgerUpgrade
 makeBaseReserveUpgrade(int baseReserve)

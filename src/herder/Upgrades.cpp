@@ -1413,7 +1413,6 @@ ConfigUpgradeSetFrame::isValidForApply() const
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
-        case ConfigSettingID::CONFIG_SETTING_CONTRACT_HOST_LOGIC_VERSION:
             // For now none of these settings have any semantical value.
             // Validation should be implemented when implementing/tuning
             // the respective settings.

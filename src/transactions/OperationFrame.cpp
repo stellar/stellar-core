@@ -286,7 +286,7 @@ OperationFrame::isDexOperation() const
 }
 
 bool
-OperationFrame::isSmartOperation() const
+OperationFrame::isSoroban() const
 {
     return false;
 }
