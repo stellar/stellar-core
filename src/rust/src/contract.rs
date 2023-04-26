@@ -17,11 +17,11 @@ use super::soroban_env_host::{
     budget::Budget,
     events::{Event, Events},
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
-    xdr::{self, ContractEvent, DiagnosticEvent},
     xdr::{
-        AccountId, HostFunction, LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
-        LedgerKeyContractCode, LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr,
-        ScUnknownErrorCode, WriteXdr, XDR_FILES_SHA256,
+        self, AccountId, ContractEvent, DiagnosticEvent, HostFunction, LedgerEntry,
+        LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
+        LedgerKeyTrustLine, ReadXdr, ScUnknownErrorCode, SorobanResources, WriteXdr,
+        XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
 };
@@ -137,12 +137,12 @@ fn populate_access_map(
 /// containing that map.
 fn build_storage_footprint_from_xdr(
     budget: &Budget,
-    footprint: &CxxBuf,
+    footprint: &xdr::LedgerFootprint,
 ) -> Result<Footprint, CoreHostError> {
     let xdr::LedgerFootprint {
         read_only,
         read_write,
-    } = xdr::LedgerFootprint::read_xdr(&mut Cursor::new(footprint.data.as_slice()))?;
+    } = footprint;
     let mut access = FootprintMap::new()?;
 
     populate_access_map(
@@ -285,7 +285,7 @@ fn log_debug_events(events: &Events) {
 pub(crate) fn invoke_host_functions(
     enable_diagnostics: bool,
     hf_bufs: &Vec<CxxBuf>,
-    footprint_buf: &CxxBuf,
+    resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
@@ -294,7 +294,7 @@ pub(crate) fn invoke_host_functions(
         invoke_host_functions_or_maybe_panic(
             enable_diagnostics,
             hf_bufs,
-            footprint_buf,
+            resources_buf,
             source_account_buf,
             ledger_info,
             ledger_entries,
@@ -309,19 +309,25 @@ pub(crate) fn invoke_host_functions(
 fn invoke_host_functions_or_maybe_panic(
     enable_diagnostics: bool,
     hf_bufs: &Vec<CxxBuf>,
-    footprint_buf: &CxxBuf,
+    resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
-    let budget = Budget::default();
     let hfs = hf_bufs
         .iter()
         .map(|hf_buf| xdr_from_cxx_buf::<HostFunction>(&hf_buf))
         .collect::<Result<Vec<HostFunction>, HostError>>()?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
+    let resources = xdr_from_cxx_buf::<SorobanResources>(&resources_buf)?;
 
-    let footprint = build_storage_footprint_from_xdr(&budget, footprint_buf)?;
+    let budget = Budget::default();
+    // This is not pretty, we should rather introduce new() constructor.
+    budget.reset_limits(
+        resources.instructions as u64,
+        ledger_info.memory_limit as u64,
+    );
+    let footprint = build_storage_footprint_from_xdr(&budget, &resources.footprint)?;
     let map = build_storage_map_from_xdr_ledger_entries(&budget, &footprint, ledger_entries)?;
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let host = Host::with_storage_and_budget(storage, budget);

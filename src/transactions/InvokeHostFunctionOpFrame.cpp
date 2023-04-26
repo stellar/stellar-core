@@ -115,6 +115,9 @@ struct HostFunctionMetrics
     size_t mReadEntry{0};
     size_t mWriteEntry{0};
 
+    size_t mLedgerReadByte{0};
+    size_t mLedgerWriteByte{0};
+
     size_t mReadKeyByte{0};
     size_t mWriteKeyByte{0};
 
@@ -132,38 +135,23 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(medida::MetricsRegistry& metrics, HostFunctionType hf)
-        : mMetrics(metrics)
+    HostFunctionMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
     {
-        switch (hf)
-        {
-        case HOST_FUNCTION_TYPE_INVOKE_CONTRACT:
-            mFnType = "invoke-contract";
-            break;
-        case HOST_FUNCTION_TYPE_CREATE_CONTRACT:
-            mFnType = "create-contract";
-            break;
-        case HOST_FUNCTION_TYPE_INSTALL_CONTRACT_CODE:
-            mFnType = "install-contract-code";
-            break;
-        default:
-            throw std::runtime_error("unknown host function type");
-        }
     }
 
     bool
     isCodeKey(LedgerKey const& lk)
     {
-        return lk.type() == CONTRACT_DATA &&
-               lk.contractData().key.type() ==
-                   SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE;
+        return lk.type() == CONTRACT_CODE;
     }
 
     void
     noteReadEntry(LedgerKey const& lk, size_t n)
     {
         mReadEntry++;
-        mReadKeyByte += xdr::xdr_size(lk);
+        auto keySize = xdr::xdr_size(lk);
+        mReadKeyByte += keySize;
+        mLedgerReadByte += keySize + n;
         if (isCodeKey(lk))
         {
             mReadCodeByte += n;
@@ -178,7 +166,9 @@ struct HostFunctionMetrics
     noteWriteEntry(LedgerKey const& lk, size_t n)
     {
         mWriteEntry++;
-        mWriteKeyByte += xdr::xdr_size(lk);
+        auto keySize = xdr::xdr_size(lk);
+        mWriteKeyByte += keySize;
+        mLedgerWriteByte += keySize + n;
         if (isCodeKey(lk))
         {
             mWriteCodeByte += n;
@@ -201,11 +191,15 @@ struct HostFunctionMetrics
         mMetrics.NewMeter({"host-fn", mFnType, "write-key-byte"}, "byte")
             .Mark(mWriteKeyByte);
 
+        mMetrics.NewMeter({"host-fn", mFnType, "read-ledger-byte"}, "byte")
+            .Mark(mLedgerReadByte);
         mMetrics.NewMeter({"host-fn", mFnType, "read-data-byte"}, "byte")
             .Mark(mReadDataByte);
         mMetrics.NewMeter({"host-fn", mFnType, "read-code-byte"}, "byte")
             .Mark(mReadCodeByte);
 
+        mMetrics.NewMeter({"host-fn", mFnType, "write-ledger-byte"}, "byte")
+            .Mark(mLedgerWriteByte);
         mMetrics.NewMeter({"host-fn", mFnType, "write-data-byte"}, "byte")
             .Mark(mWriteDataByte);
         mMetrics.NewMeter({"host-fn", mFnType, "write-code-byte"}, "byte")
@@ -241,50 +235,56 @@ bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
                                    medida::MetricsRegistry& metricsReg)
 {
-    HostFunctionMetrics metrics(metricsReg,
-                                mInvokeHostFunction.function.type());
+    HostFunctionMetrics metrics(metricsReg);
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    ledgerEntryCxxBufs.reserve(mParentTx..footprint.readOnly.size() +
-                               mInvokeHostFunction.footprint.readWrite.size());
-    for (auto const& lk : mInvokeHostFunction.footprint.readOnly)
-    {
-        // Load without record for readOnly to avoid writing them later
-        auto ltxe = ltx.loadWithoutRecord(lk);
-        size_t nByte{0};
-        if (ltxe)
+    auto const& resources = mParentTx.sorobanResources();
+    auto const& footprint = resources.footprint;
+    ledgerEntryCxxBufs.reserve(footprint.readOnly.size() +
+                               footprint.readWrite.size());
+    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics](auto const& keys) {
+        for (auto const& lk : keys)
         {
-            auto buf = toCxxBuf(ltxe.current());
-            nByte = buf.data->size();
-            ledgerEntryCxxBufs.emplace_back(std::move(buf));
+            // Load without record for readOnly to avoid writing them later
+            auto ltxe = ltx.loadWithoutRecord(lk);
+            size_t nByte{0};
+            if (ltxe)
+            {
+                auto buf = toCxxBuf(ltxe.current());
+                nByte = buf.data->size();
+                ledgerEntryCxxBufs.emplace_back(std::move(buf));
+            }
+            metrics.noteReadEntry(lk, nByte);
         }
-        metrics.noteReadEntry(lk, nByte);
+    };
+
+    addReads(footprint.readOnly);
+    addReads(footprint.readWrite);
+
+    if (resources.readBytes < metrics.mLedgerReadByte)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
     }
-    for (auto const& lk : mInvokeHostFunction.footprint.readWrite)
+
+    rust::Vec<CxxBuf> hostFnCxxBufs;
+    hostFnCxxBufs.reserve(mInvokeHostFunction.functions.size());
+    for (auto const& hostFn : mInvokeHostFunction.functions)
     {
-        auto ltxe = ltx.load(lk);
-        size_t nByte{0};
-        if (ltxe)
-        {
-            auto buf = toCxxBuf(ltxe.current());
-            nByte = buf.data->size();
-            ledgerEntryCxxBufs.emplace_back(std::move(buf));
-        }
-        metrics.noteWriteEntry(lk, nByte);
+        hostFnCxxBufs.emplace_back(toCxxBuf(hostFn));
     }
 
     InvokeHostFunctionOutput out;
     try
     {
         auto timeScope = metrics.getExecTimer();
-        out = rust_bridge::invoke_host_function(
+
+        out = rust_bridge::invoke_host_functions(
             cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
-            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS,
-            toCxxBuf(mInvokeHostFunction.function),
-            toCxxBuf(mInvokeHostFunction.footprint), toCxxBuf(getSourceID()),
-            getLedgerInfo(ltx, cfg),
-            ledgerEntryCxxBufs);
+            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, hostFnCxxBufs,
+            toCxxBuf(resources), toCxxBuf(getSourceID()),
+            getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
         metrics.mSuccess = true;
 
         if (!out.success)
@@ -310,7 +310,15 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
+
         auto lk = LedgerEntryKey(le);
+
+        metrics.noteWriteEntry(lk, buf.data.size());
+        if (metrics.mLedgerWriteByte > resources.writeBytes)
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
 
         auto ltxe = ltx.load(lk);
         if (ltxe)
@@ -326,7 +334,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     }
 
     // Erase every entry not returned
-    for (auto const& lk : mInvokeHostFunction.footprint.readWrite)
+    for (auto const& lk : footprint.readWrite)
     {
         if (keys.find(lk) == keys.end())
         {
@@ -354,7 +362,14 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     maybePopulateDiagnosticEvents(cfg, out);
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
-    xdr::xdr_from_opaque(out.result_value.data, innerResult().success());
+
+    auto& results = innerResult().success();
+    results.resize(out.result_values.size());
+    for (size_t i = 0; i < results.size(); ++i)
+    {
+        xdr::xdr_from_opaque(out.result_values[i].data, results[i]);
+    }
+
     return true;
 }
 
@@ -371,7 +386,7 @@ InvokeHostFunctionOpFrame::insertLedgerKeysToPrefetch(
 }
 
 bool
-InvokeHostFunctionOpFrame::isSmartOperation() const
+InvokeHostFunctionOpFrame::isSoroban() const
 {
     return true;
 }

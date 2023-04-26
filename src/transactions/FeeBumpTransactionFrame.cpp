@@ -40,6 +40,18 @@ FeeBumpTransactionFrame::hasDexOperations() const
     return mInnerTx->hasDexOperations();
 }
 
+bool
+FeeBumpTransactionFrame::isSoroban() const
+{
+    return mInnerTx->isSoroban();
+}
+
+SorobanResources
+FeeBumpTransactionFrame::sorobanResources() const
+{
+    return mInnerTx->sorobanResources();
+}
+
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)

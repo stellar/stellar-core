@@ -72,5 +72,9 @@ class TransactionFrameBase
     virtual StellarMessage toStellarMessage() const = 0;
 
     virtual bool hasDexOperations() const = 0;
+
+    virtual bool isSoroban() const = 0;
+
+    virtual SorobanResources sorobanResources() const = 0;
 };
 }

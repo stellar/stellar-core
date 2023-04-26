@@ -190,7 +190,7 @@ SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
     mTxMaxInstructions = configSetting.txMaxInstructions;
     mFeeRatePerInstructionsIncrement =
         configSetting.feeRatePerInstructionsIncrement;
-    mMemoryLimit = configSetting.memoryLimit;
+    mTxMemoryLimit = configSetting.txMemoryLimit;
 #endif
 }
 
@@ -286,9 +286,9 @@ SorobanNetworkConfig::feeRatePerInstructionsIncrement() const
 }
 
 uint32_t
-SorobanNetworkConfig::memoryLimit() const
+SorobanNetworkConfig::txMemoryLimit() const
 {
-    return mMemoryLimit;
+    return mTxMemoryLimit;
 }
 
 // Ledger access settings for contracts.

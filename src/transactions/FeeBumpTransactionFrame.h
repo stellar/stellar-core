@@ -100,5 +100,9 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     convertInnerTxToV1(TransactionEnvelope const& envelope);
 
     bool hasDexOperations() const override;
+
+    bool isSoroban() const override;
+
+    SorobanResources sorobanResources() const override;
 };
 }

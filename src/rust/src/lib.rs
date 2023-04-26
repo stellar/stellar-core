@@ -66,6 +66,7 @@ mod rust_bridge {
         pub timestamp: u64,
         pub network_id: Vec<u8>,
         pub base_reserve: u32,
+        pub memory_limit: u32,
     }
 
     #[derive(Debug)]
@@ -99,7 +100,7 @@ mod rust_bridge {
             config_max_protocol: u32,
             enable_diagnostics: bool,
             hf_bufs: &Vec<CxxBuf>,
-            footprint: &CxxBuf,
+            resources: &CxxBuf,
             source_account: &CxxBuf,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
@@ -433,7 +434,7 @@ pub(crate) fn invoke_host_functions(
     config_max_protocol: u32,
     enable_diagnostics: bool,
     hf_bufs: &Vec<CxxBuf>,
-    footprint_buf: &CxxBuf,
+    resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
@@ -449,7 +450,7 @@ pub(crate) fn invoke_host_functions(
             return soroban_prev::contract::invoke_host_functions(
                 enable_diagnostics,
                 hf_buf,
-                footprint_buf,
+                resources_buf,
                 source_account_buf,
                 ledger_info,
                 ledger_entries,
@@ -459,7 +460,7 @@ pub(crate) fn invoke_host_functions(
     soroban_curr::contract::invoke_host_functions(
         enable_diagnostics,
         hf_bufs,
-        footprint_buf,
+        resources_buf,
         source_account_buf,
         ledger_info,
         ledger_entries,
