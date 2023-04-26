@@ -60,8 +60,7 @@ initialContractLedgerAccessSettingsEntry()
     e.ledgerMaxReadBytes = InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
     e.ledgerMaxWriteLedgerEntries =
         InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    e.ledgerMaxWriteBytes =
-        InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+    e.ledgerMaxWriteBytes = InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
     e.txMaxReadLedgerEntries =
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
     e.txMaxReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
@@ -69,12 +68,10 @@ initialContractLedgerAccessSettingsEntry()
         InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
     e.txMaxWriteBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
     e.feeReadLedgerEntry = InitialSorobanNetworkConfig::FEE_READ_LEDGER_ENTRY;
-    e.feeWriteLedgerEntry =
-        InitialSorobanNetworkConfig::FEE_WRITE_LEDGER_ENTRY;
+    e.feeWriteLedgerEntry = InitialSorobanNetworkConfig::FEE_WRITE_LEDGER_ENTRY;
     e.feeRead1KB = InitialSorobanNetworkConfig::FEE_READ_1KB;
     e.feeWrite1KB = InitialSorobanNetworkConfig::FEE_WRITE_1KB;
-    e.bucketListSizeBytes =
-        InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_BYTES;
+    e.bucketListSizeBytes = InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_BYTES;
     e.bucketListFeeRateLow =
         InitialSorobanNetworkConfig::BUCKET_LIST_FEE_RATE_LOW;
     e.bucketListFeeRateHigh =
@@ -119,8 +116,7 @@ initialContractBandwidthSettingsEntry()
     e.ledgerMaxPropagateSizeBytes =
         InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
     e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-    e.feePropagateData1KB =
-        InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
+    e.feePropagateData1KB = InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
 
     return entry;
 }

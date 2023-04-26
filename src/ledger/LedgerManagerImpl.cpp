@@ -1099,8 +1099,7 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
     }
     if (!mLastSorobanNetworkConfig)
     {
-        mLastSorobanNetworkConfig =
-            std::make_optional<SorobanNetworkConfig>();
+        mLastSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
     }
     LedgerTxn ltx(rootLtx, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
