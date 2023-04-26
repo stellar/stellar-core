@@ -476,11 +476,10 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 }
 
 SorobanNetworkConfig const&
-LedgerManagerImpl::getLastSorobanNetworkConfig()
+LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 {
     if (!mLastSorobanNetworkConfig)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
         maybeUpdateNetworkConfig(false, ltx);
     }
 

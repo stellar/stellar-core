@@ -122,7 +122,8 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const& getLastSorobanNetworkConfig() override;
+    SorobanNetworkConfig const&
+    getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;

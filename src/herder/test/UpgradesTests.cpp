@@ -794,7 +794,9 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
-
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    auto const& sorobanConfig =
+        app->getLedgerManager().getSorobanNetworkConfig(ltx);
     SECTION("unknown config upgrade set results in exception")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -805,9 +807,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         executeUpgrade(*app, ledgerUpgrade);
 
         // upgrade was ignored
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .maxContractSizeBytes() ==
+        REQUIRE(sorobanConfig.maxContractSizeBytes() ==
                 InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
     }
 
@@ -826,33 +826,21 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             ltx.load(getMaxContractSizeKey()).current().data.configSetting();
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .maxContractSizeBytes() == 32768);
+        REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
     }
     SECTION("multi-item config upgrade set is applied")
     {
         // Verify values pre-upgrade
         REQUIRE(
-            app->getLedgerManager()
-                .getLastSorobanNetworkConfig()
-                .feeRatePerInstructionsIncrement() ==
+            sorobanConfig.feeRatePerInstructionsIncrement() ==
             InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .ledgerMaxInstructions() ==
+        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .memoryLimit() ==
+        REQUIRE(sorobanConfig.memoryLimit() ==
                 InitialSorobanNetworkConfig::MEMORY_LIMIT);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .txMaxInstructions() ==
+        REQUIRE(sorobanConfig.txMaxInstructions() ==
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .feeHistorical1KB() ==
+        REQUIRE(sorobanConfig.feeHistorical1KB() ==
                 InitialSorobanNetworkConfig::FEE_HISTORICAL_1KB);
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         {
@@ -873,20 +861,15 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             ltx.commit();
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+        REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(sorobanConfig.ledgerMaxInstructions() == 222);
         REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .feeRatePerInstructionsIncrement() == 111);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .ledgerMaxInstructions() == 222);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
+                    .getSorobanNetworkConfig(ltx)
                     .memoryLimit() == 333);
+        REQUIRE(sorobanConfig.txMaxInstructions() == 444);
         REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
-                    .txMaxInstructions() == 444);
-        REQUIRE(app->getLedgerManager()
-                    .getLastSorobanNetworkConfig()
+                    .getSorobanNetworkConfig(ltx)
                     .feeHistorical1KB() == 555);
     }
 }
