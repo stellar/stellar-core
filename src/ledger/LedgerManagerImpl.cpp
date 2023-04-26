@@ -227,7 +227,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     ltx.loadHeader().current() = genesisLedger;
     if (cfg.USE_CONFIG_FOR_GENESIS)
     {
-        ContractNetworkConfig::initializeGenesisLedgerForTesting(
+        SorobanNetworkConfig::initializeGenesisLedgerForTesting(
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx);
     }
 
@@ -475,16 +475,16 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-ContractNetworkConfig const&
-LedgerManagerImpl::getLastContractNetworkConfig()
+SorobanNetworkConfig const&
+LedgerManagerImpl::getLastSorobanNetworkConfig()
 {
-    if (!mLastContractNetworkConfig)
+    if (!mLastSorobanNetworkConfig)
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         maybeUpdateNetworkConfig(false, ltx);
     }
 
-    return *mLastContractNetworkConfig;
+    return *mLastSorobanNetworkConfig;
 }
 
 // called by txherder
@@ -1094,20 +1094,20 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
                                             AbstractLedgerTxn& rootLtx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!upgradeHappened && mLastContractNetworkConfig)
+    if (!upgradeHappened && mLastSorobanNetworkConfig)
     {
         return;
     }
-    if (!mLastContractNetworkConfig)
+    if (!mLastSorobanNetworkConfig)
     {
-        mLastContractNetworkConfig =
-            std::make_optional<ContractNetworkConfig>();
+        mLastSorobanNetworkConfig =
+            std::make_optional<SorobanNetworkConfig>();
     }
     LedgerTxn ltx(rootLtx, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        mLastContractNetworkConfig->loadFromLedger(ltx);
+        mLastSorobanNetworkConfig->loadFromLedger(ltx);
     }
 #endif
 }

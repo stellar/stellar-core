@@ -15,7 +15,7 @@ namespace stellar
 // These values should never be changed after the protocol upgrade
 // happens - any further changes should be performed separately via
 // config upgrade mechanism.
-struct InitialContractNetworkConfig
+struct InitialSorobanNetworkConfig
 {
     // Contract size settings
     static constexpr uint32_t MAX_CONTRACT_SIZE = 65536;
@@ -58,7 +58,7 @@ struct InitialContractNetworkConfig
 };
 
 // Wrapper for the contract-related network configuration.
-class ContractNetworkConfig
+class SorobanNetworkConfig
 {
   public:
     // Creates the initial contract configuration entries for protocol v20.

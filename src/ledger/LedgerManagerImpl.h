@@ -50,7 +50,7 @@ class LedgerManagerImpl : public LedgerManager
 
   private:
     LedgerHeaderHistoryEntry mLastClosedLedger;
-    std::optional<ContractNetworkConfig> mLastContractNetworkConfig;
+    std::optional<SorobanNetworkConfig> mLastSorobanNetworkConfig;
 
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
@@ -122,7 +122,7 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    ContractNetworkConfig const& getLastContractNetworkConfig() override;
+    SorobanNetworkConfig const& getLastSorobanNetworkConfig() override;
 
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;

@@ -122,7 +122,7 @@ class LedgerManager
 
     // Return the contract-related network config corresponding to the
     // last closed ledger.
-    virtual ContractNetworkConfig const& getLastContractNetworkConfig() = 0;
+    virtual SorobanNetworkConfig const& getLastSorobanNetworkConfig() = 0;
 
     // Return the (changing) number of seconds since the LCL closed.
     virtual uint64_t secondsSinceLastLedgerClose() const = 0;

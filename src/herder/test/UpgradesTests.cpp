@@ -806,9 +806,9 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
 
         // upgrade was ignored
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .maxContractSizeBytes() ==
-                InitialContractNetworkConfig::MAX_CONTRACT_SIZE);
+                InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
     }
 
     SECTION("known config upgrade set is applied")
@@ -827,7 +827,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         REQUIRE(maxContractSizeEntry.configSettingID() ==
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .maxContractSizeBytes() == 32768);
     }
     SECTION("multi-item config upgrade set is applied")
@@ -835,25 +835,25 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         // Verify values pre-upgrade
         REQUIRE(
             app->getLedgerManager()
-                .getLastContractNetworkConfig()
+                .getLastSorobanNetworkConfig()
                 .feeRatePerInstructionsIncrement() ==
-            InitialContractNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
+            InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .ledgerMaxInstructions() ==
-                InitialContractNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
+                InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .memoryLimit() ==
-                InitialContractNetworkConfig::MEMORY_LIMIT);
+                InitialSorobanNetworkConfig::MEMORY_LIMIT);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .txMaxInstructions() ==
-                InitialContractNetworkConfig::TX_MAX_INSTRUCTIONS);
+                InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .feeHistorical1KB() ==
-                InitialContractNetworkConfig::FEE_HISTORICAL_1KB);
+                InitialSorobanNetworkConfig::FEE_HISTORICAL_1KB);
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         {
             ConfigUpgradeSet configUpgradeSetXdr;
@@ -874,19 +874,19 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .feeRatePerInstructionsIncrement() == 111);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .ledgerMaxInstructions() == 222);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .memoryLimit() == 333);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .txMaxInstructions() == 444);
         REQUIRE(app->getLedgerManager()
-                    .getLastContractNetworkConfig()
+                    .getLastSorobanNetworkConfig()
                     .feeHistorical1KB() == 555);
     }
 }
@@ -2033,7 +2033,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     REQUIRE(maxContractSizeEntry.configSettingID() ==
             CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() ==
-            InitialContractNetworkConfig::MAX_CONTRACT_SIZE);
+            InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
 }
 #endif
 
