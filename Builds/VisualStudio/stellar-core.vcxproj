@@ -518,9 +518,12 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\FlowControl.cpp" />
+    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
     <ClCompile Include="..\..\src\overlay\SurveyManager.cpp" />
     <ClCompile Include="..\..\src\overlay\SurveyMessageLimiter.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp" />
@@ -740,8 +743,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\test\SelfCheckTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
-    <ClCompile Include="..\..\src\overlay\FlowControl.cpp" />
-    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
@@ -950,8 +951,11 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
     <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerCloseMetaFrame.h" />
+    <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
+    <ClInclude Include="..\..\src\overlay\FlowControl.h" />
+    <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
     <ClInclude Include="..\..\src\test\Fuzzer.h" />
@@ -1095,8 +1099,6 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
-    <ClCompile Include="..\..\src\overlay\FlowControl.h" />
-    <ClCompile Include="..\..\src\overlay\FlowControlCapacity.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
