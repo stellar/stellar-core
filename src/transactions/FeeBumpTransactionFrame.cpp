@@ -46,11 +46,13 @@ FeeBumpTransactionFrame::isSoroban() const
     return mInnerTx->isSoroban();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanResources
 FeeBumpTransactionFrame::sorobanResources() const
 {
     return mInnerTx->sorobanResources();
 }
+#endif
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)

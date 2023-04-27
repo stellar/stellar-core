@@ -74,7 +74,8 @@ class TransactionFrameBase
     virtual bool hasDexOperations() const = 0;
 
     virtual bool isSoroban() const = 0;
-
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual SorobanResources sorobanResources() const = 0;
+#endif
 };
 }

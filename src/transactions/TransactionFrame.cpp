@@ -363,12 +363,14 @@ TransactionFrame::isSoroban() const
     return mOperations[0]->isSoroban();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanResources
 TransactionFrame::sorobanResources() const
 {
     releaseAssert(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
+#endif
 
 std::shared_ptr<OperationFrame>
 TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
