@@ -279,6 +279,12 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond = std::nullopt);
 
+TransactionFrameBasePtr
+sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                               std::vector<Operation> const& ops,
+                               std::vector<SecretKey> const& opKeys,
+                               SorobanResources const& resources);
+
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 
 LedgerHeader executeUpgrades(Application& app,

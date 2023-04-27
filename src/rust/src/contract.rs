@@ -322,11 +322,6 @@ fn invoke_host_functions_or_maybe_panic(
     let resources = xdr_from_cxx_buf::<SorobanResources>(&resources_buf)?;
 
     let budget = Budget::default();
-    // This is not pretty, we should rather introduce new() constructor.
-    budget.reset_limits(
-        resources.instructions as u64,
-        ledger_info.memory_limit as u64,
-    );
     let footprint = build_storage_footprint_from_xdr(&budget, &resources.footprint)?;
     let map = build_storage_map_from_xdr_ledger_entries(&budget, &footprint, ledger_entries)?;
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);

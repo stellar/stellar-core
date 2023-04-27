@@ -836,7 +836,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
             InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT);
         REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
                 InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
-        REQUIRE(sorobanConfig.memoryLimit() ==
+        REQUIRE(sorobanConfig.txMemoryLimit() ==
                 InitialSorobanNetworkConfig::MEMORY_LIMIT);
         REQUIRE(sorobanConfig.txMaxInstructions() ==
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
@@ -862,7 +862,6 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(sorobanConfig.ledgerMaxInstructions() == 222);
         REQUIRE(sorobanConfig.txMemoryLimit() == 333);
         REQUIRE(sorobanConfig.txMaxInstructions() == 444);

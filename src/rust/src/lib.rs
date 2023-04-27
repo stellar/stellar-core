@@ -66,7 +66,6 @@ mod rust_bridge {
         pub timestamp: u64,
         pub network_id: Vec<u8>,
         pub base_reserve: u32,
-        pub memory_limit: u32,
     }
 
     #[derive(Debug)]

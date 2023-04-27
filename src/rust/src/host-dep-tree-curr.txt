@@ -1,11 +1,11 @@
-soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=352487c2d92670be3871e54f32bb20a117b98dbe#352487c2d92670be3871e54f32bb20a117b98dbe
+soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=dab3fd1a813e2bf5c6b23cd828d46de11f40b442#dab3fd1a813e2bf5c6b23cd828d46de11f40b442
 ├── tinyvec 1.6.0 checksum:87cc5ceb3875bb20c2890005a4e226a4651264a5c75edb2421b52861a0a0cb50
 │   └── tinyvec_macros 0.1.1 checksum:1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20
 ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f
 ├── soroban-wasmi 0.16.0-soroban2 git+https://github.com/stellar/wasmi?rev=862b32f5#862b32f53f9c6223911e79e0b0fc8592fb3bb04c
 │   ├── wasmparser-nostd 0.90.0 checksum:92a94fbf4c521b038f41382df2056cf47099d3b7a0faa5a6e46f7771fd7c84a6
 │   │   └── indexmap-nostd 0.4.0 checksum:8e04e2fd2b8188ea827b32ef11de88377086d690286ab35747ef7f9bf3ccb590
-│   ├── spin 0.9.6 checksum:b5d6e0250b93c8427a177b849d144a96d5acc57006149479403d7861ab721e34
+│   ├── spin 0.9.8 checksum:6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67
 │   └── soroban-wasmi_core 0.16.0-soroban2 git+https://github.com/stellar/wasmi?rev=862b32f5#862b32f53f9c6223911e79e0b0fc8592fb3bb04c
 │       ├── num-traits 0.2.15 checksum:578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd
 │       │   └── autocfg 1.1.0 checksum:d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa
@@ -26,13 +26,13 @@ soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=352487
 │   ├── digest 0.10.6 checksum:8168378f4e5023e7218c89c891c0fd8ecdb5e5e4f18cb78f38cf245dd021e76f
 │   │   ├── crypto-common 0.1.6 checksum:1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3
 │   │   │   ├── typenum 1.16.0 checksum:497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba
-│   │   │   └── generic-array 0.14.6 checksum:bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9
+│   │   │   └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
 │   │   │       ├── version_check 0.9.4 checksum:49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f
 │   │   │       └── typenum 1.16.0 checksum:497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba
 │   │   └── block-buffer 0.10.4 checksum:3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71
-│   │       └── generic-array 0.14.6 checksum:bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9
-│   ├── cpufeatures 0.2.6 checksum:280a9f2d8b3a38871a3c8a46fb80db65e5e5ed97da80c4d08bf27fb63e35e181
-│   │   └── libc 0.2.140 checksum:99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c
+│   │       └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   ├── cpufeatures 0.2.7 checksum:3e4c1eaa2012c47becbbad2ab175484c2a84d1185b566fb2cc5b8707343dfe58
+│   │   └── libc 0.2.142 checksum:6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317
 │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 ├── num-traits 0.2.15 checksum:578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd
 ├── num-integer 0.1.45 checksum:225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9
@@ -40,53 +40,48 @@ soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=352487
 │   ├── syn 1.0.109 checksum:72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237
 │   │   ├── unicode-ident 1.0.8 checksum:e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4
 │   │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   │   │   └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   │   │   └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 │   │   │       └── unicode-ident 1.0.8 checksum:e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4
-│   │   └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   │   └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 ├── log 0.4.17 checksum:abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e
 │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
 ├── ed25519-dalek 1.0.1 checksum:c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d
 │   ├── zeroize 1.3.0 checksum:4756f7db3f7b5574938c3eb1c117038b8e07f95ee6718c0efad4ac21508f1efd
-│   │   └── zeroize_derive 1.3.3 checksum:44bf07cb3e50ea2003396695d58bf46bc9887a1f362260446fad6bc4e79bd36c
-│   │       ├── synstructure 0.12.6 checksum:f36bdaa60a83aca3921b5259d5400cbf5e90fc51931376a9bd4a0eb79aa7210f
-│   │       │   ├── unicode-xid 0.2.4 checksum:f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c
-│   │       │   ├── syn 1.0.109 checksum:72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237
+│   │   └── zeroize_derive 1.4.2 checksum:ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69
+│   │       ├── syn 2.0.12 checksum:79d9531f94112cfc3e4c8f5f02cb2b58f72c97b7efd85f70203cc6d8efda5927
+│   │       │   ├── unicode-ident 1.0.8 checksum:e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4
 │   │       │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   │       │   └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
-│   │       ├── syn 1.0.109 checksum:72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237
+│   │       │   └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 │   │       ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   │       └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   │       └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 │   ├── sha2 0.9.9 checksum:4d58a1e1bf39749807d89cf2d98ac2dfa0ff1cb3faa38fbb64dd88ac8013d800
 │   │   ├── opaque-debug 0.3.0 checksum:624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5
 │   │   ├── digest 0.9.0 checksum:d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066
-│   │   │   └── generic-array 0.14.6 checksum:bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9
-│   │   ├── cpufeatures 0.2.6 checksum:280a9f2d8b3a38871a3c8a46fb80db65e5e5ed97da80c4d08bf27fb63e35e181
+│   │   │   └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   │   ├── cpufeatures 0.2.7 checksum:3e4c1eaa2012c47becbbad2ab175484c2a84d1185b566fb2cc5b8707343dfe58
 │   │   ├── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 │   │   └── block-buffer 0.9.0 checksum:4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4
-│   │       └── generic-array 0.14.6 checksum:bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9
-│   ├── serde 1.0.158 checksum:771d4d9c4163ee138805e12c710dd365e4f44be8be0503cb1bb9eb989425d9c9
-│   │   └── serde_derive 1.0.158 checksum:e801c1712f48475582b7696ac71e0ca34ebb30e09338425384269d9717c62cad
-│   │       ├── syn 2.0.10 checksum:5aad1363ed6d37b84299588d62d3a7d95b5a5c2d9aad5c85609fda12afaa1f40
-│   │       │   ├── unicode-ident 1.0.8 checksum:e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4
-│   │       │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   │       │   └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   │       └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   ├── serde 1.0.160 checksum:bb2f3770c8bce3bcda7e149193a069a0f4365bda1fa5cd88e03bca26afc1216c
+│   │   └── serde_derive 1.0.160 checksum:291a097c63d8497e00160b166a967a4a79c64f3facdd01cbd7502231688d77df
+│   │       ├── syn 2.0.12 checksum:79d9531f94112cfc3e4c8f5f02cb2b58f72c97b7efd85f70203cc6d8efda5927
 │   │       ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
-│   │       └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
+│   │       └── proc-macro2 1.0.52 checksum:1d0e1ae9e836cc3beddd63db0df682593d7e2d3d891ae8c9083d2113e1744224
 │   ├── rand 0.7.3 checksum:6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03
 │   │   ├── rand_hc 0.2.0 checksum:ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c
 │   │   │   └── rand_core 0.5.1 checksum:90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19
 │   │   │       └── getrandom 0.1.16 checksum:8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce
 │   │   │           ├── wasi 0.9.0+wasi-snapshot-preview1 checksum:cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519
-│   │   │           ├── libc 0.2.140 checksum:99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c
+│   │   │           ├── libc 0.2.142 checksum:6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317
 │   │   │           └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 │   │   ├── rand_core 0.5.1 checksum:90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19
 │   │   ├── rand_chacha 0.2.2 checksum:f4c8ed856279c9737206bf725bf36935d8666ead7aa69b52be55af369d193402
 │   │   │   ├── rand_core 0.5.1 checksum:90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19
 │   │   │   └── ppv-lite86 0.2.17 checksum:5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de
-│   │   ├── libc 0.2.140 checksum:99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c
+│   │   ├── libc 0.2.142 checksum:6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317
 │   │   └── getrandom 0.1.16 checksum:8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce
 │   ├── ed25519 1.5.3 checksum:91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7
 │   │   └── signature 1.6.4 checksum:74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c
@@ -99,12 +94,12 @@ soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=352487
 ├── dyn-fmt 0.3.0 checksum:c2a0836c9bd73a9d3ca55b0effc5b1eedf96dd13ef994389bcac6d4d33c46188
 ├── curve25519-dalek 3.2.1 checksum:90f9d052967f590a76e62eb387bd0bbb1b000182c3cefe5364db6b7211651bc0
 └── backtrace 0.3.67 checksum:233d376d6d185f2a3093e58f283f60f880315b6c60075b01f36b3b85154564ca
-    ├── rustc-demangle 0.1.22 checksum:d4a36c42d1873f9a77c53bde094f9664d9891bc604a45b4798fd2c389ed12e5b
+    ├── rustc-demangle 0.1.23 checksum:d626bb9dae77e28219937af045c257c28bfd3f69333c512553507f5f9798cb76
     ├── object 0.30.3 checksum:ea86265d3d3dcb6a27fc51bd29a4bf387fae9d2986b823079d4986af253eb439
     │   └── memchr 2.5.0 checksum:2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d
     ├── miniz_oxide 0.6.2 checksum:b275950c28b37e794e8c55d88aeb5e139d0ce23fdbbeda68f8d7174abdf9e8fa
     │   └── adler 1.0.2 checksum:f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe
-    ├── libc 0.2.140 checksum:99227334921fae1a979cf0bfdfcc6b3e5ce376ef57e16fb6fb3ea2ed6095f80c
+    ├── libc 0.2.142 checksum:6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317
     ├── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
     ├── cc 1.0.79 checksum:50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f
     └── addr2line 0.19.0 checksum:a76fd60b23679b7d19bd066031410fb7e458ccc5e958eb5c325888ce4baedc97

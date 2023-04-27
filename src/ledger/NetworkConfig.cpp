@@ -44,7 +44,7 @@ initialContractComputeSettingsEntry()
     e.txMaxInstructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     e.feeRatePerInstructionsIncrement =
         InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT;
-    e.memoryLimit = InitialSorobanNetworkConfig::MEMORY_LIMIT;
+    e.txMemoryLimit = InitialSorobanNetworkConfig::MEMORY_LIMIT;
 
     return entry;
 }

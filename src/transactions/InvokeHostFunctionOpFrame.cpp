@@ -110,8 +110,6 @@ struct HostFunctionMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    char const* mFnType{nullptr};
-
     size_t mReadEntry{0};
     size_t mWriteEntry{0};
 
@@ -181,53 +179,56 @@ struct HostFunctionMetrics
 
     ~HostFunctionMetrics()
     {
-        mMetrics.NewMeter({"host-fn", mFnType, "read-entry"}, "entry")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry")
             .Mark(mReadEntry);
-        mMetrics.NewMeter({"host-fn", mFnType, "write-entry"}, "entry")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-entry"}, "entry")
             .Mark(mWriteEntry);
 
-        mMetrics.NewMeter({"host-fn", mFnType, "read-key-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-key-byte"}, "byte")
             .Mark(mReadKeyByte);
-        mMetrics.NewMeter({"host-fn", mFnType, "write-key-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-key-byte"}, "byte")
             .Mark(mWriteKeyByte);
 
-        mMetrics.NewMeter({"host-fn", mFnType, "read-ledger-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-ledger-byte"}, "byte")
             .Mark(mLedgerReadByte);
-        mMetrics.NewMeter({"host-fn", mFnType, "read-data-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-data-byte"}, "byte")
             .Mark(mReadDataByte);
-        mMetrics.NewMeter({"host-fn", mFnType, "read-code-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-code-byte"}, "byte")
             .Mark(mReadCodeByte);
 
-        mMetrics.NewMeter({"host-fn", mFnType, "write-ledger-byte"}, "byte")
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "write-ledger-byte"}, "byte")
             .Mark(mLedgerWriteByte);
-        mMetrics.NewMeter({"host-fn", mFnType, "write-data-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-data-byte"}, "byte")
             .Mark(mWriteDataByte);
-        mMetrics.NewMeter({"host-fn", mFnType, "write-code-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-code-byte"}, "byte")
             .Mark(mWriteCodeByte);
 
-        mMetrics.NewMeter({"host-fn", mFnType, "emit-event"}, "event")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event"}, "event")
             .Mark(mEmitEvent);
-        mMetrics.NewMeter({"host-fn", mFnType, "emit-event-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
             .Mark(mEmitEventByte);
 
-        mMetrics.NewMeter({"host-fn", mFnType, "cpu-insn"}, "insn")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
             .Mark(mCpuInsn);
-        mMetrics.NewMeter({"host-fn", mFnType, "mem-byte"}, "byte")
+        mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
             .Mark(mMemByte);
 
         if (mSuccess)
         {
-            mMetrics.NewMeter({"host-fn", mFnType, "success"}, "call").Mark();
+            mMetrics.NewMeter({"soroban", "host-fn-op", "success"}, "call")
+                .Mark();
         }
         else
         {
-            mMetrics.NewMeter({"host-fn", mFnType, "failure"}, "call").Mark();
+            mMetrics.NewMeter({"soroban", "host-fn-op", "failure"}, "call")
+                .Mark();
         }
     }
     medida::TimerContext
     getExecTimer()
     {
-        return mMetrics.NewTimer({"host-fn", mFnType, "exec"}).TimeScope();
+        return mMetrics.NewTimer({"soroban", "host-fn-op", "exec"}).TimeScope();
     }
 };
 
@@ -261,12 +262,6 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 
     addReads(footprint.readOnly);
     addReads(footprint.readWrite);
-
-    if (resources.readBytes < metrics.mLedgerReadByte)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-        return false;
-    }
 
     rust::Vec<CxxBuf> hostFnCxxBufs;
     hostFnCxxBufs.reserve(mInvokeHostFunction.functions.size());
@@ -310,15 +305,9 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
-
         auto lk = LedgerEntryKey(le);
 
         metrics.noteWriteEntry(lk, buf.data.size());
-        if (metrics.mLedgerWriteByte > resources.writeBytes)
-        {
-            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
 
         auto ltxe = ltx.load(lk);
         if (ltxe)

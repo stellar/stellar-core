@@ -1548,7 +1548,8 @@ static TransactionEnvelope
 envelopeFromOps(Hash const& networkID, TestAccount& source,
                 std::vector<Operation> const& ops,
                 std::vector<SecretKey> const& opKeys,
-                std::optional<PreconditionsV2> cond = std::nullopt)
+                std::optional<PreconditionsV2> cond = std::nullopt,
+                std::optional<SorobanResources> sorobanResources = std::nullopt)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
@@ -1561,6 +1562,12 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     {
         tx.v1().tx.cond.type(PRECOND_V2);
         tx.v1().tx.cond.v2() = *cond;
+    }
+
+    if (sorobanResources)
+    {
+        tx.v1().tx.ext.v(1);
+        tx.v1().tx.ext.sorobanData().resources = *sorobanResources;
     }
 
     sign(networkID, source, tx.v1());
@@ -1579,6 +1586,17 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 {
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
+}
+
+TransactionFrameBasePtr
+sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                               std::vector<Operation> const& ops,
+                               std::vector<SecretKey> const& opKeys,
+                               SorobanResources const& resources)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys, std::nullopt,
+                                   std::make_optional(resources)));
 }
 
 LedgerUpgrade
