@@ -19,6 +19,7 @@
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Decoder.h"
 #include "util/XDRCereal.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -64,6 +65,18 @@ makeU64(uint64_t u64)
 {
     SCVal val(SCV_U64);
     val.u64() = u64;
+    return val;
+}
+
+static SCVal
+makeI128(uint64_t u64)
+{
+    Int128Parts p;
+    p.hi = 0;
+    p.lo = u64;
+
+    SCVal val(SCV_I128);
+    val.i128() = p;
     return val;
 }
 
@@ -555,6 +568,144 @@ TEST_CASE("complex contract", "[tx][contract]")
     SECTION("diagnostics disabled")
     {
         complexTest(false);
+    }
+}
+
+TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto root = TestAccount::createRoot(*app);
+    auto xlm = txtest::makeNativeAsset();
+
+    // Create XLM contract
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ASSET);
+    preImage.fromAsset().asset = xlm;
+    preImage.fromAsset().networkID = app->getNetworkID();
+    auto contractID = xdrSha256(preImage);
+
+    Operation createOp;
+    createOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& createHF = createOp.body.invokeHostFunctionOp();
+    createHF.function.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.function.createContractArgs();
+
+    SCContractExecutable exec;
+    exec.type(SCCONTRACT_EXECUTABLE_TOKEN);
+    createContractArgs.contractID.type(CONTRACT_ID_FROM_ASSET);
+    createContractArgs.contractID.asset() = xlm;
+    createContractArgs.source = exec;
+
+    {
+        LedgerFootprint lfp1;
+        auto key1 = LedgerKey(CONTRACT_DATA);
+        key1.contractData().contractID = contractID;
+        key1.contractData().key = makeSymbol("METADATA");
+
+        auto key2 = LedgerKey(CONTRACT_DATA);
+        key2.contractData().contractID = contractID;
+        SCVec vec = {makeSymbol("AssetInfo")};
+        SCVal vecKey(SCValType::SCV_VEC);
+        vecKey.vec().activate() = vec;
+        key2.contractData().key = vecKey;
+
+        SCVal scContractSourceRefKey(
+            SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
+        auto key3 = LedgerKey(CONTRACT_DATA);
+        key3.contractData().contractID = contractID;
+        key3.contractData().key = scContractSourceRefKey;
+
+        lfp1.readWrite = {key1, key2, key3};
+        createHF.footprint = lfp1;
+    }
+
+    {
+        // submit operation
+        auto tx =
+            transactionFrameFromOps(app->getNetworkID(), root, {createOp}, {});
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    }
+
+    // now transfer 10 XLM from root to contractID
+    auto scContractID = makeBinary(contractID.begin(), contractID.end());
+
+    SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
+    fromAccount.accountId() = root.getPublicKey();
+    SCVal from(SCV_ADDRESS);
+    from.address() = fromAccount;
+
+    SCAddress toContract(SC_ADDRESS_TYPE_CONTRACT);
+    toContract.contractId() = sha256("contract");
+    SCVal to(SCV_ADDRESS);
+    to.address() = toContract;
+
+    auto fn = makeSymbol("transfer");
+    Operation transfer;
+    transfer.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = transfer.body.invokeHostFunctionOp();
+    ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.function.invokeArgs() = {scContractID, fn, from, to, makeI128(10)};
+
+    {
+        LedgerFootprint lfp2;
+        // in the second op, we read what was written
+        lfp2.readOnly = createHF.footprint.readWrite;
+
+        LedgerKey accountKey(ACCOUNT);
+        accountKey.account().accountID = root.getPublicKey();
+
+        // build balance key
+        auto key2 = LedgerKey(CONTRACT_DATA);
+        key2.contractData().contractID = contractID;
+
+        SCVec vec = {makeSymbol("Balance"), to};
+        SCVal balanceKey(SCValType::SCV_VEC);
+        balanceKey.vec().activate() = vec;
+        key2.contractData().key = balanceKey;
+
+        SCNonceKey nonce;
+        nonce.nonce_address = fromAccount;
+        SCVal nonceKey(SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key() = nonce;
+
+        // build nonce key
+        auto key3 = LedgerKey(CONTRACT_DATA);
+        key3.contractData().contractID = contractID;
+        key3.contractData().key = nonceKey;
+
+        lfp2.readWrite = {accountKey, key2, key3};
+
+        ihf.footprint = lfp2;
+    }
+
+    // build auth
+    AuthorizedInvocation ai;
+    ai.contractID = contractID;
+    ai.functionName = fn.sym();
+    ai.args = {from, to, makeI128(10)};
+
+    ContractAuth a;
+    a.rootInvocation = ai;
+    ihf.auth = {a};
+
+    // This will fail in the ConservationOfLumens invariant if the transfer is
+    // not accounted for.
+    {
+        // submit operation
+        auto tx =
+            transactionFrameFromOps(app->getNetworkID(), root, {transfer}, {});
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
     }
 }
 
