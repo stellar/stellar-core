@@ -121,6 +121,129 @@ initialContractBandwidthSettingsEntry()
     return entry;
 }
 
+ConfigSettingEntry
+initialCpuCostParamsEntry()
+{
+    ConfigSettingEntry entry(
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
+
+    auto& params = entry.contractCostParamsCpuInsns();
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(vals.size());
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case WasmInsnExec:
+            params[val] = ContractCostParamEntry{22, 0, ExtensionPoint{0}};
+        case WasmMemAlloc:
+            params[val] = ContractCostParamEntry{521, 0, ExtensionPoint{0}};
+        case HostMemAlloc:
+            params[val] = ContractCostParamEntry{883, 0, ExtensionPoint{0}};
+        case HostMemCpy:
+            params[val] = ContractCostParamEntry{24, 0, ExtensionPoint{0}};
+        case HostMemCmp:
+            params[val] = ContractCostParamEntry{42, 1, ExtensionPoint{0}};
+        case InvokeHostFunction:
+            params[val] = ContractCostParamEntry{759, 0, ExtensionPoint{0}};
+        case VisitObject:
+            params[val] = ContractCostParamEntry{29, 0, ExtensionPoint{0}};
+        case ValXdrConv:
+            params[val] = ContractCostParamEntry{177, 0, ExtensionPoint{0}};
+        case ValSer:
+            params[val] = ContractCostParamEntry{741, 0, ExtensionPoint{0}};
+        case ValDeser:
+            params[val] = ContractCostParamEntry{846, 0, ExtensionPoint{0}};
+        case ComputeSha256Hash:
+            params[val] = ContractCostParamEntry{1912, 32, ExtensionPoint{0}};
+        case ComputeEd25519PubKey:
+            params[val] = ContractCostParamEntry{25766, 0, ExtensionPoint{0}};
+        case MapEntry:
+            params[val] = ContractCostParamEntry{59, 0, ExtensionPoint{0}};
+        case VecEntry:
+            params[val] = ContractCostParamEntry{14, 0, ExtensionPoint{0}};
+        case GuardFrame:
+            params[val] = ContractCostParamEntry{4512, 0, ExtensionPoint{0}};
+        case VerifyEd25519Sig:
+            params[val] = ContractCostParamEntry{368361, 20, ExtensionPoint{0}};
+        case VmMemRead:
+            params[val] = ContractCostParamEntry{95, 0, ExtensionPoint{0}};
+        case VmMemWrite:
+            params[val] = ContractCostParamEntry{97, 0, ExtensionPoint{0}};
+        case VmInstantiation:
+            params[val] =
+                ContractCostParamEntry{805445, 307, ExtensionPoint{0}};
+        case InvokeVmFunction:
+            params[val] = ContractCostParamEntry{6212, 0, ExtensionPoint{0}};
+        case ChargeBudget:
+            params[val] = ContractCostParamEntry{198, 0, ExtensionPoint{0}};
+        }
+    }
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialMemCostParamsEntry()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
+
+    auto& params = entry.contractCostParamsMemBytes();
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(vals.size());
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        case WasmInsnExec:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case WasmMemAlloc:
+            params[val] = ContractCostParamEntry{66136, 1, ExtensionPoint{0}};
+        case HostMemAlloc:
+            params[val] = ContractCostParamEntry{8, 1, ExtensionPoint{0}};
+        case HostMemCpy:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case HostMemCmp:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case InvokeHostFunction:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case VisitObject:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case ValXdrConv:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case ValSer:
+            params[val] = ContractCostParamEntry{9, 3, ExtensionPoint{0}};
+        case ValDeser:
+            params[val] = ContractCostParamEntry{4, 1, ExtensionPoint{0}};
+        case ComputeSha256Hash:
+            params[val] = ContractCostParamEntry{40, 0, ExtensionPoint{0}};
+        case ComputeEd25519PubKey:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case MapEntry:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case VecEntry:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case GuardFrame:
+            params[val] = ContractCostParamEntry{267, 0, ExtensionPoint{0}};
+        case VerifyEd25519Sig:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case VmMemRead:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case VmMemWrite:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        case VmInstantiation:
+            params[val] =
+                ContractCostParamEntry{1100352, 53, ExtensionPoint{0}};
+        case InvokeVmFunction:
+            params[val] = ContractCostParamEntry{267, 0, ExtensionPoint{0}};
+        case ChargeBudget:
+            params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+        }
+    }
+
+    return entry;
+}
+
 #endif
 }
 
@@ -134,6 +257,8 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
     createConfigSettingEntry(initialContractMetaDataSettingsEntry(), ltx);
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
+    createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
 #endif
 }
 
@@ -263,6 +388,30 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
     mLedgerMaxPropagateSizeBytes = configSetting.ledgerMaxPropagateSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
     mFeePropagateData1KB = configSetting.feePropagateData1KB;
+#endif
+}
+
+void
+SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 #endif
 }
 
@@ -427,4 +576,39 @@ SorobanNetworkConfig::feePropagateData1KB() const
     return mFeePropagateData1KB;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
+ContractCostParams const&
+SorobanNetworkConfig::cpuCostParams() const
+{
+    return mCpuCostParams;
+}
+
+ContractCostParams const&
+SorobanNetworkConfig::memCostParams() const
+{
+    return mMemCostParams;
+}
+
+bool
+SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)
+{
+    if (params.size() !=
+        xdr::xdr_traits<ContractCostType>::enum_values().size())
+    {
+        return false;
+    }
+
+    for (auto const& param : params)
+    {
+        if (param.constTerm < 0 || param.linearTerm < 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+#endif
 }
