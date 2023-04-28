@@ -84,11 +84,8 @@ class SorobanNetworkConfig
     int64_t txMaxInstructions() const;
     // Cost of 10000 instructions
     int64_t feeRatePerInstructionsIncrement() const;
-    // Memory limit per contract/host function invocation. Unlike
-    // instructions, there is no fee for memory and it's not
-    // accumulated between operations - the same limit is applied
-    // to every operation.
-    uint32_t memoryLimit() const;
+    // Memory limit per transaction.
+    uint32_t txMemoryLimit() const;
 
     // Ledger access settings for contracts.
     // Maximum number of ledger entry read operations per ledger
@@ -157,7 +154,7 @@ class SorobanNetworkConfig
     int64_t mLedgerMaxInstructions{};
     int64_t mTxMaxInstructions{};
     int64_t mFeeRatePerInstructionsIncrement{};
-    uint32_t mMemoryLimit{};
+    uint32_t mTxMemoryLimit{};
 
     // Ledger access settings for contracts.
     uint32_t mLedgerMaxReadLedgerEntries{};

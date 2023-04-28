@@ -357,6 +357,21 @@ TransactionFrame::hasDexOperations() const
     return false;
 }
 
+bool
+TransactionFrame::isSoroban() const
+{
+    return mOperations[0]->isSoroban();
+}
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+SorobanResources
+TransactionFrame::sorobanResources() const
+{
+    releaseAssertOrThrow(isSoroban());
+    return mEnvelope.v1().tx.ext.sorobanData().resources;
+}
+#endif
+
 std::shared_ptr<OperationFrame>
 TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
                                 size_t index)
@@ -489,20 +504,22 @@ TransactionFrame::extraSignersExist() const
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
-TransactionFrame::validateSmartOpsConsistency() const
+TransactionFrame::validateSorobanOpsConsistency() const
 {
-    if (mOperations.empty())
-    {
-        return true;
-    }
-    bool wasSmart = mOperations[0]->isSmartOperation();
+    bool hasSorobanOp = mOperations[0]->isSoroban();
     for (auto const& op : mOperations)
     {
-        bool isSmart = op->isSmartOperation();
-        if (isSmart != wasSmart)
+        bool isSorobanOp = op->isSoroban();
+        // Mixing Soroban ops with non-Soroban ops is not allowed.
+        if (isSorobanOp != hasSorobanOp)
         {
             return false;
         }
+    }
+    // Only one operation is allowed per Soroban transaction.
+    if (hasSorobanOp && mOperations.size() != 1)
+    {
+        return false;
     }
     return true;
 }
@@ -655,22 +672,19 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
         }
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Check that smart ops are not mixed with classic ops. Eventually we
-    // should separately classify 'smart' transactions, but for now a simple
-    // check should be sufficient.
-    if (!validateSmartOpsConsistency())
-    {
-        getResult().result.code(txMALFORMED);
-        return false;
-    }
-#endif
-
     if (getNumOperations() == 0)
     {
         getResult().result.code(txMISSING_OPERATION);
         return false;
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!validateSorobanOpsConsistency())
+    {
+        getResult().result.code(txMALFORMED);
+        return false;
+    }
+#endif
 
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
@@ -1168,11 +1182,11 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            auto isSmartTx = mOperations.at(0)->isSmartOperation();
-            if ((isSmartTx && mOperations.size() != mEvents.size()) ||
-                (!isSmartTx && !mEvents.empty()))
+            auto isSorobanTx = isSoroban();
+            if ((isSorobanTx && mOperations.size() != mEvents.size()) ||
+                (!isSorobanTx && !mEvents.empty()))
             {
-                throw std::runtime_error("events mismatch");
+                throw std::runtime_error("unexpected events size");
             }
 
             outerMeta.pushContractEvents(std::move(mEvents));
