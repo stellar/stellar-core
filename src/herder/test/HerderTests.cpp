@@ -3023,6 +3023,134 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     }
 }
 
+// This test confirms that tx set processing and consensus are independent of
+// the tx queue source account limit (for now)
+TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
+{
+    std::shared_ptr<Simulation> simulation;
+    std::shared_ptr<Application> app;
+    std::shared_ptr<Application> limitApp;
+
+    auto setup = [&](bool mix) {
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        simulation = std::make_shared<Simulation>(
+            Simulation::OVER_LOOPBACK, networkID, [mix](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                if (!mix || i % 2 == 1)
+                {
+                    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
+                }
+                return cfg;
+            });
+
+        auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
+        auto validatorBKey = SecretKey::fromSeed(sha256("validator-B"));
+        auto validatorCKey = SecretKey::fromSeed(sha256("validator-C"));
+
+        SCPQuorumSet qset;
+        // Everyone needs to vote to proceed
+        qset.threshold = 3;
+        qset.validators.push_back(validatorAKey.getPublicKey());
+        qset.validators.push_back(validatorBKey.getPublicKey());
+        qset.validators.push_back(validatorCKey.getPublicKey());
+
+        simulation->addNode(validatorAKey, qset);
+        app = simulation->addNode(validatorBKey, qset);
+        limitApp = simulation->addNode(validatorCKey, qset);
+
+        simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                         validatorCKey.getPublicKey());
+        simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                         validatorBKey.getPublicKey());
+        simulation->startAllNodes();
+    };
+
+    auto makeTxs = [&](Application::pointer app) {
+        auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+        auto root = TestAccount::createRoot(*app);
+        auto a1 = TestAccount{*app, getAccount("A")};
+        auto b1 = TestAccount{*app, getAccount("B")};
+
+        auto tx1 = root.tx({createAccount(a1, minBalance2)});
+        auto tx2 = root.tx({createAccount(b1, minBalance2)});
+
+        return std::make_tuple(root, a1, b1, tx1, tx2);
+    };
+
+    SECTION("mixed")
+    {
+        setup(true);
+
+        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
+
+        // Submit txs for the same account, should be good
+        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+        // Leader election here should be completely determenistic based on
+        // node IDs
+        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        simulation->crankUntil(
+            [&]() {
+                return app->getLedgerManager().getLastClosedLedgerNum() >
+                       lcl + 2;
+            },
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        for (auto const& node : simulation->getNodes())
+        {
+            // Applied txs were removed and banned
+            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
+            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
+            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
+            // Both accounts are in the ledger
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+            REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
+        }
+    }
+    SECTION("all limited")
+    {
+        setup(false);
+
+        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
+
+        // Submit txs for the same account, should be good
+        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+        // Second tx is rejected due to limit
+        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+
+        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        simulation->crankUntil(
+            [&]() {
+                return app->getLedgerManager().getLastClosedLedgerNum() >
+                       lcl + 2;
+            },
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        for (auto const& node : simulation->getNodes())
+        {
+            // Applied txs were removed and banned
+            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
+            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
+            // Second tx is not banned because it's never been flooded and
+            // applied
+            REQUIRE(!node->getHerder().isBannedTx(tx2->getFullHash()));
+            // Only first account is in the ledger
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+            REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
+        }
+    }
+}
+
 static void
 checkSynced(Application& app)
 {
