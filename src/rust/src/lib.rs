@@ -497,7 +497,7 @@ pub(crate) fn invoke_host_functions(
         if ledger_info.protocol_version == config_max_protocol - 1 {
             return soroban_prev::contract::invoke_host_functions(
                 enable_diagnostics,
-                hf_buf,
+                hf_bufs,
                 resources_buf,
                 source_account_buf,
                 ledger_info,
