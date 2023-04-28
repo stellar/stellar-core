@@ -35,6 +35,11 @@ class TxQueueLimiter
     // limits.
     std::shared_ptr<SurgePricingLaneConfig> mSurgePricingLaneConfig;
 
+    // Quick lookup of relevant account IDs, needed temporary to maintain
+    // 1-tx-per-account invariance. When tx stacks are removed, we can remove
+    // this logic as well.
+    std::optional<std::unordered_set<AccountID>> mEnforceSingleAccounts;
+
   public:
     TxQueueLimiter(uint32 multiplier, Application& app);
     ~TxQueueLimiter();

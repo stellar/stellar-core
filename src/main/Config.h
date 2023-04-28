@@ -325,6 +325,11 @@ class Config : public std::enable_shared_from_this<Config>
     //  aren't concerned with byzantine failures.
     bool UNSAFE_QUORUM;
 
+    // If set to true, the node will limit its transaction queue to 1
+    // transaction per source account. This impacts which transactions the
+    // node will nominate and flood to others.
+    bool LIMIT_TX_QUEUE_SOURCE_ACCOUNT;
+
     // If set to true, bucket GC will not be performed. It can lead to massive
     // disk usage, but it is useful for recovering of nodes.
     bool DISABLE_BUCKET_GC;
