@@ -139,10 +139,14 @@ There are three caveats to the above:
      relax the second criterion, only warning.
 
   3. When soroban is in a pre-1.0 state we also _tighten_ the third criterion,
-     treating _minor_ versions as incompatible and even incorporating a
-     manually-specified "interface number" in the build that allows us to force
-     recompiling contracts when the interface-number changes. This is done by
-     storing a 64 bit value in the WASM where only the low 32 bits are the
-     protocol number, and the high 32 bits will eventually be 0 but are given
-     the "interface number" during pre-1.0 development.
+     specifying both a 32-bit protocol version and a secondary 32-bit
+     "pre-release version" into a composite 64-bit "interface version number"
+     stored in the WASM (the low 32 bits are the pre-release number, the high 32
+     bits are the protocol number). While the protocol version comparison allows
+     contracts compiled with old protocols to run on new hosts, the pre-release
+     number has to match _exactly_ for a contract to run. This allows forcing
+     recompilation of pre-release contracts by bumping the pre-release version.
+     After soroban 1.0 is released, in any release with a nonzero major version
+     number, the pre-release version component of the interface version must
+     always be zero.
 
