@@ -31,10 +31,10 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_READ_BYTES = 1;
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
     static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 1;
-    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 1;
-    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 200'000;
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 20;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 100'000;
     static constexpr int64_t FEE_READ_LEDGER_ENTRY = 1;
     static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 1;
     static constexpr int64_t FEE_READ_1KB = 1;
@@ -49,11 +49,11 @@ struct InitialSorobanNetworkConfig
 
     // Bandwidth settings
     static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 100'000;
     static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 1;
 
     // Meta data settings
-    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500'000;
     static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 1;
 };
 
