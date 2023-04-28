@@ -233,7 +233,7 @@ checkStellarCoreMajorVersionProtocolIdentity()
     else
     {
         std::cerr << "Warning: running non-release version "
-                  << STELLAR_CORE_VERSION << " of stellar-core";
+                  << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
 }
 #endif
