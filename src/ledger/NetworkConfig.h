@@ -22,19 +22,19 @@ struct InitialSorobanNetworkConfig
 
     // Compute settings
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 1;
-    static constexpr int64_t TX_MAX_INSTRUCTIONS = 1;
+    static constexpr int64_t TX_MAX_INSTRUCTIONS = 200'000'000;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT = 1;
-    static constexpr uint32_t MEMORY_LIMIT = 1;
+    static constexpr uint32_t MEMORY_LIMIT = 50 * 1024 * 1024; // 50MB
 
     // Ledger access settings
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
     static constexpr uint32_t LEDGER_MAX_READ_BYTES = 1;
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
     static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 1;
-    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 1;
-    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 200'000;
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 20;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 100'000;
     static constexpr int64_t FEE_READ_LEDGER_ENTRY = 1;
     static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 1;
     static constexpr int64_t FEE_READ_1KB = 1;
@@ -49,11 +49,11 @@ struct InitialSorobanNetworkConfig
 
     // Bandwidth settings
     static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 100'000;
     static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 1;
 
     // Meta data settings
-    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 1;
+    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500'000;
     static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 1;
 };
 
@@ -140,6 +140,14 @@ class SorobanNetworkConfig
     // Fee for propagating 1KB of data
     int64_t feePropagateData1KB() const;
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Cost model parameters of the Soroban host
+    ContractCostParams const& cpuCostParams() const;
+    ContractCostParams const& memCostParams() const;
+
+    static bool isValidCostParams(ContractCostParams const& params);
+#endif
+
   private:
     void loadMaxContractSize(AbstractLedgerTxn& ltx);
     void loadComputeSettings(AbstractLedgerTxn& ltx);
@@ -147,6 +155,8 @@ class SorobanNetworkConfig
     void loadHistoricalSettings(AbstractLedgerTxn& ltx);
     void loadMetaDataSettings(AbstractLedgerTxn& ltx);
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
+    void loadCpuCostParams(AbstractLedgerTxn& ltx);
+    void loadMemCostParams(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
 
@@ -185,6 +195,12 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxPropagateSizeBytes{};
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeePropagateData1KB{};
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Host cost params
+    ContractCostParams mCpuCostParams{};
+    ContractCostParams mMemCostParams{};
+#endif
 };
 
 }
