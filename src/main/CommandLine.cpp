@@ -1400,8 +1400,12 @@ runVersion(CommandLineArgs const&)
               << rust_bridge::get_soroban_env_git_versions().curr.c_str()
               << std::endl;
 
-    std::cout << "        interface version: "
-              << rust_bridge::get_soroban_env_interface_versions().curr
+    std::cout << "        ledger protocol version: "
+              << rust_bridge::get_soroban_env_ledger_protocol_versions().curr
+              << std::endl;
+
+    std::cout << "        pre-release version: "
+              << rust_bridge::get_soroban_env_pre_release_versions().curr
               << std::endl;
 
     std::cout << "        rs-stellar-xdr:" << std::endl;
@@ -1430,8 +1434,13 @@ runVersion(CommandLineArgs const&)
                   << rust_bridge::get_soroban_env_git_versions().prev.c_str()
                   << std::endl;
 
-        std::cout << "        interface version: "
-                  << rust_bridge::get_soroban_env_interface_versions().prev
+        std::cout
+            << "        ledger protocol version: "
+            << rust_bridge::get_soroban_env_ledger_protocol_versions().prev
+            << std::endl;
+
+        std::cout << "        pre-release version: "
+                  << rust_bridge::get_soroban_env_pre_release_versions().prev
                   << std::endl;
 
         std::cout << "        rs-stellar-xdr:" << std::endl;
