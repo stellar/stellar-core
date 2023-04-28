@@ -79,8 +79,8 @@ mod rust_bridge {
     }
 
     struct VersionNumPair {
-        curr: u64,
-        prev: u64,
+        curr: u32,
+        prev: u32,
     }
 
     struct XDRHashesPair {
@@ -120,8 +120,11 @@ mod rust_bridge {
         // Return the env git versions used to build this binary.
         fn get_soroban_env_git_versions() -> VersionStringPair;
 
-        // Return the env interface versions used to build this binary.
-        fn get_soroban_env_interface_versions() -> VersionNumPair;
+        // Return the env protocol versions used to build this binary.
+        fn get_soroban_env_ledger_protocol_versions() -> VersionNumPair;
+
+        // Return the env pre-release versions used to build this binary.
+        fn get_soroban_env_pre_release_versions() -> VersionNumPair;
 
         // Return the rust XDR bindings cargo package versions used to build this binary.
         fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair;
@@ -237,27 +240,49 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
     false
 }
 fn check_lockfile_has_expected_dep_tree(
-    protocol_version: u32,
+    stellar_core_proto_version: u32,
+    soroban_host_interface_version: u64,
     lockfile: &Lockfile,
     curr_or_prev: &str,
     package_hash: &str,
     expected: &str,
 ) {
+    use soroban_curr::soroban_env_host::meta::{
+        get_ledger_protocol_version, get_pre_release_version,
+    };
+    let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
+    let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
+
+    // FIXME: this is fairly harmless, but old versions of soroban didn't encode a
+    // protocol version in their interface version at all, so will report zero here.
+    // For now we ignore this, but should tighten the test up before final.
+    if soroban_host_proto_version != 0 && stellar_core_proto_version != soroban_host_proto_version {
+        panic!(
+            "stellar-core supports protocol {} but soroban host supports {}",
+            stellar_core_proto_version, soroban_host_proto_version
+        );
+    }
+
     let pkg = lockfile
         .packages
         .iter()
         .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
         .expect("locating host package in Cargo.lock");
 
+    if soroban_host_pre_release_version != 0 && pkg.version.major != 0 {
+        panic!("soroban interface version indicates pre-release {} but package version is {}, with nonzero major version",
+                soroban_host_pre_release_version, pkg.version)
+    }
+
     if pkg.version.major == 0 {
         eprintln!(
             "Warning: soroban-env-host-{} is running a pre-release version {}",
             curr_or_prev, pkg.version
         );
-    } else if pkg.version.major != protocol_version as u64 {
+    } else if pkg.version.major != stellar_core_proto_version as u64 {
         panic!(
             "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
-            curr_or_prev, pkg.version, pkg.version.major, protocol_version
+            curr_or_prev, pkg.version, pkg.version.major, stellar_core_proto_version
         )
     }
 
@@ -300,6 +325,10 @@ fn check_lockfile_has_expected_dep_tree(
 // accidentally bumps dependencies (which cargo does fairly easily), and also to
 // make crystal clear when doing a commit that intentionally bumps dependencies
 // which of the _dependency tree(s)_ is being affected, and how.
+//
+// The check additionally checks that the major version number of soroban that
+// is compiled-in matches its max supported protocol number and that that
+// is the same as stellar-core's max supported protocol number.
 pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
 
@@ -312,6 +341,7 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
 
     check_lockfile_has_expected_dep_tree(
         curr_max_protocol_version,
+        soroban_env_host_curr::meta::INTERFACE_VERSION,
         &lockfile,
         "curr",
         soroban_env_host_curr::VERSION.rev,
@@ -320,6 +350,7 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
     #[cfg(feature = "soroban-env-host-prev")]
     check_lockfile_has_expected_dep_tree(
         curr_max_protocol_version - 1,
+        soroban_env_host_prev::meta::INTERFACE_VERSION,
         &lockfile,
         "prev",
         soroban_env_host_prev::VERSION.rev,
@@ -354,11 +385,29 @@ fn get_soroban_env_git_versions() -> VersionStringPair {
     }
 }
 
-fn get_soroban_env_interface_versions() -> VersionNumPair {
+fn get_soroban_env_ledger_protocol_versions() -> VersionNumPair {
+    use curr_host::meta::get_ledger_protocol_version;
+    use soroban_curr::soroban_env_host as curr_host;
+    #[cfg(feature = "soroban-env-host-prev")]
+    use soroban_prev::soroban_env_host as prev_host;
     VersionNumPair {
-        curr: soroban_curr::soroban_env_host::VERSION.interface,
+        curr: get_ledger_protocol_version(curr_host::VERSION.interface),
         #[cfg(feature = "soroban-env-host-prev")]
-        prev: soroban_prev::soroban_env_host::VERSION.interface,
+        prev: get_ledger_protocol_version(prev_host::VERSION.interface),
+        #[cfg(not(feature = "soroban-env-host-prev"))]
+        prev: 0,
+    }
+}
+
+fn get_soroban_env_pre_release_versions() -> VersionNumPair {
+    use curr_host::meta::get_pre_release_version;
+    use soroban_curr::soroban_env_host as curr_host;
+    #[cfg(feature = "soroban-env-host-prev")]
+    use soroban_prev::soroban_env_host as prev_host;
+    VersionNumPair {
+        curr: get_pre_release_version(curr_host::VERSION.interface),
+        #[cfg(feature = "soroban-env-host-prev")]
+        prev: get_pre_release_version(prev_host::VERSION.interface),
         #[cfg(not(feature = "soroban-env-host-prev"))]
         prev: 0,
     }
@@ -448,7 +497,7 @@ pub(crate) fn invoke_host_functions(
         if ledger_info.protocol_version == config_max_protocol - 1 {
             return soroban_prev::contract::invoke_host_functions(
                 enable_diagnostics,
-                hf_buf,
+                hf_bufs,
                 resources_buf,
                 source_account_buf,
                 ledger_info,
