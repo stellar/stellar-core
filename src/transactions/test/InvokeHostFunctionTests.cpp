@@ -566,54 +566,20 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
     preImage.fromAsset().networkID = app->getNetworkID();
     auto contractID = xdrSha256(preImage);
 
-    Operation createOp;
-    createOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& createHF = createOp.body.invokeHostFunctionOp();
-    createHF.function.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.function.createContractArgs();
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    op.body.invokeHostFunctionOp().functions.resize(2);
+    auto& createHF = op.body.invokeHostFunctionOp().functions[0];
+    createHF.args.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.args.createContract();
 
     SCContractExecutable exec;
     exec.type(SCCONTRACT_EXECUTABLE_TOKEN);
     createContractArgs.contractID.type(CONTRACT_ID_FROM_ASSET);
     createContractArgs.contractID.asset() = xlm;
-    createContractArgs.source = exec;
+    createContractArgs.executable = exec;
 
-    {
-        LedgerFootprint lfp1;
-        auto key1 = LedgerKey(CONTRACT_DATA);
-        key1.contractData().contractID = contractID;
-        key1.contractData().key = makeSymbol("METADATA");
-
-        auto key2 = LedgerKey(CONTRACT_DATA);
-        key2.contractData().contractID = contractID;
-        SCVec vec = {makeSymbol("AssetInfo")};
-        SCVal vecKey(SCValType::SCV_VEC);
-        vecKey.vec().activate() = vec;
-        key2.contractData().key = vecKey;
-
-        SCVal scContractSourceRefKey(
-            SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
-        auto key3 = LedgerKey(CONTRACT_DATA);
-        key3.contractData().contractID = contractID;
-        key3.contractData().key = scContractSourceRefKey;
-
-        lfp1.readWrite = {key1, key2, key3};
-        createHF.footprint = lfp1;
-    }
-
-    {
-        // submit operation
-        auto tx =
-            transactionFrameFromOps(app->getNetworkID(), root, {createOp}, {});
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
-    }
-
-    // now transfer 10 XLM from root to contractID
+    // transfer 10 XLM from root to contractID
     auto scContractID = makeBinary(contractID.begin(), contractID.end());
 
     SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
@@ -627,43 +593,9 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
     to.address() = toContract;
 
     auto fn = makeSymbol("transfer");
-    Operation transfer;
-    transfer.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = transfer.body.invokeHostFunctionOp();
-    ihf.function.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.function.invokeArgs() = {scContractID, fn, from, to, makeI128(10)};
-
-    {
-        LedgerFootprint lfp2;
-        // in the second op, we read what was written
-        lfp2.readOnly = createHF.footprint.readWrite;
-
-        LedgerKey accountKey(ACCOUNT);
-        accountKey.account().accountID = root.getPublicKey();
-
-        // build balance key
-        auto key2 = LedgerKey(CONTRACT_DATA);
-        key2.contractData().contractID = contractID;
-
-        SCVec vec = {makeSymbol("Balance"), to};
-        SCVal balanceKey(SCValType::SCV_VEC);
-        balanceKey.vec().activate() = vec;
-        key2.contractData().key = balanceKey;
-
-        SCNonceKey nonce;
-        nonce.nonce_address = fromAccount;
-        SCVal nonceKey(SCV_LEDGER_KEY_NONCE);
-        nonceKey.nonce_key() = nonce;
-
-        // build nonce key
-        auto key3 = LedgerKey(CONTRACT_DATA);
-        key3.contractData().contractID = contractID;
-        key3.contractData().key = nonceKey;
-
-        lfp2.readWrite = {accountKey, key2, key3};
-
-        ihf.footprint = lfp2;
-    }
+    auto& ihf = op.body.invokeHostFunctionOp().functions[1];
+    ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.args.invokeContract() = {scContractID, fn, from, to, makeI128(10)};
 
     // build auth
     AuthorizedInvocation ai;
@@ -675,12 +607,57 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
     a.rootInvocation = ai;
     ihf.auth = {a};
 
-    // This will fail in the ConservationOfLumens invariant if the transfer is
-    // not accounted for.
+    SorobanResources resources1;
+    {
+        auto key1 = LedgerKey(CONTRACT_DATA);
+        key1.contractData().contractID = contractID;
+        key1.contractData().key = makeSymbol("METADATA");
+
+        auto key2 = LedgerKey(CONTRACT_DATA);
+        key2.contractData().contractID = contractID;
+        SCVec assetInfo = {makeSymbol("AssetInfo")};
+        SCVal assetInfoSCVal(SCValType::SCV_VEC);
+        assetInfoSCVal.vec().activate() = assetInfo;
+        key2.contractData().key = assetInfoSCVal;
+
+        SCVal scContractSourceRefKey(
+            SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
+        auto key3 = LedgerKey(CONTRACT_DATA);
+        key3.contractData().contractID = contractID;
+        key3.contractData().key = scContractSourceRefKey;
+
+        LedgerKey accountKey(ACCOUNT);
+        accountKey.account().accountID = root.getPublicKey();
+
+        // build balance key
+        LedgerKey key4(ACCOUNT);
+        key4.account().accountID = root.getPublicKey();
+
+        auto key5 = LedgerKey(CONTRACT_DATA);
+        key5.contractData().contractID = contractID;
+
+        SCVec balance = {makeSymbol("Balance"), to};
+        SCVal balanceKey(SCValType::SCV_VEC);
+        balanceKey.vec().activate() = balance;
+        key5.contractData().key = balanceKey;
+
+        SCNonceKey nonce;
+        nonce.nonce_address = fromAccount;
+        SCVal nonceKey(SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key() = nonce;
+
+        // build nonce key
+        auto key6 = LedgerKey(CONTRACT_DATA);
+        key6.contractData().contractID = contractID;
+        key6.contractData().key = nonceKey;
+
+        resources1.footprint.readWrite = {key1, key2, key3, key4, key5, key6};
+    }
+
     {
         // submit operation
-        auto tx =
-            transactionFrameFromOps(app->getNetworkID(), root, {transfer}, {});
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources1);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
