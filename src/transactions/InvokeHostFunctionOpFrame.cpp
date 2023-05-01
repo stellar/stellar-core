@@ -352,6 +352,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         keys.emplace(std::move(lk));
     }
     metadataSizeBytes += metrics.mLedgerWriteByte;
+    if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
 
     // Erase every entry not returned
     for (auto const& lk : footprint.readWrite)
