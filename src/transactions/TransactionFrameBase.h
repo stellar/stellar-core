@@ -35,7 +35,8 @@ class TransactionFrameBase
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta) = 0;
 
-    virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+    virtual bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                            SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset) = 0;
 
@@ -75,7 +76,7 @@ class TransactionFrameBase
 
     virtual bool isSoroban() const = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    virtual SorobanResources sorobanResources() const = 0;
+    virtual SorobanResources const& sorobanResources() const = 0;
 #endif
 };
 }

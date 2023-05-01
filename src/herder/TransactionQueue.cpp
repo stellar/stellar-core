@@ -325,7 +325,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         ltx.loadHeader().current().ledgerSeq =
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
-    if (!tx->checkValid(ltx, seqNum, 0,
+    if (!tx->checkValid(mApp, ltx, seqNum, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;

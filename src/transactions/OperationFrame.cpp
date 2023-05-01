@@ -134,9 +134,8 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-OperationFrame::apply(SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx, Config const& cfg,
-                      medida::MetricsRegistry& metrics)
+OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
+                      AbstractLedgerTxn& ltx)
 {
     ZoneScoped;
     bool res;
@@ -144,7 +143,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(ltx, cfg, metrics);
+        res = doApply(app, ltx);
         CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
@@ -152,11 +151,10 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
 }
 
 bool
-OperationFrame::doApply(AbstractLedgerTxn& ltx, Config const& _cfg,
-                        medida::MetricsRegistry& _metrics)
+OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx)
 {
-    // By default we ignore the cfg and metrics, but subclasses can override to
-    // intercept and use them.
+    // By default we ignore the app, but subclasses can override to
+    // intercept and use it.
     return doApply(ltx);
 }
 

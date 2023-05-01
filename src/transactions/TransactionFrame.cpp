@@ -364,7 +364,7 @@ TransactionFrame::isSoroban() const
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-SorobanResources
+SorobanResources const&
 TransactionFrame::sorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
@@ -523,6 +523,43 @@ TransactionFrame::validateSorobanOpsConsistency() const
     }
     return true;
 }
+
+bool
+TransactionFrame::validateSorobanResources(
+    SorobanNetworkConfig const& config) const
+{
+    auto const& resources = sorobanResources();
+    size_t readEntries = resources.footprint.readOnly.size();
+    size_t writeEntries = resources.footprint.readWrite.size();
+    if (resources.instructions > config.txMaxInstructions())
+    {
+        return false;
+    }
+    if (resources.readBytes > config.txMaxReadBytes())
+    {
+        return false;
+    }
+    if (resources.writeBytes > config.txMaxWriteBytes())
+    {
+        return false;
+    }
+    if (resources.extendedMetaDataSizeBytes >
+        config.txMaxExtendedMetaDataSizeBytes())
+    {
+        return false;
+    }
+    if (readEntries + writeEntries > config.txMaxReadLedgerEntries() ||
+        writeEntries > config.txMaxWriteLedgerEntries())
+    {
+        return false;
+    }
+    auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
+    if (txSize > config.txMaxSizeBytes())
+    {
+        return false;
+    }
+    return true;
+}
 #endif
 
 bool
@@ -623,15 +660,16 @@ TransactionFrame::isTooEarlyForAccount(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
+TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
+                                       bool chargeFee,
                                        uint64_t lowerBoundCloseTimeOffset,
                                        uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
-    auto header = ltx.loadHeader();
-    uint32_t ledgerVersion = header.current().ledgerVersion;
+
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     if ((protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
          (mEnvelope.type() == ENVELOPE_TYPE_TX ||
           hasMuxedAccount(mEnvelope))) ||
@@ -684,8 +722,29 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
         getResult().result.code(txMALFORMED);
         return false;
     }
+    if (isSoroban())
+    {
+        if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+        {
+            getResult().result.code(txMALFORMED);
+            return false;
+        }
+        if (mEnvelope.type() != ENVELOPE_TYPE_TX ||
+            mEnvelope.v1().tx.ext.v() != 1)
+        {
+            getResult().result.code(txMALFORMED);
+            return false;
+        }
+        auto const& sorobanConfig =
+            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+        if (!validateSorobanResources(sorobanConfig))
+        {
+            getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+    }
 #endif
-
+    auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
         getResult().result.code(txTOO_EARLY);
@@ -820,7 +879,8 @@ TransactionFrame::isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const
 }
 
 TransactionFrame::ValidationType
-TransactionFrame::commonValid(SignatureChecker& signatureChecker,
+TransactionFrame::commonValid(Application& app,
+                              SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
                               SequenceNumber current, bool applying,
                               bool chargeFee,
@@ -838,7 +898,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             "Applying transaction with non-current closeTime");
     }
 
-    if (!commonValidPreSeqNum(ltx, chargeFee, lowerBoundCloseTimeOffset,
+    if (!commonValidPreSeqNum(app, ltx, chargeFee, lowerBoundCloseTimeOffset,
                               upperBoundCloseTimeOffset))
     {
         return res;
@@ -1001,8 +1061,9 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 
 bool
 TransactionFrame::checkValidWithOptionallyChargedFee(
-    AbstractLedgerTxn& ltxOuter, SequenceNumber current, bool chargeFee,
-    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset)
+    Application& app, AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -1019,7 +1080,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
     bool res =
-        commonValid(signatureChecker, ltx, current, false, chargeFee,
+        commonValid(app, signatureChecker, ltx, current, false, chargeFee,
                     lowerBoundCloseTimeOffset,
                     upperBoundCloseTimeOffset) == ValidationType::kMaybeValid;
     if (res)
@@ -1046,12 +1107,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 }
 
 bool
-TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
+TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset)
 {
-    return checkValidWithOptionallyChargedFee(ltxOuter, current, true,
+    return checkValidWithOptionallyChargedFee(app, ltxOuter, current, true,
                                               lowerBoundCloseTimeOffset,
                                               upperBoundCloseTimeOffset);
 }
@@ -1119,13 +1180,12 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             app.getConfig().LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
-        Config const& cfg = app.getConfig();
-        medida::MetricsRegistry& metrics = app.getMetrics();
+
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerTxn ltxOp(ltxTx);
-            bool txRes = op->apply(signatureChecker, ltxOp, cfg, metrics);
+            bool txRes = op->apply(app, signatureChecker, ltxOp);
 
             if (!txRes)
             {
@@ -1286,7 +1346,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
         auto cv =
-            commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
+            commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

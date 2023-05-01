@@ -41,8 +41,7 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
-    virtual bool doApply(AbstractLedgerTxn& ltx, Config const& cfg,
-                         medida::MetricsRegistry& metrics);
+    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx);
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
@@ -84,8 +83,8 @@ class OperationFrame
     bool checkValid(SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
-    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx,
-               Config const& cfg, medida::MetricsRegistry& metrics);
+    bool apply(Application& app, SignatureChecker& signatureChecker,
+               AbstractLedgerTxn& ltx);
 
     Operation const&
     getOperation() const

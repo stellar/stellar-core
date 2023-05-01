@@ -101,7 +101,7 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
                                              {deployOp}, {}, resources);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
     REQUIRE(tx->apply(app, ltx, txm));
     ltx.commit();
 
@@ -170,6 +170,10 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     SorobanResources resources;
     resources.footprint.readWrite = {contractCodeLedgerKey,
                                      contractSourceRefLedgerKey};
+    resources.instructions = 200'000;
+    resources.readBytes = 1000;
+    resources.writeBytes = 5000;
+    resources.extendedMetaDataSizeBytes = 6000;
 
     submitTxToDeployContract(
         app, deployOp, resources, contractCodeLedgerKey.contractCode().hash,
@@ -178,163 +182,176 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
 
-TEST_CASE("invoke host function", "[tx][contract]")
+TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
 
     auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
-    {
-        auto addI32 = [&]() {
-            auto contractKeys =
-                deployContractWithSourceAccount(*app, addI32Wasm);
-            auto const& contractID = contractKeys[0].contractData().contractID;
+    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
+    auto const& contractID = contractKeys[0].contractData().contractID;
 
-            auto call = [&](SCVec const& parameters, bool success) {
-                Operation op;
-                op.body.type(INVOKE_HOST_FUNCTION);
-                auto& ihf =
-                    op.body.invokeHostFunctionOp().functions.emplace_back();
-                ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-                ihf.args.invokeContract() = parameters;
-                SorobanResources resources;
-                resources.footprint.readOnly = contractKeys;
+    auto call = [&](SorobanResources const& resources, SCVec const& parameters,
+                    bool success) {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.args.invokeContract() = parameters;
 
-                auto tx = sorobanTransactionFrameFromOps(
-                    app->getNetworkID(), root, {op}, {}, resources);
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMetaFrame txm(
-                    ltx.loadHeader().current().ledgerVersion);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                if (success)
-                {
-                    REQUIRE(tx->apply(*app, ltx, txm));
-                }
-                else
-                {
-                    REQUIRE(!tx->apply(*app, ltx, txm));
-                }
-                ltx.commit();
-                std::vector<SCVal> resultVals;
-                resultVals.emplace_back();
-                resultVals[0].type(stellar::SCV_STATUS);
-                resultVals[0].error().type(SCStatusType::SST_UNKNOWN_ERROR);
-                if (tx->getResult().result.code() == txSUCCESS &&
-                    !tx->getResult().result.results().empty())
-                {
-                    auto const& ores = tx->getResult().result.results().at(0);
-                    if (ores.tr().type() == INVOKE_HOST_FUNCTION &&
-                        ores.tr().invokeHostFunctionResult().code() ==
-                            INVOKE_HOST_FUNCTION_SUCCESS)
-                    {
-                        resultVals =
-                            ores.tr().invokeHostFunctionResult().success();
-                    }
-                }
-                return resultVals;
-            };
-
-            auto scContractID =
-                makeBinary(contractID.begin(), contractID.end());
-            auto scFunc = makeSymbol("add");
-            auto sc7 = makeI32(7);
-            auto sc16 = makeI32(16);
-
-            // Too few parameters for call
-            call({}, false);
-            call({scContractID}, false);
-
-            // To few parameters for "add"
-            call({scContractID, scFunc}, false);
-            call({scContractID, scFunc, sc7}, false);
-
-            // Correct function call
-            call({scContractID, scFunc, sc7, sc16}, true);
-            REQUIRE(app->getMetrics()
-                        .NewTimer({"soroban", "host-fn-op", "exec"})
-                        .count() != 0);
-            REQUIRE(app->getMetrics()
-                        .NewMeter({"soroban", "host-fn-op", "success"}, "call")
-                        .count() != 0);
-
-            // Too many parameters for "add"
-            call({scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
-        };
-        SECTION("create with source -  add i32")
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        if (success)
         {
-            addI32();
+            REQUIRE(tx->apply(*app, ltx, txm));
         }
+        else
+        {
+            REQUIRE(!tx->apply(*app, ltx, txm));
+        }
+        ltx.commit();
+        std::vector<SCVal> resultVals;
+        resultVals.emplace_back();
+        resultVals[0].type(stellar::SCV_STATUS);
+        resultVals[0].error().type(SCStatusType::SST_UNKNOWN_ERROR);
+        if (tx->getResult().result.code() == txSUCCESS &&
+            !tx->getResult().result.results().empty())
+        {
+            auto const& ores = tx->getResult().result.results().at(0);
+            if (ores.tr().type() == INVOKE_HOST_FUNCTION &&
+                ores.tr().invokeHostFunctionResult().code() ==
+                    INVOKE_HOST_FUNCTION_SUCCESS)
+            {
+                resultVals = ores.tr().invokeHostFunctionResult().success();
+            }
+        }
+        return resultVals;
+    };
+
+    auto scContractID = makeBinary(contractID.begin(), contractID.end());
+    auto scFunc = makeSymbol("add");
+    auto sc7 = makeI32(7);
+    auto sc16 = makeI32(16);
+    SorobanResources resources;
+    resources.footprint.readOnly = contractKeys;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+    resources.extendedMetaDataSizeBytes = 3000;
+
+    SECTION("correct invocation")
+    {
+        call(resources, {scContractID, scFunc, sc7, sc16}, true);
+        REQUIRE(app->getMetrics()
+                    .NewTimer({"soroban", "host-fn-op", "exec"})
+                    .count() != 0);
+        REQUIRE(app->getMetrics()
+                    .NewMeter({"soroban", "host-fn-op", "success"}, "call")
+                    .count() != 0);
     }
 
-    SECTION("contract data")
+    SECTION("incorrect invocation parameters")
     {
-        auto contractKeys =
-            deployContractWithSourceAccount(*app, contractDataWasm);
-        auto const& contractID = contractKeys[0].contractData().contractID;
+        // Too few parameters
+        call(resources, {}, false);
+        call(resources, {scContractID}, false);
+        call(resources, {scContractID, scFunc}, false);
+        call(resources, {scContractID, scFunc, sc7}, false);
+        // Too many parameters
+        call(resources, {scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
+    }
 
-        auto checkContractData = [&](SCVal const& key, SCVal const* val) {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ltxe = loadContractData(ltx, contractID, key);
-            if (val)
-            {
-                REQUIRE(ltxe);
-                REQUIRE(ltxe.current().data.contractData().val == *val);
-            }
-            else
-            {
-                REQUIRE(!ltxe);
-            }
-        };
+    SECTION("insufficient instructions")
+    {
+        resources.instructions = 10000;
+        call(resources, {scContractID, scFunc, sc7, sc16}, false);
+    }
+    SECTION("insufficient read bytes")
+    {
+        resources.readBytes = 100;
+        call(resources, {scContractID, scFunc, sc7, sc16}, false);
+    }
+}
 
-        auto putWithFootprint = [&](std::string const& key, uint64_t val,
-                                    xdr::xvector<LedgerKey> const& readOnly,
-                                    xdr::xvector<LedgerKey> const& readWrite,
-                                    bool success) {
-            auto keySymbol = makeSymbol(key);
-            auto valU64 = makeU64(val);
+TEST_CASE("contract storage", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto root = TestAccount::createRoot(*app);
 
-            Operation op;
-            op.body.type(INVOKE_HOST_FUNCTION);
-            auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-            ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-            ihf.args.invokeContract() = {
-                makeBinary(contractID.begin(), contractID.end()),
-                makeSymbol("put"), keySymbol, valU64};
-            SorobanResources resources;
-            resources.footprint.readOnly = readOnly;
-            resources.footprint.readWrite = readWrite;
+    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-            if (success)
-            {
-                REQUIRE(tx->apply(*app, ltx, txm));
-                ltx.commit();
-                checkContractData(keySymbol, &valU64);
-            }
-            else
-            {
-                REQUIRE(!tx->apply(*app, ltx, txm));
-                ltx.commit();
-            }
-        };
+    auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
+    auto const& contractID = contractKeys[0].contractData().contractID;
 
-        auto put = [&](std::string const& key, uint64_t val) {
-            putWithFootprint(key, val, contractKeys,
-                             {contractDataKey(contractID, makeSymbol(key))},
-                             true);
-        };
+    auto checkContractData = [&](SCVal const& key, SCVal const* val) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractData(ltx, contractID, key);
+        if (val)
+        {
+            REQUIRE(ltxe);
+            REQUIRE(ltxe.current().data.contractData().val == *val);
+        }
+        else
+        {
+            REQUIRE(!ltxe);
+        }
+    };
 
-        auto delWithFootprint = [&](std::string const& key,
-                                    xdr::xvector<LedgerKey> const& readOnly,
-                                    xdr::xvector<LedgerKey> const& readWrite,
-                                    bool success) {
+    auto putWithFootprint = [&](std::string const& key, uint64_t val,
+                                xdr::xvector<LedgerKey> const& readOnly,
+                                xdr::xvector<LedgerKey> const& readWrite,
+                                uint32_t writeBytes, bool success) {
+        auto keySymbol = makeSymbol(key);
+        auto valU64 = makeU64(val);
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.args.invokeContract() = {
+            makeBinary(contractID.begin(), contractID.end()), makeSymbol("put"),
+            keySymbol, valU64};
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 2'000'000;
+        resources.readBytes = 5000;
+        resources.writeBytes = writeBytes;
+        resources.extendedMetaDataSizeBytes = 3000;
+
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        if (success)
+        {
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+            checkContractData(keySymbol, &valU64);
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+    };
+
+    auto put = [&](std::string const& key, uint64_t val) {
+        putWithFootprint(key, val, contractKeys,
+                         {contractDataKey(contractID, makeSymbol(key))}, 1000,
+                         true);
+    };
+
+    auto delWithFootprint =
+        [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
+            xdr::xvector<LedgerKey> const& readWrite, bool success) {
             auto keySymbol = makeSymbol(key);
 
             Operation op;
@@ -347,12 +364,16 @@ TEST_CASE("invoke host function", "[tx][contract]")
             SorobanResources resources;
             resources.footprint.readOnly = readOnly;
             resources.footprint.readWrite = readWrite;
+            resources.instructions = 2'000'000;
+            resources.readBytes = 5000;
+            resources.writeBytes = 1000;
+            resources.extendedMetaDataSizeBytes = 3000;
 
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             if (success)
             {
                 REQUIRE(tx->apply(*app, ltx, txm));
@@ -366,35 +387,38 @@ TEST_CASE("invoke host function", "[tx][contract]")
             }
         };
 
-        auto del = [&](std::string const& key) {
-            delWithFootprint(key, contractKeys,
-                             {contractDataKey(contractID, makeSymbol(key))},
-                             true);
-        };
+    auto del = [&](std::string const& key) {
+        delWithFootprint(key, contractKeys,
+                         {contractDataKey(contractID, makeSymbol(key))}, true);
+    };
 
-        put("key1", 0);
-        put("key2", 21);
+    put("key1", 0);
+    put("key2", 21);
 
-        // Failure: contract data isn't in footprint
-        putWithFootprint("key1", 88, contractKeys, {}, false);
-        delWithFootprint("key1", contractKeys, {}, false);
+    // Failure: contract data isn't in footprint
+    putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
+    delWithFootprint("key1", contractKeys, {}, false);
 
-        // Failure: contract data is read only
-        auto readOnlyFootprint = contractKeys;
-        readOnlyFootprint.push_back(
-            contractDataKey(contractID, makeSymbol("key2")));
-        putWithFootprint("key2", 888888, readOnlyFootprint, {}, false);
-        delWithFootprint("key2", readOnlyFootprint, {}, false);
+    // Failure: contract data is read only
+    auto readOnlyFootprint = contractKeys;
+    readOnlyFootprint.push_back(
+        contractDataKey(contractID, makeSymbol("key2")));
+    putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false);
+    delWithFootprint("key2", readOnlyFootprint, {}, false);
 
-        put("key1", 9);
-        put("key2", UINT64_MAX);
+    // Failure: insufficient write bytes
+    putWithFootprint("key2", 88888, contractKeys,
+                     {contractDataKey(contractID, makeSymbol("key2"))}, 1,
+                     false);
 
-        del("key1");
-        del("key2");
-    }
+    put("key1", 9);
+    put("key2", UINT64_MAX);
+
+    del("key1");
+    del("key2");
 }
 
-TEST_CASE("failed invocation with diagnostics", "[tx][contract]")
+TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
 {
     // This test calls the add_i32 contract with two numbers that cause an
     // overflow. Because we have diagnostics on, we will see two events - The
@@ -423,12 +447,16 @@ TEST_CASE("failed invocation with diagnostics", "[tx][contract]")
     ihf.args.invokeContract() = parameters;
     SorobanResources resources;
     resources.footprint.readOnly = contractKeys;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+    resources.extendedMetaDataSizeBytes = 3000;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
                                              {}, resources);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+    REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
     REQUIRE(!tx->apply(*app, ltx, txm));
     ltx.commit();
     txm.finalizeHashes();
@@ -448,7 +476,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][contract]")
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 }
 
-TEST_CASE("complex contract", "[tx][contract]")
+TEST_CASE("complex contract", "[tx][soroban]")
 {
     auto complexTest = [&](bool enableDiagnostics) {
         VirtualClock clock;
@@ -479,6 +507,10 @@ TEST_CASE("complex contract", "[tx][contract]")
         SorobanResources resources;
         resources.footprint.readOnly = contractKeys;
         resources.footprint.readWrite = {dataKey};
+        resources.instructions = 2'000'000;
+        resources.readBytes = 3000;
+        resources.writeBytes = 1000;
+        resources.extendedMetaDataSizeBytes = 3000;
 
         auto verifyDiagnosticEvents =
             [&](xdr::xvector<DiagnosticEvent> events) {
@@ -504,7 +536,7 @@ TEST_CASE("complex contract", "[tx][contract]")
                                                      {op}, {}, resources);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
             txm.finalizeHashes();
@@ -538,7 +570,7 @@ TEST_CASE("complex contract", "[tx][contract]")
                                                      {op, op}, {}, resources);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
         }
     };
 
@@ -552,7 +584,7 @@ TEST_CASE("complex contract", "[tx][contract]")
     }
 }
 
-TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
+TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -607,7 +639,11 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
     a.rootInvocation = ai;
     ihf.auth = {a};
 
-    SorobanResources resources1;
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+    resources.extendedMetaDataSizeBytes = 3000;
     {
         auto key1 = LedgerKey(CONTRACT_DATA);
         key1.contractData().contractID = contractID;
@@ -651,17 +687,17 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][contract]")
         key6.contractData().contractID = contractID;
         key6.contractData().key = nonceKey;
 
-        resources1.footprint.readWrite = {key1, key2, key3, key4, key5, key6};
+        resources.footprint.readWrite = {key1, key2, key3, key4, key5, key6};
     }
 
     {
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources1);
+                                                 {op}, {}, resources);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
         REQUIRE(tx->apply(*app, ltx, txm));
         ltx.commit();
     }

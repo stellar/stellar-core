@@ -136,47 +136,68 @@ initialCpuCostParamsEntry()
         {
         case WasmInsnExec:
             params[val] = ContractCostParamEntry{22, 0, ExtensionPoint{0}};
+            break;
         case WasmMemAlloc:
             params[val] = ContractCostParamEntry{521, 0, ExtensionPoint{0}};
+            break;
         case HostMemAlloc:
             params[val] = ContractCostParamEntry{883, 0, ExtensionPoint{0}};
+            break;
         case HostMemCpy:
             params[val] = ContractCostParamEntry{24, 0, ExtensionPoint{0}};
+            break;
         case HostMemCmp:
             params[val] = ContractCostParamEntry{42, 1, ExtensionPoint{0}};
+            break;
         case InvokeHostFunction:
             params[val] = ContractCostParamEntry{759, 0, ExtensionPoint{0}};
+            break;
         case VisitObject:
             params[val] = ContractCostParamEntry{29, 0, ExtensionPoint{0}};
+            break;
         case ValXdrConv:
             params[val] = ContractCostParamEntry{177, 0, ExtensionPoint{0}};
+            break;
         case ValSer:
             params[val] = ContractCostParamEntry{741, 0, ExtensionPoint{0}};
+            break;
         case ValDeser:
             params[val] = ContractCostParamEntry{846, 0, ExtensionPoint{0}};
+            break;
         case ComputeSha256Hash:
             params[val] = ContractCostParamEntry{1912, 32, ExtensionPoint{0}};
+            break;
         case ComputeEd25519PubKey:
             params[val] = ContractCostParamEntry{25766, 0, ExtensionPoint{0}};
+            break;
         case MapEntry:
             params[val] = ContractCostParamEntry{59, 0, ExtensionPoint{0}};
+            break;
         case VecEntry:
             params[val] = ContractCostParamEntry{14, 0, ExtensionPoint{0}};
+            break;
         case GuardFrame:
             params[val] = ContractCostParamEntry{4512, 0, ExtensionPoint{0}};
+            break;
         case VerifyEd25519Sig:
             params[val] = ContractCostParamEntry{368361, 20, ExtensionPoint{0}};
+            break;
         case VmMemRead:
             params[val] = ContractCostParamEntry{95, 0, ExtensionPoint{0}};
+            break;
         case VmMemWrite:
             params[val] = ContractCostParamEntry{97, 0, ExtensionPoint{0}};
+            break;
         case VmInstantiation:
             params[val] =
                 ContractCostParamEntry{805445, 307, ExtensionPoint{0}};
+            break;
         case InvokeVmFunction:
             params[val] = ContractCostParamEntry{6212, 0, ExtensionPoint{0}};
+            break;
         case ChargeBudget:
             params[val] = ContractCostParamEntry{198, 0, ExtensionPoint{0}};
+            break;
         }
     }
 
@@ -197,47 +218,68 @@ initialMemCostParamsEntry()
         {
         case WasmInsnExec:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case WasmMemAlloc:
             params[val] = ContractCostParamEntry{66136, 1, ExtensionPoint{0}};
+            break;
         case HostMemAlloc:
             params[val] = ContractCostParamEntry{8, 1, ExtensionPoint{0}};
+            break;
         case HostMemCpy:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case HostMemCmp:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case InvokeHostFunction:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case VisitObject:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case ValXdrConv:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case ValSer:
             params[val] = ContractCostParamEntry{9, 3, ExtensionPoint{0}};
+            break;
         case ValDeser:
             params[val] = ContractCostParamEntry{4, 1, ExtensionPoint{0}};
+            break;
         case ComputeSha256Hash:
             params[val] = ContractCostParamEntry{40, 0, ExtensionPoint{0}};
+            break;
         case ComputeEd25519PubKey:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case MapEntry:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case VecEntry:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case GuardFrame:
             params[val] = ContractCostParamEntry{267, 0, ExtensionPoint{0}};
+            break;
         case VerifyEd25519Sig:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case VmMemRead:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case VmMemWrite:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         case VmInstantiation:
             params[val] =
                 ContractCostParamEntry{1100352, 53, ExtensionPoint{0}};
+            break;
         case InvokeVmFunction:
             params[val] = ContractCostParamEntry{267, 0, ExtensionPoint{0}};
+            break;
         case ChargeBudget:
             params[val] = ContractCostParamEntry{0, 0, ExtensionPoint{0}};
+            break;
         }
     }
 
@@ -275,13 +317,15 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
 void
 SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
 {
-    LedgerTxn ltx(ltxRoot);
+    LedgerTxn ltx(ltxRoot, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     loadMaxContractSize(ltx);
     loadComputeSettings(ltx);
     loadLedgerAccessSettings(ltx);
     loadHistoricalSettings(ltx);
     loadMetaDataSettings(ltx);
     loadBandwidthSettings(ltx);
+    loadCpuCostParams(ltx);
+    loadMemCostParams(ltx);
 }
 
 uint32_t

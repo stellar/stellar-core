@@ -1,4 +1,4 @@
-soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=409474c96c8f1b38cd52753446b5324604227e97#409474c96c8f1b38cd52753446b5324604227e97
+soroban-env-host 0.0.15 git+https://github.com/stellar/rs-soroban-env?rev=efffbbb9b5be442e58aecead3362bae2c9613c75#efffbbb9b5be442e58aecead3362bae2c9613c75
 ├── tinyvec 1.6.0 checksum:87cc5ceb3875bb20c2890005a4e226a4651264a5c75edb2421b52861a0a0cb50
 │   └── tinyvec_macros 0.1.1 checksum:1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20
 ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f

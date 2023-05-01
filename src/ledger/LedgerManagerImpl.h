@@ -50,7 +50,7 @@ class LedgerManagerImpl : public LedgerManager
 
   private:
     LedgerHeaderHistoryEntry mLastClosedLedger;
-    std::optional<SorobanNetworkConfig> mLastSorobanNetworkConfig;
+    std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
