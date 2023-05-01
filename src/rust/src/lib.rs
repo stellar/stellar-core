@@ -66,6 +66,9 @@ mod rust_bridge {
         pub timestamp: u64,
         pub network_id: Vec<u8>,
         pub base_reserve: u32,
+        pub memory_limit: u32,
+        pub cpu_cost_params: CxxBuf,
+        pub mem_cost_params: CxxBuf,
     }
 
     #[derive(Debug)]
@@ -297,7 +300,8 @@ fn check_lockfile_has_expected_dep_tree(
         .expect("rendering dep tree");
 
     let tree_str = String::from_utf8_lossy(&tree_buf);
-    if tree_str != expected {
+    // Normalize line endings to support Windows builds.
+    if tree_str.replace("\r\n", "\n") != expected.replace("\r\n", "\n") {
         eprintln!(
             "Expected '{}' host dependency tree (in host-dep-tree-{}.txt):",
             curr_or_prev, curr_or_prev

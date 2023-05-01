@@ -7,6 +7,7 @@ use crate::{
     rust_bridge::{CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, RustBuf, XDRFileHash},
 };
 use log::debug;
+use soroban_env_host_curr::xdr::ContractCostParams;
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -321,7 +322,12 @@ fn invoke_host_functions_or_maybe_panic(
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
     let resources = xdr_from_cxx_buf::<SorobanResources>(&resources_buf)?;
 
-    let budget = Budget::default();
+    let budget = Budget::from_configs(
+        resources.instructions as u64,
+        ledger_info.memory_limit as u64,
+        xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
+        xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
+    );
     let footprint = build_storage_footprint_from_xdr(&budget, &resources.footprint)?;
     let map = build_storage_map_from_xdr_ledger_entries(&budget, &footprint, ledger_entries)?;
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
@@ -350,8 +356,8 @@ fn invoke_host_functions_or_maybe_panic(
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
-                cpu_insns: 0,
-                mem_bytes: 0,
+                cpu_insns: budget.get_cpu_insns_count(),
+                mem_bytes: budget.get_mem_bytes_count(),
             });
         }
     };

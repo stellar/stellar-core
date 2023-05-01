@@ -31,8 +31,16 @@
 namespace stellar
 {
 
+template <typename T>
+CxxBuf
+toCxxBuf(T const& t)
+{
+    return CxxBuf{std::make_unique<std::vector<uint8_t>>(toVec(t))};
+}
+
 CxxLedgerInfo
-getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
+getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
+              SorobanNetworkConfig const& sorobanConfig)
 {
     CxxLedgerInfo info;
     auto const& hdr = ltx.loadHeader().current();
@@ -40,6 +48,9 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg)
     info.protocol_version = hdr.ledgerVersion;
     info.sequence_number = hdr.ledgerSeq;
     info.timestamp = hdr.scpValue.closeTime;
+    info.memory_limit = sorobanConfig.txMemoryLimit();
+    info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
+    info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
     auto networkID = sha256(cfg.NETWORK_PASSPHRASE);
     for (auto c : networkID)
@@ -54,13 +65,6 @@ std::vector<uint8_t>
 toVec(T const& t)
 {
     return std::vector<uint8_t>(xdr::xdr_to_opaque(t));
-}
-
-template <typename T>
-CxxBuf
-toCxxBuf(T const& t)
-{
-    return CxxBuf{std::make_unique<std::vector<uint8_t>>(toVec(t))};
 }
 
 InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
@@ -233,10 +237,12 @@ struct HostFunctionMetrics
 };
 
 bool
-InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
-                                   medida::MetricsRegistry& metricsReg)
+InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    HostFunctionMetrics metrics(metricsReg);
+    Config const& cfg = app.getConfig();
+    HostFunctionMetrics metrics(app.getMetrics());
+    auto const& sorobanConfig =
+        app.getLedgerManager().getSorobanNetworkConfig(ltx);
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
@@ -260,8 +266,24 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
         }
     };
 
-    addReads(footprint.readOnly);
     addReads(footprint.readWrite);
+    // Metadata includes the ledger entry changes which we
+    // approximate as the size of the RW entries that we read
+    // plus size of the RW entries that we write back to the ledger.
+    size_t metadataSizeBytes = metrics.mLedgerReadByte;
+    if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
+
+    addReads(footprint.readOnly);
+
+    if (resources.readBytes < metrics.mLedgerReadByte)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
 
     rust::Vec<CxxBuf> hostFnCxxBufs;
     hostFnCxxBufs.reserve(mInvokeHostFunction.functions.size());
@@ -279,25 +301,28 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
             cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
             cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, hostFnCxxBufs,
             toCxxBuf(resources), toCxxBuf(getSourceID()),
-            getLedgerInfo(ltx, cfg), ledgerEntryCxxBufs);
-        metrics.mSuccess = true;
+            getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs);
 
-        if (!out.success)
+        if (out.success)
+        {
+            metrics.mSuccess = true;
+        }
+        else
         {
             maybePopulateDiagnosticEvents(cfg, out);
-
-            innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
-            return false;
         }
     }
     catch (std::exception&)
     {
-        innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
-        return false;
     }
 
     metrics.mCpuInsn = out.cpu_insns;
     metrics.mMemByte = out.mem_bytes;
+    if (!metrics.mSuccess)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
+        return false;
+    }
 
     // Create or update every entry returned
     std::unordered_set<LedgerKey> keys;
@@ -305,9 +330,14 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
-        auto lk = LedgerEntryKey(le);
 
+        auto lk = LedgerEntryKey(le);
         metrics.noteWriteEntry(lk, buf.data.size());
+        if (resources.writeBytes < metrics.mLedgerWriteByte)
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
 
         auto ltxe = ltx.load(lk);
         if (ltxe)
@@ -321,6 +351,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
 
         keys.emplace(std::move(lk));
     }
+    metadataSizeBytes += metrics.mLedgerWriteByte;
 
     // Erase every entry not returned
     for (auto const& lk : footprint.readWrite)
@@ -342,10 +373,17 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx, Config const& cfg,
     {
         metrics.mEmitEvent++;
         metrics.mEmitEventByte += buf.data.size();
+        metadataSizeBytes += buf.data.size();
+        if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
         ContractEvent evt;
         xdr::xdr_from_opaque(buf.data, evt);
         events.events.push_back(evt);
     }
+
     mParentTx.pushContractEvents(events);
 
     maybePopulateDiagnosticEvents(cfg, out);
