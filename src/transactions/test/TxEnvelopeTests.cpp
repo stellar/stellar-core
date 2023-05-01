@@ -2573,5 +2573,32 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     {
         validateResources(resources, true);
     }
+    SECTION("transaction size")
+    {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        SCVal largeVal(SCV_BYTES);
+        largeVal.bytes().resize(InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES -
+                                2000);
+        ihf.args.invokeContract().push_back(largeVal);
+        SECTION("near limit")
+        {
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("limit exceeded")
+        {
+            ihf.args.invokeContract().back().bytes().resize(
+                InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+    }
 }
 #endif

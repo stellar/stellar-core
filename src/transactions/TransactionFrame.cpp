@@ -553,6 +553,11 @@ TransactionFrame::validateSorobanResources(
     {
         return false;
     }
+    auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
+    if (txSize > config.txMaxSizeBytes())
+    {
+        return false;
+    }
     return true;
 }
 #endif
