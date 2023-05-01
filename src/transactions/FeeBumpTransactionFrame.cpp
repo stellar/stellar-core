@@ -47,7 +47,7 @@ FeeBumpTransactionFrame::isSoroban() const
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-SorobanResources
+SorobanResources const&
 FeeBumpTransactionFrame::sorobanResources() const
 {
     return mInnerTx->sorobanResources();
@@ -163,7 +163,8 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 bool
-FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
+FeeBumpTransactionFrame::checkValid(Application& app,
+                                    AbstractLedgerTxn& ltxOuter,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset)
@@ -187,7 +188,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     }
 
     bool res = mInnerTx->checkValidWithOptionallyChargedFee(
-        ltx, current, false, lowerBoundCloseTimeOffset,
+        app, ltx, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
     updateResult(getResult(), mInnerTx);
     return res;

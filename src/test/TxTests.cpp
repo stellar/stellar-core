@@ -136,7 +136,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     {
         LedgerTxn ltxFeeProc(ltx);
         // use checkedTx here for validity check as to keep tx untouched
-        check = checkedTx->checkValid(ltxFeeProc, 0, 0, 0);
+        check = checkedTx->checkValid(app, ltxFeeProc, 0, 0, 0);
         checkResult = checkedTx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -412,7 +412,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
         app.getNetworkID(), tx->getEnvelope());
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkedTx->checkValid(ltx, 0, 0, 0) == shouldValidateOk);
+        REQUIRE(checkedTx->checkValid(app, ltx, 0, 0, 0) == shouldValidateOk);
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);

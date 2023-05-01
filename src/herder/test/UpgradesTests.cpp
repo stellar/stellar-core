@@ -2178,7 +2178,7 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
         auto submitTx = [&](TransactionFrameBasePtr tx) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
 
