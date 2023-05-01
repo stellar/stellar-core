@@ -478,12 +478,12 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 SorobanNetworkConfig const&
 LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 {
-    if (!mLastSorobanNetworkConfig)
+    if (!mSorobanNetworkConfig)
     {
         maybeUpdateNetworkConfig(false, ltx);
     }
 
-    return *mLastSorobanNetworkConfig;
+    return *mSorobanNetworkConfig;
 }
 
 // called by txherder
@@ -1093,19 +1093,24 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
                                             AbstractLedgerTxn& rootLtx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!upgradeHappened && mLastSorobanNetworkConfig)
+    if (!upgradeHappened && mSorobanNetworkConfig)
     {
         return;
     }
-    if (!mLastSorobanNetworkConfig)
+    if (!mSorobanNetworkConfig)
     {
-        mLastSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
+        mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
     }
-    LedgerTxn ltx(rootLtx, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    uint32_t ledgerVersion{};
     {
-        mLastSorobanNetworkConfig->loadFromLedger(ltx);
+        LedgerTxn ltx(rootLtx, false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+        ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    }
+
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        mSorobanNetworkConfig->loadFromLedger(rootLtx);
     }
 #endif
 }
