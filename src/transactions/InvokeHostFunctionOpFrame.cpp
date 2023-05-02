@@ -118,14 +118,14 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 {
     if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
-        OperationDiagnosticEvents diagnosticEvents;
+        xdr::xvector<DiagnosticEvent> diagnosticEvents;
         for (auto const& e : output.diagnostic_events)
         {
             DiagnosticEvent evt;
             xdr::xdr_from_opaque(e.data, evt);
-            diagnosticEvents.events.emplace_back(evt);
+            diagnosticEvents.emplace_back(evt);
         }
-        mParentTx.pushDiagnosticEvents(diagnosticEvents);
+        mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
     }
 }
 
@@ -424,7 +424,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
-    OperationEvents events;
+    xdr::xvector<ContractEvent> events;
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
@@ -437,10 +437,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         }
         ContractEvent evt;
         xdr::xdr_from_opaque(buf.data, evt);
-        events.events.push_back(evt);
+        events.emplace_back(evt);
     }
-
-    mParentTx.pushContractEvents(events);
+    mParentTx.pushContractEvents(std::move(events));
 
     maybePopulateDiagnosticEvents(cfg, out);
 

@@ -176,7 +176,7 @@ TransactionMetaFrame::clearTxChangesAfter()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionMetaFrame::pushContractEvents(xdr::xvector<OperationEvents>&& events)
+TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
 {
     switch (mTransactionMeta.v())
     {
@@ -193,7 +193,7 @@ TransactionMetaFrame::pushContractEvents(xdr::xvector<OperationEvents>&& events)
 
 void
 TransactionMetaFrame::pushDiagnosticEvents(
-    xdr::xvector<OperationDiagnosticEvents>&& events)
+    xdr::xvector<DiagnosticEvent>&& events)
 {
     switch (mTransactionMeta.v())
     {

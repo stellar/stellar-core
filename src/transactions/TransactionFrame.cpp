@@ -122,15 +122,15 @@ TransactionFrame::clearCached()
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-TransactionFrame::pushContractEvents(OperationEvents const& evts)
+TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 {
-    mEvents.emplace_back(evts);
+    mEvents = evts;
 }
 
 void
-TransactionFrame::pushDiagnosticEvents(OperationDiagnosticEvents const& evts)
+TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
-    mDiagnosticEvents.emplace_back(evts);
+    mDiagnosticEvents = evts;
 }
 #endif
 
@@ -1352,9 +1352,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            auto isSorobanTx = isSoroban();
-            if ((isSorobanTx && mOperations.size() != mEvents.size()) ||
-                (!isSorobanTx && !mEvents.empty()))
+            if (!isSoroban() && !mEvents.empty())
             {
                 throw std::runtime_error("unexpected events size");
             }

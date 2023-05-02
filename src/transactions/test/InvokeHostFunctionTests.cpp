@@ -495,8 +495,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(!tx->apply(*app, ltx, txm));
     ltx.commit();
 
-    REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
-    auto const& opEvents = txm.getXDR().v3().diagnosticEvents.at(0).events;
+    auto const& opEvents = txm.getXDR().v3().diagnosticEvents;
     REQUIRE(opEvents.size() == 2);
 
     auto const& call_ev = opEvents.at(0);
@@ -577,20 +576,14 @@ TEST_CASE("complex contract", "[tx][soroban]")
             // Contract should have emitted a single event carrying a `Bytes`
             // value.
             REQUIRE(txm.getXDR().v3().events.size() == 1);
-            REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
+            REQUIRE(txm.getXDR().v3().events.at(0).type ==
                     ContractEventType::CONTRACT);
-            REQUIRE(txm.getXDR()
-                        .v3()
-                        .events.at(0)
-                        .events.at(0)
-                        .body.v0()
-                        .data.type() == SCV_BYTES);
+            REQUIRE(txm.getXDR().v3().events.at(0).body.v0().data.type() ==
+                    SCV_BYTES);
 
             if (enableDiagnostics)
             {
-                REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
-                verifyDiagnosticEvents(
-                    txm.getXDR().v3().diagnosticEvents.at(0).events);
+                verifyDiagnosticEvents(txm.getXDR().v3().diagnosticEvents);
             }
             else
             {
