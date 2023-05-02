@@ -132,6 +132,14 @@ TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
     mDiagnosticEvents = evts;
 }
+
+void
+TransactionFrame::pushReturnValues(
+    xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnVals)
+{
+    mReturnValues = returnVals;
+}
+
 #endif
 
 TransactionEnvelope const&
@@ -1359,6 +1367,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
             outerMeta.pushContractEvents(std::move(mEvents));
             outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+            outerMeta.pushReturnValues(std::move(mReturnValues));
 #endif
         }
         else

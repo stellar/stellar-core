@@ -30,6 +30,7 @@ class TransactionMetaFrame
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(xdr::xvector<ContractEvent>&& events);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& events);
+    void pushReturnValues(xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnValues);
 #endif
 
   private:

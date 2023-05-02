@@ -424,7 +424,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
-    xdr::xvector<ContractEvent> events;
+
+    InvokeHostFunctionSuccessPreImage success;
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
@@ -437,20 +438,23 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         }
         ContractEvent evt;
         xdr::xdr_from_opaque(buf.data, evt);
-        events.emplace_back(evt);
+        success.events.emplace_back(evt);
     }
-    mParentTx.pushContractEvents(std::move(events));
 
     maybePopulateDiagnosticEvents(cfg, out);
 
-    innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
-
-    auto& results = innerResult().success();
+    auto& results = success.returnValues;
     results.resize(out.result_values.size());
     for (size_t i = 0; i < results.size(); ++i)
     {
         xdr::xdr_from_opaque(out.result_values[i].data, results[i]);
     }
+
+    innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
+    innerResult().success() = xdrSha256(success);
+
+    mParentTx.pushContractEvents(std::move(success.events));
+    mParentTx.pushReturnValues(std::move(success.returnValues));
 
     return true;
 }

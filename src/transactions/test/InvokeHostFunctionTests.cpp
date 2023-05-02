@@ -231,7 +231,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
         }
-        std::vector<SCVal> resultVals;
+        xdr::xvector<SCVal, 100> resultVals;
         resultVals.emplace_back();
         resultVals[0].type(stellar::SCV_STATUS);
         resultVals[0].error().type(SCStatusType::SST_UNKNOWN_ERROR);
@@ -243,7 +243,14 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 ores.tr().invokeHostFunctionResult().code() ==
                     INVOKE_HOST_FUNCTION_SUCCESS)
             {
-                resultVals = ores.tr().invokeHostFunctionResult().success();
+                resultVals = txm.getXDR().v3().returnValues;
+
+                InvokeHostFunctionSuccessPreImage success;
+                success.returnValues = resultVals;
+                success.events = txm.getXDR().v3().events;
+
+                REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
+                        xdrSha256(success));
             }
         }
         return resultVals;

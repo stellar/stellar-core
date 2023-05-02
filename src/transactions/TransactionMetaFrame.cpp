@@ -208,6 +208,23 @@ TransactionMetaFrame::pushDiagnosticEvents(
     }
 }
 
+void
+TransactionMetaFrame::pushReturnValues(
+    xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnValues)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        // Do nothing, until v3 we don't call into contracts.
+        break;
+    case 3:
+        mTransactionMeta.v3().returnValues = std::move(returnValues);
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
 #endif
 
 TransactionMeta const&
