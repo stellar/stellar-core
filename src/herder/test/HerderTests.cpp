@@ -3029,7 +3029,6 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 {
     std::shared_ptr<Simulation> simulation;
     std::shared_ptr<Application> app;
-    std::shared_ptr<Application> limitApp;
 
     auto setup = [&](bool mix) {
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -3056,13 +3055,24 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 
         simulation->addNode(validatorAKey, qset);
         app = simulation->addNode(validatorBKey, qset);
-        limitApp = simulation->addNode(validatorCKey, qset);
+        simulation->addNode(validatorCKey, qset);
 
         simulation->addPendingConnection(validatorAKey.getPublicKey(),
                                          validatorCKey.getPublicKey());
         simulation->addPendingConnection(validatorAKey.getPublicKey(),
                                          validatorBKey.getPublicKey());
         simulation->startAllNodes();
+
+        // ValidatorB (with limits disabled) is the nomination leader
+        auto lookup = [valBKey =
+                           validatorBKey.getPublicKey()](NodeID const& n) {
+            return (n == valBKey) ? 1000 : 1;
+        };
+        for (auto const& n : simulation->getNodes())
+        {
+            HerderImpl& herder = *static_cast<HerderImpl*>(&n->getHerder());
+            herder.getHerderSCPDriver().setPriorityLookup(lookup);
+        }
     };
 
     auto makeTxs = [&](Application::pointer app) {
@@ -3089,12 +3099,10 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        // Leader election here should be completely determenistic based on
-        // node IDs
         uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
         simulation->crankUntil(
             [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >
+                return app->getLedgerManager().getLastClosedLedgerNum() >=
                        lcl + 2;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
@@ -3108,8 +3116,12 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
             REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
             // Both accounts are in the ledger
             LedgerTxn ltx(node->getLedgerTxnRoot());
-            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
-            REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
+            auto acc1 = stellar::loadAccount(ltx, a1.getPublicKey());
+            auto acc2 = stellar::loadAccount(ltx, b1.getPublicKey());
+            REQUIRE(acc1);
+            REQUIRE(acc2);
+            REQUIRE(acc1.current().lastModifiedLedgerSeq ==
+                    acc2.current().lastModifiedLedgerSeq);
         }
     }
     SECTION("all limited")
@@ -3129,7 +3141,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
         simulation->crankUntil(
             [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >
+                return app->getLedgerManager().getLastClosedLedgerNum() >=
                        lcl + 2;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
@@ -3157,7 +3169,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         lcl = app->getLedgerManager().getLastClosedLedgerNum();
         simulation->crankUntil(
             [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >
+                return app->getLedgerManager().getLastClosedLedgerNum() >=
                        lcl + 2;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);

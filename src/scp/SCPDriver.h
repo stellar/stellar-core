@@ -239,6 +239,15 @@ class SCPDriver
     {
     }
 
+#ifdef BUILD_TESTS
+    std::function<uint64(NodeID const&)> mPriorityLookupForTesting;
+    void
+    setPriorityLookup(std::function<uint64(NodeID const&)> const& f)
+    {
+        mPriorityLookupForTesting = f;
+    }
+#endif
+
   private:
     uint64
     hashHelper(uint64 slotIndex, Value const& prev,
