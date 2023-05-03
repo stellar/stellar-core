@@ -6,12 +6,16 @@
 
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/NetworkConfig.h"
+#include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
 
 #include <memory>
 #include <optional>
@@ -51,6 +55,7 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     xdr::xvector<OperationEvents> mEvents;
     xdr::xvector<OperationDiagnosticEvents> mDiagnosticEvents;
+    std::optional<FeePair> mSorobanResourceFee;
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -188,6 +193,7 @@ class TransactionFrame : public TransactionFrameBase
     uint32_t getNumOperations() const override;
     std::vector<Operation> const& getRawOperations() const override;
 
+    int64_t getFullFee() const override;
     int64_t getFeeBid() const override;
 
     virtual int64_t getFee(LedgerHeader const& header,
@@ -247,6 +253,10 @@ class TransactionFrame : public TransactionFrameBase
     bool isSoroban() const override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanResources const& sorobanResources() const override;
+    void
+    maybeComputeSorobanResourceFee(uint32_t protocolVersion,
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   Config const& cfg);
 #endif
 };
 }

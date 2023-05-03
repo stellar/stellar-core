@@ -184,10 +184,29 @@ TransactionFrame::getRawOperations() const
 }
 
 int64_t
-TransactionFrame::getFeeBid() const
+TransactionFrame::getFullFee() const
 {
     return mEnvelope.type() == ENVELOPE_TYPE_TX_V0 ? mEnvelope.v0().tx.fee
                                                    : mEnvelope.v1().tx.fee;
+}
+
+int64_t
+TransactionFrame::getFeeBid() const
+{
+    int64_t fullFee = getFullFee();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!isSoroban())
+    {
+        return fullFee;
+    }
+    // We rely here on the Soroban fee being computed at
+    // this point.
+    releaseAssertOrThrow(mSorobanResourceFee);
+    return std::max(fullFee - mSorobanResourceFee->fee,
+                    static_cast<int64_t>(0));
+#else
+    return fullFee;
+#endif
 }
 
 int64_t
@@ -196,27 +215,29 @@ TransactionFrame::getFee(LedgerHeader const& header,
 {
     if (!baseFee)
     {
-        return getFeeBid();
+        return getFullFee();
     }
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
+        int64_t feeBid = getFeeBid();
+        int64_t flatFee = getFullFee() - feeBid;
         int64_t adjustedFee =
             *baseFee * std::max<int64_t>(1, getNumOperations());
 
         if (applying)
         {
-            return std::min<int64_t>(getFeeBid(), adjustedFee);
+            return flatFee + std::min<int64_t>(getFeeBid(), adjustedFee);
         }
         else
         {
-            return adjustedFee;
+            return flatFee + adjustedFee;
         }
     }
     else
     {
-        return getFeeBid();
+        return getFullFee();
     }
 }
 
@@ -360,7 +381,7 @@ TransactionFrame::hasDexOperations() const
 bool
 TransactionFrame::isSoroban() const
 {
-    return mOperations[0]->isSoroban();
+    return !mOperations.empty() && mOperations[0]->isSoroban();
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -560,6 +581,53 @@ TransactionFrame::validateSorobanResources(
     }
     return true;
 }
+
+void
+TransactionFrame::maybeComputeSorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg)
+{
+    if (!isSoroban())
+    {
+        return;
+    }
+    // At this point the frame might not have been validated yet, so
+    // the resources might not be present or Soroban might not be supported
+    // at all. Hence just set the resource fees to 0 and rely on validation
+    // checks to not use this.
+    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION) ||
+        mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
+    {
+        mSorobanResourceFee = std::make_optional<FeePair>();
+        return;
+    }
+    CxxTransactionResources cxxResources;
+    auto const& txResources = sorobanResources();
+    cxxResources.instructions = txResources.instructions;
+
+    cxxResources.read_entries = txResources.footprint.readOnly.size() +
+                                txResources.footprint.readWrite.size();
+    cxxResources.write_entries = txResources.footprint.readWrite.size();
+
+    cxxResources.read_bytes = txResources.readBytes;
+    cxxResources.write_bytes = txResources.writeBytes;
+
+    cxxResources.transaction_size_bytes = xdr::xdr_size(mEnvelope.v1().tx);
+
+    cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
+
+    // NB: We recompute this on-demand in case if the fees change between
+    // the ledger where the transaction has been accepted and the ledger where
+    // it is being applied.
+    // This may throw, but only in case of the Core version misconfiguration.
+    mSorobanResourceFee = std::make_optional<FeePair>(
+        rust_bridge::compute_transaction_resource_fee(
+            cfg.CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion, cxxResources,
+            sorobanConfig.rustBridgeFeeConfiguration()));
+    // This is the fee computation invariant.
+    releaseAssertOrThrow(mSorobanResourceFee->fee >=
+                         mSorobanResourceFee->refundable_fee);
+}
 #endif
 
 bool
@@ -740,6 +808,21 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         if (!validateSorobanResources(sorobanConfig))
         {
             getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+        // Full fee has to be greater than the resource fee or
+        // tx-specified refundable fee.
+        if (getFullFee() < mSorobanResourceFee->fee ||
+            getFullFee() < mEnvelope.v1().tx.ext.sorobanData().refundableFee)
+        {
+            getResult().result.code(txINSUFFICIENT_FEE);
+            return false;
+        }
+        // Refundable fee shouldn't exceed tx-specified refundable fee.
+        if (mEnvelope.v1().tx.ext.sorobanData().refundableFee <
+            mSorobanResourceFee->refundable_fee)
+        {
+            getResult().result.code(txINSUFFICIENT_FEE);
             return false;
         }
     }
@@ -1074,6 +1157,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         minBaseFee = 0;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    maybeComputeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion,
+        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+
+#endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -1140,9 +1229,10 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 void
 TransactionFrame::markResultFailed()
 {
-    // Changing "code" normally causes the XDR structure to be destructed, then
-    // a different XDR structure is constructed. However, txFAILED and txSUCCESS
-    // have the same underlying field number so this does not occur.
+    // Changing "code" normally causes the XDR structure to be destructed,
+    // then a different XDR structure is constructed. However, txFAILED and
+    // txSUCCESS have the same underlying field number so this does not
+    // occur.
     getResult().result.code(txFAILED);
 }
 
@@ -1172,9 +1262,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
         uint32_t ledgerVersion = ltxTx.loadHeader().current().ledgerVersion;
-        // We do not want to increase the internal-error metric count for older
-        // ledger versions. The minimum ledger version for which we start
-        // internal-error counting is defined in the app config.
+        // We do not want to increase the internal-error metric count for
+        // older ledger versions. The minimum ledger version for which we
+        // start internal-error counting is defined in the app config.
         reportInternalErrOnException =
             ledgerVersion >=
             app.getConfig().LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT;
@@ -1196,8 +1286,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 app.getInvariantManager().checkOnOperationApply(
                     op->getOperation(), op->getResult(), ltxOp.getDelta());
 
-                // The operation meta will be empty if the transaction doesn't
-                // succeed so we may as well not do any work in that case
+                // The operation meta will be empty if the transaction
+                // doesn't succeed so we may as well not do any work in that
+                // case
                 operationMetas.emplace_back(ltxOp.getChanges());
             }
 
@@ -1217,13 +1308,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 if (!signatureChecker.checkAllSignaturesUsed())
                 {
                     getResult().result.code(txBAD_AUTH_EXTRA);
-                    // this should never happen: malformed transaction should
-                    // not be accepted by nodes
+                    // this should never happen: malformed transaction
+                    // should not be accepted by nodes
                     return false;
                 }
 
-                // if an error occurred, it is responsibility of account's owner
-                // to remove that signer
+                // if an error occurred, it is responsibility of account's
+                // owner to remove that signer
                 LedgerTxn ltxAfter(ltxTx);
                 removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
                 changesAfter = ltxAfter.getChanges();
@@ -1316,8 +1407,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
 
-    // We only increase the internal-error metric count if the ledger is a newer
-    // version.
+    // We only increase the internal-error metric count if the ledger is a
+    // newer version.
     if (reportInternalErrOnException)
     {
         internalErrorCounter.inc();
@@ -1337,11 +1428,18 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
     try
     {
         mCachedAccount.reset();
-        SignatureChecker signatureChecker{
-            ltx.loadHeader().current().ledgerVersion, getContentsHash(),
-            getSignatures(mEnvelope)};
+        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+        SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
+                                          getSignatures(mEnvelope)};
 
         LedgerTxn ltxTx(ltx);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        maybeComputeSorobanResourceFee(
+            ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
+            app.getConfig());
+
+#endif
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
@@ -1360,9 +1458,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
         try
         {
-            // This should only throw if the logging during exception handling
-            // for applyOperations throws. In that case, we may not have the
-            // correct TransactionResult so we must crash.
+            // This should only throw if the logging during exception
+            // handling for applyOperations throws. In that case, we may not
+            // have the correct TransactionResult so we must crash.
             if (ok)
             {
                 ok = applyOperations(signatureChecker, app, ltx, meta);
