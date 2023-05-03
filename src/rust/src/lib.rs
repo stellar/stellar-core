@@ -91,6 +91,32 @@ mod rust_bridge {
         prev: Vec<XDRFileHash>,
     }
 
+    struct CxxTransactionResources {
+        pub instructions: u32,
+        pub read_entries: u32,
+        pub write_entries: u32,
+        pub read_bytes: u32,
+        pub write_bytes: u32,
+        pub metadata_size_bytes: u32,
+        pub transaction_size_bytes: u32,
+    }
+
+    struct CxxFeeConfiguration {
+        fee_per_instruction_increment: i64,
+        fee_per_read_entry: i64,
+        fee_per_write_entry: i64,
+        fee_per_read_1kb: i64,
+        fee_per_write_1kb: i64,
+        fee_per_historical_1kb: i64,
+        fee_per_metadata_1kb: i64,
+        fee_per_propagate_1kb: i64,
+    }
+
+    struct FeePair {
+        fee: i64,
+        refundable_fee: i64,
+    }
+
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
@@ -140,6 +166,15 @@ mod rust_bridge {
 
         // Return true if configured with cfg(feature="soroban-env-host-prev")
         fn compiled_with_soroban_prev() -> bool;
+
+        // Comptues the resource fee given the transaction resource consumption
+        // and network configuration.
+        fn compute_transaction_resource_fee(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            tx_resources: CxxTransactionResources,
+            fee_config: CxxFeeConfiguration,
+        ) -> Result<FeePair>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -184,7 +219,10 @@ pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Err
 }
 
 use rust_bridge::CxxBuf;
+use rust_bridge::CxxFeeConfiguration;
 use rust_bridge::CxxLedgerInfo;
+use rust_bridge::CxxTransactionResources;
+use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
 use rust_bridge::RustBuf;
 use rust_bridge::VersionNumPair;
@@ -517,4 +555,30 @@ pub(crate) fn invoke_host_functions(
         ledger_info,
         ledger_entries,
     )
+}
+
+pub(crate) fn compute_transaction_resource_fee(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    tx_resources: CxxTransactionResources,
+    fee_config: CxxFeeConfiguration,
+) -> Result<FeePair, Box<dyn std::error::Error>> {
+    if protocol_version > config_max_protocol {
+        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
+            "unsupported protocol",
+        )));
+    }
+    #[cfg(feature = "soroban-env-host-prev")]
+    {
+        if protocol_version == config_max_protocol - 1 {
+            return Ok(soroban_prev::contract::compute_transaction_resource_fee(
+                tx_resources,
+                fee_config,
+            ));
+        }
+    }
+    Ok(soroban_curr::contract::compute_transaction_resource_fee(
+        tx_resources,
+        fee_config,
+    ))
 }
