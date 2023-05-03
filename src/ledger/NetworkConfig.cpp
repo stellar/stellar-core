@@ -684,6 +684,20 @@ SorobanNetworkConfig::feePropagateData1KB() const
     return mFeePropagateData1KB;
 }
 
+#ifdef BUILD_TESTS
+uint32_t&
+SorobanNetworkConfig::maxContractDataKeySizeBytes()
+{
+    return mMaxContractDataKeySizeBytes;
+}
+
+uint32_t&
+SorobanNetworkConfig::maxContractDataEntrySizeBytes()
+{
+    return mMaxContractDataEntrySizeBytes;
+}
+#endif
+
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 ContractCostParams const&

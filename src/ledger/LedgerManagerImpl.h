@@ -125,6 +125,10 @@ class LedgerManagerImpl : public LedgerManager
     SorobanNetworkConfig const&
     getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 
+#ifdef BUILD_TESTS
+    void setSorobanNetworkConfig(SorobanNetworkConfig const& config) override;
+#endif
+
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
 

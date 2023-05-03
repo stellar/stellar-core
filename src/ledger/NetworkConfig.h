@@ -153,6 +153,11 @@ class SorobanNetworkConfig
     // Fee for propagating 1KB of data
     int64_t feePropagateData1KB() const;
 
+#ifdef BUILD_TESTS
+    uint32_t& maxContractDataKeySizeBytes();
+    uint32_t& maxContractDataEntrySizeBytes();
+#endif
+
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
