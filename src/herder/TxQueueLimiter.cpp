@@ -73,6 +73,12 @@ TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app)
     {
         mMaxDexOperations = *maxDexOps * multiplier;
     }
+
+    if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+    {
+        mEnforceSingleAccounts =
+            std::make_optional<std::unordered_set<AccountID>>();
+    }
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -99,6 +105,19 @@ TxQueueLimiter::maxQueueSizeOps() const
 void
 TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
+    // First check invariance
+    if (mEnforceSingleAccounts)
+    {
+        auto& accts = *mEnforceSingleAccounts;
+        auto res = accts.emplace(tx->getSourceID());
+        // Must be first time insertion
+        if (!res.second)
+        {
+            throw std::logic_error(
+                "invalid state (duplicate account) while adding tx in "
+                "TxQueueLimiter");
+        }
+    }
     auto txStack = std::make_shared<SingleTxStack>(tx);
     mStackForTx[tx] = txStack;
     mTxs->add(txStack);
@@ -115,6 +134,18 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
     }
     mTxs->erase(txStackIt->second);
     mStackForTx.erase(txStackIt);
+    if (mEnforceSingleAccounts)
+    {
+        auto& accts = *mEnforceSingleAccounts;
+        auto res = accts.erase(tx->getSourceID());
+        // Must be present
+        if (res == 0)
+        {
+            throw std::logic_error(
+                "invalid state (missing account) while removing tx in "
+                "TxQueueLimiter");
+        }
+    }
 }
 
 std::pair<bool, int64>
@@ -219,6 +250,10 @@ TxQueueLimiter::reset()
         /* isHighestPriority */ false, mSurgePricingLaneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
     mStackForTx.clear();
+    if (mEnforceSingleAccounts)
+    {
+        mEnforceSingleAccounts->clear();
+    }
     resetEvictionState();
 }
 

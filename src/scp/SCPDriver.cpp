@@ -100,6 +100,12 @@ uint64
 SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
                            int32_t roundNumber, NodeID const& nodeID)
 {
+#ifdef BUILD_TESTS
+    if (mPriorityLookupForTesting)
+    {
+        return isPriority ? mPriorityLookupForTesting(nodeID) : 0;
+    }
+#endif
     return hashHelper(
         slotIndex, prev, [&](std::vector<xdr::opaque_vec<>>& vals) {
             vals.emplace_back(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));

@@ -169,6 +169,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
+    LIMIT_TX_QUEUE_SOURCE_ACCOUNT = false;
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
@@ -971,6 +972,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "UNSAFE_QUORUM")
             {
                 UNSAFE_QUORUM = readBool(item);
+            }
+            else if (item.first == "LIMIT_TX_QUEUE_SOURCE_ACCOUNT")
+            {
+                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = readBool(item);
             }
             else if (item.first == "DISABLE_XDR_FSYNC")
             {
