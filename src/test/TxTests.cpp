@@ -1548,12 +1548,7 @@ static TransactionEnvelope
 envelopeFromOps(Hash const& networkID, TestAccount& source,
                 std::vector<Operation> const& ops,
                 std::vector<SecretKey> const& opKeys,
-                std::optional<PreconditionsV2> cond = std::nullopt
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                ,
-                std::optional<SorobanResources> sorobanResources = std::nullopt
-#endif
-)
+                std::optional<PreconditionsV2> cond = std::nullopt)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
@@ -1567,13 +1562,6 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
         tx.v1().tx.cond.type(PRECOND_V2);
         tx.v1().tx.cond.v2() = *cond;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (sorobanResources)
-    {
-        tx.v1().tx.ext.v(1);
-        tx.v1().tx.ext.sorobanData().resources = *sorobanResources;
-    }
-#endif
     sign(networkID, source, tx.v1());
     for (auto const& opKey : opKeys)
     {
@@ -1581,6 +1569,33 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     }
     return tx;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+static TransactionEnvelope
+sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
+                       std::vector<Operation> const& ops,
+                       std::vector<SecretKey> const& opKeys,
+                       SorobanResources const& resources, uint32_t fee,
+                       uint32_t refundableFee)
+{
+    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
+    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    tx.v1().tx.fee = fee;
+    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    tx.v1().tx.ext.v(1);
+    tx.v1().tx.ext.sorobanData().resources = resources;
+    tx.v1().tx.ext.sorobanData().refundableFee = refundableFee;
+    std::copy(ops.begin(), ops.end(),
+              std::back_inserter(tx.v1().tx.operations));
+
+    sign(networkID, source, tx.v1());
+    for (auto const& opKey : opKeys)
+    {
+        sign(networkID, opKey, tx.v1());
+    }
+    return tx;
+}
+#endif
 
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
@@ -1597,11 +1612,12 @@ TransactionFrameBasePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources)
+                               SorobanResources const& resources, uint32_t fee,
+                               uint32_t refundableFee)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, envelopeFromOps(networkID, source, ops, opKeys, std::nullopt,
-                                   std::make_optional(resources)));
+        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
+                                          resources, fee, refundableFee));
 }
 #endif
 

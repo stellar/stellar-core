@@ -2481,10 +2481,12 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     op.body.type(INVOKE_HOST_FUNCTION);
     op.body.invokeHostFunctionOp().functions.emplace_back();
 
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, SorobanResources());
+    auto tx =
+        sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                       SorobanResources(), 1'000'000, 100'000);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+    REQUIRE(tx->getResult().result.code() == txMALFORMED);
 }
 
 TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
@@ -2499,10 +2501,15 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
 
     auto validateResources = [&](SorobanResources const& resources,
                                  bool valid) {
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 3'500'000, 100'000);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0) == valid);
+        if (!valid)
+        {
+            REQUIRE(tx->getResult().result.code() ==
+                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+        }
     };
 
     SECTION("no soroban extension")
@@ -2510,17 +2517,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op}, {});
         LedgerTxn ltx(app->getLedgerTxnRoot());
         REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-    }
-    SECTION("no soroban resources in extension")
-    {
-        auto envelope =
-            transactionFrameFromOps(app->getNetworkID(), root, {op}, {})
-                ->getEnvelope();
-        envelope.v1().tx.ext.v(1);
-        auto tx = TransactionFrameBase::makeTransactionFromWire(
-            app->getNetworkID(), envelope);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->getResult().result.code() == txMALFORMED);
     }
     SorobanResources resources;
     SECTION("minimal resources are valid")
@@ -2586,7 +2583,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         SECTION("near limit")
         {
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources);
+                                                     {op}, {}, resources,
+                                                     4'000'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
         }
@@ -2595,10 +2593,51 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             ihf.args.invokeContract().back().bytes().resize(
                 InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources);
+                                                     {op}, {}, resources,
+                                                     1'000'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() ==
+                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
         }
+    }
+    SECTION("fees")
+    {
+        SECTION("resource fee exceeds tx fee")
+        {
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     1'000'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
+        }
+        SECTION("tx fee is lower than tx refundable fee")
+        {
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     4'000'000, 4'000'001);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
+        }
+        SECTION("refundable fee exceeds tx refundable fee")
+        {
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, 4'000'000, 100);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
+        }
+    }
+
+    SECTION("multiple ops are not allowed")
+    {
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op, op}, {}, resources, 100'000, 1200);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->getResult().result.code() == txMALFORMED);
     }
 }
 #endif
