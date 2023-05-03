@@ -1947,12 +1947,12 @@ TEST_CASE("transaction queue starting sequence boundary",
 }
 
 void
-testTxQueueFeeBump(bool limit)
+testTxQueueFeeBump(bool limitSourceAccounts)
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 100;
-    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = limit;
+    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = limitSourceAccounts;
     auto app = createTestApplication(clock, cfg);
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);

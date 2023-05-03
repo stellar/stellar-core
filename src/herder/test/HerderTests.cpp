@@ -3148,6 +3148,30 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
             REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
             REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
         }
+
+        // Now submit the second tx (which was rejected earlier) and make sure
+        // it ends up in the ledger
+        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+        lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        simulation->crankUntil(
+            [&]() {
+                return app->getLedgerManager().getLastClosedLedgerNum() >
+                       lcl + 2;
+            },
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        for (auto const& node : simulation->getNodes())
+        {
+            // Applied tx was removed and banned
+            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
+            // Both accounts are in the ledger
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+            REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
+        }
     }
 }
 
