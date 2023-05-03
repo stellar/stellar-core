@@ -4,8 +4,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerTxn.h"
 #include <cstdint>
-#include <ledger/LedgerTxn.h>
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
 
 namespace stellar
 {
@@ -23,7 +26,8 @@ struct InitialSorobanNetworkConfig
     // Compute settings
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 1;
     static constexpr int64_t TX_MAX_INSTRUCTIONS = 200'000'000;
-    static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT = 1;
+    static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT =
+        100;                                                   // 0.2 XLM/max tx
     static constexpr uint32_t MEMORY_LIMIT = 50 * 1024 * 1024; // 50MB
 
     // Ledger access settings
@@ -32,29 +36,29 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
     static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 1;
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 200'000;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 200 * 1024;
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 20;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 100'000;
-    static constexpr int64_t FEE_READ_LEDGER_ENTRY = 1;
-    static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 1;
-    static constexpr int64_t FEE_READ_1KB = 1;
-    static constexpr int64_t FEE_WRITE_1KB = 1;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 100 * 1024;
+    static constexpr int64_t FEE_READ_LEDGER_ENTRY = 5'000;   // 0.02 XLM/max tx
+    static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 20'000; // 0.04 XLM/max tx
+    static constexpr int64_t FEE_READ_1KB = 1'000;            // 0.02 XLM/max tx
+    static constexpr int64_t FEE_WRITE_1KB = 4'000;           // 0.04 XLM/max tx
     static constexpr int64_t BUCKET_LIST_SIZE_BYTES = 1;
     static constexpr int64_t BUCKET_LIST_FEE_RATE_LOW = 1;
     static constexpr int64_t BUCKET_LIST_FEE_RATE_HIGH = 1;
     static constexpr uint32_t BUCKET_LIST_GROWTH_FACTOR = 1;
 
     // Historical data settings
-    static constexpr int64_t FEE_HISTORICAL_1KB = 1;
+    static constexpr int64_t FEE_HISTORICAL_1KB = 100; // 0.001 XLM/max tx
 
     // Bandwidth settings
     static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 100'000;
-    static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 1;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 100 * 1024;
+    static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 2'000; // 0.02 XLM/max tx
 
     // Meta data settings
-    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500'000;
-    static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 1;
+    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500 * 1024;
+    static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 200;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -146,6 +150,8 @@ class SorobanNetworkConfig
     ContractCostParams const& memCostParams() const;
 
     static bool isValidCostParams(ContractCostParams const& params);
+
+    CxxFeeConfiguration rustBridgeFeeConfiguration() const;
 #endif
 
   private:
