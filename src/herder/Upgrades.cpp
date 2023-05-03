@@ -1418,6 +1418,12 @@ ConfigUpgradeSetFrame::isValidForApply() const
             valid = SorobanNetworkConfig::isValidCostParams(
                 configEntry.contractCostParamsMemBytes());
             break;
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
+            valid = configEntry.contractDataKeySizeBytes() > 0;
+            break;
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
+            valid = configEntry.contractDataEntrySizeBytes() > 0;
+            break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:

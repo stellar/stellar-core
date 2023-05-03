@@ -550,8 +550,8 @@ TransactionFrame::validateSorobanResources(
     SorobanNetworkConfig const& config) const
 {
     auto const& resources = sorobanResources();
-    size_t readEntries = resources.footprint.readOnly.size();
-    size_t writeEntries = resources.footprint.readWrite.size();
+    auto const& readEntries = resources.footprint.readOnly;
+    auto const& writeEntries = resources.footprint.readWrite;
     if (resources.instructions > config.txMaxInstructions())
     {
         return false;
@@ -569,10 +569,25 @@ TransactionFrame::validateSorobanResources(
     {
         return false;
     }
-    if (readEntries + writeEntries > config.txMaxReadLedgerEntries() ||
-        writeEntries > config.txMaxWriteLedgerEntries())
+    if (readEntries.size() + writeEntries.size() >
+            config.txMaxReadLedgerEntries() ||
+        writeEntries.size() > config.txMaxWriteLedgerEntries())
     {
         return false;
+    }
+    for (auto const& lk : readEntries)
+    {
+        if (xdr::xdr_size(lk) > config.maxContractDataKeySizeBytes())
+        {
+            return false;
+        }
+    }
+    for (auto const& lk : writeEntries)
+    {
+        if (xdr::xdr_size(lk) > config.maxContractDataKeySizeBytes())
+        {
+            return false;
+        }
     }
     auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
     if (txSize > config.txMaxSizeBytes())
@@ -1176,7 +1191,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, ltx, false))
+            if (!op->checkValid(app, signatureChecker, ltx, false))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object

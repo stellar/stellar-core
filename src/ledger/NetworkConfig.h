@@ -21,11 +21,16 @@ namespace stellar
 struct InitialSorobanNetworkConfig
 {
     // Contract size settings
-    static constexpr uint32_t MAX_CONTRACT_SIZE = 65536;
+    static constexpr uint32_t MAX_CONTRACT_SIZE = 64 * 1024; // 64KB
+
+    // Contract data settings
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
+    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES =
+        64 * 1024; // 64KB
 
     // Compute settings
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 1;
-    static constexpr int64_t TX_MAX_INSTRUCTIONS = 200'000'000;
+    static constexpr int64_t TX_MAX_INSTRUCTIONS = 40'000'000;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT =
         100;                                                   // 0.2 XLM/max tx
     static constexpr uint32_t MEMORY_LIMIT = 50 * 1024 * 1024; // 50MB
@@ -80,6 +85,10 @@ class SorobanNetworkConfig
     // Maximum allowed size of the contract Wasm that can be uploaded (in
     // bytes).
     uint32_t maxContractSizeBytes() const;
+    // Maximum allowed size of a `LedgerKey::CONTRACT_DATA` (in bytes).
+    uint32_t maxContractDataKeySizeBytes() const;
+    // Maximum allowed size of a `LedgerEntry::CONTRACT_DATA` (in bytes).
+    uint32_t maxContractDataEntrySizeBytes() const;
 
     // Compute settings for contracts (instructions and memory).
     // Maximum instructions per ledger
@@ -156,6 +165,8 @@ class SorobanNetworkConfig
 
   private:
     void loadMaxContractSize(AbstractLedgerTxn& ltx);
+    void loadMaxContractDataKeySize(AbstractLedgerTxn& ltx);
+    void loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx);
     void loadComputeSettings(AbstractLedgerTxn& ltx);
     void loadLedgerAccessSettings(AbstractLedgerTxn& ltx);
     void loadHistoricalSettings(AbstractLedgerTxn& ltx);
@@ -165,6 +176,8 @@ class SorobanNetworkConfig
     void loadMemCostParams(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
+    uint32_t mMaxContractDataKeySizeBytes{};
+    uint32_t mMaxContractDataEntrySizeBytes{};
 
     // Compute settings for contracts (instructions and memory).
     int64_t mLedgerMaxInstructions{};

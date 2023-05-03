@@ -6,6 +6,7 @@
 
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/NetworkConfig.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
 #include <medida/metrics_registry.h>
@@ -40,7 +41,10 @@ class OperationFrame
     TransactionFrame& mParentTx;
     OperationResult& mResult;
 
+    virtual bool doCheckValid(SorobanNetworkConfig const& config,
+                              uint32_t ledgerVersion);
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
+
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx);
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
@@ -80,7 +84,7 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(SignatureChecker& signatureChecker,
+    bool checkValid(Application& app, SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
     bool apply(Application& app, SignatureChecker& signatureChecker,
