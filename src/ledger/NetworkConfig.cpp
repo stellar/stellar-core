@@ -654,5 +654,26 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)
     return true;
 }
 
-#endif
+CxxFeeConfiguration
+SorobanNetworkConfig::rustBridgeFeeConfiguration() const
+{
+    CxxFeeConfiguration res;
+    res.fee_per_instruction_increment = feeRatePerInstructionsIncrement();
+
+    res.fee_per_read_entry = feeReadLedgerEntry();
+    res.fee_per_write_entry = feeWriteLedgerEntry();
+    res.fee_per_read_1kb = feeRead1KB();
+    // This should be dependent on the ledger size, but initially
+    // we'll just use the flat rate here.
+    res.fee_per_write_1kb = feeWrite1KB();
+
+    res.fee_per_propagate_1kb = feePropagateData1KB();
+
+    res.fee_per_metadata_1kb = feeExtendedMetaData1KB();
+
+    res.fee_per_historical_1kb = feeHistorical1KB();
+
+    return res;
 }
+#endif
+} // namespace stellar

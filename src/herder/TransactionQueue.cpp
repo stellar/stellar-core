@@ -117,6 +117,11 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
         {
             minFee = INT64_MAX;
         }
+        else
+        {
+            // Add the potential flat component to the resulting min fee.
+            minFee += tx->getFullFee() - tx->getFeeBid();
+        }
     }
     return res;
 }
@@ -389,9 +394,9 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
 {
     auto iter = mAccountStates.find(tx->getFeeSourceID());
     releaseAssert(iter != mAccountStates.end() &&
-                  iter->second.mTotalFees >= tx->getFeeBid());
+                  iter->second.mTotalFees >= tx->getFullFee());
 
-    iter->second.mTotalFees -= tx->getFeeBid();
+    iter->second.mTotalFees -= tx->getFullFee();
     if (iter->second.mTransactions.empty())
     {
         if (iter->second.mTotalFees == 0)
@@ -572,7 +577,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     stateIter->second.mQueueSizeOps += ops;
     stateIter->second.mBroadcastQueueOps += ops;
     auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
-    thisAccountState.mTotalFees += tx->getFeeBid();
+    thisAccountState.mTotalFees += tx->getFullFee();
 
     // make space so that we can add this transaction
     // this will succeed as `canAdd` ensures that this is the case

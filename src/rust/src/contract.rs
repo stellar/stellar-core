@@ -4,7 +4,10 @@
 
 use crate::{
     log::partition::TX,
-    rust_bridge::{CxxBuf, CxxLedgerInfo, InvokeHostFunctionOutput, RustBuf, XDRFileHash},
+    rust_bridge::{
+        CxxBuf, CxxFeeConfiguration, CxxLedgerInfo, CxxTransactionResources, FeePair,
+        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
+    },
 };
 use log::debug;
 use soroban_env_host_curr::xdr::ContractCostParams;
@@ -17,6 +20,10 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 use super::soroban_env_host::{
     budget::Budget,
     events::{Event, Events},
+    fees::{
+        compute_transaction_resource_fee as host_compute_transaction_resource_fee,
+        FeeConfiguration, TransactionResources,
+    },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
         self, AccountId, ContractEvent, DiagnosticEvent, HostFunction, LedgerEntry,
@@ -36,6 +43,35 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             timestamp: c.timestamp,
             network_id: c.network_id.try_into().unwrap(),
             base_reserve: c.base_reserve,
+        }
+    }
+}
+
+impl From<CxxTransactionResources> for TransactionResources {
+    fn from(value: CxxTransactionResources) -> Self {
+        Self {
+            instructions: value.instructions,
+            read_entries: value.read_entries,
+            write_entries: value.write_entries,
+            read_bytes: value.read_bytes,
+            write_bytes: value.write_bytes,
+            metadata_size_bytes: value.metadata_size_bytes,
+            transaction_size_bytes: value.transaction_size_bytes,
+        }
+    }
+}
+
+impl From<CxxFeeConfiguration> for FeeConfiguration {
+    fn from(value: CxxFeeConfiguration) -> Self {
+        Self {
+            fee_per_instruction_increment: value.fee_per_instruction_increment,
+            fee_per_read_entry: value.fee_per_read_entry,
+            fee_per_write_entry: value.fee_per_write_entry,
+            fee_per_read_1kb: value.fee_per_read_1kb,
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_historical_1kb: value.fee_per_historical_1kb,
+            fee_per_metadata_1kb: value.fee_per_metadata_1kb,
+            fee_per_propagate_1kb: value.fee_per_propagate_1kb,
         }
     }
 }
@@ -375,4 +411,16 @@ fn invoke_host_functions_or_maybe_panic(
         cpu_insns: budget.get_cpu_insns_count(),
         mem_bytes: budget.get_mem_bytes_count(),
     })
+}
+
+pub(crate) fn compute_transaction_resource_fee(
+    tx_resources: CxxTransactionResources,
+    fee_config: CxxFeeConfiguration,
+) -> FeePair {
+    let (fee, refundable_fee) =
+        host_compute_transaction_resource_fee(&tx_resources.into(), &fee_config.into());
+    FeePair {
+        fee,
+        refundable_fee,
+    }
 }

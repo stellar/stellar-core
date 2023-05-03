@@ -211,13 +211,13 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
             {
                 lastSeq = tx->getSeqNum();
                 int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
-                if (INT64_MAX - accFee < tx->getFeeBid())
+                if (INT64_MAX - accFee < tx->getFullFee())
                 {
                     accFee = INT64_MAX;
                 }
                 else
                 {
-                    accFee += tx->getFeeBid();
+                    accFee += tx->getFullFee();
                 }
                 ++iter;
             }

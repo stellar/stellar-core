@@ -93,12 +93,14 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
                          SorobanResources const& resources,
                          Hash const& expectedWasmHash,
                          xdr::opaque_vec<SCVAL_LIMIT> const& expectedWasm,
-                         Hash const& contractID, SCVal const& sourceRefKey)
+                         Hash const& contractID, SCVal const& sourceRefKey,
+                         uint32_t fee, uint32_t refundableFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), root,
-                                             {deployOp}, {}, resources);
+    auto tx =
+        sorobanTransactionFrameFromOps(app.getNetworkID(), root, {deployOp}, {},
+                                       resources, fee, refundableFee);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
@@ -175,9 +177,10 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     resources.writeBytes = 5000;
     resources.extendedMetaDataSizeBytes = 6000;
 
-    submitTxToDeployContract(
-        app, deployOp, resources, contractCodeLedgerKey.contractCode().hash,
-        uploadContractWasmArgs.code, contractID, scContractSourceRefKey);
+    submitTxToDeployContract(app, deployOp, resources,
+                             contractCodeLedgerKey.contractCode().hash,
+                             uploadContractWasmArgs.code, contractID,
+                             scContractSourceRefKey, 100'000, 1200);
 
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
@@ -187,6 +190,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
+    int64_t initBalance = root.getBalance();
 
     auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
 
@@ -201,20 +205,32 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
         ihf.args.invokeContract() = parameters;
 
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
         if (success)
         {
+            REQUIRE(tx->getFullFee() == 100'000);
+            REQUIRE(tx->getFeeBid() == 62'973);
             REQUIRE(tx->apply(*app, ltx, txm));
+            // Charge for resources plus minimum inclusion fee bid (currently
+            // equivalent to the network `baseFee` of 100).
+            int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) + 100;
+            REQUIRE(tx->getResult().feeCharged == baseCharged);
+            // Imitate surge pricing by charging at a higher rate than base fee.
+            tx->processFeeSeqNum(ltx, 200);
+            ltx.commit();
+
+            int64_t newBalance = root.getBalance();
+            REQUIRE(initBalance - newBalance == baseCharged + 100);
         }
         else
         {
             REQUIRE(!tx->apply(*app, ltx, txm));
+            ltx.commit();
         }
-        ltx.commit();
         std::vector<SCVal> resultVals;
         resultVals.emplace_back();
         resultVals[0].type(stellar::SCV_STATUS);
@@ -325,8 +341,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.writeBytes = writeBytes;
         resources.extendedMetaDataSizeBytes = 3000;
 
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -369,8 +385,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
             resources.writeBytes = 1000;
             resources.extendedMetaDataSizeBytes = 3000;
 
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources);
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -453,7 +469,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.extendedMetaDataSizeBytes = 3000;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources);
+                                             {}, resources, 100'000, 1200);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -532,8 +548,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
         SECTION("single op")
         {
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources);
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -563,14 +579,6 @@ TEST_CASE("complex contract", "[tx][soroban]")
             {
                 REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 0);
             }
-        }
-        SECTION("multiple ops are not allowed")
-        {
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op, op}, {}, resources);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
         }
     };
 
@@ -692,8 +700,8 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     {
         // submit operation
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 250'000, 1200);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);

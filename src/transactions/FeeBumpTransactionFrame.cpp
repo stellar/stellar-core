@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -171,6 +172,11 @@ FeeBumpTransactionFrame::checkValid(Application& app,
 {
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mInnerTx->maybeComputeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion,
+        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+#endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -264,7 +270,7 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
-    int64_t feeToPay = applying ? 0 : getFeeBid();
+    int64_t feeToPay = applying ? 0 : getFullFee();
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (getAvailableBalance(header, feeSource) < feeToPay)
@@ -283,9 +289,16 @@ FeeBumpTransactionFrame::getEnvelope() const
 }
 
 int64_t
-FeeBumpTransactionFrame::getFeeBid() const
+FeeBumpTransactionFrame::getFullFee() const
 {
     return mEnvelope.feeBump().tx.fee;
+}
+
+int64_t
+FeeBumpTransactionFrame::getFeeBid() const
+{
+    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getFeeBid();
+    return mEnvelope.feeBump().tx.fee - flatFee;
 }
 
 int64_t
@@ -295,16 +308,17 @@ FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
 {
     if (!baseFee)
     {
-        return getFeeBid();
+        return getFullFee();
     }
+    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getFeeBid();
     int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {
-        return std::min<int64_t>(getFeeBid(), adjustedFee);
+        return flatFee + std::min<int64_t>(getFeeBid(), adjustedFee);
     }
     else
     {
-        return adjustedFee;
+        return flatFee + adjustedFee;
     }
 }
 
