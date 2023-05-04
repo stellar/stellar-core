@@ -133,12 +133,20 @@ randomlyModifyEntry(LedgerEntry& e)
         break;
     }
     case CONTRACT_DATA:
-        e.data.contractData().val.type(SCV_I32);
-        e.data.contractData().val.i32() = autocheck::generator<int32_t>{}();
+        if (e.data.contractData().body.t() == DATA_ENTRY)
+        {
+            e.data.contractData().body.val().type(SCV_I32);
+            e.data.contractData().body.val().i32() =
+                autocheck::generator<int32_t>{}();
+        }
         makeValid(e.data.contractData());
         break;
     case CONTRACT_CODE:
-        e.data.contractCode().code = generateOpaqueVector<SCVAL_LIMIT>();
+        if (e.data.contractCode().body.t() == DATA_ENTRY)
+        {
+            e.data.contractCode().body.code() =
+                generateOpaqueVector<SCVAL_LIMIT>();
+        }
         makeValid(e.data.contractCode());
         break;
 #endif
