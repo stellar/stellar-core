@@ -63,10 +63,10 @@ makeGeneralizedTxSetXDR(
 
 TxSetFrameConstPtr
 makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
-                      Hash const& networkID, Hash const& previousLedgerHash)
+                      Application& app, Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
-    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
+    return TxSetFrame::makeFromWire(app, xdrTxSet);
 }
 } // namespace
 
@@ -75,26 +75,26 @@ makeNonValidatedGeneralizedTxSet(
     std::vector<std::pair<std::optional<int64_t>,
                           std::vector<TransactionFrameBasePtr>>> const&
         txsPerBaseFee,
-    Hash const& networkID, Hash const& previousLedgerHash)
+    Application& app, Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
-    return TxSetFrame::makeFromWire(networkID, xdrTxSet);
+    return TxSetFrame::makeFromWire(app, xdrTxSet);
 }
 
 TxSetFrameConstPtr
 makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
-    Hash const& networkID, Hash const& previousLedgerHash)
+    Application& app, Hash const& previousLedgerHash)
 {
     if (protocolVersionStartsFrom(ledgerVersion,
                                   GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
         return makeNonValidatedGeneralizedTxSet({std::make_pair(100LL, txs)},
-                                                networkID, previousLedgerHash);
+                                                app, previousLedgerHash);
     }
     else
     {
-        return makeNonValidatedTxSet(txs, networkID, previousLedgerHash);
+        return makeNonValidatedTxSet(txs, app, previousLedgerHash);
     }
 }
 

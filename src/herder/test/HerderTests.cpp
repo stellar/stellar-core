@@ -2000,8 +2000,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
             {std::make_pair(
                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
                                                            addTx(2, 5000)})},
-            app->getNetworkID(),
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000});
     }
     SECTION("single non-discounted component")
@@ -2010,8 +2009,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
             {std::make_pair(std::nullopt,
                             std::vector<TransactionFrameBasePtr>{
                                 addTx(3, 3500), addTx(2, 5000)})},
-            app->getNetworkID(),
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3500, 5000});
     }
     SECTION("multiple components")
@@ -2033,7 +2031,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
                                std::vector<TransactionFrameBasePtr>{
                                    addTx(5, 35000), addTx(1, 10000)})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            components, app->getNetworkID(),
+            components, *app,
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
@@ -2340,7 +2338,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             sig.clear();
             tx->addSignature(root.getSecretKey());
             auto txSet = testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
-                protocolVersion, {tx}, app->getNetworkID(),
+                protocolVersion, {tx}, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
             // Build a StellarValue containing the transaction set we just
@@ -2450,8 +2448,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                             .txsMaybeDiscountedFee()
                             .txs;
             std::swap(txs[0], txs[1]);
-            malformedTxSet =
-                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+            malformedTxSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         }
         else
         {
@@ -2459,8 +2456,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             transactions1->toXDR(xdrTxSet);
             auto& txs = xdrTxSet.txs;
             std::swap(txs[0], txs[1]);
-            malformedTxSet =
-                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+            malformedTxSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         }
         auto malformedTxSetPair = makeTxPair(herder, malformedTxSet, 10);
         auto malformedTxSetEnvelope =
@@ -3186,6 +3182,46 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         }
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("soroban txs accepted by the network",
+          "[herder][soroban][transactionqueue]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = Topologies::core(
+        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            return cfg;
+        });
+    simulation->startAllNodes();
+    auto nodes = simulation->getNodes();
+    auto& loadGen = nodes[0]->getLoadGenerator();
+
+    // Generate some accounts
+    auto& loadGenDone =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 10, /* txRate */ 1, /* batchSize */ 1));
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    currLoadGenCount = loadGenDone.count();
+    // Now generate soroban txs.
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN, /* nAccounts */ 10,
+        /* nTxs */ 30, /* txRate */ 1, /* batchSize */ 1));
+
+    std::optional<uint32_t> upgradeLedger;
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto& loadGenFailed =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    REQUIRE(loadGenFailed.count() == 0);
+}
+#endif
 
 static void
 checkSynced(Application& app)

@@ -28,6 +28,7 @@
 #include "medida/metrics_registry.h"
 
 #include <cmath>
+#include <crypto/SHA.h>
 #include <fmt/format.h>
 #include <iomanip>
 #include <set>
@@ -85,6 +86,12 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::MIXED_TXS;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    else if (mode == "soroban")
+    {
+        return LoadGenMode::SOROBAN;
+    }
+#endif
     else
     {
         // unknown mode
@@ -318,6 +325,15 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 };
             }
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            case LoadGenMode::SOROBAN:
+            {
+                generateTx = [&]() {
+                    return sorobanTransaction(ledgerNum, sourceAccountId);
+                };
+            }
+            break;
+#endif
             }
 
             if (submitTx(cfg, generateTx))
@@ -628,6 +644,43 @@ LoadGenerator::manageOfferTransaction(
         account, createTransactionFramePtr(account, ops, LoadGenMode::MIXED_TXS,
                                            maxGeneratedFeeRate));
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::sorobanTransaction(uint32_t ledgerNum, uint64_t accountId)
+{
+    auto account = findAccount(accountId, ledgerNum);
+    Operation deployOp;
+    deployOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF =
+        deployOp.body.invokeHostFunctionOp().functions.emplace_back();
+    uploadHF.args.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    auto& uploadContractWasmArgs = uploadHF.args.uploadContractWasm();
+    uploadContractWasmArgs.code.resize(1000);
+    auto byteDistr = uniform_int_distribution<uint8_t>();
+    std::generate(uploadContractWasmArgs.code.begin(),
+                  uploadContractWasmArgs.code.end(),
+                  [&byteDistr]() { return byteDistr(gRandomEngine); });
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash =
+        xdrSha256(uploadContractWasmArgs);
+
+    SorobanResources resources;
+    resources.footprint.readWrite = {contractCodeLedgerKey};
+    resources.instructions = 200'000;
+    resources.readBytes = 1000;
+    resources.writeBytes = 5000;
+    resources.extendedMetaDataSizeBytes = 6000;
+    auto inclusionFeeDistr = uniform_int_distribution<uint32_t>(100, 1000);
+    auto tx = sorobanTransactionFrameFromOps(
+        mApp.getNetworkID(), *account, {deployOp}, {}, resources,
+        100'000 + inclusionFeeDistr(gRandomEngine), 10'000);
+    return std::make_pair(account,
+                          std::dynamic_pointer_cast<TransactionFrame>(tx));
+}
+#endif
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,

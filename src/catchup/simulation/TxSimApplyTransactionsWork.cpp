@@ -520,12 +520,11 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         if (txHistoryEntry.ext.v() == 1)
         {
             txSetFrame = TxSetFrame::makeFromWire(
-                mNetworkID, txHistoryEntry.ext.generalizedTxSet());
+                mApp, txHistoryEntry.ext.generalizedTxSet());
         }
         else
         {
-            txSetFrame =
-                TxSetFrame::makeFromWire(mNetworkID, txHistoryEntry.txSet);
+            txSetFrame = TxSetFrame::makeFromWire(mApp, txHistoryEntry.txSet);
         }
         for (auto const& txFrame : txSetFrame->getTxs())
         {
