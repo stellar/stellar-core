@@ -486,6 +486,14 @@ LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
     return *mSorobanNetworkConfig;
 }
 
+#ifdef BUILD_TESTS
+void
+LedgerManagerImpl::setSorobanNetworkConfig(SorobanNetworkConfig const& config)
+{
+    mSorobanNetworkConfig = config;
+}
+#endif
+
 // called by txherder
 void
 LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)

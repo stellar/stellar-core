@@ -34,6 +34,28 @@ initialMaxContractSizeEntry()
 }
 
 ConfigSettingEntry
+initialMaxContractDataKeySizeEntry()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
+
+    entry.contractDataKeySizeBytes() =
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialMaxContractDataEntrySizeEntry()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
+
+    entry.contractDataEntrySizeBytes() =
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
+
+    return entry;
+}
+
+ConfigSettingEntry
 initialContractComputeSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
@@ -294,6 +316,8 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     createConfigSettingEntry(initialMaxContractSizeEntry(), ltx);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(), ltx);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(), ltx);
     createConfigSettingEntry(initialContractComputeSettingsEntry(), ltx);
     createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(), ltx);
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
@@ -319,6 +343,8 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
 {
     LedgerTxn ltx(ltxRoot, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     loadMaxContractSize(ltx);
+    loadMaxContractDataKeySize(ltx);
+    loadMaxContractDataEntrySize(ltx);
     loadComputeSettings(ltx);
     loadLedgerAccessSettings(ltx);
     loadHistoricalSettings(ltx);
@@ -326,12 +352,6 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadBandwidthSettings(ltx);
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
-}
-
-uint32_t
-SorobanNetworkConfig::maxContractSizeBytes() const
-{
-    return mMaxContractSizeBytes;
 }
 
 void
@@ -343,6 +363,32 @@ SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMaxContractDataKeySizeBytes =
+        le.data.configSetting().contractDataKeySizeBytes();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMaxContractDataEntrySizeBytes =
+        le.data.configSetting().contractDataEntrySizeBytes();
 #endif
 }
 
@@ -457,6 +503,24 @@ SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
     auto le = ltx.loadWithoutRecord(key).current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 #endif
+}
+
+uint32_t
+SorobanNetworkConfig::maxContractSizeBytes() const
+{
+    return mMaxContractSizeBytes;
+}
+
+uint32_t
+SorobanNetworkConfig::maxContractDataKeySizeBytes() const
+{
+    return mMaxContractDataKeySizeBytes;
+}
+
+uint32_t
+SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
+{
+    return mMaxContractDataEntrySizeBytes;
 }
 
 // Compute settings for contracts (instructions and memory).
@@ -619,6 +683,20 @@ SorobanNetworkConfig::feePropagateData1KB() const
 {
     return mFeePropagateData1KB;
 }
+
+#ifdef BUILD_TESTS
+uint32_t&
+SorobanNetworkConfig::maxContractDataKeySizeBytes()
+{
+    return mMaxContractDataKeySizeBytes;
+}
+
+uint32_t&
+SorobanNetworkConfig::maxContractDataEntrySizeBytes()
+{
+    return mMaxContractDataEntrySizeBytes;
+}
+#endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 

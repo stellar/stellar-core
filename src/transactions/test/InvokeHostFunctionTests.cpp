@@ -322,7 +322,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto putWithFootprint = [&](std::string const& key, uint64_t val,
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
-                                uint32_t writeBytes, bool success) {
+                                uint32_t writeBytes, bool expectSuccess) {
         auto keySymbol = makeSymbol(key);
         auto valU64 = makeU64(val);
 
@@ -346,7 +346,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        if (success)
+        if (expectSuccess)
         {
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
@@ -367,7 +367,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto delWithFootprint =
         [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, bool success) {
+            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess) {
             auto keySymbol = makeSymbol(key);
 
             Operation op;
@@ -390,7 +390,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            if (success)
+            if (expectSuccess)
             {
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
@@ -408,30 +408,49 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          {contractDataKey(contractID, makeSymbol(key))}, true);
     };
 
-    put("key1", 0);
-    put("key2", 21);
+    SECTION("default limits")
+    {
+        put("key1", 0);
+        put("key2", 21);
 
-    // Failure: contract data isn't in footprint
-    putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
-    delWithFootprint("key1", contractKeys, {}, false);
+        // Failure: contract data isn't in footprint
+        putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
+        delWithFootprint("key1", contractKeys, {}, false);
 
-    // Failure: contract data is read only
-    auto readOnlyFootprint = contractKeys;
-    readOnlyFootprint.push_back(
-        contractDataKey(contractID, makeSymbol("key2")));
-    putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false);
-    delWithFootprint("key2", readOnlyFootprint, {}, false);
+        // Failure: contract data is read only
+        auto readOnlyFootprint = contractKeys;
+        readOnlyFootprint.push_back(
+            contractDataKey(contractID, makeSymbol("key2")));
+        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false);
+        delWithFootprint("key2", readOnlyFootprint, {}, false);
 
-    // Failure: insufficient write bytes
-    putWithFootprint("key2", 88888, contractKeys,
-                     {contractDataKey(contractID, makeSymbol("key2"))}, 1,
-                     false);
+        // Failure: insufficient write bytes
+        putWithFootprint("key2", 88888, contractKeys,
+                         {contractDataKey(contractID, makeSymbol("key2"))}, 1,
+                         false);
 
-    put("key1", 9);
-    put("key2", UINT64_MAX);
+        put("key1", 9);
+        put("key2", UINT64_MAX);
 
-    del("key1");
-    del("key2");
+        del("key1");
+        del("key2");
+    }
+
+    SorobanNetworkConfig refConfig;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }
+    SECTION("failure: entry exceeds max size")
+    {
+        refConfig.maxContractDataKeySizeBytes() = 300;
+        refConfig.maxContractDataEntrySizeBytes() = 1;
+        app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+        // this fails due to the contract code itself exceeding the entry limit
+        putWithFootprint("key2", 2, contractKeys,
+                         {contractDataKey(contractID, makeSymbol("key2"))},
+                         1000, false);
+    }
 }
 
 TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")

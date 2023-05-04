@@ -2639,5 +2639,88 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
         REQUIRE(tx->getResult().result.code() == txMALFORMED);
     }
+    SECTION("contract size")
+    {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        auto& uploadArgs = ihf.args.uploadContractWasm();
+        uploadArgs.code.resize(InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
+        SECTION("at limit")
+        {
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     3'500'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("over limit")
+        {
+            uploadArgs.code.resize(
+                InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE + 1);
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     3'500'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+    }
+
+    auto makeSymbol = [](std::string const& str) -> SCVal {
+        SCVal val(SCV_SYMBOL);
+        val.sym().assign(str.begin(), str.end());
+        return val;
+    };
+
+    SECTION("footprint limit")
+    {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.args.invokeContract() = {makeSymbol("dummy")};
+        SorobanNetworkConfig refConfig;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        }
+        SECTION("success with default limits")
+        {
+            resources.footprint.readOnly.back() = contractDataKey(
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     3'500'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("read-only key over size limit")
+        {
+            resources.footprint.readOnly.resize(1);
+            resources.footprint.readOnly.back() = contractDataKey(
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+            refConfig.maxContractDataKeySizeBytes() = 64;
+            app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     3'500'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("read-write key over size limit")
+        {
+            resources.footprint.readWrite.resize(1);
+            resources.footprint.readWrite.back() = contractDataKey(
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+            refConfig.maxContractDataKeySizeBytes() = 64;
+            app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources,
+                                                     3'500'000, 100'000);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+    }
 }
 #endif

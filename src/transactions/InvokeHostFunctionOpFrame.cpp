@@ -60,6 +60,25 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     return info;
 }
 
+bool
+validateContractLedgerEntry(LedgerEntry const& le, size_t nByte,
+                            SorobanNetworkConfig const& config)
+{
+    // check contract code size limit
+    if (le.data.type() == CONTRACT_CODE &&
+        config.maxContractSizeBytes() < le.data.contractCode().code.size())
+    {
+        return false;
+    }
+    // check contract data entry size limit
+    if (le.data.type() == CONTRACT_DATA &&
+        config.maxContractDataEntrySizeBytes() < nByte)
+    {
+        return false;
+    }
+    return true;
+}
+
 template <typename T>
 std::vector<uint8_t>
 toVec(T const& t)
@@ -250,7 +269,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     auto const& footprint = resources.footprint;
     ledgerEntryCxxBufs.reserve(footprint.readOnly.size() +
                                footprint.readWrite.size());
-    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics](auto const& keys) {
+    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics,
+                     &sorobanConfig](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             // Load without record for readOnly to avoid writing them later
@@ -258,15 +278,29 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
             size_t nByte{0};
             if (ltxe)
             {
-                auto buf = toCxxBuf(ltxe.current());
+                auto const& le = ltxe.current();
+                auto buf = toCxxBuf(le);
                 nByte = buf.data->size();
+                // Typically invalid entry read should not happen unless some
+                // backward-incompatible change happened (e.g. reducing the
+                // contract data size limit) that renders previously valid
+                // entries no longer valid.
+                if (!validateContractLedgerEntry(le, nByte, sorobanConfig))
+                {
+                    return false;
+                }
                 ledgerEntryCxxBufs.emplace_back(std::move(buf));
             }
             metrics.noteReadEntry(lk, nByte);
         }
+        return true;
     };
 
-    addReads(footprint.readWrite);
+    if (!addReads(footprint.readWrite))
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
     // Metadata includes the ledger entry changes which we
     // approximate as the size of the RW entries that we read
     // plus size of the RW entries that we write back to the ledger.
@@ -277,7 +311,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         return false;
     }
 
-    addReads(footprint.readOnly);
+    if (!addReads(footprint.readOnly))
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
 
     if (resources.readBytes < metrics.mLedgerReadByte)
     {
@@ -320,7 +358,15 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     metrics.mMemByte = out.mem_bytes;
     if (!metrics.mSuccess)
     {
-        innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
+        if (resources.instructions < out.cpu_insns ||
+            sorobanConfig.txMemoryLimit() < out.mem_bytes)
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        }
+        else
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_TRAPPED);
+        }
         return false;
     }
 
@@ -330,6 +376,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
+        if (!validateContractLedgerEntry(le, buf.data.size(), sorobanConfig))
+        {
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
 
         auto lk = LedgerEntryKey(le);
         metrics.noteWriteEntry(lk, buf.data.size());
@@ -406,9 +457,28 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
+InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+                                        uint32_t ledgerVersion)
+{
+    // check wasm size if uploading contract
+    for (auto const& hostFn : mInvokeHostFunction.functions)
+    {
+        auto const& args = hostFn.args;
+        if (args.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
+            args.uploadContractWasm().code.size() >
+                config.maxContractSizeBytes())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
 InvokeHostFunctionOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    return true;
+    throw std::runtime_error(
+        "InvokeHostFunctionOpFrame::doCheckValid needs Config");
 }
 
 void
@@ -422,6 +492,5 @@ InvokeHostFunctionOpFrame::isSoroban() const
 {
     return true;
 }
-
 }
 #endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

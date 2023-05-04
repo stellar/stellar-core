@@ -140,7 +140,7 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
     ZoneScoped;
     bool res;
     CLOG_TRACE(Tx, "{}", xdr_to_string(mOperation, "Operation"));
-    res = checkValid(signatureChecker, ltx, true);
+    res = checkValid(app, signatureChecker, ltx, true);
     if (res)
     {
         res = doApply(app, ltx);
@@ -225,7 +225,7 @@ OperationFrame::getResultCode() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(SignatureChecker& signatureChecker,
+OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter, bool forApply)
 {
     ZoneScoped;
@@ -259,6 +259,20 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker,
 
     resetResultSuccess();
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto const& sorobanConfig =
+        app.getLedgerManager().getSorobanNetworkConfig(ltx);
+
+    return doCheckValid(sorobanConfig, ledgerVersion);
+#else
+    return doCheckValid(ledgerVersion);
+#endif
+}
+
+bool
+OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
+                             uint32_t ledgerVersion)
+{
     return doCheckValid(ledgerVersion);
 }
 
