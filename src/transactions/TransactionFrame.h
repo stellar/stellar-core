@@ -133,8 +133,7 @@ class TransactionFrame : public TransactionFrameBase
 #endif
 
   public:
-    TransactionFrame(Hash const& networkID,
-                     TransactionEnvelope const& envelope);
+    TransactionFrame(Application& app, TransactionEnvelope const& envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 

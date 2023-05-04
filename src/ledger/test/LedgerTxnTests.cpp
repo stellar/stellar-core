@@ -4358,11 +4358,9 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
 
     for_versions_from(19, *app, [&] {
         auto tx1 = txtest::transactionFrameFromOps(
-            app->getNetworkID(), root, {a1.op(txtest::accountMerge(root))},
-            {a1});
+            *app, root, {a1.op(txtest::accountMerge(root))}, {a1});
         auto tx2 = txtest::transactionFrameFromOps(
-            app->getNetworkID(), root, {b1.op(txtest::accountMerge(root))},
-            {b1});
+            *app, root, {b1.op(txtest::accountMerge(root))}, {b1});
         txtest::closeLedger(*app, {tx1});
         txtest::closeLedger(*app, {tx2});
     });

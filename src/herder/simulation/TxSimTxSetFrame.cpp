@@ -21,8 +21,7 @@ SimApplyOrderTxSetFrame::SimApplyOrderTxSetFrame(
 }
 
 TxSetFrameConstPtr
-makeSimTxSetFrame(Hash const& networkID,
-                  LedgerHeaderHistoryEntry const& lclHeader,
+makeSimTxSetFrame(Application& app, LedgerHeaderHistoryEntry const& lclHeader,
                   std::vector<TransactionEnvelope> const& transactions,
                   std::vector<TransactionResultPair> const& results,
                   uint32_t multiplier)
@@ -40,11 +39,11 @@ makeSimTxSetFrame(Hash const& networkID,
         case ENVELOPE_TYPE_TX_V0:
         case ENVELOPE_TYPE_TX:
             txFrame = std::make_shared<TxSimTransactionFrame>(
-                networkID, txEnv, resultIter->result, partition);
+                app, txEnv, resultIter->result, partition);
             break;
         case ENVELOPE_TYPE_TX_FEE_BUMP:
             txFrame = std::make_shared<TxSimFeeBumpTransactionFrame>(
-                networkID, txEnv, resultIter->result, partition);
+                app, txEnv, resultIter->result, partition);
             break;
         default:
             abort();

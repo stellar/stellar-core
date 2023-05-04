@@ -348,7 +348,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 AccountEntryExtensionV2 extV2;
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        *app, root,
                         {root.op(beginSponsoringFutureReserves(acc1)),
                          acc1.op(setOptions(setSigner(makeSigner(s1, 1)))),
                          acc1.op(endSponsoringFutureReserves()),
@@ -391,7 +391,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        *app, root,
                         {acc1.op(setOptions(setSigner(makeSigner(s3, 0))))},
                         {acc1.getSecretKey()});
 
@@ -492,8 +492,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     signers.push_back({signer, nullptr});
                 }
 
-                auto tx = transactionFrameFromOps(app->getNetworkID(), root,
-                                                  ops, keys);
+                auto tx = transactionFrameFromOps(*app, root, ops, keys);
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
                     ltx.loadHeader().current().ledgerVersion);

@@ -48,14 +48,14 @@ class TransactionFuzzer : public Fuzzer
     void storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx);
     void storeSetupPoolIDs(AbstractLedgerTxn& ltx,
                            std::vector<LedgerEntry> const& entries);
-    void initializeAccounts(AbstractLedgerTxn& ltxOuter);
-    void initializeTrustLines(AbstractLedgerTxn& ltxOuter);
-    void initializeClaimableBalances(AbstractLedgerTxn& ltxOuter);
-    void initializeOffers(AbstractLedgerTxn& ltxOuter);
-    void initializeLiquidityPools(AbstractLedgerTxn& ltxOuter);
-    void reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
-    void adjustTrustLineBalancesAfterSetup(AbstractLedgerTxn& ltxOuter);
-    void reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter);
+    void initializeAccounts();
+    void initializeTrustLines();
+    void initializeClaimableBalances();
+    void initializeOffers();
+    void initializeLiquidityPools();
+    void reduceNativeBalancesAfterSetup();
+    void adjustTrustLineBalancesAfterSetup();
+    void reduceTrustLineLimitsAfterSetup();
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;

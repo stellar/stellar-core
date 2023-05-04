@@ -56,11 +56,10 @@ class TxSetFrame : public NonMovableOrCopyable
 
     // Creates a TxSetFrame from the XDR message.
     // As the message is not trusted, it has to be validated via `checkValid`.
-    static TxSetFrameConstPtr makeFromWire(Hash const& networkID,
+    static TxSetFrameConstPtr makeFromWire(Application& app,
                                            TransactionSet const& xdrTxSet);
     static TxSetFrameConstPtr
-    makeFromWire(Hash const& networkID,
-                 GeneralizedTransactionSet const& xdrTxSet);
+    makeFromWire(Application& app, GeneralizedTransactionSet const& xdrTxSet);
 
     // Creates a TxSetFrame from StoredTransactionSet (internally persisted tx
     // set format).
@@ -155,7 +154,7 @@ class TxSetFrame : public NonMovableOrCopyable
     std::optional<size_t> mutable mEncodedSize;
 
   private:
-    bool addTxsFromXdr(Hash const& networkID,
+    bool addTxsFromXdr(Application& app,
                        xdr::xvector<TransactionEnvelope> const& txs,
                        bool useBaseFee, std::optional<int64_t> baseFee);
     void applySurgePricing(Application& app);

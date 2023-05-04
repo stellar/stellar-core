@@ -143,7 +143,7 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
         for_versions_from(14, app, [&] {
             auto root = TestAccount::createRoot(app);
             auto tx = transactionFrameFromOps(
-                app.getNetworkID(), root,
+                app, root,
                 {sponsoringAcc.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(op),
                  sponsoredAcc.op(endSponsoringFutureReserves())},
@@ -215,23 +215,23 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
             auto a2 = root.create("cmarseAcc1", minBalance0 + txfee);
 
             auto tx = transactionFrameFromOps(
-                app.getNetworkID(), root,
+                app, root,
                 {root.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opCreate),
                  sponsoredAcc.op(endSponsoringFutureReserves())},
                 {sponsoredAcc.getSecretKey()});
-            auto tx2 = transactionFrameFromOps(app.getNetworkID(), root,
-                                               {sponsoredAcc.op(opModify1)},
-                                               {sponsoredAcc.getSecretKey()});
+            auto tx2 =
+                transactionFrameFromOps(app, root, {sponsoredAcc.op(opModify1)},
+                                        {sponsoredAcc.getSecretKey()});
             auto tx3 = transactionFrameFromOps(
-                app.getNetworkID(), root,
+                app, root,
                 {a2.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opModify2),
                  sponsoredAcc.op(endSponsoringFutureReserves())},
                 {a2.getSecretKey(), sponsoredAcc.getSecretKey()});
-            auto tx4 = transactionFrameFromOps(app.getNetworkID(), root,
-                                               {sponsoredAcc.op(opRemove)},
-                                               {sponsoredAcc.getSecretKey()});
+            auto tx4 =
+                transactionFrameFromOps(app, root, {sponsoredAcc.op(opRemove)},
+                                        {sponsoredAcc.getSecretKey()});
 
             auto check = [&](AbstractLedgerTxn& l) {
                 switch (rso.type())
@@ -391,7 +391,7 @@ submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
     auto root = TestAccount::createRoot(app);
     {
         auto tx1 = transactionFrameFromOps(
-            app.getNetworkID(), root,
+            app, root,
             {root.op(beginSponsoringFutureReserves(successfulOpAcc)),
              successfulOp, successfulOpAcc.op(endSponsoringFutureReserves())},
             {successfulOpAcc});
@@ -405,7 +405,7 @@ submitTooManySponsoringTxs(Application& app, TestAccount& successfulOpAcc,
 
     {
         auto tx2 = transactionFrameFromOps(
-            app.getNetworkID(), root,
+            app, root,
             {root.op(beginSponsoringFutureReserves(failOpAcc)), failOp,
              failOpAcc.op(endSponsoringFutureReserves())},
             {failOpAcc});
@@ -536,8 +536,7 @@ submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
                            Operation const& failOp)
 {
     {
-        auto tx1 = transactionFrameFromOps(app.getNetworkID(), testAcc,
-                                           {successfulOp}, {});
+        auto tx1 = transactionFrameFromOps(app, testAcc, {successfulOp}, {});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaFrame txm1(ltx.loadHeader().current().ledgerVersion);
@@ -547,8 +546,7 @@ submitTooManyNumSubEntries(Application& app, TestAccount& testAcc,
     }
 
     {
-        auto tx2 =
-            transactionFrameFromOps(app.getNetworkID(), testAcc, {failOp}, {});
+        auto tx2 = transactionFrameFromOps(app, testAcc, {failOp}, {});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);

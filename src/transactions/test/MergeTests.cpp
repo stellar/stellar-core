@@ -639,7 +639,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             SECTION("merge using different account")
             {
                 auto tx1 = transactionFrameFromOps(
-                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+                    *app, root, {a1.op(accountMerge(b1))}, {a1});
 
                 auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
 
@@ -652,15 +652,15 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             }
             SECTION("merge source account")
             {
-                auto tx1 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {accountMerge(b1)}, {});
+                auto tx1 =
+                    transactionFrameFromOps(*app, a1, {accountMerge(b1)}, {});
 
                 // Add some intermediate transactions between the merge and the
                 // gap tx so MAX_SEQ_NUM_TO_APPLY receives additional updates
-                auto tx2 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {payment(root, 1)}, {});
-                auto tx3 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {payment(root, 1)}, {});
+                auto tx2 =
+                    transactionFrameFromOps(*app, a1, {payment(root, 1)}, {});
+                auto tx3 =
+                    transactionFrameFromOps(*app, a1, {payment(root, 1)}, {});
 
                 auto r = closeLedger(*app, {tx1, tx2, tx3, txMinSeqNumSrc});
 
@@ -674,10 +674,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             SECTION("merge without minSeqNum")
             {
                 auto tx1 = transactionFrameFromOps(
-                    app->getNetworkID(), root,
-                    {a1.op(bumpSequence(curStartSeqNum))}, {a1});
+                    *app, root, {a1.op(bumpSequence(curStartSeqNum))}, {a1});
                 auto tx2 = transactionFrameFromOps(
-                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+                    *app, root, {a1.op(accountMerge(b1))}, {a1});
 
                 auto r = closeLedger(*app, {tx1, tx2}, true);
 
@@ -742,7 +741,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 // add sponsored signer
                 auto signer = makeSigner(getAccount("S1"), 1);
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), dest,
+                    *app, dest,
                     {sponsoringAcc.op(beginSponsoringFutureReserves(dest)),
                      dest.op(setOptions(setSigner(signer))),
                      dest.op(endSponsoringFutureReserves())},
@@ -808,7 +807,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 auto key = getAccount("acc1");
                 TestAccount acc1(*app, key);
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), sponsoringAcc,
+                    *app, sponsoringAcc,
                     {sponsoringAcc.op(beginSponsoringFutureReserves(acc1)),
                      sponsoringAcc.op(createAccount(acc1, txfee * 4)),
                      acc1.op(endSponsoringFutureReserves())},
@@ -881,7 +880,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 SECTION("is sponsoring future reserves")
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), a1,
+                        *app, a1,
                         {a1.op(beginSponsoringFutureReserves(b1)),
                          a1.op(accountMerge(b1)),
                          b1.op(endSponsoringFutureReserves())},
@@ -903,7 +902,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 {
                     auto cur1 = makeAsset(root, "CUR1");
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), a1,
+                        *app, a1,
                         {sponsoringAcc.op(beginSponsoringFutureReserves(a1)),
                          a1.op(changeTrust(cur1, 1000)),
                          a1.op(endSponsoringFutureReserves())},

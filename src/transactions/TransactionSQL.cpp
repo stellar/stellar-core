@@ -576,8 +576,7 @@ copyTransactionsToStream(Application& app, soci::session& sess,
 
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
-        auto txFrame = TransactionFrameBase::makeTransactionFromWire(
-            app.getNetworkID(), tx);
+        auto txFrame = TransactionFrameBase::makeTransactionFromWire(app, tx);
         txs.emplace_back(txFrame);
 
         xdr::xdr_get g2(&result.front(), &result.back() + 1);

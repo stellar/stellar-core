@@ -130,8 +130,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     TransactionResultCode code;
     AccountEntry srcAccountBefore;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
-        app.getNetworkID(), tx->getEnvelope());
+    auto checkedTx =
+        TransactionFrameBase::makeTransactionFromWire(app, tx->getEnvelope());
     bool checkedTxApplyRes = false;
     {
         LedgerTxn ltxFeeProc(ltx);
@@ -408,8 +408,8 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
-        app.getNetworkID(), tx->getEnvelope());
+    auto checkedTx =
+        TransactionFrameBase::makeTransactionFromWire(app, tx->getEnvelope());
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         REQUIRE(checkedTx->checkValid(app, ltx, 0, 0, 0) == shouldValidateOk);
@@ -631,7 +631,7 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
               std::back_inserter(e.v0().tx.operations));
 
     auto res = std::static_pointer_cast<TransactionFrame>(
-        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+        TransactionFrameBase::makeTransactionFromWire(app, e));
     res->addSignature(from);
     return res;
 }
@@ -660,7 +660,7 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     }
 
     auto res = std::static_pointer_cast<TransactionFrame>(
-        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+        TransactionFrameBase::makeTransactionFromWire(app, e));
     res->addSignature(from);
     return res;
 }
@@ -706,8 +706,7 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
     auto hash = sha256(xdr::xdr_to_opaque(
         app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
     fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
-    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
-                                                         fb);
+    return TransactionFrameBase::makeTransactionFromWire(app, fb);
 }
 
 Operation
@@ -1598,26 +1597,26 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
 #endif
 
 TransactionFrameBasePtr
-transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+transactionFrameFromOps(Application& app, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
+        app, envelopeFromOps(app.getNetworkID(), source, ops, opKeys, cond));
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFrameBasePtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
+sorobanTransactionFrameFromOps(Application& app, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
                                SorobanResources const& resources, uint32_t fee,
                                uint32_t refundableFee)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, fee, refundableFee));
+        app, sorobanEnvelopeFromOps(app.getNetworkID(), source, ops, opKeys,
+                                    resources, fee, refundableFee));
 }
 #endif
 

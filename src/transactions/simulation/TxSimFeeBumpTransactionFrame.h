@@ -14,7 +14,7 @@ class TxSimFeeBumpTransactionFrame : public FeeBumpTransactionFrame
     TransactionResult mSimulationResult;
 
   public:
-    TxSimFeeBumpTransactionFrame(Hash const& networkID,
+    TxSimFeeBumpTransactionFrame(Application& app,
                                  TransactionEnvelope const& envelope,
                                  TransactionResult simulationResult,
                                  uint32_t partition);

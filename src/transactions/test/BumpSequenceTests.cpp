@@ -106,7 +106,7 @@ TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
             closeLedger(*app);
             closeLedger(*app);
 
-            auto tx1 = transactionFrameFromOps(app->getNetworkID(), root,
+            auto tx1 = transactionFrameFromOps(*app, root,
                                                {a.op(bumpSequence(0))}, {a});
 
             auto runTest = [&](PreconditionsV2 const& cond) {

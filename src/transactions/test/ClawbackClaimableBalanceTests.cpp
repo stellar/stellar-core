@@ -102,7 +102,7 @@ TEST_CASE_VERSIONS("clawbackClaimableBalance",
                 // and always have a "sponsoringID"
 
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), account,
+                    *app, account,
                     {account.op(beginSponsoringFutureReserves(a1)),
                      a1.op(createClaimableBalance(idr, 100, {validClaimant})),
                      a1.op(endSponsoringFutureReserves())},

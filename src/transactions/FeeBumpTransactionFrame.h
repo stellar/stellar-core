@@ -47,10 +47,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                       std::optional<int64_t> baseFee, bool applying);
 
   public:
-    FeeBumpTransactionFrame(Hash const& networkID,
+    FeeBumpTransactionFrame(Application& app,
                             TransactionEnvelope const& envelope);
 #ifdef BUILD_TESTS
-    FeeBumpTransactionFrame(Hash const& networkID,
+    FeeBumpTransactionFrame(Application& app,
                             TransactionEnvelope const& envelope,
                             TransactionFramePtr innerTx);
 #endif

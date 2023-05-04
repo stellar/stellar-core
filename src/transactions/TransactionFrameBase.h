@@ -29,8 +29,7 @@ class TransactionFrameBase
 {
   public:
     static TransactionFrameBasePtr
-    makeTransactionFromWire(Hash const& networkID,
-                            TransactionEnvelope const& env);
+    makeTransactionFromWire(Application& app, TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta) = 0;

@@ -98,9 +98,8 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx =
-        sorobanTransactionFrameFromOps(app.getNetworkID(), root, {deployOp}, {},
-                                       resources, fee, refundableFee);
+    auto tx = sorobanTransactionFrameFromOps(app, root, {deployOp}, {},
+                                             resources, fee, refundableFee);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
@@ -205,8 +204,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
         ihf.args.invokeContract() = parameters;
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {},
+                                                 resources, 100'000, 1200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -341,8 +340,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.writeBytes = writeBytes;
         resources.extendedMetaDataSizeBytes = 3000;
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {},
+                                                 resources, 100'000, 1200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -385,8 +384,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
             resources.writeBytes = 1000;
             resources.extendedMetaDataSizeBytes = 3000;
 
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+            auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {},
+                                                     resources, 100'000, 1200);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -487,8 +486,8 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.writeBytes = 1000;
     resources.extendedMetaDataSizeBytes = 3000;
 
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100'000, 1200);
+    auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {}, resources,
+                                             100'000, 1200);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -567,8 +566,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
         SECTION("single op")
         {
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+            auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {},
+                                                     resources, 100'000, 1200);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -719,8 +718,8 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     {
         // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 250'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(*app, root, {op}, {},
+                                                 resources, 250'000, 1200);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);

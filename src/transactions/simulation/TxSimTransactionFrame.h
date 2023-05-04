@@ -36,8 +36,7 @@ class TxSimTransactionFrame : public TransactionFrame
     void processSeqNum(AbstractLedgerTxn& ltx) override;
 
   public:
-    TxSimTransactionFrame(Hash const& networkID,
-                          TransactionEnvelope const& envelope,
+    TxSimTransactionFrame(Application& app, TransactionEnvelope const& envelope,
                           TransactionResult simulationResult,
                           uint32_t partition);
     TxSimTransactionFrame(TransactionFrame const&) = delete;

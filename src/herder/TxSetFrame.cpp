@@ -252,18 +252,20 @@ TxSetFrame::makeFromTransactions(TxSetFrame::Transactions const& txs,
     // Do the roundtrip through XDR to ensure we never build an incorrect tx set
     // for nomination.
     TxSetFrameConstPtr outputTxSet;
+
     if (txSet->isGeneralizedTxSet())
     {
         GeneralizedTransactionSet xdrTxSet;
         txSet->toXDR(xdrTxSet);
-        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app, xdrTxSet);
     }
     else
     {
         TransactionSet xdrTxSet;
         txSet->toXDR(xdrTxSet);
-        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app, xdrTxSet);
     }
+
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
     if (txSet->getTxs().size() != outputTxSet->getTxs().size() ||
@@ -300,13 +302,13 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
 }
 
 TxSetFrameConstPtr
-TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
+TxSetFrame::makeFromWire(Application& app, TransactionSet const& xdrTxSet)
 {
     ZoneScoped;
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(
         false, xdrTxSet.previousLedgerHash, TxSetFrame::Transactions{}));
     size_t encodedSize = xdr::xdr_argpack_size(xdrTxSet);
-    if (!txSet->addTxsFromXdr(networkID, xdrTxSet.txs, false, std::nullopt))
+    if (!txSet->addTxsFromXdr(app, xdrTxSet.txs, false, std::nullopt))
     {
         CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
                            "ordered correctly");
@@ -320,7 +322,7 @@ TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
 }
 
 TxSetFrameConstPtr
-TxSetFrame::makeFromWire(Hash const& networkID,
+TxSetFrame::makeFromWire(Application& app,
                          GeneralizedTransactionSet const& xdrTxSet)
 {
     ZoneScoped;
@@ -352,7 +354,7 @@ TxSetFrame::makeFromWire(Hash const& networkID,
                 {
                     baseFee = *component.txsMaybeDiscountedFee().baseFee;
                 }
-                if (!txSet->addTxsFromXdr(networkID,
+                if (!txSet->addTxsFromXdr(app,
                                           component.txsMaybeDiscountedFee().txs,
                                           true, baseFee))
                 {
@@ -375,12 +377,11 @@ TxSetFrame::makeFromStoredTxSet(StoredTransactionSet const& storedSet,
     TxSetFrameConstPtr cur;
     if (storedSet.v() == 0)
     {
-        cur = TxSetFrame::makeFromWire(app.getNetworkID(), storedSet.txSet());
+        cur = TxSetFrame::makeFromWire(app, storedSet.txSet());
     }
     else
     {
-        cur = TxSetFrame::makeFromWire(app.getNetworkID(),
-                                       storedSet.generalizedTxSet());
+        cur = TxSetFrame::makeFromWire(app, storedSet.generalizedTxSet());
     }
 
     return cur;
@@ -831,7 +832,7 @@ TxSetFrame::isGeneralizedTxSet() const
 }
 
 bool
-TxSetFrame::addTxsFromXdr(Hash const& networkID,
+TxSetFrame::addTxsFromXdr(Application& app,
                           xdr::xvector<TransactionEnvelope> const& txs,
                           bool useBaseFee, std::optional<int64_t> baseFee)
 {
@@ -839,7 +840,7 @@ TxSetFrame::addTxsFromXdr(Hash const& networkID,
     mTxs.reserve(oldSize + txs.size());
     for (auto const& env : txs)
     {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+        auto tx = TransactionFrameBase::makeTransactionFromWire(app, env);
         mTxs.push_back(tx);
         if (useBaseFee)
         {

@@ -20,9 +20,9 @@ namespace txsimulation
 {
 
 TxSimTransactionFrame::TxSimTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope,
+    Application& app, TransactionEnvelope const& envelope,
     TransactionResult simulationResult, uint32_t partition)
-    : TransactionFrame(networkID, envelope)
+    : TransactionFrame(app, envelope)
     , mSimulationResult(simulationResult)
     , mCount(partition)
 {

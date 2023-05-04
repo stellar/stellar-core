@@ -765,9 +765,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 envelope = txbridge::convertForV13(envelope);
             }
         }
-
-        auto transaction = TransactionFrameBase::makeTransactionFromWire(
-            mApp.getNetworkID(), envelope);
+        auto transaction =
+            TransactionFrameBase::makeTransactionFromWire(mApp, envelope);
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.

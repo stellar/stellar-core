@@ -428,10 +428,12 @@ TxSimApplyTransactionsWork::scaleLedger(
     std::set<SecretKey> keys;
 
     // First, update transaction source accounts
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    mutateTxSourceAccounts(newEnv, ltx, keys, partition);
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        mutateTxSourceAccounts(newEnv, ltx, keys, partition);
 
-    mutateOperations(newEnv, ltx, keys, partition);
+        mutateOperations(newEnv, ltx, keys, partition);
+    }
 
     auto simulateSigs = [&](xdr::xvector<DecoratedSignature, 20>& sigs,
                             std::set<SecretKey> const& keys,
@@ -439,12 +441,12 @@ TxSimApplyTransactionsWork::scaleLedger(
         Hash hash;
         if (newEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
         {
-            auto txFrame = std::make_shared<FeeBumpTransactionFrame>(
-                mApp.getNetworkID(), newEnv);
+            auto txFrame =
+                std::make_shared<FeeBumpTransactionFrame>(mApp, newEnv);
             if (useInnerHash)
             {
                 auto innerTxFrame = std::make_shared<TransactionFrame>(
-                    mApp.getNetworkID(), txFrame->convertInnerTxToV1(newEnv));
+                    mApp, txFrame->convertInnerTxToV1(newEnv));
                 hash = innerTxFrame->getContentsHash();
             }
             else
@@ -454,8 +456,8 @@ TxSimApplyTransactionsWork::scaleLedger(
         }
         else
         {
-            auto txFrame = TransactionFrameBase::makeTransactionFromWire(
-                mApp.getNetworkID(), newEnv);
+            auto txFrame =
+                TransactionFrameBase::makeTransactionFromWire(mApp, newEnv);
             hash = txFrame->getContentsHash();
         }
 
@@ -477,6 +479,7 @@ TxSimApplyTransactionsWork::scaleLedger(
     {
         std::set<SecretKey> outerTxKeys;
         auto& outerSigs = newEnv.feeBump().signatures;
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
         addSignerKeys(
             newEnv.feeBump().tx.feeSource, ltx, outerTxKeys, outerSigs,
             mResultIter->result.result.innerResultPair().transactionHash,
@@ -517,15 +520,17 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         // Derive transaction apply order from the results
         UnorderedMap<Hash, TransactionEnvelope const*> transactions;
         TxSetFrameConstPtr txSetFrame;
-        if (txHistoryEntry.ext.v() == 1)
         {
-            txSetFrame = TxSetFrame::makeFromWire(
-                mNetworkID, txHistoryEntry.ext.generalizedTxSet());
-        }
-        else
-        {
-            txSetFrame =
-                TxSetFrame::makeFromWire(mNetworkID, txHistoryEntry.txSet);
+            if (txHistoryEntry.ext.v() == 1)
+            {
+                txSetFrame = TxSetFrame::makeFromWire(
+                    mApp, txHistoryEntry.ext.generalizedTxSet());
+            }
+            else
+            {
+                txSetFrame =
+                    TxSetFrame::makeFromWire(mApp, txHistoryEntry.txSet);
+            }
         }
         for (auto const& txFrame : txSetFrame->getTxs())
         {
@@ -714,8 +719,8 @@ TxSimApplyTransactionsWork::onRun()
     // generating transactions to handle offer creation (mapping created offer
     // id to a simulated one). When simulating pre-generated transactions, we
     // already have relevant offer ids in transaction results
-    auto txSet = makeSimTxSetFrame(mNetworkID, lclHeader, transactions,
-                                   mResults, mMultiplier);
+    auto txSet =
+        makeSimTxSetFrame(mApp, lclHeader, transactions, mResults, mMultiplier);
 
     StellarValue sv;
     sv.txSetHash = txSet->getContentsHash();

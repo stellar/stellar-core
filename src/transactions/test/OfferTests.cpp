@@ -3004,7 +3004,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
         auto doRevokeSponsorship = [&](TestAccount& source, int64_t offerID,
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), source,
+                *app, source,
                 {sponsor.op(beginSponsoringFutureReserves(source)),
                  source.op(revokeSponsorship(offerKey(source, offerID))),
                  source.op(endSponsoringFutureReserves())},
@@ -3028,7 +3028,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 
             // This will not update the internal offerID tracker in market
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), acc,
+                *app, acc,
                 {sponsor->op(beginSponsoringFutureReserves(acc)),
                  acc.op(manageOffer(0, state.selling, state.buying, state.price,
                                     state.amount)),
@@ -3739,7 +3739,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             market.requireChangesWithOffer(
                 {{o1, {usd, idr, Price{1, 1}, 50}}}, [&] {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        *app, root,
                         {root.op(beginSponsoringFutureReserves(a1)),
                          a2.op(manageOffer(0, idr, usd, Price{1, 1}, 50)),
                          a1.op(endSponsoringFutureReserves())},
@@ -3784,7 +3784,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                           .key;
             {
                 auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), root,
+                    *app, root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(manageOffer(0, usd, idr, Price{1, 1}, 50)),
                      a1.op(endSponsoringFutureReserves())},
@@ -3836,7 +3836,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
             issuer.pay(acc1, idr, 10000);
 
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), acc1,
+                *app, acc1,
                 {sponsor.op(beginSponsoringFutureReserves(acc1)),
                  acc1.op(manageOffer(0, usd, xlm, Price{1, 1}, 100)),
                  acc1.op(manageOffer(0, xlm, usd, Price{2, 1}, 100)),

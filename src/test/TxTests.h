@@ -274,15 +274,15 @@ void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
              OperationResultCode code);
 
 TransactionFrameBasePtr
-transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+transactionFrameFromOps(Application& app, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond = std::nullopt);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFrameBasePtr sorobanTransactionFrameFromOps(
-    Hash const& networkID, TestAccount& source,
-    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, uint32_t fee, uint32_t refundableFee);
+    Application& app, TestAccount& source, std::vector<Operation> const& ops,
+    std::vector<SecretKey> const& opKeys, SorobanResources const& resources,
+    uint32_t fee, uint32_t refundableFee);
 #endif
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);

@@ -56,19 +56,19 @@ FeeBumpTransactionFrame::sorobanResources() const
 #endif
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope)
+    Application& app, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)
-    , mInnerTx(std::make_shared<TransactionFrame>(networkID,
-                                                  convertInnerTxToV1(envelope)))
-    , mNetworkID(networkID)
+    , mInnerTx(
+          std::make_shared<TransactionFrame>(app, convertInnerTxToV1(envelope)))
+    , mNetworkID(app.getNetworkID())
 {
 }
 
 #ifdef BUILD_TESTS
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope,
+    Application& app, TransactionEnvelope const& envelope,
     TransactionFramePtr innerTx)
-    : mEnvelope(envelope), mInnerTx(innerTx), mNetworkID(networkID)
+    : mEnvelope(envelope), mInnerTx(innerTx), mNetworkID(app.getNetworkID())
 {
 }
 #endif

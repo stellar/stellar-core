@@ -49,9 +49,9 @@ namespace stellar
 using namespace std;
 using namespace stellar::txbridge;
 
-TransactionFrame::TransactionFrame(Hash const& networkID,
+TransactionFrame::TransactionFrame(Application& app,
                                    TransactionEnvelope const& envelope)
-    : mEnvelope(envelope), mNetworkID(networkID)
+    : mEnvelope(envelope), mNetworkID(app.getNetworkID())
 {
     // Create operation frames with dummy results. Currently the proper results
     // are initialized in `TransactionFrame::resetResults` and eventually the
@@ -68,6 +68,14 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerTxn ltx(app.getLedgerTxnRoot(), false,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    maybeComputeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion,
+        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+
+#endif
 }
 
 Hash const&
@@ -631,9 +639,6 @@ TransactionFrame::maybeComputeSorobanResourceFee(
 
     cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
 
-    // NB: We recompute this on-demand in case if the fees change between
-    // the ledger where the transaction has been accepted and the ledger where
-    // it is being applied.
     // This may throw, but only in case of the Core version misconfiguration.
     mSorobanResourceFee = std::make_optional<FeePair>(
         rust_bridge::compute_transaction_resource_fee(
@@ -1172,12 +1177,6 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         minBaseFee = 0;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
-
-#endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -1449,6 +1448,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
         LedgerTxn ltxTx(ltx);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // Recompute the resource fee in case if transaction has been accepted
+        // just before the network update.
         maybeComputeSorobanResourceFee(
             ledgerVersion,
             app.getLedgerManager().getSorobanNetworkConfig(ltxTx),

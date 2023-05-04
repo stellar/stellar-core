@@ -44,12 +44,12 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
         for_versions({13}, *app, [&] {
             auto key = SecretKey::pseudoRandomForTesting();
             auto tx1 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 0))}, {});
+                *app, root, {root.op(createAccount(key.getPublicKey(), 0))},
+                {});
             root.loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 1))}, {});
+                *app, root, {root.op(createAccount(key.getPublicKey(), 1))},
+                {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx1->checkValid(*app, ltx, 0, 0, 0));
@@ -62,12 +62,12 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
         for_versions_from(14, *app, [&] {
             auto key = SecretKey::pseudoRandomForTesting();
             auto tx1 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), -1))}, {});
+                *app, root, {root.op(createAccount(key.getPublicKey(), -1))},
+                {});
             root.loadSequenceNumber();
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(createAccount(key.getPublicKey(), 0))}, {});
+                *app, root, {root.op(createAccount(key.getPublicKey(), 0))},
+                {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx1->checkValid(*app, ltx, 0, 0, 0));
@@ -81,9 +81,8 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
     SECTION("malformed with destination")
     {
         for_versions({13}, *app, [&] {
-            auto tx =
-                transactionFrameFromOps(app->getNetworkID(), root,
-                                        {root.op(createAccount(root, -1))}, {});
+            auto tx = transactionFrameFromOps(
+                *app, root, {root.op(createAccount(root, -1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
@@ -174,7 +173,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
             auto key = SecretKey::pseudoRandomForTesting();
             TestAccount a1(*app, key);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
+                *app, root,
                 {root.op(beginSponsoringFutureReserves(a1)),
                  root.op(createAccount(a1, 0)),
                  a1.op(endSponsoringFutureReserves())},

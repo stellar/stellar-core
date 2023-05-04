@@ -2523,6 +2523,9 @@ apVecToSet(std::vector<AssetPair> const& v)
 TEST_CASE("arbitrage tx identification",
           "[herder][transactionqueue][arbitrage]")
 {
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
     SecretKey aliceSec = txtest::getAccount("alice");
     SecretKey bobSec = txtest::getAccount("bob");
     SecretKey carolSec = txtest::getAccount("carol");
@@ -2607,13 +2610,13 @@ TEST_CASE("arbitrage tx identification",
     tx7.v1().tx.operations.emplace_back(
         txtest::pathPayment(bobPub, usd, 100, mxn, 100, {jpy, inr}));
 
-    auto tx1f = std::make_shared<TransactionFrame>(Hash(), tx1);
-    auto tx2f = std::make_shared<TransactionFrame>(Hash(), tx2);
-    auto tx3f = std::make_shared<TransactionFrame>(Hash(), tx3);
-    auto tx4f = std::make_shared<TransactionFrame>(Hash(), tx4);
-    auto tx5f = std::make_shared<TransactionFrame>(Hash(), tx5);
-    auto tx6f = std::make_shared<TransactionFrame>(Hash(), tx6);
-    auto tx7f = std::make_shared<TransactionFrame>(Hash(), tx7);
+    auto tx1f = TransactionFrameBase::makeTransactionFromWire(*app, tx1);
+    auto tx2f = TransactionFrameBase::makeTransactionFromWire(*app, tx2);
+    auto tx3f = TransactionFrameBase::makeTransactionFromWire(*app, tx3);
+    auto tx4f = TransactionFrameBase::makeTransactionFromWire(*app, tx4);
+    auto tx5f = TransactionFrameBase::makeTransactionFromWire(*app, tx5);
+    auto tx6f = TransactionFrameBase::makeTransactionFromWire(*app, tx6);
+    auto tx7f = TransactionFrameBase::makeTransactionFromWire(*app, tx7);
 
     LOG_TRACE(DEFAULT_LOG, "Tx1 - 1 op / 3 asset contiguous loop");
     REQUIRE(
@@ -2675,6 +2678,9 @@ TEST_CASE("arbitrage tx identification",
 TEST_CASE("arbitrage tx identification benchmark",
           "[herder][transactionqueue][arbitrage][bench][!hide]")
 {
+    VirtualClock appClock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(appClock, cfg);
     // This test generates a tx with a single 600-step-long discontiguous loop
     // formed from 100 7-step ops with 100 overlapping endpoints (forcing the
     // use of the SCC checker) and then benchmarks how long it takes to check it
@@ -2715,7 +2721,7 @@ TEST_CASE("arbitrage tx identification benchmark",
         prev = lll;
     }
 
-    auto tx1f = std::make_shared<TransactionFrame>(Hash(), tx1);
+    auto tx1f = TransactionFrameBase::makeTransactionFromWire(*app, tx1);
 
     namespace ch = std::chrono;
     using clock = ch::high_resolution_clock;

@@ -13,12 +13,12 @@ namespace txsimulation
 {
 
 TxSimFeeBumpTransactionFrame::TxSimFeeBumpTransactionFrame(
-    Hash const& networkID, TransactionEnvelope const& envelope,
+    Application& app, TransactionEnvelope const& envelope,
     TransactionResult simulationResult, uint32_t partition)
     : FeeBumpTransactionFrame(
-          networkID, envelope,
+          app, envelope,
           std::make_shared<TxSimTransactionFrame>(
-              networkID, FeeBumpTransactionFrame::convertInnerTxToV1(envelope),
+              app, FeeBumpTransactionFrame::convertInnerTxToV1(envelope),
               simulationResult, partition))
     , mSimulationResult(simulationResult)
 {

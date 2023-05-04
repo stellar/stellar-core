@@ -288,7 +288,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
     {
         for_versions_from(13, *app, [&] {
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
+                *app, root,
                 {root.op(changeTrust(idr, 100)), root.op(changeTrust(idr, 0))},
                 {});
 
@@ -692,7 +692,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), gateway,
+                        *app, gateway,
                         {gateway.op(beginSponsoringFutureReserves(acc1)),
                          acc1.op(changeTrust(idrUsd, 10)),
                          acc1.op(endSponsoringFutureReserves())},
@@ -723,7 +723,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                 SECTION("try to revoke the sponsorship but fail")
                 {
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), gateway,
+                        *app, gateway,
                         {gateway.op(
                             revokeSponsorship(trustlineKey(acc1, tlAsset)))},
                         {});
@@ -746,7 +746,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                         "acc2", app->getLedgerManager().getLastMinBalance(1));
 
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), gateway,
+                        *app, gateway,
                         {acc2.op(beginSponsoringFutureReserves(gateway)),
                          gateway.op(
                              revokeSponsorship(trustlineKey(acc1, tlAsset))),
@@ -772,7 +772,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                              app->getLedgerManager().getLastMinBalance(0));
 
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), gateway,
+                        *app, gateway,
                         {gateway.op(
                             revokeSponsorship(trustlineKey(acc1, tlAsset)))},
                         {});
@@ -792,7 +792,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                         "acc2", app->getLedgerManager().getLastMinBalance(2));
 
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), gateway,
+                        *app, gateway,
                         {acc2.op(beginSponsoringFutureReserves(gateway)),
                          gateway.op(
                              revokeSponsorship(trustlineKey(acc1, tlAsset))),
@@ -824,8 +824,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
                     // delete the pool share trustline. acc1 can't pay the fee
                     // so use root
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
-                        {acc1.op(changeTrust(idrUsd, 0))}, {acc1});
+                        *app, root, {acc1.op(changeTrust(idrUsd, 0))}, {acc1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
@@ -869,7 +868,7 @@ TEST_CASE_VERSIONS("change trust pool share trustline",
 
                     {
                         auto tx = transactionFrameFromOps(
-                            app->getNetworkID(), sponsoringAcc,
+                            *app, sponsoringAcc,
                             {sponsoringAcc.op(
                                  beginSponsoringFutureReserves(acc1)),
                              acc1.op(changeTrust(idrUsd, 1)),

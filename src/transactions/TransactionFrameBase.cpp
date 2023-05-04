@@ -10,16 +10,16 @@ namespace stellar
 {
 
 TransactionFrameBasePtr
-TransactionFrameBase::makeTransactionFromWire(Hash const& networkID,
+TransactionFrameBase::makeTransactionFromWire(Application& app,
                                               TransactionEnvelope const& env)
 {
     switch (env.type())
     {
     case ENVELOPE_TYPE_TX_V0:
     case ENVELOPE_TYPE_TX:
-        return std::make_shared<TransactionFrame>(networkID, env);
+        return std::make_shared<TransactionFrame>(app, env);
     case ENVELOPE_TYPE_TX_FEE_BUMP:
-        return std::make_shared<FeeBumpTransactionFrame>(networkID, env);
+        return std::make_shared<FeeBumpTransactionFrame>(app, env);
     default:
         abort();
     }

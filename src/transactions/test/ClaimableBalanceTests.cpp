@@ -169,7 +169,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     if (createIsSponsored)
     {
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
+            app, root,
             {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(createClaimableBalance(asset, amount, claimants)),
              createAcc.op(endSponsoringFutureReserves())},
@@ -228,7 +228,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     {
         // We need to transfer the sponsorship before we can merge
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
+            app, root,
             {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
              createAcc.op(endSponsoringFutureReserves())},
@@ -249,7 +249,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     if (claimIsSponsored)
     {
         auto tx = transactionFrameFromOps(
-            app.getNetworkID(), root,
+            app, root,
             {root.op(beginSponsoringFutureReserves(claimAcc)),
              claimAcc.op(claimClaimableBalance(balanceID)),
              claimAcc.op(endSponsoringFutureReserves())},
@@ -1156,7 +1156,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
         SECTION("claimable balance sponsorship can only be transferred")
         {
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
+                *app, root,
                 {root.op(beginSponsoringFutureReserves(acc1)),
                  acc1.op(createClaimableBalance(native, 1, validClaimants)),
                  acc1.op(endSponsoringFutureReserves())},
@@ -1172,7 +1172,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
             // try to remove sponsorship
             auto tx2 = transactionFrameFromOps(
-                app->getNetworkID(), root,
+                *app, root,
                 {root.op(revokeSponsorship(claimableBalanceKey(balanceID)))},
                 {});
 
@@ -1232,7 +1232,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     issuer.pay(acc2, idr, 1);
 
                     auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), root,
+                        *app, root,
                         {root.op(beginSponsoringFutureReserves(acc2)),
                          acc2.op(
                              createClaimableBalance(idr, 1, validClaimants)),
@@ -1266,8 +1266,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                                        ? clawbackClaimableBalance(balanceID)
                                        : claimClaimableBalance(balanceID);
                     auto tx2 = transactionFrameFromOps(
-                        app->getNetworkID(), root, {claimAccount.op(claimOp)},
-                        {claimAccount});
+                        *app, root, {claimAccount.op(claimOp)}, {claimAccount});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm2(

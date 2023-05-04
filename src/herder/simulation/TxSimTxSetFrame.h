@@ -28,10 +28,11 @@ class SimApplyOrderTxSetFrame : public TxSetFrame
     Transactions mTxsInApplyOrder;
 };
 
-TxSetFrameConstPtr makeSimTxSetFrame(
-    Hash const& networkID, LedgerHeaderHistoryEntry const& lclHeader,
-    std::vector<TransactionEnvelope> const& transactions,
-    std::vector<TransactionResultPair> const& results, uint32_t multiplier);
+TxSetFrameConstPtr
+makeSimTxSetFrame(Application& app, LedgerHeaderHistoryEntry const& lclHeader,
+                  std::vector<TransactionEnvelope> const& transactions,
+                  std::vector<TransactionResultPair> const& results,
+                  uint32_t multiplier);
 
 }
 }

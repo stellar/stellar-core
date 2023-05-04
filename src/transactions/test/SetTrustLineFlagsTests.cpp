@@ -1140,7 +1140,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                         if (poolShareTrustlineIsSponsored)
                         {
                             auto tx = transactionFrameFromOps(
-                                app->getNetworkID(), acc3,
+                                *app, acc3,
                                 {acc3.op(beginSponsoringFutureReserves(acc1)),
                                  acc1.op(changeTrust(share12, 10)),
                                  acc1.op(endSponsoringFutureReserves())},
@@ -1230,7 +1230,7 @@ TEST_CASE_VERSIONS("revoke from pool",
                         }
 
                         auto tx = transactionFrameFromOps(
-                            app->getNetworkID(), sponsoringAcc,
+                            *app, sponsoringAcc,
                             {sponsoringAcc.op(
                                  beginSponsoringFutureReserves(sponsoredAcc)),
                              root.op(op),
@@ -1505,7 +1505,7 @@ TEST_CASE_VERSIONS("revoke from pool",
 
                     {
                         auto tx = transactionFrameFromOps(
-                            app->getNetworkID(), root,
+                            *app, root,
                             {root.op(beginSponsoringFutureReserves(acc1)),
                              acc1.op(changeTrust(share1Usd, 10)),
                              acc1.op(endSponsoringFutureReserves())},

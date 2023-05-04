@@ -849,9 +849,8 @@ resetTxInternalState(Application& app)
 class FuzzTransactionFrame : public TransactionFrame
 {
   public:
-    FuzzTransactionFrame(Hash const& networkID,
-                         TransactionEnvelope const& envelope)
-        : TransactionFrame(networkID, envelope){};
+    FuzzTransactionFrame(Application& app, TransactionEnvelope const& envelope)
+        : TransactionFrame(app, envelope){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -889,8 +888,7 @@ class FuzzTransactionFrame : public TransactionFrame
 };
 
 std::shared_ptr<FuzzTransactionFrame>
-createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
-                           PublicKey const& sourceAccountID,
+createFuzzTransactionFrame(Application& app, PublicKey const& sourceAccountID,
                            std::vector<Operation>::const_iterator begin,
                            std::vector<Operation>::const_iterator end,
                            Hash const& networkID)
@@ -903,11 +901,15 @@ createFuzzTransactionFrame(AbstractLedgerTxn& ltx,
     auto& tx1 = txEnv.v1();
     tx1.tx.sourceAccount = toMuxedAccount(sourceAccountID);
     tx1.tx.fee = 0;
-    tx1.tx.seqNum = FuzzUtils::getSequenceNumber(ltx, sourceAccountID) + 1;
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        tx1.tx.seqNum = FuzzUtils::getSequenceNumber(ltx, sourceAccountID) + 1;
+    }
+
     std::copy(begin, end, std::back_inserter(tx1.tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
-        std::make_shared<FuzzTransactionFrame>(networkID, txEnv);
+        std::make_shared<FuzzTransactionFrame>(app, txEnv);
     return res;
 }
 
@@ -929,7 +931,7 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 // Handles breaking up the list of operations into multiple transactions, if the
 // caller provides more operations than fit in a single transaction.
 static void
-applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+applySetupOperations(PublicKey const& sourceAccount,
                      xdr::xvector<Operation>::const_iterator begin,
                      xdr::xvector<Operation>::const_iterator end,
                      Application& app)
@@ -940,8 +942,10 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
                                   ? end
                                   : begin + MAX_OPS_PER_TX;
         auto txFramePtr = createFuzzTransactionFrame(
-            ltx, sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
+            app, sourceAccount, begin, endOpsInThisTx, app.getNetworkID());
+        LedgerTxn ltx(app.getLedgerTxnRoot());
         txFramePtr->attemptApplication(app, ltx);
+        ltx.commit();
         begin = endOpsInThisTx;
 
         if (txFramePtr->getResultCode() != txSUCCESS)
@@ -986,14 +990,16 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
 // Requires a set of operations small enough to fit in a single transaction.
 // Tolerates the failure of transaction application.
 static void
-applyFuzzOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
+applyFuzzOperations(PublicKey const& sourceAccount,
                     xdr::xvector<Operation>::const_iterator begin,
                     xdr::xvector<Operation>::const_iterator end,
                     Application& app)
 {
-    auto txFramePtr = createFuzzTransactionFrame(ltx, sourceAccount, begin, end,
+    auto txFramePtr = createFuzzTransactionFrame(app, sourceAccount, begin, end,
                                                  app.getNetworkID());
+    LedgerTxn ltx(app.getLedgerTxnRoot());
     txFramePtr->attemptApplication(app, ltx);
+    ltx.commit();
 }
 
 // Unlike Asset, this can be a constexpr.
@@ -1432,24 +1438,16 @@ TransactionFuzzer::initialize()
     mSourceAccountID = root.getPublicKey();
 
     resetTxInternalState(*mApp);
+
+    initializeAccounts();
+    initializeTrustLines();
+    initializeClaimableBalances();
+    initializeOffers();
+    initializeLiquidityPools();
+    reduceNativeBalancesAfterSetup();
+    adjustTrustLineBalancesAfterSetup();
+    reduceTrustLineLimitsAfterSetup();
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
-
-    initializeAccounts(ltxOuter);
-
-    initializeTrustLines(ltxOuter);
-
-    initializeClaimableBalances(ltxOuter);
-
-    initializeOffers(ltxOuter);
-
-    initializeLiquidityPools(ltxOuter);
-
-    reduceNativeBalancesAfterSetup(ltxOuter);
-
-    adjustTrustLineBalancesAfterSetup(ltxOuter);
-
-    reduceTrustLineLimitsAfterSetup(ltxOuter);
-
     storeSetupLedgerKeysAndPoolIDs(ltxOuter);
 
     // commit this to the ledger so that we have a starting, persistent
@@ -1525,9 +1523,8 @@ TransactionFuzzer::storeSetupLedgerKeysAndPoolIDs(AbstractLedgerTxn& ltx)
 }
 
 void
-TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::initializeAccounts()
 {
-    LedgerTxn ltx(ltxOuter);
     xdr::xvector<Operation> ops;
 
     for (auto const& param : accountParameters)
@@ -1553,16 +1550,12 @@ TransactionFuzzer::initializeAccounts(AbstractLedgerTxn& ltxOuter)
         }
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::initializeTrustLines()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     for (auto const& trustLine : trustLineParameters)
@@ -1609,16 +1602,12 @@ TransactionFuzzer::initializeTrustLines(AbstractLedgerTxn& ltxOuter)
         }
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::initializeClaimableBalances()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     for (auto const& param : claimableBalanceParameters)
@@ -1639,16 +1628,12 @@ TransactionFuzzer::initializeClaimableBalances(AbstractLedgerTxn& ltxOuter)
                                                  param.mSponsorKey, senderKey);
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::initializeOffers()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     for (auto const& param : orderBookParameters)
@@ -1669,16 +1654,12 @@ TransactionFuzzer::initializeOffers(AbstractLedgerTxn& ltxOuter)
                                                  param.mSponsorKey, pkA);
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::initializeLiquidityPools()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     for (auto const& param : poolSetupParameters)
@@ -1719,16 +1700,12 @@ TransactionFuzzer::initializeLiquidityPools(AbstractLedgerTxn& ltxOuter)
         }
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::reduceNativeBalancesAfterSetup()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     for (auto const& param : accountParameters)
@@ -1738,6 +1715,7 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
 
         // Reduce "account"'s native balance by paying the root, so that
         // fuzzing has a better chance of exercising edge cases.
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
         auto ae = stellar::loadAccount(ltx, account);
         auto const availableBalance = getAvailableBalance(ltx.loadHeader(), ae);
         auto const targetAvailableBalance =
@@ -1752,17 +1730,12 @@ TransactionFuzzer::reduceNativeBalancesAfterSetup(AbstractLedgerTxn& ltxOuter)
         ops.emplace_back(reduceNativeBalanceOp);
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
-    AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::adjustTrustLineBalancesAfterSetup()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     // Reduce trustline balances so that fuzzing has a better chance of
@@ -1777,7 +1750,7 @@ TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
 
         PublicKey issuer;
         FuzzUtils::setShortKey(issuer, trustLine.mAssetID.mIssuer);
-
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
         // Reduce "account"'s balance of this asset by paying the
         // issuer.
         auto tle = stellar::loadTrustLine(ltx, account, asset);
@@ -1823,16 +1796,12 @@ TransactionFuzzer::adjustTrustLineBalancesAfterSetup(
         }
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
-TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
+TransactionFuzzer::reduceTrustLineLimitsAfterSetup()
 {
-    LedgerTxn ltx(ltxOuter);
-
     xdr::xvector<Operation> ops;
 
     // Reduce trustline limits so that fuzzing has a better chance of exercising
@@ -1846,6 +1815,7 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
         auto const asset = trustLine.mAssetID.toAsset();
 
         // Reduce this trustline's limit.
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
         auto tle = stellar::loadTrustLine(ltx, account, asset);
         auto const balancePlusBuyLiabilities =
             tle.getBalance() + tle.getBuyingLiabilities(ltx.loadHeader());
@@ -1862,9 +1832,7 @@ TransactionFuzzer::reduceTrustLineLimitsAfterSetup(AbstractLedgerTxn& ltxOuter)
         ops.emplace_back(changeTrustLineLimitOp);
     }
 
-    applySetupOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
-
-    ltx.commit();
+    applySetupOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 void
@@ -1917,8 +1885,7 @@ TransactionFuzzer::inject(std::string const& filename)
     LOG_TRACE(DEFAULT_LOG, "{}",
               xdr_to_string(ops, fmt::format("Fuzz ops ({})", ops.size())));
 
-    LedgerTxn ltx(mApp->getLedgerTxnRoot());
-    applyFuzzOperations(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
+    applyFuzzOperations(mSourceAccountID, ops.begin(), ops.end(), *mApp);
 }
 
 int

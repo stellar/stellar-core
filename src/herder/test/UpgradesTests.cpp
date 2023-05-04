@@ -2236,10 +2236,8 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                 opsA2.emplace_back(a1.op(endSponsoringFutureReserves()));
 
                 // submit tx to update sponsorship
-                submitTx(transactionFrameFromOps(app->getNetworkID(), a1, opsA1,
-                                                 {a2}));
-                submitTx(transactionFrameFromOps(app->getNetworkID(), a2, opsA2,
-                                                 {a1}));
+                submitTx(transactionFrameFromOps(*app, a1, opsA1, {a2}));
+                submitTx(transactionFrameFromOps(*app, a2, opsA2, {a1}));
             }
 
             uint32_t baseReserve = lm.getLastReserve();
@@ -2319,8 +2317,7 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 
                 // submit tx to update sponsorship
                 submitTx(transactionFrameFromOps(
-                    app->getNetworkID(), sponsoringAcc, ops,
-                    {sponsoredAcc, sponsoredAcc2}));
+                    *app, sponsoringAcc, ops, {sponsoredAcc, sponsoredAcc2}));
 
                 REQUIRE(getNumSponsoredEntries(sponsoredAcc) == 12);
                 REQUIRE(getNumSponsoredEntries(sponsoredAcc2) == 1);

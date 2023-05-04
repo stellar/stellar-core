@@ -1040,9 +1040,8 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 auto sk1 = makeSigner(root, 100);
                 a1.setOptions(setSigner(sk1));
 
-                auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                  {root.op(payment(a1, 1))},
-                                                  {root}, cond);
+                auto tx = transactionFrameFromOps(
+                    *app, a1, {root.op(payment(a1, 1))}, {root}, cond);
 
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0, 0,
@@ -1869,10 +1868,12 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
             }
             return txs;
         };
-
+        LedgerTxn ltx(app->getLedgerTxnRoot(), false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         for (int iter = 0; iter < 50; ++iter)
         {
             auto txs = genTxs(txCountDistr(Catch::rng()));
+
             auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
 
             auto resTxs = txSet->getTxsInApplyOrder();
@@ -2000,8 +2001,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
             {std::make_pair(
                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
                                                            addTx(2, 5000)})},
-            app->getNetworkID(),
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000});
     }
     SECTION("single non-discounted component")
@@ -2010,8 +2010,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
             {std::make_pair(std::nullopt,
                             std::vector<TransactionFrameBasePtr>{
                                 addTx(3, 3500), addTx(2, 5000)})},
-            app->getNetworkID(),
-            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3500, 5000});
     }
     SECTION("multiple components")
@@ -2033,7 +2032,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
                                std::vector<TransactionFrameBasePtr>{
                                    addTx(5, 35000), addTx(1, 10000)})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            components, app->getNetworkID(),
+            components, *app,
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
@@ -2340,7 +2339,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             sig.clear();
             tx->addSignature(root.getSecretKey());
             auto txSet = testtxset::makeNonValidatedTxSetBasedOnLedgerVersion(
-                protocolVersion, {tx}, app->getNetworkID(),
+                protocolVersion, {tx}, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
             // Build a StellarValue containing the transaction set we just
@@ -2450,8 +2449,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                             .txsMaybeDiscountedFee()
                             .txs;
             std::swap(txs[0], txs[1]);
-            malformedTxSet =
-                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+            malformedTxSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         }
         else
         {
@@ -2459,8 +2457,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             transactions1->toXDR(xdrTxSet);
             auto& txs = xdrTxSet.txs;
             std::swap(txs[0], txs[1]);
-            malformedTxSet =
-                TxSetFrame::makeFromWire(app->getNetworkID(), xdrTxSet);
+            malformedTxSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         }
         auto malformedTxSetPair = makeTxPair(herder, malformedTxSet, 10);
         auto malformedTxSetEnvelope =

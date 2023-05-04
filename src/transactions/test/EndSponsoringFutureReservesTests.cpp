@@ -43,8 +43,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
         for_versions({13}, *app, [&] {
             auto a1 = root.create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(endSponsoringFutureReserves())}, {});
+                *app, root, {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
@@ -58,8 +57,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
         for_versions_from(14, *app, [&] {
             auto a1 = root.create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root,
-                {root.op(endSponsoringFutureReserves())}, {});
+                *app, root, {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
