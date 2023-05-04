@@ -113,15 +113,20 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
         LedgerTxn ltx2(app.getLedgerTxnRoot());
         auto ltxe2 = loadContractCode(ltx2, expectedWasmHash);
         REQUIRE(ltxe2);
-        REQUIRE(ltxe2.current().data.contractCode().code == expectedWasm);
+
+        auto const& body = ltxe2.current().data.contractCode().body;
+        REQUIRE(body.t() == DATA_ENTRY);
+        REQUIRE(body.code() == expectedWasm);
     }
     // verify contract code reference is correct
     {
         LedgerTxn ltx2(app.getLedgerTxnRoot());
         auto ltxe2 = loadContractData(ltx2, contractID, sourceRefKey);
         REQUIRE(ltxe2);
-        REQUIRE(ltxe2.current().data.contractData().val ==
-                makeWasmRefScContractCode(expectedWasmHash));
+
+        auto const& body = ltxe2.current().data.contractData().body;
+        REQUIRE(body.t() == DATA_ENTRY);
+        REQUIRE(body.val() == makeWasmRefScContractCode(expectedWasmHash));
     }
 }
 
@@ -361,7 +366,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         if (val)
         {
             REQUIRE(ltxe);
-            REQUIRE(ltxe.current().data.contractData().val == *val);
+
+            auto const& body = ltxe.current().data.contractData().body;
+            REQUIRE(body.t() == DATA_ENTRY);
+            REQUIRE(body.val() == *val);
         }
         else
         {
