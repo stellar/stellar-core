@@ -56,6 +56,7 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<OperationEvents> mEvents;
     xdr::xvector<OperationDiagnosticEvents> mDiagnosticEvents;
     std::optional<FeePair> mSorobanResourceFee;
+    uint32_t mConsumedSorobanMetadataSize{};
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -130,6 +131,10 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config) const;
+    void
+    maybeComputeSorobanResourceFee(uint32_t protocolVersion,
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   Config const& cfg, bool applyRefund);
 #endif
 
   public:
@@ -225,7 +230,7 @@ class TransactionFrame : public TransactionFrameBase
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+    void processFeeSeqNum(Application& app, AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee) override;
 
     // apply this transaction to the current ledger
@@ -257,6 +262,7 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
+    void consumeRefundableSorobanResource(uint32_t metadataSizeBytes);
 #endif
 };
 }

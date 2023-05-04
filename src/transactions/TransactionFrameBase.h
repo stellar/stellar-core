@@ -74,7 +74,7 @@ class TransactionFrameBase
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
+    virtual void processFeeSeqNum(Application& app, AbstractLedgerTxn& ltx,
                                   std::optional<int64_t> baseFee) = 0;
 
     virtual StellarMessage toStellarMessage() const = 0;

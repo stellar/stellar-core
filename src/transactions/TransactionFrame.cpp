@@ -606,6 +606,14 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg)
 {
+    maybeComputeSorobanResourceFee(protocolVersion, sorobanConfig, cfg, false);
+}
+
+void
+TransactionFrame::maybeComputeSorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg, bool applyRefund)
+{
     if (!isSoroban())
     {
         return;
@@ -635,6 +643,17 @@ TransactionFrame::maybeComputeSorobanResourceFee(
 
     cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
 
+    if (applyRefund)
+    {
+        // It is possible that consumed metadata size is higher than the
+        // declared size (in such a case the transaction will fail). We
+        // still don't want to overcharge the fees though.
+        if (cxxResources.metadata_size_bytes > mConsumedSorobanMetadataSize)
+        {
+            cxxResources.metadata_size_bytes = mConsumedSorobanMetadataSize;
+        }
+    }
+
     // NB: We recompute this on-demand in case if the fees change between
     // the ledger where the transaction has been accepted and the ledger where
     // it is being applied.
@@ -647,6 +666,12 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     releaseAssertOrThrow(mSorobanResourceFee->fee >=
                          mSorobanResourceFee->refundable_fee);
 }
+void
+TransactionFrame::consumeRefundableSorobanResource(uint32_t metadataSizeBytes)
+{
+    mConsumedSorobanMetadataSize += metadataSizeBytes;
+}
+
 #endif
 
 bool
@@ -1179,7 +1204,8 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     maybeComputeSorobanResourceFee(
         ltx.loadHeader().current().ledgerVersion,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig(),
+        false);
 
 #endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
@@ -1452,16 +1478,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                                           getSignatures(mEnvelope)};
 
         LedgerTxn ltxTx(ltx);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        maybeComputeSorobanResourceFee(
-            ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
-            app.getConfig());
-
-#endif
-        // when applying, a failure during tx validation means that
-        // we'll skip trying to apply operations but we'll still
-        // process the sequence number if needed
+        //  when applying, a failure during tx validation means that
+        //  we'll skip trying to apply operations but we'll still
+        //  process the sequence number if needed
         auto cv =
             commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
@@ -1483,6 +1502,14 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             if (ok)
             {
                 ok = applyOperations(signatureChecker, app, ltx, meta);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                // Recompute the Soroban resource fee based on the actual
+                // resource consumption.
+                maybeComputeSorobanResourceFee(
+                    ledgerVersion,
+                    app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                    app.getConfig(), true);
+#endif
             }
             return ok;
         }

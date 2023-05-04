@@ -154,6 +154,8 @@ struct HostFunctionMetrics
     size_t mCpuInsn{0};
     size_t mMemByte{0};
 
+    size_t mMetadataSizeByte{0};
+
     bool mSuccess{false};
 
     HostFunctionMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
@@ -232,6 +234,10 @@ struct HostFunctionMetrics
         mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
             .Mark(mEmitEventByte);
 
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "metadata-size-byte"}, "byte")
+            .Mark(mMetadataSizeByte);
+
         mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
             .Mark(mCpuInsn);
         mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
@@ -304,8 +310,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     // Metadata includes the ledger entry changes which we
     // approximate as the size of the RW entries that we read
     // plus size of the RW entries that we write back to the ledger.
-    size_t metadataSizeBytes = metrics.mLedgerReadByte;
-    if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+    metrics.mMetadataSizeByte += metrics.mLedgerReadByte;
+    if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
     {
         innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
@@ -402,8 +408,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
         keys.emplace(std::move(lk));
     }
-    metadataSizeBytes += metrics.mLedgerWriteByte;
-    if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+    metrics.mMetadataSizeByte += metrics.mLedgerWriteByte;
+    if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
     {
         innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
@@ -429,8 +435,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     {
         metrics.mEmitEvent++;
         metrics.mEmitEventByte += buf.data.size();
-        metadataSizeBytes += buf.data.size();
-        if (resources.extendedMetaDataSizeBytes < metadataSizeBytes)
+        metrics.mMetadataSizeByte += buf.data.size();
+        if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -443,6 +449,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     mParentTx.pushContractEvents(events);
 
     maybePopulateDiagnosticEvents(cfg, out);
+    mParentTx.consumeRefundableSorobanResource(metrics.mMetadataSizeByte);
 
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
 

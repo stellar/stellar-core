@@ -217,7 +217,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             REQUIRE(tx->apply(*app, ltx, txm));
             // Charge for resources plus minimum inclusion fee bid (currently
             // equivalent to the network `baseFee` of 100).
-            int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) + 100;
+            int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) -
+                                  /* metadata refund */ 568 + 100;
             REQUIRE(tx->getResult().feeCharged == baseCharged);
             // Imitate surge pricing by charging at a higher rate than base fee.
             tx->processFeeSeqNum(ltx, 200);
