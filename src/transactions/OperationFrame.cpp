@@ -259,10 +259,14 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
     resetResultSuccess();
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig(ltx);
 
     return doCheckValid(sorobanConfig, ledgerVersion);
+#else
+    return doCheckValid(ledgerVersion);
+#endif
 }
 
 bool
