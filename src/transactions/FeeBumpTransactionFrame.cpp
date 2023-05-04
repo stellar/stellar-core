@@ -155,6 +155,14 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
     }
 }
 
+void
+FeeBumpTransactionFrame::processPostApply(Application& app,
+                                          AbstractLedgerTxn& ltx,
+                                          TransactionMetaFrame& meta)
+{
+    mInnerTx->processPostApply(app, ltx, meta);
+}
+
 bool
 FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
                                         LedgerTxnEntry const& account,

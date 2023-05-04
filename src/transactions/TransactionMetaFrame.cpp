@@ -68,6 +68,22 @@ TransactionMetaFrame::getChangesBefore() const
     }
 }
 
+LedgerEntryChanges
+TransactionMetaFrame::getChangesAfter() const
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        return mTransactionMeta.v2().txChangesAfter;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case 3:
+        return mTransactionMeta.v3().txChangesAfter;
+#endif
+    default:
+        releaseAssert(false);
+    }
+}
+
 void
 TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
 {
