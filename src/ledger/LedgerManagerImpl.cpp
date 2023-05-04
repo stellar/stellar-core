@@ -1304,6 +1304,7 @@ LedgerManagerImpl::applyTransactions(
                    tx->getSeqNum(),
                    mApp.getConfig().toShortString(tx->getSourceID()));
         tx->apply(mApp, ltx, tm);
+        tx->processPostApply(mApp, ltx, tm);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();

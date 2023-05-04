@@ -60,6 +60,9 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool apply(Application& app, AbstractLedgerTxn& ltx,
                TransactionMetaFrame& meta) override;
 
+    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta) override;
+
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;

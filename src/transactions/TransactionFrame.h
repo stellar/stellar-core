@@ -57,6 +57,8 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
     xdr::xvector<SCVal, MAX_OPS_PER_TX> mReturnValues;
     std::optional<FeePair> mSorobanResourceFee;
+    // Size of the emitted Soroban metadata.
+    uint32_t mConsumedSorobanMetadataSize{};
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -131,6 +133,12 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config) const;
+    void refundSorobanFee(uint32_t protocolVersion,
+                          SorobanNetworkConfig const& sorobanConfig,
+                          Config const& cfg, AbstractLedgerTxn& ltx);
+    FeePair computeSorobanResourceFee(
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& cfg, bool useConsumedRefundableResources) const;
 #endif
 
   public:
@@ -237,6 +245,13 @@ class TransactionFrame : public TransactionFrameBase
     bool apply(Application& app, AbstractLedgerTxn& ltx,
                TransactionMetaFrame& meta) override;
 
+    // Performs the necessary post-apply transaction processing.
+    // This has to be called after both `processFeeSeqNum` and
+    // `apply` have been called.
+    // Currently this only takes care of Soroban fee refunds.
+    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta) override;
+
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx);
 
@@ -259,6 +274,7 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
+    void consumeRefundableSorobanResource(uint32_t metadataSizeBytes);
 #endif
 };
 }

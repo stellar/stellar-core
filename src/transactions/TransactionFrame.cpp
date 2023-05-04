@@ -610,24 +610,40 @@ TransactionFrame::validateSorobanResources(
 }
 
 void
-TransactionFrame::maybeComputeSorobanResourceFee(
-    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-    Config const& cfg)
+TransactionFrame::refundSorobanFee(uint32_t protocolVersion,
+                                   SorobanNetworkConfig const& sorobanConfig,
+                                   Config const& cfg,
+                                   AbstractLedgerTxn& ltxOuter)
 {
-    if (!isSoroban())
+    FeePair consumedFee =
+        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
+                                  /* useConsumedRefundableResources */ true);
+    if (mSorobanResourceFee->refundable_fee <= consumedFee.refundable_fee)
     {
         return;
     }
-    // At this point the frame might not have been validated yet, so
-    // the resources might not be present or Soroban might not be supported
-    // at all. Hence just set the resource fees to 0 and rely on validation
-    // checks to not use this.
-    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION) ||
-        mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
+    int64_t feeRefund =
+        mSorobanResourceFee->refundable_fee - consumedFee.refundable_fee;
+    LedgerTxn ltx(ltxOuter);
+    auto header = ltx.loadHeader();
+    auto sourceAccount = loadSourceAccount(ltx, header);
+    if (!sourceAccount)
     {
-        mSorobanResourceFee = std::make_optional<FeePair>();
-        return;
+        throw std::runtime_error("Unexpected database state");
     }
+
+    auto& acc = sourceAccount.current().data.account();
+
+    stellar::addBalance(acc.balance, feeRefund);
+    header.current().feePool -= feeRefund;
+    ltx.commit();
+}
+
+FeePair
+TransactionFrame::computeSorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg, bool useConsumedRefundableResources) const
+{
     CxxTransactionResources cxxResources;
     auto const& txResources = sorobanResources();
     cxxResources.instructions = txResources.instructions;
@@ -646,18 +662,62 @@ TransactionFrame::maybeComputeSorobanResourceFee(
 
     cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
 
-    // NB: We recompute this on-demand in case if the fees change between
-    // the ledger where the transaction has been accepted and the ledger where
-    // it is being applied.
+    if (useConsumedRefundableResources)
+    {
+        // It is possible that consumed metadata size is higher than the
+        // declared size (in such a case the transaction will fail). We
+        // still don't want to overcharge the fees though.
+        if (cxxResources.metadata_size_bytes > mConsumedSorobanMetadataSize)
+        {
+            cxxResources.metadata_size_bytes = mConsumedSorobanMetadataSize;
+        }
+    }
+
     // This may throw, but only in case of the Core version misconfiguration.
+    return rust_bridge::compute_transaction_resource_fee(
+        cfg.CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion, cxxResources,
+        sorobanConfig.rustBridgeFeeConfiguration());
+}
+
+void
+TransactionFrame::maybeComputeSorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg)
+{
+    // NB: We recompute the resource fee on-demand in case if the fees change
+    // between the ledger where the transaction has been accepted and the ledger
+    // where it is being applied.
+    if (!isSoroban())
+    {
+        return;
+    }
+    // At this point the frame might not have been validated yet, so
+    // the resources might not be present or Soroban might not be supported
+    // at all. Hence just set the resource fees to 0 and rely on validation
+    // checks to not use this.
+    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION) ||
+        mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
+    {
+        mSorobanResourceFee = std::make_optional<FeePair>();
+        return;
+    }
+    // We always use the declared resource value for the resource fee
+    // computation. The refunds are performed as a separate operation that
+    // doesn't involve modifying any transaction fees.
     mSorobanResourceFee = std::make_optional<FeePair>(
-        rust_bridge::compute_transaction_resource_fee(
-            cfg.CURRENT_LEDGER_PROTOCOL_VERSION, protocolVersion, cxxResources,
-            sorobanConfig.rustBridgeFeeConfiguration()));
+        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
+                                  /* useConsumedRefundableResources */ false));
     // This is the fee computation invariant.
     releaseAssertOrThrow(mSorobanResourceFee->fee >=
                          mSorobanResourceFee->refundable_fee);
 }
+
+void
+TransactionFrame::consumeRefundableSorobanResource(uint32_t metadataSizeBytes)
+{
+    mConsumedSorobanMetadataSize += metadataSizeBytes;
+}
+
 #endif
 
 bool
@@ -1377,6 +1437,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         {
             markResultFailed();
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            // If transaction fails, we don't charge for any
+            // Soroban metadata (as we don't emit any).
+            mConsumedSorobanMetadataSize = 0;
             outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
 #endif
         }
@@ -1462,16 +1525,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                                           getSignatures(mEnvelope)};
 
         LedgerTxn ltxTx(ltx);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        maybeComputeSorobanResourceFee(
-            ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
-            app.getConfig());
-
-#endif
-        // when applying, a failure during tx validation means that
-        // we'll skip trying to apply operations but we'll still
-        // process the sequence number if needed
+        //  when applying, a failure during tx validation means that
+        //  we'll skip trying to apply operations but we'll still
+        //  process the sequence number if needed
         auto cv =
             commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
@@ -1524,6 +1580,27 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                         TransactionMetaFrame& meta)
 {
     return apply(app, ltx, meta, true);
+}
+
+void
+TransactionFrame::processPostApply(Application& app,
+                                   AbstractLedgerTxn& ltxOuter,
+                                   TransactionMetaFrame& meta)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!isSoroban())
+    {
+        return;
+    }
+    // Process Soroban resource fee refund (this is independent of the
+    // transaction success).
+    LedgerTxn ltx(ltxOuter);
+    refundSorobanFee(ltx.loadHeader().current().ledgerVersion,
+                     app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                     app.getConfig(), ltx);
+    meta.pushTxChangesAfter(ltx.getChanges());
+    ltx.commit();
+#endif
 }
 
 StellarMessage

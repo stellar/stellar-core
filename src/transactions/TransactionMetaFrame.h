@@ -19,6 +19,7 @@ class TransactionMetaFrame
     void pushTxChangesBefore(LedgerEntryChanges&& changes);
     size_t getNumChangesBefore() const;
     LedgerEntryChanges getChangesBefore() const;
+    LedgerEntryChanges getChangesAfter() const;
     void clearOperationMetas();
     void pushOperationMetas(xdr::xvector<OperationMeta>&& opMetas);
     size_t getNumOperations() const;
