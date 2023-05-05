@@ -256,7 +256,7 @@ class TransactionFrame : public TransactionFrameBase
     void
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg);
+                                   Config const& cfg) override;
 #endif
 };
 }

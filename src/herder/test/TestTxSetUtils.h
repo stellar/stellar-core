@@ -15,10 +15,10 @@ TxSetFrameConstPtr makeNonValidatedGeneralizedTxSet(
     std::vector<std::pair<std::optional<int64_t>,
                           std::vector<TransactionFrameBasePtr>>> const&
         txsPerBaseFee,
-    Hash const& networkID, Hash const& previousLedgerHash);
+    Application& app, Hash const& previousLedgerHash);
 
 TxSetFrameConstPtr makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
-    Hash const& networkID, Hash const& previousLedgerHash);
+    Application& app, Hash const& previousLedgerHash);
 } // namespace testtxset
 } // namespace stellar

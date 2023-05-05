@@ -256,13 +256,13 @@ TxSetFrame::makeFromTransactions(TxSetFrame::Transactions const& txs,
     {
         GeneralizedTransactionSet xdrTxSet;
         txSet->toXDR(xdrTxSet);
-        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app, xdrTxSet);
     }
     else
     {
         TransactionSet xdrTxSet;
         txSet->toXDR(xdrTxSet);
-        outputTxSet = TxSetFrame::makeFromWire(app.getNetworkID(), xdrTxSet);
+        outputTxSet = TxSetFrame::makeFromWire(app, xdrTxSet);
     }
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
@@ -300,13 +300,13 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
 }
 
 TxSetFrameConstPtr
-TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
+TxSetFrame::makeFromWire(Application& app, TransactionSet const& xdrTxSet)
 {
     ZoneScoped;
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(
         false, xdrTxSet.previousLedgerHash, TxSetFrame::Transactions{}));
     size_t encodedSize = xdr::xdr_argpack_size(xdrTxSet);
-    if (!txSet->addTxsFromXdr(networkID, xdrTxSet.txs, false, std::nullopt))
+    if (!txSet->addTxsFromXdr(app, xdrTxSet.txs, false, std::nullopt))
     {
         CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
                            "ordered correctly");
@@ -320,7 +320,7 @@ TxSetFrame::makeFromWire(Hash const& networkID, TransactionSet const& xdrTxSet)
 }
 
 TxSetFrameConstPtr
-TxSetFrame::makeFromWire(Hash const& networkID,
+TxSetFrame::makeFromWire(Application& app,
                          GeneralizedTransactionSet const& xdrTxSet)
 {
     ZoneScoped;
@@ -352,7 +352,7 @@ TxSetFrame::makeFromWire(Hash const& networkID,
                 {
                     baseFee = *component.txsMaybeDiscountedFee().baseFee;
                 }
-                if (!txSet->addTxsFromXdr(networkID,
+                if (!txSet->addTxsFromXdr(app,
                                           component.txsMaybeDiscountedFee().txs,
                                           true, baseFee))
                 {
@@ -375,12 +375,11 @@ TxSetFrame::makeFromStoredTxSet(StoredTransactionSet const& storedSet,
     TxSetFrameConstPtr cur;
     if (storedSet.v() == 0)
     {
-        cur = TxSetFrame::makeFromWire(app.getNetworkID(), storedSet.txSet());
+        cur = TxSetFrame::makeFromWire(app, storedSet.txSet());
     }
     else
     {
-        cur = TxSetFrame::makeFromWire(app.getNetworkID(),
-                                       storedSet.generalizedTxSet());
+        cur = TxSetFrame::makeFromWire(app, storedSet.generalizedTxSet());
     }
 
     return cur;
@@ -831,15 +830,29 @@ TxSetFrame::isGeneralizedTxSet() const
 }
 
 bool
-TxSetFrame::addTxsFromXdr(Hash const& networkID,
+TxSetFrame::addTxsFromXdr(Application& app,
                           xdr::xvector<TransactionEnvelope> const& txs,
                           bool useBaseFee, std::optional<int64_t> baseFee)
 {
     size_t oldSize = mTxs.size();
     mTxs.reserve(oldSize + txs.size());
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerTxn ltx(app.getLedgerTxnRoot(), false,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    auto const& sorobanConfig =
+        app.getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto const& appConfig = app.getConfig();
+#endif
     for (auto const& env : txs)
     {
-        auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+        auto tx = TransactionFrameBase::makeTransactionFromWire(
+            app.getNetworkID(), env);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        tx->maybeComputeSorobanResourceFee(ledgerVersion, sorobanConfig,
+                                           appConfig);
+#endif
+
         mTxs.push_back(tx);
         if (useBaseFee)
         {

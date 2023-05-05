@@ -68,6 +68,10 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Initialize the fee to 0, callers will compute the fee appropriately
+    mSorobanResourceFee = std::make_optional<FeePair>();
+#endif
 }
 
 Hash const&

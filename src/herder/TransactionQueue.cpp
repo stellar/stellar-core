@@ -211,6 +211,20 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         return TransactionQueue::AddResult::ADD_STATUS_FILTERED;
     }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    {
+        // Transaction queue performs read-only transactions to the database and
+        // there are no concurrent writers, so it is safe to not enclose all the
+        // SQL statements into one transaction here.
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ true,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+        tx->maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            mApp.getLedgerManager().getSorobanNetworkConfig(ltx),
+            mApp.getConfig());
+    }
+#endif
     int64_t netFee = tx->getFeeBid();
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
