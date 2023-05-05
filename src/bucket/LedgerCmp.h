@@ -88,9 +88,12 @@ struct LedgerEntryIdCmp
         case CONTRACT_DATA:
             return lexCompare(a.contractData().contractID,
                               b.contractData().contractID, a.contractData().key,
-                              b.contractData().key);
+                              b.contractData().key, a.contractData().body.t(),
+                              b.contractData().body.t());
         case CONTRACT_CODE:
-            return a.contractCode().hash < b.contractCode().hash;
+            return lexCompare(a.contractCode().hash, b.contractCode().hash,
+                              a.contractCode().body.t(),
+                              b.contractCode().body.t());
         case CONFIG_SETTING:
         {
             auto getConfigSettingId = [](auto const& v) -> ConfigSettingID {

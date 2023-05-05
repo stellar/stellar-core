@@ -612,6 +612,43 @@ generateValidLedgerEntryKeysWithExclusions(
     return keys;
 }
 
+LedgerEntry
+generateValidLedgerEntryWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t b)
+{
+    while (true)
+    {
+        auto entry = generateValidLedgerEntry(b);
+        if (types.find(entry.data.type()) != types.end())
+        {
+            return entry;
+        }
+    }
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n)
+{
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerEntry> entries;
+    entries.reserve(n);
+    keys.reserve(n);
+    while (entries.size() < n)
+    {
+        auto entry = generateValidLedgerEntryWithTypes(types);
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+
+        keys.insert(key);
+        entries.push_back(entry);
+    }
+    return entries;
+}
+
 AccountEntry
 generateValidAccountEntry(size_t b)
 {
