@@ -53,6 +53,15 @@ FeeBumpTransactionFrame::sorobanResources() const
 {
     return mInnerTx->sorobanResources();
 }
+
+void
+FeeBumpTransactionFrame::maybeComputeSorobanResourceFee(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg)
+{
+    mInnerTx->maybeComputeSorobanResourceFee(protocolVersion, sorobanConfig,
+                                             cfg);
+}
 #endif
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
