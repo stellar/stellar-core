@@ -108,9 +108,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg) override
-    {
-    }
+                                   Config const& cfg) override;
 #endif
 };
 }
