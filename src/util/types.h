@@ -46,6 +46,34 @@ std::string formatSize(size_t size);
 // returns true if the asset is well formed for the specified protocol version
 template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion);
 
+template <typename T>
+bool
+isEntryTypeWithLifetime(T const& e)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return e.type() == CONTRACT_CODE || e.type() == CONTRACT_DATA;
+#endif
+
+    return false;
+}
+
+template <typename T>
+bool
+isLifetimeExtensionEntry(T const& e)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (e.type() == CONTRACT_CODE)
+    {
+        return e.contractCode().body.t() == LIFETIME_EXTENSION;
+    }
+    else if (e.type() == CONTRACT_DATA)
+    {
+        return e.contractData().body.t() == LIFETIME_EXTENSION;
+    }
+#endif
+    return false;
+}
+
 // returns the issuer for the given asset
 template <typename T>
 AccountID
