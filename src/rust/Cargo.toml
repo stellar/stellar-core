@@ -27,7 +27,7 @@ rustc-simple-version = "0.1.0"
 version = "0.0.16"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "0c0cae6fa22b751e7fd95d7ce7556ac6d7b7010e"
+rev = "27e2e3ea9b964ad2fce9893037193e0f4fa0521c"
 features = ["vm"]
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
@@ -49,15 +49,15 @@ features = ["vm"]
 
 [dependencies.soroban-env-host-prev]
 optional = true
-version = "0.0.15"
+version = "0.0.16"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "0aaf89ef2de1fe1eb0fbab531017ad37ccdfd205"
+rev = "0c0cae6fa22b751e7fd95d7ce7556ac6d7b7010e"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "bad318a9805cf25ae64afb5122cb37af67a2edbd"
+rev = "27e2e3ea9b964ad2fce9893037193e0f4fa0521c"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"
