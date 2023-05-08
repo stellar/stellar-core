@@ -110,14 +110,6 @@ class LoopbackPeer : public Peer
     double getReorderProbability() const;
     void setReorderProbability(double d);
 
-#ifdef BUILD_TESTS
-    void
-    overrideDisablePullModeForTesting()
-    {
-        mOverrideDisablePullModeForTesting = true;
-    }
-#endif
-
     void clearInAndOutQueues();
 
     std::string
