@@ -12,8 +12,8 @@ namespace stellar
 {
 LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
 {
-    // The LedgerCloseMeta v() switch can be in 3 positions 0, 1, 2. We
-    // currently support all 3 of these cases, depending on both compile time
+    // The LedgerCloseMeta v() switch can be in 2 positions 0 and 1. We
+    // currently support both of these cases, depending on both compile time
     // and runtime conditions.
     mVersion = 0;
     if (protocolVersionStartsFrom(protocolVersion,
