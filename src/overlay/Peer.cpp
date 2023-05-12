@@ -343,25 +343,6 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
-
-    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE ||
-        mApp.getConfig().OVERLAY_PROTOCOL_VERSION <
-            Peer::FIRST_VERSION_REQUIRING_PULL_MODE)
-    {
-        // If the peer's overlay version indicates that
-        // they might attempt a non-pull-mode connection,
-        // then we should explicitly communicate the intention to
-        // use pull mode. HELLO includes the overlay version and
-        // is exchanged before AUTH, so we should have the remote
-        // overlay version by now.
-        msg.auth().flags = AUTH_MSG_FLAG_PULL_MODE_REQUESTED;
-    }
-#ifdef BUILD_TESTS
-    if (mOverrideDisablePullModeForTesting)
-    {
-        msg.auth().flags = 0;
-    }
-#endif
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -1604,16 +1585,6 @@ Peer::recvAuth(StellarMessage const& msg)
         }
     };
     mFlowControl->start(weakSelf, sendCb);
-
-    if (mRemoteOverlayVersion < Peer::FIRST_VERSION_REQUIRING_PULL_MODE &&
-        msg.auth().flags != AUTH_MSG_FLAG_PULL_MODE_REQUESTED)
-    {
-        // If the remote version is high enough, then we know that they only
-        // accept pull-mode connections. Otherwise, we'll drop them unless
-        // they explicitly request pull mode.
-        sendErrorAndDrop(ERR_LOAD, "pull mode must be on",
-                         Peer::DropMode::FLUSH_WRITE_QUEUE);
-    }
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();

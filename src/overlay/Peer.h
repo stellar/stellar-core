@@ -60,7 +60,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_REQUIRING_PULL_MODE = 27;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -285,15 +284,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
 
     bool mShuttingDown{false};
-
-#ifdef BUILD_TESTS
-    // For testing purposes, sometimes we want to force
-    // to disable the pull mode flag in the auth
-    // message. Set this optional bool value to force it.
-    // This will be obsolete once the min overlay version
-    // becomes >= FIRST_VERSION_REQUIRING_PULL_MODE.
-    bool mOverrideDisablePullModeForTesting{false};
-#endif
 
   public:
     Peer(Application& app, PeerRole role);
