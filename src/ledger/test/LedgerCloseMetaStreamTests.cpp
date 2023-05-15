@@ -210,11 +210,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     }
     else
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
-#else
         REQUIRE(false);
-#endif
     }
 
     // The node with EXPERIMENTAL_PRECAUTION_DELAY_META should not have streamed
@@ -230,12 +226,6 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    else
-    {
-        REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
-    }
-#endif
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -341,11 +331,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     }
     else
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        REQUIRE(lcm.v2().ledgerHeader.hash == hash);
-#else
         REQUIRE(false);
-#endif
     }
 }
 
@@ -522,18 +508,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        else if (protocolVersionStartsFrom(
-                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                     SOROBAN_PROTOCOL_VERSION))
-        {
-            // LCM v2
-            REQUIRE(lcm.v() == 2);
-            REQUIRE(lcm.v2().ledgerHeader.header.ledgerVersion ==
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-            ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
-        }
-#endif
         else
         {
             // LCM v1
@@ -556,6 +530,10 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             }
             else
             {
+                // If the format of close meta has changed, you will see a
+                // failure here. If the change is expected run this test with
+                // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close meta
+                // files.
                 std::ifstream inJson(refJsonPath);
                 REQUIRE(inJson);
                 std::string expect(std::istreambuf_iterator<char>{inJson}, {});

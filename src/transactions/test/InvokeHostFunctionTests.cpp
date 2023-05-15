@@ -231,7 +231,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             REQUIRE(!tx->apply(*app, ltx, txm));
             ltx.commit();
         }
-        std::vector<SCVal> resultVals;
+        xdr::xvector<SCVal, 100> resultVals;
         resultVals.emplace_back();
         resultVals[0].type(stellar::SCV_STATUS);
         resultVals[0].error().type(SCStatusType::SST_UNKNOWN_ERROR);
@@ -243,7 +243,14 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 ores.tr().invokeHostFunctionResult().code() ==
                     INVOKE_HOST_FUNCTION_SUCCESS)
             {
-                resultVals = ores.tr().invokeHostFunctionResult().success();
+                resultVals = txm.getXDR().v3().returnValues;
+
+                InvokeHostFunctionSuccessPreImage success;
+                success.returnValues = resultVals;
+                success.events = txm.getXDR().v3().events;
+
+                REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
+                        xdrSha256(success));
             }
         }
         return resultVals;
@@ -494,10 +501,8 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
     REQUIRE(!tx->apply(*app, ltx, txm));
     ltx.commit();
-    txm.finalizeHashes();
 
-    REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
-    auto const& opEvents = txm.getXDR().v3().diagnosticEvents.at(0).events;
+    auto const& opEvents = txm.getXDR().v3().diagnosticEvents;
     REQUIRE(opEvents.size() == 2);
 
     auto const& call_ev = opEvents.at(0);
@@ -574,25 +579,18 @@ TEST_CASE("complex contract", "[tx][soroban]")
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
-            txm.finalizeHashes();
 
             // Contract should have emitted a single event carrying a `Bytes`
             // value.
             REQUIRE(txm.getXDR().v3().events.size() == 1);
-            REQUIRE(txm.getXDR().v3().events.at(0).events.at(0).type ==
+            REQUIRE(txm.getXDR().v3().events.at(0).type ==
                     ContractEventType::CONTRACT);
-            REQUIRE(txm.getXDR()
-                        .v3()
-                        .events.at(0)
-                        .events.at(0)
-                        .body.v0()
-                        .data.type() == SCV_BYTES);
+            REQUIRE(txm.getXDR().v3().events.at(0).body.v0().data.type() ==
+                    SCV_BYTES);
 
             if (enableDiagnostics)
             {
-                REQUIRE(txm.getXDR().v3().diagnosticEvents.size() == 1);
-                verifyDiagnosticEvents(
-                    txm.getXDR().v3().diagnosticEvents.at(0).events);
+                verifyDiagnosticEvents(txm.getXDR().v3().diagnosticEvents);
             }
             else
             {

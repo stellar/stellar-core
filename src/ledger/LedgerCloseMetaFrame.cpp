@@ -12,8 +12,8 @@ namespace stellar
 {
 LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
 {
-    // The LedgerCloseMeta v() switch can be in 3 positions 0, 1, 2. We
-    // currently support all 3 of these cases, depending on both compile time
+    // The LedgerCloseMeta v() switch can be in 2 positions 0 and 1. We
+    // currently support both of these cases, depending on both compile time
     // and runtime conditions.
     mVersion = 0;
     if (protocolVersionStartsFrom(protocolVersion,
@@ -21,12 +21,6 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     {
         mVersion = 1;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
-    {
-        mVersion = 2;
-    }
-#endif
     mLedgerCloseMeta.v(mVersion);
 }
 
@@ -39,10 +33,6 @@ LedgerCloseMetaFrame::ledgerHeader()
         return mLedgerCloseMeta.v0().ledgerHeader;
     case 1:
         return mLedgerCloseMeta.v1().ledgerHeader;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        return mLedgerCloseMeta.v2().ledgerHeader;
-#endif
     default:
         releaseAssert(false);
     }
@@ -59,11 +49,6 @@ LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
     case 1:
         mLedgerCloseMeta.v1().txProcessing.reserve(n);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.reserve(n);
-        break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -80,11 +65,6 @@ LedgerCloseMetaFrame::pushTxProcessingEntry()
     case 1:
         mLedgerCloseMeta.v1().txProcessing.emplace_back();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.emplace_back();
-        break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -102,11 +82,6 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
     case 1:
         mLedgerCloseMeta.v1().txProcessing.back().feeProcessing = changes;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.back().feeProcessing = changes;
-        break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -132,21 +107,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-    {
-        auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
-        txp.txApplyProcessing = tm;
-        auto& res = txp.result;
-        res.transactionHash = std::move(rp.transactionHash);
-
-        // In v2 we do not store the actual txresult anymore, just a hash of
-        // hashes. This means we had to get a TransactionMetaV3.
-        releaseAssert(tm.v() == 3);
-        res.hashOfMetaHashes = TransactionMetaFrame::getHashOfMetaHashes(tm);
-    }
-    break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -161,10 +121,6 @@ LedgerCloseMetaFrame::upgradesProcessing()
         return mLedgerCloseMeta.v0().upgradesProcessing;
     case 1:
         return mLedgerCloseMeta.v1().upgradesProcessing;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        return mLedgerCloseMeta.v2().upgradesProcessing;
-#endif
     default:
         releaseAssert(false);
     }
@@ -181,11 +137,6 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
     case 1:
         txSet.toXDR(mLedgerCloseMeta.v1().txSet);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    case 2:
-        txSet.toXDR(mLedgerCloseMeta.v2().txSet);
-        break;
-#endif
     default:
         releaseAssert(false);
     }

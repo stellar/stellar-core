@@ -53,8 +53,9 @@ class TransactionFrame : public TransactionFrameBase
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    xdr::xvector<OperationEvents> mEvents;
-    xdr::xvector<OperationDiagnosticEvents> mDiagnosticEvents;
+    xdr::xvector<ContractEvent> mEvents;
+    xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
+    xdr::xvector<SCVal, MAX_OPS_PER_TX> mReturnValues;
     std::optional<FeePair> mSorobanResourceFee;
 #endif
 
@@ -178,8 +179,9 @@ class TransactionFrame : public TransactionFrameBase
                       std::optional<int64_t> baseFee, bool applying);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void pushContractEvents(OperationEvents const& evts);
-    void pushDiagnosticEvents(OperationDiagnosticEvents const& evts);
+    void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
+    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
+    void pushReturnValues(xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnVals);
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;
