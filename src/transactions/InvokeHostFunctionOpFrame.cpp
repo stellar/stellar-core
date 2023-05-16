@@ -280,7 +280,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         for (auto const& lk : keys)
         {
             // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk);
+            auto ltxe = ltx.loadWithoutRecord(fe.key);
             size_t nByte{0};
             if (ltxe)
             {
@@ -297,7 +297,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
                 }
                 ledgerEntryCxxBufs.emplace_back(std::move(buf));
             }
-            metrics.noteReadEntry(lk, nByte);
+            metrics.noteReadEntry(fe.key, nByte);
         }
         return true;
     };
@@ -416,14 +416,14 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     }
 
     // Erase every entry not returned
-    for (auto const& lk : footprint.readWrite)
+    for (auto const& fe : footprint.readWrite)
     {
-        if (keys.find(lk) == keys.end())
+        if (keys.find(fe.key) == keys.end())
         {
-            auto ltxe = ltx.load(lk);
+            auto ltxe = ltx.load(fe.key);
             if (ltxe)
             {
-                ltx.erase(lk);
+                ltx.erase(fe.key);
             }
         }
     }

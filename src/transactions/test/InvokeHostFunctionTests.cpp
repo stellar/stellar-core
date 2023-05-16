@@ -130,6 +130,14 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
     }
 }
 
+static FootprintEntry
+fe(LedgerKey const& k)
+{
+    FootprintEntry e;
+    e.key = k;
+    return e;
+}
+
 static xdr::xvector<LedgerKey>
 deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
                                 uint256 salt = sha256("salt"))
@@ -176,8 +184,9 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
 
     SorobanResources resources;
-    resources.footprint.readWrite = {contractCodeLedgerKey,
-                                     contractSourceRefLedgerKey};
+
+    resources.footprint.readWrite = {fe(contractCodeLedgerKey),
+                                     fe(contractSourceRefLedgerKey)};
     resources.instructions = 200'000;
     resources.readBytes = 1000;
     resources.writeBytes = 5000;
@@ -309,7 +318,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     auto sc7 = makeI32(7);
     auto sc16 = makeI32(16);
     SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
+    for (auto const& k : contractKeys)
+    {
+        resources.footprint.readOnly.push_back(fe(k));
+    }
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
@@ -392,8 +404,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
             makeBinary(contractID.begin(), contractID.end()), makeSymbol("put"),
             keySymbol, valU64};
         SorobanResources resources;
-        resources.footprint.readOnly = readOnly;
-        resources.footprint.readWrite = readWrite;
+        for (auto const& k : readOnly)
+        {
+            resources.footprint.readOnly.push_back(fe(k));
+        }
+
+        for (auto const& k : readWrite)
+        {
+            resources.footprint.readWrite.push_back(fe(k));
+        }
+
         resources.instructions = 2'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
@@ -436,8 +456,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 makeBinary(contractID.begin(), contractID.end()),
                 makeSymbol("del"), keySymbol};
             SorobanResources resources;
-            resources.footprint.readOnly = readOnly;
-            resources.footprint.readWrite = readWrite;
+            for (auto const& k : readOnly)
+            {
+                resources.footprint.readOnly.push_back(fe(k));
+            }
+
+            for (auto const& k : readWrite)
+            {
+                resources.footprint.readWrite.push_back(fe(k));
+            }
+
             resources.instructions = 2'000'000;
             resources.readBytes = 5000;
             resources.writeBytes = 1000;
@@ -539,7 +567,11 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
     ihf.args.invokeContract() = parameters;
     SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
+    for (auto const& k : contractKeys)
+    {
+        resources.footprint.readOnly.push_back(fe(k));
+    }
+
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
@@ -601,8 +633,12 @@ TEST_CASE("complex contract", "[tx][soroban]")
         dataKey.contractData().key = makeSymbol("data");
 
         SorobanResources resources;
-        resources.footprint.readOnly = contractKeys;
-        resources.footprint.readWrite = {dataKey};
+
+        for (auto const& k : contractKeys)
+        {
+            resources.footprint.readOnly.push_back(fe(k));
+        }
+        resources.footprint.readWrite = {fe(dataKey)};
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 1000;
@@ -767,7 +803,8 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
         key6.contractData().contractID = contractID;
         key6.contractData().key = nonceKey;
 
-        resources.footprint.readWrite = {key1, key2, key3, key4, key5, key6};
+        resources.footprint.readWrite = {fe(key1), fe(key2), fe(key3),
+                                         fe(key4), fe(key5), fe(key6)};
     }
 
     {
