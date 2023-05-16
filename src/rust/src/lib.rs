@@ -299,8 +299,8 @@ fn check_lockfile_has_expected_dep_tree(
     // For now we ignore this, but should tighten the test up before final.
     if soroban_host_proto_version != 0 && stellar_core_proto_version != soroban_host_proto_version {
         panic!(
-            "stellar-core supports protocol {} but soroban host supports {}",
-            stellar_core_proto_version, soroban_host_proto_version
+            "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
+            curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
         );
     }
 
