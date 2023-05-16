@@ -181,9 +181,14 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // If we find the entry, we remove the found key from keys so that later buckets
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
+// lifetimeExtensions stores a map of LedgerKeys -> lifetime extensions that
+// should vbe applied whenever the corresponding DATA_ENTRY is loaded. Note that
+// the keys in this map correspond to DATA_ENTRY, not LIFETIME_EXTENSION
 void
-Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                 std::vector<LedgerEntry>& result)
+Bucket::loadKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+    std::vector<LedgerEntry>& result,
+    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& lifetimeExtensions)
 {
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
@@ -200,7 +205,43 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
             {
                 if (entryOp->type() != DEADENTRY)
                 {
-                    result.push_back(entryOp->liveEntry());
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    if (isLifetimeExtensionEntry(*currKeyIt))
+                    {
+                        auto k = *currKeyIt;
+                        setType(k, ContractEntryType::DATA_ENTRY);
+                        lifetimeExtensions.emplace(
+                            k, getExpiration(entryOp->liveEntry()));
+                    }
+                    else
+#endif
+                    {
+                        if (isEntryTypeWithLifetime(entryOp->liveEntry().data))
+                        {
+                            if (auto extIter =
+                                    lifetimeExtensions.find(*currKeyIt);
+                                extIter != lifetimeExtensions.end())
+                            {
+                                setExpiration(entryOp->liveEntry(),
+                                              extIter->second);
+                                lifetimeExtensions.erase(extIter);
+                            }
+                            else
+                            {
+                                // If we haven't found an LIFETIME_EXTENSION
+                                // entry yet, ext key is still in keys to
+                                // search. Remove it to avoid redundant reads
+                                // since we already found a newer DATA_ENTRY
+                                auto extK = *currKeyIt;
+                                setType(extK,
+                                        ContractEntryType::LIFETIME_EXTENSION);
+                                keys.erase(extK);
+                            }
+                        }
+
+                        result.push_back(entryOp->liveEntry());
+                    }
                 }
 
                 currKeyIt = keys.erase(currKeyIt);

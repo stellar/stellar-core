@@ -55,9 +55,11 @@ LedgerEntryKey(LedgerEntry const& e)
     case CONTRACT_DATA:
         k.contractData().contractID = d.contractData().contractID;
         k.contractData().key = d.contractData().key;
+        k.contractData().body.t(d.contractData().body.t());
         break;
     case CONTRACT_CODE:
         k.contractCode().hash = d.contractCode().hash;
+        k.contractCode().body.t(d.contractCode().body.t());
         break;
     case CONFIG_SETTING:
         k.configSetting().configSettingID = d.configSetting().configSettingID();
@@ -69,6 +71,38 @@ LedgerEntryKey(LedgerEntry const& e)
     }
     return k;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+uint32_t
+getExpiration(LedgerEntry const& e)
+{
+    releaseAssert(isEntryTypeWithLifetime(e.data));
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (e.data.type() == CONTRACT_DATA)
+    {
+        return e.data.contractData().expirationLedgerSeq;
+    }
+
+    return e.data.contractCode().expirationLedgerSeq;
+#endif
+
+    return 0;
+}
+
+void
+setExpiration(LedgerEntry& e, uint32_t lifetime)
+{
+    releaseAssert(isEntryTypeWithLifetime(e.data));
+    if (e.data.type() == CONTRACT_DATA)
+    {
+        e.data.contractData().expirationLedgerSeq = lifetime;
+    }
+    else
+    {
+        e.data.contractCode().expirationLedgerSeq = lifetime;
+    }
+}
+#endif
 
 bool
 isZero(uint256 const& b)

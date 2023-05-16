@@ -399,23 +399,42 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
-    auto f = [&](std::shared_ptr<Bucket> b) {
-        auto be = b->getBucketEntry(k);
-        if (be.has_value())
-        {
-            result =
-                be.value().type() == DEADENTRY
-                    ? nullptr
-                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    };
+    if (!isEntryTypeWithLifetime(k))
+    {
+        auto f = [&](std::shared_ptr<Bucket> b) {
+            auto be = b->getBucketEntry(k);
+            if (be.has_value())
+            {
+                result =
+                    be.value().type() == DEADENTRY
+                        ? nullptr
+                        : std::make_shared<LedgerEntry>(be.value().liveEntry());
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        };
 
-    loopAllBuckets(f);
+        loopAllBuckets(f);
+    }
+    else
+    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // If entry can have a lifetime extension, we need to use loadKeys so we
+        // can search for both the DATA_ENTRY and LFIETIME_EXTENSION
+        auto kExt = k;
+        setType(kExt, ContractEntryType::LIFETIME_EXTENSION);
+        auto resultV = loadKeys({k, kExt});
+        if (!resultV.empty())
+        {
+            releaseAssert(resultV.size() == 1);
+            result = std::make_shared<LedgerEntry>(resultV.back());
+        }
+#endif
+    }
+
     return result;
 }
 
@@ -424,11 +443,26 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
+    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> lifetimeExtensions;
 
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Insert LIFETIME_EXTENSION keys for every DATA_ENTRY
+    for (auto const& key : keys)
+    {
+        if (isEntryTypeWithLifetime(key))
+        {
+            auto kExt = key;
+            setType(kExt, ContractEntryType::LIFETIME_EXTENSION);
+            keys.emplace(kExt);
+        }
+    }
+#endif
+
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries);
+        b->loadKeys(keys, entries, lifetimeExtensions);
         return keys.empty();
     };
 
