@@ -27,8 +27,7 @@ rustc-simple-version = "0.1.0"
 version = "0.0.16"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "27e2e3ea9b964ad2fce9893037193e0f4fa0521c"
-features = ["vm"]
+rev = "1572d43328bcf4ab90f63f7cdd1a438134034b8b"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -52,16 +51,16 @@ optional = true
 version = "0.0.16"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "0c0cae6fa22b751e7fd95d7ce7556ac6d7b7010e"
+rev = "27e2e3ea9b964ad2fce9893037193e0f4fa0521c"
 features = ["vm"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "27e2e3ea9b964ad2fce9893037193e0f4fa0521c"
+rev = "1572d43328bcf4ab90f63f7cdd1a438134034b8b"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"
-rev = "dcc72b697e10a2d1e3d1ce70d7d7b0d5cbc41dc4"
+rev = "a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8"
 features = ["dependency-tree"]
 
 # This feature definition is implied by the optional=true line in the dep, but
