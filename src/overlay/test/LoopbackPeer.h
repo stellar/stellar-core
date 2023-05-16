@@ -112,6 +112,12 @@ class LoopbackPeer : public Peer
 
     void clearInAndOutQueues();
 
+    size_t
+    getTxQueueByteCount() const
+    {
+        return mFlowControl->getTxQueueByteCountForTesting();
+    }
+
     std::string
     getDropReason() const
     {
@@ -127,15 +133,14 @@ class LoopbackPeer : public Peer
     uint64_t
     getOutboundCapacity()
     {
-        return getFlowControl()
-            ->getFlowControlCapacity()
-            ->getOutboundCapacity();
+        return getFlowControl()->getCapacity()->getOutboundCapacity();
     }
 
-    bool checkCapacity(uint64_t expectedOutboundCapacity) const;
+    bool checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const;
 
     std::string getIP() const override;
 
+    using Peer::recvMessage;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;

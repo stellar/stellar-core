@@ -193,8 +193,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         {
             SECTION("loopback")
             {
-                simulation = Topologies::core(
-                    4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen2);
+                simulation = Topologies::core(4, 1, Simulation::OVER_LOOPBACK,
+                                              networkID, cfgGen2);
                 test(injectTransaction, ackedTransactions, true);
             }
             SECTION("tcp")
