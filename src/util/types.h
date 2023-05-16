@@ -46,6 +46,25 @@ std::string formatSize(size_t size);
 // returns true if the asset is well formed for the specified protocol version
 template <typename T> bool isAssetValid(T const& cur, uint32_t ledgerVersion);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+uint32_t getExpiration(LedgerEntry const& e);
+void setExpiration(LedgerEntry& e, uint32_t lifetime);
+
+template <typename T>
+void
+setType(T& e, ContractEntryType t)
+{
+    if (e.type() == CONTRACT_DATA)
+    {
+        e.contractData().body.t(t);
+    }
+    else
+    {
+        e.contractCode().body.t(t);
+    }
+}
+#endif
+
 template <typename T>
 bool
 isEntryTypeWithLifetime(T const& e)
