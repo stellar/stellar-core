@@ -344,11 +344,13 @@ makeValid(ConfigSettingEntry& ce)
 void
 makeValid(ContractDataEntry& cde)
 {
+    cde.body.t(ContractEntryType::DATA_ENTRY);
 }
 
 void
 makeValid(ContractCodeEntry& cce)
 {
+    cce.body.t(ContractEntryType::DATA_ENTRY);
 }
 #endif
 
