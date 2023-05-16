@@ -17,7 +17,6 @@ namespace stellar
 {
 
 static auto const MAX_UNAUTH_MESSAGE_SIZE = 0x1000;
-static auto const MAX_MESSAGE_SIZE = 0x1000000;
 
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer

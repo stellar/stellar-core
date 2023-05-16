@@ -52,12 +52,6 @@ using namespace soci;
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 
-size_t
-Peer::getOutboundQueueByteLimit() const
-{
-    return mApp.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
-}
-
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -570,6 +564,8 @@ Peer::msgSummary(StellarMessage const& msg)
         return SurveyManager::getMsgSummary(msg);
     case SEND_MORE:
         return "SENDMORE";
+    case SEND_MORE_EXTENDED:
+        return "SENDMORE_EXTENDED";
     case FLOOD_ADVERT:
         return "FLODADVERT";
     case FLOOD_DEMAND:
@@ -650,6 +646,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         getOverlayMetrics().mSendSurveyResponseMeter.Mark();
         break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
         getOverlayMetrics().mSendSendMoreMeter.Mark();
         break;
     case FLOOD_ADVERT:
@@ -801,6 +798,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case PEERS:
     case ERROR_MSG:
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
         cat = "CTRL";
         break;
     // high volume flooding
@@ -1024,6 +1022,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     }
     break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
     {
         std::string errorMsg;
         releaseAssert(mFlowControl);
@@ -1590,6 +1589,7 @@ Peer::recvAuth(StellarMessage const& msg)
             self->sendAuthenticatedMessage(msg);
         }
     };
+
     mFlowControl->start(weakSelf, sendCb);
 
     // Ask for SCP data _after_ the flow control message

@@ -1461,6 +1461,18 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        if (!(PEER_FLOOD_READING_CAPACITY_BYTES -
+                  FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
+              MAX_CLASSIC_TX_SIZE_BYTES))
+        {
+            std::string msg =
+                "Invalid configuration: the difference between "
+                "PEER_FLOOD_READING_CAPACITY_BYTES and "
+                "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES must be at least "
+                "(MAX_CLASSIC_TX_SIZE_BYTES)";
+            throw std::runtime_error(msg);
+        }
+
         verifyLoadGenOpCountForTestingConfigs();
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==

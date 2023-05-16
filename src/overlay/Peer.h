@@ -22,6 +22,10 @@ namespace stellar
 
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
+static auto const MAX_MESSAGE_SIZE = 0x1000000;
+// max tx size is 64KB
+static const uint64_t MAX_CLASSIC_TX_SIZE_BYTES = 64000;
+
 class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
@@ -60,6 +64,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
+    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
+        28;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.

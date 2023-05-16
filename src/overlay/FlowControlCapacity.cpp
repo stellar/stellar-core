@@ -29,22 +29,72 @@ FlowControlMessageCapacity::getMsgResourceCount(StellarMessage const& msg) const
 FlowControlCapacity::ReadingCapacity
 FlowControlMessageCapacity::getCapacityLimits() const
 {
-    return {mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-            mApp.getConfig().PEER_READING_CAPACITY};
+    return {
+        mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
+        std::make_optional<uint64_t>(mApp.getConfig().PEER_READING_CAPACITY)};
 }
 
 void
 FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
-    releaseAssert(msg.type() == SEND_MORE);
+    releaseAssert(msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED);
     auto numMessages = FlowControl::getNumMessages(msg);
     if (!hasOutboundCapacity(msg) && numMessages != 0)
     {
-        CLOG_DEBUG(Overlay, "Got outbound capacity for peer {}",
+        CLOG_DEBUG(Overlay, "Got outbound message capacity for peer {}",
                    mApp.getConfig().toShortString(mNodeID));
     }
     mOutboundCapacity += numMessages;
+}
+
+bool
+FlowControlMessageCapacity::canRead() const
+{
+    ZoneScoped;
+    releaseAssert(mCapacity.mTotalCapacity);
+    return *mCapacity.mTotalCapacity > 0;
+}
+
+FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
+                                                 NodeID const& nodeID)
+    : FlowControlCapacity(app, nodeID)
+{
+    mCapacity = getCapacityLimits();
+}
+
+FlowControlCapacity::ReadingCapacity
+FlowControlByteCapacity::getCapacityLimits() const
+{
+    return {mApp.getConfig().PEER_FLOOD_READING_CAPACITY_BYTES, std::nullopt};
+}
+
+uint64_t
+FlowControlByteCapacity::getMsgResourceCount(StellarMessage const& msg) const
+{
+
+    return static_cast<uint64_t>(xdr::xdr_argpack_size(msg));
+}
+
+void
+FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
+{
+    ZoneScoped;
+    releaseAssert(msg.type() == SEND_MORE_EXTENDED);
+    if (!hasOutboundCapacity(msg) &&
+        (msg.sendMoreExtendedMessage().numBytes != 0))
+    {
+        CLOG_DEBUG(Overlay, "Got outbound byte capacity for peer {}",
+                   mApp.getConfig().toShortString(mNodeID));
+    }
+    mOutboundCapacity += msg.sendMoreExtendedMessage().numBytes;
+};
+
+bool
+FlowControlByteCapacity::canRead() const
+{
+    releaseAssert(!mCapacity.mTotalCapacity);
+    return true;
 }
 
 FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
@@ -58,8 +108,16 @@ FlowControlCapacity::checkCapacityInvariants() const
     ZoneScoped;
     releaseAssert(getCapacityLimits().mFloodCapacity >=
                   mCapacity.mFloodCapacity);
-    releaseAssert(getCapacityLimits().mTotalCapacity >=
-                  mCapacity.mTotalCapacity);
+    if (getCapacityLimits().mTotalCapacity)
+    {
+        releaseAssert(mCapacity.mTotalCapacity);
+        releaseAssert(*getCapacityLimits().mTotalCapacity >=
+                      *mCapacity.mTotalCapacity);
+    }
+    else
+    {
+        releaseAssert(!mCapacity.mTotalCapacity);
+    }
 }
 
 void
@@ -81,8 +139,8 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
     auto msgResources = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
     {
-        releaseAssert(mCapacity.mTotalCapacity >= msgResources);
-        mCapacity.mTotalCapacity -= msgResources;
+        releaseAssert(*mCapacity.mTotalCapacity >= msgResources);
+        *mCapacity.mTotalCapacity -= msgResources;
     }
 
     if (mApp.getOverlayManager().isFloodMessage(msg))
@@ -110,7 +168,10 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
     ZoneScoped;
     uint64_t releasedFloodCapacity = 0;
     size_t resourcesFreed = getMsgResourceCount(msg);
-    mCapacity.mTotalCapacity += resourcesFreed;
+    if (mCapacity.mTotalCapacity)
+    {
+        *mCapacity.mTotalCapacity += resourcesFreed;
+    }
 
     if (mApp.getOverlayManager().isFloodMessage(msg))
     {
