@@ -55,34 +55,6 @@ class BucketIndexTest
         }
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    static void
-    setExpiration(LedgerEntry& e, uint32_t lifetime)
-    {
-        if (e.data.type() == CONTRACT_DATA)
-        {
-            e.data.contractData().expirationLedgerSeq = lifetime;
-        }
-        else
-        {
-            e.data.contractCode().expirationLedgerSeq = lifetime;
-        }
-    }
-
-    static void
-    setType(LedgerEntry& e, ContractEntryType t)
-    {
-        if (e.data.type() == CONTRACT_DATA)
-        {
-            e.data.contractData().body.t(t);
-        }
-        else
-        {
-            e.data.contractCode().body.t(t);
-        }
-    }
-#endif
-
     void
     insertEntries(std::vector<LedgerEntry> const& entries)
     {
@@ -236,7 +208,8 @@ class BucketIndexTest
                 bool shadow = rand_flip();
 
                 setExpiration(e, NEW_EXPIRATION);
-                setType(extensionEntry, ContractEntryType::LIFETIME_EXTENSION);
+                setType(extensionEntry.data,
+                        ContractEntryType::LIFETIME_EXTENSION);
                 if (shadow)
                 {
                     // Insert dummy expiration that will be shadowed later

@@ -95,8 +95,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
-    void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<LedgerEntry>& result);
+    void loadKeys(
+        std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+        std::vector<LedgerEntry>& result,
+        std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& lifetimeExtensions);
 
     // Loads all poolshare trustlines for the given account. Trustlines are
     // stored with their corresponding liquidity pool key in
@@ -128,6 +130,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    static uint32_t getLifetime(LedgerEntry const& e);
+#endif
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
