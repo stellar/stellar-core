@@ -546,10 +546,10 @@ TEST_CASE("application setup", "[applicationutils]")
                 {
                     // Validator publishes more checkpoints while the
                     // captive-core instance is shutdown
-                    auto [selectedLedger, selectedHash] =
+                    auto [selectedLedger2, selectedHash2] =
                         simulation.publishCheckpoints(4);
-                    simulation.runStartupTest(true, selectedLedger,
-                                              selectedHash,
+                    simulation.runStartupTest(true, selectedLedger2,
+                                              selectedHash2,
                                               lcl.header.ledgerSeq);
                 }
             }
@@ -617,8 +617,7 @@ TEST_CASE("application setup", "[applicationutils]")
 
         // Publish a few checkpoints then shut down test node
         auto simulation = SimulationHelper(cfg1, cfg2);
-        auto [startFromLedger, startFromHash] =
-            simulation.publishCheckpoints(2);
+        simulation.publishCheckpoints(2);
         auto lcl = simulation.getTestNodeLCL();
         simulation.shutdownTestNode();
         SECTION("no catchup")
@@ -628,8 +627,7 @@ TEST_CASE("application setup", "[applicationutils]")
         SECTION("trigger catchup")
         {
             // Publish more checkpoints while test node is shutdown
-            auto [startFromLedger, startFromHash] =
-                simulation.publishCheckpoints(10);
+            simulation.publishCheckpoints(10);
             simulation.runStartupTest(true, 0, "", 0);
         }
     }

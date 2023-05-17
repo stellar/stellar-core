@@ -98,31 +98,34 @@ LiteralNode::resolveIntType(ResultValueType const& fieldValue,
                 using T = std::decay_t<decltype(v)>;
                 if constexpr (std::is_same_v<T, int32_t>)
                 {
-                    auto v = std::stoi(valueStr);
-                    if (v > std::numeric_limits<T>::max())
+                    auto const v2 = std::stoi(valueStr);
+                    if (v2 > std::numeric_limits<T>::max())
                     {
                         throw std::out_of_range("");
                     }
                     return std::make_optional<ResultValueType>(
-                        std::in_place_type<int32_t>, std::stoi(valueStr));
+                        std::in_place_type<int32_t>, v2);
                 }
                 else if constexpr (std::is_same_v<T, int64_t>)
                     return std::make_optional<ResultValueType>(
                         std::in_place_type<int64_t>, std::stoll(valueStr));
                 else if constexpr (std::is_same_v<T, uint32_t>)
                 {
-                    auto v = std::stoul(valueStr);
-                    if (v > std::numeric_limits<T>::max())
+                    auto v2 = std::stoul(valueStr);
+                    if (v2 > std::numeric_limits<T>::max())
                     {
                         throw std::out_of_range("");
                     }
                     return std::make_optional<ResultValueType>(
-                        std::in_place_type<uint32_t>, v);
+                        std::in_place_type<uint32_t>, v2);
                 }
                 else if constexpr (std::is_same_v<T, uint64_t>)
                     return std::make_optional<ResultValueType>(
                         std::in_place_type<uint64_t>, std::stoull(valueStr));
-                throw std::runtime_error("Unexpected field type.");
+                else
+                {
+                    throw std::runtime_error("Unexpected field type.");
+                }
             },
             fieldValue);
     }
@@ -346,7 +349,10 @@ Accumulator::addEntry(FieldResolver const& fieldResolver)
                 {
                     return static_cast<double>(v);
                 }
-                throw XDRQueryError("Encountered non-aggregatable field.");
+                else
+                {
+                    throw XDRQueryError("Encountered non-aggregatable field.");
+                }
             },
             *fieldValue);
     }
@@ -359,7 +365,10 @@ Accumulator::addEntry(FieldResolver const& fieldResolver)
                 {
                     return static_cast<uint64_t>(v);
                 }
-                throw XDRQueryError("Encountered non-aggregatable field.");
+                else
+                {
+                    throw XDRQueryError("Encountered non-aggregatable field.");
+                }
             },
             *fieldValue);
         break;

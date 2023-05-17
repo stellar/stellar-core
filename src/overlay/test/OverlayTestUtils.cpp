@@ -12,6 +12,8 @@
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
 
+#include <numeric>
+
 namespace stellar
 {
 

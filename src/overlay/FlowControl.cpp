@@ -197,7 +197,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
 
     if (shouldSendMore && peerPtr)
     {
-        sendSendMore(mFloodDataProcessed, peerPtr);
+        sendSendMore(static_cast<uint32>(mFloodDataProcessed), peerPtr);
         mFloodDataProcessed = 0;
     }
 }

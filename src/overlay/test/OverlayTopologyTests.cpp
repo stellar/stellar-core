@@ -123,31 +123,31 @@ TEST_CASE("basic connectivity", "[overlay][connectivity][!hide]")
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
         // Threshold 1 means everyone must agree, graph must be connected
-        auto simulation =
-            Topologies::separate(numNodes, 1, Simulation::OVER_LOOPBACK,
-                                 networkID, numWatchers, [&](int i) {
-                                     // Ignore idle app
-                                     if (i == 0)
-                                     {
-                                         auto cfg = getTestConfig();
-                                         cfg.TARGET_PEER_CONNECTIONS = 0;
-                                         return cfg;
-                                     }
+        auto simulation = Topologies::separate(
+            numNodes, 1, Simulation::OVER_LOOPBACK, networkID, numWatchers,
+            [&](int i) {
+                // Ignore idle app
+                if (i == 0)
+                {
+                    auto cfg = getTestConfig();
+                    cfg.TARGET_PEER_CONNECTIONS = 0;
+                    return cfg;
+                }
 
-                                     auto cfg = cfgs[i - 1];
+                auto cfg = cfgs[i - 1];
 
-                                     if (i > numNodes)
-                                     {
-                                         cfg.NODE_IS_VALIDATOR = false;
-                                         cfg.FORCE_SCP = false;
-                                     }
-                                     cfg.TARGET_PEER_CONNECTIONS = maxOutbound;
-                                     cfg.MAX_ADDITIONAL_PEER_CONNECTIONS =
-                                         maxInbound;
-                                     cfg.KNOWN_PEERS = peers;
-                                     cfg.RUN_STANDALONE = false;
-                                     return cfg;
-                                 });
+                if (i > numNodes)
+                {
+                    cfg.NODE_IS_VALIDATOR = false;
+                    cfg.FORCE_SCP = false;
+                }
+                cfg.TARGET_PEER_CONNECTIONS =
+                    static_cast<unsigned short>(maxOutbound);
+                cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInbound;
+                cfg.KNOWN_PEERS = peers;
+                cfg.RUN_STANDALONE = false;
+                return cfg;
+            });
 
         simulation->startAllNodes();
         simulation->crankForAtLeast(std::chrono::seconds(10), false);
@@ -205,7 +205,7 @@ TEST_CASE("peer churn", "[overlay][connectivity][!hide]")
 
         cfg.NODE_IS_VALIDATOR = i < numNodes;
         cfg.FORCE_SCP = cfg.NODE_IS_VALIDATOR;
-        cfg.TARGET_PEER_CONNECTIONS = maxOutbound;
+        cfg.TARGET_PEER_CONNECTIONS = static_cast<unsigned short>(maxOutbound);
         cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInbound;
         cfg.KNOWN_PEERS = peers;
         cfg.RUN_STANDALONE = false;

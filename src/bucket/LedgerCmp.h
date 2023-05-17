@@ -104,7 +104,10 @@ struct LedgerEntryIdCmp
                 {
                     return v.configSetting().configSettingID();
                 }
-                throw std::runtime_error("Unexpected entry type");
+                else
+                {
+                    throw std::runtime_error("Unexpected entry type");
+                }
             };
             return getConfigSettingId(a) < getConfigSettingId(b);
         }

@@ -151,7 +151,7 @@ initialCpuCostParamsEntry()
 
     auto& params = entry.contractCostParamsCpuInsns();
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(vals.size());
+    params.resize(static_cast<uint32>(vals.size()));
     for (auto val : vals)
     {
         switch (val)
@@ -233,7 +233,7 @@ initialMemCostParamsEntry()
 
     auto& params = entry.contractCostParamsMemBytes();
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(vals.size());
+    params.resize(static_cast<uint32>(vals.size()));
     for (auto val : vals)
     {
         switch (val)

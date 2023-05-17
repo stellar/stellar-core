@@ -799,20 +799,21 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
 }
 
 TransactionFramePtr
-createSimpleDexTx(Application& app, TestAccount& account, int nbOps,
+createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                   uint32_t fee)
 {
     std::vector<Operation> ops;
     Asset asset1(ASSET_TYPE_NATIVE);
     Asset asset2(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(asset2.alphaNum4().assetCode, "USD");
-    int nonDexOps = autocheck::generator<size_t>()(nbOps - 1);
-    for (int i = 0; i < nbOps - nonDexOps; ++i)
+    REQUIRE(nbOps > 0);
+    uint32 nonDexOps = autocheck::generator<uint32>()(nbOps - 1);
+    for (uint32 i = 0; i < nbOps - nonDexOps; ++i)
     {
         ops.emplace_back(
             manageBuyOffer(i + 1, asset1, asset2, Price{2, 5}, 10));
     }
-    for (int i = nbOps - nonDexOps; i < nbOps; ++i)
+    for (uint32 i = nbOps - nonDexOps; i < nbOps; ++i)
     {
         ops.emplace_back(payment(account.getPublicKey(), 1000));
     }
