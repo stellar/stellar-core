@@ -64,6 +64,16 @@ struct InitialSorobanNetworkConfig
     // Meta data settings
     static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500 * 1024;
     static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 200;
+
+    // State expiration settings
+    // 1 year in ledgers
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6'312'000;
+
+    // Live until level 6
+    static constexpr uint32_t MINIMUM_RESTORABLE_ENTRY_LIFETIME = 4096;
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 1;
+
+    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 10;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -158,6 +168,19 @@ class SorobanNetworkConfig
     uint32_t& maxContractDataEntrySizeBytes();
 #endif
 
+    // State expiration settings
+    // Maximum lifetime for any given entry, in ledgers
+    uint32_t maximumEntryLifetime() const;
+
+    // Minimum lifetime required when writing a restorable entry, in ledgers
+    uint32_t minimumRestorableEntryLifetime() const;
+
+    // Minimum lifetime required when writing a temporary entry, in ledgers
+    uint32_t minimumTempEntryLifetime() const;
+
+    // Number of ledgers that lifetime is extended via auto bump
+    uint32_t autoBumpLedgers() const;
+
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
@@ -179,6 +202,10 @@ class SorobanNetworkConfig
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
+    void loadMaximumEntryLifetime(AbstractLedgerTxn& ltx);
+    void loadMinimumRestorableEntryLifetime(AbstractLedgerTxn& ltx);
+    void loadMinimumTempEntryLifetime(AbstractLedgerTxn& ltx);
+    void loadAutoBumpLedgers(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -219,6 +246,12 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxPropagateSizeBytes{};
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeePropagateData1KB{};
+
+    // State expiration settings
+    uint32_t mMaximumEntryLifetime{};
+    uint32_t mMinimumRestorableEntryLifetime{};
+    uint32_t mMinimumTempEntryLifetime{};
+    uint32_t mAutoBumpLedgers{};
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Host cost params

@@ -1247,12 +1247,12 @@ ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
         return nullptr;
     }
     auto const& contractData = ltxe.current().data.contractData();
-    releaseAssert(contractData.body.t() == DATA_ENTRY);
-    if (contractData.body.val().type() != SCV_BYTES)
+    releaseAssert(contractData.body.leType() == DATA_ENTRY);
+    if (contractData.body.data().val.type() != SCV_BYTES)
     {
         return nullptr;
     }
-    auto const& bytes = contractData.body.val().bytes();
+    auto const& bytes = contractData.body.data().val.bytes();
 
     ConfigUpgradeSet upgradeSet;
     try
@@ -1430,6 +1430,10 @@ ConfigUpgradeSetFrame::isValidForApply() const
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+        case ConfigSettingID::CONFIG_SETTING_MAXIMUM_ENTRY_LIFETIME:
+        case ConfigSettingID::CONFIG_SETTING_MINIMUM_RESTORABLE_ENTRY_LIFETIME:
+        case ConfigSettingID::CONFIG_SETTING_MINIMUM_TEMP_ENTRY_LIFETIME:
+        case ConfigSettingID::CONFIG_SETTING_AUTO_BUMP_NUM_LEDGERS:
             // For now none of these settings have any semantical value.
             // Validation should be implemented when implementing/tuning
             // the respective settings.
