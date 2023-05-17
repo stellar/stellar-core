@@ -86,14 +86,15 @@ struct LedgerEntryIdCmp
                    b.liquidityPool().liquidityPoolID;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
-            return lexCompare(a.contractData().contractID,
-                              b.contractData().contractID, a.contractData().key,
-                              b.contractData().key, a.contractData().body.t(),
-                              b.contractData().body.t());
+            return lexCompare(
+                a.contractData().contractID, b.contractData().contractID,
+                a.contractData().key, b.contractData().key,
+                a.contractData().type, b.contractData().type,
+                a.contractData().body.leType(), b.contractData().body.leType());
         case CONTRACT_CODE:
             return lexCompare(a.contractCode().hash, b.contractCode().hash,
-                              a.contractCode().body.t(),
-                              b.contractCode().body.t());
+                              a.contractCode().body.leType(),
+                              b.contractCode().body.leType());
         case CONFIG_SETTING:
         {
             auto getConfigSettingId = [](auto const& v) -> ConfigSettingID {

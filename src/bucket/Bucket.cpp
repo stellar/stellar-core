@@ -210,7 +210,7 @@ Bucket::loadKeys(
                     if (isLifetimeExtensionEntry(*currKeyIt))
                     {
                         auto k = *currKeyIt;
-                        setType(k, ContractEntryType::DATA_ENTRY);
+                        setType(k, ContractLedgerEntryType::DATA_ENTRY);
                         lifetimeExtensions.emplace(
                             k, getExpiration(entryOp->liveEntry()));
                     }
@@ -234,8 +234,8 @@ Bucket::loadKeys(
                                 // search. Remove it to avoid redundant reads
                                 // since we already found a newer DATA_ENTRY
                                 auto extK = *currKeyIt;
-                                setType(extK,
-                                        ContractEntryType::LIFETIME_EXTENSION);
+                                setType(extK, ContractLedgerEntryType::
+                                                  LIFETIME_EXTENSION);
                                 keys.erase(extK);
                             }
                         }
@@ -712,7 +712,7 @@ refersToSameEntry(T const& lhs, T const& rhs)
     }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Return key equality check but ignore ContractEntryType
+    // Return key equality check but ignore ContractLedgerEntryType
     if (lhs.type() == rhs.type())
     {
         if (lhs.type() == CONTRACT_DATA)

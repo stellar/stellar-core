@@ -305,13 +305,13 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.t(DATA_ENTRY);
+                    entry.data.contractCode().body.leType(DATA_ENTRY);
                     entry.data.contractCode().expirationLedgerSeq =
                         originalLifetime;
                 }
                 else
                 {
-                    entry.data.contractData().body.t(DATA_ENTRY);
+                    entry.data.contractData().body.leType(DATA_ENTRY);
                     entry.data.contractData().expirationLedgerSeq =
                         originalLifetime;
                 }
@@ -324,13 +324,15 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     auto& newEntry = newLifetimeEntries.back();
                     if (newEntry.data.type() == CONTRACT_CODE)
                     {
-                        newEntry.data.contractCode().body.t(LIFETIME_EXTENSION);
+                        newEntry.data.contractCode().body.leType(
+                            LIFETIME_EXTENSION);
                         newEntry.data.contractCode().expirationLedgerSeq =
                             newLifetime;
                     }
                     else
                     {
-                        newEntry.data.contractData().body.t(LIFETIME_EXTENSION);
+                        newEntry.data.contractData().body.leType(
+                            LIFETIME_EXTENSION);
                         newEntry.data.contractData().expirationLedgerSeq =
                             newLifetime;
                     }
@@ -349,13 +351,15 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                             : newLifetime;
                     if (e.data.type() == CONTRACT_CODE)
                     {
-                        REQUIRE(e.data.contractCode().body.t() == DATA_ENTRY);
+                        REQUIRE(e.data.contractCode().body.leType() ==
+                                DATA_ENTRY);
                         REQUIRE(e.data.contractCode().expirationLedgerSeq ==
                                 expectedLifetime);
                     }
                     else
                     {
-                        REQUIRE(e.data.contractData().body.t() == DATA_ENTRY);
+                        REQUIRE(e.data.contractData().body.leType() ==
+                                DATA_ENTRY);
                         REQUIRE(e.data.contractData().expirationLedgerSeq ==
                                 expectedLifetime);
                     }
@@ -385,12 +389,12 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.t(LIFETIME_EXTENSION);
+                    entry.data.contractCode().body.leType(LIFETIME_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq = 0;
                 }
                 else
                 {
-                    entry.data.contractData().body.t(LIFETIME_EXTENSION);
+                    entry.data.contractData().body.leType(LIFETIME_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq = 0;
                 }
             }
@@ -425,13 +429,13 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.t(LIFETIME_EXTENSION);
+                    entry.data.contractCode().body.leType(LIFETIME_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq =
                         originalLifetime;
                 }
                 else
                 {
-                    entry.data.contractData().body.t(LIFETIME_EXTENSION);
+                    entry.data.contractData().body.leType(LIFETIME_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq =
                         originalLifetime;
                 }
