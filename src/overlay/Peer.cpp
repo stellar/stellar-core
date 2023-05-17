@@ -1599,7 +1599,8 @@ Peer::recvAuth(StellarMessage const& msg)
              Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
          getRemoteOverlayVersion() >=
              Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
-    bool bothWantBytes = enableBytes &&
+    bool bothWantBytes =
+        enableBytes &&
         msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
         mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES;
 

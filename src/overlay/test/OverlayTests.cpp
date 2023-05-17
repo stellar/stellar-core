@@ -201,10 +201,19 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * txSize;
         test(false);
     }
+    SECTION("message count kicks in first")
+    {
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * txSize;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * txSize;
+        cfg2.PEER_FLOOD_READING_CAPACITY = 1;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        test(true);
+    }
 }
 
 void
-runWithBothFlowControlModes(std::vector<Config>& cfgs, std::function<void()> f)
+runWithBothFlowControlModes(std::vector<Config>& cfgs,
+                            std::function<void(bool)> f)
 {
     SECTION("bytes")
     {
@@ -213,7 +222,7 @@ runWithBothFlowControlModes(std::vector<Config>& cfgs, std::function<void()> f)
             REQUIRE(cfg.OVERLAY_PROTOCOL_VERSION >=
                     Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
         }
-        f();
+        f(true);
     }
     SECTION("message count")
     {
@@ -222,7 +231,7 @@ runWithBothFlowControlModes(std::vector<Config>& cfgs, std::function<void()> f)
             cfg.OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
         }
-        f();
+        f(false);
     }
 }
 
@@ -236,7 +245,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
     auto runTest = [&](std::vector<Config> expectedCfgs,
-                       bool expectAuthenticated, bool sendIllegalSendMore) {
+                       bool sendIllegalSendMore) {
         auto app1 = createTestApplication(clock, expectedCfgs[0]);
         auto app2 = createTestApplication(clock, expectedCfgs[1]);
 
@@ -247,111 +256,93 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             cfg1.OVERLAY_PROTOCOL_VERSION >=
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
             cfg2.OVERLAY_PROTOCOL_VERSION >=
-                Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+                Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
+            cfg2.ENABLE_FLOW_CONTROL_BYTES && cfg1.ENABLE_FLOW_CONTROL_BYTES;
 
-        auto expectedDropReason = [&]() {
-            return fcInBytes ? "invalid message SEND_MORE_EXTENDED"
-                             : "invalid message SEND_MORE";
-        };
-
-        if (expectAuthenticated)
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+        REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
+        REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
+        if (fcInBytes)
         {
-            REQUIRE(conn.getInitiator()->isAuthenticated());
-            REQUIRE(conn.getAcceptor()->isAuthenticated());
-            REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
-            REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
-
-            // 1. Try to disable flow control after enabling
-            // 2. Try sending invalid SEND_MORE message type
-            if (sendIllegalSendMore)
-            {
-                std::string dropReason;
-                SECTION("invalid value in the message")
-                {
-                    // if flow control is enabled, ensure it can't be disabled,
-                    // and the misbehaving peer gets dropped
-                    if (fcInBytes)
-                    {
-                        conn.getInitiator()
-                            ->getFlowControl()
-                            ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
-                    }
-                    else
-                    {
-                        conn.getInitiator()
-                            ->getFlowControl()
-                            ->sendSendMoreForTesting(0, conn.getAcceptor());
-                    }
-                    dropReason = expectedDropReason();
-                }
-                SECTION("invalid message type")
-                {
-                    if (fcInBytes)
-                    {
-                        conn.getInitiator()
-                            ->getFlowControl()
-                            ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
-                    }
-                    else
-                    {
-                        conn.getInitiator()
-                            ->getFlowControl()
-                            ->sendSendMoreForTesting(0, conn.getAcceptor());
-                    }
-                    std::string error = "unexpected message type ";
-                    dropReason = fcInBytes ? error + "SEND_MORE"
-                                           : error + "SEND_MORE_EXTENDED";
-                }
-                testutil::crankSome(clock);
-                REQUIRE(!conn.getInitiator()->isConnected());
-                REQUIRE(!conn.getAcceptor()->isConnected());
-                REQUIRE(conn.getAcceptor()->getDropReason() ==
-                        expectedDropReason());
-            }
+            REQUIRE(conn.getInitiator()->getFlowControl()->getCapacityBytes());
+            REQUIRE(conn.getAcceptor()->getFlowControl()->getCapacityBytes());
         }
         else
         {
+            REQUIRE(!conn.getInitiator()->getFlowControl()->getCapacityBytes());
+            REQUIRE(!conn.getAcceptor()->getFlowControl()->getCapacityBytes());
+        }
+
+        // 1. Try sending invalid SEND_MORE with invalid value
+        // 2. Try sending invalid SEND_MORE message type
+        if (sendIllegalSendMore)
+        {
+            std::string dropReason;
+            SECTION("invalid value in the message")
+            {
+                // if flow control is enabled, ensure it can't be disabled,
+                // and the misbehaving peer gets dropped
+                if (fcInBytes)
+                {
+                    conn.getInitiator()
+                        ->getFlowControl()
+                        ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
+                }
+                else
+                {
+                    conn.getInitiator()
+                        ->getFlowControl()
+                        ->sendSendMoreForTesting(0, conn.getAcceptor());
+                }
+                dropReason = fcInBytes ? "invalid message SEND_MORE_EXTENDED"
+                                       : "invalid message SEND_MORE";
+            }
+            SECTION("invalid message type")
+            {
+                if (fcInBytes)
+                {
+                    conn.getInitiator()
+                        ->getFlowControl()
+                        ->sendSendMoreForTesting(0, conn.getAcceptor());
+                }
+                else
+                {
+                    conn.getInitiator()
+                        ->getFlowControl()
+                        ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
+                }
+                dropReason = fcInBytes
+                                 ? "unexpected message type SEND_MORE"
+                                 : "unexpected message type SEND_MORE_EXTENDED";
+            }
+            testutil::crankSome(clock);
             REQUIRE(!conn.getInitiator()->isConnected());
             REQUIRE(!conn.getAcceptor()->isConnected());
-            REQUIRE(conn.getAcceptor()->getDropReason() ==
-                    expectedDropReason());
+            REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
         }
 
         testutil::shutdownWorkScheduler(*app2);
         testutil::shutdownWorkScheduler(*app1);
     };
 
-    auto test = [&]() {
+    auto test = [&](bool fcBytes) {
         SECTION("both enable")
         {
             SECTION("basic")
             {
                 // Successfully enabled flow control
-                runTest({cfg1, cfg2}, true, false);
+                runTest({cfg1, cfg2}, false);
             }
             SECTION("bad peer")
             {
-                SECTION("flow control bytes")
-                {
-                    runTest({cfg1, cfg2}, true, true);
-                }
-                SECTION("flow control messages")
-                {
-                    cfg1.OVERLAY_PROTOCOL_VERSION =
-                        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES -
-                        1;
-                    runTest({cfg1, cfg2}, true, true);
-                }
+                runTest({cfg1, cfg2}, true);
             }
-        }
-        SECTION("one disables")
-        {
-            // Peer tries to disable flow control during auth
-            // Set capacity to 0 so that the peer sends SEND_MORE with
-            // numMessages=0
-            cfg2.PEER_FLOOD_READING_CAPACITY = 0;
-            cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 0;
-            runTest({cfg1, cfg2}, false, false);
+            SECTION("one disables")
+            {
+                cfg1.ENABLE_FLOW_CONTROL_BYTES = false;
+                runTest({cfg1, cfg2}, false);
+            }
         }
     };
 
@@ -370,18 +361,22 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     msg.type(TRANSACTION);
     auto txSize = xdr::xdr_argpack_size(msg);
 
-    // initiator can only accept 1 flood message at a time
-    cfg1.PEER_FLOOD_READING_CAPACITY = 1;
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
-    // Set PEER_READING_CAPACITY to something higher so that the initiator
-    // will read both messages right away and detect capacity violation
-    cfg1.PEER_READING_CAPACITY = 2;
-    // Set flood capacity to low value
-    cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize;
-    cfg1.PEER_READING_CAPACITY = MAX_MESSAGE_SIZE * 2;
-
-    auto test = [&]() {
+    auto test = [&](bool fcBytes) {
+        if (fcBytes)
+        {
+            cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
+            cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize;
+        }
+        else
+        {
+            // initiator can only accept 1 flood message at a time
+            cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+            cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+            // Set PEER_READING_CAPACITY to something higher so that the
+            // initiator will read both messages right away and detect capacity
+            // violation
+            cfg1.PEER_READING_CAPACITY = 2;
+        }
         auto app1 = createTestApplication(clock, cfg1);
         auto app2 = createTestApplication(clock, cfg2);
 
@@ -423,9 +418,9 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
     cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 2;
     cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
     // Incorrectly set batch size, so that the node does not send flood requests
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = MAX_MESSAGE_SIZE + 1;
+    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize + 1;
 
-    auto test = [&]() {
+    auto test = [&](bool fcBytes) {
         auto app1 = createTestApplication(clock, cfg1);
         auto app2 = createTestApplication(clock, cfg2);
 
@@ -1893,6 +1888,8 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 1000;
+        cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         configs.push_back(cfg);
     }
 
@@ -1919,6 +1916,18 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
             setupSimulation();
             configs[2].OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
+        }
+        SECTION("one peer disables")
+        {
+            setupSimulation();
+            configs[2].ENABLE_FLOW_CONTROL_BYTES = false;
+        }
+        SECTION("all peers disable")
+        {
+            setupSimulation();
+            std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
+                cfg.ENABLE_FLOW_CONTROL_BYTES = false;
+            });
         }
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(2, 1); },
