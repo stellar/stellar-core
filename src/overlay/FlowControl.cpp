@@ -77,7 +77,8 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
 // Start flow control: send SEND_MORE to a peer to indicate available capacity
 void
 FlowControl::start(std::weak_ptr<Peer> peer,
-                   std::function<void(StellarMessage const&)> sendCb)
+                   std::function<void(StellarMessage const&)> sendCb,
+                   bool enableFCBytes)
 {
     auto peerPtr = peer.lock();
     if (!peerPtr)
@@ -88,10 +89,7 @@ FlowControl::start(std::weak_ptr<Peer> peer,
     mNodeID = peerPtr->getPeerID();
     mSendCallback = sendCb;
 
-    if (mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
-        peerPtr->getRemoteOverlayVersion() >=
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES)
+    if (enableFCBytes)
     {
         mFlowControlBytesCapacity =
             std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);

@@ -168,7 +168,8 @@ class FlowControl
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
     void start(std::weak_ptr<Peer> peer,
-               std::function<void(StellarMessage const&)> sendCb);
+               std::function<void(StellarMessage const&)> sendCb,
+               bool enableFCBytes);
 };
 
 }

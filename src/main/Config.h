@@ -256,6 +256,8 @@ class Config : public std::enable_shared_from_this<Config>
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES` bytes
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
+    bool ENABLE_FLOW_CONTROL_BYTES;
+
     // Byte limit for outbound flood traffic queues
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 

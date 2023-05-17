@@ -343,6 +343,10 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
+    if (mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES)
+    {
+        msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+    }
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -1590,7 +1594,16 @@ Peer::recvAuth(StellarMessage const& msg)
         }
     };
 
-    mFlowControl->start(weakSelf, sendCb);
+    bool enableBytes =
+        (mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
+             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
+         getRemoteOverlayVersion() >=
+             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
+    bool bothWantBytes = enableBytes &&
+        msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
+        mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES;
+
+    mFlowControl->start(weakSelf, sendCb, bothWantBytes);
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();

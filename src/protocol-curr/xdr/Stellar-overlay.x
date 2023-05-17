@@ -53,16 +53,7 @@ struct Hello
     uint256 nonce;
 };
 
-
-// During the roll-out phrase, pull mode will be optional.
-// Therefore, we need a way to communicate with other nodes
-// that we want/don't want pull mode.
-// However, the goal is for everyone to enable it by default,
-// so we don't want to introduce a new member variable.
-// For now, we'll use the `flags` field (originally named
-// `unused`) in `Auth`.
-// 100 is just a number that is not 0.
-const AUTH_MSG_FLAG_PULL_MODE_REQUESTED = 100;
+const AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED = 200;
 
 struct Auth
 {
