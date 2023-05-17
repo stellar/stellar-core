@@ -256,6 +256,9 @@ class Config : public std::enable_shared_from_this<Config>
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES` bytes
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
+    // Enable flow control in bytes. This config allows core to process large
+    // transactions on the network more efficiently and apply back pressure if
+    // needed.
     bool ENABLE_FLOW_CONTROL_BYTES;
 
     // Byte limit for outbound flood traffic queues

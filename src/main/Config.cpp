@@ -1466,6 +1466,39 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit
+        // given to the sender. It is the maximum number of bytes that the
+        // sender can transmit to the receiver before it needs to wait for
+        // an acknowledgement from the receiver. It represents the initial
+        // 'capacity' of the connection.
+
+        // MAX_CLASSIC_TX_SIZE_BYTES (M): This is the maximum size, in bytes, of
+        // a single message that can be sent by the sender. The sender can send
+        // messages of any size up to this limit, provided it has enough credit.
+
+        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A): This is the number of
+        // bytes that the receiver must process before it sends an
+        // acknowledgement back to the sender. The acknowledgement also serves
+        // to replenish the sender's credit by this amount, enabling it to send
+        // more data.
+
+        // The relationship between these three parameters should satisfy: C - A
+        // >= M. This ensures that the sender can always continue sending
+        // messages until it receives an acknowledgement for the previous data,
+        // thus preventing the system from getting stuck.
+
+        // Start with initial PEER_FLOOD_READING_CAPACITY_BYTES (C) credit
+        // Sender (C) -------- M1 bytes ----------> Receiver
+        //          \-- C-M1 --/
+
+        // Receiver processes received bytes and once
+        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A) or more is processed, an
+        // acknowledgement is sent, which replenishes the sender's credit
+        // Sender (C-M1+A) <-- A bytes ---------- Receiver
+        //             \--- (C-M1+A)-M2 --->/
+
+        // Note:  M1, M2... are message sizes such that M <=
+        // MAX_CLASSIC_TX_SIZE_BYTES
         if (!(PEER_FLOOD_READING_CAPACITY_BYTES -
                   FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
               MAX_CLASSIC_TX_SIZE_BYTES))
