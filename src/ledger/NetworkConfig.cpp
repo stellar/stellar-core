@@ -227,6 +227,50 @@ initialCpuCostParamsEntry()
 }
 
 ConfigSettingEntry
+initialMaximumEntryLifetime()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_MAXIMUM_ENTRY_LIFETIME);
+
+    entry.maximumEntryLifetime() =
+        InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialMinimumRestorableEntryLifetime()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_MINIMUM_RESTORABLE_ENTRY_LIFETIME);
+
+    entry.minimumRestorableEntryLifetime() =
+        InitialSorobanNetworkConfig::MINIMUM_RESTORABLE_ENTRY_LIFETIME;
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialMinimumTempEntryLifetime()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_MINIMUM_TEMP_ENTRY_LIFETIME);
+
+    entry.minimumTempEntryLifetime() =
+        InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialAutoBumpLedgers()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_AUTO_BUMP_NUM_LEDGERS);
+
+    entry.autoBumpLedgers() =
+        InitialSorobanNetworkConfig::AUTO_BUMP_NUM_LEDGERS;
+
+    return entry;
+}
+
+ConfigSettingEntry
 initialMemCostParamsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
@@ -325,6 +369,10 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialMaximumEntryLifetime(), ltx);
+    createConfigSettingEntry(initialMinimumRestorableEntryLifetime(), ltx);
+    createConfigSettingEntry(initialMinimumTempEntryLifetime(), ltx);
+    createConfigSettingEntry(initialAutoBumpLedgers(), ltx);
 #endif
 }
 
@@ -352,6 +400,10 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadBandwidthSettings(ltx);
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
+    loadMaximumEntryLifetime(ltx);
+    loadMinimumRestorableEntryLifetime(ltx);
+    loadMinimumTempEntryLifetime(ltx);
+    loadAutoBumpLedgers(ltx);
 }
 
 void
@@ -521,6 +573,56 @@ uint32_t
 SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 {
     return mMaxContractDataEntrySizeBytes;
+}
+
+void
+SorobanNetworkConfig::loadMaximumEntryLifetime(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_MAXIMUM_ENTRY_LIFETIME;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMaximumEntryLifetime = le.data.configSetting().maximumEntryLifetime();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadMinimumRestorableEntryLifetime(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_MINIMUM_RESTORABLE_ENTRY_LIFETIME;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMinimumRestorableEntryLifetime =
+        le.data.configSetting().minimumRestorableEntryLifetime();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadMinimumTempEntryLifetime(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_MINIMUM_TEMP_ENTRY_LIFETIME;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mMinimumTempEntryLifetime =
+        le.data.configSetting().minimumTempEntryLifetime();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadAutoBumpLedgers(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_AUTO_BUMP_NUM_LEDGERS;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mAutoBumpLedgers = le.data.configSetting().autoBumpLedgers();
+#endif
 }
 
 // Compute settings for contracts (instructions and memory).
@@ -697,6 +799,30 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes()
     return mMaxContractDataEntrySizeBytes;
 }
 #endif
+
+uint32_t
+SorobanNetworkConfig::maximumEntryLifetime() const
+{
+    return mMaximumEntryLifetime;
+}
+
+uint32_t
+SorobanNetworkConfig::minimumRestorableEntryLifetime() const
+{
+    return mMinimumRestorableEntryLifetime;
+}
+
+uint32_t
+SorobanNetworkConfig::minimumTempEntryLifetime() const
+{
+    return mMinimumTempEntryLifetime;
+}
+
+uint32_t
+SorobanNetworkConfig::autoBumpLedgers() const
+{
+    return mAutoBumpLedgers;
+}
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 

@@ -209,7 +209,7 @@ class BucketIndexTest
 
                 setExpiration(e, NEW_EXPIRATION);
                 setType(extensionEntry.data,
-                        ContractEntryType::LIFETIME_EXTENSION);
+                        ContractLedgerEntryType::LIFETIME_EXTENSION);
                 if (shadow)
                 {
                     // Insert dummy expiration that will be shadowed later

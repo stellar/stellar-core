@@ -133,16 +133,16 @@ randomlyModifyEntry(LedgerEntry& e)
         break;
     }
     case CONTRACT_DATA:
-        if (e.data.contractData().body.t() == DATA_ENTRY)
+        if (e.data.contractData().body.leType() == DATA_ENTRY)
         {
-            e.data.contractData().body.val().type(SCV_I32);
-            e.data.contractData().body.val().i32() =
+            e.data.contractData().body.data().val.type(SCV_I32);
+            e.data.contractData().body.data().val.i32() =
                 autocheck::generator<int32_t>{}();
         }
         makeValid(e.data.contractData());
         break;
     case CONTRACT_CODE:
-        if (e.data.contractCode().body.t() == DATA_ENTRY)
+        if (e.data.contractCode().body.leType() == DATA_ENTRY)
         {
             e.data.contractCode().body.code() =
                 generateOpaqueVector<SCVAL_LIMIT>();
@@ -344,13 +344,14 @@ makeValid(ConfigSettingEntry& ce)
 void
 makeValid(ContractDataEntry& cde)
 {
-    cde.body.t(ContractEntryType::DATA_ENTRY);
+    cde.body.leType(ContractLedgerEntryType::DATA_ENTRY);
+    cde.body.data().flags = 0;
 }
 
 void
 makeValid(ContractCodeEntry& cce)
 {
-    cce.body.t(ContractEntryType::DATA_ENTRY);
+    cce.body.leType(ContractLedgerEntryType::DATA_ENTRY);
 }
 #endif
 

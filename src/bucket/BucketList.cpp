@@ -425,7 +425,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
         // If entry can have a lifetime extension, we need to use loadKeys so we
         // can search for both the DATA_ENTRY and LFIETIME_EXTENSION
         auto kExt = k;
-        setType(kExt, ContractEntryType::LIFETIME_EXTENSION);
+        setType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
         auto resultV = loadKeys({k, kExt});
         if (!resultV.empty())
         {
@@ -455,7 +455,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
         if (isEntryTypeWithLifetime(key))
         {
             auto kExt = key;
-            setType(kExt, ContractEntryType::LIFETIME_EXTENSION);
+            setType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
             keys.emplace(kExt);
         }
     }

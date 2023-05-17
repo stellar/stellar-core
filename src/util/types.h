@@ -52,15 +52,15 @@ void setExpiration(LedgerEntry& e, uint32_t lifetime);
 
 template <typename T>
 void
-setType(T& e, ContractEntryType t)
+setType(T& e, ContractLedgerEntryType t)
 {
     if (e.type() == CONTRACT_DATA)
     {
-        e.contractData().body.t(t);
+        e.contractData().body.leType(t);
     }
     else
     {
-        e.contractCode().body.t(t);
+        e.contractCode().body.leType(t);
     }
 }
 #endif
@@ -83,11 +83,11 @@ isLifetimeExtensionEntry(T const& e)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (e.type() == CONTRACT_CODE)
     {
-        return e.contractCode().body.t() == LIFETIME_EXTENSION;
+        return e.contractCode().body.leType() == LIFETIME_EXTENSION;
     }
     else if (e.type() == CONTRACT_DATA)
     {
-        return e.contractData().body.t() == LIFETIME_EXTENSION;
+        return e.contractData().body.leType() == LIFETIME_EXTENSION;
     }
 #endif
     return false;

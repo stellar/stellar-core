@@ -115,7 +115,7 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
         REQUIRE(ltxe2);
 
         auto const& body = ltxe2.current().data.contractCode().body;
-        REQUIRE(body.t() == DATA_ENTRY);
+        REQUIRE(body.leType() == DATA_ENTRY);
         REQUIRE(body.code() == expectedWasm);
     }
     // verify contract code reference is correct
@@ -125,8 +125,8 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
         REQUIRE(ltxe2);
 
         auto const& body = ltxe2.current().data.contractData().body;
-        REQUIRE(body.t() == DATA_ENTRY);
-        REQUIRE(body.val() == makeWasmRefScContractCode(expectedWasmHash));
+        REQUIRE(body.leType() == DATA_ENTRY);
+        REQUIRE(body.data().val == makeWasmRefScContractCode(expectedWasmHash));
     }
 }
 
@@ -380,8 +380,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
             REQUIRE(ltxe);
 
             auto const& body = ltxe.current().data.contractData().body;
-            REQUIRE(body.t() == DATA_ENTRY);
-            REQUIRE(body.val() == *val);
+            REQUIRE(body.leType() == DATA_ENTRY);
+            REQUIRE(body.data().val == *val);
         }
         else
         {
