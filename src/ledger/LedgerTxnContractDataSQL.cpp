@@ -308,6 +308,8 @@ class BulkUpsertContractDataOperation
                                     std::vector<EntryIterator> const& entryIter)
         : mDb(Db)
     {
+
+        // TODO: Update query for LIFETIME_EXTENSION entries
         for (auto const& e : entryIter)
         {
             releaseAssert(e.entryExists());
@@ -318,6 +320,7 @@ class BulkUpsertContractDataOperation
     void
     doSociGenericOperation()
     {
+        // TODO: Update query for LIFETIME_EXTENSION entries
         std::string sql = "INSERT INTO contractData "
                           "(contractid, key, ledgerentry, lastmodified) "
                           "VALUES "

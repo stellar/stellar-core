@@ -76,7 +76,7 @@ LedgerEntryKey(LedgerEntry const& e)
 uint32_t
 getExpiration(LedgerEntry const& e)
 {
-    releaseAssert(isEntryTypeWithLifetime(e.data));
+    releaseAssert(isDataEntryTypeWithLifetime(e.data));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (e.data.type() == CONTRACT_DATA)
     {
@@ -92,7 +92,7 @@ getExpiration(LedgerEntry const& e)
 void
 setExpiration(LedgerEntry& e, uint32_t lifetime)
 {
-    releaseAssert(isEntryTypeWithLifetime(e.data));
+    releaseAssert(isDataEntryTypeWithLifetime(e.data));
     if (e.data.type() == CONTRACT_DATA)
     {
         e.data.contractData().expirationLedgerSeq = lifetime;
