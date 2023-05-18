@@ -67,10 +67,17 @@ setType(T& e, ContractLedgerEntryType t)
 
 template <typename T>
 bool
-isEntryTypeWithLifetime(T const& e)
+isDataEntryTypeWithLifetime(T const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    return e.type() == CONTRACT_CODE || e.type() == CONTRACT_DATA;
+    if (e.type() == CONTRACT_CODE)
+    {
+        return e.contractCode().body.leType() == DATA_ENTRY;
+    }
+    else if (e.type() == CONTRACT_DATA)
+    {
+        return e.contractData().body.leType() == DATA_ENTRY;
+    }
 #endif
 
     return false;
@@ -89,6 +96,17 @@ isLifetimeExtensionEntry(T const& e)
     {
         return e.contractData().body.leType() == LIFETIME_EXTENSION;
     }
+#endif
+    return false;
+}
+
+template <typename T>
+bool
+isTemporaryEntry(T const& e)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return e.type() == CONTRACT_DATA &&
+           e.contractData().type == ContractDataType::TEMPORARY;
 #endif
     return false;
 }

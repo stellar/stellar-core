@@ -399,7 +399,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
-    if (!isEntryTypeWithLifetime(k))
+    if (!isDataEntryTypeWithLifetime(k))
     {
         auto f = [&](std::shared_ptr<Bucket> b) {
             auto be = b->getBucketEntry(k);
@@ -452,7 +452,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     // Insert LIFETIME_EXTENSION keys for every DATA_ENTRY
     for (auto const& key : keys)
     {
-        if (isEntryTypeWithLifetime(key))
+        if (isDataEntryTypeWithLifetime(key))
         {
             auto kExt = key;
             setType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);

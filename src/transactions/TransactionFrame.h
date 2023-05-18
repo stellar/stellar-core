@@ -120,6 +120,8 @@ class TransactionFrame : public TransactionFrameBase
     bool applyOperations(SignatureChecker& checker, Application& app,
                          AbstractLedgerTxn& ltx, TransactionMetaFrame& meta);
 
+    bool applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx);
+
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
     bool processSignatures(ValidationType cv,
