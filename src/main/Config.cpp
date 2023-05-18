@@ -127,8 +127,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
-
     OVERLAY_PROTOCOL_MIN_VERSION = 27;
     OVERLAY_PROTOCOL_VERSION = 27;
 
@@ -173,6 +171,15 @@ Config::Config() : NODE_SEED(SecretKey::random())
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
+    // Configure MAXIMUM_LEDGER_CLOSETIME_DRIFT based on MAX_SLOTS_TO_REMEMBER
+    // (plus a small buffer) to make sure we don't reject SCP state sent to us
+    // by default. Limit allowed drift to 90 seconds as to not overwhelm the
+    // node too much.
+    uint32_t CLOSETIME_DRIFT_LIMIT = 90;
+    MAXIMUM_LEDGER_CLOSETIME_DRIFT =
+        std::min<uint32_t>((MAX_SLOTS_TO_REMEMBER + 2) *
+                               Herder::EXP_LEDGER_TIMESPAN_SECONDS.count(),
+                           CLOSETIME_DRIFT_LIMIT);
     METADATA_OUTPUT_STREAM = "";
     METADATA_DEBUG_LEDGERS = 0;
 
