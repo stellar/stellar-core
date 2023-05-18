@@ -217,7 +217,8 @@ Bucket::loadKeys(
                     else
 #endif
                     {
-                        if (isEntryTypeWithLifetime(entryOp->liveEntry().data))
+                        if (isDataEntryTypeWithLifetime(
+                                entryOp->liveEntry().data))
                         {
                             if (auto extIter =
                                     lifetimeExtensions.find(*currKeyIt);

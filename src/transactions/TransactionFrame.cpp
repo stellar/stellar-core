@@ -1389,6 +1389,11 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
         }
 
+        if (success && isSoroban())
+        {
+            success = applyLifetimeBumps(app, ltx);
+        }
+
         if (success)
         {
             LedgerEntryChanges changesAfter;
@@ -1510,6 +1515,143 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     outerMeta.clearOperationMetas();
     outerMeta.clearTxChangesAfter();
     return false;
+}
+
+bool
+TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
+{
+    if (!isSoroban())
+    {
+        return true;
+    }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerTxn ltxTx(ltx);
+    auto const& resources = sorobanResources();
+    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    auto const& networkConfig =
+        app.getLedgerManager().getSorobanNetworkConfig(ltx);
+
+    auto maxExpirationLedger = lcl + networkConfig.maximumEntryLifetime();
+    auto minRestorableExpirationLedger =
+        lcl + networkConfig.minimumRestorableEntryLifetime();
+    auto minTempExpirationLedger =
+        lcl + networkConfig.minimumTempEntryLifetime();
+    auto autoBumpLedgers = networkConfig.autoBumpLedgers();
+
+    auto autoBumpEnabled = [](LedgerEntry const& le) {
+        return le.data.type() != CONTRACT_DATA ||
+               (le.data.contractData().body.data().flags &
+                ContractDataFlags::NO_AUTOBUMP);
+    };
+
+    auto bump = [&](LedgerEntry& le, auto const& bumpLedgers) {
+        // Use uint64_t do avoid potential overflows from footprint values then
+        // cast down later
+        uint64_t newExpiration = getExpiration(le);
+        if (bumpLedgers)
+        {
+            newExpiration += *bumpLedgers;
+        }
+        else
+        {
+            if (autoBumpEnabled(le))
+            {
+                newExpiration += autoBumpLedgers;
+            }
+        }
+
+        auto minExpirationLedger = isTemporaryEntry(le.data)
+                                       ? minTempExpirationLedger
+                                       : minRestorableExpirationLedger;
+
+        if (newExpiration > maxExpirationLedger)
+        {
+            newExpiration = maxExpirationLedger;
+        }
+        else if (newExpiration < minExpirationLedger)
+        {
+            newExpiration = minExpirationLedger;
+        }
+
+        // TODO: Charge fees for (newExpiration - lcl) ledgers
+
+        setExpiration(le, newExpiration);
+    };
+
+    for (auto const& fe : resources.footprint.readWrite)
+    {
+        auto lte = ltx.load(fe.key);
+        if (lte && isDataEntryTypeWithLifetime(lte.current().data))
+        {
+            bump(lte.current(), fe.bumpLedgers);
+        }
+    }
+
+    for (auto const& fe : resources.footprint.readOnly)
+    {
+        // Load without record for readOnly to avoid writing them later
+        auto lte = ltx.loadWithoutRecord(fe.key);
+        if (!lte)
+        {
+            continue;
+        }
+
+        auto& le = lte.current();
+        if (!isDataEntryTypeWithLifetime(le.data))
+        {
+            continue;
+        }
+
+        auto bumpKey = fe.key;
+        setType(bumpKey, ContractLedgerEntryType::LIFETIME_EXTENSION);
+        auto bumpLte = ltx.load(bumpKey);
+        if (bumpLte)
+        {
+            auto& bumpLe = bumpLte.current();
+
+            // When loading a DATA_ENTRY type, the LedgerEntry returned always
+            // has the most up to date expiration ledger. This is not always the
+            // case when loading a LIFETIME_EXTENSION key, so set the expiration
+            // accordingly
+            setExpiration(bumpLe, getExpiration(le));
+            bump(bumpLe, fe.bumpLedgers);
+        }
+        else
+        {
+            // Build lifetime extension ledger entry
+            LedgerEntry bumpLe;
+            if (auto t = le.data.type(); t == CONTRACT_DATA)
+            {
+                bumpLe.data.type(t);
+                bumpLe.data.contractData().contractID =
+                    le.data.contractData().contractID;
+                bumpLe.data.contractData().key = le.data.contractData().key;
+                bumpLe.data.contractData().type = le.data.contractData().type;
+                bumpLe.data.contractData().body.leType(
+                    ContractLedgerEntryType::LIFETIME_EXTENSION);
+                bumpLe.data.contractData().expirationLedgerSeq =
+                    le.data.contractData().expirationLedgerSeq;
+            }
+            else if (t == CONTRACT_CODE)
+            {
+                bumpLe.data.type(t);
+                bumpLe.data.contractCode().hash = le.data.contractCode().hash;
+                bumpLe.data.contractCode().body.leType(
+                    ContractLedgerEntryType::LIFETIME_EXTENSION);
+                bumpLe.data.contractCode().expirationLedgerSeq =
+                    le.data.contractCode().expirationLedgerSeq;
+            }
+
+            bump(bumpLe, fe.bumpLedgers);
+            ltxTx.create(bumpLe);
+        }
+    }
+
+    ltxTx.commit();
+#endif
+
+    return true;
 }
 
 bool

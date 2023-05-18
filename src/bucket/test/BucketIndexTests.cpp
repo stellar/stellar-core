@@ -200,7 +200,7 @@ class BucketIndexTest
         for (auto& [k, e] : mTestEntries)
         {
             // Select 50% of entries to have new expiration ledger
-            if (isEntryTypeWithLifetime(e.data) && rand_flip())
+            if (isDataEntryTypeWithLifetime(e.data) && rand_flip())
             {
                 auto extensionEntry = e;
 
