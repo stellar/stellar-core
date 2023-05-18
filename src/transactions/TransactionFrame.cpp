@@ -1545,10 +1545,13 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
                 ContractDataFlags::NO_AUTOBUMP);
     };
 
+    // Sets new expiration ledger based on footprint bumpledgers and netowrk
+    // config bouinds. Returns true if expirationLedger changed
     auto bump = [&](LedgerEntry& le, auto const& bumpLedgers) {
         // Use uint64_t do avoid potential overflows from footprint values then
         // cast down later
-        uint64_t newExpiration = getExpiration(le);
+        uint32_t oldExpiration = getExpiration(le);
+        uint64_t newExpiration = oldExpiration;
         if (bumpLedgers)
         {
             newExpiration += *bumpLedgers;
@@ -1576,7 +1579,15 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
 
         // TODO: Charge fees for (newExpiration - lcl) ledgers
 
-        setExpiration(le, newExpiration);
+        if (newExpiration == oldExpiration)
+        {
+            return false;
+        }
+        else
+        {
+            setExpiration(le, newExpiration);
+            return true;
+        }
     };
 
     for (auto const& fe : resources.footprint.readWrite)
@@ -1643,8 +1654,10 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
                     le.data.contractCode().expirationLedgerSeq;
             }
 
-            bump(bumpLe, fe.bumpLedgers);
-            ltxTx.create(bumpLe);
+            if (bump(bumpLe, fe.bumpLedgers))
+            {
+                ltxTx.create(bumpLe);
+            }
         }
     }
 
