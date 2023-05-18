@@ -29,14 +29,14 @@ jobs:
         run: |
           echo "id=$(( $(date +'%s') / 60 / 60 ))" >> $GITHUB_OUTPUT
       - name: Cache
-        uses: actions/cache@v3.0.11
+        uses: actions/cache@v3.3.1
         with:
           path: |
             /home/runner/.ccache
           key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
-      - uses: actions/checkout@v3.2.0
+      - uses: actions/checkout@v3.5.2
         with:
            fetch-depth: 200
            submodules: true
