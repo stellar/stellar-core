@@ -150,8 +150,17 @@ FlowControl::maybeSendNextBatch()
         {
             auto& front = queue.front();
             auto const& msg = *(front.mMessage);
+            // Can't send _current_ message
             if (!hasOutboundCapacity(msg))
             {
+                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
+                           mApp.getConfig().toShortString(
+                               mApp.getConfig().NODE_SEED.getPublicKey()),
+                           mApp.getConfig().toShortString(mNodeID));
+                // Start a timeout for SEND_MORE
+                mNoOutboundCapacity =
+                    std::make_optional<VirtualClock::time_point>(
+                        mApp.getClock().now());
                 break;
             }
 
@@ -207,16 +216,6 @@ FlowControl::maybeSendNextBatch()
             break;
             default:
                 abort();
-            }
-            if (!hasOutboundCapacity(msg))
-            {
-                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
-                           mApp.getConfig().toShortString(
-                               mApp.getConfig().NODE_SEED.getPublicKey()),
-                           mApp.getConfig().toShortString(mNodeID));
-                mNoOutboundCapacity =
-                    std::make_optional<VirtualClock::time_point>(
-                        mApp.getClock().now());
             }
             queue.pop_front();
         }
@@ -286,6 +285,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
         else
         {
             sendSendMore(static_cast<uint32>(mFloodDataProcessed), peerPtr);
+            releaseAssert(mFloodDataProcessedBytes == 0);
         }
         mFloodDataProcessed = 0;
         mFloodDataProcessedBytes = 0;
@@ -421,6 +421,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
                 overLimit = overLimit ||
                             mTxQueueByteCount > getOutboundQueueByteLimit();
             }
+            // Time-based purge
+            overLimit =
+                overLimit ||
+                (!queue.empty() && dropMessageAfterTimeout(queue.front(), now));
             return overLimit;
         };
 
@@ -438,14 +442,6 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
             om.mOutboundQueueDropTxs.Mark(dropped);
             queue.pop_front();
         }
-
-        // Time-based purge
-        while (!queue.empty() && dropMessageAfterTimeout(queue.front(), now))
-        {
-            ++dropped;
-            queue.pop_front();
-        }
-        om.mOutboundQueueDropTxs.Mark(dropped);
     }
     else if (type == SCP_MESSAGE)
     {

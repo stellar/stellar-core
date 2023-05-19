@@ -261,7 +261,7 @@ class Config : public std::enable_shared_from_this<Config>
     // needed.
     bool ENABLE_FLOW_CONTROL_BYTES;
 
-    // Byte limit for outbound flood traffic queues
+    // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 
     // A config parameter that allows a node to generate buckets. This should

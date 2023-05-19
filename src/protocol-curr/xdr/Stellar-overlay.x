@@ -53,6 +53,13 @@ struct Hello
     uint256 nonce;
 };
 
+// During the roll-out phrase, nodes can disable flow control in bytes.
+// Therefore, we need a way to communicate with other nodes
+// that we want/don't want flow control in bytes.
+// We use the `flags` field in the Auth message with a special value
+// set to communicate this. Note that AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED != 0
+// AND AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED != 100 (as previously
+// that value was used for other purposes).
 const AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED = 200;
 
 struct Auth

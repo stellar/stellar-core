@@ -162,9 +162,9 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             auto currentRecvCount = sendMoreRecvMeter.count();
             testutil::crankSome(clock);
             REQUIRE(sendMoreMeter.count() ==
-                    (currentSendCount + !!shouldRequestMore));
+                    (currentSendCount + shouldRequestMore));
             REQUIRE(sendMoreRecvMeter.count() ==
-                    (currentRecvCount + !!shouldRequestMore));
+                    (currentRecvCount + shouldRequestMore));
 
             // Nodes are back to full capacity
             REQUIRE(conn.getAcceptor()
@@ -412,15 +412,23 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
     StellarMessage msg;
     msg.type(TRANSACTION);
     auto txSize = xdr::xdr_argpack_size(msg);
-    cfg1.PEER_FLOOD_READING_CAPACITY = 1;
-    cfg1.PEER_READING_CAPACITY = 1;
-    // Incorrectly set batch size, so that the node does not send flood requests
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 2;
-    cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
-    // Incorrectly set batch size, so that the node does not send flood requests
-    cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize + 1;
 
     auto test = [&](bool fcBytes) {
+        if (fcBytes)
+        {
+            cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
+            // Incorrectly set batch size, so that the node does not send flood
+            // requests
+            cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize + 1;
+        }
+        else
+        {
+            cfg1.PEER_FLOOD_READING_CAPACITY = 1;
+            cfg1.PEER_READING_CAPACITY = 1;
+            // Incorrectly set batch size, so that the node does not send flood
+            // requests
+            cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 2;
+        }
         auto app1 = createTestApplication(clock, cfg1);
         auto app2 = createTestApplication(clock, cfg2);
 
@@ -433,19 +441,23 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
         // Send outbound message and start the timer
         conn.getAcceptor()->sendMessage(std::make_shared<StellarMessage>(msg),
                                         false);
+        conn.getAcceptor()->sendMessage(std::make_shared<StellarMessage>(msg),
+                                        false);
 
-        if (conn.getAcceptor()->getFlowControl()->getCapacityBytes())
+        if (fcBytes)
         {
             REQUIRE(conn.getAcceptor()
                         ->getFlowControl()
                         ->getCapacityBytes()
                         ->getOutboundCapacity() < txSize);
         }
-
-        REQUIRE(conn.getAcceptor()
-                    ->getFlowControl()
-                    ->getCapacity()
-                    ->getOutboundCapacity() == 0);
+        else
+        {
+            REQUIRE(conn.getAcceptor()
+                        ->getFlowControl()
+                        ->getCapacity()
+                        ->getOutboundCapacity() == 0);
+        }
 
         testutil::crankFor(clock, Peer::PEER_SEND_MODE_IDLE_TIMEOUT +
                                       std::chrono::seconds(5));
