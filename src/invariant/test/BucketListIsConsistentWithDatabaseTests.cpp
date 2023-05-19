@@ -766,6 +766,12 @@ TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
 {
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
+        // Skip CONFIG_SETTING for now because the test modification test does
+        // not work unless blg itself updates the entry.
+        if (t == CONFIG_SETTING)
+        {
+            continue;
+        }
         size_t nTests = 0;
         while (nTests < 10)
         {
@@ -775,19 +781,10 @@ TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
             {
                 continue;
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (t == CONFIG_SETTING)
-            {
-                // Configuration can not be deleted.
-                REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkDeleteEntry>(
-                                      *blg.mSelected),
-                                  std::runtime_error);
-            }
-            else
-#endif
-                REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkDeleteEntry>(
-                                      *blg.mSelected),
-                                  InvariantDoesNotHold);
+
+            REQUIRE_THROWS_AS(
+                blg.applyBuckets<ApplyBucketsWorkModifyEntry>(*blg.mSelected),
+                InvariantDoesNotHold);
             ++nTests;
         }
     }
