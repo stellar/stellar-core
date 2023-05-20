@@ -23,8 +23,8 @@ namespace stellar
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 static auto const MAX_MESSAGE_SIZE = 0x1000000;
-// max tx size is 64KB
-static const uint64_t MAX_CLASSIC_TX_SIZE_BYTES = 64000;
+// max tx size is 100KB
+static const uint64_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
 class LoopbackPeer;
