@@ -766,12 +766,14 @@ TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
 {
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         // Skip CONFIG_SETTING for now because the test modification test does
         // not work unless blg itself updates the entry.
         if (t == CONFIG_SETTING)
         {
             continue;
         }
+#endif
         size_t nTests = 0;
         while (nTests < 10)
         {
