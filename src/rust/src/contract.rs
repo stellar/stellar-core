@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::ContractCostParams;
+use soroban_env_host_curr::xdr::{ContractCostParams, ScErrorCode, ScErrorType};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -28,7 +28,7 @@ use super::soroban_env_host::{
     xdr::{
         self, AccountId, ContractEvent, DiagnosticEvent, HostFunction, LedgerEntry,
         LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
-        LedgerKeyTrustLine, ReadXdr, ScUnknownErrorCode, SorobanResources, WriteXdr,
+        LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr,
         XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
@@ -96,20 +96,20 @@ impl From<HostError> for CoreHostError {
 
 impl From<xdr::Error> for CoreHostError {
     fn from(_: xdr::Error) -> Self {
-        CoreHostError::Host(ScUnknownErrorCode::Xdr.into())
+        CoreHostError::Host((ScErrorType::Context, ScErrorCode::InvalidInput).into())
     }
 }
 
 impl std::error::Error for CoreHostError {}
 
 fn xdr_from_slice<T: ReadXdr>(v: &[u8]) -> Result<T, HostError> {
-    Ok(T::read_xdr(&mut Cursor::new(v)).map_err(|_| ScUnknownErrorCode::Xdr)?)
+    Ok(T::read_xdr(&mut Cursor::new(v)).map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?)
 }
 
 fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut Cursor::new(&mut vec))
-        .map_err(|_| ScUnknownErrorCode::Xdr)?;
+        .map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?;
     Ok(vec)
 }
 
@@ -278,7 +278,6 @@ fn extract_contract_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
 
             match &e.event {
                 Event::Contract(ce) => Some(xdr_to_rust_buf(ce)),
-                Event::Debug(_) => None,
                 Event::StructuredDebug(_) => None,
             }
         })
@@ -295,7 +294,6 @@ fn extract_diagnostic_events(events: &Events) -> Result<Vec<RustBuf>, HostError>
         .iter()
         .filter_map(|e| match &e.event {
             Event::Contract(ce) => Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call)),
-            Event::Debug(_) => None,
             Event::StructuredDebug(ce) => {
                 Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call))
             }
@@ -307,7 +305,6 @@ fn log_debug_events(events: &Events) {
     for e in events.0.iter() {
         match &e.event {
             Event::Contract(_) => (),
-            Event::Debug(de) => debug!("contract HostEvent::Debug: {}", de),
             Event::StructuredDebug(sd) => debug!("contract HostEvent::StructuredDebug: {:?}", sd),
         }
     }

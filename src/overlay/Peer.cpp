@@ -343,6 +343,10 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
+    if (mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES)
+    {
+        msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+    }
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -564,6 +568,8 @@ Peer::msgSummary(StellarMessage const& msg)
         return SurveyManager::getMsgSummary(msg);
     case SEND_MORE:
         return "SENDMORE";
+    case SEND_MORE_EXTENDED:
+        return "SENDMORE_EXTENDED";
     case FLOOD_ADVERT:
         return "FLODADVERT";
     case FLOOD_DEMAND:
@@ -644,6 +650,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         getOverlayMetrics().mSendSurveyResponseMeter.Mark();
         break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
         getOverlayMetrics().mSendSendMoreMeter.Mark();
         break;
     case FLOOD_ADVERT:
@@ -795,6 +802,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case PEERS:
     case ERROR_MSG:
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
         cat = "CTRL";
         break;
     // high volume flooding
@@ -1018,6 +1026,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     }
     break;
     case SEND_MORE:
+    case SEND_MORE_EXTENDED:
     {
         std::string errorMsg;
         releaseAssert(mFlowControl);
@@ -1584,7 +1593,18 @@ Peer::recvAuth(StellarMessage const& msg)
             self->sendAuthenticatedMessage(msg);
         }
     };
-    mFlowControl->start(weakSelf, sendCb);
+
+    bool enableBytes =
+        (mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
+             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
+         getRemoteOverlayVersion() >=
+             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
+    bool bothWantBytes =
+        enableBytes &&
+        msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
+        mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES;
+
+    mFlowControl->start(weakSelf, sendCb, bothWantBytes);
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();

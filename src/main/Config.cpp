@@ -128,7 +128,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 27;
-    OVERLAY_PROTOCOL_VERSION = 27;
+    OVERLAY_PROTOCOL_VERSION = 28;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -223,6 +223,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_READING_CAPACITY = 200;
     PEER_FLOOD_READING_CAPACITY = 200;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
+
+    PEER_FLOOD_READING_CAPACITY_BYTES = 300000;
+    FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100000;
+    OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
+    ENABLE_FLOW_CONTROL_BYTES = true;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -950,11 +955,32 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
             if (item.first == "PEER_READING_CAPACITY")
             {
-                PEER_READING_CAPACITY = readInt<uint32_t>(item, 2);
+                PEER_READING_CAPACITY = readInt<uint32_t>(item, 1);
             }
             else if (item.first == "PEER_FLOOD_READING_CAPACITY")
             {
                 PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
+            {
+                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "PEER_FLOOD_READING_CAPACITY_BYTES")
+            {
+                PEER_FLOOD_READING_CAPACITY_BYTES = readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES")
+            {
+                FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
+                    readInt<uint32_t>(item, 1);
+            }
+            else if (item.first == "ENABLE_FLOW_CONTROL_BYTES")
+            {
+                ENABLE_FLOW_CONTROL_BYTES = readBool(item);
+            }
+            else if (item.first == "OUTBOUND_TX_QUEUE_BYTE_LIMIT")
+            {
+                OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
             }
             else if (item.first == "PEER_PORT")
             {
@@ -1394,10 +1420,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                     std::chrono::microseconds(readInt<uint32_t>(item));
             }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
-            }
             else if (item.first == "MAX_DEX_TX_OPERATIONS_IN_TX_SET")
             {
                 auto value = readInt<uint32_t>(item);
@@ -1431,6 +1453,61 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             std::string msg =
                 "Invalid configuration: FLOW_CONTROL_SEND_MORE_BATCH_SIZE "
                 "can't be greater than PEER_FLOOD_READING_CAPACITY";
+            throw std::runtime_error(msg);
+        }
+
+        if (FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >
+            PEER_FLOOD_READING_CAPACITY_BYTES)
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES "
+                "can't be greater than PEER_FLOOD_READING_CAPACITY_BYTES";
+            throw std::runtime_error(msg);
+        }
+
+        // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit
+        // given to the sender. It is the maximum number of bytes that the
+        // sender can transmit to the receiver before it needs to wait for
+        // an acknowledgement from the receiver. It represents the initial
+        // 'capacity' of the connection.
+
+        // MAX_CLASSIC_TX_SIZE_BYTES (M): This is the maximum size, in bytes, of
+        // a single message that can be sent by the sender. The sender can send
+        // messages of any size up to this limit, provided it has enough credit.
+
+        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A): This is the number of
+        // bytes that the receiver must process before it sends an
+        // acknowledgement back to the sender. The acknowledgement also serves
+        // to replenish the sender's credit by this amount, enabling it to send
+        // more data.
+
+        // The relationship between these three parameters should satisfy: C - A
+        // >= M. This ensures that the sender can always continue sending
+        // messages until it receives an acknowledgement for the previous data,
+        // thus preventing the system from getting stuck.
+
+        // Start with initial PEER_FLOOD_READING_CAPACITY_BYTES (C) credit
+        // Sender (C) -------- M1 bytes ----------> Receiver
+        //          \-- C-M1 --/
+
+        // Receiver processes received bytes and once
+        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A) or more is processed, an
+        // acknowledgement is sent, which replenishes the sender's credit
+        // Sender (C-M1+A) <-- A bytes ---------- Receiver
+        //             \--- (C-M1+A)-M2 --->/
+
+        // Note:  M1, M2... are message sizes such that M <=
+        // MAX_CLASSIC_TX_SIZE_BYTES
+        if (!(PEER_FLOOD_READING_CAPACITY_BYTES -
+                  FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
+              MAX_CLASSIC_TX_SIZE_BYTES))
+        {
+            std::string msg =
+                "Invalid configuration: the difference between "
+                "PEER_FLOOD_READING_CAPACITY_BYTES and "
+                "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES must be at least "
+                "(MAX_CLASSIC_TX_SIZE_BYTES)";
             throw std::runtime_error(msg);
         }
 

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include <optional>
 
 namespace stellar
 {
@@ -19,7 +20,7 @@ class FlowControlCapacity
     struct ReadingCapacity
     {
         uint64_t mFloodCapacity;
-        uint64_t mTotalCapacity;
+        std::optional<uint64_t> mTotalCapacity;
     };
 
     // Capacity of local node configured by the operator
@@ -36,6 +37,8 @@ class FlowControlCapacity
 
     void lockOutboundCapacity(StellarMessage const& msg);
     bool lockLocalCapacity(StellarMessage const& msg);
+    // Release capacity used by this message. Return how flood capacity was
+    // freed
     uint64_t releaseLocalCapacity(StellarMessage const& msg);
 
     bool hasOutboundCapacity(StellarMessage const& msg) const;
@@ -52,6 +55,8 @@ class FlowControlCapacity
         return mOutboundCapacity;
     }
 
+    virtual bool canRead() const = 0;
+
 #ifdef BUILD_TESTS
     void
     setOutboundCapacity(uint64_t newCapacity)
@@ -63,6 +68,19 @@ class FlowControlCapacity
     FlowControlCapacity(Application& app, NodeID const& nodeID);
 };
 
+class FlowControlByteCapacity : public FlowControlCapacity
+{
+
+  public:
+    FlowControlByteCapacity(Application& app, NodeID const& nodeID);
+    virtual ~FlowControlByteCapacity() = default;
+    virtual uint64_t
+    getMsgResourceCount(StellarMessage const& msg) const override;
+    virtual ReadingCapacity getCapacityLimits() const override;
+    virtual void releaseOutboundCapacity(StellarMessage const& msg) override;
+    bool canRead() const override;
+};
+
 class FlowControlMessageCapacity : public FlowControlCapacity
 {
   public:
@@ -72,5 +90,6 @@ class FlowControlMessageCapacity : public FlowControlCapacity
     getMsgResourceCount(StellarMessage const& msg) const override;
     virtual ReadingCapacity getCapacityLimits() const override;
     void releaseOutboundCapacity(StellarMessage const& msg) override;
+    bool canRead() const override;
 };
 }

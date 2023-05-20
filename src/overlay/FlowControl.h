@@ -48,8 +48,12 @@ class FlowControl
     // NB: Each advert & demand contains a _vector_ of tx hashes.
     size_t mAdvertQueueTxHashCount{0};
     size_t mDemandQueueTxHashCount{0};
+    size_t mTxQueueByteCount{0};
+
     NodeID mNodeID;
     std::shared_ptr<FlowControlCapacity> mFlowControlCapacity;
+    std::shared_ptr<FlowControlCapacity> mFlowControlBytesCapacity;
+
     Application& mApp;
 
     // Outbound queues indexes by priority
@@ -59,9 +63,12 @@ class FlowControl
     // Priority 3 - flood adverts
     std::array<std::deque<QueuedOutboundMessage>, 4> mOutboundQueues;
 
-    // How many flood messages have we received and processed since sending
+    // How many flood messages we received and processed since sending
     // SEND_MORE to this peer
     uint64_t mFloodDataProcessed{0};
+    // How many bytes we received and processed since sending
+    // SEND_MORE to this peer
+    uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
     std::function<void(StellarMessage const&)> mSendCallback;
@@ -72,6 +79,9 @@ class FlowControl
     // This methods drops obsolete load from the outbound queue
     void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
     void sendSendMore(uint32_t numMessages, std::shared_ptr<Peer> peer);
+    void sendSendMore(uint32_t numMessages, uint32_t numBytes,
+                      std::shared_ptr<Peer> peer);
+    bool hasOutboundCapacity(StellarMessage const& msg) const;
 
   public:
     FlowControl(Application& app);
@@ -79,12 +89,19 @@ class FlowControl
 
     virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
     void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
+    virtual size_t getOutboundQueueByteLimit() const;
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>
-    getFlowControlCapacity() const
+    getCapacity() const
     {
         return mFlowControlCapacity;
+    }
+
+    std::shared_ptr<FlowControlCapacity>
+    getCapacityBytes() const
+    {
+        return mFlowControlBytesCapacity;
     }
 
     void
@@ -103,6 +120,24 @@ class FlowControl
     sendSendMoreForTesting(uint32_t numMessages, std::shared_ptr<Peer> peer)
     {
         sendSendMore(numMessages, peer);
+    }
+    void
+    sendSendMoreForTesting(uint32_t numMessages, uint32_t numBytes,
+                           std::shared_ptr<Peer> peer)
+    {
+        sendSendMore(numMessages, numBytes, peer);
+    }
+
+    size_t
+    getTxQueueByteCountForTesting() const
+    {
+        return mTxQueueByteCount;
+    }
+    std::optional<size_t> mOutboundQueueLimit;
+    void
+    setOutboundQueueLimit(size_t bytes)
+    {
+        mOutboundQueueLimit = std::make_optional<size_t>(bytes);
     }
 #endif
 
@@ -133,7 +168,8 @@ class FlowControl
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
     void start(std::weak_ptr<Peer> peer,
-               std::function<void(StellarMessage const&)> sendCb);
+               std::function<void(StellarMessage const&)> sendCb,
+               bool enableFCBytes);
 };
 
 }

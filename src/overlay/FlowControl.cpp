@@ -19,6 +19,18 @@ namespace stellar
 constexpr std::chrono::seconds const OUTBOUND_QUEUE_TIMEOUT =
     std::chrono::seconds(30);
 
+size_t
+FlowControl::getOutboundQueueByteLimit() const
+{
+#ifdef BUILD_TESTS
+    if (mOutboundQueueLimit)
+    {
+        return *mOutboundQueueLimit;
+    }
+#endif
+    return mApp.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
+}
+
 FlowControl::FlowControl(Application& app)
     : mApp(app)
     , mNoOutboundCapacity(
@@ -39,10 +51,34 @@ FlowControl::sendSendMore(uint32_t numMessages, std::shared_ptr<Peer> peer)
     peer->sendMessage(msgPtr);
 }
 
+void
+FlowControl::sendSendMore(uint32_t numMessages, uint32_t numBytes,
+                          std::shared_ptr<Peer> peer)
+{
+    ZoneScoped;
+    StellarMessage m;
+    m.type(SEND_MORE_EXTENDED);
+    m.sendMoreExtendedMessage().numMessages = numMessages;
+    m.sendMoreExtendedMessage().numBytes = numBytes;
+
+    auto msgPtr = std::make_shared<StellarMessage const>(m);
+    peer->sendMessage(msgPtr);
+}
+
+bool
+FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
+{
+    releaseAssert(mFlowControlCapacity);
+    return mFlowControlCapacity->hasOutboundCapacity(msg) &&
+           (!mFlowControlBytesCapacity ||
+            mFlowControlBytesCapacity->hasOutboundCapacity(msg));
+}
+
 // Start flow control: send SEND_MORE to a peer to indicate available capacity
 void
 FlowControl::start(std::weak_ptr<Peer> peer,
-                   std::function<void(StellarMessage const&)> sendCb)
+                   std::function<void(StellarMessage const&)> sendCb,
+                   bool enableFCBytes)
 {
     auto peerPtr = peer.lock();
     if (!peerPtr)
@@ -52,18 +88,36 @@ FlowControl::start(std::weak_ptr<Peer> peer,
 
     mNodeID = peerPtr->getPeerID();
     mSendCallback = sendCb;
-    sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY, peerPtr);
+
+    if (enableFCBytes)
+    {
+        mFlowControlBytesCapacity =
+            std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);
+        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
+                     mApp.getConfig().PEER_FLOOD_READING_CAPACITY_BYTES,
+                     peerPtr);
+    }
+    else
+    {
+        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY, peerPtr);
+    }
 }
 
 void
 FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
 {
     ZoneScoped;
-    if (msg.type() == SEND_MORE)
+
+    if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
     {
         releaseAssert(getNumMessages(msg) > 0);
         mNoOutboundCapacity.reset();
+
         mFlowControlCapacity->releaseOutboundCapacity(msg);
+        if (mFlowControlBytesCapacity)
+        {
+            mFlowControlBytesCapacity->releaseOutboundCapacity(msg);
+        }
 
         CLOG_TRACE(Overlay, "{}: Peer {} sent SEND_MORE {}",
                    mApp.getConfig().toShortString(
@@ -96,8 +150,17 @@ FlowControl::maybeSendNextBatch()
         {
             auto& front = queue.front();
             auto const& msg = *(front.mMessage);
-            if (!mFlowControlCapacity->hasOutboundCapacity(msg))
+            // Can't send _current_ message
+            if (!hasOutboundCapacity(msg))
             {
+                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
+                           mApp.getConfig().toShortString(
+                               mApp.getConfig().NODE_SEED.getPublicKey()),
+                           mApp.getConfig().toShortString(mNodeID));
+                // Start a timeout for SEND_MORE
+                mNoOutboundCapacity =
+                    std::make_optional<VirtualClock::time_point>(
+                        mApp.getClock().now());
                 break;
             }
 
@@ -107,12 +170,24 @@ FlowControl::maybeSendNextBatch()
 
             auto const& diff = mApp.getClock().now() - front.mTimeEmplaced;
             mFlowControlCapacity->lockOutboundCapacity(msg);
+            if (mFlowControlBytesCapacity)
+            {
+                mFlowControlBytesCapacity->lockOutboundCapacity(msg);
+            }
+
             switch (front.mMessage->type())
             {
             case TRANSACTION:
             {
                 om.mOutboundQueueDelayTxs.Update(diff);
                 mMetrics.mOutboundQueueDelayTxs.Update(diff);
+                if (mFlowControlBytesCapacity)
+                {
+                    size_t s =
+                        mFlowControlBytesCapacity->getMsgResourceCount(msg);
+                    releaseAssert(mTxQueueByteCount >= s);
+                    mTxQueueByteCount -= s;
+                }
             }
             break;
             case SCP_MESSAGE:
@@ -142,16 +217,6 @@ FlowControl::maybeSendNextBatch()
             default:
                 abort();
             }
-            if (!mFlowControlCapacity->hasOutboundCapacity(msg))
-            {
-                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
-                           mApp.getConfig().toShortString(
-                               mApp.getConfig().NODE_SEED.getPublicKey()),
-                           mApp.getConfig().toShortString(mNodeID));
-                mNoOutboundCapacity =
-                    std::make_optional<VirtualClock::time_point>(
-                        mApp.getClock().now());
-            }
             queue.pop_front();
         }
     }
@@ -178,7 +243,9 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
 bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
-    return mFlowControlCapacity->lockLocalCapacity(msg);
+    return mFlowControlCapacity->lockLocalCapacity(msg) &&
+           (!mFlowControlBytesCapacity ||
+            mFlowControlBytesCapacity->lockLocalCapacity(msg));
 }
 
 void
@@ -188,48 +255,93 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
     ZoneScoped;
 
     mFloodDataProcessed += mFlowControlCapacity->releaseLocalCapacity(msg);
+    if (mFlowControlBytesCapacity)
+    {
+        mFloodDataProcessedBytes +=
+            mFlowControlBytesCapacity->releaseLocalCapacity(msg);
+    }
 
     releaseAssert(mFloodDataProcessed <=
                   mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
     bool shouldSendMore = mFloodDataProcessed ==
                           mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
+    if (mFlowControlBytesCapacity)
+    {
+        shouldSendMore =
+            shouldSendMore ||
+            mFloodDataProcessedBytes >=
+                mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
+    }
     auto peerPtr = peer.lock();
 
     if (shouldSendMore && peerPtr)
     {
-        sendSendMore(static_cast<uint32>(mFloodDataProcessed), peerPtr);
+        if (mFlowControlBytesCapacity)
+        {
+            sendSendMore(static_cast<uint32>(mFloodDataProcessed),
+                         static_cast<uint32>(mFloodDataProcessedBytes),
+                         peerPtr);
+        }
+        else
+        {
+            sendSendMore(static_cast<uint32>(mFloodDataProcessed), peerPtr);
+            releaseAssert(mFloodDataProcessedBytes == 0);
+        }
         mFloodDataProcessed = 0;
+        mFloodDataProcessedBytes = 0;
     }
 }
 
 bool
 FlowControl::canRead() const
 {
-    return mFlowControlCapacity->getCapacity().mTotalCapacity > 0;
+    bool canReadBytes =
+        !mFlowControlBytesCapacity || mFlowControlBytesCapacity->canRead();
+    return canReadBytes && mFlowControlCapacity->canRead();
 }
 
 uint32_t
 FlowControl::getNumMessages(StellarMessage const& msg)
 {
-    releaseAssert(msg.type() == SEND_MORE);
-    return msg.sendMoreMessage().numMessages;
+    return msg.type() == SEND_MORE ? msg.sendMoreMessage().numMessages
+                                   : msg.sendMoreExtendedMessage().numMessages;
 }
 
 bool
 FlowControl::isSendMoreValid(StellarMessage const& msg,
                              std::string& errorMsg) const
 {
-    releaseAssert(msg.type() == SEND_MORE);
-    if (getNumMessages(msg) == 0)
+    bool sendMoreExtendedType =
+        mFlowControlBytesCapacity && msg.type() == SEND_MORE_EXTENDED;
+    bool sendMoreType = !mFlowControlBytesCapacity && msg.type() == SEND_MORE;
+
+    if (!sendMoreExtendedType && !sendMoreType)
     {
         errorMsg =
-            fmt::format("unexpected {} message",
+            fmt::format("unexpected message type {}",
+                        xdr::xdr_traits<MessageType>::enum_name(msg.type()));
+        return false;
+    }
+
+    if (getNumMessages(msg) == 0 ||
+        (mFlowControlBytesCapacity &&
+         msg.sendMoreExtendedMessage().numBytes == 0))
+    {
+        errorMsg =
+            fmt::format("invalid message {}",
                         xdr::xdr_traits<MessageType>::enum_name(msg.type()));
         return false;
     }
 
     auto overflow = getNumMessages(msg) >
                     (UINT64_MAX - mFlowControlCapacity->getOutboundCapacity());
+    if (mFlowControlBytesCapacity)
+    {
+        overflow =
+            overflow ||
+            (msg.sendMoreExtendedMessage().numBytes >
+             (UINT64_MAX - mFlowControlBytesCapacity->getOutboundCapacity()));
+    }
     if (overflow)
     {
         errorMsg = "Peer capacity overflow";
@@ -268,6 +380,11 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     case TRANSACTION:
     {
         msgQInd = 1;
+        if (mFlowControlBytesCapacity)
+        {
+            mTxQueueByteCount +=
+                mFlowControlBytesCapacity->getMsgResourceCount(*msg);
+        }
     }
     break;
     case FLOOD_DEMAND:
@@ -297,17 +414,34 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     auto& om = mApp.getOverlayManager().getOverlayMetrics();
     if (type == TRANSACTION)
     {
-        if (queue.size() > limit)
+        auto isOverLimit = [&](auto const& queue) {
+            bool overLimit = queue.size() > limit;
+            if (mFlowControlBytesCapacity)
+            {
+                overLimit = overLimit ||
+                            mTxQueueByteCount > getOutboundQueueByteLimit();
+            }
+            // Time-based purge
+            overLimit =
+                overLimit ||
+                (!queue.empty() && dropMessageAfterTimeout(queue.front(), now));
+            return overLimit;
+        };
+
+        // Message/byte limit purge
+        while (isOverLimit(queue))
         {
-            dropped = queue.size() - limit;
-            queue.erase(queue.begin(), queue.begin() + dropped);
-        }
-        while (!queue.empty() && dropMessageAfterTimeout(queue.front(), now))
-        {
-            ++dropped;
+            dropped++;
+            if (mFlowControlBytesCapacity)
+            {
+                size_t s = mFlowControlBytesCapacity->getMsgResourceCount(
+                    *(queue.front().mMessage));
+                releaseAssert(mTxQueueByteCount >= s);
+                mTxQueueByteCount -= s;
+            }
+            om.mOutboundQueueDropTxs.Mark(dropped);
             queue.pop_front();
         }
-        om.mOutboundQueueDropTxs.Mark(dropped);
     }
     else if (type == SCP_MESSAGE)
     {
@@ -384,12 +518,27 @@ Json::Value
 FlowControl::getFlowControlJsonInfo(bool compact) const
 {
     Json::Value res;
-    res["local_capacity"]["reading"] = static_cast<Json::UInt64>(
-        mFlowControlCapacity->getCapacity().mTotalCapacity);
+    if (mFlowControlCapacity->getCapacity().mTotalCapacity)
+    {
+        res["local_capacity"]["reading"] = static_cast<Json::UInt64>(
+            *(mFlowControlCapacity->getCapacity().mTotalCapacity));
+    }
     res["local_capacity"]["flood"] = static_cast<Json::UInt64>(
         mFlowControlCapacity->getCapacity().mFloodCapacity);
     res["peer_capacity"] =
         static_cast<Json::UInt64>(mFlowControlCapacity->getOutboundCapacity());
+    if (mFlowControlBytesCapacity)
+    {
+        if (mFlowControlBytesCapacity->getCapacity().mTotalCapacity)
+        {
+            res["local_capacity_bytes"]["reading"] = static_cast<Json::UInt64>(
+                *(mFlowControlBytesCapacity->getCapacity().mTotalCapacity));
+        }
+        res["local_capacity_bytes"]["flood"] = static_cast<Json::UInt64>(
+            mFlowControlBytesCapacity->getCapacity().mFloodCapacity);
+        res["peer_capacity_bytes"] = static_cast<Json::UInt64>(
+            mFlowControlBytesCapacity->getOutboundCapacity());
+    }
 
     if (!compact)
     {
