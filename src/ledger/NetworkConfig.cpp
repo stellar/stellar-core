@@ -212,7 +212,7 @@ initialCpuCostParamsEntry()
             break;
         case VmInstantiation:
             params[val] =
-                ContractCostParamEntry{805445, 307, ExtensionPoint{0}};
+                ContractCostParamEntry{1'000'000, 0, ExtensionPoint{0}};
             break;
         case InvokeVmFunction:
             params[val] = ContractCostParamEntry{6212, 0, ExtensionPoint{0}};
@@ -294,7 +294,7 @@ initialMemCostParamsEntry()
             break;
         case VmInstantiation:
             params[val] =
-                ContractCostParamEntry{1100352, 53, ExtensionPoint{0}};
+                ContractCostParamEntry{1'100'000, 0, ExtensionPoint{0}};
             break;
         case InvokeVmFunction:
             params[val] = ContractCostParamEntry{267, 0, ExtensionPoint{0}};
