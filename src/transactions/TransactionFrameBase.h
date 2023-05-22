@@ -77,6 +77,9 @@ class TransactionFrameBase
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
                                   std::optional<int64_t> baseFee) = 0;
 
+    virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                                  TransactionMetaFrame& meta) = 0;
+
     virtual StellarMessage toStellarMessage() const = 0;
 
     virtual bool hasDexOperations() const = 0;

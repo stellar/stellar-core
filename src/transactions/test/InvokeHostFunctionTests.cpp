@@ -8,6 +8,7 @@
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -196,7 +197,6 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
     auto const& contractID = contractKeys[0].contractData().contractID;
-
     auto call = [&](SorobanResources const& resources, SCVec const& parameters,
                     bool success) {
         Operation op;
@@ -207,29 +207,75 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            ltx.commit();
+        }
+        TransactionMetaFrame txm(app->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header.ledgerVersion);
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
             REQUIRE(tx->getFeeBid() == 62'973);
-            REQUIRE(tx->apply(*app, ltx, txm));
-            // Charge for resources plus minimum inclusion fee bid (currently
-            // equivalent to the network `baseFee` of 100).
+            // Initially we store in result the charge for resources plus
+            // minimum inclusion  fee bid (currently equivalent to the network
+            // `baseFee` of 100).
             int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) + 100;
             REQUIRE(tx->getResult().feeCharged == baseCharged);
-            // Imitate surge pricing by charging at a higher rate than base fee.
-            tx->processFeeSeqNum(ltx, 200);
-            ltx.commit();
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                // Imitate surge pricing by charging at a higher rate than base
+                // fee.
+                tx->processFeeSeqNum(ltx, 300);
+                ltx.commit();
+            }
+            // The resource and the base fee are charged, with additional
+            // surge pricing fee.
+            int64_t balanceAfterFeeCharged = root.getBalance();
+            REQUIRE(initBalance - balanceAfterFeeCharged ==
+                    baseCharged + /* surge pricing additional fee */ 200);
 
-            int64_t newBalance = root.getBalance();
-            REQUIRE(initBalance - newBalance == baseCharged + 100);
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                REQUIRE(tx->apply(*app, ltx, txm));
+                tx->processPostApply(*app, ltx, txm);
+                ltx.commit();
+                auto changesAfter = txm.getChangesAfter();
+                REQUIRE(changesAfter.size() == 2);
+                REQUIRE(changesAfter[1].updated().data.account().balance -
+                            changesAfter[0].state().data.account().balance ==
+                        568);
+            }
+            // The account should receive a refund for unspent metadata fee.
+            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 568);
         }
         else
         {
-            REQUIRE(!tx->apply(*app, ltx, txm));
-            ltx.commit();
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                // Imitate surge pricing by charging at a higher rate than base
+                // fee.
+                tx->processFeeSeqNum(ltx, 300);
+                ltx.commit();
+            }
+            int64_t balanceAfterFeeCharged = root.getBalance();
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                // Unsuccessfully apply the tx and process refunds.
+                REQUIRE(!tx->apply(*app, ltx, txm));
+                tx->processPostApply(*app, ltx, txm);
+                ltx.commit();
+                auto changesAfter = txm.getChangesAfter();
+                REQUIRE(changesAfter.size() == 2);
+                REQUIRE(changesAfter[1].updated().data.account().balance -
+                            changesAfter[0].state().data.account().balance ==
+                        586);
+            }
+            // The account should receive a full refund for metadata
+            // in case of tx failure.
+            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 586);
         }
         xdr::xvector<SCVal, 100> resultVals;
         if (tx->getResult().result.code() == txSUCCESS &&
