@@ -382,8 +382,14 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         msgQInd = 1;
         if (mFlowControlBytesCapacity)
         {
-            mTxQueueByteCount +=
-                mFlowControlBytesCapacity->getMsgResourceCount(*msg);
+            auto bytes = mFlowControlBytesCapacity->getMsgResourceCount(*msg);
+            // Don't accept transactions that are over allowed byte limit: those
+            // won't be properly flooded anyways
+            if (bytes > MAX_CLASSIC_TX_SIZE_BYTES)
+            {
+                return;
+            }
+            mTxQueueByteCount += bytes;
         }
     }
     break;
