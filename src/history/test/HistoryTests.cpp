@@ -580,7 +580,7 @@ dbModeName(Config::TestDbMode mode)
 
 TEST_CASE("History catchup", "[history][catchup][acceptance]")
 {
-    // needs REAL_TIME here, as prepare-snapshot works will fail for one of the
+    // needs REAL_TIME here, as resolve-snapshot works will fail for one of the
     // sections again and again - as it is set to RETRY_FOREVER it can generate
     // megabytes of unnecessary log entries
     CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};

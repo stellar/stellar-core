@@ -14,7 +14,7 @@ namespace stellar
 
 ResolveSnapshotWork::ResolveSnapshotWork(
     Application& app, std::shared_ptr<StateSnapshot> snapshot)
-    : BasicWork(app, "prepare-snapshot", BasicWork::RETRY_NEVER)
+    : BasicWork(app, "resolve-snapshot", BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
 {
     if (!mSnapshot)
@@ -29,8 +29,15 @@ ResolveSnapshotWork::onRun()
     ZoneScoped;
     mSnapshot->mLocalState.prepareForPublish(mApp);
     mSnapshot->mLocalState.resolveAnyReadyFutures();
-    if ((mApp.getLedgerManager().getLastClosedLedgerNum() >
-         mSnapshot->mLocalState.currentLedger) &&
+
+    // We delay resolving snapshots by 1 ledger when not running standalone, in
+    // case the node diverged, to avoid publishing bad data to an archive.
+    bool pastPossibleConservativePublicationDelay =
+        mApp.getConfig().RUN_STANDALONE ||
+        mApp.getLedgerManager().getLastClosedLedgerNum() >
+            mSnapshot->mLocalState.currentLedger;
+
+    if (pastPossibleConservativePublicationDelay &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
         releaseAssert(mSnapshot->mLocalState.containsValidBuckets(mApp));
