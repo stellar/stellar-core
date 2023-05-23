@@ -95,7 +95,7 @@ impl From<HostError> for CoreHostError {
 
 impl From<xdr::Error> for CoreHostError {
     fn from(_: xdr::Error) -> Self {
-        CoreHostError::Host((ScErrorType::Context, ScErrorCode::InvalidInput).into())
+        CoreHostError::Host((ScErrorType::Value, ScErrorCode::InvalidInput).into())
     }
 }
 
@@ -103,13 +103,13 @@ impl std::error::Error for CoreHostError {}
 
 fn xdr_from_slice<T: ReadXdr>(v: &[u8]) -> Result<T, HostError> {
     Ok(T::read_xdr(&mut Cursor::new(v))
-        .map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?)
+        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?)
 }
 
 fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut Cursor::new(&mut vec))
-        .map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?;
+        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec)
 }
 
@@ -298,7 +298,7 @@ fn log_debug_events(events: &Events) {
         match &e.event.type_ {
             ContractEventType::Contract | ContractEventType::System => (),
             ContractEventType::Diagnostic => {
-                debug!("contract HostEvent::StructuredDebug: {:?}", e.event)
+                debug!("Diagnostic event: {:?}", e.event)
             }
         }
     }
