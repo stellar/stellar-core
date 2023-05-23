@@ -677,6 +677,33 @@ showOfflineInfo(Config cfg, bool verbose)
     app->reportInfo(verbose);
 }
 
+void
+closeLedgersOffline(Config cfg, bool verbose, size_t nLedgers)
+{
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    cfg.setNoListen();
+    cfg.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(0);
+    cfg.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(0);
+    Application::pointer app = Application::create(clock, cfg, false);
+    app->start();
+    size_t lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
+    size_t targetSeq = lclSeq + nLedgers;
+    while (lclSeq < targetSeq)
+    {
+        auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        uint32_t nextSeq = lcl.header.ledgerSeq + 1;
+        app->getHerder().externalizeValue(
+            TxSetFrame::makeEmpty(lcl), nextSeq,
+            VirtualClock::to_time_t(clock.system_now()), {}, std::nullopt);
+        do
+        {
+            lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
+            clock.crank(true);
+        } while (lclSeq < nextSeq ||
+                 !app->getWorkScheduler().allChildrenDone());
+    }
+}
+
 #ifdef BUILD_TESTS
 void
 loadXdr(Config cfg, std::string const& bucketFile)
