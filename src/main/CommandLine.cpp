@@ -1207,6 +1207,23 @@ runOfflineInfo(CommandLineArgs const& args)
 }
 
 int
+runOfflineClose(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    size_t nLedgers{0};
+
+    ParserWithValidation numLedgersParser{
+        clara::Arg(nLedgers, "NUM_LEDGERS").required(),
+        [&] { return nLedgers > 0 ? "" : "Ledger count must be non-zero"; }};
+
+    return runWithHelp(
+        args, {configurationParser(configOption), numLedgersParser}, [&] {
+            closeLedgersOffline(configOption.getConfig(), true, nLedgers);
+            return 0;
+        });
+}
+
+int
 runPrintXdr(CommandLineArgs const& args)
 {
     std::string xdr;
@@ -1832,6 +1849,9 @@ handleCommandLine(int argc, char* const* argv)
          {"new-hist", "initialize history archives", runNewHist},
          {"offline-info", "return information for an offline instance",
           runOfflineInfo},
+         {"offline-close",
+          "close a number of ledgers offline, generating checkpoints",
+          runOfflineClose},
          {"print-xdr", "pretty-print one XDR envelope, then quit", runPrintXdr},
          {"publish",
           "execute publish of all items remaining in publish queue without "
