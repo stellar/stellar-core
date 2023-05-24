@@ -688,19 +688,36 @@ closeLedgersOffline(Config cfg, bool verbose, size_t nLedgers)
     app->start();
     size_t lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
     size_t targetSeq = lclSeq + nLedgers;
-    while (lclSeq < targetSeq)
+    while (!app->isStopping() && lclSeq < targetSeq)
     {
         auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         uint32_t nextSeq = lcl.header.ledgerSeq + 1;
-        app->getHerder().externalizeValue(
-            TxSetFrame::makeEmpty(lcl), nextSeq,
-            VirtualClock::to_time_t(clock.system_now()), {}, std::nullopt);
+        auto txset = TxSetFrame::makeEmpty(lcl);
+        auto sv = app->getHerder().makeStellarValue(
+            txset->getContentsHash(),
+            VirtualClock::to_time_t(clock.system_now()), {}, cfg.NODE_SEED);
+        LedgerCloseData lcd{nextSeq, txset, sv};
+        LOG_INFO(DEFAULT_LOG, "Closing empty ledger {} offline", nextSeq);
+        ;
+        app->getLedgerManager().closeLedger(lcd);
         do
         {
             lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
-            clock.crank(true);
-        } while (lclSeq < nextSeq ||
-                 !app->getWorkScheduler().allChildrenDone());
+            clock.crank(false);
+        } while (
+            !app->isStopping() &&
+            (lclSeq < nextSeq || !app->getWorkScheduler().allChildrenDone()));
+    }
+    if (nLedgers > 0)
+    {
+        LOG_WARNING(DEFAULT_LOG,
+                    "Closed {} empty ledgers offline and published {} history "
+                    "checkpoints",
+                    nLedgers,
+                    app->getHistoryManager().getPublishSuccessCount());
+        LOG_WARNING(DEFAULT_LOG,
+                    "Database and history archive are no longer in "
+                    "consensus with any other validators");
     }
 }
 
