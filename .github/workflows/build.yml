@@ -14,7 +14,7 @@ jobs:
       matrix:
         toolchain: [ "gcc", "clang"]
         protocol: ["current", "next"]
-        scenario: ["", "--check-test-tx-meta"]
+        scenario: ["", "--check-test-tx-meta", "--disable-tests"]
     steps:
       - name: Compute cache key
         # this step works around a limitation in actions/cache
