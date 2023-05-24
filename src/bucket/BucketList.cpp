@@ -399,7 +399,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
-    if (!isDataEntryTypeWithLifetime(k))
+    if (!isSorobanDataEntry(k))
     {
         auto f = [&](std::shared_ptr<Bucket> b) {
             auto be = b->getBucketEntry(k);
@@ -425,7 +425,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
         // If entry can have a lifetime extension, we need to use loadKeys so we
         // can search for both the DATA_ENTRY and LFIETIME_EXTENSION
         auto kExt = k;
-        setType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
+        setLeType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
         auto resultV = loadKeys({k, kExt});
         if (!resultV.empty())
         {
@@ -452,10 +452,10 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     // Insert LIFETIME_EXTENSION keys for every DATA_ENTRY
     for (auto const& key : keys)
     {
-        if (isDataEntryTypeWithLifetime(key))
+        if (isSorobanDataEntry(key))
         {
             auto kExt = key;
-            setType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
+            setLeType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
             keys.emplace(kExt);
         }
     }

@@ -168,19 +168,6 @@ class SorobanNetworkConfig
     uint32_t& maxContractDataEntrySizeBytes();
 #endif
 
-    // State expiration settings
-    // Maximum lifetime for any given entry, in ledgers
-    uint32_t maximumEntryLifetime() const;
-
-    // Minimum lifetime required when writing a restorable entry, in ledgers
-    uint32_t minimumRestorableEntryLifetime() const;
-
-    // Minimum lifetime required when writing a temporary entry, in ledgers
-    uint32_t minimumTempEntryLifetime() const;
-
-    // Number of ledgers that lifetime is extended via auto bump
-    uint32_t autoBumpLedgers() const;
-
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
@@ -189,6 +176,9 @@ class SorobanNetworkConfig
     static bool isValidCostParams(ContractCostParams const& params);
 
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
+
+    // State expiration settings
+    StateExpirationSettings const& stateExpirationSettings() const;
 #endif
 
   private:
@@ -202,10 +192,7 @@ class SorobanNetworkConfig
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
-    void loadMaximumEntryLifetime(AbstractLedgerTxn& ltx);
-    void loadMinimumRestorableEntryLifetime(AbstractLedgerTxn& ltx);
-    void loadMinimumTempEntryLifetime(AbstractLedgerTxn& ltx);
-    void loadAutoBumpLedgers(AbstractLedgerTxn& ltx);
+    void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -247,16 +234,14 @@ class SorobanNetworkConfig
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeePropagateData1KB{};
 
-    // State expiration settings
-    uint32_t mMaximumEntryLifetime{};
-    uint32_t mMinimumRestorableEntryLifetime{};
-    uint32_t mMinimumTempEntryLifetime{};
-    uint32_t mAutoBumpLedgers{};
-
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Host cost params
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
+
+    // State expiration settings
+    StateExpirationSettings mStateExpirationSettings{};
+
 #endif
 };
 
