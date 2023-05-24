@@ -18,6 +18,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
@@ -207,25 +208,24 @@ Bucket::loadKeys(
                 {
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    if (isLifetimeExtensionEntry(*currKeyIt))
+                    if (isSorobanExtEntry(*currKeyIt))
                     {
                         auto k = *currKeyIt;
-                        setType(k, ContractLedgerEntryType::DATA_ENTRY);
+                        setLeType(k, ContractLedgerEntryType::DATA_ENTRY);
                         lifetimeExtensions.emplace(
-                            k, getExpiration(entryOp->liveEntry()));
+                            k, getExpirationLedger(entryOp->liveEntry()));
                     }
                     else
 #endif
                     {
-                        if (isDataEntryTypeWithLifetime(
-                                entryOp->liveEntry().data))
+                        if (isSorobanDataEntry(entryOp->liveEntry().data))
                         {
                             if (auto extIter =
                                     lifetimeExtensions.find(*currKeyIt);
                                 extIter != lifetimeExtensions.end())
                             {
-                                setExpiration(entryOp->liveEntry(),
-                                              extIter->second);
+                                setExpirationLedger(entryOp->liveEntry(),
+                                                    extIter->second);
                                 lifetimeExtensions.erase(extIter);
                             }
                             else
@@ -235,8 +235,8 @@ Bucket::loadKeys(
                                 // search. Remove it to avoid redundant reads
                                 // since we already found a newer DATA_ENTRY
                                 auto extK = *currKeyIt;
-                                setType(extK, ContractLedgerEntryType::
-                                                  LIFETIME_EXTENSION);
+                                setLeType(extK, ContractLedgerEntryType::
+                                                    LIFETIME_EXTENSION);
                                 keys.erase(extK);
                             }
                         }
@@ -942,7 +942,7 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
             BucketEntry newInit;
             newInit.type(INITENTRY);
 
-            if (isLifetimeExtensionEntry(newEntry.liveEntry().data))
+            if (isSorobanExtEntry(newEntry.liveEntry().data))
             {
                 // New entry is lifetime extension, keep oldEntry data with
                 // newEntry lifetime
@@ -979,8 +979,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
         // If new entry is lifetime extension and old
         // entry is not, put oldEntry data with newEntry lifetime
         if (newEntry.type() == LIVEENTRY && oldEntry.type() == LIVEENTRY &&
-            isLifetimeExtensionEntry(newEntry.liveEntry().data) &&
-            !isLifetimeExtensionEntry(oldEntry.liveEntry().data))
+            isSorobanExtEntry(newEntry.liveEntry().data) &&
+            !isSorobanExtEntry(oldEntry.liveEntry().data))
         {
             BucketEntry newResult;
             newResult.type(LIVEENTRY);

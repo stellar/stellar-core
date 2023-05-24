@@ -80,7 +80,7 @@ class BucketIndexTest
                         {CONTRACT_DATA, CONTRACT_CODE}, 10);
                 for (auto& e : entries)
                 {
-                    setExpiration(e, ORIGINAL_EXPIRATION);
+                    setExpirationLedger(e, ORIGINAL_EXPIRATION);
                 }
             }
             else
@@ -200,25 +200,25 @@ class BucketIndexTest
         for (auto& [k, e] : mTestEntries)
         {
             // Select 50% of entries to have new expiration ledger
-            if (isDataEntryTypeWithLifetime(e.data) && rand_flip())
+            if (isSorobanDataEntry(e.data) && rand_flip())
             {
                 auto extensionEntry = e;
 
                 // Also shadow 50% of lifetime extensions
                 bool shadow = rand_flip();
 
-                setExpiration(e, NEW_EXPIRATION);
-                setType(extensionEntry.data,
-                        ContractLedgerEntryType::LIFETIME_EXTENSION);
+                setExpirationLedger(e, NEW_EXPIRATION);
+                setLeType(extensionEntry,
+                          ContractLedgerEntryType::LIFETIME_EXTENSION);
                 if (shadow)
                 {
                     // Insert dummy expiration that will be shadowed later
-                    setExpiration(extensionEntry, 0);
+                    setExpirationLedger(extensionEntry, 0);
                     shadows.emplace_back(extensionEntry);
                 }
                 else
                 {
-                    setExpiration(extensionEntry, NEW_EXPIRATION);
+                    setExpirationLedger(extensionEntry, NEW_EXPIRATION);
                 }
 
                 // Insert in batches of 10
@@ -239,7 +239,7 @@ class BucketIndexTest
         // Update shadows with correct expiration ledger and reinsert
         for (auto& e : shadows)
         {
-            setExpiration(e, NEW_EXPIRATION);
+            setExpirationLedger(e, NEW_EXPIRATION);
         }
 
         insertEntries(shadows);

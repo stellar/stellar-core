@@ -227,45 +227,18 @@ initialCpuCostParamsEntry()
 }
 
 ConfigSettingEntry
-initialMaximumEntryLifetime()
+initialStateExpirationSettings()
 {
-    ConfigSettingEntry entry(CONFIG_SETTING_MAXIMUM_ENTRY_LIFETIME);
+    ConfigSettingEntry entry(CONFIG_SETTING_STATE_EXPIRATION);
 
-    entry.maximumEntryLifetime() =
-        InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
-
-    return entry;
-}
-
-ConfigSettingEntry
-initialMinimumRestorableEntryLifetime()
-{
-    ConfigSettingEntry entry(CONFIG_SETTING_MINIMUM_RESTORABLE_ENTRY_LIFETIME);
-
-    entry.minimumRestorableEntryLifetime() =
-        InitialSorobanNetworkConfig::MINIMUM_RESTORABLE_ENTRY_LIFETIME;
-
-    return entry;
-}
-
-ConfigSettingEntry
-initialMinimumTempEntryLifetime()
-{
-    ConfigSettingEntry entry(CONFIG_SETTING_MINIMUM_TEMP_ENTRY_LIFETIME);
-
-    entry.minimumTempEntryLifetime() =
-        InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
-
-    return entry;
-}
-
-ConfigSettingEntry
-initialAutoBumpLedgers()
-{
-    ConfigSettingEntry entry(CONFIG_SETTING_AUTO_BUMP_NUM_LEDGERS);
-
-    entry.autoBumpLedgers() =
+    entry.stateExpirationSettings().autoBumpLedgers =
         InitialSorobanNetworkConfig::AUTO_BUMP_NUM_LEDGERS;
+    entry.stateExpirationSettings().maxEntryLifetime =
+        InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().minRestorableEntryLifetime =
+        InitialSorobanNetworkConfig::MINIMUM_RESTORABLE_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().minTempEntryLifetime =
+        InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
 
     return entry;
 }
@@ -369,10 +342,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialMaximumEntryLifetime(), ltx);
-    createConfigSettingEntry(initialMinimumRestorableEntryLifetime(), ltx);
-    createConfigSettingEntry(initialMinimumTempEntryLifetime(), ltx);
-    createConfigSettingEntry(initialAutoBumpLedgers(), ltx);
+    createConfigSettingEntry(initialStateExpirationSettings(), ltx);
 #endif
 }
 
@@ -400,10 +370,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadBandwidthSettings(ltx);
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
-    loadMaximumEntryLifetime(ltx);
-    loadMinimumRestorableEntryLifetime(ltx);
-    loadMinimumTempEntryLifetime(ltx);
-    loadAutoBumpLedgers(ltx);
+    loadStateExpirationSettings(ltx);
 }
 
 void
@@ -576,52 +543,15 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 }
 
 void
-SorobanNetworkConfig::loadMaximumEntryLifetime(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadStateExpirationSettings(AbstractLedgerTxn& ltx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_MAXIMUM_ENTRY_LIFETIME;
+        ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION;
     auto le = ltx.loadWithoutRecord(key).current();
-    mMaximumEntryLifetime = le.data.configSetting().maximumEntryLifetime();
-#endif
-}
-
-void
-SorobanNetworkConfig::loadMinimumRestorableEntryLifetime(AbstractLedgerTxn& ltx)
-{
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerKey key(CONFIG_SETTING);
-    key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_MINIMUM_RESTORABLE_ENTRY_LIFETIME;
-    auto le = ltx.loadWithoutRecord(key).current();
-    mMinimumRestorableEntryLifetime =
-        le.data.configSetting().minimumRestorableEntryLifetime();
-#endif
-}
-
-void
-SorobanNetworkConfig::loadMinimumTempEntryLifetime(AbstractLedgerTxn& ltx)
-{
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerKey key(CONFIG_SETTING);
-    key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_MINIMUM_TEMP_ENTRY_LIFETIME;
-    auto le = ltx.loadWithoutRecord(key).current();
-    mMinimumTempEntryLifetime =
-        le.data.configSetting().minimumTempEntryLifetime();
-#endif
-}
-
-void
-SorobanNetworkConfig::loadAutoBumpLedgers(AbstractLedgerTxn& ltx)
-{
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerKey key(CONFIG_SETTING);
-    key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_AUTO_BUMP_NUM_LEDGERS;
-    auto le = ltx.loadWithoutRecord(key).current();
-    mAutoBumpLedgers = le.data.configSetting().autoBumpLedgers();
+    mStateExpirationSettings =
+        le.data.configSetting().stateExpirationSettings();
 #endif
 }
 
@@ -800,30 +730,6 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes()
 }
 #endif
 
-uint32_t
-SorobanNetworkConfig::maximumEntryLifetime() const
-{
-    return mMaximumEntryLifetime;
-}
-
-uint32_t
-SorobanNetworkConfig::minimumRestorableEntryLifetime() const
-{
-    return mMinimumRestorableEntryLifetime;
-}
-
-uint32_t
-SorobanNetworkConfig::minimumTempEntryLifetime() const
-{
-    return mMinimumTempEntryLifetime;
-}
-
-uint32_t
-SorobanNetworkConfig::autoBumpLedgers() const
-{
-    return mAutoBumpLedgers;
-}
-
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 ContractCostParams const&
@@ -836,6 +742,12 @@ ContractCostParams const&
 SorobanNetworkConfig::memCostParams() const
 {
     return mMemCostParams;
+}
+
+StateExpirationSettings const&
+SorobanNetworkConfig::stateExpirationSettings() const
+{
+    return mStateExpirationSettings;
 }
 
 bool

@@ -1529,39 +1529,30 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
     LedgerTxn ltxTx(ltx);
     auto const& resources = sorobanResources();
     auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
-    auto const& networkConfig =
-        app.getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto const& expirationSettings = app.getLedgerManager()
+                                         .getSorobanNetworkConfig(ltx)
+                                         .stateExpirationSettings();
 
-    auto maxExpirationLedger = lcl + networkConfig.maximumEntryLifetime();
+    auto maxExpirationLedger = lcl + expirationSettings.maxEntryLifetime;
     auto minRestorableExpirationLedger =
-        lcl + networkConfig.minimumRestorableEntryLifetime();
+        lcl + expirationSettings.minRestorableEntryLifetime;
     auto minTempExpirationLedger =
-        lcl + networkConfig.minimumTempEntryLifetime();
-    auto autoBumpLedgers = networkConfig.autoBumpLedgers();
-
-    auto autoBumpEnabled = [](LedgerEntry const& le) {
-        return le.data.type() != CONTRACT_DATA ||
-               (le.data.contractData().body.data().flags &
-                ContractDataFlags::NO_AUTOBUMP);
-    };
+        lcl + expirationSettings.minTempEntryLifetime;
 
     // Sets new expiration ledger based on footprint bumpledgers and netowrk
     // config bouinds. Returns true if expirationLedger changed
     auto bump = [&](LedgerEntry& le, auto const& bumpLedgers) {
         // Use uint64_t do avoid potential overflows from footprint values then
         // cast down later
-        uint32_t oldExpiration = getExpiration(le);
+        uint32_t oldExpiration = getExpirationLedger(le);
         uint64_t newExpiration = oldExpiration;
         if (bumpLedgers)
         {
-            newExpiration += *bumpLedgers;
+            newExpiration += bumpLedgers;
         }
-        else
+        else if (autoBumpEnabled(le))
         {
-            if (autoBumpEnabled(le))
-            {
-                newExpiration += autoBumpLedgers;
-            }
+            newExpiration += expirationSettings.autoBumpLedgers;
         }
 
         auto minExpirationLedger = isTemporaryEntry(le.data)
@@ -1585,7 +1576,7 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
         }
         else
         {
-            setExpiration(le, newExpiration);
+            setExpirationLedger(le, newExpiration);
             return true;
         }
     };
@@ -1593,7 +1584,7 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
     for (auto const& fe : resources.footprint.readWrite)
     {
         auto lte = ltx.load(fe.key);
-        if (lte && isDataEntryTypeWithLifetime(lte.current().data))
+        if (lte && isSorobanDataEntry(lte.current().data))
         {
             bump(lte.current(), fe.bumpLedgers);
         }
@@ -1609,13 +1600,13 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
         }
 
         auto& le = lte.current();
-        if (!isDataEntryTypeWithLifetime(le.data))
+        if (!isSorobanDataEntry(le.data))
         {
             continue;
         }
 
         auto bumpKey = fe.key;
-        setType(bumpKey, ContractLedgerEntryType::LIFETIME_EXTENSION);
+        setLeType(bumpKey, ContractLedgerEntryType::LIFETIME_EXTENSION);
         auto bumpLte = ltx.load(bumpKey);
         if (bumpLte)
         {
@@ -1625,7 +1616,7 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
             // has the most up to date expiration ledger. This is not always the
             // case when loading a LIFETIME_EXTENSION key, so set the expiration
             // accordingly
-            setExpiration(bumpLe, getExpiration(le));
+            setExpirationLedger(bumpLe, getExpirationLedger(le));
             bump(bumpLe, fe.bumpLedgers);
         }
         else
