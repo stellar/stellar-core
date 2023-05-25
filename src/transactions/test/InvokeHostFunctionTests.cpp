@@ -89,6 +89,14 @@ makeSymbol(std::string const& str)
     return val;
 }
 
+static SCVal
+makeStorageType(ContractDataType t)
+{
+    SCVal val(SCV_STORAGE_TYPE);
+    val.storageType() = t;
+    return val;
+}
+
 static void
 submitTxToDeployContract(Application& app, Operation const& deployOp,
                          SorobanResources const& resources,
@@ -128,14 +136,6 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
         REQUIRE(body.leType() == DATA_ENTRY);
         REQUIRE(body.data().val == makeWasmRefScContractCode(expectedWasmHash));
     }
-}
-
-static FootprintEntry
-fe(LedgerKey const& k)
-{
-    FootprintEntry e;
-    e.key = k;
-    return e;
 }
 
 static xdr::xvector<LedgerKey>
@@ -185,8 +185,8 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
 
     SorobanResources resources;
 
-    resources.footprint.readWrite = {fe(contractCodeLedgerKey),
-                                     fe(contractSourceRefLedgerKey)};
+    resources.footprint.readWrite = {contractCodeLedgerKey,
+                                     contractSourceRefLedgerKey};
     resources.instructions = 200'000;
     resources.readBytes = 1000;
     resources.writeBytes = 5000;
@@ -318,10 +318,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     auto sc7 = makeI32(7);
     auto sc16 = makeI32(16);
     SorobanResources resources;
-    for (auto const& k : contractKeys)
-    {
-        resources.footprint.readOnly.push_back(fe(k));
-    }
+    resources.footprint.readOnly = contractKeys;
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
@@ -392,9 +389,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto putWithFootprint = [&](std::string const& key, uint64_t val,
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
-                                uint32_t writeBytes, bool expectSuccess) {
+                                uint32_t writeBytes, bool expectSuccess,
+                                ContractDataType type) {
         auto keySymbol = makeSymbol(key);
         auto valU64 = makeU64(val);
+        auto scType = makeStorageType(type);
 
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
@@ -402,18 +401,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
         ihf.args.invokeContract() = {
             makeBinary(contractID.begin(), contractID.end()), makeSymbol("put"),
-            keySymbol, valU64};
+            keySymbol, valU64, scType};
         SorobanResources resources;
-        for (auto const& k : readOnly)
-        {
-            resources.footprint.readOnly.push_back(fe(k));
-        }
-
-        for (auto const& k : readWrite)
-        {
-            resources.footprint.readWrite.push_back(fe(k));
-        }
-
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
         resources.instructions = 2'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
@@ -440,13 +431,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto put = [&](std::string const& key, uint64_t val) {
         putWithFootprint(key, val, contractKeys,
                          {contractDataKey(contractID, makeSymbol(key))}, 1000,
-                         true);
+                         true, RECREATABLE);
     };
 
     auto delWithFootprint =
         [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess) {
+            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
+            ContractDataType type) {
             auto keySymbol = makeSymbol(key);
+            auto scType = makeStorageType(type);
 
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
@@ -454,18 +447,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
             ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
             ihf.args.invokeContract() = {
                 makeBinary(contractID.begin(), contractID.end()),
-                makeSymbol("del"), keySymbol};
+                makeSymbol("del"), keySymbol, scType};
             SorobanResources resources;
-            for (auto const& k : readOnly)
-            {
-                resources.footprint.readOnly.push_back(fe(k));
-            }
-
-            for (auto const& k : readWrite)
-            {
-                resources.footprint.readWrite.push_back(fe(k));
-            }
-
+            resources.footprint.readOnly = readOnly;
+            resources.footprint.readWrite = readWrite;
             resources.instructions = 2'000'000;
             resources.readBytes = 5000;
             resources.writeBytes = 1000;
@@ -491,7 +476,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto del = [&](std::string const& key) {
         delWithFootprint(key, contractKeys,
-                         {contractDataKey(contractID, makeSymbol(key))}, true);
+                         {contractDataKey(contractID, makeSymbol(key))}, true,
+                         RECREATABLE);
     };
 
     SECTION("default limits")
@@ -567,11 +553,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
     ihf.args.invokeContract() = parameters;
     SorobanResources resources;
-    for (auto const& k : contractKeys)
-    {
-        resources.footprint.readOnly.push_back(fe(k));
-    }
-
+    resources.footprint.readOnly = contractKeys;
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
@@ -633,12 +615,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
         dataKey.contractData().key = makeSymbol("data");
 
         SorobanResources resources;
-
-        for (auto const& k : contractKeys)
-        {
-            resources.footprint.readOnly.push_back(fe(k));
-        }
-        resources.footprint.readWrite = {fe(dataKey)};
+        resources.footprint.readOnly = contractKeys;
+        resources.footprint.readWrite = {dataKey};
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 1000;
@@ -803,8 +781,7 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
         key6.contractData().contractID = contractID;
         key6.contractData().key = nonceKey;
 
-        resources.footprint.readWrite = {fe(key1), fe(key2), fe(key3),
-                                         fe(key4), fe(key5), fe(key6)};
+        resources.footprint.readWrite = {key1, key2, key3, key4, key5, key6};
     }
 
     {
