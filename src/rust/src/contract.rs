@@ -26,7 +26,7 @@ use super::soroban_env_host::{
     },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
-        self, AccountId, ContractEvent, DiagnosticEvent, HostFunction, LedgerEntry,
+        self, AccountId, ContractEvent, ContractLedgerEntryType, ContractDataEntryBody, ContractCodeEntryBody, DiagnosticEvent, HostFunction, LedgerEntry,
         LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
         LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr, XDR_FILES_SHA256,
     },
@@ -209,9 +209,18 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
         LedgerEntryData::ContractData(cd) => Ok(LedgerKey::ContractData(LedgerKeyContractData {
             contract_id: cd.contract_id.clone(),
             key: cd.key.clone(),
+            type_: cd.type_.clone(),
+            le_type: match &cd.body {
+                ContractDataEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
+                ContractDataEntryBody::LifetimeExtension => ContractLedgerEntryType::LifetimeExtension
+            },
         })),
         LedgerEntryData::ContractCode(code) => Ok(LedgerKey::ContractCode(LedgerKeyContractCode {
             hash: code.hash.clone(),
+            le_type: match &code.body {
+                ContractCodeEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
+                ContractCodeEntryBody::LifetimeExtension => ContractLedgerEntryType::LifetimeExtension
+            },
         })),
         _ => Err(CoreHostError::General("unexpected ledger key")),
     }
