@@ -492,30 +492,33 @@ TEST_CASE("contract storage", "[tx][soroban]")
     SECTION("default limits")
     {
 
-    put("key1", 0, RECREATABLE);
-    put("key2", 21, RECREATABLE);
+        put("key1", 0, RECREATABLE);
+        put("key2", 21, RECREATABLE);
 
         // Failure: contract data isn't in footprint
-        putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
-        delWithFootprint("key1", contractKeys, {}, false);
+        putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
+                         RECREATABLE);
+        delWithFootprint("key1", contractKeys, {}, false, RECREATABLE);
 
         // Failure: contract data is read only
         auto readOnlyFootprint = contractKeys;
         readOnlyFootprint.push_back(
-            contractDataKey(contractID, makeSymbol("key2")));
-        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false);
-        delWithFootprint("key2", readOnlyFootprint, {}, false);
+            contractDataKey(contractID, makeSymbol("key2"), RECREATABLE));
+        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
+                         RECREATABLE);
+        delWithFootprint("key2", readOnlyFootprint, {}, false, RECREATABLE);
 
         // Failure: insufficient write bytes
-        putWithFootprint("key2", 88888, contractKeys,
-                         {contractDataKey(contractID, makeSymbol("key2"))}, 1,
-                         false);
+        putWithFootprint(
+            "key2", 88888, contractKeys,
+            {contractDataKey(contractID, makeSymbol("key2"), RECREATABLE)}, 1,
+            false, RECREATABLE);
 
-        put("key1", 9);
-        put("key2", UINT64_MAX);
+        put("key1", 9, RECREATABLE);
+        put("key2", UINT64_MAX, RECREATABLE);
 
-        del("key1");
-        del("key2");
+        del("key1", RECREATABLE);
+        del("key2", RECREATABLE);
     }
 
     SorobanNetworkConfig refConfig;
@@ -529,10 +532,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         refConfig.maxContractDataEntrySizeBytes() = 1;
         app->getLedgerManager().setSorobanNetworkConfig(refConfig);
         // this fails due to the contract code itself exceeding the entry limit
-        putWithFootprint("key2", 2, contractKeys,
-                         {contractDataKey(contractID, makeSymbol("key2"))},
-                         1000, false);
-
+        putWithFootprint(
+            "key2", 2, contractKeys,
+            {contractDataKey(contractID, makeSymbol("key2"), RECREATABLE)},
+            1000, false, RECREATABLE);
     }
 
     SECTION("Same ScVal key, different types")

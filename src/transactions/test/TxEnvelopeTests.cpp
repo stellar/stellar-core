@@ -2691,7 +2691,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         SECTION("success with default limits")
         {
             resources.footprint.readOnly.back() = contractDataKey(
-                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
+                RECREATABLE);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2702,7 +2703,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readOnly.resize(1);
             resources.footprint.readOnly.back() = contractDataKey(
-                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
+                RECREATABLE);
             refConfig.maxContractDataKeySizeBytes() = 64;
             app->getLedgerManager().setSorobanNetworkConfig(refConfig);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
@@ -2715,7 +2717,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readWrite.resize(1);
             resources.footprint.readWrite.back() = contractDataKey(
-                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"));
+                Hash{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
+                RECREATABLE);
             refConfig.maxContractDataKeySizeBytes() = 64;
             app->getLedgerManager().setSorobanNetworkConfig(refConfig);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
