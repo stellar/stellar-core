@@ -26,16 +26,19 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
 {
     auto contractID = toOpaqueBase64(k.contractData().contractID);
     auto key = toOpaqueBase64(k.contractData().key);
+    int32_t type = k.contractData().type;
     std::string contractDataEntryStr;
 
-    std::string sql = "SELECT ledgerentry "
-                      "FROM contractdata "
-                      "WHERE contractID = :contractID AND key = :key";
+    std::string sql =
+        "SELECT ledgerentry "
+        "FROM contractdata "
+        "WHERE contractID = :contractID AND key = :key AND type = :type";
     auto prep = mApp.getDatabase().getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(contractDataEntryStr));
     st.exchange(soci::use(contractID));
     st.exchange(soci::use(key));
+    st.exchange(soci::use(type));
     st.define_and_bind();
     {
         auto timer = mApp.getDatabase().getSelectTimer("contractdata");
@@ -59,6 +62,7 @@ class BulkLoadContractDataOperation
     Database& mDb;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
+    std::vector<int32_t> mTypes;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -93,12 +97,14 @@ class BulkLoadContractDataOperation
     {
         mContractIDs.reserve(keys.size());
         mKeys.reserve(keys.size());
+        mTypes.reserve(keys.size());
         for (auto const& k : keys)
         {
             throwIfNotContractData(k.type());
             mContractIDs.emplace_back(
                 toOpaqueBase64(k.contractData().contractID));
             mKeys.emplace_back(toOpaqueBase64(k.contractData().key));
+            mTypes.emplace_back(k.contractData().type);
         }
     }
 
@@ -117,19 +123,23 @@ class BulkLoadContractDataOperation
             cStrKeys.emplace_back(key.c_str());
         }
         std::string sqlJoin =
-            "SELECT x.value, y.value FROM "
+            "SELECT x.value, y.value FROM, z.value FROM "
             "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
             "AS x "
             "INNER JOIN "
             "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
             "AS y "
-            "ON x.rowid = y.rowid ";
+            "ON x.rowid = y.rowid "
+            "INNER JOIN "
+            "(SELECT rowid, value FROM carray(?, ?, 'int') ORDER BY rowid) AS "
+            "z "
+            "ON x.rowid = z.rowid";
 
         std::string sql = "WITH r AS  (" + sqlJoin +
                           ") "
                           "SELECT ledgerentry "
                           "FROM contractdata "
-                          "WHERE (contractid, key) IN r";
+                          "WHERE (contractid, key, type) IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
@@ -146,6 +156,8 @@ class BulkLoadContractDataOperation
         sqlite3_bind_int(st, 2, static_cast<int>(mContractIDs.size()));
         sqlite3_bind_pointer(st, 3, (void*)cStrKeys.data(), "carray", 0);
         sqlite3_bind_int(st, 4, static_cast<int>(mKeys.size()));
+        sqlite3_bind_pointer(st, 5, (void*)mTypes.data(), "carray", 0);
+        sqlite3_bind_int(st, 6, static_cast<int>(mTypes.size()));
         return executeAndFetch(prep.statement());
     }
 
@@ -153,20 +165,22 @@ class BulkLoadContractDataOperation
     std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strContractIDs, strKeys;
+        std::string strContractIDs, strKeys, strTypes;
         marshalToPGArray(pg->conn_, strContractIDs, mContractIDs);
         marshalToPGArray(pg->conn_, strKeys, mKeys);
+        marshalToPGArray(pg->conn_, strTypes, mTypes);
 
-        std::string sql =
-            "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v1::TEXT[])) "
-            "SELECT ledgerentry "
-            "FROM contractdata "
-            "WHERE (contractid, key) IN (SELECT * from r)";
+        std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
+                          "unnest(:v1::TEXT[])), unnest(:v2::INT[])) "
+                          "SELECT ledgerentry "
+                          "FROM contractdata "
+                          "WHERE (contractid, key, type) IN (SELECT * from r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
+        st.exchange(soci::use(strTypes));
         return executeAndFetch(st);
     }
 #endif
@@ -195,6 +209,7 @@ class BulkDeleteContractDataOperation
     LedgerTxnConsistency mCons;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
+    std::vector<int32_t> mTypes;
 
   public:
     BulkDeleteContractDataOperation(Database& db, LedgerTxnConsistency cons,
@@ -210,6 +225,7 @@ class BulkDeleteContractDataOperation
                 toOpaqueBase64(e.key().ledgerKey().contractData().contractID));
             mKeys.emplace_back(
                 toOpaqueBase64(e.key().ledgerKey().contractData().key));
+            mTypes.emplace_back(e.key().ledgerKey().contractData().type);
         }
     }
 
@@ -217,11 +233,12 @@ class BulkDeleteContractDataOperation
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM contractdata WHERE contractid = :id "
-                          "AND key = :key";
+                          "AND key = :key AND type = :type";
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
         st.exchange(soci::use(mContractIDs));
         st.exchange(soci::use(mKeys));
+        st.exchange(soci::use(mTypes));
         st.define_and_bind();
         {
             auto timer = mDb.getDeleteTimer("contractdata");
@@ -245,19 +262,21 @@ class BulkDeleteContractDataOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strContractIDs, strKeys;
+        std::string strContractIDs, strKeys, strTypes;
         marshalToPGArray(pg->conn_, strContractIDs, mContractIDs);
         marshalToPGArray(pg->conn_, strKeys, mKeys);
+        marshalToPGArray(pg->conn_, strTypes, mTypes);
 
-        std::string sql =
-            "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v1::TEXT[])) "
-            "DELETE FROM contractdata "
-            "WHERE (contractid, key) IN (SELECT * FROM r)";
+        std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
+                          "unnest(:v1::TEXT[])), unnest(:v2::INT[])) "
+                          "DELETE FROM contractdata "
+                          "WHERE (contractid, key, type) IN (SELECT * FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
+        st.exchange(soci::use(strTypes));
         st.define_and_bind();
         {
             auto timer = mDb.getDeleteTimer("contractdata");
@@ -287,6 +306,7 @@ class BulkUpsertContractDataOperation
     Database& mDb;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
+    std::vector<int32_t> mTypes;
     std::vector<std::string> mContractDataEntries;
     std::vector<int32_t> mLastModifieds;
 
@@ -298,6 +318,7 @@ class BulkUpsertContractDataOperation
         mContractIDs.emplace_back(
             toOpaqueBase64(entry.data.contractData().contractID));
         mKeys.emplace_back(toOpaqueBase64(entry.data.contractData().key));
+        mTypes.emplace_back(entry.data.contractData().type);
         mContractDataEntries.emplace_back(toOpaqueBase64(entry));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));
@@ -322,10 +343,10 @@ class BulkUpsertContractDataOperation
     {
         // TODO: Update query for LIFETIME_EXTENSION entries
         std::string sql = "INSERT INTO contractData "
-                          "(contractid, key, ledgerentry, lastmodified) "
+                          "(contractid, key, type, ledgerentry, lastmodified) "
                           "VALUES "
-                          "( :id, :key, :v1, :v2 ) "
-                          "ON CONFLICT (contractid, key) DO UPDATE SET "
+                          "( :id, :key, :type, :v1, :v2 ) "
+                          "ON CONFLICT (contractid, key, type) DO UPDATE SET "
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
@@ -333,6 +354,7 @@ class BulkUpsertContractDataOperation
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mContractIDs));
         st.exchange(soci::use(mKeys));
+        st.exchange(soci::use(mTypes));
         st.exchange(soci::use(mContractDataEntries));
         st.exchange(soci::use(mLastModifieds));
         st.define_and_bind();
@@ -356,22 +378,23 @@ class BulkUpsertContractDataOperation
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strContractIDs, strKeys, strContractDataEntries,
+        std::string strContractIDs, strKeys, strTypes, strContractDataEntries,
             strLastModifieds;
 
         PGconn* conn = pg->conn_;
         marshalToPGArray(conn, strContractIDs, mContractIDs);
         marshalToPGArray(conn, strKeys, mKeys);
+        marshalToPGArray(conn, strTypes, mTypes);
         marshalToPGArray(conn, strContractDataEntries, mContractDataEntries);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
 
         std::string sql = "WITH r AS "
                           "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
+                          "unnest(:v2::INT[]), unnest(:v3::INT[])) "
                           "INSERT INTO contractdata "
-                          "(contractid, key, ledgerentry, lastmodified) "
+                          "(contractid, key, type, ledgerentry, lastmodified) "
                           "SELECT * FROM r "
-                          "ON CONFLICT (contractid,key) DO UPDATE SET "
+                          "ON CONFLICT (contractid,key,type) DO UPDATE SET "
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
@@ -379,6 +402,7 @@ class BulkUpsertContractDataOperation
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
+        st.exchange(soci::use(strTypes));
         st.exchange(soci::use(strContractDataEntries));
         st.exchange(soci::use(strLastModifieds));
         st.define_and_bind();
@@ -418,16 +442,19 @@ LedgerTxnRoot::Impl::dropContractData(bool rebuild)
             << "CREATE TABLE contractdata ("
             << "contractid   TEXT " << coll << " NOT NULL, "
             << "key TEXT " << coll << " NOT NULL, "
+            << "type INT NOT NULL, "
             << "ledgerentry  TEXT " << coll << " NOT NULL, "
             << "lastmodified INT NOT NULL, "
-            << "PRIMARY KEY  (contractid, key));";
+            << "PRIMARY KEY  (contractid, key, type));";
         if (!mApp.getDatabase().isSqlite())
         {
             mApp.getDatabase().getSession() << "ALTER TABLE contractdata "
                                             << "ALTER COLUMN contractid "
                                             << "TYPE TEXT COLLATE \"C\","
                                             << "ALTER COLUMN key "
-                                            << "TYPE TEXT COLLATE \"C\";";
+                                            << "TYPE TEXT COLLATE \"C\";"
+                                            << "ALTER COLUMN type "
+                                            << "TYPE INT;";
         }
     }
 }
