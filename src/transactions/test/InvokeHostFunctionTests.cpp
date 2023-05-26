@@ -532,6 +532,32 @@ TEST_CASE("contract storage", "[tx][soroban]")
         putWithFootprint("key2", 2, contractKeys,
                          {contractDataKey(contractID, makeSymbol("key2"))},
                          1000, false);
+
+    }
+
+    SECTION("Same ScVal key, different types")
+    {
+        // Check that each type is in their own keyspace
+        uint64_t uniqueVal = 0;
+        uint64_t recreatableVal = 1;
+        uint64_t temporaryVal = 2;
+        put("key", uniqueVal, UNIQUE);
+        put("key", recreatableVal, RECREATABLE);
+        put("key", temporaryVal, TEMPORARY);
+        auto uniqueScVal = makeU64(uniqueVal);
+        auto recreatableScVal = makeU64(recreatableVal);
+        auto temporaryScVal = makeU64(temporaryVal);
+        auto keySymbol = makeSymbol("key");
+        checkContractData(keySymbol, UNIQUE, &uniqueScVal);
+        checkContractData(keySymbol, RECREATABLE, &recreatableScVal);
+        checkContractData(keySymbol, TEMPORARY, &temporaryScVal);
+
+        put("key2", 3, UNIQUE);
+        auto key2Symbol = makeSymbol("key2");
+        auto uniqueScVal2 = makeU64(3);
+        checkContractData(key2Symbol, UNIQUE, &uniqueScVal2);
+        checkContractData(key2Symbol, RECREATABLE, nullptr);
+        checkContractData(key2Symbol, TEMPORARY, nullptr);
     }
 }
 
