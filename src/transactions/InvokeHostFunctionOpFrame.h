@@ -14,6 +14,9 @@ namespace stellar
 {
 class AbstractLedgerTxn;
 
+static constexpr ContractDataType CONTRACT_INSTANCE_CONTRACT_DATA_TYPE =
+    RECREATABLE;
+
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
     InvokeHostFunctionResult&
