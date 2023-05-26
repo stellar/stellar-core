@@ -17,6 +17,8 @@
 
 #include "lib/bloom_filter.hpp"
 
+#include "util/XDRCereal.h"
+
 using namespace stellar;
 using namespace BucketTestUtils;
 
@@ -243,6 +245,39 @@ class BucketIndexTest
         }
 
         insertEntries(shadows);
+    }
+
+    void
+    insertSimilarContractDataKeys()
+    {
+        auto templateEntry =
+            LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
+        templateEntry.data.contractData().body.leType(DATA_ENTRY);
+
+        auto generateEntry = [&](ContractDataType t) {
+            static uint32_t expiration = 10000;
+            auto le = templateEntry;
+            le.data.contractData().type = t;
+
+            // Distinguish entries via expiration ledger
+            le.data.contractData().expirationLedgerSeq = ++expiration;
+            return le;
+        };
+
+        std::vector<LedgerEntry> entries = {generateEntry(TEMPORARY),
+                                            generateEntry(RECREATABLE),
+                                            generateEntry(UNIQUE)};
+        for (auto const& e : entries)
+        {
+            auto k = LedgerEntryKey(e);
+            auto const& [_, inserted] = mTestEntries.emplace(k, e);
+
+            // No key collisions
+            REQUIRE(inserted);
+            mKeysToSearch.emplace(k);
+        }
+
+        insertEntries(entries);
     }
 #endif
 
@@ -550,6 +585,19 @@ TEST_CASE("load LIFETIME_EXTENSION entries", "[bucket][bucketindex]")
             BucketIndexTest(cfg, /*levels=*/6, /*lifetimeEntriesOnly=*/true);
         test.buildGeneralTest();
         test.insertLifetimeExtnesions();
+        test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test =
+            BucketIndexTest(cfg, /*levels=*/1, /*lifetimeEntriesOnly=*/true);
+        test.buildGeneralTest();
+        test.insertSimilarContractDataKeys();
         test.run();
     };
 
