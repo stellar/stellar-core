@@ -129,12 +129,15 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
     // verify contract code reference is correct
     {
         LedgerTxn ltx2(app.getLedgerTxnRoot());
-        auto ltxe2 = loadContractData(ltx2, contractID, sourceRefKey);
+        auto ltxe2 = loadContractData(ltx2, contractID, sourceRefKey,
+                                      CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
         REQUIRE(ltxe2);
 
-        auto const& body = ltxe2.current().data.contractData().body;
-        REQUIRE(body.leType() == DATA_ENTRY);
-        REQUIRE(body.data().val == makeWasmRefScContractCode(expectedWasmHash));
+        auto const& cd = ltxe2.current().data.contractData();
+        REQUIRE(cd.type == CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
+        REQUIRE(cd.body.leType() == DATA_ENTRY);
+        REQUIRE(cd.body.data().val ==
+                makeWasmRefScContractCode(expectedWasmHash));
     }
 }
 
@@ -182,6 +185,8 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.type(CONTRACT_DATA);
     contractSourceRefLedgerKey.contractData().contractID = contractID;
     contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
+    contractSourceRefLedgerKey.contractData().type =
+        CONTRACT_INSTANCE_CONTRACT_DATA_TYPE;
 
     SorobanResources resources;
 
@@ -203,7 +208,9 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
+    auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int64_t initBalance = root.getBalance();
 
@@ -369,9 +376,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
     auto const& contractID = contractKeys[0].contractData().contractID;
 
-    auto checkContractData = [&](SCVal const& key, SCVal const* val) {
+    auto checkContractData = [&](SCVal const& key, ContractDataType type,
+                                 SCVal const* val) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = loadContractData(ltx, contractID, key);
+        auto ltxe = loadContractData(ltx, contractID, key, type);
         if (val)
         {
             REQUIRE(ltxe);
@@ -419,7 +427,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
-            checkContractData(keySymbol, &valU64);
+            checkContractData(keySymbol, type, &valU64);
         }
         else
         {
@@ -428,10 +436,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto put = [&](std::string const& key, uint64_t val) {
+    auto put = [&](std::string const& key, uint64_t val,
+                   ContractDataType type) {
         putWithFootprint(key, val, contractKeys,
-                         {contractDataKey(contractID, makeSymbol(key))}, 1000,
-                         true, RECREATABLE);
+                         {contractDataKey(contractID, makeSymbol(key), type)},
+                         1000, true, type);
     };
 
     auto delWithFootprint =
@@ -465,7 +474,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             {
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
-                checkContractData(keySymbol, nullptr);
+                checkContractData(keySymbol, type, nullptr);
             }
             else
             {
@@ -474,16 +483,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
             }
         };
 
-    auto del = [&](std::string const& key) {
+    auto del = [&](std::string const& key, ContractDataType type) {
         delWithFootprint(key, contractKeys,
-                         {contractDataKey(contractID, makeSymbol(key))}, true,
-                         RECREATABLE);
+                         {contractDataKey(contractID, makeSymbol(key), type)},
+                         true, type);
     };
 
     SECTION("default limits")
     {
-        put("key1", 0);
-        put("key2", 21);
+
+    put("key1", 0, RECREATABLE);
+    put("key2", 21, RECREATABLE);
 
         // Failure: contract data isn't in footprint
         putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
