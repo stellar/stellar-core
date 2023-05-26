@@ -1783,7 +1783,16 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
         // non-DEX tx with bid 100, but DEX tx was evicted due to DEX limit).
         checkAndAddWithIncreasedBid(account1, false, 1, 100, 0);
     }
-
+    SECTION("DEX evicts non-DEX if DEX lane has not enough ops to evict")
+    {
+        // 8 non-DEX ops (bid 100/op) - fits
+        checkAndAddTx(account1, false, 8, 100 * 8, true, 0, 0);
+        // 1 DEX op (bid 200/op) - fits
+        checkAndAddTx(account1, true, 1, 200 * 1, true, 0, 0);
+        // 3 DEX ops with high fee (bid 10000/op) - fits by evicting 9 ops from
+        // both lanes
+        checkAndAddTx(account2, true, 3, 10000 * 3, true, 0, 9);
+    }
     SECTION("non-DEX transactions evict DEX transactions")
     {
         // Add 9 ops (2 + 1 DEX, 3 + 2 + 1 non-DEX)

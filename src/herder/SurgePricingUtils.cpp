@@ -389,14 +389,16 @@ SurgePricingPriorityQueue::canFitWithEviction(
             auto const& evictTxStack = *iter;
             auto const& evictTx = *evictTxStack->getTopTx();
             auto evictLane = mLaneConfig->getLane(evictTx);
-            auto evictOps = evictTxStack->getNumOperations();
             bool canEvict = false;
             // Check if it makes sense to evict the current top tx stack.
             //
             // Simple cases: generic lane txs can evict anything; same lane txs
             // can evict each other; any transaction can be evicted if per-lane
-            // limit hasn't been reached.
-            if (lane == GENERIC_LANE || lane == evictLane || neededLaneOps <= 0)
+            // limit hasn't been reached; any transaction can be evicted if
+            // there is not enough ops to evict from limited lane to fit the
+            // current transaction
+            if (lane == GENERIC_LANE || lane == evictLane ||
+                neededLaneOps <= 0 || neededTotalOps > neededLaneOps)
             {
                 canEvict = true;
             }
@@ -406,13 +408,6 @@ SurgePricingPriorityQueue::canFitWithEviction(
                 // the generic lane, then we can only evict from tx's lane (any
                 // other evictions are pointless).
                 evictedDueToLaneLimit = true;
-            }
-            else
-            {
-                // In the final case `neededOps` is greater than `neededLaneOps`
-                // and the difference can be evicted from any lane.
-                int64_t nonLaneOpsToEvict = neededTotalOps - neededLaneOps;
-                canEvict = evictOps <= nonLaneOpsToEvict;
             }
             if (!canEvict)
             {
