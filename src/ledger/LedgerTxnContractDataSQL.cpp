@@ -122,24 +122,27 @@ class BulkLoadContractDataOperation
         {
             cStrKeys.emplace_back(key.c_str());
         }
-        std::string sqlJoin =
-            "SELECT x.value, y.value FROM, z.value FROM "
-            "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
-            "AS x "
-            "INNER JOIN "
-            "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
-            "AS y "
-            "ON x.rowid = y.rowid "
-            "INNER JOIN "
-            "(SELECT rowid, value FROM carray(?, ?, 'int') ORDER BY rowid) AS "
-            "z "
-            "ON x.rowid = z.rowid";
+
+        std::string sqlJoin = "SELECT x.value, y.value, z.value "
+                              "FROM "
+                              "(SELECT rowid, value FROM carray(?, ?, 'char*') "
+                              "ORDER BY rowid) AS x "
+                              "INNER JOIN "
+                              "(SELECT rowid, value FROM carray(?, ?, 'char*') "
+                              "ORDER BY rowid) AS y "
+                              "ON x.rowid = y.rowid "
+                              "INNER JOIN "
+                              "(SELECT rowid, value FROM carray(?, ?, 'int32') "
+                              "ORDER BY rowid) AS z "
+                              "ON x.rowid = z.rowid";
 
         std::string sql = "WITH r AS  (" + sqlJoin +
                           ") "
                           "SELECT ledgerentry "
                           "FROM contractdata "
-                          "WHERE (contractid, key, type) IN r";
+                          "WHERE contractid IN (SELECT value FROM r) "
+                          "AND key IN (SELECT value FROM r) "
+                          "AND type IN (SELECT value FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
@@ -171,7 +174,7 @@ class BulkLoadContractDataOperation
         marshalToPGArray(pg->conn_, strTypes, mTypes);
 
         std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[])), unnest(:v2::INT[])) "
+                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
                           "SELECT ledgerentry "
                           "FROM contractdata "
                           "WHERE (contractid, key, type) IN (SELECT * from r)";
@@ -268,7 +271,7 @@ class BulkDeleteContractDataOperation
         marshalToPGArray(pg->conn_, strTypes, mTypes);
 
         std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[])), unnest(:v2::INT[])) "
+                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
                           "DELETE FROM contractdata "
                           "WHERE (contractid, key, type) IN (SELECT * FROM r)";
 
@@ -388,15 +391,16 @@ class BulkUpsertContractDataOperation
         marshalToPGArray(conn, strContractDataEntries, mContractDataEntries);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
 
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v2::INT[]), unnest(:v3::INT[])) "
-                          "INSERT INTO contractdata "
-                          "(contractid, key, type, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (contractid,key,type) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
+        std::string sql =
+            "WITH r AS "
+            "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
+            "unnest(:v2::INT[]), unnest(:v3::TEXT[]), unnest(:v4::INT[])) "
+            "INSERT INTO contractdata "
+            "(contractid, key, type, ledgerentry, lastmodified) "
+            "SELECT * FROM r "
+            "ON CONFLICT (contractid,key,type) DO UPDATE SET "
+            "ledgerentry = excluded.ledgerentry, "
+            "lastmodified = excluded.lastmodified";
 
         auto prep = mDb.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
@@ -452,7 +456,7 @@ LedgerTxnRoot::Impl::dropContractData(bool rebuild)
                                             << "ALTER COLUMN contractid "
                                             << "TYPE TEXT COLLATE \"C\","
                                             << "ALTER COLUMN key "
-                                            << "TYPE TEXT COLLATE \"C\";"
+                                            << "TYPE TEXT COLLATE \"C\","
                                             << "ALTER COLUMN type "
                                             << "TYPE INT;";
         }
