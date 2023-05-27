@@ -64,27 +64,21 @@ bool
 validateContractLedgerEntry(LedgerEntry const& le, size_t nByte,
                             SorobanNetworkConfig const& config)
 {
-    if (le.data.type() != CONTRACT_CODE)
+    releaseAssert(!isSorobanEntry(le.data) || getLeType(le.data) == DATA_ENTRY);
+
+    // check contract code size limit
+    if (le.data.type() == CONTRACT_CODE &&
+        config.maxContractSizeBytes() <
+            le.data.contractCode().body.code().size())
     {
         return false;
     }
-
-    if (le.data.contractCode().body.leType() == DATA_ENTRY)
+    // check contract data entry size limit
+    if (le.data.type() == CONTRACT_DATA &&
+        config.maxContractDataEntrySizeBytes() < nByte)
     {
-        // check contract code size limit
-        if (config.maxContractSizeBytes() <
-            le.data.contractCode().body.code().size())
-        {
-            return false;
-        }
-
-        // check contract data entry size limit
-        if (config.maxContractDataEntrySizeBytes() < nByte)
-        {
-            return false;
-        }
+        return false;
     }
-
     return true;
 }
 

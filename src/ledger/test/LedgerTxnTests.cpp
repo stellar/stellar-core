@@ -113,6 +113,7 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
             le.data.contractData().contractID =
                 leBase.data.contractData().contractID;
             le.data.contractData().key = leBase.data.contractData().key;
+            le.data.contractData().type = leBase.data.contractData().type;
             break;
         case CONTRACT_CODE:
             le.data.contractCode() =

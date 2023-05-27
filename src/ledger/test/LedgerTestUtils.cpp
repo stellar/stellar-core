@@ -346,6 +346,8 @@ makeValid(ContractDataEntry& cde)
 {
     cde.body.leType(ContractLedgerEntryType::DATA_ENTRY);
     cde.body.data().flags = 0;
+    int t = cde.type;
+    cde.type = static_cast<ContractDataType>(std::abs(t % 3));
 }
 
 void

@@ -90,10 +90,17 @@ makeSymbol(std::string const& str)
 }
 
 static SCVal
-makeStorageType(ContractDataType t)
+makeU32(uint32_t u32)
 {
-    SCVal val(SCV_STORAGE_TYPE);
-    val.storageType() = t;
+    SCVal val(SCV_U32);
+    val.u32() = u32;
+    return val;
+}
+
+static SCVal
+makeVoid()
+{
+    SCVal val(SCV_VOID);
     return val;
 }
 
@@ -239,7 +246,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getFeeBid() == 62'973);
+            REQUIRE(tx->getFeeBid() == 62'949);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -398,18 +405,33 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
                                 uint32_t writeBytes, bool expectSuccess,
-                                ContractDataType type) {
+                                ContractDataType type,
+                                std::optional<uint32_t> flags) {
         auto keySymbol = makeSymbol(key);
         auto valU64 = makeU64(val);
-        auto scType = makeStorageType(type);
+        auto scFlags = flags ? makeU32(*flags) : makeVoid();
+
+        std::string funcStr;
+        switch (type)
+        {
+        case TEMPORARY:
+            funcStr = "put_temporary";
+            break;
+        case RECREATABLE:
+            funcStr = "put_recreatable";
+            break;
+        case UNIQUE:
+            funcStr = "put_unique";
+            break;
+        }
 
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
         ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
         ihf.args.invokeContract() = {
-            makeBinary(contractID.begin(), contractID.end()), makeSymbol("put"),
-            keySymbol, valU64, scType};
+            makeBinary(contractID.begin(), contractID.end()),
+            makeSymbol(funcStr), keySymbol, valU64, scFlags};
         SorobanResources resources;
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
@@ -440,7 +462,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                    ContractDataType type) {
         putWithFootprint(key, val, contractKeys,
                          {contractDataKey(contractID, makeSymbol(key), type)},
-                         1000, true, type);
+                         1000, true, type, std::nullopt);
     };
 
     auto delWithFootprint =
@@ -448,7 +470,20 @@ TEST_CASE("contract storage", "[tx][soroban]")
             xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
             ContractDataType type) {
             auto keySymbol = makeSymbol(key);
-            auto scType = makeStorageType(type);
+
+            std::string funcStr;
+            switch (type)
+            {
+            case TEMPORARY:
+                funcStr = "del_temporary";
+                break;
+            case RECREATABLE:
+                funcStr = "del_recreatable";
+                break;
+            case UNIQUE:
+                funcStr = "del_unique";
+                break;
+            }
 
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
@@ -456,7 +491,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
             ihf.args.invokeContract() = {
                 makeBinary(contractID.begin(), contractID.end()),
-                makeSymbol("del"), keySymbol, scType};
+                makeSymbol(funcStr), keySymbol};
             SorobanResources resources;
             resources.footprint.readOnly = readOnly;
             resources.footprint.readWrite = readWrite;
@@ -496,8 +531,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key2", 21, RECREATABLE);
 
         // Failure: contract data isn't in footprint
-        putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
-                         RECREATABLE);
+        putWithFootprint("key1", 88, contractKeys, {}, 1000, false, RECREATABLE,
+                         std::nullopt);
         delWithFootprint("key1", contractKeys, {}, false, RECREATABLE);
 
         // Failure: contract data is read only
@@ -505,14 +540,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
         readOnlyFootprint.push_back(
             contractDataKey(contractID, makeSymbol("key2"), RECREATABLE));
         putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
-                         RECREATABLE);
+                         RECREATABLE, std::nullopt);
         delWithFootprint("key2", readOnlyFootprint, {}, false, RECREATABLE);
 
         // Failure: insufficient write bytes
         putWithFootprint(
             "key2", 88888, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"), RECREATABLE)}, 1,
-            false, RECREATABLE);
+            false, RECREATABLE, std::nullopt);
 
         put("key1", 9, RECREATABLE);
         put("key2", UINT64_MAX, RECREATABLE);
@@ -535,7 +570,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         putWithFootprint(
             "key2", 2, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"), RECREATABLE)},
-            1000, false, RECREATABLE);
+            1000, false, RECREATABLE, std::nullopt);
     }
 
     SECTION("Same ScVal key, different types")
