@@ -209,6 +209,23 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
                              uploadContractWasmArgs.code, contractID,
                              scContractSourceRefKey, 100'000, 1200);
 
+    // Check lifetimes for contract instance and code
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    auto expectedExpirattion =
+        networkConfig.stateExpirationSettings().minRestorableEntryLifetime +
+        lcl;
+
+    auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
+    auto codeLtxe = ltx.load(contractCodeLedgerKey);
+    REQUIRE(instanceLtxe);
+    REQUIRE(codeLtxe);
+    REQUIRE(instanceLtxe.current().data.contractData().expirationLedgerSeq ==
+            expectedExpirattion);
+    REQUIRE(codeLtxe.current().data.contractCode().expirationLedgerSeq ==
+            expectedExpirattion);
+
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
 
@@ -401,6 +418,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
+    auto checkContractDataLifetime = [&](std::string const& key,
+                                         ContractDataType type,
+                                         uint32_t expectedExpiration) {
+        auto keySymbol = makeSymbol(key);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
+        REQUIRE(ltxe);
+        REQUIRE(ltxe.current().data.contractData().expirationLedgerSeq ==
+                expectedExpiration);
+    };
+
     auto putWithFootprint = [&](std::string const& key, uint64_t val,
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
@@ -458,11 +486,72 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto put = [&](std::string const& key, uint64_t val,
-                   ContractDataType type) {
+    auto put = [&](std::string const& key, uint64_t val, ContractDataType type,
+                   std::optional<uint32_t> flags = std::nullopt) {
         putWithFootprint(key, val, contractKeys,
                          {contractDataKey(contractID, makeSymbol(key), type)},
-                         1000, true, type, std::nullopt);
+                         1000, true, type, flags);
+    };
+
+    auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
+                                 xdr::xvector<LedgerKey> const& readOnly,
+                                 xdr::xvector<LedgerKey> const& readWrite,
+                                 uint32_t writeBytes, bool expectSuccess,
+                                 ContractDataType type) {
+        auto keySymbol = makeSymbol(key);
+        auto bumpAmountU32 = makeU32(bumpAmount);
+
+        std::string funcStr;
+        switch (type)
+        {
+        case TEMPORARY:
+            funcStr = "bump_temporary";
+            break;
+        case RECREATABLE:
+            funcStr = "bump_recreatable";
+            break;
+        case UNIQUE:
+            funcStr = "bump_unique";
+            break;
+        }
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
+        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.args.invokeContract() = {
+            makeBinary(contractID.begin(), contractID.end()),
+            makeSymbol(funcStr), keySymbol, bumpAmountU32};
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 2'000'000;
+        resources.readBytes = 5000;
+        resources.writeBytes = writeBytes;
+        resources.extendedMetaDataSizeBytes = 3000;
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        if (expectSuccess)
+        {
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+    };
+
+    auto bump = [&](std::string const& key, ContractDataType type,
+                    uint32_t bumpAmount) {
+        bumpWithFootprint(key, bumpAmount, contractKeys,
+                          {contractDataKey(contractID, makeSymbol(key), type)},
+                          1000, true, type);
     };
 
     auto delWithFootprint =
@@ -596,6 +685,87 @@ TEST_CASE("contract storage", "[tx][soroban]")
         checkContractData(key2Symbol, UNIQUE, &uniqueScVal2);
         checkContractData(key2Symbol, RECREATABLE, nullptr);
         checkContractData(key2Symbol, TEMPORARY, nullptr);
+    }
+
+    auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
+    auto autoBump = stateExpirationSettings.autoBumpLedgers;
+    auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+
+    SECTION("Enforce rent minimums")
+    {
+        put("unique", 0, UNIQUE);
+        put("recreateable", 0, RECREATABLE);
+        put("temp", 0, TEMPORARY);
+
+        auto expectedTempLifetime =
+            stateExpirationSettings.minTempEntryLifetime + lcl;
+        auto expectedRestorableLifetime =
+            stateExpirationSettings.minRestorableEntryLifetime + lcl;
+
+        checkContractDataLifetime("unique", UNIQUE, expectedRestorableLifetime);
+        checkContractDataLifetime("recreateable", RECREATABLE,
+                                  expectedRestorableLifetime);
+        checkContractDataLifetime("temp", TEMPORARY, expectedTempLifetime);
+    }
+
+    SECTION("autobump")
+    {
+        put("rw", 0, UNIQUE);
+        put("ro", 0, UNIQUE);
+
+        uint32_t flags = NO_AUTOBUMP;
+        put("no-bump", 0, UNIQUE, std::make_optional(flags));
+
+        auto readOnlySet = contractKeys;
+        readOnlySet.emplace_back(
+            contractDataKey(contractID, makeSymbol("ro"), UNIQUE));
+
+        auto readWriteSet = {
+            contractDataKey(contractID, makeSymbol("rw"), UNIQUE),
+            contractDataKey(contractID, makeSymbol("no-bump"), UNIQUE)};
+
+        // Invoke contract with all keys in footprint
+        putWithFootprint("rw", 1, readOnlySet, readWriteSet, 1000, true, UNIQUE,
+                         flags);
+
+        auto expectedInitialLifetime =
+            stateExpirationSettings.minRestorableEntryLifetime + lcl;
+
+        checkContractDataLifetime("rw", UNIQUE,
+                                  expectedInitialLifetime + autoBump);
+        checkContractDataLifetime("ro", UNIQUE,
+                                  expectedInitialLifetime + autoBump);
+        checkContractDataLifetime("no-bump", UNIQUE, expectedInitialLifetime);
+    }
+
+    SECTION("manual bump")
+    {
+        put("key", 0, UNIQUE);
+        bump("key", UNIQUE, 10'000);
+        checkContractDataLifetime("key", UNIQUE, 10'000 + lcl);
+
+        // Lifetime already above 5'000, should be a nop (other than autobump)
+        bump("key", UNIQUE, 5'000);
+        checkContractDataLifetime("key", UNIQUE, 10'000 + autoBump + lcl);
+    }
+
+    SECTION("max lifetime")
+    {
+        put("key", 0, UNIQUE);
+        bump("key", UNIQUE, UINT32_MAX);
+
+        auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+        auto expectedInitialLifetime =
+            stateExpirationSettings.maxEntryLifetime + lcl;
+        checkContractDataLifetime("key", UNIQUE, expectedInitialLifetime);
+
+        // Call the contract again with key in the footprint to make sure
+        // autobumps don't go over MAX_LIFETIME
+        put("key", 1, UNIQUE);
+
+        // Entry still recieves autobump, but is only bumped by 1 since a single
+        // ledger has passed since the entry was bumped to the maximum ammount
+        checkContractDataLifetime("key", UNIQUE, expectedInitialLifetime + 1);
     }
 }
 
