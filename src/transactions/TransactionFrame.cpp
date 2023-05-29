@@ -1635,38 +1635,52 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
     // TODO: Write lifetime extension entries instead of witing whole entry
     for (auto const& key : resources.footprint.readOnly)
     {
-        // Load without record to avoid rewriting full DATA_ENTRY. Instead,
-        // create a LIFETIME_EXTENSION entry
-        auto lte = ltxTx.loadWithoutRecord(key);
+        auto lte = ltxTx.load(key);
         if (lte && isSorobanDataEntry(lte.current().data))
         {
-            auto extK = key;
-            setLeType(extK, LIFETIME_EXTENSION);
-
-            // If a LIFETIME_EXTENSION for the given entry already exists, load
-            // it
-            auto extLte = ltxTx.load(extK);
-            if (extLte)
-            {
-                // Extension may be out of date so set the lifetime
-                auto& extLe = extLte.current();
-                setExpirationLedger(extLe, getExpirationLedger(lte.current()));
-
-                // Don't enforce minimums on reads
-                bump(extLe, autoBumpEnabled(lte.current()), false);
-            }
-            else
-            {
-                auto extLe = lifetimeExtensionFromDataEntry(lte.current());
-
-                // Don't enforce minimums on reads
-                if (bump(extLe, autoBumpEnabled(lte.current()), false))
-                {
-                    ltxTx.create(InternalLedgerEntry(extLe));
-                }
-            }
+            // Must enforce minimum lifetimes on write
+            bump(lte.current(), autoBumpEnabled(lte.current()), true);
         }
     }
+
+    // WIP
+
+    // for (auto const& key : resources.footprint.readOnly)
+    // {
+    //     // Load without record to avoid rewriting full DATA_ENTRY. Instead,
+    //     // create a LIFETIME_EXTENSION entry
+    //     auto lte = ltxTx.loadWithoutRecord(key);
+    //     if (lte && isSorobanDataEntry(lte.current().data))
+    //     {
+    //         auto extK = key;
+    //         setLeType(extK, LIFETIME_EXTENSION);
+
+    //         // If a LIFETIME_EXTENSION for the given entry already exists,
+    //         load
+    //         // it
+    //         auto extLte = ltxTx.load(extK);
+    //         if (extLte)
+    //         {
+    //             // Extension may be out of date so set the lifetime
+    //             auto& extLe = extLte.current();
+    //             setExpirationLedger(extLe,
+    //             getExpirationLedger(lte.current()));
+
+    //             // Don't enforce minimums on reads
+    //             bump(extLe, autoBumpEnabled(lte.current()), false);
+    //         }
+    //         else
+    //         {
+    //             auto extLe = lifetimeExtensionFromDataEntry(lte.current());
+
+    //             // Don't enforce minimums on reads
+    //             if (bump(extLe, autoBumpEnabled(lte.current()), false))
+    //             {
+    //                 ltxTx.create(InternalLedgerEntry(extLe));
+    //             }
+    //         }
+    //     }
+    // }
 
     ltxTx.commit();
 #endif
