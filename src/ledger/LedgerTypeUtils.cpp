@@ -86,6 +86,27 @@ getLeType(LedgerEntry::_data_t const& e)
 
     return e.contractData().body.leType();
 }
+
+LedgerEntry
+lifetimeExtensionFromDataEntry(LedgerEntry const& le)
+{
+    releaseAssert(isSorobanDataEntry(le.data));
+    LedgerEntry extLe;
+    if (le.data.type() == CONTRACT_CODE)
+    {
+        extLe.data.type(CONTRACT_CODE);
+        extLe.data.contractCode().expirationLedgerSeq = getExpirationLedger(le);
+        extLe.data.contractCode().body.leType(LIFETIME_EXTENSION);
+    }
+    else
+    {
+        extLe.data.type(CONTRACT_DATA);
+        extLe.data.contractData().expirationLedgerSeq = getExpirationLedger(le);
+        extLe.data.contractData().body.leType(LIFETIME_EXTENSION);
+    }
+
+    return extLe;
+}
 #endif
 
 bool

@@ -43,6 +43,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include "util/XDRCereal.h"
+
 namespace stellar
 {
 
@@ -137,6 +139,13 @@ void
 TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
     mReturnValue = returnValue;
+}
+
+void
+TransactionFrame::pushInitialLifetimes(
+    UnorderedMap<LedgerKey, uint32_t>&& originalLifetimes)
+{
+    mOriginalLifetimes = originalLifetimes;
 }
 
 #endif
@@ -1388,10 +1397,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
         }
 
-        if (success && isSoroban())
-        {
-            success = applyLifetimeBumps(app, ltx);
-        }
+        success = success && applyLifetimeBumps(app, ltxTx);
 
         if (success)
         {
@@ -1516,6 +1522,28 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     return false;
 }
 
+// This function is responsible for auto lifetime bumps, enforcing lifetime
+// bounds, and charging lifetime related fees. After InvokeHostFunctionOp is
+// applied, the host should have set LedgerEnry lifetimes as follows:
+//
+// If an entry was created with no manual lifetime extension:
+//      entry.expirationLedgerSeq == LastClosedLedgerSeq
+//
+// If an entry was manually bumped:
+//      entry.expiraitonLedgerSeq == specifiedLifetime
+//
+// Where specifiedLifetime is the lifetime extension from the manual bump. Note
+// that this is a contract provided lifetime so it may be outside the allowed
+// lifetime bounds and may need modification. The host should not apply any
+// auto bumps.
+//
+// Once we reach this, the smart contract function has succeeded. To avoid
+// burning fees unnecessarily, we should only fail the tx if refundableFee is
+// not large enough to pay for the required lifetime extensions. If a user
+// specifies a lifetime extension outside the bounds, the lifetime will be set
+// to the bound and charged accordingly. So long as refundableFee is large
+// enough to cover the adjusted lifetimes, the tx still succeeds.
+
 bool
 TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
 {
@@ -1529,7 +1557,7 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
     auto const& resources = sorobanResources();
     auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
     auto const& expirationSettings = app.getLedgerManager()
-                                         .getSorobanNetworkConfig(ltx)
+                                         .getSorobanNetworkConfig(ltxTx)
                                          .stateExpirationSettings();
 
     auto maxExpirationLedger = lcl + expirationSettings.maxEntryLifetime;
@@ -1537,116 +1565,105 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
         lcl + expirationSettings.minRestorableEntryLifetime;
     auto minTempExpirationLedger =
         lcl + expirationSettings.minTempEntryLifetime;
+    auto autoBumpLedgers = expirationSettings.autoBumpLedgers;
 
-    // Sets new expiration ledger based on footprint bumpledgers and netowrk
-    // config bouinds. Returns true if expirationLedger changed
-    auto bump = [&](LedgerEntry& le, auto const& bumpLedgers) {
-        // Use uint64_t do avoid potential overflows from footprint values then
-        // cast down later
-        uint32_t oldExpiration = getExpirationLedger(le);
-        uint64_t newExpiration = oldExpiration;
-        if (bumpLedgers)
-        {
-            newExpiration += bumpLedgers;
-        }
-        else if (autoBumpEnabled(le))
-        {
-            newExpiration += expirationSettings.autoBumpLedgers;
-        }
+    // Applies the correct lifetime to LE. If lifetime has not changed from
+    // pre-tx apply value, returns false. Otherwise, returns true
+    auto bump = [&](LedgerEntry& le, bool autoBump, bool enforceMinimum) {
+        // If an entry is being created for the first time, there is no original
+        // lifetime, so set it to lcl for fee calculation purposes
+        auto iter = mOriginalLifetimes.find(LedgerEntryKey(le));
+        uint32_t preApplyExpiration =
+            iter == mOriginalLifetimes.end() ? lcl : iter->second;
+        uint32_t postApplyExpiration = getExpirationLedger(le);
+        uint32_t minimumForEntry = preApplyExpiration;
 
-        auto minExpirationLedger = isTemporaryEntry(le.data)
-                                       ? minTempExpirationLedger
-                                       : minRestorableExpirationLedger;
-
-        if (newExpiration > maxExpirationLedger)
+        // First, calculate minimum lifetime that should be applied. This value
+        // is (preApplyLifetime + autobump) or minLifetimeForType, whichever is
+        // greater.
+        if (autoBump)
         {
-            newExpiration = maxExpirationLedger;
-        }
-        else if (newExpiration < minExpirationLedger)
-        {
-            newExpiration = minExpirationLedger;
+            // Note: preApplyExpiration is guarenteed to be a valid expiration
+            // ledger so this can't overflow
+            minimumForEntry = preApplyExpiration + autoBumpLedgers;
         }
 
-        // TODO: Charge fees for (newExpiration - lcl) ledgers
+        if (enforceMinimum)
+        {
+            if (isTemporaryEntry(le.data))
+            {
+                minimumForEntry =
+                    std::max(minimumForEntry, minTempExpirationLedger);
+            }
+            else
+            {
+                minimumForEntry =
+                    std::max(minimumForEntry, minRestorableExpirationLedger);
+            }
+        }
 
-        if (newExpiration == oldExpiration)
+        // Check if the lifetime bump applied by the host is enough to cover the
+        // required minimum
+        uint32_t lifetimeToApply = postApplyExpiration < minimumForEntry
+                                       ? minimumForEntry
+                                       : postApplyExpiration;
+
+        // Cap at max lifetime
+        lifetimeToApply = std::min(lifetimeToApply, maxExpirationLedger);
+
+        if (lifetimeToApply == preApplyExpiration)
         {
             return false;
         }
         else
         {
-            setExpirationLedger(le, newExpiration);
+            setExpirationLedger(le, lifetimeToApply);
             return true;
         }
     };
 
-    for (auto const& fe : resources.footprint.readWrite)
+    for (auto const& key : resources.footprint.readWrite)
     {
-        auto lte = ltx.load(fe.key);
+        auto lte = ltxTx.load(key);
         if (lte && isSorobanDataEntry(lte.current().data))
         {
-            bump(lte.current(), fe.bumpLedgers);
+            // Must enforce minimum lifetimes on write
+            bump(lte.current(), autoBumpEnabled(lte.current()), true);
         }
     }
 
-    for (auto const& fe : resources.footprint.readOnly)
+    // TODO: Write lifetime extension entries instead of witing whole entry
+    for (auto const& key : resources.footprint.readOnly)
     {
-        // Load without record for readOnly to avoid writing them later
-        auto lte = ltx.loadWithoutRecord(fe.key);
-        if (!lte)
+        // Load without record to avoid rewriting full DATA_ENTRY. Instead,
+        // create a LIFETIME_EXTENSION entry
+        auto lte = ltxTx.loadWithoutRecord(key);
+        if (lte && isSorobanDataEntry(lte.current().data))
         {
-            continue;
-        }
+            auto extK = key;
+            setLeType(extK, LIFETIME_EXTENSION);
 
-        auto& le = lte.current();
-        if (!isSorobanDataEntry(le.data))
-        {
-            continue;
-        }
-
-        auto bumpKey = fe.key;
-        setLeType(bumpKey, ContractLedgerEntryType::LIFETIME_EXTENSION);
-        auto bumpLte = ltx.load(bumpKey);
-        if (bumpLte)
-        {
-            auto& bumpLe = bumpLte.current();
-
-            // When loading a DATA_ENTRY type, the LedgerEntry returned always
-            // has the most up to date expiration ledger. This is not always the
-            // case when loading a LIFETIME_EXTENSION key, so set the expiration
-            // accordingly
-            setExpirationLedger(bumpLe, getExpirationLedger(le));
-            bump(bumpLe, fe.bumpLedgers);
-        }
-        else
-        {
-            // Build lifetime extension ledger entry
-            LedgerEntry bumpLe;
-            if (auto t = le.data.type(); t == CONTRACT_DATA)
+            // If a LIFETIME_EXTENSION for the given entry already exists, load
+            // it
+            auto extLte = ltxTx.load(extK);
+            if (extLte)
             {
-                bumpLe.data.type(t);
-                bumpLe.data.contractData().contractID =
-                    le.data.contractData().contractID;
-                bumpLe.data.contractData().key = le.data.contractData().key;
-                bumpLe.data.contractData().type = le.data.contractData().type;
-                bumpLe.data.contractData().body.leType(
-                    ContractLedgerEntryType::LIFETIME_EXTENSION);
-                bumpLe.data.contractData().expirationLedgerSeq =
-                    le.data.contractData().expirationLedgerSeq;
+                // Extension may be out of date so set the lifetime
+                auto& extLe = extLte.current();
+                setExpirationLedger(extLe, getExpirationLedger(lte.current()));
+
+                // Don't enforce minimums on reads
+                bump(extLe, autoBumpEnabled(lte.current()), false);
             }
-            else if (t == CONTRACT_CODE)
+            else
             {
-                bumpLe.data.type(t);
-                bumpLe.data.contractCode().hash = le.data.contractCode().hash;
-                bumpLe.data.contractCode().body.leType(
-                    ContractLedgerEntryType::LIFETIME_EXTENSION);
-                bumpLe.data.contractCode().expirationLedgerSeq =
-                    le.data.contractCode().expirationLedgerSeq;
-            }
+                auto extLe = lifetimeExtensionFromDataEntry(lte.current());
 
-            if (bump(bumpLe, fe.bumpLedgers))
-            {
-                ltxTx.create(bumpLe);
+                // Don't enforce minimums on reads
+                if (bump(extLe, autoBumpEnabled(lte.current()), false))
+                {
+                    ltxTx.create(InternalLedgerEntry(extLe));
+                }
             }
         }
     }
