@@ -21,6 +21,7 @@ ContractLedgerEntryType getLeType(LedgerKey const& k);
 void setLeType(LedgerEntry& e, ContractLedgerEntryType leType);
 void setLeType(LedgerKey& k, ContractLedgerEntryType leType);
 
+LedgerEntry lifetimeExtensionFromDataEntry(LedgerEntry const& le);
 #endif
 
 bool autoBumpEnabled(LedgerEntry const& e);
