@@ -71,7 +71,7 @@ struct InitialSorobanNetworkConfig
 
     // Live until level 6
     static constexpr uint32_t MINIMUM_RESTORABLE_ENTRY_LIFETIME = 4096;
-    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 1;
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 10;
 };
