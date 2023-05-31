@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::{ContractCostParams, ScErrorCode, ScErrorType};
+use soroban_env_host_curr::xdr::{ContractCostParams, ContractEventType, ScErrorCode, ScErrorType};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -19,7 +19,7 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 // import it from our _parent_ module rather than from the crate root.
 use super::soroban_env_host::{
     budget::Budget,
-    events::{Event, Events},
+    events::Events,
     fees::{
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
         FeeConfiguration, TransactionResources,
@@ -28,8 +28,7 @@ use super::soroban_env_host::{
     xdr::{
         self, AccountId, ContractEvent, DiagnosticEvent, HostFunction, LedgerEntry,
         LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
-        LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr,
-        XDR_FILES_SHA256,
+        LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr, XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
 };
@@ -96,20 +95,21 @@ impl From<HostError> for CoreHostError {
 
 impl From<xdr::Error> for CoreHostError {
     fn from(_: xdr::Error) -> Self {
-        CoreHostError::Host((ScErrorType::Context, ScErrorCode::InvalidInput).into())
+        CoreHostError::Host((ScErrorType::Value, ScErrorCode::InvalidInput).into())
     }
 }
 
 impl std::error::Error for CoreHostError {}
 
 fn xdr_from_slice<T: ReadXdr>(v: &[u8]) -> Result<T, HostError> {
-    Ok(T::read_xdr(&mut Cursor::new(v)).map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?)
+    Ok(T::read_xdr(&mut Cursor::new(v))
+        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?)
 }
 
 fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut Cursor::new(&mut vec))
-        .map_err(|_| (ScErrorType::Context, ScErrorCode::InvalidInput))?;
+        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec)
 }
 
@@ -272,14 +272,11 @@ fn extract_contract_events(events: &Events) -> Result<Vec<RustBuf>, HostError> {
         .0
         .iter()
         .filter_map(|e| {
-            if e.failed_call {
+            if e.failed_call || e.event.type_ == ContractEventType::Diagnostic {
                 return None;
             }
 
-            match &e.event {
-                Event::Contract(ce) => Some(xdr_to_rust_buf(ce)),
-                Event::StructuredDebug(_) => None,
-            }
+            Some(xdr_to_rust_buf(&e.event))
         })
         .collect()
 }
@@ -292,20 +289,17 @@ fn extract_diagnostic_events(events: &Events) -> Result<Vec<RustBuf>, HostError>
     events
         .0
         .iter()
-        .filter_map(|e| match &e.event {
-            Event::Contract(ce) => Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call)),
-            Event::StructuredDebug(ce) => {
-                Some(event_to_diagnostic_event_rust_buf(&ce, e.failed_call))
-            }
-        })
+        .map(|e| event_to_diagnostic_event_rust_buf(&e.event, e.failed_call))
         .collect()
 }
 
 fn log_debug_events(events: &Events) {
     for e in events.0.iter() {
-        match &e.event {
-            Event::Contract(_) => (),
-            Event::StructuredDebug(sd) => debug!("contract HostEvent::StructuredDebug: {:?}", sd),
+        match &e.event.type_ {
+            ContractEventType::Contract | ContractEventType::System => (),
+            ContractEventType::Diagnostic => {
+                debug!("Diagnostic event: {:?}", e.event)
+            }
         }
     }
 }

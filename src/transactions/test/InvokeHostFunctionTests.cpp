@@ -606,7 +606,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
                 auto call_ev = events.at(0);
                 REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
-                REQUIRE(call_ev.event.body.v0().data.type() == SCV_VEC);
+                REQUIRE(call_ev.event.body.v0().data.type() == SCV_VOID);
 
                 auto contract_ev = events.at(1);
                 REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
@@ -614,7 +614,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
                 auto return_ev = events.at(2);
                 REQUIRE(return_ev.event.type == ContractEventType::DIAGNOSTIC);
-                REQUIRE(return_ev.event.body.v0().data.type() == SCV_VEC);
+                REQUIRE(return_ev.event.body.v0().data.type() == SCV_VOID);
             };
 
         SECTION("single op")
