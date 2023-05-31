@@ -689,7 +689,13 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
 
             stellar::uniform_int_distribution<uint32_t> addAtLedgerDist(
                 2, blg.mLedgerSeq);
-            auto le = LedgerTestUtils::generateValidLedgerEntry(5);
+            auto le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    CONFIG_SETTING
+#endif
+                },
+                5);
             le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
 
             if (!withFilter)
