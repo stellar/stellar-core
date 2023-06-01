@@ -398,11 +398,11 @@ SurgePricingPriorityQueue::canFitWithEviction(
             // there is not enough ops to evict from limited lane to fit the
             // current transaction
             if (lane == GENERIC_LANE || lane == evictLane ||
-                neededLaneOps <= 0 || neededTotalOps > neededLaneOps)
+                neededTotalOps > neededLaneOps)
             {
                 canEvict = true;
             }
-            else if (neededTotalOps <= neededLaneOps)
+            else
             {
                 // When we need to evict more ops from the tx's lane than from
                 // the generic lane, then we can only evict from tx's lane (any
