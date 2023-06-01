@@ -39,7 +39,7 @@ mod rust_bridge {
     // diagnostic_events. The rest of the fields should be ignored.
     struct InvokeHostFunctionOutput {
         success: bool,
-        result_values: Vec<RustBuf>,
+        result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         diagnostic_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
@@ -124,12 +124,13 @@ mod rust_bridge {
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn get_xdr_hashes() -> XDRHashesPair;
         fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32);
-        fn invoke_host_functions(
+        fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
-            hf_bufs: &Vec<CxxBuf>,
+            hf_buf: &CxxBuf,
             resources: &CxxBuf,
             source_account: &CxxBuf,
+            auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
         ) -> Result<InvokeHostFunctionOutput>;
@@ -520,12 +521,13 @@ pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
     XDRHashesPair { curr, prev }
 }
 
-pub(crate) fn invoke_host_functions(
+pub(crate) fn invoke_host_function(
     config_max_protocol: u32,
     enable_diagnostics: bool,
-    hf_bufs: &Vec<CxxBuf>,
+    hf_buf: &CxxBuf,
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
+    auth_entries: &Vec<CxxBuf>,    
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
@@ -542,16 +544,18 @@ pub(crate) fn invoke_host_functions(
                 hf_bufs,
                 resources_buf,
                 source_account_buf,
+                auth_entries,
                 ledger_info,
                 ledger_entries,
             );
         }
     }
-    soroban_curr::contract::invoke_host_functions(
+    soroban_curr::contract::invoke_host_function(
         enable_diagnostics,
-        hf_bufs,
+        hf_buf,
         resources_buf,
         source_account_buf,
+        auth_entries,
         ledger_info,
         ledger_entries,
     )

@@ -193,12 +193,15 @@ ConservationOfLumens::registerInvariant(Application& app)
 
     // Calculate contractID
     HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ASSET);
-    preImage.fromAsset().networkID = sha256(app.getConfig().NETWORK_PASSPHRASE);
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().networkID =
+        sha256(app.getConfig().NETWORK_PASSPHRASE);
 
     Asset native;
     native.type(ASSET_TYPE_NATIVE);
-    preImage.fromAsset().asset = native;
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = native;
 
     auto lumenContractID = xdrSha256(preImage);
 

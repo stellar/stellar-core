@@ -225,8 +225,7 @@ TransactionMetaFrame::pushDiagnosticEvents(
 }
 
 void
-TransactionMetaFrame::pushReturnValues(
-    xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnValues)
+TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
 {
     switch (mTransactionMeta.v())
     {
@@ -234,7 +233,7 @@ TransactionMetaFrame::pushReturnValues(
         // Do nothing, until v3 we don't call into contracts.
         break;
     case 3:
-        mTransactionMeta.v3().returnValues = std::move(returnValues);
+        mTransactionMeta.v3().returnValue = std::move(returnValue);
         break;
     default:
         releaseAssert(false);

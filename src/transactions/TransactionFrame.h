@@ -55,7 +55,7 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     xdr::xvector<ContractEvent> mEvents;
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
-    xdr::xvector<SCVal, MAX_OPS_PER_TX> mReturnValues;
+    SCVal mReturnValue;
     std::optional<FeePair> mSorobanResourceFee;
     // Size of the emitted Soroban metadata.
     uint32_t mConsumedSorobanMetadataSize{};
@@ -189,7 +189,7 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
-    void pushReturnValues(xdr::xvector<SCVal, MAX_OPS_PER_TX>&& returnVals);
+    void setReturnValue(SCVal&& returnValue);
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;

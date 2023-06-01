@@ -652,20 +652,16 @@ LoadGenerator::sorobanTransaction(uint32_t ledgerNum, uint64_t accountId)
     auto account = findAccount(accountId, ledgerNum);
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF =
-        deployOp.body.invokeHostFunctionOp().functions.emplace_back();
-    uploadHF.args.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    auto& uploadContractWasmArgs = uploadHF.args.uploadContractWasm();
-    uploadContractWasmArgs.code.resize(1000);
+    auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().resize(1000);
     auto byteDistr = uniform_int_distribution<uint8_t>();
-    std::generate(uploadContractWasmArgs.code.begin(),
-                  uploadContractWasmArgs.code.end(),
+    std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
                   [&byteDistr]() { return byteDistr(gRandomEngine); });
 
     LedgerKey contractCodeLedgerKey;
     contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash =
-        xdrSha256(uploadContractWasmArgs);
+    contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
 
     SorobanResources resources;
     resources.footprint.readWrite = {contractCodeLedgerKey};
