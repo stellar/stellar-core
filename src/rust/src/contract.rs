@@ -26,8 +26,9 @@ use super::soroban_env_host::{
     },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
-        self, AccountId, ContractEvent, ContractLedgerEntryType, ContractDataEntryBody, ContractCodeEntryBody, DiagnosticEvent, HostFunction, LedgerEntry,
-        LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
+        self, AccountId, ContractCodeEntryBody, ContractDataEntryBody, ContractEvent,
+        ContractLedgerEntryType, DiagnosticEvent, HostFunction, LedgerEntry, LedgerEntryData,
+        LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
         LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr, XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
@@ -212,14 +213,18 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
             type_: cd.type_.clone(),
             le_type: match &cd.body {
                 ContractDataEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
-                ContractDataEntryBody::LifetimeExtension => ContractLedgerEntryType::LifetimeExtension
+                ContractDataEntryBody::LifetimeExtension => {
+                    ContractLedgerEntryType::LifetimeExtension
+                }
             },
         })),
         LedgerEntryData::ContractCode(code) => Ok(LedgerKey::ContractCode(LedgerKeyContractCode {
             hash: code.hash.clone(),
             le_type: match &code.body {
                 ContractCodeEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
-                ContractCodeEntryBody::LifetimeExtension => ContractLedgerEntryType::LifetimeExtension
+                ContractCodeEntryBody::LifetimeExtension => {
+                    ContractLedgerEntryType::LifetimeExtension
+                }
             },
         })),
         _ => Err(CoreHostError::General("unexpected ledger key")),
@@ -275,7 +280,7 @@ fn build_xdr_ledger_entries_from_storage_map(
     for (lk, ole) in storage_map {
         match footprint.0.get::<LedgerKey>(lk, budget)? {
             Some(AccessType::ReadOnly) => (),
-            Some(AccessType::ReadWrite) => {
+            Some(AccessType::ReadWrite) | Some(AccessType::CommutativeWrite) => {
                 if let Some(le) = ole {
                     res.push(xdr_to_rust_buf(&**le)?)
                 }

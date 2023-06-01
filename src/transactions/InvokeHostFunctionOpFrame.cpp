@@ -279,7 +279,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     auto const& footprint = resources.footprint;
     auto reserveSize = footprint.readOnly.size() + footprint.readWrite.size();
     ledgerEntryCxxBufs.reserve(reserveSize);
-    originalLifetimes.reserve(reserveSize);
+
     auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &sorobanConfig,
                      &originalLifetimes](auto const& keys) -> bool {
         for (auto const& lk : keys)
@@ -301,8 +301,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
                     return false;
                 }
                 ledgerEntryCxxBufs.emplace_back(std::move(buf));
-                originalLifetimes.emplace(LedgerEntryKey(le),
-                                          getExpirationLedger(le));
+                if (isSorobanEntry(le.data))
+                {
+                    originalLifetimes.emplace(LedgerEntryKey(le),
+                                              getExpirationLedger(le));
+                }
             }
             metrics.noteReadEntry(lk, nByte);
         }
@@ -412,6 +415,31 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         }
         else
         {
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            if (le.data.type() == CONTRACT_DATA)
+            {
+                if (le.data.contractData().expirationLedgerSeq >
+                    UINT32_MAX - ledgerSeq)
+                {
+                    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
+                }
+                else
+                {
+                    le.data.contractData().expirationLedgerSeq += ledgerSeq;
+                }
+            }
+            else if (le.data.type() == CONTRACT_CODE)
+            {
+                if (le.data.contractCode().expirationLedgerSeq >
+                    UINT32_MAX - ledgerSeq)
+                {
+                    le.data.contractCode().expirationLedgerSeq = UINT32_MAX;
+                }
+                else
+                {
+                    le.data.contractCode().expirationLedgerSeq += ledgerSeq;
+                }
+            }
             ltx.create(le);
         }
 
