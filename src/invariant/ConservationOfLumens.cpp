@@ -96,13 +96,13 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
         }
 
         auto getAmount = [&amountSymbol](LedgerEntry const* entry) -> int64_t {
-            if (!entry)
+            if (!entry || entry->data.contractData().body.t() != DATA_ENTRY)
             {
                 return 0;
             }
 
             // The amount should be the first entry in the SCMap
-            auto const& val = entry->data.contractData().val;
+            auto const& val = entry->data.contractData().body.val();
             if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
             {
                 auto const& amountEntry = val.map()->at(0);
