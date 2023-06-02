@@ -615,7 +615,10 @@
                             ],
                             "txChangesAfter": [],
                             "events": [],
-                            "returnValues": [],
+                            "returnValue": {
+                                "type": "SCV_BOOL",
+                                "b": "FALSE"
+                            },
                             "diagnosticEvents": []
                         }
                     }
@@ -964,7 +967,10 @@
                             ],
                             "txChangesAfter": [],
                             "events": [],
-                            "returnValues": [],
+                            "returnValue": {
+                                "type": "SCV_BOOL",
+                                "b": "FALSE"
+                            },
                             "diagnosticEvents": []
                         }
                     }

@@ -138,7 +138,8 @@ randomlyModifyEntry(LedgerEntry& e)
         makeValid(e.data.contractData());
         break;
     case CONTRACT_CODE:
-        e.data.contractCode().code = generateOpaqueVector<SCVAL_LIMIT>();
+        auto code = generateOpaqueVector<60000>();
+        e.data.contractCode().code.assign(code.begin(), code.end());
         makeValid(e.data.contractCode());
         break;
 #endif

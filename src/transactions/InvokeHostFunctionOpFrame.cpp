@@ -329,22 +329,23 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         return false;
     }
 
-    rust::Vec<CxxBuf> hostFnCxxBufs;
-    hostFnCxxBufs.reserve(mInvokeHostFunction.functions.size());
-    for (auto const& hostFn : mInvokeHostFunction.functions)
+    CxxBuf hostFnCxxBuf = toCxxBuf(mInvokeHostFunction.hostFunction);
+    rust::Vec<CxxBuf> authEntryCxxBufs;
+    authEntryCxxBufs.reserve(mInvokeHostFunction.auth.size());
+    for (auto const& authEntry : mInvokeHostFunction.auth)
     {
-        hostFnCxxBufs.emplace_back(toCxxBuf(hostFn));
+        authEntryCxxBufs.push_back(toCxxBuf(authEntry));
     }
 
-    InvokeHostFunctionOutput out;
+    InvokeHostFunctionOutput out{};
     try
     {
         auto timeScope = metrics.getExecTimer();
 
-        out = rust_bridge::invoke_host_functions(
+        out = rust_bridge::invoke_host_function(
             cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
-            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, hostFnCxxBufs,
-            toCxxBuf(resources), toCxxBuf(getSourceID()),
+            cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, hostFnCxxBuf,
+            toCxxBuf(resources), toCxxBuf(getSourceID()), authEntryCxxBufs,
             getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs);
 
         if (out.success)
@@ -356,8 +357,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
             maybePopulateDiagnosticEvents(cfg, out);
         }
     }
-    catch (std::exception&)
+    catch (std::exception& e)
     {
+        CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}", e.what());
     }
 
     metrics.mCpuInsn = out.cpu_insns;
@@ -450,19 +452,12 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     maybePopulateDiagnosticEvents(cfg, out);
     mParentTx.consumeRefundableSorobanResource(metrics.mMetadataSizeByte);
 
-    auto& results = success.returnValues;
-    results.resize(static_cast<uint32>(out.result_values.size()));
-    for (size_t i = 0; i < results.size(); ++i)
-    {
-        xdr::xdr_from_opaque(out.result_values[i].data, results[i]);
-    }
-
+    xdr::xdr_from_opaque(out.result_value.data, success.returnValue);
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     innerResult().success() = xdrSha256(success);
 
     mParentTx.pushContractEvents(std::move(success.events));
-    mParentTx.pushReturnValues(std::move(success.returnValues));
-
+    mParentTx.setReturnValue(std::move(success.returnValue));
     return true;
 }
 
@@ -471,15 +466,11 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
                                         uint32_t ledgerVersion)
 {
     // check wasm size if uploading contract
-    for (auto const& hostFn : mInvokeHostFunction.functions)
+    auto const& hostFn = mInvokeHostFunction.hostFunction;
+    if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
+        hostFn.wasm().size() > config.maxContractSizeBytes())
     {
-        auto const& args = hostFn.args;
-        if (args.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
-            args.uploadContractWasm().code.size() >
-                config.maxContractSizeBytes())
-        {
-            return false;
-        }
+        return false;
     }
     return true;
 }

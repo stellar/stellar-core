@@ -33,23 +33,21 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-template <typename T>
 SCVal
-makeBinary(T begin, T end)
-{
-    SCVal val(SCValType::SCV_BYTES);
-    val.bytes().assign(begin, end);
-    return val;
-}
-
-template <typename T>
-SCVal
-makeWasmRefScContractCode(T const& hash)
+makeWasmRefScContractCode(Hash const& hash)
 {
     SCVal val(SCValType::SCV_CONTRACT_EXECUTABLE);
     val.exec().type(SCContractExecutableType::SCCONTRACT_EXECUTABLE_WASM_REF);
+    val.exec().wasm_id() = hash;
+    return val;
+}
 
-    std::copy(hash.begin(), hash.end(), val.exec().wasm_id().begin());
+SCVal
+makeContractAddress(Hash const& hash)
+{
+    SCVal val(SCValType::SCV_ADDRESS);
+    val.address().type(SC_ADDRESS_TYPE_CONTRACT);
+    val.address().contractId() = hash;
     return val;
 }
 
@@ -90,18 +88,16 @@ makeSymbol(std::string const& str)
 }
 
 static void
-submitTxToDeployContract(Application& app, Operation const& deployOp,
-                         SorobanResources const& resources,
-                         Hash const& expectedWasmHash,
-                         xdr::opaque_vec<SCVAL_LIMIT> const& expectedWasm,
-                         Hash const& contractID, SCVal const& sourceRefKey,
-                         uint32_t fee, uint32_t refundableFee)
+submitTxToUploadWasm(Application& app, Operation const& op,
+                     SorobanResources const& resources,
+                     Hash const& expectedWasmHash,
+                     xdr::opaque_vec<> const& expectedWasm, uint32_t fee,
+                     uint32_t refundableFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx =
-        sorobanTransactionFrameFromOps(app.getNetworkID(), root, {deployOp}, {},
-                                       resources, fee, refundableFee);
+    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
+                                             resources, fee, refundableFee);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
@@ -109,20 +105,35 @@ submitTxToDeployContract(Application& app, Operation const& deployOp,
     ltx.commit();
 
     // verify contract code is correct
-    {
-        LedgerTxn ltx2(app.getLedgerTxnRoot());
-        auto ltxe2 = loadContractCode(ltx2, expectedWasmHash);
-        REQUIRE(ltxe2);
-        REQUIRE(ltxe2.current().data.contractCode().code == expectedWasm);
-    }
+    LedgerTxn ltx2(app.getLedgerTxnRoot());
+    auto ltxe = loadContractCode(ltx2, expectedWasmHash);
+    REQUIRE(ltxe);
+    REQUIRE(ltxe.current().data.contractCode().code == expectedWasm);
+}
+
+static void
+submitTxToCreateContract(Application& app, Operation const& op,
+                         SorobanResources const& resources,
+                         Hash const& contractID, SCVal const& executableKey,
+                         Hash const& expectedWasmHash, uint32_t fee,
+                         uint32_t refundableFee)
+{
+    // submit operation
+    auto root = TestAccount::createRoot(app);
+    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
+                                             resources, fee, refundableFee);
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+    REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
+    REQUIRE(tx->apply(app, ltx, txm));
+    ltx.commit();
+
     // verify contract code reference is correct
-    {
-        LedgerTxn ltx2(app.getLedgerTxnRoot());
-        auto ltxe2 = loadContractData(ltx2, contractID, sourceRefKey);
-        REQUIRE(ltxe2);
-        REQUIRE(ltxe2.current().data.contractData().val ==
-                makeWasmRefScContractCode(expectedWasmHash));
-    }
+    LedgerTxn ltx2(app.getLedgerTxnRoot());
+    auto ltxe = loadContractData(ltx2, contractID, executableKey);
+    REQUIRE(ltxe);
+    REQUIRE(ltxe.current().data.contractData().val ==
+            makeWasmRefScContractCode(expectedWasmHash));
 }
 
 static xdr::xvector<LedgerKey>
@@ -132,36 +143,59 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     auto root = TestAccount::createRoot(app);
 
     // Upload contract code
-    Operation deployOp;
-    deployOp.body.type(INVOKE_HOST_FUNCTION);
-    deployOp.body.invokeHostFunctionOp().functions.resize(2);
-    auto& uploadHF = deployOp.body.invokeHostFunctionOp().functions[0];
-    uploadHF.args.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    auto& uploadContractWasmArgs = uploadHF.args.uploadContractWasm();
-    uploadContractWasmArgs.code.assign(contractWasm.data.begin(),
-                                       contractWasm.data.end());
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().assign(contractWasm.data.begin(), contractWasm.data.end());
 
     LedgerKey contractCodeLedgerKey;
     contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash =
-        xdrSha256(uploadContractWasmArgs);
+    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+
+    SorobanResources uploadResources;
+    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+    uploadResources.instructions = 200'000;
+    uploadResources.readBytes = 1000;
+    uploadResources.writeBytes = 5000;
+    uploadResources.extendedMetaDataSizeBytes = 6000;
+    submitTxToUploadWasm(app, uploadOp, uploadResources,
+                         contractCodeLedgerKey.contractCode().hash,
+                         uploadHF.wasm(), 100'000, 1'200);
 
     // Deploy the contract instance
-    HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_SOURCE_ACCOUNT);
-    preImage.sourceAccountContractID().sourceAccount = root.getPublicKey();
-    preImage.sourceAccountContractID().salt = salt;
-    preImage.sourceAccountContractID().networkID = app.getNetworkID();
-    auto contractID = xdrSha256(preImage);
-    auto& createHF = deployOp.body.invokeHostFunctionOp().functions[1];
-    createHF.args.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.args.createContract();
-    createContractArgs.contractID.type(CONTRACT_ID_FROM_SOURCE_ACCOUNT);
-    createContractArgs.contractID.salt() = salt;
+    ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
+    idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
+    idPreimage.fromAddress().address.accountId().ed25519() =
+        root.getPublicKey().ed25519();
+    idPreimage.fromAddress().salt = salt;
+    HashIDPreimage fullPreImage;
+    fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    fullPreImage.contractID().contractIDPreimage = idPreimage;
+    fullPreImage.contractID().networkID = app.getNetworkID();
+    auto contractID = xdrSha256(fullPreImage);
 
+    Operation createOp;
+    createOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
+    createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.createContract();
+    createContractArgs.contractIDPreimage = idPreimage;
     createContractArgs.executable.type(SCCONTRACT_EXECUTABLE_WASM_REF);
     createContractArgs.executable.wasm_id() =
         contractCodeLedgerKey.contractCode().hash;
+
+    SorobanAuthorizationEntry auth;
+    auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    auth.rootInvocation.function.type(
+        SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
+    auth.rootInvocation.function.createContractHostFn().contractIDPreimage =
+        idPreimage;
+    auth.rootInvocation.function.createContractHostFn().executable.type(
+        SCCONTRACT_EXECUTABLE_WASM_REF);
+    auth.rootInvocation.function.createContractHostFn().executable.wasm_id() =
+        contractCodeLedgerKey.contractCode().hash;
+    createOp.body.invokeHostFunctionOp().auth = {auth};
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
 
@@ -170,18 +204,17 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.contractData().contractID = contractID;
     contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
 
-    SorobanResources resources;
-    resources.footprint.readWrite = {contractCodeLedgerKey,
-                                     contractSourceRefLedgerKey};
-    resources.instructions = 200'000;
-    resources.readBytes = 1000;
-    resources.writeBytes = 5000;
-    resources.extendedMetaDataSizeBytes = 6000;
+    SorobanResources createResources;
+    createResources.footprint.readOnly = {contractCodeLedgerKey};
+    createResources.footprint.readWrite = {contractSourceRefLedgerKey};
+    createResources.instructions = 50'000;
+    createResources.readBytes = 5000;
+    createResources.writeBytes = 500;
+    createResources.extendedMetaDataSizeBytes = 1000;
 
-    submitTxToDeployContract(app, deployOp, resources,
-                             contractCodeLedgerKey.contractCode().hash,
-                             uploadContractWasmArgs.code, contractID,
-                             scContractSourceRefKey, 100'000, 1200);
+    submitTxToCreateContract(
+        app, createOp, createResources, contractID, scContractSourceRefKey,
+        contractCodeLedgerKey.contractCode().hash, 100'000, 200);
 
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
@@ -201,9 +234,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                     bool success) {
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.args.invokeContract() = parameters;
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract() = parameters;
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
@@ -218,7 +251,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getFeeBid() == 62'973);
+            REQUIRE(tx->getFeeBid() == 62'981);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -277,7 +310,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             // in case of tx failure.
             REQUIRE(root.getBalance() - balanceAfterFeeCharged == 586);
         }
-        xdr::xvector<SCVal, 100> resultVals;
+        SCVal resultVal;
         if (tx->getResult().result.code() == txSUCCESS &&
             !tx->getResult().result.results().empty())
         {
@@ -286,20 +319,20 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 ores.tr().invokeHostFunctionResult().code() ==
                     INVOKE_HOST_FUNCTION_SUCCESS)
             {
-                resultVals = txm.getXDR().v3().returnValues;
+                resultVal = txm.getXDR().v3().returnValue;
 
                 InvokeHostFunctionSuccessPreImage success2;
-                success2.returnValues = resultVals;
+                success2.returnValue = resultVal;
                 success2.events = txm.getXDR().v3().events;
 
                 REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
                         xdrSha256(success2));
             }
         }
-        return resultVals;
+        return resultVal;
     };
 
-    auto scContractID = makeBinary(contractID.begin(), contractID.end());
+    auto scContractID = makeContractAddress(contractID);
     auto scFunc = makeSymbol("add");
     auto sc7 = makeI32(7);
     auto sc16 = makeI32(16);
@@ -378,11 +411,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.args.invokeContract() = {
-            makeBinary(contractID.begin(), contractID.end()), makeSymbol("put"),
-            keySymbol, valU64};
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract() = {makeContractAddress(contractID),
+                                makeSymbol("put"), keySymbol, valU64};
         SorobanResources resources;
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
@@ -422,11 +454,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             Operation op;
             op.body.type(INVOKE_HOST_FUNCTION);
-            auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-            ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-            ihf.args.invokeContract() = {
-                makeBinary(contractID.begin(), contractID.end()),
-                makeSymbol("del"), keySymbol};
+            auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+            ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+            ihf.invokeContract() = {makeContractAddress(contractID),
+                                    makeSymbol("del"), keySymbol};
             SorobanResources resources;
             resources.footprint.readOnly = readOnly;
             resources.footprint.readWrite = readWrite;
@@ -519,17 +550,17 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
     auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
     auto const& contractID = contractKeys[0].contractData().contractID;
-    auto scContractID = makeBinary(contractID.begin(), contractID.end());
 
     auto sc1 = makeI32(7);
     auto scMax = makeI32(INT32_MAX);
-    SCVec parameters = {scContractID, makeSymbol("add"), sc1, scMax};
+    SCVec parameters = {makeContractAddress(contractID), makeSymbol("add"), sc1,
+                        scMax};
 
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-    ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.args.invokeContract() = parameters;
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract() = parameters;
     SorobanResources resources;
     resources.footprint.readOnly = contractKeys;
     resources.instructions = 2'000'000;
@@ -578,14 +609,13 @@ TEST_CASE("complex contract", "[tx][soroban]")
         auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
         auto const& contractID = contractKeys[0].contractData().contractID;
 
-        auto scContractID = makeBinary(contractID.begin(), contractID.end());
         auto scFunc = makeSymbol("go");
 
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().functions.emplace_back();
-        ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.args.invokeContract() = {scContractID, scFunc};
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract() = {makeContractAddress(contractID), scFunc};
 
         // Contract writes a single `data` CONTRACT_DATA entry.
         LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
@@ -665,27 +695,66 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     // Create XLM contract
     HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID_FROM_ASSET);
-    preImage.fromAsset().asset = xlm;
-    preImage.fromAsset().networkID = app->getNetworkID();
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = xlm;
+    preImage.contractID().networkID = app->getNetworkID();
     auto contractID = xdrSha256(preImage);
 
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    op.body.invokeHostFunctionOp().functions.resize(2);
-    auto& createHF = op.body.invokeHostFunctionOp().functions[0];
-    createHF.args.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.args.createContract();
+    Operation createOp;
+    createOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& createHF = createOp.body.invokeHostFunctionOp();
+    createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.hostFunction.createContract();
 
     SCContractExecutable exec;
     exec.type(SCCONTRACT_EXECUTABLE_TOKEN);
-    createContractArgs.contractID.type(CONTRACT_ID_FROM_ASSET);
-    createContractArgs.contractID.asset() = xlm;
+    createContractArgs.contractIDPreimage.type(CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    createContractArgs.contractIDPreimage.fromAsset() = xlm;
     createContractArgs.executable = exec;
+    SorobanResources createResources;
+    createResources.instructions = 200'000;
+    createResources.readBytes = 1000;
+    createResources.writeBytes = 1000;
+    createResources.extendedMetaDataSizeBytes = 3000;
+    {
+        LedgerFootprint lfp1;
+        auto key1 = LedgerKey(CONTRACT_DATA);
+        key1.contractData().contractID = contractID;
+        key1.contractData().key = makeSymbol("METADATA");
+
+        auto key2 = LedgerKey(CONTRACT_DATA);
+        key2.contractData().contractID = contractID;
+        SCVec vec = {makeSymbol("AssetInfo")};
+        SCVal vecKey(SCValType::SCV_VEC);
+        vecKey.vec().activate() = vec;
+        key2.contractData().key = vecKey;
+
+        SCVal scContractSourceRefKey(
+            SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
+        auto key3 = LedgerKey(CONTRACT_DATA);
+        key3.contractData().contractID = contractID;
+        key3.contractData().key = scContractSourceRefKey;
+
+        lfp1.readWrite = {key1, key2, key3};
+        createResources.footprint = lfp1;
+    }
+
+    {
+        // submit operation
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {createOp}, {}, createResources, 100'000,
+            1200);
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    }
 
     // transfer 10 XLM from root to contractID
-    auto scContractID = makeBinary(contractID.begin(), contractID.end());
-
     SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
     fromAccount.accountId() = root.getPublicKey();
     SCVal from(SCV_ADDRESS);
@@ -697,19 +766,26 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     to.address() = toContract;
 
     auto fn = makeSymbol("transfer");
-    auto& ihf = op.body.invokeHostFunctionOp().functions[1];
-    ihf.args.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.args.invokeContract() = {scContractID, fn, from, to, makeI128(10)};
+    Operation transfer;
+    transfer.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract() = {makeContractAddress(contractID), fn, from, to,
+                            makeI128(10)};
 
     // build auth
-    AuthorizedInvocation ai;
-    ai.contractID = contractID;
-    ai.functionName = fn.sym();
-    ai.args = {from, to, makeI128(10)};
+    SorobanAuthorizedInvocation ai;
+    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    SCAddress contractAddress(SC_ADDRESS_TYPE_CONTRACT);
+    contractAddress.contractId() = contractID;
+    ai.function.contractFn().contractAddress = contractAddress;
+    ai.function.contractFn().functionName = fn.sym();
+    ai.function.contractFn().args = {from, to, makeI128(10)};
 
-    ContractAuth a;
+    SorobanAuthorizationEntry a;
+    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
     a.rootInvocation = ai;
-    ihf.auth = {a};
+    transfer.body.invokeHostFunctionOp().auth = {a};
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -764,8 +840,9 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     {
         // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 250'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {transfer}, {}, resources,
+                                                 250'000, 1200);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);

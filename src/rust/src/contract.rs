@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::{ContractCostParams, ContractEventType, ScErrorCode, ScErrorType};
+use soroban_env_host_curr::xdr::{ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -245,6 +245,16 @@ fn build_storage_map_from_xdr_ledger_entries(
     Ok(map)
 }
 
+fn build_auth_entries_from_xdr(
+    contract_auth_entries_xdr: &Vec<CxxBuf>,
+) -> Result<Vec<SorobanAuthorizationEntry>, CoreHostError> {
+    let mut res = vec![];
+    for buf in contract_auth_entries_xdr {
+        res.push(xdr_from_cxx_buf::<SorobanAuthorizationEntry>(buf)?);
+    }
+    Ok(res)
+}
+
 /// Iterates over the storage map and serializes the read-write ledger entries
 /// back to XDR.
 fn build_xdr_ledger_entries_from_storage_map(
@@ -310,20 +320,22 @@ fn log_debug_events(events: &Events) {
 /// and returns the [`InvokeHostFunctionOutput`] that contains the host function
 /// result, events and modified ledger entries. Ledger entries not returned have
 /// been deleted.
-pub(crate) fn invoke_host_functions(
+pub(crate) fn invoke_host_function(
     enable_diagnostics: bool,
-    hf_bufs: &Vec<CxxBuf>,
+    hf_buf: &CxxBuf,
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
+    auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        invoke_host_functions_or_maybe_panic(
+        invoke_host_function_or_maybe_panic(
             enable_diagnostics,
-            hf_bufs,
+            hf_buf,
             resources_buf,
             source_account_buf,
+            auth_entries,
             ledger_info,
             ledger_entries,
         )
@@ -334,18 +346,16 @@ pub(crate) fn invoke_host_functions(
     }
 }
 
-fn invoke_host_functions_or_maybe_panic(
+fn invoke_host_function_or_maybe_panic(
     enable_diagnostics: bool,
-    hf_bufs: &Vec<CxxBuf>,
+    hf_buf: &CxxBuf,
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
+    auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
-    let hfs = hf_bufs
-        .iter()
-        .map(|hf_buf| xdr_from_cxx_buf::<HostFunction>(&hf_buf))
-        .collect::<Result<Vec<HostFunction>, HostError>>()?;
+    let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
     let resources = xdr_from_cxx_buf::<SorobanResources>(&resources_buf)?;
 
@@ -358,28 +368,27 @@ fn invoke_host_functions_or_maybe_panic(
     let footprint = build_storage_footprint_from_xdr(&budget, &resources.footprint)?;
     let map = build_storage_map_from_xdr_ledger_entries(&budget, &footprint, ledger_entries)?;
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
+    let auth_entries = build_auth_entries_from_xdr(auth_entries)?;
     let host = Host::with_storage_and_budget(storage, budget);
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
+    host.set_authorization_entries(auth_entries)?;
     if enable_diagnostics {
         host.set_diagnostic_level(DiagnosticLevel::Debug);
     }
 
-    let res: Result<Vec<xdr::ScVal>, HostError> = host.invoke_functions(hfs);
+    let res = host.invoke_function(hf);
     let (storage, budget, events) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
-    let result_values = match res {
-        Ok(rv) => rv
-            .iter()
-            .map(|v| xdr_to_rust_buf(v))
-            .collect::<Result<Vec<RustBuf>, HostError>>()?,
+    let result_value = match res {
+        Ok(rv) => xdr_to_rust_buf(&rv)?,
         Err(err) => {
             debug!(target: TX, "invocation failed: {}", err);
             return Ok(InvokeHostFunctionOutput {
                 success: false,
-                result_values: vec![],
+                result_value: RustBuf { data: vec![] },
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
@@ -393,9 +402,10 @@ fn invoke_host_functions_or_maybe_panic(
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map, &budget)?;
     let contract_events = extract_contract_events(&events)?;
     let diagnostic_events = extract_diagnostic_events(&events)?;
+    
     Ok(InvokeHostFunctionOutput {
         success: true,
-        result_values,
+        result_value,
         contract_events,
         diagnostic_events,
         modified_ledger_entries,
