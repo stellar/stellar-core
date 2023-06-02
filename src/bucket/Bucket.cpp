@@ -184,7 +184,7 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // from keys so that it will be searched for again at a lower level.
 // lifetimeExtensions stores a map of LedgerKeys -> lifetime extensions that
 // should vbe applied whenever the corresponding DATA_ENTRY is loaded. Note that
-// the keys in this map correspond to DATA_ENTRY, not LIFETIME_EXTENSION
+// the keys in this map correspond to DATA_ENTRY, not EXPIRATION_EXTENSION
 void
 Bucket::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
@@ -230,13 +230,13 @@ Bucket::loadKeys(
                             }
                             else
                             {
-                                // If we haven't found an LIFETIME_EXTENSION
+                                // If we haven't found an EXPIRATION_EXTENSION
                                 // entry yet, ext key is still in keys to
                                 // search. Remove it to avoid redundant reads
                                 // since we already found a newer DATA_ENTRY
                                 auto extK = *currKeyIt;
                                 setLeType(extK, ContractLedgerEntryType::
-                                                    LIFETIME_EXTENSION);
+                                                    EXPIRATION_EXTENSION);
                                 keys.erase(extK);
                             }
                         }
@@ -870,8 +870,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     //     preceded by a DEAD state).
     //
     // For Soroban types, we must also consider which entries are
-    // LIFETIME_EXTENSION entries and DATA_ENTRIES. While LIFETIME_EXTENSION
-    // and DATA_ENTRIES have different keys, newer LIFETIME_EXTENSION entries
+    // EXPIRATION_EXTENSION entries and DATA_ENTRIES. While EXPIRATION_EXTENSION
+    // and DATA_ENTRIES have different keys, newer EXPIRATION_EXTENSION entries
     // merge into older DATA_ENTRY entries as follows:
     //
     //      old       |       new      |   result
@@ -886,8 +886,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     //  LIVE - DATA=x |  LIVE - EXT=y  |   LIVE with lifetime=y, data=x
     //  INIT          |  DEAD          |   empty
     //
-    // Note that LIFETIME_EXTENSION entries may not be INIT entries but must be
-    // LIVEENTRIES
+    // Note that EXPIRATION_EXTENSION entries may not be INIT entries but must
+    // be LIVEENTRIES
 
     BucketEntry const& oldEntry = *oi;
     BucketEntry const& newEntry = *ni;

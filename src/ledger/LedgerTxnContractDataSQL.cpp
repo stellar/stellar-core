@@ -24,11 +24,11 @@ throwIfNotContractData(LedgerEntryType type)
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
 {
-    // SQL should never return a LIFETIME_EXTENSION entry. LIFETIME entries are
-    // a BucketList specific construct, SQL just stores a single entry for
+    // SQL should never return a EXPIRATION_EXTENSION entry. LIFETIME entries
+    // are a BucketList specific construct, SQL just stores a single entry for
     // ContractData and updates the expiration ledger accordingly whenever the
-    // BucketList writes a LIFETIME_EXTENSION entry
-    if (getLeType(k) == LIFETIME_EXTENSION)
+    // BucketList writes a EXPIRATION_EXTENSION entry
+    if (getLeType(k) == EXPIRATION_EXTENSION)
     {
         return nullptr;
     }
@@ -110,7 +110,7 @@ class BulkLoadContractDataOperation
         for (auto const& k : keys)
         {
             throwIfNotContractData(k.type());
-            if (getLeType(k) == LIFETIME_EXTENSION)
+            if (getLeType(k) == EXPIRATION_EXTENSION)
             {
                 continue;
             }
@@ -238,7 +238,7 @@ class BulkDeleteContractDataOperation
         {
             releaseAssert(!e.entryExists());
             throwIfNotContractData(e.key().ledgerKey().type());
-            if (getLeType(e.key().ledgerKey()) == LIFETIME_EXTENSION)
+            if (getLeType(e.key().ledgerKey()) == EXPIRATION_EXTENSION)
             {
                 continue;
             }
@@ -352,7 +352,7 @@ class BulkUpsertContractDataOperation
         : mDb(Db)
     {
 
-        // TODO: Update query for LIFETIME_EXTENSION entries
+        // TODO: Update query for EXPIRATION_EXTENSION entries
         for (auto const& e : entryIter)
         {
             releaseAssert(e.entryExists());
@@ -363,7 +363,7 @@ class BulkUpsertContractDataOperation
     void
     doSociGenericOperation()
     {
-        // TODO: Update query for LIFETIME_EXTENSION entries
+        // TODO: Update query for EXPIRATION_EXTENSION entries
         std::string sql = "INSERT INTO contractData "
                           "(contractid, key, type, ledgerentry, lastmodified) "
                           "VALUES "

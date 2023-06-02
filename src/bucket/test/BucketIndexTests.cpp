@@ -211,7 +211,7 @@ class BucketIndexTest
 
                 setExpirationLedger(e, NEW_EXPIRATION);
                 setLeType(extensionEntry,
-                          ContractLedgerEntryType::LIFETIME_EXTENSION);
+                          ContractLedgerEntryType::EXPIRATION_EXTENSION);
                 if (shadow)
                 {
                     // Insert dummy expiration that will be shadowed later
@@ -265,8 +265,8 @@ class BucketIndexTest
         };
 
         std::vector<LedgerEntry> entries = {generateEntry(TEMPORARY),
-                                            generateEntry(RECREATABLE),
-                                            generateEntry(UNIQUE)};
+                                            generateEntry(MERGEABLE),
+                                            generateEntry(EXCLUSIVE)};
         for (auto const& e : entries)
         {
             auto k = LedgerEntryKey(e);
@@ -578,7 +578,7 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("load LIFETIME_EXTENSION entries", "[bucket][bucketindex]")
+TEST_CASE("load EXPIRATION_EXTENSION entries", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test =

@@ -10,7 +10,9 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::{ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry};
+use soroban_env_host_curr::xdr::{
+    ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry,
+};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -213,8 +215,8 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
             type_: cd.type_.clone(),
             le_type: match &cd.body {
                 ContractDataEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
-                ContractDataEntryBody::LifetimeExtension => {
-                    ContractLedgerEntryType::LifetimeExtension
+                ContractDataEntryBody::ExpirationExtension => {
+                    ContractLedgerEntryType::ExpirationExtension
                 }
             },
         })),
@@ -222,8 +224,8 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
             hash: code.hash.clone(),
             le_type: match &code.body {
                 ContractCodeEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
-                ContractCodeEntryBody::LifetimeExtension => {
-                    ContractLedgerEntryType::LifetimeExtension
+                ContractCodeEntryBody::ExpirationExtension => {
+                    ContractLedgerEntryType::ExpirationExtension
                 }
             },
         })),
@@ -416,7 +418,7 @@ fn invoke_host_function_or_maybe_panic(
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map, &budget)?;
     let contract_events = extract_contract_events(&events)?;
     let diagnostic_events = extract_diagnostic_events(&events)?;
-    
+
     Ok(InvokeHostFunctionOutput {
         success: true,
         result_value,

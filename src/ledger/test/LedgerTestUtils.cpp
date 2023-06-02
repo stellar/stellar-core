@@ -145,7 +145,7 @@ randomlyModifyEntry(LedgerEntry& e)
         if (e.data.contractCode().body.leType() == DATA_ENTRY)
         {
             auto code = generateOpaqueVector<60000>();
-            e.data.contractCode().code.assign(code.begin(), code.end());
+            e.data.contractCode().body.code().assign(code.begin(), code.end());
         }
         makeValid(e.data.contractCode());
         break;

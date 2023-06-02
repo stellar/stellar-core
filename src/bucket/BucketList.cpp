@@ -422,7 +422,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     else
     {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        // Never directly return LIFETIME_EXTENSION entries
+        // Never directly return EXPIRATION_EXTENSION entries
         if (isSorobanExtEntry(k))
         {
             return nullptr;
@@ -431,7 +431,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
         // If entry can have a lifetime extension, we need to use loadKeys so we
         // can search for both the DATA_ENTRY and LFIETIME_EXTENSION
         auto kExt = k;
-        setLeType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
+        setLeType(kExt, ContractLedgerEntryType::EXPIRATION_EXTENSION);
         auto resultV = loadKeys({k, kExt});
         if (!resultV.empty())
         {
@@ -455,17 +455,17 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     auto keys = inKeys;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Insert LIFETIME_EXTENSION keys for every DATA_ENTRY
+    // Insert EXPIRATION_EXTENSION keys for every DATA_ENTRY
     for (auto iter = keys.begin(); iter != keys.end();)
     {
         if (isSorobanDataEntry(*iter))
         {
             auto kExt = *iter;
-            setLeType(kExt, ContractLedgerEntryType::LIFETIME_EXTENSION);
+            setLeType(kExt, ContractLedgerEntryType::EXPIRATION_EXTENSION);
             keys.emplace(kExt);
         }
 
-        // Remove any LIFETIME_EXTENSION entries, these are a product of the
+        // Remove any EXPIRATION_EXTENSION entries, these are a product of the
         // BucketList and should never be directly returned
         if (isSorobanExtEntry(*iter))
         {

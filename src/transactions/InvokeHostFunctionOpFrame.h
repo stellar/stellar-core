@@ -14,7 +14,8 @@ namespace stellar
 {
 class AbstractLedgerTxn;
 
-static constexpr ContractDataType CONTRACT_INSTANCE_CONTRACT_DATA_TYPE = UNIQUE;
+static constexpr ContractDataType CONTRACT_INSTANCE_CONTRACT_DATA_TYPE =
+    EXCLUSIVE;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {

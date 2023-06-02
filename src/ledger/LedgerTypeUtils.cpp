@@ -96,13 +96,13 @@ lifetimeExtensionFromDataEntry(LedgerEntry const& le)
     {
         extLe.data.type(CONTRACT_CODE);
         extLe.data.contractCode().expirationLedgerSeq = getExpirationLedger(le);
-        extLe.data.contractCode().body.leType(LIFETIME_EXTENSION);
+        extLe.data.contractCode().body.leType(EXPIRATION_EXTENSION);
     }
     else
     {
         extLe.data.type(CONTRACT_DATA);
         extLe.data.contractData().expirationLedgerSeq = getExpirationLedger(le);
-        extLe.data.contractData().body.leType(LIFETIME_EXTENSION);
+        extLe.data.contractData().body.leType(EXPIRATION_EXTENSION);
     }
 
     return extLe;
@@ -129,7 +129,7 @@ bool
 isSorobanExtEntry(T const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    return isSorobanEntry(e) && getLeType(e) == LIFETIME_EXTENSION;
+    return isSorobanEntry(e) && getLeType(e) == EXPIRATION_EXTENSION;
 #endif
     return false;
 }

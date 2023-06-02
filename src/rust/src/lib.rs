@@ -527,7 +527,7 @@ pub(crate) fn invoke_host_function(
     hf_buf: &CxxBuf,
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
-    auth_entries: &Vec<CxxBuf>,    
+    auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {

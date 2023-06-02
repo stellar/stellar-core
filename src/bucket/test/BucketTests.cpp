@@ -289,7 +289,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        SECTION("LIFETIME_EXTENSION merges with DATA_ENTRY")
+        SECTION("EXPIRATION_EXTENSION merges with DATA_ENTRY")
         {
             std::vector<LedgerEntry> entries =
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -325,14 +325,14 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     if (newEntry.data.type() == CONTRACT_CODE)
                     {
                         newEntry.data.contractCode().body.leType(
-                            LIFETIME_EXTENSION);
+                            EXPIRATION_EXTENSION);
                         newEntry.data.contractCode().expirationLedgerSeq =
                             newLifetime;
                     }
                     else
                     {
                         newEntry.data.contractData().body.leType(
-                            LIFETIME_EXTENSION);
+                            EXPIRATION_EXTENSION);
                         newEntry.data.contractData().expirationLedgerSeq =
                             newLifetime;
                     }
@@ -384,17 +384,17 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
 
             checkMerge(bMerge);
 
-            // Check that new DATA_ENTRY overwrites old LIFETIME_EXTENSION
+            // Check that new DATA_ENTRY overwrites old EXPIRATION_EXTENSION
             for (auto& entry : entries)
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.leType(LIFETIME_EXTENSION);
+                    entry.data.contractCode().body.leType(EXPIRATION_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq = 0;
                 }
                 else
                 {
-                    entry.data.contractData().body.leType(LIFETIME_EXTENSION);
+                    entry.data.contractData().body.leType(EXPIRATION_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq = 0;
                 }
             }
@@ -413,7 +413,8 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             checkMerge(bMerge2);
         }
 
-        SECTION("new LIFETIME_EXTENSION overwrites older LIFETIME_EXTENSION")
+        SECTION(
+            "new EXPIRATION_EXTENSION overwrites older EXPIRATION_EXTENSION")
         {
             std::vector<LedgerEntry> entries =
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -429,13 +430,13 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.leType(LIFETIME_EXTENSION);
+                    entry.data.contractCode().body.leType(EXPIRATION_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq =
                         originalLifetime;
                 }
                 else
                 {
-                    entry.data.contractData().body.leType(LIFETIME_EXTENSION);
+                    entry.data.contractData().body.leType(EXPIRATION_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq =
                         originalLifetime;
                 }

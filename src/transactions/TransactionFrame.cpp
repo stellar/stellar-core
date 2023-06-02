@@ -1560,11 +1560,11 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
                                          .getSorobanNetworkConfig(ltxTx)
                                          .stateExpirationSettings();
 
-    auto maxExpirationLedger = lcl + expirationSettings.maxEntryLifetime;
+    auto maxExpirationLedger = lcl + expirationSettings.maxEntryExpiration;
     auto minRestorableExpirationLedger =
-        lcl + expirationSettings.minRestorableEntryLifetime;
+        lcl + expirationSettings.minRestorableEntryExpiration;
     auto minTempExpirationLedger =
-        lcl + expirationSettings.minTempEntryLifetime;
+        lcl + expirationSettings.minTempEntryExpiration;
     auto autoBumpLedgers = expirationSettings.autoBumpLedgers;
 
     // Applies the correct lifetime to LE. If lifetime has not changed from
@@ -1648,14 +1648,14 @@ TransactionFrame::applyLifetimeBumps(Application& app, AbstractLedgerTxn& ltx)
     // for (auto const& key : resources.footprint.readOnly)
     // {
     //     // Load without record to avoid rewriting full DATA_ENTRY. Instead,
-    //     // create a LIFETIME_EXTENSION entry
+    //     // create a EXPIRATION_EXTENSION entry
     //     auto lte = ltxTx.loadWithoutRecord(key);
     //     if (lte && isSorobanDataEntry(lte.current().data))
     //     {
     //         auto extK = key;
-    //         setLeType(extK, LIFETIME_EXTENSION);
+    //         setLeType(extK, EXPIRATION_EXTENSION);
 
-    //         // If a LIFETIME_EXTENSION for the given entry already exists,
+    //         // If a EXPIRATION_EXTENSION for the given entry already exists,
     //         load
     //         // it
     //         auto extLte = ltxTx.load(extK);
