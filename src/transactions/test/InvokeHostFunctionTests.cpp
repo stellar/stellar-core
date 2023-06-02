@@ -87,6 +87,21 @@ makeSymbol(std::string const& str)
     return val;
 }
 
+static SCVal
+makeU32(uint32_t u32)
+{
+    SCVal val(SCV_U32);
+    val.u32() = u32;
+    return val;
+}
+
+static SCVal
+makeVoid()
+{
+    SCVal val(SCV_VOID);
+    return val;
+}
+
 static void
 submitTxToUploadWasm(Application& app, Operation const& op,
                      SorobanResources const& resources,
@@ -108,7 +123,10 @@ submitTxToUploadWasm(Application& app, Operation const& op,
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe = loadContractCode(ltx2, expectedWasmHash);
     REQUIRE(ltxe);
-    REQUIRE(ltxe.current().data.contractCode().code == expectedWasm);
+
+    auto const& body = ltxe.current().data.contractCode().body;
+    REQUIRE(body.leType() == DATA_ENTRY);
+    REQUIRE(body.code() == expectedWasm);
 }
 
 static void
@@ -130,10 +148,14 @@ submitTxToCreateContract(Application& app, Operation const& op,
 
     // verify contract code reference is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
-    auto ltxe = loadContractData(ltx2, contractID, executableKey);
+    auto ltxe = loadContractData(ltx2, contractID, executableKey,
+                                 CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
     REQUIRE(ltxe);
-    REQUIRE(ltxe.current().data.contractData().val ==
-            makeWasmRefScContractCode(expectedWasmHash));
+
+    auto const& cd = ltxe.current().data.contractData();
+    REQUIRE(cd.type == CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
+    REQUIRE(cd.body.leType() == DATA_ENTRY);
+    REQUIRE(cd.body.data().val == makeWasmRefScContractCode(expectedWasmHash));
 }
 
 static xdr::xvector<LedgerKey>
@@ -203,18 +225,37 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.type(CONTRACT_DATA);
     contractSourceRefLedgerKey.contractData().contractID = contractID;
     contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
+    contractSourceRefLedgerKey.contractData().type =
+        CONTRACT_INSTANCE_CONTRACT_DATA_TYPE;
 
     SorobanResources createResources;
     createResources.footprint.readOnly = {contractCodeLedgerKey};
     createResources.footprint.readWrite = {contractSourceRefLedgerKey};
-    createResources.instructions = 50'000;
+    createResources.instructions = 200'000;
     createResources.readBytes = 5000;
-    createResources.writeBytes = 500;
-    createResources.extendedMetaDataSizeBytes = 1000;
+    createResources.writeBytes = 5000;
+    createResources.extendedMetaDataSizeBytes = 6000;
 
     submitTxToCreateContract(
         app, createOp, createResources, contractID, scContractSourceRefKey,
         contractCodeLedgerKey.contractCode().hash, 100'000, 200);
+
+    // Check lifetimes for contract instance and code
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    auto expectedExpirattion =
+        networkConfig.stateExpirationSettings().minRestorableEntryLifetime +
+        lcl;
+
+    auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
+    auto codeLtxe = ltx.load(contractCodeLedgerKey);
+    REQUIRE(instanceLtxe);
+    REQUIRE(codeLtxe);
+    REQUIRE(instanceLtxe.current().data.contractData().expirationLedgerSeq ==
+            expectedExpirattion);
+    REQUIRE(codeLtxe.current().data.contractCode().expirationLedgerSeq ==
+            expectedExpirattion);
 
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
@@ -222,7 +263,9 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
+    auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int64_t initBalance = root.getBalance();
 
@@ -388,13 +431,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
     auto const& contractID = contractKeys[0].contractData().contractID;
 
-    auto checkContractData = [&](SCVal const& key, SCVal const* val) {
+    auto checkContractData = [&](SCVal const& key, ContractDataType type,
+                                 SCVal const* val) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = loadContractData(ltx, contractID, key);
+        auto ltxe = loadContractData(ltx, contractID, key, type);
         if (val)
         {
             REQUIRE(ltxe);
-            REQUIRE(ltxe.current().data.contractData().val == *val);
+
+            auto const& body = ltxe.current().data.contractData().body;
+            REQUIRE(body.leType() == DATA_ENTRY);
+            REQUIRE(body.data().val == *val);
         }
         else
         {
@@ -402,19 +449,38 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto putWithFootprint = [&](std::string const& key, uint64_t val,
-                                xdr::xvector<LedgerKey> const& readOnly,
-                                xdr::xvector<LedgerKey> const& readWrite,
-                                uint32_t writeBytes, bool expectSuccess) {
+    auto checkContractDataLifetime = [&](std::string const& key,
+                                         ContractDataType type,
+                                         uint32_t expectedExpiration,
+                                         uint32_t flags = 0) {
         auto keySymbol = makeSymbol(key);
-        auto valU64 = makeU64(val);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
+        REQUIRE(ltxe);
+        REQUIRE(getExpirationLedger(ltxe.current()) == expectedExpiration);
+        REQUIRE(ltxe.current().data.contractData().body.data().flags == flags);
+    };
 
+    auto checkContractLifetime = [&](uint32_t expectedExpiration) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        for (auto const& key : contractKeys)
+        {
+            auto ltxe = ltx.loadWithoutRecord(key);
+            REQUIRE(ltxe);
+            REQUIRE(getExpirationLedger(ltxe.current()) == expectedExpiration);
+        }
+    };
+
+    auto createTx = [&](xdr::xvector<LedgerKey> const& readOnly,
+                        xdr::xvector<LedgerKey> const& readWrite,
+                        uint32_t writeBytes, SCVec const& invokeVector)
+        -> std::tuple<TransactionFrameBasePtr, std::shared_ptr<LedgerTxn>,
+                      std::shared_ptr<TransactionMetaFrame>> {
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract() = {makeContractAddress(contractID),
-                                makeSymbol("put"), keySymbol, valU64};
+        ihf.invokeContract() = invokeVector;
         SorobanResources resources;
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
@@ -424,97 +490,187 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.extendedMetaDataSizeBytes = 3000;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            app->getNetworkID(), root, {op}, {}, resources, 120'000, 1200);
+        auto ltx = std::make_shared<LedgerTxn>(app->getLedgerTxnRoot());
+        auto txm = std::make_shared<TransactionMetaFrame>(
+            ltx->loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, *ltx, 0, 0, 0));
+        return {tx, ltx, txm};
+    };
+
+    auto putWithFootprint = [&](std::string const& key, uint64_t val,
+                                xdr::xvector<LedgerKey> const& readOnly,
+                                xdr::xvector<LedgerKey> const& readWrite,
+                                uint32_t writeBytes, bool expectSuccess,
+                                ContractDataType type,
+                                std::optional<uint32_t> flags) {
+        auto keySymbol = makeSymbol(key);
+        auto valU64 = makeU64(val);
+        auto scFlags = flags ? makeU32(*flags) : makeVoid();
+
+        std::string funcStr;
+        switch (type)
+        {
+        case TEMPORARY:
+            funcStr = "put_temporary";
+            break;
+        case RECREATABLE:
+            funcStr = "put_recreatable";
+            break;
+        case UNIQUE:
+            funcStr = "put_unique";
+            break;
+        }
+
+        auto [tx, ltx, txm] =
+            createTx(readOnly, readWrite, writeBytes,
+                     {makeBinary(contractID.begin(), contractID.end()),
+                      makeSymbol(funcStr), keySymbol, valU64, scFlags});
+
         if (expectSuccess)
         {
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-            checkContractData(keySymbol, &valU64);
+            REQUIRE(tx->apply(*app, *ltx, *txm));
+            ltx->commit();
+            checkContractData(keySymbol, type, &valU64);
         }
         else
         {
-            REQUIRE(!tx->apply(*app, ltx, txm));
-            ltx.commit();
+            REQUIRE(!tx->apply(*app, *ltx, *txm));
+            ltx->commit();
         }
     };
 
-    auto put = [&](std::string const& key, uint64_t val) {
-        putWithFootprint(key, val, contractKeys,
-                         {contractDataKey(contractID, makeSymbol(key))}, 1000,
-                         true);
+    auto put = [&](std::string const& key, uint64_t val, ContractDataType type,
+                   std::optional<uint32_t> flags = std::nullopt) {
+        putWithFootprint(
+            key, val, contractKeys,
+            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
+            1000, true, type, flags);
     };
 
-    auto delWithFootprint =
-        [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess) {
-            auto keySymbol = makeSymbol(key);
+    auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
+                                 xdr::xvector<LedgerKey> const& readOnly,
+                                 xdr::xvector<LedgerKey> const& readWrite,
+                                 bool expectSuccess, ContractDataType type) {
+        auto keySymbol = makeSymbol(key);
+        auto bumpAmountU32 = makeU32(bumpAmount);
 
-            Operation op;
-            op.body.type(INVOKE_HOST_FUNCTION);
-            auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-            ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-            ihf.invokeContract() = {makeContractAddress(contractID),
-                                    makeSymbol("del"), keySymbol};
-            SorobanResources resources;
-            resources.footprint.readOnly = readOnly;
-            resources.footprint.readWrite = readWrite;
-            resources.instructions = 2'000'000;
-            resources.readBytes = 5000;
-            resources.writeBytes = 1000;
-            resources.extendedMetaDataSizeBytes = 3000;
+        std::string funcStr;
+        switch (type)
+        {
+        case TEMPORARY:
+            funcStr = "bump_temporary";
+            break;
+        case RECREATABLE:
+            funcStr = "bump_recreatable";
+            break;
+        case UNIQUE:
+            funcStr = "bump_unique";
+            break;
+        }
 
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            if (expectSuccess)
-            {
-                REQUIRE(tx->apply(*app, ltx, txm));
-                ltx.commit();
-                checkContractData(keySymbol, nullptr);
-            }
-            else
-            {
-                REQUIRE(!tx->apply(*app, ltx, txm));
-                ltx.commit();
-            }
-        };
+        // TODO: Better bytes to write value
+        auto [tx, ltx, txm] =
+            createTx(readOnly, readWrite, 1000,
+                     {makeBinary(contractID.begin(), contractID.end()),
+                      makeSymbol(funcStr), keySymbol, bumpAmountU32});
 
-    auto del = [&](std::string const& key) {
-        delWithFootprint(key, contractKeys,
-                         {contractDataKey(contractID, makeSymbol(key))}, true);
+        if (expectSuccess)
+        {
+            REQUIRE(tx->apply(*app, *ltx, *txm));
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*app, *ltx, *txm));
+        }
+
+        ltx->commit();
+    };
+
+    auto bump = [&](std::string const& key, ContractDataType type,
+                    uint32_t bumpAmount) {
+        bumpWithFootprint(
+            key, bumpAmount, contractKeys,
+            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
+            true, type);
+    };
+
+    auto delWithFootprint = [&](std::string const& key,
+                                xdr::xvector<LedgerKey> const& readOnly,
+                                xdr::xvector<LedgerKey> const& readWrite,
+                                bool expectSuccess, ContractDataType type) {
+        auto keySymbol = makeSymbol(key);
+
+        std::string funcStr;
+        switch (type)
+        {
+        case TEMPORARY:
+            funcStr = "del_temporary";
+            break;
+        case RECREATABLE:
+            funcStr = "del_recreatable";
+            break;
+        case UNIQUE:
+            funcStr = "del_unique";
+            break;
+        }
+
+        // TODO: Better bytes to write value
+        auto [tx, ltx, txm] =
+            createTx(readOnly, readWrite, 1000,
+                     {makeBinary(contractID.begin(), contractID.end()),
+                      makeSymbol(funcStr), keySymbol});
+
+        if (expectSuccess)
+        {
+            REQUIRE(tx->apply(*app, *ltx, *txm));
+            ltx->commit();
+            checkContractData(keySymbol, type, nullptr);
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*app, *ltx, *txm));
+            ltx->commit();
+        }
+    };
+
+    auto del = [&](std::string const& key, ContractDataType type) {
+        delWithFootprint(
+            key, contractKeys,
+            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
+            true, type);
     };
 
     SECTION("default limits")
     {
-        put("key1", 0);
-        put("key2", 21);
+
+        put("key1", 0, RECREATABLE);
+        put("key2", 21, RECREATABLE);
 
         // Failure: contract data isn't in footprint
-        putWithFootprint("key1", 88, contractKeys, {}, 1000, false);
-        delWithFootprint("key1", contractKeys, {}, false);
+        putWithFootprint("key1", 88, contractKeys, {}, 1000, false, RECREATABLE,
+                         std::nullopt);
+        delWithFootprint("key1", contractKeys, {}, false, RECREATABLE);
 
         // Failure: contract data is read only
         auto readOnlyFootprint = contractKeys;
-        readOnlyFootprint.push_back(
-            contractDataKey(contractID, makeSymbol("key2")));
-        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false);
-        delWithFootprint("key2", readOnlyFootprint, {}, false);
+        readOnlyFootprint.push_back(contractDataKey(
+            contractID, makeSymbol("key2"), RECREATABLE, DATA_ENTRY));
+        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
+                         RECREATABLE, std::nullopt);
+        delWithFootprint("key2", readOnlyFootprint, {}, false, RECREATABLE);
 
         // Failure: insufficient write bytes
         putWithFootprint("key2", 88888, contractKeys,
-                         {contractDataKey(contractID, makeSymbol("key2"))}, 1,
-                         false);
+                         {contractDataKey(contractID, makeSymbol("key2"),
+                                          RECREATABLE, DATA_ENTRY)},
+                         1, false, RECREATABLE, std::nullopt);
 
-        put("key1", 9);
-        put("key2", UINT64_MAX);
+        put("key1", 9, RECREATABLE);
+        put("key2", UINT64_MAX, RECREATABLE);
 
-        del("key1");
-        del("key2");
+        del("key1", RECREATABLE);
+        del("key2", RECREATABLE);
     }
 
     SorobanNetworkConfig refConfig;
@@ -529,9 +685,187 @@ TEST_CASE("contract storage", "[tx][soroban]")
         app->getLedgerManager().setSorobanNetworkConfig(refConfig);
         // this fails due to the contract code itself exceeding the entry limit
         putWithFootprint("key2", 2, contractKeys,
-                         {contractDataKey(contractID, makeSymbol("key2"))},
-                         1000, false);
+                         {contractDataKey(contractID, makeSymbol("key2"),
+                                          RECREATABLE, DATA_ENTRY)},
+                         1000, false, RECREATABLE, std::nullopt);
     }
+
+    SECTION("Same ScVal key, different types")
+    {
+        // Check that each type is in their own keyspace
+        uint64_t uniqueVal = 0;
+        uint64_t recreatableVal = 1;
+        uint64_t temporaryVal = 2;
+        put("key", uniqueVal, UNIQUE);
+        put("key", recreatableVal, RECREATABLE);
+        put("key", temporaryVal, TEMPORARY);
+        auto uniqueScVal = makeU64(uniqueVal);
+        auto recreatableScVal = makeU64(recreatableVal);
+        auto temporaryScVal = makeU64(temporaryVal);
+        auto keySymbol = makeSymbol("key");
+        checkContractData(keySymbol, UNIQUE, &uniqueScVal);
+        checkContractData(keySymbol, RECREATABLE, &recreatableScVal);
+        checkContractData(keySymbol, TEMPORARY, &temporaryScVal);
+
+        put("key2", 3, UNIQUE);
+        auto key2Symbol = makeSymbol("key2");
+        auto uniqueScVal2 = makeU64(3);
+        checkContractData(key2Symbol, UNIQUE, &uniqueScVal2);
+        checkContractData(key2Symbol, RECREATABLE, nullptr);
+        checkContractData(key2Symbol, TEMPORARY, nullptr);
+    }
+
+    auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
+    auto autoBump = stateExpirationSettings.autoBumpLedgers;
+    auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+
+    SECTION("Enforce rent minimums")
+    {
+        put("unique", 0, UNIQUE);
+        put("recreateable", 0, RECREATABLE);
+        put("temp", 0, TEMPORARY);
+
+        auto expectedTempLifetime =
+            stateExpirationSettings.minTempEntryLifetime + lcl;
+        auto expectedRestorableLifetime =
+            stateExpirationSettings.minRestorableEntryLifetime + lcl;
+
+        checkContractDataLifetime("unique", UNIQUE, expectedRestorableLifetime);
+        checkContractDataLifetime("recreateable", RECREATABLE,
+                                  expectedRestorableLifetime);
+        checkContractDataLifetime("temp", TEMPORARY, expectedTempLifetime);
+    }
+
+    SECTION("autobump")
+    {
+        put("rw", 0, UNIQUE);
+        put("ro", 0, UNIQUE);
+
+        uint32_t flags = NO_AUTOBUMP;
+        put("nobump", 0, UNIQUE, flags);
+
+        auto readOnlySet = contractKeys;
+        readOnlySet.emplace_back(
+            contractDataKey(contractID, makeSymbol("ro"), UNIQUE, DATA_ENTRY));
+
+        auto readWriteSet = {
+            contractDataKey(contractID, makeSymbol("nobump"), UNIQUE,
+                            DATA_ENTRY),
+            contractDataKey(contractID, makeSymbol("rw"), UNIQUE, DATA_ENTRY)};
+
+        // Invoke contract with all keys in footprint
+        putWithFootprint("rw", 1, readOnlySet, readWriteSet, 1000, true, UNIQUE,
+                         std::nullopt);
+
+        auto expectedInitialLifetime =
+            stateExpirationSettings.minRestorableEntryLifetime + lcl;
+
+        checkContractDataLifetime("rw", UNIQUE,
+                                  expectedInitialLifetime + autoBump);
+        checkContractDataLifetime("ro", UNIQUE,
+                                  expectedInitialLifetime + autoBump);
+        checkContractDataLifetime("nobump", UNIQUE, expectedInitialLifetime,
+                                  flags);
+
+        // Contract instance and WASM should have minimum life and 4 invocations
+        // worth of autobumps
+        checkContractLifetime(expectedInitialLifetime + (autoBump * 4));
+    }
+
+    SECTION("manual bump")
+    {
+        put("key", 0, UNIQUE);
+        bump("key", UNIQUE, 10'000);
+        checkContractDataLifetime("key", UNIQUE, 10'000 + lcl);
+
+        // Lifetime already above 5'000, should be a nop (other than autobump)
+        bump("key", UNIQUE, 5'000);
+        checkContractDataLifetime("key", UNIQUE, 10'000 + autoBump + lcl);
+    }
+
+    SECTION("max lifetime")
+    {
+        // Check that manual bump doesn't go over max
+        put("key", 0, UNIQUE);
+        bump("key", UNIQUE, UINT32_MAX);
+
+        auto maxLifetime = stateExpirationSettings.maxEntryLifetime + lcl;
+        checkContractDataLifetime("key", UNIQUE, maxLifetime);
+
+        // Manual bump to almost max, then autobump to check that autobump
+        // doesn't go over max
+        put("key2", 0, UNIQUE);
+        bump("key2", UNIQUE, stateExpirationSettings.maxEntryLifetime - 1);
+        checkContractDataLifetime("key2", UNIQUE, maxLifetime - 1);
+
+        // Autobump should only add a single ledger to bring lifetime to max
+        put("key2", 1, UNIQUE);
+        checkContractDataLifetime("key2", UNIQUE, maxLifetime);
+    }
+
+    // WIP
+
+    // SECTION("read-only bumps use LIFETIME_EXTENSION")
+    // {
+    //     put("ro", 0, UNIQUE);
+
+    //     // Create a second entry, but put "key" in the readonly set. Check
+    //     ltx
+    //     // before commiting to make sure LIFETIME_EXTENSION is written
+    //     instead
+    //     // of a DATA_ENTRY
+    //     auto keySymbol = makeSymbol("key2");
+    //     auto valU64 = makeU64(0);
+    //     auto readOnly = contractKeys;
+    //     readOnly.emplace_back(
+    //         contractDataKey(contractID, makeSymbol("ro"), UNIQUE,
+    //         DATA_ENTRY));
+
+    //     auto [tx, ltx, txm] = createTx(
+    //         readOnly,
+    //         {contractDataKey(contractID, keySymbol, UNIQUE, DATA_ENTRY)},
+    //         1000, {makeBinary(contractID.begin(), contractID.end()),
+    //          makeSymbol("put_unique"), keySymbol, valU64, makeVoid()});
+
+    //     REQUIRE(tx->apply(*app, *ltx, *txm));
+
+    //     auto expectedExpiration =
+    //         stateExpirationSettings.minRestorableEntryLifetime + lcl +
+    //         autoBump;
+
+    //     std::vector<LedgerEntry> init;
+    //     std::vector<LedgerEntry> live;
+    //     std::vector<LedgerKey> dead;
+    //     ltx->getAllEntries(init, live, dead);
+
+    //     auto roSymbol = makeSymbol("ro");
+    //     auto dataKey =
+    //         contractDataKey(contractID, roSymbol, UNIQUE, DATA_ENTRY);
+    //     auto extKey =
+    //         contractDataKey(contractID, roSymbol, UNIQUE,
+    //         LIFETIME_EXTENSION);
+
+    //     // LIFETIME_EXTENSION should never be init
+    //     for (auto const& e : init)
+    //     {
+    //         auto k = LedgerEntryKey(e);
+    //         REQUIRE((k != dataKey && k != extKey));
+    //     }
+
+    //     bool foundExtension = false;
+    //     for (auto const& e : live)
+    //     {
+    //         auto k = LedgerEntryKey(e);
+    //         REQUIRE(k != dataKey);
+    //         if (k == extKey)
+    //         {
+    //             foundExtension = true;
+    //             REQUIRE(getExpirationLedger(e) == expectedExpiration);
+    //         }
+    //     }
+
+    //     REQUIRE(foundExtension);
+    // }
 }
 
 TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
@@ -790,7 +1124,7 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     SorobanResources resources;
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
-    resources.writeBytes = 1000;
+    resources.writeBytes = 1072;
     resources.extendedMetaDataSizeBytes = 3000;
     {
         auto key1 = LedgerKey(CONTRACT_DATA);
