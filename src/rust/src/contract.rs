@@ -381,7 +381,6 @@ fn invoke_host_function_or_maybe_panic(
     let (storage, budget, events) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
-    eprintln!("measured vals {} {}", budget.get_cpu_insns_count(), budget.get_mem_bytes_count());
     log_debug_events(&events);
     let result_value = match res {
         Ok(rv) => xdr_to_rust_buf(&rv)?,
