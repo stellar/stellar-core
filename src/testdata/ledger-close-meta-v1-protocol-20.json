@@ -413,106 +413,6 @@
                                         {
                                             "type": "LEDGER_ENTRY_STATE",
                                             "state": {
-                                                "lastModifiedLedgerSeq": 5,
-                                                "data": {
-                                                    "type": "ACCOUNT",
-                                                    "account": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "balance": 399999900,
-                                                        "seqNum": 8589934593,
-                                                        "numSubEntries": 1,
-                                                        "inflationDest": null,
-                                                        "flags": 0,
-                                                        "homeDomain": "",
-                                                        "thresholds": "01000000",
-                                                        "signers": [],
-                                                        "ext": {
-                                                            "v": 1,
-                                                            "v1": {
-                                                                "liabilities": {
-                                                                    "buying": 0,
-                                                                    "selling": 0
-                                                                },
-                                                                "ext": {
-                                                                    "v": 2,
-                                                                    "v2": {
-                                                                        "numSponsored": 0,
-                                                                        "numSponsoring": 0,
-                                                                        "signerSponsoringIDs": [],
-                                                                        "ext": {
-                                                                            "v": 3,
-                                                                            "v3": {
-                                                                                "ext": {
-                                                                                    "v": 0
-                                                                                },
-                                                                                "seqLedger": 5,
-                                                                                "seqTime": 0
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
-                                                "lastModifiedLedgerSeq": 6,
-                                                "data": {
-                                                    "type": "ACCOUNT",
-                                                    "account": {
-                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                        "balance": 400000900,
-                                                        "seqNum": 8589934593,
-                                                        "numSubEntries": 1,
-                                                        "inflationDest": null,
-                                                        "flags": 0,
-                                                        "homeDomain": "",
-                                                        "thresholds": "01000000",
-                                                        "signers": [],
-                                                        "ext": {
-                                                            "v": 1,
-                                                            "v1": {
-                                                                "liabilities": {
-                                                                    "buying": 0,
-                                                                    "selling": 0
-                                                                },
-                                                                "ext": {
-                                                                    "v": 2,
-                                                                    "v2": {
-                                                                        "numSponsored": 0,
-                                                                        "numSponsoring": 0,
-                                                                        "signerSponsoringIDs": [],
-                                                                        "ext": {
-                                                                            "v": 3,
-                                                                            "v3": {
-                                                                                "ext": {
-                                                                                    "v": 0
-                                                                                },
-                                                                                "seqLedger": 5,
-                                                                                "seqTime": 0
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
                                                 "lastModifiedLedgerSeq": 6,
                                                 "data": {
                                                     "type": "ACCOUNT",
@@ -596,6 +496,106 @@
                                                                                     "v": 0
                                                                                 },
                                                                                 "seqLedger": 6,
+                                                                                "seqTime": 0
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_STATE",
+                                            "state": {
+                                                "lastModifiedLedgerSeq": 5,
+                                                "data": {
+                                                    "type": "ACCOUNT",
+                                                    "account": {
+                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                        "balance": 399999900,
+                                                        "seqNum": 8589934593,
+                                                        "numSubEntries": 1,
+                                                        "inflationDest": null,
+                                                        "flags": 0,
+                                                        "homeDomain": "",
+                                                        "thresholds": "01000000",
+                                                        "signers": [],
+                                                        "ext": {
+                                                            "v": 1,
+                                                            "v1": {
+                                                                "liabilities": {
+                                                                    "buying": 0,
+                                                                    "selling": 0
+                                                                },
+                                                                "ext": {
+                                                                    "v": 2,
+                                                                    "v2": {
+                                                                        "numSponsored": 0,
+                                                                        "numSponsoring": 0,
+                                                                        "signerSponsoringIDs": [],
+                                                                        "ext": {
+                                                                            "v": 3,
+                                                                            "v3": {
+                                                                                "ext": {
+                                                                                    "v": 0
+                                                                                },
+                                                                                "seqLedger": 5,
+                                                                                "seqTime": 0
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_UPDATED",
+                                            "updated": {
+                                                "lastModifiedLedgerSeq": 6,
+                                                "data": {
+                                                    "type": "ACCOUNT",
+                                                    "account": {
+                                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                        "balance": 400000900,
+                                                        "seqNum": 8589934593,
+                                                        "numSubEntries": 1,
+                                                        "inflationDest": null,
+                                                        "flags": 0,
+                                                        "homeDomain": "",
+                                                        "thresholds": "01000000",
+                                                        "signers": [],
+                                                        "ext": {
+                                                            "v": 1,
+                                                            "v1": {
+                                                                "liabilities": {
+                                                                    "buying": 0,
+                                                                    "selling": 0
+                                                                },
+                                                                "ext": {
+                                                                    "v": 2,
+                                                                    "v2": {
+                                                                        "numSponsored": 0,
+                                                                        "numSponsoring": 0,
+                                                                        "signerSponsoringIDs": [],
+                                                                        "ext": {
+                                                                            "v": 3,
+                                                                            "v3": {
+                                                                                "ext": {
+                                                                                    "v": 0
+                                                                                },
+                                                                                "seqLedger": 5,
                                                                                 "seqTime": 0
                                                                             }
                                                                         }
