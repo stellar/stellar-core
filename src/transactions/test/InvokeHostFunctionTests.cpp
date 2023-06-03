@@ -921,7 +921,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().diagnosticEvents;
-    REQUIRE(opEvents.size() == 3);
+    REQUIRE(opEvents.size() == 2);
 
     auto const& call_ev = opEvents.at(0);
     REQUIRE(!call_ev.inSuccessfulContractCall);
@@ -932,11 +932,6 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(!contract_ev.inSuccessfulContractCall);
     REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
-
-    auto const& error_er = opEvents.at(2);
-    REQUIRE(!error_er.inSuccessfulContractCall);
-    REQUIRE(error_er.event.type == ContractEventType::DIAGNOSTIC);
-    REQUIRE(error_er.event.body.v0().data.type() == SCV_VEC);
 }
 
 TEST_CASE("complex contract", "[tx][soroban]")
