@@ -207,19 +207,20 @@ Bucket::loadKeys(
                 if (entryOp->type() != DEADENTRY)
                 {
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                     if (isSorobanExtEntry(*currKeyIt))
                     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                         auto k = *currKeyIt;
                         setLeType(k, ContractLedgerEntryType::DATA_ENTRY);
                         lifetimeExtensions.emplace(
                             k, getExpirationLedger(entryOp->liveEntry()));
+#endif
                     }
                     else
-#endif
                     {
                         if (isSorobanDataEntry(entryOp->liveEntry().data))
                         {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                             if (auto extIter =
                                     lifetimeExtensions.find(*currKeyIt);
                                 extIter != lifetimeExtensions.end())
@@ -239,8 +240,8 @@ Bucket::loadKeys(
                                                     EXPIRATION_EXTENSION);
                                 keys.erase(extK);
                             }
+#endif
                         }
-
                         result.push_back(entryOp->liveEntry());
                     }
                 }
