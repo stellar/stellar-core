@@ -116,7 +116,8 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 bool
 InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
-    throw std::runtime_error("InvokeHostFunctionOpFrame::doApply needs Config");
+    throw std::runtime_error(
+        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
 }
 
 void
@@ -269,7 +270,8 @@ struct HostFunctionMetrics
 };
 
 bool
-InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                                   Hash const& sorobanBasePrngSeed)
 {
     Config const& cfg = app.getConfig();
     HostFunctionMetrics metrics(app.getMetrics());
@@ -355,12 +357,17 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     try
     {
         auto timeScope = metrics.getExecTimer();
+        CxxBuf basePrngSeedBuf;
+        basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
+        basePrngSeedBuf.data->assign(sorobanBasePrngSeed.begin(),
+                                     sorobanBasePrngSeed.end());
 
         out = rust_bridge::invoke_host_function(
             cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
             cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, hostFnCxxBuf,
             toCxxBuf(resources), toCxxBuf(getSourceID()), authEntryCxxBufs,
-            getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs);
+            getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
+            basePrngSeedBuf);
 
         if (out.success)
         {

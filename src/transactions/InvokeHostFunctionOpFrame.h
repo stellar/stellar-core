@@ -39,7 +39,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doApply(Application& app, AbstractLedgerTxn& ltx) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed) override;
 
     bool doCheckValid(SorobanNetworkConfig const& config,
                       uint32_t ledgerVersion) override;

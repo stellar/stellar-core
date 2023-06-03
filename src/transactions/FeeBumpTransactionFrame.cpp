@@ -114,7 +114,8 @@ updateResult(TransactionResult& outerRes, TransactionFrameBasePtr innerTx)
 
 bool
 FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                               TransactionMetaFrame& meta)
+                               TransactionMetaFrame& meta,
+                               Hash const& sorobanBasePrngSeed)
 {
     try
     {
@@ -137,7 +138,7 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
     try
     {
-        bool res = mInnerTx->apply(app, ltx, meta, false);
+        bool res = mInnerTx->apply(app, ltx, meta, false, sorobanBasePrngSeed);
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
         updateResult(getResult(), mInnerTx);

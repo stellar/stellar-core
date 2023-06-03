@@ -135,7 +135,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx)
+                      AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
     bool res;
@@ -143,7 +143,7 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
     res = checkValid(app, signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(app, ltx);
+        res = doApply(app, ltx, sorobanBasePrngSeed);
         CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
@@ -151,10 +151,11 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 }
 
 bool
-OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx)
+OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx,
+                        Hash const& sorobanBasePrngSeed)
 {
-    // By default we ignore the app, but subclasses can override to
-    // intercept and use it.
+    // By default we ignore the app and seed, but subclasses can override to
+    // intercept and use them.
     return doApply(ltx);
 }
 

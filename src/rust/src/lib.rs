@@ -141,6 +141,7 @@ mod rust_bridge {
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
+            base_prng_seed: &CxxBuf,
         ) -> Result<InvokeHostFunctionOutput>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
@@ -538,6 +539,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    base_prng_seed: &CxxBuf,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     if ledger_info.protocol_version > config_max_protocol {
         return Err(Box::new(soroban_curr::contract::CoreHostError::General(
@@ -555,6 +557,7 @@ pub(crate) fn invoke_host_function(
                 auth_entries,
                 ledger_info,
                 ledger_entries,
+                base_prng_seed,
             );
         }
     }
@@ -566,6 +569,7 @@ pub(crate) fn invoke_host_function(
         auth_entries,
         ledger_info,
         ledger_entries,
+        base_prng_seed,
     )
 }
 
