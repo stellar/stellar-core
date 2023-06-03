@@ -408,8 +408,8 @@ fn invoke_host_function_or_maybe_panic(
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
-                cpu_insns: budget.get_cpu_insns_count(),
-                mem_bytes: budget.get_mem_bytes_count(),
+                cpu_insns: budget.get_cpu_insns_consumed(),
+                mem_bytes: budget.get_mem_bytes_consumed(),
             });
         }
     };
@@ -425,8 +425,8 @@ fn invoke_host_function_or_maybe_panic(
         contract_events,
         diagnostic_events,
         modified_ledger_entries,
-        cpu_insns: budget.get_cpu_insns_count(),
-        mem_bytes: budget.get_mem_bytes_count(),
+        cpu_insns: budget.get_cpu_insns_consumed(),
+        mem_bytes: budget.get_mem_bytes_consumed(),
     })
 }
 
