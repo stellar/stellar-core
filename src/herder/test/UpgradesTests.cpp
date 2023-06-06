@@ -788,6 +788,7 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
     auto cfg = getTestConfig(0);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
     auto app = createTestApplication(clock, cfg);
 
     // Need to actually execute the upgrade to v20 to get the config

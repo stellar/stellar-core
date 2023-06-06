@@ -228,7 +228,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         SorobanNetworkConfig::initializeGenesisLedgerForTesting(
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx);
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION, ltx, mApp.getConfig());
     }
 
     LedgerEntry rootEntry;
