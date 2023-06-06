@@ -210,7 +210,7 @@ class TransactionQueueTest
     }
 
   private:
-    TransactionQueue mTransactionQueue;
+    ClassicTransactionQueue mTransactionQueue;
 };
 }
 
@@ -1367,7 +1367,7 @@ TEST_CASE("TxQueueLimiter with limited source accounts",
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
 
-    TxQueueLimiter limiter(1, *app);
+    TxQueueLimiter limiter(1, *app, false);
 
     int fee = 100;
     auto tx = transaction(*app, account1, 1, 100, fee);
@@ -1397,6 +1397,313 @@ TEST_CASE("TxQueueLimiter with limited source accounts",
         limiter.addTransaction(transaction(*app, account1, 2, 1, fee * 2));
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
+{
+  public:
+    // Index of the DEX limited lane.
+    static constexpr size_t LARGE_SOROBAN_LANE = 1;
+
+    SorobanLimitingLaneConfigForTesting(Resource sorobanGenericLimit,
+                                        std::optional<Resource> sorobanLimit)
+    {
+        mLaneOpsLimits.push_back(sorobanGenericLimit);
+        if (sorobanLimit)
+        {
+            mLaneOpsLimits.push_back(*sorobanLimit);
+        }
+    }
+
+    size_t
+    getLane(TransactionFrameBase const& tx) const override
+    {
+        bool limitedLane = tx.getEnvelope().v1().tx.memo.type() == MEMO_TEXT &&
+                           tx.getEnvelope().v1().tx.memo.text() == "limit";
+        if (mLaneOpsLimits.size() >
+                SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE &&
+            limitedLane)
+        {
+            return SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE;
+        }
+        else
+        {
+            return SurgePricingPriorityQueue::GENERIC_LANE;
+        }
+    }
+    std::vector<Resource> const&
+    getLaneLimits() const override
+    {
+        return mLaneOpsLimits;
+    }
+    virtual void
+    updateGenericLaneLimit(Resource const& limit) override
+    {
+        mLaneOpsLimits[0] = limit;
+    }
+    virtual Resource
+    getTxResources(TransactionFrameBase const& tx) override
+    {
+        releaseAssert(tx.isSoroban());
+        return tx.getNumResources();
+    }
+
+  private:
+    std::vector<Resource> mLaneOpsLimits;
+};
+
+TEST_CASE("Soroban TransactionQueue limits",
+          "[herder][transactionqueue][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
+    cfg.FLOOD_TX_PERIOD_MS = 100;
+    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
+    auto app = createTestApplication(clock, cfg);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+    auto root = TestAccount::createRoot(*app);
+    auto account1 = root.create("a1", minBalance2);
+    auto account2 = root.create("a2", minBalance2);
+
+    auto perLedgerLimits = [&](AbstractLedgerTxn& ltxOuter) {
+        auto conf = app->getLedgerManager().getSorobanNetworkConfig(ltxOuter);
+        std::vector<int64_t> limits = {conf.ledgerMaxInstructions(),
+                                       conf.ledgerMaxPropagateSizeBytes(),
+                                       conf.ledgerMaxReadBytes(),
+                                       conf.ledgerMaxWriteBytes(),
+                                       conf.ledgerMaxReadLedgerEntries(),
+                                       conf.ledgerMaxWriteLedgerEntries()};
+        return Resource(limits);
+    };
+
+    SorobanNetworkConfig conf;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+    resources.extendedMetaDataSizeBytes = 3000;
+
+    int refundableFee = 1200;
+    int initialFee = 10'000'000;
+
+    auto resAdjusted = resources;
+    resAdjusted.instructions = conf.ledgerMaxInstructions();
+
+    auto tx = createSimpleDeployContractTx(*app, root, initialFee,
+                                           refundableFee, resAdjusted);
+
+    REQUIRE(app->getHerder().recvTransaction(tx, false) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(app->getHerder().getTx(tx->getFullHash()) != nullptr);
+
+    SECTION("classic is rejected when soroban is pending")
+    {
+        // Can't submit classic tx due to source account limit
+        REQUIRE(app->getHerder().recvTransaction(
+                    transaction(*app, root, 1, 100, 100), false) ==
+                TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+
+        // ban existing soroban tx
+        app->getHerder().getSorobanTransactionQueue().ban({tx});
+        REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
+        REQUIRE(app->getHerder().isBannedTx(tx->getFullHash()));
+
+        // Now can submit classic txs
+        REQUIRE(app->getHerder().recvTransaction(
+                    transaction(*app, root, 0, 100, 100), false) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    }
+    SECTION("tx does not fit")
+    {
+        SECTION("reject")
+        {
+            // New Soroban tx fits within limits, but now there's no space
+            auto tx2 = createSimpleDeployContractTx(*app, account1, initialFee,
+                                                    refundableFee, resources);
+
+            REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            SECTION("insufficient fee")
+            {
+                // Same fee, no eviction
+                auto tx2 = createSimpleDeployContractTx(
+                    *app, account2, initialFee, refundableFee, resAdjusted);
+
+                REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                        TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
+                REQUIRE(tx2->getResultCode() ==
+                        TransactionResultCode::txINSUFFICIENT_FEE);
+            }
+            SECTION("invalid resources")
+            {
+                // Instruction count over max
+                resources.instructions = conf.txMaxInstructions() + 1;
+
+                // Double the fee
+                auto tx2 = createSimpleDeployContractTx(
+                    *app, account2, initialFee * 2, refundableFee, resources);
+
+                REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                        TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
+                REQUIRE(
+                    tx2->getResultCode() ==
+                    TransactionResultCode::txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            }
+        }
+        SECTION("accept but evict first tx")
+        {
+            // Add two more txs that will cause instructions to go over limit;
+            // evict the first tx (lowest fee)
+            resources.instructions = conf.txMaxInstructions();
+
+            auto tx2 = createSimpleDeployContractTx(
+                *app, account1, initialFee * 2, refundableFee, resources);
+            auto tx3 = createSimpleDeployContractTx(
+                *app, account2, initialFee * 3, refundableFee, resources);
+
+            auto status = app->getHerder().recvTransaction(tx2, false);
+            REQUIRE(status == TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            auto status2 = app->getHerder().recvTransaction(tx3, false);
+            REQUIRE(status2 == TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            // Evicted and banned the first tx
+            REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
+            REQUIRE(app->getHerder().isBannedTx(tx->getFullHash()));
+        }
+    }
+    SECTION("limited lane eviction")
+    {
+        std::shared_ptr<Resource> limits = nullptr;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            limits = std::make_shared<Resource>(perLedgerLimits(ltx));
+        }
+        // Setup limits: generic fits 1 ledger worth of resources, while limited
+        // lane fits 1/4 ledger
+        auto limitedLane = std::optional<Resource>(
+            bigDivideOrThrow(*limits, 1, 4, Rounding::ROUND_UP));
+        auto config = std::make_shared<SorobanLimitingLaneConfigForTesting>(
+            *limits, limitedLane);
+        auto queue = std::make_unique<SurgePricingPriorityQueue>(
+            /* isHighestPriority */ false, config, 1);
+
+        std::vector<std::pair<TxStackPtr, bool>> toEvict;
+
+        // Generic tx, takes 1/2 of instruction limits
+        resources.instructions = conf.ledgerMaxInstructions() / 2;
+        tx = createSimpleDeployContractTx(*app, root, initialFee, refundableFee,
+                                          resources);
+
+        SECTION("generic fits")
+        {
+            REQUIRE(
+                queue->canFitWithEviction(*tx, std::nullopt, toEvict).first);
+            REQUIRE(toEvict.empty());
+        }
+        SECTION("limited too big")
+        {
+            // Fits into generic, but doesn't fit into limited
+            resources.instructions = conf.txMaxInstructions() / 2;
+            auto tx2 = createSimpleDeployContractTx(
+                *app, account1, initialFee, refundableFee, resources,
+                std::make_optional<std::string>("limit"));
+
+            REQUIRE(config->getLane(*tx2) ==
+                    SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
+
+            REQUIRE(
+                !queue->canFitWithEviction(*tx2, std::nullopt, toEvict).first);
+            REQUIRE(toEvict.empty());
+        }
+        SECTION("limited fits")
+        {
+            // Fits into limited
+            resources.instructions = conf.txMaxInstructions() / 8;
+            auto tx2 = createSimpleDeployContractTx(
+                *app, account1, initialFee * 2, refundableFee, resources,
+                std::make_optional<std::string>("limit"));
+
+            REQUIRE(config->getLane(*tx2) ==
+                    SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
+
+            REQUIRE(
+                queue->canFitWithEviction(*tx2, std::nullopt, toEvict).first);
+            REQUIRE(toEvict.empty());
+
+            SECTION("limited evicts")
+            {
+                // Add 2 generic transactions to reach generic limit
+                queue->add(std::make_shared<SingleTxStack>(tx));
+                resources.instructions = conf.ledgerMaxInstructions() / 2;
+                // The fee is slightly higher so this transactions is more
+                // favorable during evictions
+                auto secondGeneric = createSimpleDeployContractTx(
+                    *app, account2, initialFee + 10, refundableFee, resources);
+
+                REQUIRE(queue
+                            ->canFitWithEviction(*secondGeneric, std::nullopt,
+                                                 toEvict)
+                            .first);
+                REQUIRE(toEvict.empty());
+                queue->add(std::make_shared<SingleTxStack>(secondGeneric));
+
+                SECTION("limited evicts generic")
+                {
+                    // Fit within limited lane
+                    REQUIRE(
+                        queue->canFitWithEviction(*tx2, std::nullopt, toEvict)
+                            .first);
+                    REQUIRE(toEvict.size() == 1);
+                    REQUIRE(toEvict[0].first->getTopTx() == tx);
+                }
+                SECTION("evict due to lane limit")
+                {
+                    // Add another limited tx, so that generic and limited are
+                    // both at max
+                    resources.writeBytes = conf.txMaxWriteBytes() / 4;
+                    resources.instructions = 0;
+                    auto tx2 = createSimpleDeployContractTx(
+                        *app, account1, initialFee * 2, refundableFee,
+                        resources, std::make_optional<std::string>("limit"));
+
+                    REQUIRE(
+                        queue->canFitWithEviction(*tx2, std::nullopt, toEvict)
+                            .first);
+                    queue->add(std::make_shared<SingleTxStack>(tx2));
+
+                    // Add, new tx with max limited lane resources, set a high
+                    // fee
+                    resources.instructions = conf.txMaxInstructions() / 4;
+                    resources.instructions = conf.txMaxWriteBytes() / 4;
+                    auto tx3 = createSimpleDeployContractTx(
+                        *app, account2, initialFee * 3, refundableFee,
+                        resources, std::make_optional<std::string>("limit"));
+
+                    REQUIRE(
+                        queue->canFitWithEviction(*tx3, std::nullopt, toEvict)
+                            .first);
+
+                    // Should evict generic _and_ limited tx
+                    REQUIRE(toEvict.size() == 2);
+                    REQUIRE(toEvict[0].first->getTopTx() == tx);
+                    REQUIRE(!toEvict[0].second);
+                    REQUIRE(toEvict[1].first->getTopTx() == tx2);
+                    REQUIRE(toEvict[1].second);
+                }
+            }
+        }
+    }
+}
+#endif
 
 TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
 {
@@ -1480,7 +1787,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
     }
     SECTION("multi accounts limits")
     {
-        TxQueueLimiter limiter(3, *app);
+        TxQueueLimiter limiter(3, *app, false);
 
         struct SetupElement
         {
@@ -1660,7 +1967,7 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
     auto account3 = root.create("a3", minBalance2);
 
     // 3 * 3 = 9 operations limit, 3 * 1 = 3 DEX operations limit.
-    TxQueueLimiter limiter(3, *app);
+    TxQueueLimiter limiter(3, *app, false);
 
     std::vector<TransactionFrameBasePtr> txs;
 
@@ -1908,7 +2215,7 @@ TEST_CASE("transaction queue starting sequence boundary",
         acc1.bumpSequence(startingSeq - 1);
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
 
-        TransactionQueue tq(*app, 4, 10, 4);
+        ClassicTransactionQueue tq(*app, 4, 10, 4);
         REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100), false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
@@ -1930,7 +2237,7 @@ TEST_CASE("transaction queue starting sequence boundary",
         acc1.bumpSequence(startingSeq - 3);
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
 
-        TransactionQueue tq(*app, 4, 10, 4);
+        ClassicTransactionQueue tq(*app, 4, 10, 4);
         for (size_t i = 1; i <= 4; ++i)
         {
             REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100), false) ==
