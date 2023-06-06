@@ -1217,8 +1217,11 @@ OverlayManagerImpl::getMaxDemandSize() const
             cfg.getExpectedLedgerCloseTime())
             .count();
     double opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
+    // TODO: will need to add ledgerMaxTxCount here when it's implemented
+    // See https://github.com/stellar/stellar-core/issues/3757
     double queueSizeInOpsDbl =
-        static_cast<double>(mApp.getHerder().getMaxQueueSizeOps()) *
+        static_cast<double>(
+            mApp.getHerder().getTransactionQueue().getMaxQueueSizeOps()) *
         opRatePerLedger;
     releaseAssertOrThrow(queueSizeInOpsDbl >= 0.0);
     int64_t queueSizeInOps = static_cast<int64_t>(queueSizeInOpsDbl);
