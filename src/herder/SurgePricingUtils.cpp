@@ -139,11 +139,13 @@ SurgePricingPriorityQueue::SurgePricingPriorityQueue(
     size_t comparisonSeed)
     : mComparator(isHighestPriority, comparisonSeed)
     , mLaneConfig(settings)
-    , mLaneOpsLimits(mLaneConfig->getLaneOpsLimits())
-    , mLaneOpsCount(mLaneOpsLimits.size())
-    , mTxStackSets(mLaneOpsLimits.size(), TxStackSet(mComparator))
+    , mLaneLimits(mLaneConfig->getLaneLimits())
+    , mTxStackSets(mLaneLimits.size(), TxStackSet(mComparator))
 {
-    releaseAssert(!mLaneOpsLimits.empty());
+    releaseAssert(!mLaneLimits.empty());
+    mLaneCurrentCount = std::vector<Resource>(
+        mLaneLimits.size(),
+        Resource(std::vector<int64_t>(mLaneLimits[0].size(), 0)));
 }
 
 std::vector<TransactionFrameBasePtr>
@@ -164,8 +166,8 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
         txs.push_back(txStack.getTopTx());
         return VisitTxStackResult::TX_PROCESSED;
     };
-    std::vector<uint32_t> laneOpsLeftUntilLimit;
-    queue.popTopTxs(/* allowGaps */ true, visitor, laneOpsLeftUntilLimit,
+    std::vector<Resource> laneLeftUntilLimit;
+    queue.popTopTxs(/* allowGaps */ true, visitor, laneLeftUntilLimit,
                     hadTxNotFittingLane);
     return txs;
 }
@@ -173,19 +175,16 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
 void
 SurgePricingPriorityQueue::visitTopTxs(
     std::vector<TxStackPtr> const& txStacks,
-    std::shared_ptr<SurgePricingLaneConfig> laneConfig, size_t comparisonSeed,
     std::function<VisitTxStackResult(TxStack const&)> const& visitor,
-    std::vector<uint32_t>& laneOpsLeftUntilLimit)
+    std::vector<Resource>& laneLeftUntilLimit)
 {
-    SurgePricingPriorityQueue queue(/* isHighestPriority */ true, laneConfig,
-                                    comparisonSeed);
     for (auto txStack : txStacks)
     {
-        queue.add(txStack);
+        add(txStack);
     }
     std::vector<bool> hadTxNotFittingLane;
-    queue.popTopTxs(/* allowGaps */ false, visitor, laneOpsLeftUntilLimit,
-                    hadTxNotFittingLane);
+    popTopTxs(/* allowGaps */ false, visitor, laneLeftUntilLimit,
+              hadTxNotFittingLane);
 }
 
 void
@@ -196,7 +195,7 @@ SurgePricingPriorityQueue::add(TxStackPtr txStack)
     bool inserted = mTxStackSets[lane].insert(txStack).second;
     if (inserted)
     {
-        mLaneOpsCount[lane] += txStack->getNumOperations();
+        mLaneCurrentCount[lane] += txStack->getResources();
     }
 }
 
@@ -223,8 +222,9 @@ void
 SurgePricingPriorityQueue::erase(
     size_t lane, SurgePricingPriorityQueue::TxStackSet::iterator iter)
 {
-    auto ops = (*iter)->getNumOperations();
-    mLaneOpsCount[lane] -= ops;
+    auto res = (*iter)->getResources();
+    releaseAssert(res <= mLaneCurrentCount[lane]);
+    mLaneCurrentCount[lane] -= res;
     mTxStackSets[lane].erase(iter);
 }
 
@@ -232,11 +232,11 @@ void
 SurgePricingPriorityQueue::popTopTxs(
     bool allowGaps,
     std::function<VisitTxStackResult(TxStack const&)> const& visitor,
-    std::vector<uint32_t>& laneOpsLeftUntilLimit,
+    std::vector<Resource>& laneLeftUntilLimit,
     std::vector<bool>& hadTxNotFittingLane)
 {
-    laneOpsLeftUntilLimit = mLaneOpsLimits;
-    hadTxNotFittingLane.assign(mLaneOpsLimits.size(), false);
+    laneLeftUntilLimit = mLaneLimits;
+    hadTxNotFittingLane.assign(mLaneLimits.size(), false);
     while (true)
     {
         auto currIt = getTop();
@@ -247,10 +247,10 @@ SurgePricingPriorityQueue::popTopTxs(
         while (!currIt.isEnd())
         {
             auto const& currTx = *(*currIt)->getTopTx();
-            auto currOps = currTx.getNumOperations();
+            auto curr = mLaneConfig->getTxResources(currTx);
             auto lane = mLaneConfig->getLane(currTx);
-            if (currOps > laneOpsLeftUntilLimit[lane] ||
-                currOps > laneOpsLeftUntilLimit[GENERIC_LANE])
+            if (anyGreater(curr, laneLeftUntilLimit[lane]) ||
+                anyGreater(curr, laneLeftUntilLimit[GENERIC_LANE]))
             {
                 if (allowGaps)
                 {
@@ -258,7 +258,7 @@ SurgePricingPriorityQueue::popTopTxs(
                     // continue in the main loop.
                     gapSkipped = true;
                     erase(currIt);
-                    if (currOps > laneOpsLeftUntilLimit[lane])
+                    if (anyGreater(curr, laneLeftUntilLimit[lane]))
                     {
                         hadTxNotFittingLane[lane] = true;
                     }
@@ -278,7 +278,7 @@ SurgePricingPriorityQueue::popTopTxs(
                     // every lane stops being iterated over as soon as
                     // non-fitting tx is found.
                     if (lane != GENERIC_LANE &&
-                        currOps > laneOpsLeftUntilLimit[lane])
+                        anyGreater(curr, laneLeftUntilLimit[lane]))
                     {
                         currIt.dropLane();
                     }
@@ -303,21 +303,23 @@ SurgePricingPriorityQueue::popTopTxs(
             break;
         }
         // At this point, `currIt` points at the top transaction in the queue
-        // (within the allowed lanes) that is still within operation limits, so
+        // (within the allowed lanes) that is still within resource limits, so
         // we can visit it and remove it from the queue.
         auto const& txStack = *currIt;
         auto visitRes = visitor(*txStack);
-        auto ops = txStack->getTopTx()->getNumOperations();
+        auto res = mLaneConfig->getTxResources(*(txStack->getTopTx()));
         auto lane = mLaneConfig->getLane(*txStack->getTopTx());
-        // Only account for operation counts when transaction was actually
+        // Only account for resource counts when transaction was actually
         // processed by the visitor.
         if (visitRes == VisitTxStackResult::TX_PROCESSED)
         {
             // 'Generic' lane's limit is shared between all the transactions.
-            laneOpsLeftUntilLimit[GENERIC_LANE] -= ops;
+            // Resources left must be greater than or equal to the tx subtracted
+            // (enforced by -= operator)
+            laneLeftUntilLimit[GENERIC_LANE] -= res;
             if (lane != GENERIC_LANE)
             {
-                laneOpsLeftUntilLimit[lane] -= ops;
+                laneLeftUntilLimit[lane] -= res;
             }
         }
         // Pop the tx from current iterator, unless the whole tx stack is
@@ -335,57 +337,68 @@ SurgePricingPriorityQueue::popTopTxs(
 
 std::pair<bool, int64_t>
 SurgePricingPriorityQueue::canFitWithEviction(
-    TransactionFrameBase const& tx, uint32_t txOpsDiscount,
+    TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
     std::vector<std::pair<TxStackPtr, bool>>& txStacksToEvict) const
 {
     // This only makes sense when the lowest fee rate tx is on top.
     releaseAssert(!mComparator.isGreater());
 
     auto lane = mLaneConfig->getLane(tx);
-    if (tx.getNumOperations() < txOpsDiscount)
+    auto txNewResources = mLaneConfig->getTxResources(tx);
+    if (txDiscount)
     {
-        throw std::invalid_argument(
-            "Discount shouldn't be larger than transaction operations count");
+        if (anyLessThan(txNewResources, *txDiscount))
+        {
+            throw std::invalid_argument("Discount shouldn't be larger than "
+                                        "transaction operations count");
+        }
+        txNewResources -= *txDiscount;
     }
-    auto txNewOps = tx.getNumOperations() - txOpsDiscount;
-    if (txNewOps > mLaneOpsLimits[GENERIC_LANE] ||
-        txNewOps > mLaneOpsLimits[lane])
+
+    if (anyGreater(txNewResources, mLaneLimits[GENERIC_LANE]) ||
+        anyGreater(txNewResources, mLaneLimits[lane]))
     {
         CLOG_WARNING(
             Herder,
-            "Transaction fee lane has lower size than transaction ops: {} < "
+            "Transaction fee lane has lower size than transaction : {} < "
             "{}. Node won't be able to accept all transactions.",
-            txNewOps > mLaneOpsLimits[GENERIC_LANE]
-                ? mLaneOpsLimits[GENERIC_LANE]
-                : mLaneOpsLimits[lane],
-            txNewOps);
+            txNewResources > mLaneLimits[GENERIC_LANE]
+                ? mLaneLimits[GENERIC_LANE].toString()
+                : mLaneLimits[lane].toString(),
+            txNewResources.toString());
         return std::make_pair(false, 0ll);
     }
-    uint32_t totalOps = sizeOps();
-    uint32_t newTotalOps = totalOps + txNewOps;
-    uint32_t newLaneOps = mLaneOpsCount[lane] + txNewOps;
+    Resource total = totalResources();
+
+    Resource newTotalResources = total + txNewResources;
+    Resource newLaneResources = mLaneCurrentCount[lane] + txNewResources;
     // To fit the eviction, tx has to both fit into 'generic' lane's limit
     // (shared among all the txs) and its own lane's limit.
-    bool fitWithoutEviction = newTotalOps <= mLaneOpsLimits[GENERIC_LANE] &&
-                              newLaneOps <= mLaneOpsLimits[lane];
+    releaseAssert(mLaneCurrentCount[lane] <= total);
+    releaseAssert(mLaneLimits[lane] <= mLaneLimits[GENERIC_LANE]);
+    bool fitWithoutEviction = newTotalResources <= mLaneLimits[GENERIC_LANE] &&
+                              newLaneResources <= mLaneLimits[lane];
     // If there is enough space, return.
     if (fitWithoutEviction)
     {
         return std::make_pair(true, 0ll);
     }
     auto iter = getTop();
-    int64_t neededTotalOps = std::max<int64_t>(
-        0, static_cast<int64_t>(newTotalOps) - mLaneOpsLimits[GENERIC_LANE]);
-    int64_t neededLaneOps = std::max<int64_t>(
-        0LL, static_cast<int64_t>(newLaneOps) - mLaneOpsLimits[lane]);
+
+    Resource neededTotal =
+        subtractNonNegative(newTotalResources, mLaneLimits[GENERIC_LANE]);
+    Resource neededLane =
+        subtractNonNegative(newLaneResources, mLaneLimits[lane]);
+
     // The above checks should ensure there are some operations that need to be
     // evicted.
-    releaseAssert(neededTotalOps > 0 || neededLaneOps > 0);
-    while (neededTotalOps > 0 || neededLaneOps > 0)
+    releaseAssert(neededTotal.anyPositive() || neededLane.anyPositive());
+    while (neededTotal.anyPositive() || neededLane.anyPositive())
     {
         bool evictedDueToLaneLimit = false;
         while (!iter.isEnd())
         {
+            // This is the cheapest transaction
             auto const& evictTxStack = *iter;
             auto const& evictTx = *evictTxStack->getTopTx();
             auto evictLane = mLaneConfig->getLane(evictTx);
@@ -395,16 +408,16 @@ SurgePricingPriorityQueue::canFitWithEviction(
             // Simple cases: generic lane txs can evict anything; same lane txs
             // can evict each other; any transaction can be evicted if per-lane
             // limit hasn't been reached; any transaction can be evicted if
-            // there is not enough ops to evict from limited lane to fit the
-            // current transaction
+            // there is not enough resources to evict from limited lane to fit
+            // the current transaction
             if (lane == GENERIC_LANE || lane == evictLane ||
-                neededTotalOps > neededLaneOps)
+                anyGreater(neededTotal, neededLane))
             {
                 canEvict = true;
             }
             else
             {
-                // When we need to evict more ops from the tx's lane than from
+                // When we need to evict more  from the tx's lane than from
                 // the generic lane, then we can only evict from tx's lane (any
                 // other evictions are pointless).
                 evictedDueToLaneLimit = true;
@@ -426,14 +439,17 @@ SurgePricingPriorityQueue::canFitWithEviction(
         releaseAssert(!iter.isEnd());
         auto const& evictTxStack = *iter;
         auto const& evictTx = *evictTxStack->getTopTx();
-        auto evictOps = evictTxStack->getNumOperations();
+        auto evict = evictTxStack->getResources();
         auto evictLane = mLaneConfig->getLane(evictTx);
         // Only support this for single tx stacks (eventually we should only
         // have such stacks and share this invariant across all the queue
         // operations).
-        releaseAssert(evictOps == evictTx.getNumOperations());
+        releaseAssert(evict == mLaneConfig->getTxResources(evictTx));
 
         // Evicted tx must have a strictly lower fee than the new tx.
+        // NB: this logic works with properly with Soroban transactions as well,
+        // since those are guaranteed to contain 1 op, therefore fee-per-op
+        // computation is a no-op.
         if (!mComparator.compareFeeOnly(evictTx, tx))
         {
             auto minFee = computeBetterFee(tx, evictTx.getFeeBid(),
@@ -447,22 +463,21 @@ SurgePricingPriorityQueue::canFitWithEviction(
         }
 
         txStacksToEvict.emplace_back(evictTxStack, evictedDueToLaneLimit);
-        neededTotalOps -= evictOps;
-        // Only reduce the needed lane ops when we evict from tx's lane or when
+        neededTotal = subtractNonNegative(neededTotal, evict);
+        // Only reduce the needed lane when we evict from tx's lane or when
         // we're trying to fit a 'generic' lane tx (as it can evict any other
         // tx).
         if (lane == GENERIC_LANE || lane == evictLane)
         {
-            neededLaneOps -= evictOps;
+            neededLane = subtractNonNegative(neededLane, evict);
         }
-        if (neededTotalOps <= 0 && neededLaneOps <= 0)
+        if (!neededTotal.anyPositive() && !neededLane.anyPositive())
         {
             return std::make_pair(true, 0ll);
         }
 
         iter.advance();
     }
-    // The preconditions must guarantee that we find an evicted transction set.
     releaseAssert(false);
 }
 
@@ -482,18 +497,21 @@ SurgePricingPriorityQueue::getTop() const
     return SurgePricingPriorityQueue::Iterator(*this, iters);
 }
 
-uint32_t
-SurgePricingPriorityQueue::sizeOps() const
+Resource
+SurgePricingPriorityQueue::totalResources() const
 {
-    return std::accumulate(mLaneOpsCount.begin(), mLaneOpsCount.end(),
-                           static_cast<uint32_t>(0));
+    releaseAssert(!mLaneCurrentCount.empty());
+    auto resourceCount = mLaneCurrentCount.begin()->size();
+    Resource res(std::vector<int64_t>(resourceCount, 0));
+    return std::accumulate(mLaneCurrentCount.begin(), mLaneCurrentCount.end(),
+                           res);
 }
 
-uint32_t
-SurgePricingPriorityQueue::laneOps(size_t lane) const
+Resource
+SurgePricingPriorityQueue::laneResources(size_t lane) const
 {
-    releaseAssert(lane < mLaneOpsCount.size());
-    return mLaneOpsCount[lane];
+    releaseAssert(lane < mLaneCurrentCount.size());
+    return mLaneCurrentCount[lane];
 }
 
 void
@@ -566,32 +584,39 @@ SurgePricingPriorityQueue::Iterator::dropLane()
     mIters.erase(getMutableInnerIter());
 }
 
-DexLimitingLaneConfig::DexLimitingLaneConfig(
-    uint32_t opsLimit, std::optional<uint32_t> dexOpsLimit)
+DexLimitingLaneConfig::DexLimitingLaneConfig(Resource Limit,
+                                             std::optional<Resource> dexLimit)
 {
-    mLaneOpsLimits.push_back(opsLimit);
-    if (dexOpsLimit)
+    mLaneLimits.push_back(Limit);
+    if (dexLimit)
     {
-        mLaneOpsLimits.push_back(*dexOpsLimit);
+        mLaneLimits.push_back(*dexLimit);
     }
 }
 
-std::vector<uint32_t> const&
-DexLimitingLaneConfig::getLaneOpsLimits() const
+std::vector<Resource> const&
+DexLimitingLaneConfig::getLaneLimits() const
 {
-    return mLaneOpsLimits;
+    return mLaneLimits;
 }
 
 void
-DexLimitingLaneConfig::updateGenericLaneLimit(uint32_t limit)
+DexLimitingLaneConfig::updateGenericLaneLimit(Resource const& limit)
 {
-    mLaneOpsLimits[0] = limit;
+    mLaneLimits[0] = limit;
+}
+
+Resource
+DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx)
+{
+    releaseAssert(!tx.isSoroban());
+    return tx.getNumResources();
 }
 
 size_t
 DexLimitingLaneConfig::getLane(TransactionFrameBase const& tx) const
 {
-    if (mLaneOpsLimits.size() > DexLimitingLaneConfig::DEX_LANE &&
+    if (mLaneLimits.size() > DexLimitingLaneConfig::DEX_LANE &&
         tx.hasDexOperations())
     {
         return DexLimitingLaneConfig::DEX_LANE;
@@ -600,5 +625,40 @@ DexLimitingLaneConfig::getLane(TransactionFrameBase const& tx) const
     {
         return SurgePricingPriorityQueue::GENERIC_LANE;
     }
+}
+
+SorobanGenericLaneConfig::SorobanGenericLaneConfig(Resource limit)
+{
+    mLaneLimits.push_back(limit);
+}
+
+size_t
+SorobanGenericLaneConfig::getLane(TransactionFrameBase const& tx) const
+{
+    if (!tx.isSoroban())
+    {
+        throw std::runtime_error("Invalid tx: non-Soroban");
+    }
+
+    return SurgePricingPriorityQueue::GENERIC_LANE;
+}
+
+std::vector<Resource> const&
+SorobanGenericLaneConfig::getLaneLimits() const
+{
+    return mLaneLimits;
+}
+
+void
+SorobanGenericLaneConfig::updateGenericLaneLimit(Resource const& limit)
+{
+    mLaneLimits[0] = limit;
+}
+
+Resource
+SorobanGenericLaneConfig::getTxResources(TransactionFrameBase const& tx)
+{
+    releaseAssert(tx.isSoroban());
+    return tx.getNumResources();
 }
 } // namespace stellar
