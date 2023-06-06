@@ -58,6 +58,8 @@ makeGeneralizedTxSetXDR(
             componentTxs.emplace_back(tx->getEnvelope());
         }
     }
+
+    xdrTxSet.v1TxSet().phases.emplace_back();
     return xdrTxSet;
 }
 
