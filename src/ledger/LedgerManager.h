@@ -120,6 +120,9 @@ class LedgerManager
     // ledger expressed in number of operations
     virtual uint32_t getLastMaxTxSetSizeOps() const = 0;
 
+    virtual Resource maxLedgerResources(bool isSoroban,
+                                        AbstractLedgerTxn& ltxOuter) = 0;
+
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
