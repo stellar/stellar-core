@@ -42,9 +42,10 @@ struct GeneratedLoadConfig
     static GeneratedLoadConfig
     createAccountsLoad(uint32_t nAccounts, uint32_t txRate, uint32_t batchSize);
 
-    static GeneratedLoadConfig txLoad(LoadGenMode mode, uint32_t nAccounts,
-                                      uint32_t nTxs, uint32_t txRate,
-                                      uint32_t batchSize);
+    static GeneratedLoadConfig
+    txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
+           uint32_t batchSize, uint32_t offset = 0,
+           std::optional<uint32_t> maxFee = std::nullopt);
 
     LoadGenMode mode = LoadGenMode::CREATE;
     uint32_t nAccounts = 0;
@@ -182,9 +183,11 @@ class LoadGenerator
                            std::optional<uint32_t> maxGeneratedFeeRate);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    sorobanTransaction(uint32_t ledgerNum, uint64_t accountId);
+    sorobanTransaction(uint32_t numAccounts, uint32_t offset,
+                       uint32_t ledgerNum, uint64_t accountId);
 #endif
-    void maybeHandleFailedTx(TestAccountPtr sourceAccount,
+    void maybeHandleFailedTx(TransactionFramePtr tx,
+                             TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,
                              TransactionResultCode code);
     std::pair<TestAccountPtr, TransactionFramePtr>
