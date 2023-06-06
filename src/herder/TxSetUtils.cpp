@@ -63,6 +63,7 @@ AccountTransactionQueue::AccountTransactionQueue(
     std::vector<TransactionFrameBasePtr> const& accountTxs)
     : mTxs(accountTxs.begin(), accountTxs.end())
 {
+    releaseAssert(!mTxs.empty());
     std::sort(mTxs.begin(), mTxs.end(),
               [](TransactionFrameBasePtr const& tx1,
                  TransactionFrameBasePtr const& tx2) {
@@ -71,6 +72,16 @@ AccountTransactionQueue::AccountTransactionQueue(
     for (auto const& tx : accountTxs)
     {
         mNumOperations += tx->getNumOperations();
+    }
+
+    if (mTxs[0]->isSoroban())
+    {
+        releaseAssert(mTxs.size() == 1);
+        mIsSoroban = true;
+    }
+    else
+    {
+        mIsSoroban = false;
     }
 }
 
@@ -95,10 +106,18 @@ AccountTransactionQueue::popTopTx()
     mTxs.pop_front();
 }
 
-uint32_t
-AccountTransactionQueue::getNumOperations() const
+Resource
+AccountTransactionQueue::getResources() const
 {
-    return mNumOperations;
+    if (mIsSoroban)
+    {
+        return empty() ? Resource::makeEmpty(mIsSoroban)
+                       : getTopTx()->getNumResources();
+    }
+    else
+    {
+        return Resource(mNumOperations);
+    }
 }
 
 bool
