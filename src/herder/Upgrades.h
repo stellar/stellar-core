@@ -141,7 +141,7 @@ class Upgrades
                               AbstractLedgerTxn& ltx,
                               LedgerHeader const& header) const;
 
-    static void applyVersionUpgrade(AbstractLedgerTxn& ltx,
+    static void applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                                     uint32_t newVersion);
 
     static void applyReserveUpgrade(AbstractLedgerTxn& ltx,

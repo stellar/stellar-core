@@ -301,7 +301,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        applyVersionUpgrade(ltx, upgrade.newLedgerVersion());
+        applyVersionUpgrade(app, ltx, upgrade.newLedgerVersion());
         break;
     case LEDGER_UPGRADE_BASE_FEE:
         ltx.loadHeader().current().baseFee = upgrade.newBaseFee();
@@ -1197,7 +1197,8 @@ needUpgradeToVersion(ProtocolVersion targetVersion, uint32_t prevVersion,
 }
 
 void
-Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
+Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
+                              uint32_t newVersion)
 {
     auto header = ltx.loadHeader();
     uint32_t prevVersion = header.current().ledgerVersion;
@@ -1216,7 +1217,7 @@ Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(SOROBAN_PROTOCOL_VERSION, prevVersion, newVersion))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV20(ltx);
+        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app.getConfig());
     }
 #endif
 }

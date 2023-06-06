@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
+#include "main/Config.h"
 #include <cstdint>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
@@ -83,13 +84,15 @@ class SorobanNetworkConfig
     // Creates the initial contract configuration entries for protocol v20.
     // This should happen once during the correspondent protocol version
     // upgrade.
-    static void createLedgerEntriesForV20(AbstractLedgerTxn& ltx);
+    static void createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
+                                          Config const& cfg);
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)
     static void
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
-                                      AbstractLedgerTxn& ltx);
+                                      AbstractLedgerTxn& ltx,
+                                      Config const& cfg);
 
     void loadFromLedger(AbstractLedgerTxn& ltx);
     // Maximum allowed size of the contract Wasm that can be uploaded (in
