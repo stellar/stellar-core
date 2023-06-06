@@ -14,7 +14,8 @@ namespace txsimulation
 SimApplyOrderTxSetFrame::SimApplyOrderTxSetFrame(
     LedgerHeaderHistoryEntry const& lclHeader,
     Transactions const& txsInApplyOrder)
-    : TxSetFrame(lclHeader, txsInApplyOrder), mTxsInApplyOrder(txsInApplyOrder)
+    : TxSetFrame(lclHeader, TxSetFrame::TxPhases{txsInApplyOrder})
+    , mTxsInApplyOrder(txsInApplyOrder)
 {
     computeTxFeesForNonGeneralizedSet(lclHeader.header);
     computeContentsHash();
