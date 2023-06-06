@@ -408,9 +408,10 @@ TxSetFrame::makeFromWire(Application& app,
     // Mark fees as already computed as we read them from the XDR.
     txSet->mFeesComputed = true;
     txSet->mHash = hash;
-    int phaseId = 0;
-    for (auto const& phase : phases)
+    releaseAssert(phases.size() <= static_cast<size_t>(Phase::PHASE_COUNT));
+    for (auto phaseId = 0; phaseId < phases.size(); phaseId++)
     {
+        auto const& phase = phases[phaseId];
         auto const& components = phase.v0Components();
         for (auto const& component : components)
         {
@@ -434,7 +435,6 @@ TxSetFrame::makeFromWire(Application& app,
                 break;
             }
         }
-        ++phaseId;
     }
     return txSet;
 }
@@ -595,10 +595,16 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
             return true;
         };
 
-        if (!checkFeeMap(mTxBaseFeeClassic) || !checkFeeMap(mTxBaseFeeSoroban))
+        if (!checkFeeMap(getFeeMap(Phase::CLASSIC)))
         {
             return false;
         }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (!checkFeeMap(getFeeMap(Phase::SOROBAN)))
+        {
+            return false;
+        }
+#endif
     }
 
     if (this->size(lcl.header) > lcl.header.maxTxSetSize)
@@ -768,10 +774,8 @@ TxSetFrame::computeTxFees(TxSetFrame::Phase phase,
         }
     }
 
-    auto const& txs =
-        phase == TxSetFrame::Phase::CLASSIC ? mTxPhases[0] : mTxPhases[1];
-    auto& feeMap = phase == TxSetFrame::Phase::CLASSIC ? mTxBaseFeeClassic
-                                                       : mTxBaseFeeSoroban;
+    auto const& txs = mTxPhases.at(phase);
+    auto& feeMap = getFeeMap(phase);
     for (auto const& tx : txs)
     {
         feeMap[tx] = laneBaseFee[surgePricingConfig.getLane(*tx)];
@@ -791,8 +795,10 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     auto it = mTxBaseFeeClassic.find(tx);
     if (it == mTxBaseFeeClassic.end())
     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         it = mTxBaseFeeSoroban.find(tx);
         if (it == mTxBaseFeeSoroban.end())
+#endif
         {
             throw std::runtime_error("Transaction not found in tx set");
         }
@@ -878,17 +884,22 @@ TxSetFrame::summary() const
             return res;
         };
 
-        return fmt::format(FMT_STRING("Classic stats: {} Soroban stats: {}"),
-                           feeStats(mTxBaseFeeClassic),
-                           feeStats(mTxBaseFeeSoroban));
+        std::string status;
+        releaseAssert(mTxPhases.size() <=
+                      static_cast<size_t>(Phase::PHASE_COUNT));
+        for (auto i = 0; i != mTxPhases.size(); i++)
+        {
+            if (!status.empty())
+            {
+                status += ", ";
+            }
+            status += feeStats(getFeeMap(static_cast<Phase>(i)));
+        }
     }
     else
     {
-        return fmt::format(
-            FMT_STRING(
-                "txs:{}, ops:{}, base_fee_classic:{}, base_fee_soroban:{}"),
-            sizeTx(), sizeOp(), *mTxBaseFeeClassic.begin()->second,
-            mTxBaseFeeSoroban.empty() ? 0 : *mTxBaseFeeSoroban.begin()->second);
+        return fmt::format(FMT_STRING("txs:{}, ops:{}, base_fee:{}"), sizeTx(),
+                           sizeOp(), *mTxBaseFeeClassic.begin()->second);
     }
     return "";
 }
@@ -915,6 +926,7 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
     ZoneScoped;
     releaseAssert(isGeneralizedTxSet());
     releaseAssert(mFeesComputed);
+    releaseAssert(mTxPhases.size() <= static_cast<size_t>(Phase::PHASE_COUNT));
 
     generalizedTxSet.v(1);
     generalizedTxSet.v1TxSet().previousLedgerHash = mPreviousLedgerHash;
@@ -925,9 +937,7 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
         auto& phase =
             generalizedTxSet.v1TxSet().phases.emplace_back().v0Components();
 
-        auto const& feeMap = i == static_cast<int>(Phase::CLASSIC)
-                                 ? mTxBaseFeeClassic
-                                 : mTxBaseFeeSoroban;
+        auto const& feeMap = getFeeMap(static_cast<Phase>(i));
         std::map<std::optional<int64_t>, size_t> feeTxCount;
         for (auto const& [tx, fee] : feeMap)
         {
@@ -971,7 +981,7 @@ TxSetFrame::addTxsFromXdr(Application& app,
                           bool useBaseFee, std::optional<int64_t> baseFee,
                           Phase phase)
 {
-    auto& phaseTxs = mTxPhases[static_cast<int>(phase)];
+    auto& phaseTxs = mTxPhases.at(static_cast<int>(phase));
     size_t oldSize = phaseTxs.size();
     phaseTxs.reserve(oldSize + txs.size());
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -993,14 +1003,7 @@ TxSetFrame::addTxsFromXdr(Application& app,
         phaseTxs.push_back(tx);
         if (useBaseFee)
         {
-            if (phase == Phase::CLASSIC)
-            {
-                mTxBaseFeeClassic[tx] = baseFee;
-            }
-            else
-            {
-                mTxBaseFeeSoroban[tx] = baseFee;
-            }
+            getFeeMap(phase)[tx] = baseFee;
         }
     }
     return std::is_sorted(phaseTxs.begin() + oldSize, phaseTxs.end(),
@@ -1021,10 +1024,11 @@ TxSetFrame::applySurgePricing(Application& app)
     auto const& lclHeader =
         app.getLedgerManager().getLastClosedLedgerHeader().header;
 
+    releaseAssert(mTxPhases.size() <=
+                  static_cast<int>(TxSetFrame::Phase::PHASE_COUNT));
     for (int i = 0; i < mTxPhases.size(); i++)
     {
         mFeesComputed = false;
-        releaseAssert(i < static_cast<int>(TxSetFrame::Phase::PHASE_COUNT));
         TxSetFrame::Phase phaseType = static_cast<TxSetFrame::Phase>(i);
         auto& phase = mTxPhases[i];
         auto actTxQueues = TxSetUtils::buildAccountTxQueues(phase);
@@ -1141,4 +1145,32 @@ TxSetFrame::computeContentsHash()
     }
 }
 
+std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+TxSetFrame::getFeeMap(Phase phase) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (phase == Phase::SOROBAN)
+    {
+        return mTxBaseFeeSoroban;
+    }
+#endif
+    releaseAssert(phase == Phase::CLASSIC);
+    return mTxBaseFeeClassic;
+}
+
+std::string
+TxSetFrame::getPhaseName(Phase phase)
+{
+    switch (phase)
+    {
+    case Phase::CLASSIC:
+        return "classic";
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case Phase::SOROBAN:
+        return "soroban";
+#endif
+    default:
+        throw std::runtime_error("Unknown phase");
+    }
+}
 } // namespace stellar
