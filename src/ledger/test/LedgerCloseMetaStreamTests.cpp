@@ -448,7 +448,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
     VirtualClock clock;
     cfg.METADATA_OUTPUT_STREAM = metaPath;
     // TODO: later when network configs per ledger are settled, regenerate
-    // meta and remove the 6 lines below
+    // meta and remove the 7 lines below
+    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
     cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
     cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
     cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
@@ -474,8 +475,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         auto cur1 = issuer.asset("CUR1");
 
         // Ledger #5 sets up a trustline which has to happen before we can
-        // use
-        // it.
+        // use it.
         acc1.changeTrust(cur1, 100);
 
         // Ledger #6 uses closeLedger so emits interesting meta.

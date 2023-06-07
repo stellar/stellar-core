@@ -78,6 +78,9 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 10;
+
+    // General execution settings
+    static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -169,6 +172,9 @@ class SorobanNetworkConfig
     // Fee for propagating 1KB of data
     int64_t feePropagateData1KB() const;
 
+    // General execution ledger settings
+    uint32_t ledgerMaxTxCount() const;
+
 #ifdef BUILD_TESTS
     uint32_t& maxContractDataKeySizeBytes();
     uint32_t& maxContractDataEntrySizeBytes();
@@ -199,6 +205,7 @@ class SorobanNetworkConfig
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
+    void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -215,6 +222,7 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxReadBytes{};
     uint32_t mLedgerMaxWriteLedgerEntries{};
     uint32_t mLedgerMaxWriteBytes{};
+    uint32_t mLedgerMaxTxCount{};
     uint32_t mTxMaxReadLedgerEntries{};
     uint32_t mTxMaxReadBytes{};
     uint32_t mTxMaxWriteLedgerEntries{};
