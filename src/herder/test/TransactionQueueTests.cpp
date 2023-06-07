@@ -1466,17 +1466,6 @@ TEST_CASE("Soroban TransactionQueue limits",
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
 
-    auto perLedgerLimits = [&](AbstractLedgerTxn& ltxOuter) {
-        auto conf = app->getLedgerManager().getSorobanNetworkConfig(ltxOuter);
-        std::vector<int64_t> limits = {conf.ledgerMaxInstructions(),
-                                       conf.ledgerMaxPropagateSizeBytes(),
-                                       conf.ledgerMaxReadBytes(),
-                                       conf.ledgerMaxWriteBytes(),
-                                       conf.ledgerMaxReadLedgerEntries(),
-                                       conf.ledgerMaxWriteLedgerEntries()};
-        return Resource(limits);
-    };
-
     SorobanNetworkConfig conf;
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1585,7 +1574,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         std::shared_ptr<Resource> limits = nullptr;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            limits = std::make_shared<Resource>(perLedgerLimits(ltx));
+            limits = std::make_shared<Resource>(
+                app->getLedgerManager().maxLedgerResources(true, ltx));
         }
         // Setup limits: generic fits 1 ledger worth of resources, while limited
         // lane fits 1/4 ledger

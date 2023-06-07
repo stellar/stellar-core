@@ -1257,11 +1257,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                                   ProtocolVersion::V_20))
     {
         mSorobanTransactionQueue.ban(
-            invalidTxPhases[static_cast<int>(TxSetFrame::Phase::SOROBAN)]);
+            invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
     }
 #endif
     mTransactionQueue.ban(
-        invalidTxPhases[static_cast<int>(TxSetFrame::Phase::CLASSIC)]);
+        invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::CLASSIC)]);
 
     auto txSetHash = proposedSet->getContentsHash();
 

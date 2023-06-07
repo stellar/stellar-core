@@ -25,15 +25,19 @@ using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class TxSetFrame : public NonMovableOrCopyable
 {
   public:
-    enum class Phase
+    enum Phase
     {
-        CLASSIC = 0,
-        SOROBAN = 1,
-        PHASE_COUNT = 2
+        CLASSIC,
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        SOROBAN,
+#endif
+        PHASE_COUNT
     };
 
     using Transactions = std::vector<TransactionFrameBasePtr>;
     using TxPhases = std::vector<Transactions>;
+
+    static std::string getPhaseName(Phase phase);
 
     // Creates a valid TxSetFrame from the provided transactions.
     // Not all the transactions will be included in the result: invalid
@@ -208,13 +212,17 @@ class TxSetFrame : public NonMovableOrCopyable
     Hash const mPreviousLedgerHash;
     std::vector<Transactions> mTxPhases;
 
-    mutable bool mFeesComputed = false;
+    mutable std::vector<bool> mFeesComputed;
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseFeeClassic;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseFeeSoroban;
+#endif
+    std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+    getFeeMap(Phase phase) const;
 };
 
 } // namespace stellar

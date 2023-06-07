@@ -1323,11 +1323,10 @@ SorobanTransactionQueue::broadcastSome()
             conf.txMaxReadLedgerEntries(), conf.txMaxWriteLedgerEntries()};
         maxPerTx = Resource(limits);
     }
-    for (auto& opsLeft : mBroadcastOpCarryover)
+    for (auto& resLeft : mBroadcastOpCarryover)
     {
-        // Limit each resource to carry-over to per-flood-period limit to avoid
-        // spikes
-        opsLeft = limitTo(opsLeft, maxPerTx);
+        // Limit each resource in carry-over to max per tx limit to avoid spikes
+        resLeft = limitTo(resLeft, maxPerTx);
     }
     return !totalResToFlood.isZero();
 }

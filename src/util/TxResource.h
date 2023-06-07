@@ -5,6 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/numeric.h"
+#include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <vector>
 

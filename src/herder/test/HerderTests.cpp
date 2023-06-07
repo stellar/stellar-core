@@ -1532,6 +1532,140 @@ TEST_CASE("surge pricing", "[herder][txset]")
         REQUIRE(invalidTxs.empty());
         REQUIRE(txSet->sizeTx() == 0);
     }
+    SECTION("soroban txs")
+    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        Config cfg(getTestConfig());
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        // Max 1 classic op
+        // TODO: this needs to be extended to include Soroban ledger tx limit
+        // (right now not implemented)
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 3;
+
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc1 = root.create("account1", 500000000);
+        auto acc2 = root.create("account2", 500000000);
+        auto acc3 = root.create("account3", 500000000);
+        auto acc4 = root.create("account4", 500000000);
+
+        // Valid classic
+        auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
+
+        SorobanNetworkConfig conf;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        }
+
+        uint32_t const baseFee = 10'000'000;
+        SorobanResources resources;
+        resources.instructions = 800'000;
+        resources.readBytes = conf.txMaxReadBytes();
+        resources.writeBytes = 1000;
+        resources.extendedMetaDataSizeBytes = 3000;
+        auto sorobanTx = createSimpleDeployContractTx(
+            *app, acc2, baseFee, /* refundableFee */ 1200, resources);
+
+        SECTION("invalid soroban is rejected")
+        {
+            // Fee too small
+            auto invalidSoroban = createSimpleDeployContractTx(
+                *app, acc2, 100, /* refundableFee */ 1200, resources);
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {invalidSoroban}}, *app, 0, 0,
+                invalidPhases);
+
+            // Soroban tx is rejected
+            REQUIRE(txSet->sizeTx() == 1);
+            REQUIRE(invalidPhases[0].empty());
+            REQUIRE(invalidPhases[1].size() == 1);
+        }
+        SECTION("classic and soroban fit")
+        {
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {sorobanTx}}, *app, 0, 0,
+                invalidPhases);
+
+            // Everything fits
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTx() == 2);
+        }
+        SECTION("soroban surge pricing, classic unaffected")
+        {
+            // Another soroban tx with higher fee, which will be selected
+            auto sorobanTxHighFee = createSimpleDeployContractTx(
+                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
+                0, 0, invalidPhases);
+
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTx() == 2);
+            for (auto const& tx : txSet->getTxs())
+            {
+                // sorobanTx got kicked out in favor of sorobanTxHighFee
+                REQUIRE(tx != sorobanTx);
+            }
+        }
+        SECTION("soroban surge pricing with gap")
+        {
+            // Another soroban tx with high fee and a bit less resources
+            // Still half capacity available
+            resources.readBytes = conf.txMaxReadBytes() / 2;
+            auto sorobanTxHighFee = createSimpleDeployContractTx(
+                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+
+            // Create another small soroban tx, with small fee. It should be
+            // picked up anyway since we can't fit sorobanTx (gaps are allowed)
+            resources.instructions = 1;
+            resources.readBytes = 1;
+            resources.writeBytes = 1;
+            resources.extendedMetaDataSizeBytes = 1;
+
+            auto smallSorobanLowFee = createSimpleDeployContractTx(
+                *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
+
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{
+                    {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
+                *app, 0, 0, invalidPhases);
+
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTx() == 3);
+            for (auto const& tx : txSet->getTxs())
+            {
+                // smallSorobanLowFee was picked over sorobanTx to fill the gap
+                REQUIRE(tx != sorobanTx);
+            }
+        }
+        SECTION("soroban tx limits")
+        {
+            // TODO: ensure we don't produce an invalid tx set (with too many
+            // txs)
+        }
+#endif
+    }
 }
 
 TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
@@ -1953,6 +2087,7 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
     Config cfg(getTestConfig());
@@ -2043,6 +2178,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
 }
+#endif
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
