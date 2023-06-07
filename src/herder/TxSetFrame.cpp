@@ -1144,8 +1144,7 @@ TxSetFrame::applySurgePricing(Application& app)
 #endif
         }
 
-        releaseAssert(std::all_of(mFeesComputed.begin(), mFeesComputed.end(),
-                                  [](bool comp) { return comp; }));
+        releaseAssert(mFeesComputed[i]);
     }
 }
 
