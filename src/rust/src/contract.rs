@@ -10,9 +10,6 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::{
-    ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry,
-};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -32,6 +29,7 @@ use super::soroban_env_host::{
         ContractLedgerEntryType, DiagnosticEvent, HostFunction, LedgerEntry, LedgerEntryData,
         LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
         LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr, XDR_FILES_SHA256,
+        ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
 };

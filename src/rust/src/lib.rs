@@ -541,9 +541,9 @@ pub(crate) fn invoke_host_function(
     #[cfg(feature = "soroban-env-host-prev")]
     {
         if ledger_info.protocol_version == config_max_protocol - 1 {
-            return soroban_prev::contract::invoke_host_functions(
+            return soroban_prev::contract::invoke_host_function(
                 enable_diagnostics,
-                hf_bufs,
+                hf_buf,
                 resources_buf,
                 source_account_buf,
                 auth_entries,

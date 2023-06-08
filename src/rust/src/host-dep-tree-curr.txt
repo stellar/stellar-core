@@ -1,4 +1,4 @@
-soroban-env-host 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090fc99e86386c9e2a6894e773b0b7c33795c9#96090fc99e86386c9e2a6894e773b0b7c33795c9
+soroban-env-host 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=15acfa51705172b6f740aa4f169913945296634f#15acfa51705172b6f740aa4f169913945296634f
 ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f
 ├── soroban-wasmi 0.30.0-soroban git+https://github.com/stellar/wasmi?rev=1a2bc7f#1a2bc7f3801c565c2dab22021255a164c05a7f76
 │   ├── wasmparser-nostd 0.100.1 checksum:9157cab83003221bfd385833ab587a039f5d6fa7304854042ba358a3b09e0724
@@ -13,7 +13,7 @@ soroban-env-host 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090f
 │   │   └── downcast-rs 1.2.0 checksum:9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650
 │   ├── smallvec 1.10.0 checksum:a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0
 │   └── intx 0.1.0 checksum:f6f38a50a899dc47a6d0ed5508e7f601a2e34c3a85303514b5d137f3c10a0c75
-├── soroban-native-sdk-macros 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090fc99e86386c9e2a6894e773b0b7c33795c9#96090fc99e86386c9e2a6894e773b0b7c33795c9
+├── soroban-native-sdk-macros 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=15acfa51705172b6f740aa4f169913945296634f#15acfa51705172b6f740aa4f169913945296634f
 │   ├── syn 2.0.10 checksum:5aad1363ed6d37b84299588d62d3a7d95b5a5c2d9aad5c85609fda12afaa1f40
 │   │   ├── unicode-ident 1.0.8 checksum:e5464a87b239f13a63a501f2701565754bae92d243d4bb7eb12f6d57d2269bf4
 │   │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
@@ -24,8 +24,8 @@ soroban-env-host 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090f
 │   ├── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
 │   └── itertools 0.10.5 checksum:b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473
 │       └── either 1.8.1 checksum:7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91
-├── soroban-env-common 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090fc99e86386c9e2a6894e773b0b7c33795c9#96090fc99e86386c9e2a6894e773b0b7c33795c9
-│   ├── stellar-xdr 0.0.16 git+https://github.com/stellar/rs-stellar-xdr?rev=1aaee288698ffabd4ce9f7db0aa86930d5e00e2a#1aaee288698ffabd4ce9f7db0aa86930d5e00e2a
+├── soroban-env-common 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=15acfa51705172b6f740aa4f169913945296634f#15acfa51705172b6f740aa4f169913945296634f
+│   ├── stellar-xdr 0.0.16 git+https://github.com/stellar/rs-stellar-xdr?rev=ba1ff9231ae81793d470db93815ead664eb21fb2#ba1ff9231ae81793d470db93815ead664eb21fb2
 │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
 │   │   ├── crate-git-revision 0.0.4 checksum:f998aef136a4e7833b0e4f0fc0939a59c40140b28e0ffbf524ad84fb2cc568c8
 │   │   │   ├── serde_json 1.0.94 checksum:1c533a59c9d8a93a09c6ab31f0fd5e5f4dd1b8fc9434804029839884765d04ea
@@ -41,14 +41,14 @@ soroban-env-host 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090f
 │   │   └── base64 0.13.1 checksum:9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8
 │   ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f
 │   ├── soroban-wasmi 0.30.0-soroban git+https://github.com/stellar/wasmi?rev=1a2bc7f#1a2bc7f3801c565c2dab22021255a164c05a7f76
-│   ├── soroban-env-macros 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=96090fc99e86386c9e2a6894e773b0b7c33795c9#96090fc99e86386c9e2a6894e773b0b7c33795c9
+│   ├── soroban-env-macros 0.0.16 git+https://github.com/stellar/rs-soroban-env?rev=15acfa51705172b6f740aa4f169913945296634f#15acfa51705172b6f740aa4f169913945296634f
 │   │   ├── thiserror 1.0.40 checksum:978c9a314bd8dc99be594bc3c175faaa9794be04a5a5e153caba6915336cebac
 │   │   │   └── thiserror-impl 1.0.40 checksum:f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f
 │   │   │       ├── syn 2.0.10 checksum:5aad1363ed6d37b84299588d62d3a7d95b5a5c2d9aad5c85609fda12afaa1f40
 │   │   │       ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
 │   │   │       └── proc-macro2 1.0.53 checksum:ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73
 │   │   ├── syn 2.0.10 checksum:5aad1363ed6d37b84299588d62d3a7d95b5a5c2d9aad5c85609fda12afaa1f40
-│   │   ├── stellar-xdr 0.0.16 git+https://github.com/stellar/rs-stellar-xdr?rev=1aaee288698ffabd4ce9f7db0aa86930d5e00e2a#1aaee288698ffabd4ce9f7db0aa86930d5e00e2a
+│   │   ├── stellar-xdr 0.0.16 git+https://github.com/stellar/rs-stellar-xdr?rev=ba1ff9231ae81793d470db93815ead664eb21fb2#ba1ff9231ae81793d470db93815ead664eb21fb2
 │   │   ├── serde_json 1.0.94 checksum:1c533a59c9d8a93a09c6ab31f0fd5e5f4dd1b8fc9434804029839884765d04ea
 │   │   ├── serde 1.0.158 checksum:771d4d9c4163ee138805e12c710dd365e4f44be8be0503cb1bb9eb989425d9c9
 │   │   ├── quote 1.0.26 checksum:4424af4bf778aae2051a77b60283332f386554255d722233d09fbfc7e30da2fc
