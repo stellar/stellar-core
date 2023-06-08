@@ -35,6 +35,11 @@ mod rust_bridge {
         hash: String,
     }
 
+    struct Bump {
+        ledger_key: RustBuf,
+        min_expiration: u32,
+    }
+
     // If success is false, the only thing that may be populated is
     // diagnostic_events. The rest of the fields should be ignored.
     struct InvokeHostFunctionOutput {
@@ -43,6 +48,7 @@ mod rust_bridge {
         contract_events: Vec<RustBuf>,
         diagnostic_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
+        expiration_bumps: Vec<Bump>,
         cpu_insns: u64,
         mem_bytes: u64,
     }

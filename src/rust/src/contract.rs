@@ -5,7 +5,7 @@
 use crate::{
     log::partition::TX,
     rust_bridge::{
-        CxxBuf, CxxFeeConfiguration, CxxLedgerInfo, CxxTransactionResources, FeePair,
+        Bump, CxxBuf, CxxFeeConfiguration, CxxLedgerInfo, CxxTransactionResources, FeePair,
         InvokeHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
@@ -19,6 +19,7 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc};
 use super::soroban_env_host::{
     budget::Budget,
     events::Events,
+    expiration_ledger_bumps::ExpirationLedgerBumps,
     fees::{
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
         FeeConfiguration, TransactionResources,
@@ -330,6 +331,19 @@ fn log_debug_events(events: &Events) {
     }
 }
 
+fn extract_bumps(bumps: &ExpirationLedgerBumps) -> Result<Vec<Bump>, HostError> {
+    bumps
+        .0
+        .iter()
+        .map(|e| {
+            Ok(Bump {
+                ledger_key: xdr_to_rust_buf(e.key.as_ref())?,
+                min_expiration: e.min_expiration,
+            })
+        })
+        .collect()
+}
+
 /// Deserializes an [`xdr::HostFunction`] host function XDR object an
 /// [`xdr::Footprint`] and a sequence of [`xdr::LedgerEntry`] entries containing all
 /// the data the invocation intends to read. Then calls the specified host function
@@ -368,7 +382,7 @@ fn invoke_host_function_or_maybe_panic(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-     ledger_info: CxxLedgerInfo,
+    ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
@@ -394,7 +408,7 @@ fn invoke_host_function_or_maybe_panic(
     }
 
     let res = host.invoke_function(hf);
-    let (storage, budget, events) = host
+    let (storage, budget, events, bumps) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
@@ -410,6 +424,7 @@ fn invoke_host_function_or_maybe_panic(
                 modified_ledger_entries: vec![],
                 cpu_insns: budget.get_cpu_insns_consumed(),
                 mem_bytes: budget.get_mem_bytes_consumed(),
+                expiration_bumps: vec![],
             });
         }
     };
@@ -418,6 +433,7 @@ fn invoke_host_function_or_maybe_panic(
         build_xdr_ledger_entries_from_storage_map(&storage.footprint, &storage.map, &budget)?;
     let contract_events = extract_contract_events(&events)?;
     let diagnostic_events = extract_diagnostic_events(&events)?;
+    let expiration_bumps = extract_bumps(&bumps)?;
 
     Ok(InvokeHostFunctionOutput {
         success: true,
@@ -427,6 +443,7 @@ fn invoke_host_function_or_maybe_panic(
         modified_ledger_entries,
         cpu_insns: budget.get_cpu_insns_consumed(),
         mem_bytes: budget.get_mem_bytes_consumed(),
+        expiration_bumps,
     })
 }
 

@@ -424,6 +424,25 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
         keys.emplace(std::move(lk));
     }
+
+    for (auto const& bumps : out.expiration_bumps)
+    {
+        LedgerKey lk;
+        xdr::xdr_from_opaque(bumps.ledger_key.data, lk);
+
+        auto minExpirationLedger = bumps.min_expiration;
+
+        if (!isSorobanEntry(lk))
+        {
+            continue;
+        }
+        auto ltxe = ltx.load(lk);
+        if (ltxe && getExpirationLedger(ltxe.current()) <= minExpirationLedger)
+        {
+            setExpirationLedger(ltxe.current(), minExpirationLedger);
+        }
+    }
+
     metrics.mMetadataSizeByte += metrics.mLedgerWriteByte;
     if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
     {
