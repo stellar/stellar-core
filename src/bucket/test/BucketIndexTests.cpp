@@ -39,7 +39,7 @@ class BucketIndexTest
     stellar::uniform_int_distribution<uint8_t> mDist;
     uint32_t mLevelsToBuild;
 
-    bool const mLifetimeEntriesOnly;
+    bool const mExpirationEntriesOnly;
 
     uint32_t const ORIGINAL_EXPIRATION = 5000;
     uint32_t const NEW_EXPIRATION = 6000;
@@ -75,7 +75,7 @@ class BucketIndexTest
             std::vector<LedgerEntry> entries;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (mLifetimeEntriesOnly)
+            if (mExpirationEntriesOnly)
             {
                 entries =
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
@@ -102,11 +102,11 @@ class BucketIndexTest
 
   public:
     BucketIndexTest(Config const& cfg, uint32_t levels = 6,
-                    bool lifetimeEntriesOnly = false)
+                    bool expirationEntriesOnly = false)
         : mClock(std::make_unique<VirtualClock>())
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
-        , mLifetimeEntriesOnly(lifetimeEntriesOnly)
+        , mExpirationEntriesOnly(expirationEntriesOnly)
     {
     }
 
@@ -194,7 +194,7 @@ class BucketIndexTest
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void
-    insertLifetimeExtnesions()
+    insertExpirationExtnesions()
     {
         std::vector<LedgerEntry> toInsert;
         std::vector<LedgerEntry> shadows;
@@ -206,7 +206,7 @@ class BucketIndexTest
             {
                 auto extensionEntry = e;
 
-                // Also shadow 50% of lifetime extensions
+                // Also shadow 50% of expiration extensions
                 bool shadow = rand_flip();
 
                 setExpirationLedger(e, NEW_EXPIRATION);
@@ -582,9 +582,9 @@ TEST_CASE("load EXPIRATION_EXTENSION entries", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test =
-            BucketIndexTest(cfg, /*levels=*/6, /*lifetimeEntriesOnly=*/true);
+            BucketIndexTest(cfg, /*levels=*/6, /*expirationEntriesOnly=*/true);
         test.buildGeneralTest();
-        test.insertLifetimeExtnesions();
+        test.insertExpirationExtnesions();
         test.run();
     };
 
@@ -595,7 +595,7 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test =
-            BucketIndexTest(cfg, /*levels=*/1, /*lifetimeEntriesOnly=*/true);
+            BucketIndexTest(cfg, /*levels=*/1, /*expirationEntriesOnly=*/true);
         test.buildGeneralTest();
         test.insertSimilarContractDataKeys();
         test.run();

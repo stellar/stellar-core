@@ -98,7 +98,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     void loadKeys(
         std::set<LedgerKey, LedgerEntryIdCmp>& keys,
         std::vector<LedgerEntry>& result,
-        std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& lifetimeExtensions);
+        std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& expirationExtensions);
 
     // Loads all poolshare trustlines for the given account. Trustlines are
     // stored with their corresponding liquidity pool key in
@@ -132,7 +132,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    static uint32_t getLifetime(LedgerEntry const& e);
+    static uint32_t getExpiration(LedgerEntry const& e);
 #endif
 
 #ifdef BUILD_TESTS

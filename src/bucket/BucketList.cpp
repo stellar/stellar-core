@@ -428,8 +428,8 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
             return nullptr;
         }
 
-        // If entry can have a lifetime extension, we need to use loadKeys so we
-        // can search for both the DATA_ENTRY and LFIETIME_EXTENSION
+        // If entry can have a expiration extension, we need to use loadKeys so
+        // we can search for both the DATA_ENTRY and LFIETIME_EXTENSION
         auto kExt = k;
         setLeType(kExt, ContractLedgerEntryType::EXPIRATION_EXTENSION);
         auto resultV = loadKeys({k, kExt});
@@ -449,7 +449,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
-    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> lifetimeExtensions;
+    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> expirationExtensions;
 
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
@@ -479,7 +479,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 #endif
 
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries, lifetimeExtensions);
+        b->loadKeys(keys, entries, expirationExtensions);
         return keys.empty();
     };
 

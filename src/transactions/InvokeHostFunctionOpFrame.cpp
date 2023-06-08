@@ -278,14 +278,14 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    UnorderedMap<LedgerKey, uint32_t> originalLifetimes;
+    UnorderedMap<LedgerKey, uint32_t> originalExpirations;
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto reserveSize = footprint.readOnly.size() + footprint.readWrite.size();
     ledgerEntryCxxBufs.reserve(reserveSize);
 
     auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &sorobanConfig,
-                     &originalLifetimes](auto const& keys) -> bool {
+                     &originalExpirations](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             // Load without record for readOnly to avoid writing them later
@@ -307,8 +307,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
                 ledgerEntryCxxBufs.emplace_back(std::move(buf));
                 if (isSorobanEntry(le.data))
                 {
-                    originalLifetimes.emplace(LedgerEntryKey(le),
-                                              getExpirationLedger(le));
+                    originalExpirations.emplace(LedgerEntryKey(le),
+                                                getExpirationLedger(le));
                 }
             }
             metrics.noteReadEntry(lk, nByte);
@@ -491,7 +491,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 
     mParentTx.pushContractEvents(std::move(success.events));
     mParentTx.setReturnValue(std::move(success.returnValue));
-    mParentTx.pushInitialLifetimes(std::move(originalLifetimes));
+    mParentTx.pushInitialExpirations(std::move(originalExpirations));
     return true;
 }
 

@@ -185,7 +185,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
                          contractCodeLedgerKey.contractCode().hash,
                          uploadHF.wasm(), 100'000, 1'200);
 
-    // Check lifetimes for contract code
+    // Check expirations for contract code
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         auto networkConfig =
@@ -256,7 +256,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
         app, createOp, createResources, contractID, scContractSourceRefKey,
         contractCodeLedgerKey.contractCode().hash, 100'000, 1200);
 
-    // Check lifetimes for contract instance
+    // Check expirations for contract instance
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
     auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
@@ -461,10 +461,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto checkContractDataLifetime = [&](std::string const& key,
-                                         ContractDataType type,
-                                         uint32_t expectedExpiration,
-                                         uint32_t flags = 0) {
+    auto checkContractDataExpiration = [&](std::string const& key,
+                                           ContractDataType type,
+                                           uint32_t expectedExpiration,
+                                           uint32_t flags = 0) {
         auto keySymbol = makeSymbol(key);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
@@ -726,16 +726,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("recreateable", 0, MERGEABLE);
         put("temp", 0, TEMPORARY);
 
-        auto expectedTempLifetime =
+        auto expectedTempExpiration =
             stateExpirationSettings.minTempEntryExpiration + lcl;
-        auto expectedRestorableLifetime =
+        auto expectedRestorableExpiration =
             stateExpirationSettings.minRestorableEntryExpiration + lcl;
 
-        checkContractDataLifetime("unique", EXCLUSIVE,
-                                  expectedRestorableLifetime);
-        checkContractDataLifetime("recreateable", MERGEABLE,
-                                  expectedRestorableLifetime);
-        checkContractDataLifetime("temp", TEMPORARY, expectedTempLifetime);
+        checkContractDataExpiration("unique", EXCLUSIVE,
+                                    expectedRestorableExpiration);
+        checkContractDataExpiration("recreateable", MERGEABLE,
+                                    expectedRestorableExpiration);
+        checkContractDataExpiration("temp", TEMPORARY, expectedTempExpiration);
     }
 
     SECTION("autobump")
@@ -759,15 +759,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
         putWithFootprint("rw", 1, readOnlySet, readWriteSet, 1000, true,
                          EXCLUSIVE, std::nullopt);
 
-        auto expectedInitialLifetime =
+        auto expectedInitialExpiration =
             stateExpirationSettings.minRestorableEntryExpiration + lcl;
 
-        checkContractDataLifetime("rw", EXCLUSIVE,
-                                  expectedInitialLifetime + autoBump);
-        checkContractDataLifetime("ro", EXCLUSIVE,
-                                  expectedInitialLifetime + autoBump);
-        checkContractDataLifetime("nobump", EXCLUSIVE, expectedInitialLifetime,
-                                  flags);
+        checkContractDataExpiration("rw", EXCLUSIVE,
+                                    expectedInitialExpiration + autoBump);
+        checkContractDataExpiration("ro", EXCLUSIVE,
+                                    expectedInitialExpiration + autoBump);
+        checkContractDataExpiration("nobump", EXCLUSIVE,
+                                    expectedInitialExpiration, flags);
 
         // Contract instance and WASM should have minimum life and 4 invocations
         // worth of autobumps
@@ -778,7 +778,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             auto ltxe = ltx.loadWithoutRecord(key);
             REQUIRE(ltxe);
             REQUIRE(getExpirationLedger(ltxe.current()) ==
-                    expectedInitialLifetime + (autoBump * mult));
+                    expectedInitialExpiration + (autoBump * mult));
         }
     }
 
@@ -788,31 +788,31 @@ TEST_CASE("contract storage", "[tx][soroban]")
     {
         put("key", 0, EXCLUSIVE);
         bump("key", EXCLUSIVE, 10'000);
-        checkContractDataLifetime("key", EXCLUSIVE, 10'000 + lcl);
+        checkContractDataExpiration("key", EXCLUSIVE, 10'000 + lcl);
 
-        // Lifetime already above 5'000, should be a nop (other than autobump)
+        // Expiration already above 5'000, should be a nop (other than autobump)
         bump("key", EXCLUSIVE, 5'000);
-        checkContractDataLifetime("key", EXCLUSIVE, 10'000 + autoBump + lcl);
+        checkContractDataExpiration("key", EXCLUSIVE, 10'000 + autoBump + lcl);
     }
 
-    SECTION("max lifetime")
+    SECTION("max expiration")
     {
         // Check that manual bump doesn't go over max
         put("key", 0, EXCLUSIVE);
         bump("key", EXCLUSIVE, UINT32_MAX);
 
-        auto maxLifetime = stateExpirationSettings.maxEntryExpiration + lcl;
-        checkContractDataLifetime("key", EXCLUSIVE, maxLifetime);
+        auto maxExpiration = stateExpirationSettings.maxEntryExpiration + lcl;
+        checkContractDataExpiration("key", EXCLUSIVE, maxExpiration);
 
         // Manual bump to almost max, then autobump to check that autobump
         // doesn't go over max
         put("key2", 0, EXCLUSIVE);
         bump("key2", EXCLUSIVE, stateExpirationSettings.maxEntryExpiration - 1);
-        checkContractDataLifetime("key2", EXCLUSIVE, maxLifetime - 1);
+        checkContractDataExpiration("key2", EXCLUSIVE, maxExpiration - 1);
 
-        // Autobump should only add a single ledger to bring lifetime to max
+        // Autobump should only add a single ledger to bring expiration to max
         put("key2", 1, EXCLUSIVE);
-        checkContractDataLifetime("key2", EXCLUSIVE, maxLifetime);
+        checkContractDataExpiration("key2", EXCLUSIVE, maxExpiration);
     }
 
     // WIP

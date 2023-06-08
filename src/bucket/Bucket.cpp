@@ -182,14 +182,14 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // If we find the entry, we remove the found key from keys so that later buckets
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
-// lifetimeExtensions stores a map of LedgerKeys -> lifetime extensions that
+// expirationExtensions stores a map of LedgerKeys -> expiration extensions that
 // should vbe applied whenever the corresponding DATA_ENTRY is loaded. Note that
 // the keys in this map correspond to DATA_ENTRY, not EXPIRATION_EXTENSION
 void
 Bucket::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
     std::vector<LedgerEntry>& result,
-    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& lifetimeExtensions)
+    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& expirationExtensions)
 {
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
@@ -212,7 +212,7 @@ Bucket::loadKeys(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                         auto k = *currKeyIt;
                         setLeType(k, ContractLedgerEntryType::DATA_ENTRY);
-                        lifetimeExtensions.emplace(
+                        expirationExtensions.emplace(
                             k, getExpirationLedger(entryOp->liveEntry()));
 #endif
                     }
@@ -222,12 +222,12 @@ Bucket::loadKeys(
                         {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                             if (auto extIter =
-                                    lifetimeExtensions.find(*currKeyIt);
-                                extIter != lifetimeExtensions.end())
+                                    expirationExtensions.find(*currKeyIt);
+                                extIter != expirationExtensions.end())
                             {
                                 setExpirationLedger(entryOp->liveEntry(),
                                                     extIter->second);
-                                lifetimeExtensions.erase(extIter);
+                                expirationExtensions.erase(extIter);
                             }
                             else
                             {
@@ -701,9 +701,9 @@ calculateMergeProtocolVersion(
     }
 }
 
-// Lifetime extensions have a different LedgerKey than the entry they bump,
+// Expiration extensions have a different LedgerKey than the entry they bump,
 // but "refer" to the bumped entry. Returns true if inputs have the same key or
-// if one input is a lifetime extension for the other entry
+// if one input is a expiration extension for the other entry
 template <class T>
 static bool
 refersToSameEntry(T const& lhs, T const& rhs)
@@ -881,10 +881,10 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     //  LIVE          |  INIT          |   error
     //  DEAD          |  INIT=x        |   LIVE=x
     //  INIT=x        |  LIVE - DATA=y |   INIT=y
-    //  INIT=x        |  LIVE - EXT=y  |   INIT with lifetime=y, data=x
+    //  INIT=x        |  LIVE - EXT=y  |   INIT with expiration=y, data=x
     //  LIVE - EXT=x  |  LIVE - EXT=y  |   LIVE=y
     //  LIVE - EXT=x  |  LIVE - DATA=y |   LIVE=y
-    //  LIVE - DATA=x |  LIVE - EXT=y  |   LIVE with lifetime=y, data=x
+    //  LIVE - DATA=x |  LIVE - EXT=y  |   LIVE with expiration=y, data=x
     //  INIT          |  DEAD          |   empty
     //
     // Note that EXPIRATION_EXTENSION entries may not be INIT entries but must
@@ -897,19 +897,19 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     countOldEntryType(mc, oldEntry);
     countNewEntryType(mc, newEntry);
 
-    auto replaceLifetime = [](LedgerEntry& outEntry,
-                              LedgerEntry const& lifetimeEntry) {
+    auto replaceExpiration = [](LedgerEntry& outEntry,
+                                LedgerEntry const& expirationEntry) {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        releaseAssert(refersToSameEntry(outEntry.data, lifetimeEntry.data));
+        releaseAssert(refersToSameEntry(outEntry.data, expirationEntry.data));
         if (auto t = outEntry.data.type(); t == CONTRACT_CODE)
         {
             outEntry.data.contractCode().expirationLedgerSeq =
-                lifetimeEntry.data.contractCode().expirationLedgerSeq;
+                expirationEntry.data.contractCode().expirationLedgerSeq;
         }
         else if (t == CONTRACT_DATA)
         {
             outEntry.data.contractData().expirationLedgerSeq =
-                lifetimeEntry.data.contractData().expirationLedgerSeq;
+                expirationEntry.data.contractData().expirationLedgerSeq;
         }
         else
         {
@@ -945,10 +945,10 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 
             if (isSorobanExtEntry(newEntry.liveEntry().data))
             {
-                // New entry is lifetime extension, keep oldEntry data with
-                // newEntry lifetime
+                // New entry is expiration extension, keep oldEntry data with
+                // newEntry expiration
                 newInit.liveEntry() = oldEntry.liveEntry();
-                replaceLifetime(newInit.liveEntry(), newEntry.liveEntry());
+                replaceExpiration(newInit.liveEntry(), newEntry.liveEntry());
             }
             else
             {
@@ -977,8 +977,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
         // TODO: Update merge counter with Soroban metrics
         ++mc.mNewEntriesMergedWithOldNeitherInit;
 
-        // If new entry is lifetime extension and old
-        // entry is not, put oldEntry data with newEntry lifetime
+        // If new entry is expiration extension and old
+        // entry is not, put oldEntry data with newEntry expiration
         if (newEntry.type() == LIVEENTRY && oldEntry.type() == LIVEENTRY &&
             isSorobanExtEntry(newEntry.liveEntry().data) &&
             !isSorobanExtEntry(oldEntry.liveEntry().data))
@@ -986,7 +986,7 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
             BucketEntry newResult;
             newResult.type(LIVEENTRY);
             newResult.liveEntry() = oldEntry.liveEntry();
-            replaceLifetime(newResult.liveEntry(), newEntry.liveEntry());
+            replaceExpiration(newResult.liveEntry(), newEntry.liveEntry());
             maybePut(out, newResult, shadowIterators,
                      keepShadowedLifecycleEntries, mc);
         }

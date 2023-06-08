@@ -22,16 +22,16 @@ getExpirationLedger(LedgerEntry const& e)
 }
 
 void
-setExpirationLedger(LedgerEntry& e, uint32_t lifetime)
+setExpirationLedger(LedgerEntry& e, uint32_t expiration)
 {
     releaseAssert(isSorobanEntry(e.data));
     if (e.data.type() == CONTRACT_DATA)
     {
-        e.data.contractData().expirationLedgerSeq = lifetime;
+        e.data.contractData().expirationLedgerSeq = expiration;
     }
     else
     {
-        e.data.contractCode().expirationLedgerSeq = lifetime;
+        e.data.contractCode().expirationLedgerSeq = expiration;
     }
 }
 
@@ -88,7 +88,7 @@ getLeType(LedgerEntry::_data_t const& e)
 }
 
 LedgerEntry
-lifetimeExtensionFromDataEntry(LedgerEntry const& le)
+expirationExtensionFromDataEntry(LedgerEntry const& le)
 {
     releaseAssert(isSorobanDataEntry(le.data));
     LedgerEntry extLe;

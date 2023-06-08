@@ -13,7 +13,7 @@ namespace stellar
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 uint32_t getExpirationLedger(LedgerEntry const& e);
-void setExpirationLedger(LedgerEntry& e, uint32_t lifetime);
+void setExpirationLedger(LedgerEntry& e, uint32_t expiration);
 
 ContractLedgerEntryType getLeType(LedgerEntry::_data_t const& e);
 ContractLedgerEntryType getLeType(LedgerKey const& k);
@@ -21,7 +21,7 @@ ContractLedgerEntryType getLeType(LedgerKey const& k);
 void setLeType(LedgerEntry& e, ContractLedgerEntryType leType);
 void setLeType(LedgerKey& k, ContractLedgerEntryType leType);
 
-LedgerEntry lifetimeExtensionFromDataEntry(LedgerEntry const& le);
+LedgerEntry expirationExtensionFromDataEntry(LedgerEntry const& le);
 #endif
 
 bool autoBumpEnabled(LedgerEntry const& e);
