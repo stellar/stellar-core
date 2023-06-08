@@ -45,6 +45,8 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             timestamp: c.timestamp,
             network_id: c.network_id.try_into().unwrap(),
             base_reserve: c.base_reserve,
+            min_temp_entry_expiration: c.min_temp_entry_expiration,
+            min_restorable_entry_expiration: c.min_restorable_entry_expiration,
         }
     }
 }
@@ -282,7 +284,7 @@ fn build_xdr_ledger_entries_from_storage_map(
     for (lk, ole) in storage_map {
         match footprint.0.get::<LedgerKey>(lk, budget)? {
             Some(AccessType::ReadOnly) => (),
-            Some(AccessType::ReadWrite) | Some(AccessType::CommutativeWrite) => {
+            Some(AccessType::ReadWrite) => {
                 if let Some(le) = ole {
                     res.push(xdr_to_rust_buf(&**le)?)
                 }
@@ -368,7 +370,7 @@ fn invoke_host_function_or_maybe_panic(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;

@@ -49,6 +49,10 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     info.sequence_number = hdr.ledgerSeq;
     info.timestamp = hdr.scpValue.closeTime;
     info.memory_limit = sorobanConfig.txMemoryLimit();
+    info.min_restorable_entry_expiration =
+        sorobanConfig.stateExpirationSettings().minRestorableEntryExpiration;
+    info.min_temp_entry_expiration =
+        sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
@@ -415,31 +419,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         }
         else
         {
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            if (le.data.type() == CONTRACT_DATA)
-            {
-                if (le.data.contractData().expirationLedgerSeq >
-                    UINT32_MAX - ledgerSeq)
-                {
-                    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
-                }
-                else
-                {
-                    le.data.contractData().expirationLedgerSeq += ledgerSeq;
-                }
-            }
-            else if (le.data.type() == CONTRACT_CODE)
-            {
-                if (le.data.contractCode().expirationLedgerSeq >
-                    UINT32_MAX - ledgerSeq)
-                {
-                    le.data.contractCode().expirationLedgerSeq = UINT32_MAX;
-                }
-                else
-                {
-                    le.data.contractCode().expirationLedgerSeq += ledgerSeq;
-                }
-            }
             ltx.create(le);
         }
 

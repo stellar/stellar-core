@@ -67,6 +67,8 @@ mod rust_bridge {
         pub network_id: Vec<u8>,
         pub base_reserve: u32,
         pub memory_limit: u32,
+        pub min_temp_entry_expiration: u32,
+        pub min_restorable_entry_expiration: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }

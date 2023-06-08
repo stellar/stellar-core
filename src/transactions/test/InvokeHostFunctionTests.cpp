@@ -782,7 +782,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     }
 
-    SECTION("manual bump")
+    // TODO: uncomment this when we implement the bump_contract_data host
+    // function
+    /* SECTION("manual bump")
     {
         put("key", 0, EXCLUSIVE);
         bump("key", EXCLUSIVE, 10'000);
@@ -811,7 +813,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Autobump should only add a single ledger to bring lifetime to max
         put("key2", 1, EXCLUSIVE);
         checkContractDataLifetime("key2", EXCLUSIVE, maxLifetime);
-    }
+    } */
 
     // WIP
 
