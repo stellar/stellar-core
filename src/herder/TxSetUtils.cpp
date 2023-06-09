@@ -112,7 +112,7 @@ AccountTransactionQueue::getResources() const
     if (mIsSoroban)
     {
         return empty() ? Resource::makeEmpty(mIsSoroban)
-                       : getTopTx()->getNumResources();
+                       : getTopTx()->getResources();
     }
     else
     {

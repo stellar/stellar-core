@@ -101,7 +101,8 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet,
     }
     auto const& txSetV1 = txSet.v1TxSet();
     // There was no protocol with 1 phase, so checking for 2 phases only
-    if (txSetV1.phases.size() != 2)
+    if (txSetV1.phases.size() !=
+        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT))
     {
         CLOG_DEBUG(Herder,
                    "Got bad txSet: exactly 2 phases are expected, got {}",
@@ -300,6 +301,16 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     for (int i = 0; i < txPhases.size(); ++i)
     {
         auto& txs = txPhases[i];
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        bool expectSoroban = static_cast<Phase>(i);
+        if (!std::all_of(txs.begin(), txs.end(), [&](auto const& tx) {
+                return tx->isSoroban() == expectSoroban;
+            }))
+        {
+            throw std::runtime_error("TxSetFrame::makeFromTransactions: phases "
+                                     "contain txs of wrong type");
+        }
+#endif
         auto& invalid = invalidTxs[i];
         validatedPhases.emplace_back(
             TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
@@ -382,8 +393,9 @@ TxSetFrame::makeFromWire(Application& app, TransactionSet const& xdrTxSet)
     if (!txSet->addTxsFromXdr(app, xdrTxSet.txs, false, std::nullopt,
                               Phase::CLASSIC))
     {
-        CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
-                           "ordered correctly");
+        CLOG_DEBUG(Herder,
+                   "Got bad txSet: transactions are not "
+                   "ordered correctly or contain invalid phase transactions");
         return std::make_shared<InvalidTxSetFrame const>(
             xdrTxSet, computeNonGenericTxSetContentsHash(xdrTxSet),
             encodedSize);
@@ -440,7 +452,8 @@ TxSetFrame::makeFromWire(Application& app,
                         baseFee, static_cast<Phase>(phaseId)))
                 {
                     CLOG_DEBUG(Herder, "Got bad txSet: transactions are not "
-                                       "ordered correctly");
+                                       "ordered correctly or contain invalid "
+                                       "phase transactions");
                     return std::make_shared<InvalidTxSetFrame const>(
                         xdrTxSet, hash, encodedSize);
                 }
@@ -481,15 +494,41 @@ TxSetFrame::previousLedgerHash() const
     return mPreviousLedgerHash;
 }
 
-TxSetFrame::Transactions
-TxSetFrame::getTxs() const
+TxSetFrame::Transactions const&
+TxSetFrame::getTxsForPhase(Phase phase) const
 {
-    TxSetFrame::Transactions res;
-    std::for_each(mTxPhases.begin(), mTxPhases.end(), [&res](auto const& txs) {
-        res.insert(res.end(), txs.begin(), txs.end());
-    });
-    return res;
+    return mTxPhases.at(static_cast<size_t>(phase));
 }
+
+// void
+// TxSetFrame::forAllTxs(std::function<void()> f, std::optional<Phase> phase =
+// std::nullopt)
+// {
+//     if (!f)
+//     {
+//         CLOG_WARNING(Herder, "forAllTxs: empty function");
+//         return;
+//     }
+
+//     auto forAllInPhase = [&](auto const& txs) {
+//         for (auto const& tx : txs)
+//         {
+//             f();
+//         }
+//     };
+
+//     if (phase)
+//     {
+//         forAllInPhase(mTxPhases[static_cast<size_t>(*phase)]);
+//     }
+//     else
+//     {
+//         for (auto const& txs : mTxPhases)
+//         {
+//             forAllInPhase(txs);
+//         }
+//     }
+// }
 
 TxSetFrame::Transactions
 TxSetFrame::getTxsInApplyOrder() const
@@ -1019,6 +1058,11 @@ TxSetFrame::addTxsFromXdr(Application& app,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         tx->maybeComputeSorobanResourceFee(ledgerVersion, sorobanConfig,
                                            appConfig);
+        // Phase should be consistent with the tx we're trying to add
+        if (tx->isSoroban() && phase != Phase::SOROBAN)
+        {
+            return false;
+        }
 #endif
         phaseTxs.push_back(tx);
         if (useBaseFee)

@@ -96,7 +96,7 @@ class TxSetFrame : public NonMovableOrCopyable
     Hash const& previousLedgerHash() const;
 
     // Gets all the transactions belonging to this frame in arbitrary order.
-    Transactions getTxs() const;
+    Transactions const& getTxsForPhase(Phase phase) const;
 
     /*
     Build a list of transaction ready to be applied to the last closed ledger,

@@ -1421,7 +1421,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1445,7 +1445,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1601,6 +1601,15 @@ TEST_CASE("surge pricing", "[herder][txset]")
             }
             REQUIRE(txSet->sizeTx() == 2);
         }
+        SECTION("classic and soroban in the same phase are rejected")
+        {
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(1);
+            REQUIRE_THROWS_AS(TxSetFrame::makeFromTransactions(
+                                  TxSetFrame::TxPhases{{tx, sorobanTx}}, *app,
+                                  0, 0, invalidPhases),
+                              std::runtime_error);
+        }
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
@@ -1617,11 +1626,15 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 REQUIRE(phase.empty());
             }
             REQUIRE(txSet->sizeTx() == 2);
-            for (auto const& tx : txSet->getTxs())
-            {
-                // sorobanTx got kicked out in favor of sorobanTxHighFee
-                REQUIRE(tx != sorobanTx);
-            }
+            auto const& classicTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
+            REQUIRE(classicTxs.size() == 1);
+            REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+            auto const& sorobanTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN);
+            REQUIRE(sorobanTxs.size() == 1);
+            REQUIRE(sorobanTxs[0]->getFullHash() ==
+                    sorobanTxHighFee->getFullHash());
         }
         SECTION("soroban surge pricing with gap")
         {
@@ -1653,10 +1666,18 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 REQUIRE(phase.empty());
             }
             REQUIRE(txSet->sizeTx() == 3);
-            for (auto const& tx : txSet->getTxs())
+            auto const& classicTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
+            REQUIRE(classicTxs.size() == 1);
+            REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+            for (auto const& t :
+                 txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN))
             {
                 // smallSorobanLowFee was picked over sorobanTx to fill the gap
-                REQUIRE(tx != sorobanTx);
+                bool pickedGap =
+                    t->getFullHash() == sorobanTxHighFee->getFullHash() ||
+                    t->getFullHash() == smallSorobanLowFee->getFullHash();
+                REQUIRE(pickedGap);
             }
         }
         SECTION("soroban tx limits")
@@ -2503,8 +2524,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxSetFrame::Transactions removed;
-            TxSetUtils::trimInvalid(txSet->getTxs(), *app, closeTimeOffset,
-                                    closeTimeOffset, removed);
+            TxSetUtils::trimInvalid(
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC), *app,
+                closeTimeOffset, closeTimeOffset, removed);
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 
@@ -4167,8 +4189,9 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto txs = tq.getTransactions(lhhe.header);
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(txSet->sizeTx() == 1);
-    REQUIRE(txSet->getTxs().front()->getContentsHash() ==
-            tx1a->getContentsHash());
+    REQUIRE(txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC)
+                .front()
+                ->getContentsHash() == tx1a->getContentsHash());
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }
 

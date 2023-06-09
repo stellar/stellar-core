@@ -174,7 +174,7 @@ class HerderImpl : public Herder
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanTransactionQueue& getSorobanTransactionQueue() override;
 #endif
-
+    bool sourceAccountPending(AccountID const& accountID) const override;
 #endif
 
     // helper function to verify envelopes are signed
@@ -216,8 +216,7 @@ class HerderImpl : public Herder
     SorobanTransactionQueue mSorobanTransactionQueue;
 #endif
 
-    void
-    updateTransactionQueue(std::vector<TransactionFrameBasePtr> const& applied);
+    void updateTransactionQueue(TxSetFrameConstPtr txSet);
 
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;

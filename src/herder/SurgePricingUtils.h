@@ -35,7 +35,7 @@ class TxStack
     virtual TransactionFrameBasePtr getTopTx() const = 0;
     // Pops the transaction from top of the stack.
     virtual void popTopTx() = 0;
-    // Returns the total number of operations in the stack.
+    // Returns the total number of resources in the stack.
     virtual Resource getResources() const = 0;
     // Returns whether this stack is empty.
     virtual bool empty() const = 0;
@@ -137,7 +137,7 @@ class SurgePricingPriorityQueue
     // maximum subset of transactions from `txStacks` with maximum fee ratios
     // within the limits specified by `laneConfig`.
     // The greedy ordering optimizes for the maximal fee ratio first, then for
-    // the output operation count.
+    // the output resource count.
     // Transactions will be popped from the input `txStacks`, so after this call
     // `txStacks` will contain all the remaining transactions.
     // `hadTxNotFittingLane` is an output parameter that for every lane will
@@ -177,12 +177,12 @@ class SurgePricingPriorityQueue
     // `comparisonSeed` is used to break the comparison ties.
     // `visitor` should process the `TxStack` and provide an action to do with
     // that stack.
-    // `laneLeftUntilLimit` is an output parameter that for each lane will
-    // contain the number of operations left until lane's limit is reached.
+    // `laneResourcesLeftUntilLimit` is an output parameter that for each lane
+    // will contain the number of resources left until lane's limit is reached.
     void visitTopTxs(
         std::vector<TxStackPtr> const& txStacks,
         std::function<VisitTxStackResult(TxStack const&)> const& visitor,
-        std::vector<Resource>& laneLeftUntilLimit);
+        std::vector<Resource>& laneResourcesLeftUntilLimit);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
     // configuration.
@@ -205,8 +205,8 @@ class SurgePricingPriorityQueue
     // `TxStacks` from the queue.
     // Returns whether transaction can be fit and if not, returns the minimum
     // required fee to possibly fit.
-    // `txDiscount` is a number of operations to subtract from tx's
-    // operations when estimating the total operation counts.
+    // `txDiscount` is a number of resources to subtract from tx's
+    // resources when estimating the total resource counts.
     // `txStacksToEvict` is an output parameter that will contain all the stacks
     // that need to be evicted in order to fit `tx`. The `bool` argument
     // indicates whether this `TxStack` has been evicted due to lane's limit (as
@@ -278,7 +278,7 @@ class SurgePricingPriorityQueue
     void
     popTopTxs(bool allowGaps,
               std::function<VisitTxStackResult(TxStack const&)> const& visitor,
-              std::vector<Resource>& laneLeftUntilLimit,
+              std::vector<Resource>& laneResourcesLeftUntilLimit,
               std::vector<bool>& hadTxNotFittingLane);
 
     void erase(Iterator const& it);

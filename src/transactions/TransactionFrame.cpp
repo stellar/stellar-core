@@ -196,7 +196,7 @@ TransactionFrame::getNumOperations() const
 }
 
 Resource
-TransactionFrame::getNumResources() const
+TransactionFrame::getResources() const
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (isSoroban())

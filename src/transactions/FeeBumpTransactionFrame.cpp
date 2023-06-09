@@ -373,11 +373,11 @@ FeeBumpTransactionFrame::getNumOperations() const
 }
 
 Resource
-FeeBumpTransactionFrame::getNumResources() const
+FeeBumpTransactionFrame::getResources() const
 {
     if (mInnerTx->isSoroban())
     {
-        return mInnerTx->getNumResources();
+        return mInnerTx->getResources();
     }
     else
     {

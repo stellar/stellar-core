@@ -81,26 +81,15 @@ operator==(Resource const& lhs, Resource const& rhs)
 Resource
 operator+(Resource const& lhs, Resource const& rhs)
 {
-    releaseAssert(lhs.size() == rhs.size());
-    std::vector<int64_t> res;
-    for (size_t i = 0; i < lhs.size(); i++)
-    {
-        releaseAssert(INT64_MAX - lhs.mResources[i] >= rhs.mResources[i]);
-        res.push_back(lhs.mResources[i] + rhs.mResources[i]);
-    }
-    return Resource(res);
+    Resource result(lhs);
+    return result += rhs;
 }
 
 Resource
 operator-(Resource const& lhs, Resource const& rhs)
 {
-    releaseAssert(lhs.size() == rhs.size());
-    std::vector<int64_t> res;
-    for (size_t i = 0; i < lhs.size(); i++)
-    {
-        res.push_back(lhs.mResources[i] - rhs.mResources[i]);
-    }
-    return Resource(res);
+    Resource result(lhs);
+    return result -= rhs;
 }
 
 bool
@@ -135,15 +124,7 @@ anyGreater(Resource const& lhs, Resource const& rhs)
 bool
 operator>(Resource const& lhs, Resource const& rhs)
 {
-    releaseAssert(lhs.size() == rhs.size());
-    for (size_t i = 0; i < lhs.size(); i++)
-    {
-        if (lhs.mResources[i] <= rhs.mResources[i])
-        {
-            return false;
-        }
-    }
-    return true;
+    return !(lhs <= rhs);
 }
 
 Resource&
@@ -174,7 +155,7 @@ Resource
 limitTo(Resource const& curr, Resource const& limit)
 {
     releaseAssert(curr.size() == limit.size());
-    Resource limited = Resource(std::vector<int64_t>(curr.size(), 0));
+    Resource limited(std::vector<int64_t>(curr.size(), 0));
     for (int i = 0; i < limited.size(); i++)
     {
         limited.mResources[i] =

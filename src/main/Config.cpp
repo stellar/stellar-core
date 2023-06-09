@@ -167,7 +167,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
-    LIMIT_TX_QUEUE_SOURCE_ACCOUNT = false;
+    LIMIT_TX_QUEUE_SOURCE_ACCOUNT =
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        true;
+#else
+        false;
+#endif
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
@@ -1478,6 +1483,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (!LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+        {
+            throw std::runtime_error(
+                "Invalid configuration: "
+                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT must be set");
+        }
+#endif
         // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit
         // given to the sender. It is the maximum number of bytes that the
         // sender can transmit to the receiver before it needs to wait for

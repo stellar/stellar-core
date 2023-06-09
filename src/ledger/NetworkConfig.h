@@ -30,21 +30,23 @@ struct InitialSorobanNetworkConfig
         64 * 1024; // 64KB
 
     // Compute settings
-    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 1;
     static constexpr int64_t TX_MAX_INSTRUCTIONS = 40'000'000;
+    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 10 * TX_MAX_INSTRUCTIONS;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT =
         100;                                                   // 0.2 XLM/max tx
     static constexpr uint32_t MEMORY_LIMIT = 50 * 1024 * 1024; // 50MB
 
     // Ledger access settings
-    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 1;
-    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
-    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 1;
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
     static constexpr uint32_t TX_MAX_READ_BYTES = 200 * 1024;
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 20;
     static constexpr uint32_t TX_MAX_WRITE_BYTES = 100 * 1024;
+    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
+        10 * TX_MAX_READ_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 10 * TX_MAX_READ_BYTES;
+    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES =
+        10 * TX_MAX_WRITE_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 10 * TX_MAX_WRITE_BYTES;
     static constexpr int64_t FEE_READ_LEDGER_ENTRY = 5'000;   // 0.02 XLM/max tx
     static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 20'000; // 0.04 XLM/max tx
     static constexpr int64_t FEE_READ_1KB = 1'000;            // 0.02 XLM/max tx
@@ -58,8 +60,9 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t FEE_HISTORICAL_1KB = 100; // 0.001 XLM/max tx
 
     // Bandwidth settings
-    static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
     static constexpr uint32_t TX_MAX_SIZE_BYTES = 100 * 1024;
+    static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES =
+        10 * TX_MAX_SIZE_BYTES;
     static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 2'000; // 0.02 XLM/max tx
 
     // Meta data settings

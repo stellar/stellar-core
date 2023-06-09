@@ -570,13 +570,8 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
         // account. Load generation logic needs to be fixed to account for the
         // limit, and throw if desired tx rate can't be achieved if insufficent
         // accounts were provided.
-        while (
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
-                sourceAccount->getPublicKey()) ||
-#endif
-            mApp.getHerder().getTransactionQueue().sourceAccountPending(
-                sourceAccount->getPublicKey()))
+        while (mApp.getHerder().sourceAccountPending(
+            sourceAccount->getPublicKey()))
         {
             auto destAccountId =
                 rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
@@ -684,10 +679,7 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
     // account. Load generation logic needs to be fixed to account for the
     // limit, and throw if desired tx rate can't be achieved if insufficent
     // accounts were provided.
-    while (mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
-               account->getPublicKey()) ||
-           mApp.getHerder().getTransactionQueue().sourceAccountPending(
-               account->getPublicKey()))
+    while (mApp.getHerder().sourceAccountPending(account->getPublicKey()))
     {
         auto destAccountId =
             rand_uniform<uint64_t>(0, numAccounts - 1) + offset;

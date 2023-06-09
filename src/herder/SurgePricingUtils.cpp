@@ -610,7 +610,7 @@ Resource
 DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx)
 {
     releaseAssert(!tx.isSoroban());
-    return tx.getNumResources();
+    return tx.getResources();
 }
 
 size_t
@@ -659,6 +659,6 @@ Resource
 SorobanGenericLaneConfig::getTxResources(TransactionFrameBase const& tx)
 {
     releaseAssert(tx.isSoroban());
-    return tx.getNumResources();
+    return tx.getResources();
 }
 } // namespace stellar

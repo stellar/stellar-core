@@ -45,7 +45,6 @@
 #include <fmt/format.h>
 
 using namespace std;
-
 namespace stellar
 {
 
@@ -227,7 +226,7 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     auto externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
     if (externalizedSet)
     {
-        updateTransactionQueue(externalizedSet->getTxs());
+        updateTransactionQueue(externalizedSet);
     }
 
     // Evict slots that are outside of our ledger validity bracket
@@ -767,6 +766,21 @@ HerderImpl::externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
     StellarValue sv =
         makeStellarValue(txSet->getContentsHash(), closeTime, upgrades, sk);
     getHerderSCPDriver().valueExternalized(ledgerSeq, xdr::xdr_to_opaque(sv));
+}
+
+bool
+HerderImpl::sourceAccountPending(AccountID const& accountID) const
+{
+    auto pending =
+        mApp.getHerder().getTransactionQueue().sourceAccountPending(accountID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    pending =
+        pending ||
+        mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
+            accountID);
+#endif
+
+    return pending;
 }
 
 #endif
@@ -2024,18 +2038,14 @@ HerderImpl::trackingHeartBeat()
 }
 
 void
-HerderImpl::updateTransactionQueue(
-    std::vector<TransactionFrameBasePtr> const& applied)
+HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
 {
     ZoneScoped;
     // Generate a transaction set from a random hash and drop invalid
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
     lhhe.hash = HashUtils::random();
 
-    auto updateQueue = [&](auto& queue) {
-        // We might try to remove some txs that definitely not in the queue
-        // (e.g., soroban vs classic), but this is fine because this function is
-        // a no-op for non-existent txs
+    auto updateQueue = [&](auto& queue, auto const& applied) {
         queue.removeApplied(applied);
         queue.shift();
 
@@ -2052,9 +2062,11 @@ HerderImpl::updateTransactionQueue(
         queue.rebroadcast();
     };
 
-    updateQueue(mTransactionQueue);
+    updateQueue(mTransactionQueue,
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    updateQueue(mSorobanTransactionQueue);
+    updateQueue(mSorobanTransactionQueue,
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
 #endif
 }
 

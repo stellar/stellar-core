@@ -1152,16 +1152,16 @@ class TxQueueTracker : public TxStack
     {
         // Sanity check the stack is valid
         mCur = mAccountState->mTransactions.begin();
-        bool currType = mCur->mTx->isSoroban();
+        bool soroban = mCur->mTx->isSoroban();
         for (auto const& tx : mAccountState->mTransactions)
         {
-            if (tx.mTx->isSoroban() != currType)
+            if (tx.mTx->isSoroban() != soroban)
             {
                 throw std::runtime_error(
                     "TransactionQueue: AccountState has mixed tx types");
             }
         }
-        if (currType)
+        if (soroban)
         {
             releaseAssert(mAccountState->mTransactions.size() == 1);
         }
@@ -1265,8 +1265,7 @@ SorobanTransactionQueue::broadcastSome()
     // propagation.
     auto resToFlood = getMaxResourcesToFloodThisPeriod().first;
 
-    Resource totalResToFlood =
-        Resource(std::vector<int64_t>(resToFlood.size(), 0));
+    Resource totalResToFlood(std::vector<int64_t>(resToFlood.size(), 0));
     std::vector<TxStackPtr> trackersToBroadcast;
     for (auto& [_, accountState] : mAccountStates)
     {
@@ -1278,7 +1277,7 @@ SorobanTransactionQueue::broadcastSome()
             trackersToBroadcast.emplace_back(
                 std::make_shared<TxQueueTracker>(&accountState));
             totalResToFlood +=
-                accountState.mTransactions[0].mTx->getNumResources();
+                accountState.mTransactions[0].mTx->getResources();
         }
     }
 
@@ -1294,7 +1293,7 @@ SorobanTransactionQueue::broadcastSome()
         releaseAssert(bStatus != BroadcastStatus::BROADCAST_STATUS_SKIPPED);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalResToFlood -= tx->getNumResources();
+            totalResToFlood -= tx->getResources();
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_PROCESSED;
         }
         else
@@ -1310,7 +1309,7 @@ SorobanTransactionQueue::broadcastSome()
         std::make_shared<SorobanGenericLaneConfig>(resToFlood), mBroadcastSeed);
     queue.visitTopTxs(trackersToBroadcast, visitor, mBroadcastOpCarryover);
 
-    Resource maxPerTx = Resource(std::vector<int64_t>(resToFlood.size(), 0));
+    Resource maxPerTx(std::vector<int64_t>(resToFlood.size(), 0));
 
     {
         // get Max soroban tx resources
@@ -1348,7 +1347,7 @@ ClassicTransactionQueue::broadcastSome()
         releaseAssert(dexOpsToFlood->size() == 1);
     }
 
-    auto totalToFlood = Resource(0);
+    Resource totalToFlood(0);
     std::vector<TxStackPtr> trackersToBroadcast;
     for (auto& [_, accountState] : mAccountStates)
     {
@@ -1372,7 +1371,7 @@ ClassicTransactionQueue::broadcastSome()
         auto bStatus = broadcastTx(curTracker.getAccountState(), cur);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalToFlood -= tx->getNumResources();
+            totalToFlood -= tx->getResources();
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_PROCESSED;
         }
         else if (bStatus == BroadcastStatus::BROADCAST_STATUS_SKIPPED)

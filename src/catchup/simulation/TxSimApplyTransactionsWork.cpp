@@ -526,7 +526,8 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         {
             txSetFrame = TxSetFrame::makeFromWire(mApp, txHistoryEntry.txSet);
         }
-        for (auto const& txFrame : txSetFrame->getTxs())
+        for (auto const& txFrame :
+             txSetFrame->getTxsForPhase(TxSetFrame::CLASSIC))
         {
             transactions[txFrame->getContentsHash()] = &txFrame->getEnvelope();
         }

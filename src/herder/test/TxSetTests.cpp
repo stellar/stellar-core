@@ -570,7 +570,7 @@ TEST_CASE("generalized tx set fees", "[txset]")
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
         std::vector<std::optional<int64_t>> fees;
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             fees.push_back(txSet->getTxBaseFee(
                 tx,

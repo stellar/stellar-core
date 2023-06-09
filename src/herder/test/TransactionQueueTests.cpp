@@ -1445,7 +1445,7 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
     getTxResources(TransactionFrameBase const& tx) override
     {
         releaseAssert(tx.isSoroban());
-        return tx.getNumResources();
+        return tx.getResources();
     }
 
   private:

@@ -195,7 +195,7 @@ TxQueueLimiter::evictTransactions(
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
-    auto resourcesToFit = txToFit.getNumResources();
+    auto resourcesToFit = txToFit.getResources();
 
     auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
 
