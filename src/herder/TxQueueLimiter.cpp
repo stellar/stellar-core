@@ -136,13 +136,12 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          std::vector<std::pair<TxStackPtr, bool>>& txsToEvict,
                          AbstractLedgerTxn& ltxOuter)
 {
-    // Sanity check: oldTx is either not provided, or we're dealing with classic
     releaseAssert(newTx);
     releaseAssert(newTx->isSoroban() == mIsSoroban);
 
     if (oldTx)
     {
-        releaseAssert(!oldTx->isSoroban() && !newTx->isSoroban());
+        releaseAssert(oldTx->isSoroban() == newTx->isSoroban());
     }
 
     // We cannot normally initialize transaction queue in the constructor
