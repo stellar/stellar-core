@@ -12,6 +12,7 @@
 #include "crypto/SHA.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -20,6 +21,7 @@
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
+#include <algorithm>
 #include <fmt/format.h>
 
 namespace stellar
@@ -428,11 +430,10 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
             return nullptr;
         }
 
-        // If entry can have a expiration extension, we need to use loadKeys so
-        // we can search for both the DATA_ENTRY and LFIETIME_EXTENSION
-        auto kExt = k;
-        setLeType(kExt, ContractLedgerEntryType::EXPIRATION_EXTENSION);
-        auto resultV = loadKeys({k, kExt});
+        // If entry can have a expiration extension, we need to use loadKeys
+        // which will search for both the DATA_ENTRY and EXPIRATION_EXTENSION
+        // entries.
+        auto resultV = loadKeys({k});
         if (!resultV.empty())
         {
             releaseAssert(resultV.size() == 1);
@@ -451,32 +452,31 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     std::vector<LedgerEntry> entries;
     std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> expirationExtensions;
 
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
+    // We will build a slightly modified key-set for the query (at least
+    // when looking up soroban keys that might have EXPIRATION_EXTENSIONS).
+    std::set<LedgerKey, LedgerEntryIdCmp> keys;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Insert EXPIRATION_EXTENSION keys for every DATA_ENTRY
-    for (auto iter = keys.begin(); iter != keys.end();)
+    for (auto const& k : inKeys)
     {
-        if (isSorobanDataEntry(*iter))
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (isSorobanExtEntry(k))
         {
-            auto kExt = *iter;
-            setLeType(kExt, ContractLedgerEntryType::EXPIRATION_EXTENSION);
-            keys.emplace(kExt);
+            // Drop any _requested_ EXPIRATION_EXTENSION entries, they
+            // are not valid as inputs.
+            continue;
         }
-
-        // Remove any EXPIRATION_EXTENSION entries, these are a product of the
-        // BucketList and should never be directly returned
-        if (isSorobanExtEntry(*iter))
+        if (isSorobanDataEntry(k))
         {
-            iter = keys.erase(iter);
+            // Duplicate any DATA_ENTRY key as an EXPIRATION_EXTENSION
+            // ourselves, so the query below will look for exactly 2 keys
+            // per input DATA_ENTRY key.
+            LedgerKey e = k;
+            setLeType(e, ContractLedgerEntryType::EXPIRATION_EXTENSION);
+            keys.emplace(e);
         }
-        else
-        {
-            ++iter;
-        }
-    }
 #endif
+        keys.emplace(k);
+    }
 
     auto f = [&](std::shared_ptr<Bucket> b) {
         b->loadKeys(keys, entries, expirationExtensions);
@@ -484,6 +484,17 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     };
 
     loopAllBuckets(f);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Remove any EXPIRATION_EXTENSION entries returned from the query, they
+    // should never be returned to callers.
+    entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                 [](LedgerEntry const& e) {
+                                     return isSorobanExtEntry(e.data);
+                                 }),
+                  entries.end());
+#endif
+
     return entries;
 }
 
