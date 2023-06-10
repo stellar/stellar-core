@@ -3041,7 +3041,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
         {
             auto txSet = getLedgerTxSet(*node, ledger);
             REQUIRE(txSet);
-            REQUIRE(txSet->sizeTx() > 0);
+            REQUIRE(txSet->sizeTxTotal() > 0);
             bool isGeneralized = ledger > *upgradeLedger;
             REQUIRE(txSet->isGeneralizedTxSet() == isGeneralized);
         }

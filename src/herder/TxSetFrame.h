@@ -112,21 +112,20 @@ class TxSetFrame : public NonMovableOrCopyable
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset) const;
 
-    size_t size(LedgerHeader const& lh) const;
+    size_t size(LedgerHeader const& lh,
+                std::optional<Phase> phase = std::nullopt) const;
 
     size_t
-    sizeTx() const
+    sizeTx(Phase phase) const
     {
-        return std::accumulate(mTxPhases.begin(), mTxPhases.end(), 0,
-                               [](size_t sum, Transactions const& txs) {
-                                   return sum + txs.size();
-                               });
+        return mTxPhases.at(phase).size();
     }
+    size_t sizeTxTotal() const;
 
     bool
     empty() const
     {
-        return sizeTx() == 0;
+        return sizeTxTotal() == 0;
     }
 
     size_t
@@ -135,7 +134,8 @@ class TxSetFrame : public NonMovableOrCopyable
         return mTxPhases.size();
     }
 
-    size_t sizeOp() const;
+    size_t sizeOp(Phase phase) const;
+    size_t sizeOpTotal() const;
 
     // Returns the size of this transaction set when encoded to XDR.
     size_t encodedSize() const;

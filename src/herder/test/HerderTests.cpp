@@ -314,7 +314,7 @@ testTxSet(uint32 protocolVersion)
     SECTION("valid set")
     {
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+        REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
     }
 
     SECTION("too many txs")
@@ -324,7 +324,7 @@ testTxSet(uint32 protocolVersion)
             genTx(1);
         }
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        REQUIRE(txSet->sizeTx() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     }
     SECTION("invalid tx")
     {
@@ -336,7 +336,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+            REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
         }
         SECTION("sequence gap")
         {
@@ -350,7 +350,7 @@ testTxSet(uint32 protocolVersion)
                 auto txSet =
                     TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
                 REQUIRE(removed.size() == 1);
-                REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+                REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
             }
             SECTION("gap begin")
             {
@@ -362,7 +362,7 @@ testTxSet(uint32 protocolVersion)
 
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
-                REQUIRE(txSet->sizeTx() == nbTransactions);
+                REQUIRE(txSet->sizeTxTotal() == nbTransactions);
             }
             SECTION("gap middle")
             {
@@ -377,7 +377,7 @@ testTxSet(uint32 protocolVersion)
                 // the other, we removed transactions after remIdx
                 auto expectedRemoved = nbTransactions - remIdx - 1;
                 REQUIRE(removed.size() == expectedRemoved);
-                REQUIRE(txSet->sizeTx() ==
+                REQUIRE(txSet->sizeTxTotal() ==
                         (nbTransactions * 2 - expectedRemoved - 1));
             }
         }
@@ -390,7 +390,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == (nbTransactions + 1));
-            REQUIRE(txSet->sizeTx() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
         }
         SECTION("bad signature")
         {
@@ -401,7 +401,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == nbTransactions);
-            REQUIRE(txSet->sizeTx() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
         }
     }
 }
@@ -762,7 +762,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                                                               0, 0, removed);
 
                 REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTx() == 0);
+                REQUIRE(txSet->sizeTxTotal() == 0);
 
                 // we use minGap lcl + 1 because validation is done against
                 // the next ledger
@@ -841,7 +841,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 auto txSet = TxSetFrame::makeFromTransactions({txInvalid}, *app,
                                                               0, 0, removed);
                 REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTx() == 0);
+                REQUIRE(txSet->sizeTxTotal() == 0);
 
                 auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
                                                          minSeqAgeCond(minGap));
@@ -1530,7 +1530,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
         // Transaction is valid, but trimmed by surge pricing.
         REQUIRE(invalidTxs.empty());
-        REQUIRE(txSet->sizeTx() == 0);
+        REQUIRE(txSet->sizeTxTotal() == 0);
     }
     SECTION("soroban txs")
     {
@@ -1539,9 +1539,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
         // Max 1 classic op
-        // TODO: this needs to be extended to include Soroban ledger tx limit
-        // (right now not implemented)
-        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 3;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
@@ -1582,7 +1580,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 invalidPhases);
 
             // Soroban tx is rejected
-            REQUIRE(txSet->sizeTx() == 1);
+            REQUIRE(txSet->sizeTxTotal() == 1);
             REQUIRE(invalidPhases[0].empty());
             REQUIRE(invalidPhases[1].size() == 1);
         }
@@ -1599,7 +1597,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 REQUIRE(phase.empty());
             }
-            REQUIRE(txSet->sizeTx() == 2);
+            REQUIRE(txSet->sizeTxTotal() == 2);
         }
         SECTION("classic and soroban in the same phase are rejected")
         {
@@ -1625,7 +1623,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 REQUIRE(phase.empty());
             }
-            REQUIRE(txSet->sizeTx() == 2);
+            REQUIRE(txSet->sizeTxTotal() == 2);
             auto const& classicTxs =
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
             REQUIRE(classicTxs.size() == 1);
@@ -1665,7 +1663,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 REQUIRE(phase.empty());
             }
-            REQUIRE(txSet->sizeTx() == 3);
+            REQUIRE(txSet->sizeTxTotal() == 3);
             auto const& classicTxs =
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
             REQUIRE(classicTxs.size() == 1);
@@ -2315,7 +2313,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 makeTransactions(spec.n, spec.nbOps, spec.feeMulti);
             txSetHashes.push_back(txSet->getContentsHash());
             txSetSizes.push_back(txSet->size(lcl.header));
-            txSetOpSizes.push_back(txSet->sizeOp());
+            txSetOpSizes.push_back(txSet->sizeOpTotal());
             closeTimes.push_back(spec.closeTime);
             if (spec.baseFeeIncrement)
             {
@@ -4188,7 +4186,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txs = tq.getTransactions(lhhe.header);
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-    REQUIRE(txSet->sizeTx() == 1);
+    REQUIRE(txSet->sizeTxTotal() == 1);
     REQUIRE(txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC)
                 .front()
                 ->getContentsHash() == tx1a->getContentsHash());

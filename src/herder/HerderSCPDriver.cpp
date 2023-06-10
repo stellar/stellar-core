@@ -855,7 +855,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
     CLOG_DEBUG(Herder,
                "HerderSCPDriver::triggerNextLedger txSet.size: {} "
                "previousLedgerHash: {} value: {} slot: {}",
-               proposedSet->sizeTx(),
+               proposedSet->sizeTxTotal(),
                hexAbbrev(proposedSet->previousLedgerHash()),
                hexAbbrev(valueHash), slotIndex);
 

@@ -149,6 +149,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
+        throw;
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         auto destAfter = stellar::loadAccount(ltx, publicKey);
         // check that the target account didn't change
@@ -157,7 +158,6 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
         {
             REQUIRE(*destBefore == destAfter.current());
         }
-        throw;
     }
 
     {

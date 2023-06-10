@@ -529,7 +529,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
               "Got consensus: [seq={}, prev={}, txs={}, ops={}, sv: {}]",
               ledgerData.getLedgerSeq(),
               hexAbbrev(ledgerData.getTxSet()->previousLedgerHash()),
-              ledgerData.getTxSet()->sizeTx(), ledgerData.getTxSet()->sizeOp(),
+              ledgerData.getTxSet()->sizeTxTotal(),
+              ledgerData.getTxSet()->sizeOpTotal(),
               stellarValueToString(mApp.getConfig(), ledgerData.getValue()));
 
     auto st = getState();
@@ -749,7 +750,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // this method throw.
         ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
             header.current().ledgerVersion);
-        ledgerCloseMeta->reserveTxProcessing(txSet->sizeTx());
+        ledgerCloseMeta->reserveTxProcessing(txSet->sizeTxTotal());
         ledgerCloseMeta->populateTxSet(*txSet);
     }
 
@@ -906,7 +907,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end());
         std::chrono::microseconds sleepFor{0};
-        auto txSetSizeOp = txSet->sizeOp();
+        auto txSetSizeOp = txSet->sizeOpTotal();
         for (size_t i = 0; i < txSetSizeOp; i++)
         {
             sleepFor +=
@@ -1302,7 +1303,7 @@ LedgerManagerImpl::applyTransactions(
 
     // Record counts
     auto numTxs = txs.size();
-    auto numOps = txSet.sizeOp();
+    auto numOps = txSet.sizeOpTotal();
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));

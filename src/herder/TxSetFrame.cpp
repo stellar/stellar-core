@@ -32,6 +32,10 @@
 
 namespace stellar
 {
+
+// FIXME: this should be a soroban network config, not a const
+constexpr uint32 const SOROBAN_TX_LIMIT_PER_LEDGER = 2;
+
 namespace
 {
 // The frame created around malformed transaction set XDR received over the
@@ -342,10 +346,14 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     }
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
-    if (txSet->numPhases() != outputTxSet->numPhases() ||
-        txSet->sizeTx() != outputTxSet->sizeTx() ||
-        !outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
-                                 upperBoundCloseTimeOffset))
+    bool invalid = txSet->numPhases() != outputTxSet->numPhases();
+    for (int i = 0; i < txSet->numPhases(); ++i)
+    {
+        invalid |= txSet->sizeTx(static_cast<Phase>(i)) !=
+                   outputTxSet->sizeTx(static_cast<Phase>(i));
+    }
+    if (invalid || !outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
+                                            upperBoundCloseTimeOffset))
     {
         throw std::runtime_error("Created invalid tx set frame");
     }
@@ -500,36 +508,6 @@ TxSetFrame::getTxsForPhase(Phase phase) const
     return mTxPhases.at(static_cast<size_t>(phase));
 }
 
-// void
-// TxSetFrame::forAllTxs(std::function<void()> f, std::optional<Phase> phase =
-// std::nullopt)
-// {
-//     if (!f)
-//     {
-//         CLOG_WARNING(Herder, "forAllTxs: empty function");
-//         return;
-//     }
-
-//     auto forAllInPhase = [&](auto const& txs) {
-//         for (auto const& tx : txs)
-//         {
-//             f();
-//         }
-//     };
-
-//     if (phase)
-//     {
-//         forAllInPhase(mTxPhases[static_cast<size_t>(*phase)]);
-//     }
-//     else
-//     {
-//         for (auto const& txs : mTxPhases)
-//         {
-//             forAllInPhase(txs);
-//         }
-//     }
-// }
-
 TxSetFrame::Transactions
 TxSetFrame::getTxsInApplyOrder() const
 {
@@ -537,7 +515,7 @@ TxSetFrame::getTxsInApplyOrder() const
 
     // Use a single vector to order transactions from all phases
     std::vector<TransactionFrameBasePtr> retList;
-    retList.reserve(sizeTx());
+    retList.reserve(sizeTxTotal());
 
     for (auto const& phase : mTxPhases)
     {
@@ -659,12 +637,22 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 #endif
     }
 
-    if (this->size(lcl.header) > lcl.header.maxTxSetSize)
+    if (this->size(lcl.header, Phase::CLASSIC) > lcl.header.maxTxSetSize)
     {
-        CLOG_DEBUG(Herder, "Got bad txSet: too many txs {} > {}",
-                   this->size(lcl.header), lcl.header.maxTxSetSize);
+        CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
+                   this->size(lcl.header, Phase::CLASSIC),
+                   lcl.header.maxTxSetSize);
         return false;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (this->size(lcl.header, Phase::SOROBAN) > SOROBAN_TX_LIMIT_PER_LEDGER)
+    {
+        CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
+                   this->size(lcl.header, Phase::SOROBAN),
+                   SOROBAN_TX_LIMIT_PER_LEDGER);
+        return false;
+    }
+#endif
 
     bool allValid = true;
     for (auto const& txs : mTxPhases)
@@ -681,27 +669,56 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 }
 
 size_t
-TxSetFrame::size(LedgerHeader const& lh) const
+TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
 {
-    return protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11)
-               ? sizeOp()
-               : sizeTx();
+    size_t sz = 0;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!phase && phase == Phase::SOROBAN)
+    {
+        sz += sizeTx(Phase::SOROBAN);
+    }
+#endif
+    if (!phase || phase == Phase::CLASSIC)
+    {
+        sz += protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11)
+                  ? sizeOp(Phase::CLASSIC)
+                  : sizeTx(Phase::CLASSIC);
+    }
+    return sz;
 }
 
 size_t
-TxSetFrame::sizeOp() const
+TxSetFrame::sizeOp(Phase phase) const
 {
     ZoneScoped;
-    size_t total{0};
-    std::for_each(mTxPhases.begin(), mTxPhases.end(),
-                  [&](Transactions const& phase) {
-                      total += std::accumulate(
-                          phase.begin(), phase.end(), int64_t(0),
-                          [&](int64_t a, TransactionFrameBasePtr const& tx) {
-                              return a + tx->getNumOperations();
-                          });
-                  });
+    auto const& txs = mTxPhases.at(static_cast<size_t>(phase));
+    return std::accumulate(txs.begin(), txs.end(), size_t(0),
+                           [&](size_t a, TransactionFrameBasePtr const& tx) {
+                               return a + tx->getNumOperations();
+                           });
+}
 
+size_t
+TxSetFrame::sizeOpTotal() const
+{
+    ZoneScoped;
+    size_t total = 0;
+    for (int i = 0; i < mTxPhases.size(); i++)
+    {
+        total += sizeOp(static_cast<Phase>(i));
+    }
+    return total;
+}
+
+size_t
+TxSetFrame::sizeTxTotal() const
+{
+    ZoneScoped;
+    size_t total = 0;
+    for (int i = 0; i < mTxPhases.size(); i++)
+    {
+        total += sizeTx(static_cast<Phase>(i));
+    }
     return total;
 }
 
@@ -763,13 +780,13 @@ TxSetFrame::computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
         {
             surgeOpsCutoff = lclHeader.maxTxSetSize - MAX_OPS_PER_TX;
         }
-        if (sizeOp() > surgeOpsCutoff)
+        if (sizeOp(Phase::CLASSIC) > surgeOpsCutoff)
         {
             baseFee = lowestBaseFee;
             if (enableLogging)
             {
                 CLOG_WARNING(Herder, "surge pricing in effect! {} > {}",
-                             sizeOp(), surgeOpsCutoff);
+                             sizeOp(Phase::CLASSIC), surgeOpsCutoff);
             }
         }
     }
@@ -956,8 +973,9 @@ TxSetFrame::summary() const
     }
     else
     {
-        return fmt::format(FMT_STRING("txs:{}, ops:{}, base_fee:{}"), sizeTx(),
-                           sizeOp(), *mTxBaseFeeClassic.begin()->second);
+        return fmt::format(FMT_STRING("txs:{}, ops:{}, base_fee:{}"),
+                           sizeTxTotal(), sizeOpTotal(),
+                           *mTxBaseFeeClassic.begin()->second);
     }
     return "";
 }
