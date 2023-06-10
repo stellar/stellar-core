@@ -1565,13 +1565,14 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
         resources.extendedMetaDataSizeBytes = 3000;
-        auto sorobanTx = createSimpleDeployContractTx(
-            *app, acc2, baseFee, /* refundableFee */ 1200, resources);
+        auto sorobanTx =
+            createUploadWasmTx(*app, acc2, baseFee,
+                               /* refundableFee */ 1200, resources);
 
         SECTION("invalid soroban is rejected")
         {
             // Fee too small
-            auto invalidSoroban = createSimpleDeployContractTx(
+            auto invalidSoroban = createUploadWasmTx(
                 *app, acc2, 100, /* refundableFee */ 1200, resources);
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1611,7 +1612,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
-            auto sorobanTxHighFee = createSimpleDeployContractTx(
+            auto sorobanTxHighFee = createUploadWasmTx(
                 *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1639,7 +1640,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
             resources.readBytes = conf.txMaxReadBytes() / 2;
-            auto sorobanTxHighFee = createSimpleDeployContractTx(
+            auto sorobanTxHighFee = createUploadWasmTx(
                 *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
 
             // Create another small soroban tx, with small fee. It should be
@@ -1649,7 +1650,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.writeBytes = 1;
             resources.extendedMetaDataSizeBytes = 1;
 
-            auto smallSorobanLowFee = createSimpleDeployContractTx(
+            auto smallSorobanLowFee = createUploadWasmTx(
                 *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
 
             TxSetFrame::TxPhases invalidPhases;
@@ -4268,8 +4269,8 @@ TEST_CASE("do not flood too many soroban transactions",
         }
         curFeeOffset--;
 
-        auto tx = createSimpleDeployContractTx(
-            *app, source, txFee, /* refundableFee */ 1200, resources);
+        auto tx = createUploadWasmTx(*app, source, txFee,
+                                     /* refundableFee */ 1200, resources);
 
         REQUIRE(herder.recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);

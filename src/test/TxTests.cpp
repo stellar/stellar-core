@@ -824,10 +824,9 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFramePtr
-createSimpleDeployContractTx(Application& app, TestAccount& account,
-                             uint32_t fee, uint32_t refundableFee,
-                             SorobanResources resources,
-                             std::optional<std::string> memo)
+createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
+                   uint32_t refundableFee, SorobanResources resources,
+                   std::optional<std::string> memo)
 {
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);

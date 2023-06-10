@@ -1484,8 +1484,8 @@ TEST_CASE("Soroban TransactionQueue limits",
     auto resAdjusted = resources;
     resAdjusted.instructions = conf.ledgerMaxInstructions();
 
-    auto tx = createSimpleDeployContractTx(*app, root, initialFee,
-                                           refundableFee, resAdjusted);
+    auto tx =
+        createUploadWasmTx(*app, root, initialFee, refundableFee, resAdjusted);
 
     REQUIRE(app->getHerder().recvTransaction(tx, false) ==
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -1513,8 +1513,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         SECTION("reject")
         {
             // New Soroban tx fits within limits, but now there's no space
-            auto tx2 = createSimpleDeployContractTx(*app, account1, initialFee,
-                                                    refundableFee, resources);
+            auto tx2 = createUploadWasmTx(*app, account1, initialFee,
+                                          refundableFee, resources);
 
             REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -1522,8 +1522,8 @@ TEST_CASE("Soroban TransactionQueue limits",
             SECTION("insufficient fee")
             {
                 // Same fee, no eviction
-                auto tx2 = createSimpleDeployContractTx(
-                    *app, account2, initialFee, refundableFee, resAdjusted);
+                auto tx2 = createUploadWasmTx(*app, account2, initialFee,
+                                              refundableFee, resAdjusted);
 
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);
@@ -1537,8 +1537,8 @@ TEST_CASE("Soroban TransactionQueue limits",
                 resources.instructions = conf.txMaxInstructions() + 1;
 
                 // Double the fee
-                auto tx2 = createSimpleDeployContractTx(
-                    *app, account2, initialFee * 2, refundableFee, resources);
+                auto tx2 = createUploadWasmTx(*app, account2, initialFee * 2,
+                                              refundableFee, resources);
 
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);
@@ -1554,10 +1554,10 @@ TEST_CASE("Soroban TransactionQueue limits",
             // evict the first tx (lowest fee)
             resources.instructions = conf.txMaxInstructions();
 
-            auto tx2 = createSimpleDeployContractTx(
-                *app, account1, initialFee * 2, refundableFee, resources);
-            auto tx3 = createSimpleDeployContractTx(
-                *app, account2, initialFee * 3, refundableFee, resources);
+            auto tx2 = createUploadWasmTx(*app, account1, initialFee * 2,
+                                          refundableFee, resources);
+            auto tx3 = createUploadWasmTx(*app, account2, initialFee * 3,
+                                          refundableFee, resources);
 
             auto status = app->getHerder().recvTransaction(tx2, false);
             REQUIRE(status == TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -1590,8 +1590,8 @@ TEST_CASE("Soroban TransactionQueue limits",
 
         // Generic tx, takes 1/2 of instruction limits
         resources.instructions = conf.ledgerMaxInstructions() / 2;
-        tx = createSimpleDeployContractTx(*app, root, initialFee, refundableFee,
-                                          resources);
+        tx = createUploadWasmTx(*app, root, initialFee, refundableFee,
+                                resources);
 
         SECTION("generic fits")
         {
@@ -1603,7 +1603,7 @@ TEST_CASE("Soroban TransactionQueue limits",
         {
             // Fits into generic, but doesn't fit into limited
             resources.instructions = conf.txMaxInstructions() / 2;
-            auto tx2 = createSimpleDeployContractTx(
+            auto tx2 = createUploadWasmTx(
                 *app, account1, initialFee, refundableFee, resources,
                 std::make_optional<std::string>("limit"));
 
@@ -1618,7 +1618,7 @@ TEST_CASE("Soroban TransactionQueue limits",
         {
             // Fits into limited
             resources.instructions = conf.txMaxInstructions() / 8;
-            auto tx2 = createSimpleDeployContractTx(
+            auto tx2 = createUploadWasmTx(
                 *app, account1, initialFee * 2, refundableFee, resources,
                 std::make_optional<std::string>("limit"));
 
@@ -1636,7 +1636,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 resources.instructions = conf.ledgerMaxInstructions() / 2;
                 // The fee is slightly higher so this transactions is more
                 // favorable during evictions
-                auto secondGeneric = createSimpleDeployContractTx(
+                auto secondGeneric = createUploadWasmTx(
                     *app, account2, initialFee + 10, refundableFee, resources);
 
                 REQUIRE(queue
@@ -1661,7 +1661,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                     // both at max
                     resources.writeBytes = conf.txMaxWriteBytes() / 4;
                     resources.instructions = 0;
-                    auto tx2 = createSimpleDeployContractTx(
+                    auto tx2 = createUploadWasmTx(
                         *app, account1, initialFee * 2, refundableFee,
                         resources, std::make_optional<std::string>("limit"));
 
@@ -1674,7 +1674,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                     // fee
                     resources.instructions = conf.txMaxInstructions() / 4;
                     resources.instructions = conf.txMaxWriteBytes() / 4;
-                    auto tx3 = createSimpleDeployContractTx(
+                    auto tx3 = createUploadWasmTx(
                         *app, account2, initialFee * 3, refundableFee,
                         resources, std::make_optional<std::string>("limit"));
 

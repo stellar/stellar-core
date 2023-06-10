@@ -647,7 +647,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (this->size(lcl.header, Phase::SOROBAN) > SOROBAN_TX_LIMIT_PER_LEDGER)
     {
-        CLOG_DEBUG(Herder, "Got bad txSet: too many classic txs {} > {}",
+        CLOG_DEBUG(Herder, "Got bad txSet: too many soroban txs {} > {}",
                    this->size(lcl.header, Phase::SOROBAN),
                    SOROBAN_TX_LIMIT_PER_LEDGER);
         return false;
@@ -675,7 +675,7 @@ TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!phase && phase == Phase::SOROBAN)
     {
-        sz += sizeTx(Phase::SOROBAN);
+        sz += sizeOp(Phase::SOROBAN);
     }
 #endif
     if (!phase || phase == Phase::CLASSIC)
@@ -1077,7 +1077,8 @@ TxSetFrame::addTxsFromXdr(Application& app,
         tx->maybeComputeSorobanResourceFee(ledgerVersion, sorobanConfig,
                                            appConfig);
         // Phase should be consistent with the tx we're trying to add
-        if (tx->isSoroban() && phase != Phase::SOROBAN)
+        if ((tx->isSoroban() && phase != Phase::SOROBAN) ||
+            (!tx->isSoroban() && phase != Phase::CLASSIC))
         {
             return false;
         }

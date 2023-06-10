@@ -188,10 +188,9 @@ TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFramePtr
-createSimpleDeployContractTx(Application& app, TestAccount& account,
-                             uint32_t fee, uint32_t refundableFee,
-                             SorobanResources resources,
-                             std::optional<std::string> memo = std::nullopt);
+createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
+                   uint32_t refundableFee, SorobanResources resources,
+                   std::optional<std::string> memo = std::nullopt);
 #endif
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
