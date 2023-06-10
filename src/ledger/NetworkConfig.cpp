@@ -383,19 +383,6 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                                 Config const& cfg)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-<<<<<<< HEAD
-    createConfigSettingEntry(initialMaxContractSizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractMetaDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
-    createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialStateExpirationSettings(), ltx);
-=======
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
@@ -408,7 +395,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(cfg), ltx);
->>>>>>> Testing: allow specifying network configs for upgrades
+    createConfigSettingEntry(initialStateExpirationSettings(), ltx);
 #endif
 }
 
