@@ -434,131 +434,121 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     REQUIRE(gotToExpectedSize);
 }
 
-// TEST_CASE_VERSIONS("meta stream contains reasonable meta",
-// "[ledgerclosemeta]")
-// {
-//     Config cfg = getTestConfig();
+TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
+{
+    Config cfg = getTestConfig();
 
-//     // We need to fix a deterministic NODE_SEED for this test to be stable.
-//     cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(12345);
+    // We need to fix a deterministic NODE_SEED for this test to be stable.
+    cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(12345);
 
-//     TmpDirManager tdm(std::string("metatest-") + binToHex(randomBytes(8)));
-//     TmpDir td = tdm.tmpDir("meta-ok");
-//     std::string metaPath = td.getName() + "/stream.xdr";
+    TmpDirManager tdm(std::string("metatest-") + binToHex(randomBytes(8)));
+    TmpDir td = tdm.tmpDir("meta-ok");
+    std::string metaPath = td.getName() + "/stream.xdr";
 
-//     VirtualClock clock;
-//     cfg.METADATA_OUTPUT_STREAM = metaPath;
-//     // TODO: later when network configs per ledger are settled, regenerate
-//     meta
-//     // and remove the 6 lines below
-//     cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
-//     cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
-//     cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
-//     cfg.TESTING_LEDGER_MAX_READ_BYTES =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
-//     cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-//     cfg.TESTING_LEDGER_MAX_WRITE_BYTES =
-//         InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
-//     {
-//         // Do some stuff
-//         using namespace stellar::txtest;
-//         auto app = createTestApplication(clock, cfg);
-//         auto& lm = app->getLedgerManager();
-//         auto txFee = lm.getLastTxFee();
-//         auto bal = app->getLedgerManager().getLastMinBalance(2);
+    VirtualClock clock;
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
+    // TODO: later when network configs per ledger are settled, regenerate
+    // meta and remove the 6 lines below
+    cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
+    cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
+    cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
+    cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;
+    cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
+    cfg.TESTING_LEDGER_MAX_WRITE_BYTES = 1;
+    {
+        // Do some stuff
+        using namespace stellar::txtest;
+        auto app = createTestApplication(clock, cfg);
+        auto& lm = app->getLedgerManager();
+        auto txFee = lm.getLastTxFee();
+        auto bal = app->getLedgerManager().getLastMinBalance(2);
 
-//         auto root = TestAccount::createRoot(*app);
+        auto root = TestAccount::createRoot(*app);
 
-//         // Ledgers #2, #3 and #4 create accounts, which happen directly and
-//         // don't emit meta.
-//         auto acc1 = root.create("acc1", bal);
-//         auto acc2 = root.create("acc2", bal);
-//         auto issuer =
-//             root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
-//         auto cur1 = issuer.asset("CUR1");
+        // Ledgers #2, #3 and #4 create accounts, which happen directly and
+        // don't emit meta.
+        auto acc1 = root.create("acc1", bal);
+        auto acc2 = root.create("acc2", bal);
+        auto issuer =
+            root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
+        auto cur1 = issuer.asset("CUR1");
 
-//         // Ledger #5 sets up a trustline which has to happen before we can
-//         use
-//         // it.
-//         acc1.changeTrust(cur1, 100);
+        // Ledger #5 sets up a trustline which has to happen before we can
+        // use
+        // it.
+        acc1.changeTrust(cur1, 100);
 
-//         // Ledger #6 uses closeLedger so emits interesting meta.
-//         std::vector<TransactionFrameBasePtr> txs = {
-//             // First tx pays 1000 XLM from root to acc1
-//             root.tx({payment(acc1.getPublicKey(), 1000)}),
-//             // Second tx pays acc1 50 cur1 units twice from issuer.
-//             issuer.tx({payment(acc1, cur1, 50), payment(acc1, cur1, 50)})};
-//         if (protocolVersionStartsFrom(
-//                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-//                 ProtocolVersion::V_13))
-//         {
-//             // If we're in the world where fee-bumps exist (protocol 13 or
-//             // later), we re-wrap the final tx in a fee-bump from acc2.
-//             auto tx = txs.back();
-//             txs.back() = feeBump(*app, acc2, tx, 5000);
-//         }
-//         closeLedger(*app, txs);
-//     }
+        // Ledger #6 uses closeLedger so emits interesting meta.
+        std::vector<TransactionFrameBasePtr> txs = {
+            // First tx pays 1000 XLM from root to acc1
+            root.tx({payment(acc1.getPublicKey(), 1000)}),
+            // Second tx pays acc1 50 cur1 units twice from issuer.
+            issuer.tx({payment(acc1, cur1, 50), payment(acc1, cur1, 50)})};
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                ProtocolVersion::V_13))
+        {
+            // If we're in the world where fee-bumps exist (protocol 13 or
+            // later), we re-wrap the final tx in a fee-bump from acc2.
+            auto tx = txs.back();
+            txs.back() = feeBump(*app, acc2, tx, 5000);
+        }
+        closeLedger(*app, txs);
+    }
 
-//     // We're going to examine the meta generated by ledger #6.
-//     uint32_t const targetSeq = 6;
+    // We're going to examine the meta generated by ledger #6.
+    uint32_t const targetSeq = 6;
 
-//     XDRInputFileStream in;
-//     in.open(metaPath);
-//     LedgerCloseMeta lcm;
-//     uint32_t maxSeq = 0;
-//     while (in.readOne(lcm))
-//     {
-//         uint32_t ledgerSeq{0};
+    XDRInputFileStream in;
+    in.open(metaPath);
+    LedgerCloseMeta lcm;
+    uint32_t maxSeq = 0;
+    while (in.readOne(lcm))
+    {
+        uint32_t ledgerSeq{0};
 
-//         if
-//         (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-//                                     GENERALIZED_TX_SET_PROTOCOL_VERSION))
-//         {
-//             // LCM v0
-//             REQUIRE(lcm.v() == 0);
-//             REQUIRE(lcm.v0().ledgerHeader.header.ledgerVersion ==
-//                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-//             ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
-//         }
-//         else
-//         {
-//             // LCM v1
-//             REQUIRE(lcm.v() == 1);
-//             REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
-//                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-//             ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
-//         }
+        if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    GENERALIZED_TX_SET_PROTOCOL_VERSION))
+        {
+            // LCM v0
+            REQUIRE(lcm.v() == 0);
+            REQUIRE(lcm.v0().ledgerHeader.header.ledgerVersion ==
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+            ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
+        }
+        else
+        {
+            // LCM v1
+            REQUIRE(lcm.v() == 1);
+            REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+            ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
+        }
 
-//         if (ledgerSeq == targetSeq)
-//         {
-//             std::string refJsonPath = fmt::format(
-//                 FMT_STRING("testdata/ledger-close-meta-v{}-protocol-{}.json"),
-//                 lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-//             std::string have = xdr_to_string(lcm, "LedgerCloseMeta");
-//             if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
-//             {
-//                 std::ofstream outJson(refJsonPath);
-//                 outJson.write(have.data(), have.size());
-//             }
-//             else
-//             {
-//                 // If the format of close meta has changed, you will see a
-//                 // failure here. If the change is expected run this test with
-//                 // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close
-//                 meta
-//                 // files.
-//                 std::ifstream inJson(refJsonPath);
-//                 REQUIRE(inJson);
-//                 std::string expect(std::istreambuf_iterator<char>{inJson},
-//                 {}); REQUIRE(expect == have);
-//             }
-//         }
-//         maxSeq = ledgerSeq;
-//     }
-//     REQUIRE(maxSeq == targetSeq);
-// }
+        if (ledgerSeq == targetSeq)
+        {
+            std::string refJsonPath = fmt::format(
+                FMT_STRING("testdata/ledger-close-meta-v{}-protocol-{}.json"),
+                lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+            std::string have = xdr_to_string(lcm, "LedgerCloseMeta");
+            if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
+            {
+                std::ofstream outJson(refJsonPath);
+                outJson.write(have.data(), have.size());
+            }
+            else
+            {
+                // If the format of close meta has changed, you will see a
+                // failure here. If the change is expected run this test with
+                // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close
+                // meta files.
+                std::ifstream inJson(refJsonPath);
+                REQUIRE(inJson);
+                std::string expect(std::istreambuf_iterator<char>{inJson}, {});
+                REQUIRE(expect == have);
+            }
+        }
+        maxSeq = ledgerSeq;
+    }
+    REQUIRE(maxSeq == targetSeq);
+}
