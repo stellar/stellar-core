@@ -133,13 +133,20 @@ randomlyModifyEntry(LedgerEntry& e)
         break;
     }
     case CONTRACT_DATA:
-        e.data.contractData().val.type(SCV_I32);
-        e.data.contractData().val.i32() = autocheck::generator<int32_t>{}();
+        if (e.data.contractData().body.leType() == DATA_ENTRY)
+        {
+            e.data.contractData().body.data().val.type(SCV_I32);
+            e.data.contractData().body.data().val.i32() =
+                autocheck::generator<int32_t>{}();
+        }
         makeValid(e.data.contractData());
         break;
     case CONTRACT_CODE:
-        auto code = generateOpaqueVector<60000>();
-        e.data.contractCode().code.assign(code.begin(), code.end());
+        if (e.data.contractCode().body.leType() == DATA_ENTRY)
+        {
+            auto code = generateOpaqueVector<60000>();
+            e.data.contractCode().body.code().assign(code.begin(), code.end());
+        }
         makeValid(e.data.contractCode());
         break;
 #endif
@@ -337,11 +344,16 @@ makeValid(ConfigSettingEntry& ce)
 void
 makeValid(ContractDataEntry& cde)
 {
+    cde.body.leType(ContractLedgerEntryType::DATA_ENTRY);
+    cde.body.data().flags = 0;
+    int t = cde.type;
+    cde.type = static_cast<ContractDataType>(std::abs(t % 3));
 }
 
 void
 makeValid(ContractCodeEntry& cce)
 {
+    cce.body.leType(ContractLedgerEntryType::DATA_ENTRY);
 }
 #endif
 
@@ -603,6 +615,43 @@ generateValidLedgerEntryKeysWithExclusions(
         keys.push_back(LedgerEntryKey(entry));
     }
     return keys;
+}
+
+LedgerEntry
+generateValidLedgerEntryWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t b)
+{
+    while (true)
+    {
+        auto entry = generateValidLedgerEntry(b);
+        if (types.find(entry.data.type()) != types.end())
+        {
+            return entry;
+        }
+    }
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n)
+{
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerEntry> entries;
+    entries.reserve(n);
+    keys.reserve(n);
+    while (entries.size() < n)
+    {
+        auto entry = generateValidLedgerEntryWithTypes(types);
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+
+        keys.insert(key);
+        entries.push_back(entry);
+    }
+    return entries;
 }
 
 AccountEntry

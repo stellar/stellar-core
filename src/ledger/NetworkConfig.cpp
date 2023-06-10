@@ -227,6 +227,23 @@ initialCpuCostParamsEntry()
 }
 
 ConfigSettingEntry
+initialStateExpirationSettings()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_STATE_EXPIRATION);
+
+    entry.stateExpirationSettings().autoBumpLedgers =
+        InitialSorobanNetworkConfig::AUTO_BUMP_NUM_LEDGERS;
+    entry.stateExpirationSettings().maxEntryExpiration =
+        InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().minRestorableEntryExpiration =
+        InitialSorobanNetworkConfig::MINIMUM_RESTORABLE_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().minTempEntryExpiration =
+        InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+
+    return entry;
+}
+
+ConfigSettingEntry
 initialMemCostParamsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
@@ -325,6 +342,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialStateExpirationSettings(), ltx);
 #endif
 }
 
@@ -352,6 +370,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadBandwidthSettings(ltx);
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
+    loadStateExpirationSettings(ltx);
 }
 
 void
@@ -521,6 +540,19 @@ uint32_t
 SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 {
     return mMaxContractDataEntrySizeBytes;
+}
+
+void
+SorobanNetworkConfig::loadStateExpirationSettings(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION;
+    auto le = ltx.loadWithoutRecord(key).current();
+    mStateExpirationSettings =
+        le.data.configSetting().stateExpirationSettings();
+#endif
 }
 
 // Compute settings for contracts (instructions and memory).
@@ -710,6 +742,12 @@ ContractCostParams const&
 SorobanNetworkConfig::memCostParams() const
 {
     return mMemCostParams;
+}
+
+StateExpirationSettings const&
+SorobanNetworkConfig::stateExpirationSettings() const
+{
+    return mStateExpirationSettings;
 }
 
 bool

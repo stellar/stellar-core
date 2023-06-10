@@ -6,6 +6,7 @@
 
 #include <type_traits>
 
+#include "ledger/LedgerTypeUtils.h"
 #include "overlay/StellarXDR.h"
 #include "util/XDROperators.h"
 
@@ -86,11 +87,16 @@ struct LedgerEntryIdCmp
                    b.liquidityPool().liquidityPoolID;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
+        {
             return lexCompare(a.contractData().contractID,
                               b.contractData().contractID, a.contractData().key,
-                              b.contractData().key);
+                              b.contractData().key, a.contractData().type,
+                              b.contractData().type, getLeType(a),
+                              getLeType(b));
+        }
         case CONTRACT_CODE:
-            return a.contractCode().hash < b.contractCode().hash;
+            return lexCompare(a.contractCode().hash, b.contractCode().hash,
+                              getLeType(a), getLeType(b));
         case CONFIG_SETTING:
         {
             auto getConfigSettingId = [](auto const& v) -> ConfigSettingID {

@@ -43,6 +43,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include "util/XDRCereal.h"
+
 namespace stellar
 {
 
@@ -137,6 +139,13 @@ void
 TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
     mReturnValue = returnValue;
+}
+
+void
+TransactionFrame::pushInitialExpirations(
+    UnorderedMap<LedgerKey, uint32_t>&& originalExpirations)
+{
+    mOriginalExpirations = originalExpirations;
 }
 
 #endif
@@ -1388,6 +1397,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
         }
 
+        success = success && applyExpirationBumps(app, ltxTx);
+
         if (success)
         {
             LedgerEntryChanges changesAfter;
@@ -1509,6 +1520,172 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     outerMeta.clearOperationMetas();
     outerMeta.clearTxChangesAfter();
     return false;
+}
+
+// This function is responsible for auto expiration bumps, enforcing expiration
+// bounds, and charging expiration related fees. After InvokeHostFunctionOp is
+// applied, the host should have set LedgerEnry expirations as follows:
+//
+// If an entry was created with no manual expiration extension:
+//      entry.expirationLedgerSeq == LastClosedLedgerSeq
+//
+// If an entry was manually bumped:
+//      entry.expirationLedgerSeq == specifiedExpiration
+//
+// Where specifiedExpiration is the expiration extension from the manual bump.
+// Note that this is a contract provided expiration so it may be outside the
+// allowed expiration bounds and may need modification. The host should not
+// apply any auto bumps.
+//
+// Once we reach this, the smart contract function has succeeded. To avoid
+// burning fees unnecessarily, we should only fail the tx if refundableFee is
+// not large enough to pay for the required expiration extensions. If a user
+// specifies a expiration extension outside the bounds, the expiration will be
+// set to the bound and charged accordingly. So long as refundableFee is large
+// enough to cover the adjusted expirations, the tx still succeeds.
+
+bool
+TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
+{
+    if (!isSoroban())
+    {
+        return true;
+    }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerTxn ltxTx(ltx);
+    auto const& resources = sorobanResources();
+    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    auto const& expirationSettings = app.getLedgerManager()
+                                         .getSorobanNetworkConfig(ltxTx)
+                                         .stateExpirationSettings();
+
+    auto maxExpirationLedger = lcl + expirationSettings.maxEntryExpiration;
+    auto minRestorableExpirationLedger =
+        lcl + expirationSettings.minRestorableEntryExpiration;
+    auto minTempExpirationLedger =
+        lcl + expirationSettings.minTempEntryExpiration;
+    auto autoBumpLedgers = expirationSettings.autoBumpLedgers;
+
+    // Applies the correct expiration to LE. If expiration has not changed from
+    // pre-tx apply value, returns false. Otherwise, returns true
+    auto bump = [&](LedgerEntry& le, bool autoBump, bool enforceMinimum) {
+        // If an entry is being created for the first time, there is no original
+        // expiration, so set it to lcl for fee calculation purposes
+        auto iter = mOriginalExpirations.find(LedgerEntryKey(le));
+        uint32_t preApplyExpiration =
+            iter == mOriginalExpirations.end() ? lcl : iter->second;
+        uint32_t postApplyExpiration = getExpirationLedger(le);
+        uint32_t minimumForEntry = preApplyExpiration;
+
+        // First, calculate minimum expiration that should be applied. This
+        // value is (preApplyExpiration + autobump) or minExpirationForType,
+        // whichever is greater.
+        if (autoBump)
+        {
+            // Note: preApplyExpiration is guarenteed to be a valid expiration
+            // ledger so this can't overflow
+            minimumForEntry = preApplyExpiration + autoBumpLedgers;
+        }
+
+        if (enforceMinimum)
+        {
+            if (isTemporaryEntry(le.data))
+            {
+                minimumForEntry =
+                    std::max(minimumForEntry, minTempExpirationLedger);
+            }
+            else
+            {
+                minimumForEntry =
+                    std::max(minimumForEntry, minRestorableExpirationLedger);
+            }
+        }
+
+        // Check if the expiration bump applied by the host is enough to cover
+        // the required minimum
+        uint32_t expirationToApply = postApplyExpiration < minimumForEntry
+                                         ? minimumForEntry
+                                         : postApplyExpiration;
+
+        // Cap at max expiration
+        expirationToApply = std::min(expirationToApply, maxExpirationLedger);
+
+        if (expirationToApply == preApplyExpiration)
+        {
+            return false;
+        }
+        else
+        {
+            setExpirationLedger(le, expirationToApply);
+            return true;
+        }
+    };
+
+    for (auto const& key : resources.footprint.readWrite)
+    {
+        auto lte = ltxTx.load(key);
+        if (lte && isSorobanDataEntry(lte.current().data))
+        {
+            // Must enforce minimum expirations on write
+            bump(lte.current(), autoBumpEnabled(lte.current()), true);
+        }
+    }
+
+    // TODO: Write expiration extension entries instead of witing whole entry
+    for (auto const& key : resources.footprint.readOnly)
+    {
+        auto lte = ltxTx.load(key);
+        if (lte && isSorobanDataEntry(lte.current().data))
+        {
+            // Must enforce minimum expirations on write
+            bump(lte.current(), autoBumpEnabled(lte.current()), true);
+        }
+    }
+
+    // WIP
+
+    // for (auto const& key : resources.footprint.readOnly)
+    // {
+    //     // Load without record to avoid rewriting full DATA_ENTRY. Instead,
+    //     // create a EXPIRATION_EXTENSION entry
+    //     auto lte = ltxTx.loadWithoutRecord(key);
+    //     if (lte && isSorobanDataEntry(lte.current().data))
+    //     {
+    //         auto extK = key;
+    //         setLeType(extK, EXPIRATION_EXTENSION);
+
+    //         // If a EXPIRATION_EXTENSION for the given entry already exists,
+    //         load
+    //         // it
+    //         auto extLte = ltxTx.load(extK);
+    //         if (extLte)
+    //         {
+    //             // Extension may be out of date so set the expiration
+    //             auto& extLe = extLte.current();
+    //             setExpirationLedger(extLe,
+    //             getExpirationLedger(lte.current()));
+
+    //             // Don't enforce minimums on reads
+    //             bump(extLe, autoBumpEnabled(lte.current()), false);
+    //         }
+    //         else
+    //         {
+    //             auto extLe = expirationExtensionFromDataEntry(lte.current());
+
+    //             // Don't enforce minimums on reads
+    //             if (bump(extLe, autoBumpEnabled(lte.current()), false))
+    //             {
+    //                 ltxTx.create(InternalLedgerEntry(extLe));
+    //             }
+    //         }
+    //     }
+    // }
+
+    ltxTx.commit();
+#endif
+
+    return true;
 }
 
 bool

@@ -59,6 +59,7 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<FeePair> mSorobanResourceFee;
     // Size of the emitted Soroban metadata.
     uint32_t mConsumedSorobanMetadataSize{};
+    UnorderedMap<LedgerKey, uint32_t> mOriginalExpirations;
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -119,6 +120,8 @@ class TransactionFrame : public TransactionFrameBase
 
     bool applyOperations(SignatureChecker& checker, Application& app,
                          AbstractLedgerTxn& ltx, TransactionMetaFrame& meta);
+
+    bool applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx);
 
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
@@ -190,6 +193,8 @@ class TransactionFrame : public TransactionFrameBase
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
+    void pushInitialExpirations(
+        UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;

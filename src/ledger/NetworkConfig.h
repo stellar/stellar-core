@@ -64,6 +64,16 @@ struct InitialSorobanNetworkConfig
     // Meta data settings
     static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500 * 1024;
     static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 200;
+
+    // State expiration settings
+    // 1 year in ledgers
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6'312'000;
+
+    // Live until level 6
+    static constexpr uint32_t MINIMUM_RESTORABLE_ENTRY_LIFETIME = 4096;
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
+
+    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 10;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -166,6 +176,9 @@ class SorobanNetworkConfig
     static bool isValidCostParams(ContractCostParams const& params);
 
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
+
+    // State expiration settings
+    StateExpirationSettings const& stateExpirationSettings() const;
 #endif
 
   private:
@@ -179,6 +192,7 @@ class SorobanNetworkConfig
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
+    void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -224,6 +238,10 @@ class SorobanNetworkConfig
     // Host cost params
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
+
+    // State expiration settings
+    StateExpirationSettings mStateExpirationSettings{};
+
 #endif
 };
 
