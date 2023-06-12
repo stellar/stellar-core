@@ -26,11 +26,11 @@ use super::soroban_env_host::{
     },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
-        self, AccountId, ContractCodeEntryBody, ContractDataEntryBody, ContractEvent,
-        ContractLedgerEntryType, DiagnosticEvent, HostFunction, LedgerEntry, LedgerEntryData,
-        LedgerKey, LedgerKeyAccount, LedgerKeyContractCode, LedgerKeyContractData,
-        LedgerKeyTrustLine, ReadXdr, SorobanResources, WriteXdr, XDR_FILES_SHA256,
-        ContractCostParams, ContractEventType, ScErrorCode, ScErrorType, SorobanAuthorizationEntry,
+        self, AccountId, ContractCodeEntryBody, ContractCostParams, ContractDataEntryBody,
+        ContractEvent, ContractEventType, ContractLedgerEntryType, DiagnosticEvent, HostFunction,
+        LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode,
+        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScErrorCode, ScErrorType,
+        SorobanAuthorizationEntry, SorobanResources, WriteXdr, XDR_FILES_SHA256,
     },
     DiagnosticLevel, Host, HostError, LedgerInfo,
 };
@@ -358,6 +358,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    base_prng_seed: &CxxBuf,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
@@ -368,6 +369,7 @@ pub(crate) fn invoke_host_function(
             auth_entries,
             ledger_info,
             ledger_entries,
+            base_prng_seed,
         )
     }));
     match res {
@@ -384,6 +386,7 @@ fn invoke_host_function_or_maybe_panic(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    base_prng_seed: &CxxBuf,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
@@ -403,6 +406,12 @@ fn invoke_host_function_or_maybe_panic(
     host.set_source_account(source_account);
     host.set_ledger_info(ledger_info.into());
     host.set_authorization_entries(auth_entries)?;
+    let seed32: [u8; 32] = base_prng_seed
+        .data
+        .as_slice()
+        .try_into()
+        .map_err(|_| CoreHostError::General("Wrong base PRNG seed size"))?;
+    host.set_base_prng_seed(seed32);
     if enable_diagnostics {
         host.set_diagnostic_level(DiagnosticLevel::Debug);
     }

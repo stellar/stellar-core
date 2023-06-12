@@ -1317,6 +1317,9 @@ LedgerManagerImpl::applyTransactions(
 
     prefetchTransactionData(txs);
 
+    Hash sorobanBasePrngSeed = txSet.getContentsHash();
+    uint64_t txNum{0};
+
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -1326,7 +1329,19 @@ LedgerManagerImpl::applyTransactions(
                    hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
                    tx->getSeqNum(),
                    mApp.getConfig().toShortString(tx->getSourceID()));
-        tx->apply(mApp, ltx, tm);
+
+        Hash subSeed = sorobanBasePrngSeed;
+        // If tx can use the seed, we need to compute a sub-seed for it.
+        if (tx->isSoroban())
+        {
+            SHA256 subSeedSha;
+            subSeedSha.add(sorobanBasePrngSeed);
+            subSeedSha.add(xdr::xdr_to_opaque(txNum));
+            subSeed = subSeedSha.finish();
+        }
+        ++txNum;
+
+        tx->apply(mApp, ltx, tm, subSeed);
         tx->processPostApply(mApp, ltx, tm);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();

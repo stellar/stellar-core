@@ -58,7 +58,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     virtual ~FeeBumpTransactionFrame(){};
 
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta) override;
+               TransactionMetaFrame& meta,
+               Hash const& sorobanBasePrngSeed) override;
 
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta) override;

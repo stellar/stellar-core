@@ -880,7 +880,7 @@ class FuzzTransactionFrame : public TransactionFrame
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
         TransactionMetaFrame tm(2);
-        applyOperations(signatureChecker, app, ltx, tm);
+        applyOperations(signatureChecker, app, ltx, tm, Hash{});
         if (getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");

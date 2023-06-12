@@ -1353,16 +1353,18 @@ TransactionFrame::markResultFailed()
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx)
+TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+                        Hash const& sorobanBasePrngSeed)
 {
     TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
-    return apply(app, ltx, tm);
+    return apply(app, ltx, tm, sorobanBasePrngSeed);
 }
 
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaFrame& outerMeta)
+                                  TransactionMetaFrame& outerMeta,
+                                  Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
     auto& internalErrorCounter = app.getMetrics().NewCounter(
@@ -1387,11 +1389,24 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
 
+        uint64_t opNum{0};
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerTxn ltxOp(ltxTx);
-            bool txRes = op->apply(app, signatureChecker, ltxOp);
+
+            Hash subSeed = sorobanBasePrngSeed;
+            // If op can use the seed, we need to compute a sub-seed for it.
+            if (op->isSoroban())
+            {
+                SHA256 subSeedSha;
+                subSeedSha.add(sorobanBasePrngSeed);
+                subSeedSha.add(xdr::xdr_to_opaque(opNum));
+                subSeed = subSeedSha.finish();
+            }
+            ++opNum;
+
+            bool txRes = op->apply(app, signatureChecker, ltxOp, subSeed);
 
             if (!txRes)
             {
@@ -1708,7 +1723,8 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaFrame& meta, bool chargeFee)
+                        TransactionMetaFrame& meta, bool chargeFee,
+                        Hash const& sorobanBasePrngSeed)
 {
     ZoneScoped;
     try
@@ -1742,7 +1758,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             // have the correct TransactionResult so we must crash.
             if (ok)
             {
-                ok = applyOperations(signatureChecker, app, ltx, meta);
+                ok = applyOperations(signatureChecker, app, ltx, meta,
+                                     sorobanBasePrngSeed);
             }
             return ok;
         }
@@ -1771,9 +1788,10 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaFrame& meta)
+                        TransactionMetaFrame& meta,
+                        Hash const& sorobanBasePrngSeed)
 {
-    return apply(app, ltx, meta, true);
+    return apply(app, ltx, meta, true, sorobanBasePrngSeed);
 }
 
 void

@@ -36,7 +36,8 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaFrame& meta) = 0;
+                       TransactionMetaFrame& meta,
+                       Hash const& sorobanBasePrngSeed = Hash{}) = 0;
 
     virtual bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                             SequenceNumber current,

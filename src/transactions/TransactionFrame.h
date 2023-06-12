@@ -119,7 +119,8 @@ class TransactionFrame : public TransactionFrameBase
     void markResultFailed();
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerTxn& ltx, TransactionMetaFrame& meta);
+                         AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
+                         Hash const& sorobanBasePrngSeed);
 
     bool applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx);
 
@@ -248,9 +249,11 @@ class TransactionFrame : public TransactionFrameBase
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, bool chargeFee);
+               TransactionMetaFrame& meta, bool chargeFee,
+               Hash const& sorobanBasePrngSeed);
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta) override;
+               TransactionMetaFrame& meta,
+               Hash const& sorobanBasePrngSeed = Hash{}) override;
 
     // Performs the necessary post-apply transaction processing.
     // This has to be called after both `processFeeSeqNum` and
@@ -260,7 +263,8 @@ class TransactionFrame : public TransactionFrameBase
                           TransactionMetaFrame& meta) override;
 
     // version without meta
-    bool apply(Application& app, AbstractLedgerTxn& ltx);
+    bool apply(Application& app, AbstractLedgerTxn& ltx,
+               Hash const& sorobanBasePrngSeed);
 
     StellarMessage toStellarMessage() const override;
 
