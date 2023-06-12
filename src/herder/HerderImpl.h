@@ -185,6 +185,7 @@ class HerderImpl : public Herder
     // helper function to verify SCPValues are signed
     bool verifyStellarValueSignature(StellarValue const& sv);
 
+    size_t getMaxQueueSizeOps() const override;
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 
