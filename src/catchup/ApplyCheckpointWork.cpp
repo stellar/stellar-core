@@ -216,7 +216,7 @@ ApplyCheckpointWork::getNextLedgerCloseData()
 
     auto txset = getCurrentTxSet();
     CLOG_DEBUG(History, "Ledger {} has {} transactions", header.ledgerSeq,
-               txset->sizeTx());
+               txset->sizeTxTotal());
 
     // We've verified the ledgerHeader (in the "trusted part of history"
     // sense) in CATCHUP_VERIFY phase; we now need to check that the

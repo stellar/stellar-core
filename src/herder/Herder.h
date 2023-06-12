@@ -148,7 +148,11 @@ class Herder
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
 
-    virtual TransactionQueue& getTransactionQueue() = 0;
+    virtual ClassicTransactionQueue& getTransactionQueue() = 0;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    virtual SorobanTransactionQueue& getSorobanTransactionQueue() = 0;
+#endif
+    virtual bool sourceAccountPending(AccountID const& accountID) const = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
@@ -204,7 +208,6 @@ class Herder
     virtual QuorumTracker::QuorumMap const&
     getCurrentlyTrackedQuorum() const = 0;
 
-    virtual size_t getMaxQueueSizeOps() const = 0;
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 };

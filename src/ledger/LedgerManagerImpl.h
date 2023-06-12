@@ -117,6 +117,8 @@ class LedgerManagerImpl : public LedgerManager
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
+    Resource maxLedgerResources(bool isSoroban,
+                                AbstractLedgerTxn& ltxOuter) override;
     int64_t getLastMinBalance(uint32_t ownerCount) const override;
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;

@@ -447,7 +447,14 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
     VirtualClock clock;
     cfg.METADATA_OUTPUT_STREAM = metaPath;
-
+    // TODO: later when network configs per ledger are settled, regenerate
+    // meta and remove the 6 lines below
+    cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
+    cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
+    cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
+    cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;
+    cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
+    cfg.TESTING_LEDGER_MAX_WRITE_BYTES = 1;
     {
         // Do some stuff
         using namespace stellar::txtest;
@@ -466,7 +473,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
         auto cur1 = issuer.asset("CUR1");
 
-        // Ledger #5 sets up a trustline which has to happen before we can use
+        // Ledger #5 sets up a trustline which has to happen before we can
+        // use
         // it.
         acc1.changeTrust(cur1, 100);
 
@@ -532,8 +540,8 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             {
                 // If the format of close meta has changed, you will see a
                 // failure here. If the change is expected run this test with
-                // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close meta
-                // files.
+                // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close
+                // meta files.
                 std::ifstream inJson(refJsonPath);
                 REQUIRE(inJson);
                 std::string expect(std::istreambuf_iterator<char>{inJson}, {});

@@ -52,7 +52,7 @@ ApplyBufferedLedgersWork::onRun()
               "ops={}, sv: {}]",
               lcd.getLedgerSeq(),
               hexAbbrev(lcd.getTxSet()->previousLedgerHash()),
-              lcd.getTxSet()->sizeTx(), lcd.getTxSet()->sizeOp(),
+              lcd.getTxSet()->sizeTxTotal(), lcd.getTxSet()->sizeOpTotal(),
               stellarValueToString(mApp.getConfig(), lcd.getValue()));
 
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, lcd);

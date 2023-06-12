@@ -3,19 +3,19 @@
         "v": 1,
         "v1": {
             "ledgerHeader": {
-                "hash": "ea1df01b3ec50d68e0951c5fd0f7d086764d8c875a7278fbab1ffa11f775661c",
+                "hash": "f2b479cf881222cda00dc6746909ea35dbe53ba98950c888ef5812a30320baa8",
                 "header": {
                     "ledgerVersion": 20,
-                    "previousLedgerHash": "ed84fb44a74f7dfaa9a9b215ea9fdd09713c42561c7821eed6c6c8de8882a789",
+                    "previousLedgerHash": "dcd8d113452693e5ed118eec13c8bcbd957fed6f15943486b637c79798a68902",
                     "scpValue": {
-                        "txSetHash": "6da79244c16ba827a4ddb63ee0ca639af5a64b5d2e21b2d5962f463936701220",
+                        "txSetHash": "0f22d4d368e732186a6ba0fc95a1d856f80b4516c23e61b40911bd626a14c4ec",
                         "closeTime": 0,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "93c272b20695ee5f1c83ca8c4b877da893baf5801360489458ffe7031c0224edfd5a34520bbf675b0abb4ae5cfb58f70e41f62570120824896d026b6426a4b0c"
+                                "signature": "ed9ca1ed61b90594101a12a115e6ac81818d7df4b548270540bba328b179d614a9e3322bd35dd63a3b7b2e6475420b487c680134e611c099de8b9d14c4399b0c"
                             }
                         }
                     },
@@ -46,7 +46,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "ed84fb44a74f7dfaa9a9b215ea9fdd09713c42561c7821eed6c6c8de8882a789",
+                    "previousLedgerHash": "dcd8d113452693e5ed118eec13c8bcbd957fed6f15943486b637c79798a68902",
                     "phases": [
                         {
                             "v": 0,
@@ -171,6 +171,10 @@
                                     }
                                 }
                             ]
+                        },
+                        {
+                            "v": 0,
+                            "v0Components": []
                         }
                     ]
                 }

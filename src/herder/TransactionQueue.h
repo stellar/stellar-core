@@ -120,8 +120,9 @@ class TransactionQueue
     };
 
     explicit TransactionQueue(Application& app, uint32 pendingDepth,
-                              uint32 banDepth, uint32 poolLedgerMultiplier);
-    ~TransactionQueue();
+                              uint32 banDepth, uint32 poolLedgerMultiplier,
+                              bool isSoroban);
+    virtual ~TransactionQueue();
 
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
@@ -157,9 +158,9 @@ class TransactionQueue
     void rebroadcast();
 
     void shutdown();
-    size_t getMaxQueueSizeOps() const;
+    bool sourceAccountPending(AccountID const& accountID) const;
 
-  private:
+  protected:
     /**
      * The AccountState for every account. As noted above, an AccountID is in
      * AccountStates iff at least one of the following is true for the
@@ -194,12 +195,13 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
-    std::vector<uint32_t> mBroadcastOpCarryover;
     VirtualTimer mBroadcastTimer;
 
-    std::pair<uint32_t, std::optional<uint32_t>>
-    getMaxOpsToFloodThisPeriod() const;
-    bool broadcastSome();
+    virtual std::pair<Resource, std::optional<Resource>>
+    getMaxResourcesToFloodThisPeriod() const = 0;
+    virtual bool broadcastSome() = 0;
+    virtual bool isSoroban() const = 0;
+
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
     enum class BroadcastStatus
@@ -209,7 +211,6 @@ class TransactionQueue
         BROADCAST_STATUS_SKIPPED
     };
     BroadcastStatus broadcastTx(AccountState& state, TimestampedTx& tx);
-
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
                      TimestampedTransactions::iterator& oldTxIter,
@@ -241,6 +242,49 @@ class TransactionQueue
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
     std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
 #endif
+};
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+class SorobanTransactionQueue : public TransactionQueue
+{
+  public:
+    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
+                            uint32 banDepth, uint32 poolLedgerMultiplier);
+    bool
+    isSoroban() const override
+    {
+        return mSoroban;
+    }
+
+  private:
+    virtual std::pair<Resource, std::optional<Resource>>
+    getMaxResourcesToFloodThisPeriod() const override;
+    virtual bool broadcastSome() override;
+    std::vector<Resource> mBroadcastOpCarryover;
+    bool const mSoroban{true};
+};
+#endif
+
+class ClassicTransactionQueue : public TransactionQueue
+{
+  public:
+    ClassicTransactionQueue(Application& app, uint32 pendingDepth,
+                            uint32 banDepth, uint32 poolLedgerMultiplier);
+
+    bool
+    isSoroban() const override
+    {
+        return mSoroban;
+    }
+
+    size_t getMaxQueueSizeOps() const;
+
+  private:
+    virtual std::pair<Resource, std::optional<Resource>>
+    getMaxResourcesToFloodThisPeriod() const override;
+    virtual bool broadcastSome() override;
+    std::vector<Resource> mBroadcastOpCarryover;
+    bool const mSoroban{false};
 };
 
 extern std::array<const char*,

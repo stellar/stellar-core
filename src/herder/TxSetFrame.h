@@ -25,7 +25,19 @@ using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class TxSetFrame : public NonMovableOrCopyable
 {
   public:
+    enum Phase
+    {
+        CLASSIC,
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        SOROBAN,
+#endif
+        PHASE_COUNT
+    };
+
     using Transactions = std::vector<TransactionFrameBasePtr>;
+    using TxPhases = std::vector<Transactions>;
+
+    static std::string getPhaseName(Phase phase);
 
     // Creates a valid TxSetFrame from the provided transactions.
     // Not all the transactions will be included in the result: invalid
@@ -37,10 +49,14 @@ class TxSetFrame : public NonMovableOrCopyable
     // **Note**: the output `TxSetFrame` will *not* contain the input
     // transaction pointers.
     static TxSetFrameConstPtr
-    makeFromTransactions(Transactions const& txs, Application& app,
+    makeFromTransactions(TxPhases const& txPhases, Application& app,
+                         uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset);
+    static TxSetFrameConstPtr
+    makeFromTransactions(TxPhases const& txPhases, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
-                         TxSetFrame::Transactions* invalidTxs = nullptr);
+                         TxPhases& invalidTxsPerPhase);
 
     // Creates a legacy (non-generalized) TxSetFrame from the transactions that
     // are trusted to be valid. Validation and filtering are not performed.
@@ -80,7 +96,7 @@ class TxSetFrame : public NonMovableOrCopyable
     Hash const& previousLedgerHash() const;
 
     // Gets all the transactions belonging to this frame in arbitrary order.
-    Transactions const& getTxs() const;
+    Transactions const& getTxsForPhase(Phase phase) const;
 
     /*
     Build a list of transaction ready to be applied to the last closed ledger,
@@ -96,15 +112,30 @@ class TxSetFrame : public NonMovableOrCopyable
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset) const;
 
-    size_t size(LedgerHeader const& lh) const;
+    size_t size(LedgerHeader const& lh,
+                std::optional<Phase> phase = std::nullopt) const;
 
     size_t
-    sizeTx() const
+    sizeTx(Phase phase) const
     {
-        return mTxs.size();
+        return mTxPhases.at(phase).size();
+    }
+    size_t sizeTxTotal() const;
+
+    bool
+    empty() const
+    {
+        return sizeTxTotal() == 0;
     }
 
-    size_t sizeOp() const;
+    size_t
+    numPhases() const
+    {
+        return mTxPhases.size();
+    }
+
+    size_t sizeOp(Phase phase) const;
+    size_t sizeOpTotal() const;
 
     // Returns the size of this transaction set when encoded to XDR.
     size_t encodedSize() const;
@@ -129,13 +160,19 @@ class TxSetFrame : public NonMovableOrCopyable
     // Test helper that only checks the XDR structure validitiy without
     // validating internal transactions.
     virtual bool checkValidStructure() const;
+    static TxSetFrameConstPtr
+    makeFromTransactions(Transactions txs, Application& app,
+                         uint64_t lowerBoundCloseTimeOffset,
+                         uint64_t upperBoundCloseTimeOffset);
+    static TxSetFrameConstPtr makeFromTransactions(
+        Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs);
 #endif
 
   protected:
-    TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
-               Transactions const& txs);
+    TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader, TxPhases const& txs);
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
-               Transactions const& txs);
+               TxPhases const& txs);
 
     // Computes the fees for transactions in this set based on information from
     // the non-generalized tx set.
@@ -156,17 +193,16 @@ class TxSetFrame : public NonMovableOrCopyable
   private:
     bool addTxsFromXdr(Application& app,
                        xdr::xvector<TransactionEnvelope> const& txs,
-                       bool useBaseFee, std::optional<int64_t> baseFee);
+                       bool useBaseFee, std::optional<int64_t> baseFee,
+                       Phase phase);
     void applySurgePricing(Application& app);
 
     void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
                                            int64_t lowestBaseFee,
                                            bool enableLogging) const;
 
-    void computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
-                       bool enableLogging) const;
-
-    void computeTxFees(LedgerHeader const& ledgerHeader,
+    void computeTxFees(TxSetFrame::Phase phase,
+                       LedgerHeader const& ledgerHeader,
                        SurgePricingLaneConfig const& surgePricingConfig,
                        std::vector<int64_t> const& lowestLaneFee,
                        std::vector<bool> const& hadTxNotFittingLane);
@@ -174,12 +210,19 @@ class TxSetFrame : public NonMovableOrCopyable
     bool const mIsGeneralized;
 
     Hash const mPreviousLedgerHash;
-    Transactions mTxs;
+    std::vector<Transactions> mTxPhases;
 
-    mutable bool mFeesComputed = false;
+    mutable std::vector<bool> mFeesComputed;
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
-        mTxBaseFee;
+        mTxBaseFeeClassic;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    mutable std::unordered_map<TransactionFrameBaseConstPtr,
+                               std::optional<int64_t>>
+        mTxBaseFeeSoroban;
+#endif
+    std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+    getFeeMap(Phase phase) const;
 };
 
 } // namespace stellar

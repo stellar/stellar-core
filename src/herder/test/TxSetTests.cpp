@@ -20,6 +20,7 @@ namespace
 {
 using namespace txtest;
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());
@@ -43,11 +44,14 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
         xdrTxSet.v1TxSet().phases.emplace_back();
+        xdrTxSet.v1TxSet().phases.emplace_back();
         auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         REQUIRE(!txSet->checkValidStructure());
     }
     SECTION("incorrect base fee order")
     {
+        xdrTxSet.v1TxSet().phases.emplace_back();
+        // Second phase is empty
         xdrTxSet.v1TxSet().phases.emplace_back();
         SECTION("all components discounted")
         {
@@ -187,6 +191,8 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     SECTION("duplicate base fee")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
+        // Second phase is empty
+        xdrTxSet.v1TxSet().phases.emplace_back();
         SECTION("duplicate discounts")
         {
             xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
@@ -289,6 +295,8 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     SECTION("empty component")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
+        // Second phase is empty
+        xdrTxSet.v1TxSet().phases.emplace_back();
 
         xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
             TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
@@ -301,11 +309,15 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         SECTION("no transactions")
         {
             xdrTxSet.v1TxSet().phases.emplace_back();
+            // Second phase is empty
+            xdrTxSet.v1TxSet().phases.emplace_back();
             auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
             REQUIRE(txSet->checkValidStructure());
         }
         SECTION("single component")
         {
+            xdrTxSet.v1TxSet().phases.emplace_back();
+            // Second phase is empty
             xdrTxSet.v1TxSet().phases.emplace_back();
             xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
                 TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
@@ -321,7 +333,8 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         SECTION("multiple components")
         {
             xdrTxSet.v1TxSet().phases.emplace_back();
-
+            // Second phase is empty
+            xdrTxSet.v1TxSet().phases.emplace_back();
             xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
                 TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
             xdrTxSet.v1TxSet()
@@ -557,7 +570,7 @@ TEST_CASE("generalized tx set fees", "[txset]")
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
         std::vector<std::optional<int64_t>> fees;
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             fees.push_back(txSet->getTxBaseFee(
                 tx,
@@ -590,6 +603,7 @@ TEST_CASE("generalized tx set fees", "[txset]")
         REQUIRE(!txSet->checkValid(*app, 0, 0));
     }
 }
+#endif
 
 } // namespace
 } // namespace stellar

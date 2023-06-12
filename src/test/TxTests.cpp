@@ -822,6 +822,34 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TransactionFramePtr
+createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
+                   uint32_t refundableFee, SorobanResources resources,
+                   std::optional<std::string> memo)
+{
+    Operation deployOp;
+    deployOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().resize(1000);
+    auto byteDistr = uniform_int_distribution<uint8_t>();
+    std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
+                  [&byteDistr]() { return byteDistr(gRandomEngine); });
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
+
+    resources.footprint.readWrite = {contractCodeLedgerKey};
+
+    auto tx =
+        sorobanTransactionFrameFromOps(app.getNetworkID(), account, {deployOp},
+                                       {}, resources, fee, refundableFee, memo);
+    return std::dynamic_pointer_cast<TransactionFrame>(tx);
+}
+#endif
+
 Asset
 makeNativeAsset()
 {
@@ -1575,7 +1603,7 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
                        std::vector<SecretKey> const& opKeys,
                        SorobanResources const& resources, uint32_t fee,
-                       uint32_t refundableFee)
+                       uint32_t refundableFee, std::optional<std::string> memo)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
@@ -1584,6 +1612,12 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
     tx.v1().tx.ext.sorobanData().refundableFee = refundableFee;
+    if (memo)
+    {
+        Memo textMemo(MEMO_TEXT);
+        textMemo.text() = *memo;
+        tx.v1().tx.memo = textMemo;
+    }
     std::copy(ops.begin(), ops.end(),
               std::back_inserter(tx.v1().tx.operations));
 
@@ -1612,11 +1646,12 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
                                SorobanResources const& resources, uint32_t fee,
-                               uint32_t refundableFee)
+                               uint32_t refundableFee,
+                               std::optional<std::string> memo)
 {
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, fee, refundableFee));
+                                          resources, fee, refundableFee, memo));
 }
 #endif
 

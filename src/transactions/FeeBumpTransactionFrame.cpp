@@ -372,6 +372,19 @@ FeeBumpTransactionFrame::getNumOperations() const
     return mInnerTx->getNumOperations() + 1;
 }
 
+Resource
+FeeBumpTransactionFrame::getResources() const
+{
+    if (mInnerTx->isSoroban())
+    {
+        return mInnerTx->getResources();
+    }
+    else
+    {
+        return Resource(getNumOperations());
+    }
+}
+
 std::vector<Operation> const&
 FeeBumpTransactionFrame::getRawOperations() const
 {

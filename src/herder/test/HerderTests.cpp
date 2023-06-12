@@ -36,6 +36,7 @@
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"
+#include "test/TxTests.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
 #include "xdrpp/marshal.h"
@@ -313,7 +314,7 @@ testTxSet(uint32 protocolVersion)
     SECTION("valid set")
     {
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+        REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
     }
 
     SECTION("too many txs")
@@ -323,7 +324,7 @@ testTxSet(uint32 protocolVersion)
             genTx(1);
         }
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        REQUIRE(txSet->sizeTx() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     }
     SECTION("invalid tx")
     {
@@ -333,9 +334,9 @@ testTxSet(uint32 protocolVersion)
             txs.push_back(newUser.tx({payment(root, 1)}));
             TxSetFrame::Transactions removed;
             auto txSet =
-                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+            REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
         }
         SECTION("sequence gap")
         {
@@ -347,9 +348,9 @@ testTxSet(uint32 protocolVersion)
 
                 TxSetFrame::Transactions removed;
                 auto txSet =
-                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
                 REQUIRE(removed.size() == 1);
-                REQUIRE(txSet->sizeTx() == (2 * nbTransactions));
+                REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
             }
             SECTION("gap begin")
             {
@@ -357,11 +358,11 @@ testTxSet(uint32 protocolVersion)
 
                 TxSetFrame::Transactions removed;
                 auto txSet =
-                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
 
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
-                REQUIRE(txSet->sizeTx() == nbTransactions);
+                REQUIRE(txSet->sizeTxTotal() == nbTransactions);
             }
             SECTION("gap middle")
             {
@@ -370,13 +371,13 @@ testTxSet(uint32 protocolVersion)
 
                 TxSetFrame::Transactions removed;
                 auto txSet =
-                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
 
                 // one account has all its transactions,
                 // the other, we removed transactions after remIdx
                 auto expectedRemoved = nbTransactions - remIdx - 1;
                 REQUIRE(removed.size() == expectedRemoved);
-                REQUIRE(txSet->sizeTx() ==
+                REQUIRE(txSet->sizeTxTotal() ==
                         (nbTransactions * 2 - expectedRemoved - 1));
             }
         }
@@ -387,9 +388,9 @@ testTxSet(uint32 protocolVersion)
 
             TxSetFrame::Transactions removed;
             auto txSet =
-                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == (nbTransactions + 1));
-            REQUIRE(txSet->sizeTx() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
         }
         SECTION("bad signature")
         {
@@ -398,9 +399,9 @@ testTxSet(uint32 protocolVersion)
             tx->clearCached();
             TxSetFrame::Transactions removed;
             auto txSet =
-                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, &removed);
+                TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == nbTransactions);
-            REQUIRE(txSet->sizeTx() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
         }
     }
 }
@@ -450,7 +451,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb1, fb2});
         }
 
@@ -466,7 +467,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2, fb3}, *app,
-                                                          0, 0, &invalidTxs);
+                                                          0, 0, invalidTxs);
             compareTxs(invalidTxs, {fb2, fb3});
         }
 
@@ -483,7 +484,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2, fb3}, *app,
-                                                          0, 0, &invalidTxs);
+                                                          0, 0, invalidTxs);
             compareTxs(invalidTxs, {fb1, fb2, fb3});
         }
 
@@ -499,7 +500,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb3 = feeBump(*app, account3, tx3, 200);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2, fb3}, *app,
-                                                          0, 0, &invalidTxs);
+                                                          0, 0, invalidTxs);
             compareTxs(invalidTxs, {fb1, fb2, fb3});
         }
 
@@ -512,7 +513,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb1, fb2});
         }
     }
@@ -524,8 +525,8 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto tx1 = transaction(*app, account1, 1, 1, 100);
             auto fb1 = feeBump(*app, account2, tx1, minBalance2);
             TxSetFrame::Transactions invalidTxs;
-            auto txSet = TxSetFrame::makeFromTransactions({fb1}, *app, 0, 0,
-                                                          &invalidTxs);
+            auto txSet =
+                TxSetFrame::makeFromTransactions({fb1}, *app, 0, 0, invalidTxs);
             compareTxs(invalidTxs, {fb1});
         }
 
@@ -537,7 +538,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, 200);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb1, fb2});
         }
 
@@ -551,7 +552,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb2});
         }
 
@@ -567,7 +568,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb2});
         }
 
@@ -580,7 +581,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
             auto fb2 = feeBump(*app, account2, tx2, minBalance2);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb2});
         }
 
@@ -594,7 +595,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2}, *app, 0,
-                                                          0, &invalidTxs);
+                                                          0, invalidTxs);
             compareTxs(invalidTxs, {fb2});
         }
 
@@ -610,7 +611,7 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
                 feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
             TxSetFrame::Transactions invalidTxs;
             auto txSet = TxSetFrame::makeFromTransactions({fb1, fb2, fb3}, *app,
-                                                          0, 0, &invalidTxs);
+                                                          0, 0, invalidTxs);
             compareTxs(invalidTxs, {fb2, fb3});
         }
     }
@@ -622,10 +623,12 @@ TEST_CASE("txset", "[herder][txset]")
     {
         testTxSet(13);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
         testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
     }
+#endif
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -648,7 +651,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             auto tx = transactionWithV2Precondition(*app, a1, 1, 100, c);
             TxSetFrame::Transactions invalidTxs;
             auto txSet =
-                TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, &invalidTxs);
+                TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, invalidTxs);
             REQUIRE(invalidTxs.size() == 1);
             REQUIRE(tx->getResultCode() == txNOT_SUPPORTED);
         };
@@ -713,7 +716,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 minSeqNumCond(a1.getLastSequenceNumber() + 2));
             TxSetFrame::Transactions removed;
             auto txSet = TxSetFrame::makeFromTransactions({tx1, tx2InvalidGap},
-                                                          *app, 0, 0, &removed);
+                                                          *app, 0, 0, removed);
             REQUIRE(removed.back() == tx2InvalidGap);
 
             auto tx2 = transactionWithV2Precondition(
@@ -722,7 +725,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             auto tx3 = transaction(*app, a1, 6, 1, 100);
             removed.clear();
             txSet = TxSetFrame::makeFromTransactions({tx1, tx2, tx3}, *app, 0,
-                                                     0, &removed);
+                                                     0, removed);
 
             REQUIRE(removed.empty());
         }
@@ -756,10 +759,10 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 1, 100, minSeqLedgerGapCond(minGap + 2));
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions({txInvalid}, *app,
-                                                              0, 0, &removed);
+                                                              0, 0, removed);
 
                 REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTx() == 0);
+                REQUIRE(txSet->sizeTxTotal() == 0);
 
                 // we use minGap lcl + 1 because validation is done against
                 // the next ledger
@@ -776,12 +779,12 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 if (minSeqNumTxIsFeeBump)
                 {
                     txSet = TxSetFrame::makeFromTransactions(
-                        {fb1, fb2Invalid}, *app, 0, 0, &removed);
+                        {fb1, fb2Invalid}, *app, 0, 0, removed);
                 }
                 else
                 {
                     txSet = TxSetFrame::makeFromTransactions(
-                        {tx1, tx2Invalid}, *app, 0, 0, &removed);
+                        {tx1, tx2Invalid}, *app, 0, 0, removed);
                 }
 
                 REQUIRE(removed.size() == 1);
@@ -836,9 +839,9 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 1, 100, minSeqAgeCond(minGap + 1));
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions({txInvalid}, *app,
-                                                              0, 0, &removed);
+                                                              0, 0, removed);
                 REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTx() == 0);
+                REQUIRE(txSet->sizeTxTotal() == 0);
 
                 auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
                                                          minSeqAgeCond(minGap));
@@ -854,12 +857,12 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 if (minSeqNumTxIsFeeBump)
                 {
                     txSet = TxSetFrame::makeFromTransactions(
-                        {fb1, fb2Invalid}, *app, 0, 0, &removed);
+                        {fb1, fb2Invalid}, *app, 0, 0, removed);
                 }
                 else
                 {
                     txSet = TxSetFrame::makeFromTransactions(
-                        {tx1, tx2Invalid}, *app, 0, 0, &removed);
+                        {tx1, tx2Invalid}, *app, 0, 0, removed);
                 }
 
                 REQUIRE(removed.size() == 1);
@@ -903,7 +906,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 2, 100, ledgerBoundsCond(lclNum + 2, 0));
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions(
-                    {tx1, txInvalid}, *app, 0, 0, &removed);
+                    {tx1, txInvalid}, *app, 0, 0, removed);
                 REQUIRE(removed.back() == txInvalid);
 
                 // the highest minLedger can be is lcl + 1 because
@@ -912,7 +915,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 2, 100, ledgerBoundsCond(lclNum + 1, 0));
                 removed.clear();
                 txSet = TxSetFrame::makeFromTransactions({tx1, tx2}, *app, 0, 0,
-                                                         &removed);
+                                                         removed);
                 REQUIRE(removed.empty());
             }
             SECTION("maxLedger")
@@ -921,7 +924,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 2, 100, ledgerBoundsCond(0, lclNum));
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions(
-                    {tx1, txInvalid}, *app, 0, 0, &removed);
+                    {tx1, txInvalid}, *app, 0, 0, removed);
                 REQUIRE(removed.back() == txInvalid);
 
                 // the lower maxLedger can be is lcl + 2, as the current
@@ -930,7 +933,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     *app, a1, 2, 100, ledgerBoundsCond(0, lclNum + 2));
                 removed.clear();
                 txSet = TxSetFrame::makeFromTransactions({tx1, tx2}, *app, 0, 0,
-                                                         &removed);
+                                                         removed);
                 REQUIRE(removed.empty());
             }
         }
@@ -951,14 +954,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     tx->addSignature(root.getSecretKey());
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.empty());
                 }
                 SECTION("fail")
                 {
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.back() == tx);
                 }
             }
@@ -979,14 +982,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     tx->addSignature(a2.getSecretKey());
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.empty());
                 }
                 SECTION("fail")
                 {
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.back() == tx);
                 }
             }
@@ -998,7 +1001,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                 txDupeSigner->addSignature(root.getSecretKey());
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions(
-                    {txDupeSigner}, *app, 0, 0, &removed);
+                    {txDupeSigner}, *app, 0, 0, removed);
                 REQUIRE(removed.back() == txDupeSigner);
                 REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
             }
@@ -1008,7 +1011,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                     transactionWithV2Precondition(*app, root, 1, 100, cond);
                 TxSetFrame::Transactions removed;
                 auto txSet = TxSetFrame::makeFromTransactions({rootTx}, *app, 0,
-                                                              0, &removed);
+                                                              0, removed);
                 REQUIRE(removed.empty());
             }
             SECTION("signer overlap with added account signer")
@@ -1023,14 +1026,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
 
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.empty());
                 }
                 SECTION("signature missing")
                 {
                     TxSetFrame::Transactions removed;
                     auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0,
-                                                                  0, &removed);
+                                                                  0, removed);
                     REQUIRE(removed.back() == tx);
                 }
             }
@@ -1045,8 +1048,8 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
                                                   {root}, cond);
 
                 TxSetFrame::Transactions removed;
-                auto txSet = TxSetFrame::makeFromTransactions({tx}, *app, 0, 0,
-                                                              &removed);
+                auto txSet =
+                    TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, removed);
                 REQUIRE(removed.empty());
             }
         }
@@ -1191,6 +1194,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 maxTxSetSize - 100 + 1, 1000, 2000);
                 }
             }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
@@ -1207,6 +1211,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 2000, 1);
                 }
             }
+#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
@@ -1267,6 +1272,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                         1,
                     0, v11NewCount, maxTxSetSize, 20001, 20002);
             }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
@@ -1283,6 +1289,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 1);
                 }
             }
+#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
@@ -1414,7 +1421,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1438,7 +1445,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto txSet = TxSetFrame::makeFromTransactions(rootTxs, *app, 0, 0);
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         // check that the expected tx are there
-        for (auto const& tx : txSet->getTxs())
+        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -1519,11 +1526,165 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
         TxSetFrame::Transactions invalidTxs;
         TxSetFrameConstPtr txSet =
-            TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, &invalidTxs);
+            TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, invalidTxs);
 
         // Transaction is valid, but trimmed by surge pricing.
         REQUIRE(invalidTxs.empty());
-        REQUIRE(txSet->sizeTx() == 0);
+        REQUIRE(txSet->sizeTxTotal() == 0);
+    }
+    SECTION("soroban txs")
+    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        Config cfg(getTestConfig());
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        // Max 1 classic op
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
+
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc1 = root.create("account1", 500000000);
+        auto acc2 = root.create("account2", 500000000);
+        auto acc3 = root.create("account3", 500000000);
+        auto acc4 = root.create("account4", 500000000);
+
+        // Valid classic
+        auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
+
+        SorobanNetworkConfig conf;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        }
+
+        uint32_t const baseFee = 10'000'000;
+        SorobanResources resources;
+        resources.instructions = 800'000;
+        resources.readBytes = conf.txMaxReadBytes();
+        resources.writeBytes = 1000;
+        resources.extendedMetaDataSizeBytes = 3000;
+        auto sorobanTx =
+            createUploadWasmTx(*app, acc2, baseFee,
+                               /* refundableFee */ 1200, resources);
+
+        SECTION("invalid soroban is rejected")
+        {
+            // Fee too small
+            auto invalidSoroban = createUploadWasmTx(
+                *app, acc2, 100, /* refundableFee */ 1200, resources);
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {invalidSoroban}}, *app, 0, 0,
+                invalidPhases);
+
+            // Soroban tx is rejected
+            REQUIRE(txSet->sizeTxTotal() == 1);
+            REQUIRE(invalidPhases[0].empty());
+            REQUIRE(invalidPhases[1].size() == 1);
+        }
+        SECTION("classic and soroban fit")
+        {
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {sorobanTx}}, *app, 0, 0,
+                invalidPhases);
+
+            // Everything fits
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTxTotal() == 2);
+        }
+        SECTION("classic and soroban in the same phase are rejected")
+        {
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(1);
+            REQUIRE_THROWS_AS(TxSetFrame::makeFromTransactions(
+                                  TxSetFrame::TxPhases{{tx, sorobanTx}}, *app,
+                                  0, 0, invalidPhases),
+                              std::runtime_error);
+        }
+        SECTION("soroban surge pricing, classic unaffected")
+        {
+            // Another soroban tx with higher fee, which will be selected
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
+                0, 0, invalidPhases);
+
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTxTotal() == 2);
+            auto const& classicTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
+            REQUIRE(classicTxs.size() == 1);
+            REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+            auto const& sorobanTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN);
+            REQUIRE(sorobanTxs.size() == 1);
+            REQUIRE(sorobanTxs[0]->getFullHash() ==
+                    sorobanTxHighFee->getFullHash());
+        }
+        SECTION("soroban surge pricing with gap")
+        {
+            // Another soroban tx with high fee and a bit less resources
+            // Still half capacity available
+            resources.readBytes = conf.txMaxReadBytes() / 2;
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+
+            // Create another small soroban tx, with small fee. It should be
+            // picked up anyway since we can't fit sorobanTx (gaps are allowed)
+            resources.instructions = 1;
+            resources.readBytes = 1;
+            resources.writeBytes = 1;
+            resources.extendedMetaDataSizeBytes = 1;
+
+            auto smallSorobanLowFee = createUploadWasmTx(
+                *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
+
+            TxSetFrame::TxPhases invalidPhases;
+            invalidPhases.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{
+                    {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
+                *app, 0, 0, invalidPhases);
+
+            for (auto const& phase : invalidPhases)
+            {
+                REQUIRE(phase.empty());
+            }
+            REQUIRE(txSet->sizeTxTotal() == 3);
+            auto const& classicTxs =
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
+            REQUIRE(classicTxs.size() == 1);
+            REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+            for (auto const& t :
+                 txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN))
+            {
+                // smallSorobanLowFee was picked over sorobanTx to fill the gap
+                bool pickedGap =
+                    t->getFullHash() == sorobanTxHighFee->getFullHash() ||
+                    t->getFullHash() == smallSorobanLowFee->getFullHash();
+                REQUIRE(pickedGap);
+            }
+        }
+        SECTION("soroban tx limits")
+        {
+            // TODO: ensure we don't produce an invalid tx set (with too many
+            // txs)
+        }
+#endif
     }
 }
 
@@ -1946,6 +2107,7 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
     Config cfg(getTestConfig());
@@ -2036,6 +2198,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
 }
+#endif
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
@@ -2151,7 +2314,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
                 makeTransactions(spec.n, spec.nbOps, spec.feeMulti);
             txSetHashes.push_back(txSet->getContentsHash());
             txSetSizes.push_back(txSet->size(lcl.header));
-            txSetOpSizes.push_back(txSet->sizeOp());
+            txSetOpSizes.push_back(txSet->sizeOpTotal());
             closeTimes.push_back(spec.closeTime);
             if (spec.baseFeeIncrement)
             {
@@ -2360,8 +2523,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             // only if we expect it to be invalid.
             auto closeTimeOffset = nextCloseTime - lclCloseTime;
             TxSetFrame::Transactions removed;
-            TxSetUtils::trimInvalid(txSet->getTxs(), *app, closeTimeOffset,
-                                    closeTimeOffset, removed);
+            TxSetUtils::trimInvalid(
+                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC), *app,
+                closeTimeOffset, closeTimeOffset, removed);
             REQUIRE(removed.size() == (expectValid ? 0 : 1));
         };
 
@@ -2609,11 +2773,13 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
                           1,
                       1000, 15);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
         testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
                       1000, 15);
     }
+#endif
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
@@ -3188,9 +3354,11 @@ TEST_CASE("soroban txs accepted by the network",
           "[herder][soroban][transactionqueue]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = Topologies::core(
-        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+    // Set threshold to 1 so all have to vote
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             return cfg;
         });
     simulation->startAllNodes();
@@ -3202,24 +3370,65 @@ TEST_CASE("soroban txs accepted by the network",
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 10, /* txRate */ 1, /* batchSize */ 1));
+        /* nAccounts */ 50, /* txRate */ 1, /* batchSize */ 50));
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    currLoadGenCount = loadGenDone.count();
-    // Now generate soroban txs.
-    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-        LoadGenMode::SOROBAN, /* nAccounts */ 10,
-        /* nTxs */ 30, /* txRate */ 1, /* batchSize */ 1));
+    // Diversify fees
+    auto classicMaxFee = std::make_optional<uint32_t>(10000);
 
-    std::optional<uint32_t> upgradeLedger;
-    simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    auto& loadGenFailed =
-        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
-    REQUIRE(loadGenFailed.count() == 0);
+    SECTION("soroban only")
+    {
+        currLoadGenCount = loadGenDone.count();
+        // Now generate soroban txs.
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN, /* nAccounts */ 50,
+            /* nTxs */ 30, /* txRate */ 1, /* batchSize */ 1, /*offset*/ 0,
+            classicMaxFee));
+
+        simulation->crankUntil(
+            [&]() { return loadGenDone.count() > currLoadGenCount; },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+            {"loadgen", "run", "failed"}, "run");
+        REQUIRE(loadGenFailed.count() == 0);
+    }
+    SECTION("soroban and classic")
+    {
+        auto& secondLoadGen = nodes[1]->getLoadGenerator();
+        auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
+            {"loadgen", "run", "complete"}, "run");
+        // Generate load from several nodes, to produce both classic and soroban
+        // traffic
+        currLoadGenCount = loadGenDone.count();
+        auto secondLoadGenCount = secondLoadGenDone.count();
+
+        // Generate Soroban txs from one node
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN, /* nAccounts */ 25,
+            /* nTxs */ 15, /* txRate */ 1, /* batchSize */ 1, /* offset */ 0,
+            classicMaxFee));
+        // Generate classic txs from another node (with offset to prevent
+        // overlapping accounts)
+        secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::PAY, /* nAccounts */ 25,
+            /* nTxs */ 14, /* txRate */ 1, /* batchSize */ 1, /* offset */ 25,
+            classicMaxFee));
+
+        simulation->crankUntil(
+            [&]() {
+                return loadGenDone.count() > currLoadGenCount &&
+                       secondLoadGenDone.count() > secondLoadGenCount;
+            },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+            {"loadgen", "run", "failed"}, "run");
+        REQUIRE(loadGenFailed.count() == 0);
+        auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
+            {"loadgen", "run", "failed"}, "run");
+        REQUIRE(secondLoadGenFailed.count() == 0);
+    }
 }
 #endif
 
@@ -3904,7 +4113,31 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     auto const& lcl = lm.getLastClosedLedgerHeader();
     auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-    auto txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+    auto classicTxs = txs;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    TxSetFrame::Transactions sorobanTxs;
+    for (auto it = classicTxs.begin(); it != classicTxs.end();)
+    {
+        if ((*it)->isSoroban())
+        {
+            sorobanTxs.emplace_back(*it);
+            it = classicTxs.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+#endif
+
+    TxSetFrame::TxPhases txsPhases{classicTxs};
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    txsPhases.emplace_back(sorobanTxs);
+#endif
+
+    auto txSet = TxSetFrame::makeFromTransactions(txsPhases, app, 0, 0);
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
@@ -3954,11 +4187,180 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txs = tq.getTransactions(lhhe.header);
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-    REQUIRE(txSet->sizeTx() == 1);
-    REQUIRE(txSet->getTxs().front()->getContentsHash() ==
-            tx1a->getContentsHash());
+    REQUIRE(txSet->sizeTxTotal() == 1);
+    REQUIRE(txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC)
+                .front()
+                ->getContentsHash() == tx1a->getContentsHash());
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("do not flood too many soroban transactions",
+          "[soroban][herder][transactionqueue]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            cfg.NODE_IS_VALIDATOR = false;
+            cfg.FORCE_SCP = false;
+            cfg.FLOOD_TX_PERIOD_MS = 100;
+            cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
+            return cfg;
+        });
+
+    auto mainKey = SecretKey::fromSeed(sha256("main"));
+    auto otherKey = SecretKey::fromSeed(sha256("other"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 1;
+    qset.validators.push_back(mainKey.getPublicKey());
+
+    simulation->addNode(mainKey, qset);
+    simulation->addNode(otherKey, qset);
+
+    simulation->addPendingConnection(mainKey.getPublicKey(),
+                                     otherKey.getPublicKey());
+    simulation->startAllNodes();
+    simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    auto app = simulation->getNode(mainKey.getPublicKey());
+    auto const& cfg = app->getConfig();
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& tq = herder.getSorobanTransactionQueue();
+
+    auto root = TestAccount::createRoot(*app);
+    std::vector<TestAccount> accs;
+
+    // number of accounts to use
+    // About 2x ledgers worth of soroban txs (configured below)
+    int const nbAccounts = 39;
+
+    uint32 curFeeOffset = 10000;
+
+    accs.reserve(nbAccounts);
+    for (int i = 0; i < nbAccounts; ++i)
+    {
+        accs.emplace_back(
+            root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
+    }
+    std::deque<uint32> fees;
+
+    uint32_t const baseFee = 10'000'000;
+    SorobanResources resources;
+    resources.instructions = 800'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+    resources.extendedMetaDataSizeBytes = 3000;
+
+    auto genTx = [&](TestAccount& source, bool highFee) {
+        auto txFee = baseFee;
+        if (highFee)
+        {
+            txFee += 10'000'000;
+            fees.emplace_front(txFee);
+        }
+        else
+        {
+            txFee += curFeeOffset;
+            fees.emplace_back(txFee);
+        }
+        curFeeOffset--;
+
+        auto tx = createUploadWasmTx(*app, source, txFee,
+                                     /* refundableFee */ 1200, resources);
+
+        REQUIRE(herder.recvTransaction(tx, false) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        return tx;
+    };
+
+    auto tx1a = genTx(accs[0], false);
+    auto tx1r = genTx(root, false);
+    int numTx = 2;
+    for (int i = 1; i < accs.size(); i++)
+    {
+        genTx(accs[i], false);
+        numTx++;
+    }
+
+    std::map<AccountID, SequenceNumber> bcastTracker;
+    size_t numBroadcast = 0;
+    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+        // ensure that sequence numbers are correct per account
+        auto expected = tx->getSeqNum();
+        std::swap(bcastTracker[tx->getSourceID()], expected);
+        if (expected != 0)
+        {
+            expected++;
+            REQUIRE(expected == tx->getSeqNum());
+        }
+        // check if we have the expected fee
+        REQUIRE(tx->getFullFee() == fees.front());
+        fees.pop_front();
+        ++numBroadcast;
+    };
+
+    REQUIRE(tq.getTransactions({}).size() == numTx);
+
+    // remove the first two transactions that won't be
+    // re-broadcasted during externalize
+    fees.pop_front();
+    fees.pop_front();
+
+    externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r}, *app);
+    REQUIRE(tq.getTransactions({}).size() == numTx - 2);
+
+    SECTION("txs properly spaced out")
+    {
+        // no broadcast right away
+        REQUIRE(numBroadcast == 0);
+        // wait for a bit more than a broadcast period
+        // rate per period is 100 ms
+        auto broadcastPeriod =
+            std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
+        auto const delta = std::chrono::milliseconds(1);
+        simulation->crankForAtLeast(broadcastPeriod + delta, false);
+
+        // Could broadcast exactly 1 txs
+        REQUIRE(numBroadcast == 1);
+        REQUIRE(tq.getTransactions({}).size() == numTx - 2);
+
+        // Submit an expensive tx that will be broadcasted before cheaper ones
+        simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
+        genTx(root, true);
+
+        // Wait half a ledger to flood _at least_ 1 ledger worth of traffic
+        simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
+        REQUIRE(numBroadcast >= std::ceil((numTx - 1) / 2));
+        REQUIRE(tq.getTransactions({}).size() == numTx - 1);
+
+        // Crank for another half ledger, should broadcast everything at this
+        // point
+        simulation->crankForAtLeast(std::chrono::milliseconds(2500), false);
+        REQUIRE(numBroadcast == numTx - 1);
+        REQUIRE(tq.getTransactions({}).size() == numTx - 1);
+        simulation->stopAllNodes();
+    }
+    SECTION("large tx waits to accumulate enough quota")
+    {
+        REQUIRE(numBroadcast == 0);
+        // For large txs, there might not be enough resources allocated for this
+        // flooding period. In this case, wait a few periods to accumulate
+        // enough quota
+        resources.instructions = 40'000'000;
+        resources.readBytes = 200 * 1024;
+
+        genTx(root, true);
+        simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
+        REQUIRE(numBroadcast == 0);
+        simulation->crankForAtLeast(std::chrono::milliseconds(1000), false);
+        REQUIRE(numBroadcast >= 1);
+    }
+}
+#endif
 
 TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {

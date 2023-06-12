@@ -457,7 +457,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
 
     CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
-               ledgerSeq, txSet->sizeTx(), hexAbbrev(txSet->getContentsHash()));
+               ledgerSeq, txSet->sizeTxTotal(),
+               hexAbbrev(txSet->getContentsHash()));
 
     auto upgrades = xdr::xvector<UpgradeType, 6>{};
     if (version > 0)

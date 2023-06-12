@@ -23,7 +23,7 @@ createConfigSettingEntry(ConfigSettingEntry const& configSetting,
 }
 
 ConfigSettingEntry
-initialMaxContractSizeEntry()
+initialMaxContractSizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
 
@@ -34,7 +34,7 @@ initialMaxContractSizeEntry()
 }
 
 ConfigSettingEntry
-initialMaxContractDataKeySizeEntry()
+initialMaxContractDataKeySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
 
@@ -45,7 +45,7 @@ initialMaxContractDataKeySizeEntry()
 }
 
 ConfigSettingEntry
-initialMaxContractDataEntrySizeEntry()
+initialMaxContractDataEntrySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
 
@@ -56,13 +56,20 @@ initialMaxContractDataEntrySizeEntry()
 }
 
 ConfigSettingEntry
-initialContractComputeSettingsEntry()
+initialContractComputeSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     auto& e = entry.contractCompute();
 
-    e.ledgerMaxInstructions =
-        InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+    if (cfg.TESTING_LEDGER_MAX_INSTRUCTIONS && cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxInstructions = cfg.TESTING_LEDGER_MAX_INSTRUCTIONS;
+    }
+    else
+    {
+        e.ledgerMaxInstructions =
+            InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+    }
     e.txMaxInstructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     e.feeRatePerInstructionsIncrement =
         InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT;
@@ -72,17 +79,51 @@ initialContractComputeSettingsEntry()
 }
 
 ConfigSettingEntry
-initialContractLedgerAccessSettingsEntry()
+initialContractLedgerAccessSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
 
-    e.ledgerMaxReadLedgerEntries =
-        InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
-    e.ledgerMaxReadBytes = InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
-    e.ledgerMaxWriteLedgerEntries =
-        InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    e.ledgerMaxWriteBytes = InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+    if (cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES &&
+        cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxReadLedgerEntries =
+            cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES;
+    }
+    else
+    {
+        e.ledgerMaxReadLedgerEntries =
+            InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
+    }
+    if (cfg.TESTING_LEDGER_MAX_READ_BYTES && cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxReadBytes = cfg.TESTING_LEDGER_MAX_READ_BYTES;
+    }
+    else
+    {
+        e.ledgerMaxReadBytes =
+            InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
+    }
+    if (cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES &&
+        cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxWriteLedgerEntries =
+            cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+    }
+    else
+    {
+        e.ledgerMaxWriteLedgerEntries =
+            InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+    }
+    if (cfg.TESTING_LEDGER_MAX_WRITE_BYTES && cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxWriteBytes = cfg.TESTING_LEDGER_MAX_WRITE_BYTES;
+    }
+    else
+    {
+        e.ledgerMaxWriteBytes =
+            InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+    }
     e.txMaxReadLedgerEntries =
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
     e.txMaxReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
@@ -105,7 +146,7 @@ initialContractLedgerAccessSettingsEntry()
 }
 
 ConfigSettingEntry
-initialContractHistoricalDataSettingsEntry()
+initialContractHistoricalDataSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
     auto& e = entry.contractHistoricalData();
@@ -116,7 +157,7 @@ initialContractHistoricalDataSettingsEntry()
 }
 
 ConfigSettingEntry
-initialContractMetaDataSettingsEntry()
+initialContractMetaDataSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_META_DATA_V0);
     auto& e = entry.contractMetaData();
@@ -130,13 +171,22 @@ initialContractMetaDataSettingsEntry()
 }
 
 ConfigSettingEntry
-initialContractBandwidthSettingsEntry()
+initialContractBandwidthSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
     auto& e = entry.contractBandwidth();
 
-    e.ledgerMaxPropagateSizeBytes =
-        InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+    if (cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES &&
+        cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxPropagateSizeBytes =
+            cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+    }
+    else
+    {
+        e.ledgerMaxPropagateSizeBytes =
+            InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+    }
     e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     e.feePropagateData1KB = InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
 
@@ -144,7 +194,7 @@ initialContractBandwidthSettingsEntry()
 }
 
 ConfigSettingEntry
-initialCpuCostParamsEntry()
+initialCpuCostParamsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
@@ -244,7 +294,7 @@ initialStateExpirationSettings()
 }
 
 ConfigSettingEntry
-initialMemCostParamsEntry()
+initialMemCostParamsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
 
@@ -329,30 +379,33 @@ initialMemCostParamsEntry()
 }
 
 void
-SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
+                                                Config const& cfg)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    createConfigSettingEntry(initialMaxContractSizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractMetaDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
-    createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg),
+                             ltx);
+    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(cfg),
+                             ltx);
+    createConfigSettingEntry(initialContractMetaDataSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialCpuCostParamsEntry(cfg), ltx);
+    createConfigSettingEntry(initialMemCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialStateExpirationSettings(), ltx);
 #endif
 }
 
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
-    uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx)
+    uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Config const& cfg)
 {
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_20))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV20(ltx);
+        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, cfg);
     }
 }
 

@@ -329,7 +329,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             case LoadGenMode::SOROBAN:
             {
                 generateTx = [&]() {
-                    return sorobanTransaction(ledgerNum, sourceAccountId);
+                    return sorobanTransaction(cfg.nAccounts, cfg.offset,
+                                              ledgerNum, sourceAccountId);
                 };
             }
             break;
@@ -401,7 +402,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
         }
 
         // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(from, status, code);
+        maybeHandleFailedTx(tx, from, status, code);
     }
 
     if (!createDuplicate)
@@ -449,7 +450,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
         }
 
         // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(from, status, code); // Update seq num
+        maybeHandleFailedTx(tx, from, status, code); // Update seq num
 
         // Regenerate a new payment tx
         std::tie(from, tx) = generateTx();
@@ -561,6 +562,27 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
 
+    if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+    {
+        int count = 0;
+        // FIXME: Temporary hack, given the new tx/soruce account limit, loadgen
+        // fails in many situations since it operates under no limits per source
+        // account. Load generation logic needs to be fixed to account for the
+        // limit, and throw if desired tx rate can't be achieved if insufficent
+        // accounts were provided.
+        while (mApp.getHerder().sourceAccountPending(
+            sourceAccount->getPublicKey()))
+        {
+            auto destAccountId =
+                rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
+            sourceAccount = findAccount(destAccountId, ledgerNum);
+            if (++count == 30)
+            {
+                break;
+            }
+        }
+    }
+
     auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
 
     auto destAccount = findAccount(destAccountId, ledgerNum);
@@ -647,9 +669,26 @@ LoadGenerator::manageOfferTransaction(
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::sorobanTransaction(uint32_t ledgerNum, uint64_t accountId)
+LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
+                                  uint32_t ledgerNum, uint64_t accountId)
 {
     auto account = findAccount(accountId, ledgerNum);
+    int count = 0;
+    // FIXME: Temporary hack, given the new tx/soruce account limit, loadgen
+    // fails in many situations since it operates under no limits per source
+    // account. Load generation logic needs to be fixed to account for the
+    // limit, and throw if desired tx rate can't be achieved if insufficent
+    // accounts were provided.
+    while (mApp.getHerder().sourceAccountPending(account->getPublicKey()))
+    {
+        auto destAccountId =
+            rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
+        account = findAccount(destAccountId, ledgerNum);
+        if (++count == 30)
+        {
+            break;
+        }
+    }
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
     auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
@@ -710,7 +749,8 @@ LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
 }
 
 void
-LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
+LoadGenerator::maybeHandleFailedTx(TransactionFramePtr tx,
+                                   TestAccountPtr sourceAccount,
                                    TransactionQueue::AddResult status,
                                    TransactionResultCode code)
 {
@@ -719,9 +759,16 @@ LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
     if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
-        auto const& txQueue = mApp.getHerder().getTransactionQueue();
         auto txQueueSeqNum =
-            txQueue.getInQueueSeqNum(sourceAccount->getPublicKey());
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            tx->isSoroban()
+                ? mApp.getHerder()
+                      .getSorobanTransactionQueue()
+                      .getInQueueSeqNum(sourceAccount->getPublicKey())
+                :
+#endif
+                mApp.getHerder().getTransactionQueue().getInQueueSeqNum(
+                    sourceAccount->getPublicKey());
         if (txQueueSeqNum)
         {
             sourceAccount->setSequenceNumber(*txQueueSeqNum);
@@ -983,7 +1030,8 @@ GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate,
 
 GeneratedLoadConfig
 GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate, uint32_t batchSize)
+                            uint32_t txRate, uint32_t batchSize,
+                            uint32_t offset, std::optional<uint32_t> maxFee)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = mode;
@@ -991,6 +1039,8 @@ GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
     cfg.nTxs = nTxs;
     cfg.txRate = txRate;
     cfg.batchSize = batchSize;
+    cfg.offset = offset;
+    cfg.maxGeneratedFeeRate = maxFee;
     return cfg;
 }
 }
