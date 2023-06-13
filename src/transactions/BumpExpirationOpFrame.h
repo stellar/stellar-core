@@ -26,8 +26,6 @@ class BumpExpirationOpFrame : public OperationFrame
     BumpExpirationOpFrame(Operation const& op, OperationResult& res,
                           TransactionFrame& parentTx);
 
-    ThresholdLevel getThresholdLevel() const override;
-
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx) override;

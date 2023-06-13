@@ -34,12 +34,6 @@ BumpExpirationOpFrame::BumpExpirationOpFrame(Operation const& op,
 {
 }
 
-ThresholdLevel
-BumpExpirationOpFrame::getThresholdLevel() const
-{
-    return ThresholdLevel::LOW;
-}
-
 bool
 BumpExpirationOpFrame::isOpSupported(LedgerHeader const& header) const
 {

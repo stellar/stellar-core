@@ -34,8 +34,6 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     InvokeHostFunctionOpFrame(Operation const& op, OperationResult& res,
                               TransactionFrame& parentTx);
 
-    ThresholdLevel getThresholdLevel() const override;
-
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx) override;
