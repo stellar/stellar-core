@@ -200,7 +200,7 @@ TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
         // Do nothing, until v3 we don't create events.
         break;
     case 3:
-        mTransactionMeta.v3().events = std::move(events);
+        mTransactionMeta.v3().sorobanMeta.activate().events = std::move(events);
         break;
     default:
         releaseAssert(false);
@@ -217,7 +217,8 @@ TransactionMetaFrame::pushDiagnosticEvents(
         // Do nothing, until v3 we don't create events.
         break;
     case 3:
-        mTransactionMeta.v3().diagnosticEvents = std::move(events);
+        mTransactionMeta.v3().sorobanMeta.activate().diagnosticEvents =
+            std::move(events);
         break;
     default:
         releaseAssert(false);
@@ -233,7 +234,8 @@ TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
         // Do nothing, until v3 we don't call into contracts.
         break;
     case 3:
-        mTransactionMeta.v3().returnValue = std::move(returnValue);
+        mTransactionMeta.v3().sorobanMeta.activate().returnValue =
+            std::move(returnValue);
         break;
     default:
         releaseAssert(false);

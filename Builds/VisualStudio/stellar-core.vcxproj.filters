@@ -1333,6 +1333,12 @@
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTypeUtils.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\TxResource.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2322,6 +2328,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerTypeUtils.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\TxResource.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
