@@ -1667,6 +1667,8 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
         }
     }
 
+    bool isBumpOp =
+        mOperations.front()->getOperation().body.type() == BUMP_EXPIRATION;
     // TODO: Write expiration extension entries instead of witing whole entry
     for (auto const& key : resources.footprint.readOnly)
     {
@@ -1674,7 +1676,8 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
         if (lte && isSorobanDataEntry(lte.current().data))
         {
             // Must enforce minimum expirations on write
-            bump(lte.current(), autoBumpEnabled(lte.current()), true);
+            bump(lte.current(), autoBumpEnabled(lte.current()) && !isBumpOp,
+                 true);
         }
     }
 
