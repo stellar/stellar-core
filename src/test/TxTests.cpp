@@ -837,11 +837,14 @@ createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
     std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
                   [&byteDistr]() { return byteDistr(gRandomEngine); });
 
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
-
-    resources.footprint.readWrite = {contractCodeLedgerKey};
+    if (resources.footprint.readWrite.empty() &&
+        resources.footprint.readOnly.empty())
+    {
+        LedgerKey contractCodeLedgerKey;
+        contractCodeLedgerKey.type(CONTRACT_CODE);
+        contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
+        resources.footprint.readWrite = {contractCodeLedgerKey};
+    }
 
     auto tx =
         sorobanTransactionFrameFromOps(app.getNetworkID(), account, {deployOp},

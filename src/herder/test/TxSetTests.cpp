@@ -51,346 +51,386 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     SECTION("incorrect base fee order")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
-        // Second phase is empty
         xdrTxSet.v1TxSet().phases.emplace_back();
-        SECTION("all components discounted")
+        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
         {
+            SECTION("phase " + std::to_string(i))
+            {
+                SECTION("all components discounted")
+                {
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1400;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1400;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1600;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1600;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(!txSet->checkValidStructure());
-        }
-        SECTION("non-discounted component out of place")
-        {
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(!txSet->checkValidStructure());
+                }
+                SECTION("non-discounted component out of place")
+                {
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1600;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1600;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(!txSet->checkValidStructure());
-        }
-        SECTION("with non-discounted component, discounted out of place")
-        {
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(!txSet->checkValidStructure());
+                }
+                SECTION(
+                    "with non-discounted component, discounted out of place")
+                {
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1400;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1400;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(!txSet->checkValidStructure());
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(!txSet->checkValidStructure());
+                }
+            }
         }
     }
     SECTION("duplicate base fee")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
-        // Second phase is empty
         xdrTxSet.v1TxSet().phases.emplace_back();
-        SECTION("duplicate discounts")
+        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
         {
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+            SECTION("phase " + std::to_string(i))
+            {
+                SECTION("duplicate discounts")
+                {
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1600;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1600;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(!txSet->checkValidStructure());
-        }
-        SECTION("duplicate non-discounted components")
-        {
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(!txSet->checkValidStructure());
+                }
+                SECTION("duplicate non-discounted components")
+                {
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(!txSet->checkValidStructure());
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(!txSet->checkValidStructure());
+                }
+            }
         }
     }
     SECTION("empty component")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
-        // Second phase is empty
         xdrTxSet.v1TxSet().phases.emplace_back();
 
-        xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-            TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
+        {
+            SECTION("phase " + std::to_string(i))
+            {
+                xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                    TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
 
-        auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-        REQUIRE(!txSet->checkValidStructure());
+                auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                REQUIRE(!txSet->checkValidStructure());
+            }
+        }
     }
     SECTION("valid XDR")
     {
-        SECTION("no transactions")
+
+        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
         {
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            // Second phase is empty
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(txSet->checkValidStructure());
-        }
-        SECTION("single component")
-        {
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            // Second phase is empty
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(txSet->checkValidStructure());
-        }
-        SECTION("multiple components")
-        {
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            // Second phase is empty
-            xdrTxSet.v1TxSet().phases.emplace_back();
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+            auto maybeAddSorobanOp = [&](GeneralizedTransactionSet& txSet) {
+                if (i == 1)
+                {
+                    auto& txEnv = xdrTxSet.v1TxSet()
+                                      .phases[i]
+                                      .v0Components()
+                                      .back()
+                                      .txsMaybeDiscountedFee()
+                                      .txs.back();
+                    txEnv.v0().tx.operations.emplace_back();
+                    txEnv.v0().tx.operations.back().body.type(
+                        INVOKE_HOST_FUNCTION); // tx->isSoroban() ==
+                                               // true
+                }
+            };
+            SECTION("phase " + std::to_string(i))
+            {
+                SECTION("no transactions")
+                {
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(txSet->checkValidStructure());
+                }
+                SECTION("single component")
+                {
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
+                    maybeAddSorobanOp(xdrTxSet);
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(txSet->checkValidStructure());
+                }
+                SECTION("multiple components")
+                {
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    xdrTxSet.v1TxSet().phases.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
+                    maybeAddSorobanOp(xdrTxSet);
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1400;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1400;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
+                    maybeAddSorobanOp(xdrTxSet);
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1500;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1500;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
+                    maybeAddSorobanOp(xdrTxSet);
 
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .baseFee.activate() = 1600;
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
+                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .baseFee.activate() = 1600;
+                    xdrTxSet.v1TxSet()
+                        .phases[i]
+                        .v0Components()
+                        .back()
+                        .txsMaybeDiscountedFee()
+                        .txs.emplace_back();
+                    maybeAddSorobanOp(xdrTxSet);
 
-            auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
-            REQUIRE(txSet->checkValidStructure());
+                    auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+                    REQUIRE(txSet->checkValidStructure());
+                }
+            }
         }
     }
 }
