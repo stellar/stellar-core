@@ -642,21 +642,24 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         // account
         // FIXME: Our test suite relies on tx chains per source account, so
         // introducing this invariant causes a fallout. When the test suite is
-        // updated to accomodate 1 tx/source account, uncomment this block
-        // std::unordered_set<AccountID> seenAccounts;
-        // for (auto const& phase : mTxPhases)
-        // {
-        //     for (auto const& tx : phase)
-        //     {
-        //         if (!seenAccounts.insert(tx->getSourceID()).second)
-        //         {
-        //             CLOG_DEBUG(Herder,
-        //                        "Got bad txSet: multiple txs per source
-        //                        account");
-        //             return false;
-        //         }
-        //     }
-        // }
+        // updated to accommodate 1 tx/source account, remove this flag.
+        if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+        {
+            std::unordered_set<AccountID> seenAccounts;
+            for (auto const& phase : mTxPhases)
+            {
+                for (auto const& tx : phase)
+                {
+                    if (!seenAccounts.insert(tx->getSourceID()).second)
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Got bad txSet: multiple txs per source account");
+                        return false;
+                    }
+                }
+            }
+        }
 
         // Second, ensure total resources are not over ledger limit
         auto totalTxSetRes = getTxSetSorobanResource();
