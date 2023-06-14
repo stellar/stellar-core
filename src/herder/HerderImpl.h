@@ -186,6 +186,8 @@ class HerderImpl : public Herder
     bool verifyStellarValueSignature(StellarValue const& sv);
 
     size_t getMaxQueueSizeOps() const override;
+    size_t getMaxQueueSizeSorobanOps() const override;
+
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 

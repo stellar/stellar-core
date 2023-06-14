@@ -2176,6 +2176,12 @@ HerderImpl::getMaxQueueSizeOps() const
     return mTransactionQueue.getMaxQueueSizeOps();
 }
 
+size_t
+HerderImpl::getMaxQueueSizeSorobanOps() const
+{
+    return mSorobanTransactionQueue.getMaxQueueSizeOps();
+}
+
 bool
 HerderImpl::isBannedTx(Hash const& hash) const
 {

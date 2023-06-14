@@ -1333,6 +1333,15 @@ SorobanTransactionQueue::broadcastSome()
     return !totalResToFlood.isZero();
 }
 
+size_t
+SorobanTransactionQueue::getMaxQueueSizeOps() const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
+    releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
+    return res.getVal(NUM_SOROBAN_TX_RESOURCES - 1);
+}
+
 #endif
 
 bool

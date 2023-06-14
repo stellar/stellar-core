@@ -1184,6 +1184,14 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
+int64_t
+getOpsFloodLedger(size_t maxOps, double rate)
+{
+    double opsToFloodPerLedgerDbl = rate * static_cast<double>(maxOps);
+    releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
+    return static_cast<int64_t>(opsToFloodPerLedgerDbl);
+}
+
 size_t
 OverlayManagerImpl::getMaxAdvertSize() const
 {
@@ -1192,12 +1200,18 @@ OverlayManagerImpl::getMaxAdvertSize() const
         std::chrono::duration_cast<std::chrono::milliseconds>(
             cfg.getExpectedLedgerCloseTime())
             .count();
-    double opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
-    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    double opsToFloodPerLedgerDbl =
-        opRatePerLedger * static_cast<double>(maxOps);
-    releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
-    int64_t opsToFloodPerLedger = static_cast<int64_t>(opsToFloodPerLedgerDbl);
+
+    int64_t opsToFloodPerLedger =
+        getOpsFloodLedger(mApp.getLedgerManager().getLastMaxTxSetSizeOps(),
+                          cfg.FLOOD_OP_RATE_PER_LEDGER);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto limits = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+        opsToFloodPerLedger += getOpsFloodLedger(
+            limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
+    }
+#endif
 
     size_t res = static_cast<size_t>(bigDivideOrThrow(
         opsToFloodPerLedger, cfg.FLOOD_ADVERT_PERIOD_MS.count(),
@@ -1216,14 +1230,15 @@ OverlayManagerImpl::getMaxDemandSize() const
         std::chrono::duration_cast<std::chrono::milliseconds>(
             cfg.getExpectedLedgerCloseTime())
             .count();
-    double opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
-    // TODO: will need to add ledgerMaxTxCount here when it's implemented
-    // See https://github.com/stellar/stellar-core/issues/3757
-    double queueSizeInOpsDbl =
-        static_cast<double>(mApp.getHerder().getMaxQueueSizeOps()) *
-        opRatePerLedger;
-    releaseAssertOrThrow(queueSizeInOpsDbl >= 0.0);
-    int64_t queueSizeInOps = static_cast<int64_t>(queueSizeInOpsDbl);
+    int64_t queueSizeInOps = getOpsFloodLedger(
+        static_cast<double>(mApp.getHerder().getMaxQueueSizeOps()),
+        cfg.FLOOD_OP_RATE_PER_LEDGER);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    queueSizeInOps +=
+        getOpsFloodLedger(mApp.getHerder().getMaxQueueSizeSorobanOps(),
+                          cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
+#endif
 
     size_t res = static_cast<size_t>(
         bigDivideOrThrow(queueSizeInOps, cfg.FLOOD_DEMAND_PERIOD_MS.count(),
