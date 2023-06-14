@@ -3318,6 +3318,11 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         simulation = std::make_shared<Simulation>(
             Simulation::OVER_LOOPBACK, networkID, [mix](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                // Mixed setup does not work in protocol 20 and onward (tx set
+                // with multiple source accounts are invalid)
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                    mix ? static_cast<uint32_t>(ProtocolVersion::V_19)
+                        : Config::CURRENT_LEDGER_PROTOCOL_VERSION;
                 if (!mix || i % 2 == 1)
                 {
                     cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
