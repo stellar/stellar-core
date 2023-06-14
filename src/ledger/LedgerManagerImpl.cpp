@@ -443,7 +443,8 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban,
                                        conf.ledgerMaxReadBytes(),
                                        conf.ledgerMaxWriteBytes(),
                                        conf.ledgerMaxReadLedgerEntries(),
-                                       conf.ledgerMaxWriteLedgerEntries()};
+                                       conf.ledgerMaxWriteLedgerEntries(),
+                                       conf.ledgerMaxTxCount()};
         return Resource(limits);
     }
     else

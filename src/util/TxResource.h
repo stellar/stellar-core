@@ -14,7 +14,7 @@ namespace stellar
 {
 
 constexpr size_t NUM_CLASSIC_TX_RESOURCES(1);
-constexpr size_t NUM_SOROBAN_TX_RESOURCES(6);
+constexpr size_t NUM_SOROBAN_TX_RESOURCES(7);
 
 // Small helper class to allow arithmetic operations on tuples
 class Resource
