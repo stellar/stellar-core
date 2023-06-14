@@ -2176,11 +2176,13 @@ HerderImpl::getMaxQueueSizeOps() const
     return mTransactionQueue.getMaxQueueSizeOps();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 size_t
 HerderImpl::getMaxQueueSizeSorobanOps() const
 {
     return mSorobanTransactionQueue.getMaxQueueSizeOps();
 }
+#endif
 
 bool
 HerderImpl::isBannedTx(Hash const& hash) const
