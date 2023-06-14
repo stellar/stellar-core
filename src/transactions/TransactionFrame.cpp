@@ -928,19 +928,40 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
+
+        auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
         // Full fee has to be greater than the resource fee or
         // tx-specified refundable fee.
         if (getFullFee() < mSorobanResourceFee->fee ||
-            getFullFee() < mEnvelope.v1().tx.ext.sorobanData().refundableFee)
+            getFullFee() < sorobanData.refundableFee)
         {
             getResult().result.code(txINSUFFICIENT_FEE);
             return false;
         }
         // Refundable fee shouldn't exceed tx-specified refundable fee.
-        if (mEnvelope.v1().tx.ext.sorobanData().refundableFee <
-            mSorobanResourceFee->refundable_fee)
+        if (sorobanData.refundableFee < mSorobanResourceFee->refundable_fee)
         {
             getResult().result.code(txINSUFFICIENT_FEE);
+            return false;
+        }
+
+        // check for duplicates
+        UnorderedSet<LedgerKey> set;
+        auto checkDuplicates =
+            [&](xdr::xvector<stellar::LedgerKey> const& keys) -> bool {
+            for (auto const& lk : keys)
+            {
+                if (!set.emplace(lk).second)
+                {
+                    getResult().result.code(txMALFORMED);
+                    return false;
+                }
+            }
+        };
+
+        if (!checkDuplicates(sorobanData.resources.footprint.readOnly) ||
+            !checkDuplicates(sorobanData.resources.footprint.readWrite))
+        {
             return false;
         }
     }

@@ -123,17 +123,6 @@ BumpExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         }
     }
 
-    // check for duplicates
-    UnorderedSet<LedgerKey> set;
-    for (auto const& lk : footprint.readOnly)
-    {
-        if (!set.emplace(lk).second)
-        {
-            innerResult().code(BUMP_EXPIRATION_MALFORMED);
-            return false;
-        }
-    }
-
     if (mBumpExpirationOp.ledgersToExpire() >
         config.stateExpirationSettings().maxEntryExpiration)
     {
