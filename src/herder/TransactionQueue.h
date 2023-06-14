@@ -200,7 +200,7 @@ class TransactionQueue
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
-    virtual bool isSoroban() const = 0;
+    virtual int getFloodPeriod() const = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -250,10 +250,10 @@ class SorobanTransactionQueue : public TransactionQueue
   public:
     SorobanTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier);
-    bool
-    isSoroban() const override
+    int
+    getFloodPeriod() const override
     {
-        return mSoroban;
+        return mApp.getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
     }
 
   private:
@@ -261,7 +261,6 @@ class SorobanTransactionQueue : public TransactionQueue
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
-    bool const mSoroban{true};
 };
 #endif
 
@@ -271,10 +270,10 @@ class ClassicTransactionQueue : public TransactionQueue
     ClassicTransactionQueue(Application& app, uint32 pendingDepth,
                             uint32 banDepth, uint32 poolLedgerMultiplier);
 
-    bool
-    isSoroban() const override
+    int
+    getFloodPeriod() const override
     {
-        return mSoroban;
+        return mApp.getConfig().FLOOD_TX_PERIOD_MS;
     }
 
     size_t getMaxQueueSizeOps() const;
@@ -284,7 +283,6 @@ class ClassicTransactionQueue : public TransactionQueue
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
-    bool const mSoroban{false};
 };
 
 extern std::array<const char*,
