@@ -31,12 +31,6 @@ GeneralizedTransactionSet
 makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
                         Hash const& previousLedgerHash)
 {
-    if (txsPerBaseFeePhases.size() !=
-        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT))
-    {
-        throw std::runtime_error(
-            "makeGeneralizedTxSetXDR: invalid number of phases");
-    }
     GeneralizedTransactionSet xdrTxSet(1);
     for (auto& txsPerBaseFee : txsPerBaseFeePhases)
     {
@@ -82,18 +76,7 @@ makeNonValidatedGeneralizedTxSet(
     std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
     Hash const& previousLedgerHash)
 {
-    if (txsPerBaseFee.size() >
-        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT))
-    {
-        throw std::runtime_error("makeNonValidatedGeneralizedTxSet: invalid "
-                                 "parameter, too many phases");
-    }
-    // Potentially add any empty phases to make the tx set valid
-    auto normalizedTxsPerBaseFee = txsPerBaseFee;
-    normalizedTxsPerBaseFee.resize(
-        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
-    auto xdrTxSet =
-        makeGeneralizedTxSetXDR(normalizedTxsPerBaseFee, previousLedgerHash);
+    auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
     return TxSetFrame::makeFromWire(app, xdrTxSet);
 }
 
@@ -105,8 +88,8 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
     if (protocolVersionStartsFrom(ledgerVersion,
                                   GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        return makeNonValidatedGeneralizedTxSet({{std::make_pair(100LL, txs)}},
-                                                app, previousLedgerHash);
+        return makeNonValidatedGeneralizedTxSet(
+            {{std::make_pair(100LL, txs)}, {}}, app, previousLedgerHash);
     }
     else
     {

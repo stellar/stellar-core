@@ -2279,8 +2279,9 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
     {
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(
-                1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                           addTx(2, 5000)})}},
+                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
+                                                            addTx(2, 5000)})},
+             {}},
             *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000});
     }
@@ -2289,7 +2290,8 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(std::nullopt,
                              std::vector<TransactionFrameBasePtr>{
-                                 addTx(3, 3500), addTx(2, 5000)})}},
+                                 addTx(3, 3500), addTx(2, 5000)})},
+             {}},
             *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3500, 5000});
     }
@@ -2312,7 +2314,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
                                std::vector<TransactionFrameBasePtr>{
                                    addTx(5, 35000), addTx(1, 10000)})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {components}, *app,
+            {components, {}}, *app,
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
