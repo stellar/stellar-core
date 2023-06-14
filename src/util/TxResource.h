@@ -22,6 +22,17 @@ class Resource
     std::vector<int64_t> mResources;
 
   public:
+    enum class Type
+    {
+        TRANSACTIONS = 0,
+        INSTRUCTIONS = 1,
+        BYTE_SIZE = 2,
+        READ_BYTES = 3,
+        WRITE_BYTES = 4,
+        READ_LEDGER_ENTRIES = 5,
+        WRITE_LEDGER_ENTRIES = 6
+    };
+
     Resource(std::vector<int64_t> args)
     {
         if (args.size() != NUM_CLASSIC_TX_RESOURCES &&
@@ -81,9 +92,9 @@ class Resource
     }
 
     int64_t
-    getVal(size_t index) const
+    getVal(Resource::Type valType) const
     {
-        return mResources.at(index);
+        return mResources.at(static_cast<size_t>(valType));
     }
 
     bool canAdd(Resource const& other) const;

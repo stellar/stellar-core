@@ -59,7 +59,7 @@ size_t
 TxQueueLimiter::size() const
 {
     releaseAssert(!mIsSoroban);
-    return mTxs->totalResources().getVal(0);
+    return mTxs->totalResources().getVal(Resource::Type::TRANSACTIONS);
 }
 #endif
 

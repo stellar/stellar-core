@@ -1316,13 +1316,13 @@ SorobanTransactionQueue::broadcastSome()
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
         int64_t const txCount = 1;
-        std::vector<int64_t> limits = {conf.txMaxInstructions(),
+        std::vector<int64_t> limits = {txCount,
+                                       conf.txMaxInstructions(),
                                        conf.txMaxSizeBytes(),
                                        conf.txMaxReadBytes(),
                                        conf.txMaxWriteBytes(),
                                        conf.txMaxReadLedgerEntries(),
-                                       conf.txMaxWriteLedgerEntries(),
-                                       txCount};
+                                       conf.txMaxWriteLedgerEntries()};
         maxPerTx = Resource(limits);
     }
     for (auto& resLeft : mBroadcastOpCarryover)
@@ -1339,7 +1339,7 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
     releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
-    return res.getVal(NUM_SOROBAN_TX_RESOURCES - 1);
+    return res.getVal(Resource::Type::TRANSACTIONS);
 }
 
 #endif
@@ -1544,7 +1544,7 @@ ClassicTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto res = mTxQueueLimiter->maxScaledLedgerResources(false, ltx);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
-    return res.getVal(0);
+    return res.getVal(Resource::Type::TRANSACTIONS);
 }
 
 }

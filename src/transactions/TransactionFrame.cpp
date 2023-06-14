@@ -205,10 +205,9 @@ TransactionFrame::getResources() const
         int64_t txSize = xdr::xdr_size(mEnvelope.v1().tx);
         int64_t const txCount = 1;
 
-        return Resource({r.instructions, txSize, r.readBytes, r.writeBytes,
+        return Resource({txCount, r.instructions, txSize, r.readBytes, r.writeBytes,
                          static_cast<int64_t>(r.footprint.readOnly.size()),
-                         static_cast<int64_t>(r.footprint.readWrite.size()),
-                         txCount});
+                         static_cast<int64_t>(r.footprint.readWrite.size())});
     }
 #endif
 
