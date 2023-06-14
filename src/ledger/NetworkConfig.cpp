@@ -61,7 +61,7 @@ initialContractComputeSettingsEntry(Config const& cfg)
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     auto& e = entry.contractCompute();
 
-    if (cfg.TESTING_LEDGER_MAX_INSTRUCTIONS && cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxInstructions = cfg.TESTING_LEDGER_MAX_INSTRUCTIONS;
     }
@@ -84,8 +84,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
 
-    if (cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES &&
-        cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxReadLedgerEntries =
             cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES;
@@ -95,7 +94,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
         e.ledgerMaxReadLedgerEntries =
             InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
     }
-    if (cfg.TESTING_LEDGER_MAX_READ_BYTES && cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxReadBytes = cfg.TESTING_LEDGER_MAX_READ_BYTES;
     }
@@ -104,8 +103,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
         e.ledgerMaxReadBytes =
             InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
     }
-    if (cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES &&
-        cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxWriteLedgerEntries =
             cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
@@ -115,7 +113,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
         e.ledgerMaxWriteLedgerEntries =
             InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
     }
-    if (cfg.TESTING_LEDGER_MAX_WRITE_BYTES && cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxWriteBytes = cfg.TESTING_LEDGER_MAX_WRITE_BYTES;
     }
@@ -176,8 +174,7 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
     auto& e = entry.contractBandwidth();
 
-    if (cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES &&
-        cfg.USE_CONFIG_FOR_GENESIS)
+    if (cfg.USE_CONFIG_FOR_GENESIS)
     {
         e.ledgerMaxPropagateSizeBytes =
             cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES;
@@ -189,6 +186,24 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
     }
     e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     e.feePropagateData1KB = InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
+
+    return entry;
+}
+
+ConfigSettingEntry
+initialContractExecutionLanesSettingsEntry(Config const& cfg)
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
+    auto& e = entry.contractExecutionLanes();
+
+    if (cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        e.ledgerMaxTxCount = cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT;
+    }
+    else
+    {
+        e.ledgerMaxTxCount = InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
+    }
 
     return entry;
 }
@@ -393,6 +408,8 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                              ltx);
     createConfigSettingEntry(initialContractMetaDataSettingsEntry(cfg), ltx);
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
+                             ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialStateExpirationSettings(), ltx);
@@ -424,6 +441,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
     loadStateExpirationSettings(ltx);
+    loadExecutionLanesSettings(ltx);
 }
 
 void
@@ -574,6 +592,20 @@ SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
+    auto le = ltx.loadWithoutRecord(key).current();
+    auto const& configSetting =
+        le.data.configSetting().contractExecutionLanes();
+    mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
 #endif
 }
 
@@ -767,6 +799,13 @@ int64_t
 SorobanNetworkConfig::feePropagateData1KB() const
 {
     return mFeePropagateData1KB;
+}
+
+// General execution lanes settings for contracts
+uint32_t
+SorobanNetworkConfig::ledgerMaxTxCount() const
+{
+    return mLedgerMaxTxCount;
 }
 
 #ifdef BUILD_TESTS

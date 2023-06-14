@@ -210,6 +210,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
         1 * InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
     TESTING_LEDGER_MAX_WRITE_BYTES =
         1 * InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+    TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
