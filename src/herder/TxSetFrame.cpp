@@ -918,7 +918,7 @@ TxSetFrame::getTxSetSorobanResource() const
     auto total = Resource::makeEmpty(/* isSoroban */ true);
     for (auto const& tx : mTxPhases[static_cast<size_t>(Phase::SOROBAN)])
     {
-        if (canAdd(total, tx->getResources()))
+        if (total.canAdd(tx->getResources()))
         {
             total += tx->getResources();
         }

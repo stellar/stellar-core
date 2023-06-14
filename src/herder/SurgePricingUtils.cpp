@@ -370,8 +370,8 @@ SurgePricingPriorityQueue::canFitWithEviction(
     }
     Resource total = totalResources();
 
-    if (!canAdd(total, txNewResources) ||
-        !canAdd(mLaneCurrentCount[lane], txNewResources))
+    if (!total.canAdd(txNewResources) ||
+        !(mLaneCurrentCount[lane].canAdd(txNewResources)))
     {
         return std::make_pair(false, 0ll);
     }

@@ -130,7 +130,7 @@ operator>(Resource const& lhs, Resource const& rhs)
 Resource&
 Resource::operator+=(Resource const& other)
 {
-    releaseAssert(canAdd(*this, other));
+    releaseAssert(canAdd(other));
     for (size_t i = 0; i < mResources.size(); i++)
     {
         mResources[i] += other.mResources[i];
@@ -164,12 +164,12 @@ limitTo(Resource const& curr, Resource const& limit)
 }
 
 bool
-canAdd(Resource const& lhs, Resource const& rhs)
+Resource::canAdd(Resource const& other) const
 {
-    releaseAssert(lhs.size() == rhs.size());
-    for (size_t i = 0; i < lhs.size(); i++)
+    releaseAssert(size() == other.size());
+    for (size_t i = 0; i < size(); i++)
     {
-        if (INT64_MAX - lhs.mResources[i] < rhs.mResources[i])
+        if (INT64_MAX - mResources[i] < other.mResources[i])
         {
             return false;
         }
