@@ -51,6 +51,7 @@ namespace stellar
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -78,11 +79,9 @@ HerderImpl::HerderImpl(Application& app)
                         TRANSACTION_QUEUE_BAN_LEDGERS,
                         TRANSACTION_QUEUE_SIZE_MULTIPLIER)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    , mSorobanTransactionQueue(
-          app, TRANSACTION_QUEUE_TIMEOUT_LEDGERS, TRANSACTION_QUEUE_BAN_LEDGERS,
-          // Use the same multipler at the classic tx queue for now. Might need
-          // to tune this parameter later
-          TRANSACTION_QUEUE_SIZE_MULTIPLIER)
+    , mSorobanTransactionQueue(app, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
+                               TRANSACTION_QUEUE_BAN_LEDGERS,
+                               SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER)
 #endif
     , mPendingEnvelopes(app, *this)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
