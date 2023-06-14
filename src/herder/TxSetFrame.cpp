@@ -663,7 +663,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
 
         // Second, ensure total resources are not over ledger limit
         auto totalTxSetRes = getTxSetSorobanResource();
-        if (!totalTxSetRes.second)
+        if (!totalTxSetRes)
         {
             CLOG_DEBUG(Herder,
                        "Got bad txSet: total Soroban resources overflow");
@@ -674,12 +674,12 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto limits = app.getLedgerManager().maxLedgerResources(
                 /* isSoroban */ true, ltx);
-            if (anyGreater(totalTxSetRes.first, limits))
+            if (anyGreater(*totalTxSetRes, limits))
             {
                 CLOG_DEBUG(Herder,
                            "Got bad txSet: needed resources exceed ledger "
                            "limits {} > {}",
-                           totalTxSetRes.first.toString(), limits.toString());
+                           totalTxSetRes->toString(), limits.toString());
                 return false;
             }
         }
@@ -911,7 +911,7 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-std::pair<Resource, bool>
+std::optional<Resource>
 TxSetFrame::getTxSetSorobanResource() const
 {
     releaseAssert(mTxPhases.size() > static_cast<size_t>(Phase::SOROBAN));
@@ -924,10 +924,10 @@ TxSetFrame::getTxSetSorobanResource() const
         }
         else
         {
-            return {Resource::makeEmpty(/* isSoroban */ true), false};
+            return std::nullopt;
         }
     }
-    return {total, true};
+    return std::make_optional<Resource>(total);
 }
 #endif
 
