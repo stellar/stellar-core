@@ -130,10 +130,9 @@ operator>(Resource const& lhs, Resource const& rhs)
 Resource&
 Resource::operator+=(Resource const& other)
 {
-    releaseAssert(mResources.size() == other.mResources.size());
+    releaseAssert(canAdd(*this, other));
     for (size_t i = 0; i < mResources.size(); i++)
     {
-        releaseAssert(INT64_MAX - mResources[i] >= other.mResources[i]);
         mResources[i] += other.mResources[i];
     }
     return *this;
@@ -162,6 +161,20 @@ limitTo(Resource const& curr, Resource const& limit)
             std::min<int64_t>(curr.mResources[i], limit.mResources[i]);
     }
     return limited;
+}
+
+bool
+canAdd(Resource const& lhs, Resource const& rhs)
+{
+    releaseAssert(lhs.size() == rhs.size());
+    for (size_t i = 0; i < lhs.size(); i++)
+    {
+        if (INT64_MAX - lhs.mResources[i] < rhs.mResources[i])
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace stellar

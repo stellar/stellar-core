@@ -90,6 +90,7 @@ class Resource
     friend Resource bigDivideOrThrow(Resource const& res, int64_t B, int64_t C,
                                      Rounding rounding);
     friend Resource operator+(Resource const& lhs, Resource const& rhs);
+    friend bool canAdd(Resource const& lhs, Resource const& rhs);
     friend Resource operator-(Resource const& lhs, Resource const& rhs);
     friend bool anyLessThan(Resource const& lhs, Resource const& rhs);
     friend bool anyGreater(Resource const& lhs, Resource const& rhs);
