@@ -583,24 +583,53 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
 
-    auto createTx = [&](int opCnt, int fee) {
+    auto createTx = [&](int opCnt, int fee, bool unique) {
         std::vector<Operation> ops;
         for (int i = 0; i < opCnt; ++i)
         {
             ops.emplace_back(createAccount(
                 getAccount(std::to_string(accountId++)).getPublicKey(), 1));
         }
-        return transactionFromOperations(*app, root.getSecretKey(),
-                                         root.nextSequenceNumber(), ops, fee);
+
+        if (unique)
+        {
+            // Create a new unique accounts to ensure there are no collisions
+            auto source =
+                root.create("unique " + std::to_string(accountId * -1),
+                            app->getLedgerManager().getLastMinBalance(2));
+            return transactionFromOperations(*app, source.getSecretKey(),
+                                             source.nextSequenceNumber(), ops,
+                                             fee);
+        }
+        else
+        {
+            return transactionFromOperations(
+                *app, root.getSecretKey(), root.nextSequenceNumber(), ops, fee);
+        }
     };
 
-    auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-        {{std::make_pair(
-            500, std::vector<TransactionFrameBasePtr>{createTx(1, 1000),
-                                                      createTx(3, 1500)})}},
-        *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+    SECTION("invalid")
+    {
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            {{std::make_pair(
+                500,
+                std::vector<TransactionFrameBasePtr>{
+                    createTx(1, 1000, false), createTx(3, 1500, false)})}},
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-    REQUIRE(!txSet->checkValid(*app, 0, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
+    }
+    SECTION("valid")
+    {
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            {{std::make_pair(
+                500,
+                std::vector<TransactionFrameBasePtr>{
+                    createTx(1, 1000, true), createTx(3, 1500, true)})}},
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        REQUIRE(txSet->checkValid(*app, 0, 0));
+    }
 }
 
 TEST_CASE("generalized tx set fees", "[txset]")
