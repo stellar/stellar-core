@@ -595,7 +595,7 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
         {
             // Create a new unique accounts to ensure there are no collisions
             auto source =
-                root.create("unique " + std::to_string(accountId * -1),
+                root.create("unique " + std::to_string(accountId),
                             app->getLedgerManager().getLastMinBalance(2));
             return transactionFromOperations(*app, source.getSecretKey(),
                                              source.nextSequenceNumber(), ops,
