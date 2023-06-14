@@ -36,6 +36,7 @@
 #include "util/ProtocolVersion.h"
 
 #include "crypto/Hex.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
@@ -1515,6 +1516,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
     {
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
+        cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 0;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
@@ -1522,15 +1524,39 @@ TEST_CASE("surge pricing", "[herder][txset]")
         auto root = TestAccount::createRoot(*app);
 
         auto destAccount = root.create("destAccount", 500000000);
-        auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
 
-        TxSetFrame::Transactions invalidTxs;
-        TxSetFrameConstPtr txSet =
-            TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, invalidTxs);
+        SECTION("classic")
+        {
+            auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
 
-        // Transaction is valid, but trimmed by surge pricing.
-        REQUIRE(invalidTxs.empty());
-        REQUIRE(txSet->sizeTxTotal() == 0);
+            TxSetFrame::Transactions invalidTxs;
+            TxSetFrameConstPtr txSet =
+                TxSetFrame::makeFromTransactions({tx}, *app, 0, 0, invalidTxs);
+
+            // Transaction is valid, but trimmed by surge pricing.
+            REQUIRE(invalidTxs.empty());
+            REQUIRE(txSet->sizeTxTotal() == 0);
+        }
+        SECTION("soroban")
+        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            uint32_t const baseFee = 10'000'000;
+            SorobanResources resources;
+            auto sorobanTx =
+                createUploadWasmTx(*app, root, baseFee,
+                                   /* refundableFee */ 1200, resources);
+
+            TxSetFrame::TxPhases invalidTxs;
+            invalidTxs.resize(2);
+            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                TxSetFrame::TxPhases{{}, {sorobanTx}}, *app, 0, 0, invalidTxs);
+
+            // Transaction is valid, but trimmed by surge pricing.
+            REQUIRE(std::all_of(invalidTxs.begin(), invalidTxs.end(),
+                                [](auto const& txs) { return txs.empty(); }));
+            REQUIRE(txSet->sizeTxTotal() == 0);
+#endif
+        }
     }
     SECTION("soroban txs")
     {
@@ -1540,6 +1566,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
         // Max 1 classic op
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
+        // Max 2 soroban ops
+        cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 2;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
@@ -1549,6 +1577,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
         auto acc2 = root.create("account2", 500000000);
         auto acc3 = root.create("account3", 500000000);
         auto acc4 = root.create("account4", 500000000);
+        auto acc5 = root.create("account5", 500000000);
+        std::vector<TestAccount> accounts = {root, acc1, acc2,
+                                             acc3, acc4, acc5};
 
         // Valid classic
         auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
@@ -1569,11 +1600,69 @@ TEST_CASE("surge pricing", "[herder][txset]")
             createUploadWasmTx(*app, acc2, baseFee,
                                /* refundableFee */ 1200, resources);
 
+        auto generateTxs = [&](std::vector<TestAccount>& accounts,
+                               SorobanNetworkConfig conf) {
+            TxSetFrame::Transactions txs;
+            for (auto& acc : accounts)
+            {
+                SorobanResources res;
+                res.instructions =
+                    rand_uniform<uint32_t>(1, conf.txMaxInstructions());
+                res.readBytes =
+                    rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
+                res.writeBytes =
+                    rand_uniform<uint32_t>(1, conf.txMaxWriteBytes());
+                res.extendedMetaDataSizeBytes = rand_uniform<uint32_t>(
+                    1, conf.txMaxExtendedMetaDataSizeBytes());
+                auto read =
+                    rand_uniform<uint32_t>(0, conf.txMaxReadLedgerEntries());
+                auto write = rand_uniform<uint32_t>(
+                    0, std::min(conf.txMaxWriteLedgerEntries(),
+                                (conf.txMaxReadLedgerEntries() - read)));
+                for (auto const& key : LedgerTestUtils::
+                         generateValidLedgerEntryKeysWithExclusions(
+                             {CONFIG_SETTING}, write))
+                {
+                    res.footprint.readWrite.emplace_back(key);
+                }
+                for (auto const& key : LedgerTestUtils::
+                         generateValidLedgerEntryKeysWithExclusions(
+                             {CONFIG_SETTING}, read))
+                {
+                    res.footprint.readOnly.emplace_back(key);
+                }
+
+                txs.emplace_back(createUploadWasmTx(*app, acc, baseFee * 10,
+                                                    /* refundableFee */ baseFee,
+                                                    res));
+                CLOG_INFO(Herder,
+                          "Generated tx with {} instructions, {} read "
+                          "bytes, {} write bytes, {} extended meta "
+                          "data bytes, {} read ledger entries, {} "
+                          "write ledger entries",
+                          res.instructions, res.readBytes, res.writeBytes,
+                          res.extendedMetaDataSizeBytes, read, write);
+            }
+            return txs;
+        };
+
         SECTION("invalid soroban is rejected")
         {
-            // Fee too small
-            auto invalidSoroban = createUploadWasmTx(
-                *app, acc2, 100, /* refundableFee */ 1200, resources);
+            TransactionFramePtr invalidSoroban;
+            SECTION("invalid fee")
+            {
+                // Fee too small
+                invalidSoroban = createUploadWasmTx(
+                    *app, acc2, 100, /* refundableFee */ 1200, resources);
+            }
+            SECTION("invalid resource")
+            {
+                // Too many instructions
+                resources.instructions = UINT32_MAX;
+                invalidSoroban =
+                    createUploadWasmTx(*app, acc2, baseFee,
+                                       /* refundableFee */ 1200, resources);
+            }
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
@@ -1584,6 +1673,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             REQUIRE(txSet->sizeTxTotal() == 1);
             REQUIRE(invalidPhases[0].empty());
             REQUIRE(invalidPhases[1].size() == 1);
+            REQUIRE(invalidPhases[1][0]->getFullHash() ==
+                    invalidSoroban->getFullHash());
         }
         SECTION("classic and soroban fit")
         {
@@ -1594,10 +1685,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 invalidPhases);
 
             // Everything fits
-            for (auto const& phase : invalidPhases)
-            {
-                REQUIRE(phase.empty());
-            }
+            REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
+                                [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 2);
         }
         SECTION("classic and soroban in the same phase are rejected")
@@ -1620,10 +1709,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
                 0, 0, invalidPhases);
 
-            for (auto const& phase : invalidPhases)
-            {
-                REQUIRE(phase.empty());
-            }
+            REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
+                                [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 2);
             auto const& classicTxs =
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
@@ -1660,10 +1747,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                     {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
                 *app, 0, 0, invalidPhases);
 
-            for (auto const& phase : invalidPhases)
-            {
-                REQUIRE(phase.empty());
-            }
+            REQUIRE(std::all_of(invalidPhases.begin(), invalidPhases.end(),
+                                [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 3);
             auto const& classicTxs =
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
@@ -1679,10 +1764,44 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 REQUIRE(pickedGap);
             }
         }
-        SECTION("soroban tx limits")
+        SECTION("tx set construction limits")
         {
-            // TODO: ensure we don't produce an invalid tx set (with too many
-            // txs)
+            int const ITERATIONS = 20;
+            for (int i = 0; i < ITERATIONS; i++)
+            {
+                SECTION("iteration " + std::to_string(i))
+                {
+                    TxSetFrame::TxPhases invalidPhases;
+                    invalidPhases.resize(2);
+                    TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
+                        TxSetFrame::TxPhases{{tx}, generateTxs(accounts, conf)},
+                        *app, 0, 0, invalidPhases);
+
+                    REQUIRE(std::all_of(
+                        invalidPhases.begin(), invalidPhases.end(),
+                        [](auto const& txs) { return txs.empty(); }));
+                    auto const& classicTxs =
+                        txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC);
+                    auto const& sorobanTxs =
+                        txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN);
+                    REQUIRE(classicTxs.size() == 1);
+                    REQUIRE(classicTxs[0]->getFullHash() == tx->getFullHash());
+                    // Depending on resources generated for each tx, can only
+                    // fit 1 or 2 transactions
+                    bool expectedSorobanTxs =
+                        sorobanTxs.size() == 1 || sorobanTxs.size() == 2;
+                    REQUIRE(expectedSorobanTxs);
+                }
+            }
+        }
+        SECTION("tx sets over limits are invalid")
+        {
+            TxSetFrame::Transactions txs = generateTxs(accounts, conf);
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                {{}, {std::make_pair(500, txs)}}, *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
 #endif
     }
@@ -2159,18 +2278,18 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
     SECTION("single discounted component")
     {
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {std::make_pair(
+            {{std::make_pair(
                 1000, std::vector<TransactionFrameBasePtr>{addTx(3, 3500),
-                                                           addTx(2, 5000)})},
+                                                           addTx(2, 5000)})}},
             *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000});
     }
     SECTION("single non-discounted component")
     {
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {std::make_pair(std::nullopt,
-                            std::vector<TransactionFrameBasePtr>{
-                                addTx(3, 3500), addTx(2, 5000)})},
+            {{std::make_pair(std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{
+                                 addTx(3, 3500), addTx(2, 5000)})}},
             *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3500, 5000});
     }
@@ -2193,7 +2312,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
                                std::vector<TransactionFrameBasePtr>{
                                    addTx(5, 35000), addTx(1, 10000)})};
         auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            components, *app,
+            {components}, *app,
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
@@ -3359,6 +3478,7 @@ TEST_CASE("soroban txs accepted by the network",
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
+            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
             return cfg;
         });
     simulation->startAllNodes();
@@ -4203,10 +4323,13 @@ TEST_CASE("do not flood too many soroban transactions",
         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 100;
             cfg.NODE_IS_VALIDATOR = false;
             cfg.FORCE_SCP = false;
             cfg.FLOOD_TX_PERIOD_MS = 100;
             cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
+            cfg.FLOOD_SOROBAN_TX_PERIOD_MS = 50;
+            cfg.FLOOD_SOROBAN_RATE_PER_LEDGER = 2.0;
             return cfg;
         });
 
@@ -4320,7 +4443,7 @@ TEST_CASE("do not flood too many soroban transactions",
         // wait for a bit more than a broadcast period
         // rate per period is 100 ms
         auto broadcastPeriod =
-            std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
+            std::chrono::milliseconds(cfg.FLOOD_SOROBAN_TX_PERIOD_MS);
         auto const delta = std::chrono::milliseconds(1);
         simulation->crankForAtLeast(broadcastPeriod + delta, false);
 
