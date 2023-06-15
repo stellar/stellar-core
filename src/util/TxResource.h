@@ -24,7 +24,7 @@ class Resource
   public:
     enum class Type
     {
-        TRANSACTIONS = 0,
+        OPERATIONS = 0,
         INSTRUCTIONS = 1,
         BYTE_SIZE = 2,
         READ_BYTES = 3,

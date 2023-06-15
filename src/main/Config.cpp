@@ -1506,9 +1506,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (!LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
         {
-            throw std::runtime_error(
-                "Invalid configuration: "
-                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT must be set");
+            std::string msg =
+                "Invalid configuration: disabling "
+                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is not allowed. Starting core "
+                "with LIMIT_TX_QUEUE_SOURCE_ACCOUNT=true";
+            LOG_WARNING(DEFAULT_LOG, "{}", msg);
+            LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
         }
 #endif
         // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit
