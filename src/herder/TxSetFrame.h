@@ -220,6 +220,7 @@ class TxSetFrame : public NonMovableOrCopyable
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseFeeSoroban;
+    std::optional<Resource> getTxSetSorobanResource() const;
 #endif
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
     getFeeMap(Phase phase) const;

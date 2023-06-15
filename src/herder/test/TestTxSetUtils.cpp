@@ -28,38 +28,37 @@ makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 GeneralizedTransactionSet
-makeGeneralizedTxSetXDR(
-    std::vector<std::pair<std::optional<int64_t>,
-                          std::vector<TransactionFrameBasePtr>>> const&
-        txsPerBaseFee,
-    Hash const& previousLedgerHash)
+makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
+                        Hash const& previousLedgerHash)
 {
-    auto normalizedTxsPerBaseFee = txsPerBaseFee;
-    std::sort(normalizedTxsPerBaseFee.begin(), normalizedTxsPerBaseFee.end());
-    for (auto& [_, txs] : normalizedTxsPerBaseFee)
-    {
-        txs = TxSetUtils::sortTxsInHashOrder(txs);
-    }
-
     GeneralizedTransactionSet xdrTxSet(1);
-    xdrTxSet.v1TxSet().previousLedgerHash = previousLedgerHash;
-    auto& phase = xdrTxSet.v1TxSet().phases.emplace_back();
-    for (auto const& [baseFee, txs] : normalizedTxsPerBaseFee)
+    for (auto& txsPerBaseFee : txsPerBaseFeePhases)
     {
-        auto& component = phase.v0Components().emplace_back(
-            TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-        if (baseFee)
+        auto normalizedTxsPerBaseFee = txsPerBaseFee;
+        std::sort(normalizedTxsPerBaseFee.begin(),
+                  normalizedTxsPerBaseFee.end());
+        for (auto& [_, txs] : normalizedTxsPerBaseFee)
         {
-            component.txsMaybeDiscountedFee().baseFee.activate() = *baseFee;
+            txs = TxSetUtils::sortTxsInHashOrder(txs);
         }
-        auto& componentTxs = component.txsMaybeDiscountedFee().txs;
-        for (auto const& tx : txs)
+
+        xdrTxSet.v1TxSet().previousLedgerHash = previousLedgerHash;
+        auto& phase = xdrTxSet.v1TxSet().phases.emplace_back();
+        for (auto const& [baseFee, txs] : normalizedTxsPerBaseFee)
         {
-            componentTxs.emplace_back(tx->getEnvelope());
+            auto& component = phase.v0Components().emplace_back(
+                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+            if (baseFee)
+            {
+                component.txsMaybeDiscountedFee().baseFee.activate() = *baseFee;
+            }
+            auto& componentTxs = component.txsMaybeDiscountedFee().txs;
+            for (auto const& tx : txs)
+            {
+                componentTxs.emplace_back(tx->getEnvelope());
+            }
         }
     }
-
-    xdrTxSet.v1TxSet().phases.emplace_back();
     return xdrTxSet;
 }
 
@@ -74,10 +73,8 @@ makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
 
 TxSetFrameConstPtr
 makeNonValidatedGeneralizedTxSet(
-    std::vector<std::pair<std::optional<int64_t>,
-                          std::vector<TransactionFrameBasePtr>>> const&
-        txsPerBaseFee,
-    Application& app, Hash const& previousLedgerHash)
+    std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
+    Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
     return TxSetFrame::makeFromWire(app, xdrTxSet);
@@ -91,8 +88,8 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
     if (protocolVersionStartsFrom(ledgerVersion,
                                   GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        return makeNonValidatedGeneralizedTxSet({std::make_pair(100LL, txs)},
-                                                app, previousLedgerHash);
+        return makeNonValidatedGeneralizedTxSet(
+            {{std::make_pair(100LL, txs)}, {}}, app, previousLedgerHash);
     }
     else
     {

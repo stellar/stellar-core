@@ -227,6 +227,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    FLOOD_SOROBAN_RATE_PER_LEDGER = 1.0;
+    FLOOD_SOROBAN_TX_PERIOD_MS = 200;
+#endif
     FLOOD_ARB_TX_BASE_ALLOWANCE = 5;
     FLOOD_ARB_TX_DAMPING_FACTOR = 0.8;
 
@@ -1221,6 +1225,21 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
             }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            else if (item.first == "FLOOD_SOROBAN_RATE_PER_LEDGER")
+            {
+                FLOOD_SOROBAN_RATE_PER_LEDGER = readDouble(item);
+                if (FLOOD_SOROBAN_RATE_PER_LEDGER <= 0.0)
+                {
+                    throw std::invalid_argument(
+                        "bad value for FLOOD_SOROBAN_RATE_PER_LEDGER");
+                }
+            }
+            else if (item.first == "FLOOD_SOROBAN_TX_PERIOD_MS")
+            {
+                FLOOD_SOROBAN_TX_PERIOD_MS = readInt<int>(item, 1);
+            }
+#endif
             else if (item.first == "FLOOD_DEMAND_PERIOD_MS")
             {
                 FLOOD_DEMAND_PERIOD_MS =
@@ -1487,9 +1506,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (!LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
         {
-            throw std::runtime_error(
-                "Invalid configuration: "
-                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT must be set");
+            std::string msg =
+                "Invalid configuration: disabling "
+                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is not allowed. Starting core "
+                "with LIMIT_TX_QUEUE_SOURCE_ACCOUNT=true";
+            LOG_WARNING(DEFAULT_LOG, "{}", msg);
+            LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
         }
 #endif
         // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit

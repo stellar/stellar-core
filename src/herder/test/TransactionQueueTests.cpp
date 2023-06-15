@@ -1458,6 +1458,8 @@ TEST_CASE("Soroban TransactionQueue limits",
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
+    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 4;
+
     cfg.FLOOD_TX_PERIOD_MS = 100;
     cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     auto app = createTestApplication(clock, cfg);

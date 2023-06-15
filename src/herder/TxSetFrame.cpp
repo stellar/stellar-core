@@ -33,9 +33,6 @@
 namespace stellar
 {
 
-// FIXME: this should be a soroban network config, not a const
-constexpr uint32 const SOROBAN_TX_LIMIT_PER_LEDGER = 2;
-
 namespace
 {
 // The frame created around malformed transaction set XDR received over the
@@ -95,8 +92,7 @@ class InvalidTxSetFrame : public TxSetFrame
 };
 
 bool
-validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet,
-                          uint32_t ledgerVersion)
+validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
 {
     if (txSet.v() != 1)
     {
@@ -114,9 +110,6 @@ validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet,
         return false;
     }
 
-    // TODO: this logic is extended to validate each phase the same way the
-    // initial phase described in CAP-0042 is validated. Is this correct? I.e.
-    // is there additional inter-phase validation needed?
     for (auto const& phase : txSetV1.phases)
     {
         if (phase.v() != 0)
@@ -306,7 +299,7 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     {
         auto& txs = txPhases[i];
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        bool expectSoroban = static_cast<Phase>(i);
+        bool expectSoroban = static_cast<Phase>(i) == Phase::SOROBAN;
         if (!std::all_of(txs.begin(), txs.end(), [&](auto const& tx) {
                 return tx->isSoroban() == expectSoroban;
             }))
@@ -420,9 +413,7 @@ TxSetFrame::makeFromWire(Application& app,
     ZoneScoped;
     auto hash = xdrSha256(xdrTxSet);
     size_t encodedSize = xdr::xdr_argpack_size(xdrTxSet);
-    if (!validateTxSetXDRStructure(xdrTxSet, app.getLedgerManager()
-                                                 .getLastClosedLedgerHeader()
-                                                 .header.ledgerVersion))
+    if (!validateTxSetXDRStructure(xdrTxSet))
     {
         return std::make_shared<InvalidTxSetFrame const>(xdrTxSet, hash,
                                                          encodedSize);
@@ -645,12 +636,53 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         return false;
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (this->size(lcl.header, Phase::SOROBAN) > SOROBAN_TX_LIMIT_PER_LEDGER)
+    if (needGeneralizedTxSet)
     {
-        CLOG_DEBUG(Herder, "Got bad txSet: too many soroban txs {} > {}",
-                   this->size(lcl.header, Phase::SOROBAN),
-                   SOROBAN_TX_LIMIT_PER_LEDGER);
-        return false;
+        // First, ensure the tx set does not contain multiple txs per source
+        // account
+        // FIXME: Our test suite relies on tx chains per source account, so
+        // introducing this invariant causes a fallout. When the test suite is
+        // updated to accommodate 1 tx/source account, remove this flag.
+        if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+        {
+            std::unordered_set<AccountID> seenAccounts;
+            for (auto const& phase : mTxPhases)
+            {
+                for (auto const& tx : phase)
+                {
+                    if (!seenAccounts.insert(tx->getSourceID()).second)
+                    {
+                        CLOG_DEBUG(
+                            Herder,
+                            "Got bad txSet: multiple txs per source account");
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // Second, ensure total resources are not over ledger limit
+        auto totalTxSetRes = getTxSetSorobanResource();
+        if (!totalTxSetRes)
+        {
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: total Soroban resources overflow");
+            return false;
+        }
+
+        {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto limits = app.getLedgerManager().maxLedgerResources(
+                /* isSoroban */ true, ltx);
+            if (anyGreater(*totalTxSetRes, limits))
+            {
+                CLOG_DEBUG(Herder,
+                           "Got bad txSet: needed resources exceed ledger "
+                           "limits {} > {}",
+                           totalTxSetRes->toString(), limits.toString());
+                return false;
+            }
+        }
     }
 #endif
 
@@ -877,6 +909,27 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     }
     return it->second;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+std::optional<Resource>
+TxSetFrame::getTxSetSorobanResource() const
+{
+    releaseAssert(mTxPhases.size() > static_cast<size_t>(Phase::SOROBAN));
+    auto total = Resource::makeEmpty(/* isSoroban */ true);
+    for (auto const& tx : mTxPhases[static_cast<size_t>(Phase::SOROBAN)])
+    {
+        if (total.canAdd(tx->getResources()))
+        {
+            total += tx->getResources();
+        }
+        else
+        {
+            return std::nullopt;
+        }
+    }
+    return std::make_optional<Resource>(total);
+}
+#endif
 
 int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const

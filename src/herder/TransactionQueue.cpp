@@ -1017,7 +1017,7 @@ ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
     auto opsToFlood =
         mBroadcastOpCarryover[SurgePricingPriorityQueue::GENERIC_LANE] +
         Resource(
-            bigDivideOrThrow(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+            bigDivideOrThrow(opsToFloodLedger, getFloodPeriod(),
                              cfg.getExpectedLedgerCloseTime().count() * 1000,
                              Rounding::ROUND_UP));
     releaseAssertOrThrow(Resource(0) <= opsToFlood &&
@@ -1038,7 +1038,7 @@ ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
         auto dexOpsToFloodUint =
             dexOpsCarryover +
             static_cast<uint32>(bigDivideOrThrow(
-                dexOpsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                dexOpsToFloodLedger, getFloodPeriod(),
                 cfg.getExpectedLedgerCloseTime().count() * 1000ll,
                 Rounding::ROUND_UP));
         dexOpsToFlood = dexOpsToFloodUint;
@@ -1238,8 +1238,7 @@ std::pair<Resource, std::optional<Resource>>
 SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 {
     auto const& cfg = mApp.getConfig();
-    // TODO: should be its own config
-    double ratePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
+    double ratePerLedger = cfg.FLOOD_SOROBAN_RATE_PER_LEDGER;
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
@@ -1249,7 +1248,7 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     Resource resToFlood =
         mBroadcastOpCarryover[SurgePricingPriorityQueue::GENERIC_LANE] +
-        bigDivideOrThrow(totalFloodPerLedger, cfg.FLOOD_TX_PERIOD_MS,
+        bigDivideOrThrow(totalFloodPerLedger, getFloodPeriod(),
                          cfg.getExpectedLedgerCloseTime().count() * 1000,
                          Rounding::ROUND_UP);
     return std::make_pair(resToFlood, std::nullopt);
@@ -1265,7 +1264,7 @@ SorobanTransactionQueue::broadcastSome()
     // propagation.
     auto resToFlood = getMaxResourcesToFloodThisPeriod().first;
 
-    Resource totalResToFlood(std::vector<int64_t>(resToFlood.size(), 0));
+    auto totalResToFlood = Resource::makeEmpty(true);
     std::vector<TxStackPtr> trackersToBroadcast;
     for (auto& [_, accountState] : mAccountStates)
     {
@@ -1316,18 +1315,31 @@ SorobanTransactionQueue::broadcastSome()
         LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        std::vector<int64_t> limits = {
-            conf.txMaxInstructions(),      conf.txMaxSizeBytes(),
-            conf.txMaxReadBytes(),         conf.txMaxWriteBytes(),
-            conf.txMaxReadLedgerEntries(), conf.txMaxWriteLedgerEntries()};
+        int64_t const opCount = 1;
+        std::vector<int64_t> limits = {opCount,
+                                       conf.txMaxInstructions(),
+                                       conf.txMaxSizeBytes(),
+                                       conf.txMaxReadBytes(),
+                                       conf.txMaxWriteBytes(),
+                                       conf.txMaxReadLedgerEntries(),
+                                       conf.txMaxWriteLedgerEntries()};
         maxPerTx = Resource(limits);
     }
     for (auto& resLeft : mBroadcastOpCarryover)
     {
-        // Limit each resource in carry-over to max per tx limit to avoid spikes
+        // Limit carry-over to 1 maximum resource transaction
         resLeft = limitTo(resLeft, maxPerTx);
     }
     return !totalResToFlood.isZero();
+}
+
+size_t
+SorobanTransactionQueue::getMaxQueueSizeOps() const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
+    releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
+    return res.getVal(Resource::Type::OPERATIONS);
 }
 
 #endif
@@ -1431,7 +1443,7 @@ TransactionQueue::broadcast(bool fromCallback)
     {
         mWaiting = true;
         mBroadcastTimer.expires_from_now(
-            std::chrono::milliseconds(mApp.getConfig().FLOOD_TX_PERIOD_MS));
+            std::chrono::milliseconds(getFloodPeriod()));
         mBroadcastTimer.async_wait([&]() { broadcast(true); },
                                    &VirtualTimer::onFailureNoop);
     }
@@ -1532,7 +1544,7 @@ ClassicTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto res = mTxQueueLimiter->maxScaledLedgerResources(false, ltx);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
-    return res.getVal(0);
+    return res.getVal(Resource::Type::OPERATIONS);
 }
 
 }

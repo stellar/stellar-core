@@ -203,8 +203,10 @@ TransactionFrame::getResources() const
     {
         auto r = sorobanResources();
         int64_t txSize = xdr::xdr_size(mEnvelope.v1().tx);
+        int64_t const opCount = 1;
 
-        return Resource({r.instructions, txSize, r.readBytes, r.writeBytes,
+        return Resource({opCount, r.instructions, txSize, r.readBytes,
+                         r.writeBytes,
                          static_cast<int64_t>(r.footprint.readOnly.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }

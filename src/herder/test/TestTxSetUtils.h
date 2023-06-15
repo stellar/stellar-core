@@ -11,11 +11,12 @@ namespace stellar
 {
 namespace testtxset
 {
+
+using ComponentPhases = std::vector<
+    std::pair<std::optional<int64_t>, std::vector<TransactionFrameBasePtr>>>;
 TxSetFrameConstPtr makeNonValidatedGeneralizedTxSet(
-    std::vector<std::pair<std::optional<int64_t>,
-                          std::vector<TransactionFrameBasePtr>>> const&
-        txsPerBaseFee,
-    Application& app, Hash const& previousLedgerHash);
+    std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
+    Hash const& previousLedgerHash);
 
 TxSetFrameConstPtr makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,

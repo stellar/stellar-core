@@ -1426,6 +1426,9 @@ ConfigUpgradeSetFrame::isValidForApply() const
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
             valid = configEntry.contractDataEntrySizeBytes() > 0;
             break;
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+            valid = configEntry.contractExecutionLanes().ledgerMaxTxCount >= 0;
+            break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:

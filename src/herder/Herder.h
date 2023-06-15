@@ -209,6 +209,9 @@ class Herder
     getCurrentlyTrackedQuorum() const = 0;
 
     virtual size_t getMaxQueueSizeOps() const = 0;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    virtual size_t getMaxQueueSizeSorobanOps() const = 0;
+#endif
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 };
