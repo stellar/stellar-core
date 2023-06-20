@@ -24,7 +24,7 @@ class BumpFootprintExpirationOpFrame : public OperationFrame
 
   public:
     BumpFootprintExpirationOpFrame(Operation const& op, OperationResult& res,
-                          TransactionFrame& parentTx);
+                                   TransactionFrame& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
