@@ -969,7 +969,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     switch (mode)
     {
     case LoadGenMode::CREATE:
-        txm.mAccountCreated.Mark(batchSize);
+        txm.mAccountCreated.Mark(txf->getNumOperations());
         break;
     case LoadGenMode::PAY:
         txm.mNativePayment.Mark(txf->getNumOperations());

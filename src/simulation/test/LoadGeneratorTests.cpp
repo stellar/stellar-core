@@ -37,8 +37,9 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
     auto& app = *nodes[0]; // pick a node to generate load
 
     auto& loadGen = app.getLoadGenerator();
+    uint32_t nAccounts = 5;
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 3,
+        /* nAccounts */ nAccounts,
         /* txRate */ 10,
         /* batchSize */ 100));
     try
@@ -51,8 +52,8 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        loadGen.generateLoad(
-            GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND, 3, 5, 10, 100));
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::PRETEND, nAccounts, 5, 10, 100));
 
         simulation->crankUntil(
             [&]() {
@@ -73,7 +74,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
                 .count() == 0);
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "account", "created"}, "account")
-                .count() == 100);
+                .count() == nAccounts);
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "payment", "submitted"}, "op")
                 .count() == 0);
@@ -106,10 +107,13 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
+    uint32_t txRate = 10;
+    uint32_t numAccounts =
+        txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 3;
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 10,
-        /* txRate */ 10,
+        /* nAccounts */ numAccounts,
+        /* txRate */ txRate,
         /* batchSize */ 100));
     try
     {
@@ -120,8 +124,8 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                            .count() == 1;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_TXS, 10,
-                                                  100, 10, 100);
+        auto config = GeneratedLoadConfig::txLoad(
+            LoadGenMode::MIXED_TXS, numAccounts, 100, txRate, 100);
         config.dexTxPercent = 50;
         loadGen.generateLoad(config);
         simulation->crankUntil(
@@ -143,7 +147,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                 .count() == 0);
     REQUIRE(app.getMetrics()
                 .NewMeter({"loadgen", "account", "created"}, "account")
-                .count() == 100);
+                .count() == numAccounts);
     auto nonDexOps = app.getMetrics()
                          .NewMeter({"loadgen", "payment", "submitted"}, "op")
                          .count();
