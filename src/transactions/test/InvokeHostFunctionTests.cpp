@@ -605,8 +605,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto bumpOp = [&](uint32_t bumpAmount,
                       xdr::xvector<LedgerKey> const& readOnly) {
         Operation bumpOp;
-        bumpOp.body.type(BUMP_EXPIRATION);
-        bumpOp.body.bumpExpirationOp().ledgersToExpire() = bumpAmount;
+        bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
+        bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire() = bumpAmount;
 
         SorobanResources bumpResources;
         bumpResources.footprint.readOnly = readOnly;

@@ -12,18 +12,18 @@ namespace stellar
 {
 class AbstractLedgerTxn;
 
-class BumpExpirationOpFrame : public OperationFrame
+class BumpFootprintExpirationOpFrame : public OperationFrame
 {
-    BumpExpirationResult&
+    BumpFootprintExpirationResult&
     innerResult()
     {
-        return mResult.tr().bumpExpirationResult();
+        return mResult.tr().bumpFootprintExpirationResult();
     }
 
-    BumpExpirationOp const& mBumpExpirationOp;
+    BumpFootprintExpirationOp const& mBumpFootprintExpirationOp;
 
   public:
-    BumpExpirationOpFrame(Operation const& op, OperationResult& res,
+    BumpFootprintExpirationOpFrame(Operation const& op, OperationResult& res,
                           TransactionFrame& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
@@ -39,10 +39,10 @@ class BumpExpirationOpFrame : public OperationFrame
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
-    static BumpExpirationOpResultCode
+    static BumpFootprintExpirationResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().bumpExpirationResult().code();
+        return res.tr().bumpFootprintExpirationResult().code();
     }
 
     virtual bool isSoroban() const override;

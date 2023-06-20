@@ -1689,7 +1689,7 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
     }
 
     bool isBumpOp =
-        mOperations.front()->getOperation().body.type() == BUMP_EXPIRATION;
+        mOperations.front()->getOperation().body.type() == BUMP_FOOTPRINT_EXPIRATION;
     // TODO: Write expiration extension entries instead of witing whole entry
     for (auto const& key : resources.footprint.readOnly)
     {

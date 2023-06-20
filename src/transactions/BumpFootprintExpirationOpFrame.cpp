@@ -3,54 +3,54 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "transactions/BumpExpirationOpFrame.h"
+#include "transactions/BumpFootprintExpirationOpFrame.h"
 
 namespace stellar
 {
 
-struct BumpExpirationMetrics
+struct BumpFootprintExpirationMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
     size_t mLedgerWriteByte{0};
 
-    BumpExpirationMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
+    BumpFootprintExpirationMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
     {
     }
 
-    ~BumpExpirationMetrics()
+    ~BumpFootprintExpirationMetrics()
     {
         mMetrics
-            .NewMeter({"soroban", "bump-exp-op", "write-ledger-byte"}, "byte")
+            .NewMeter({"soroban", "bump-fprint-exp-op", "write-ledger-byte"}, "byte")
             .Mark(mLedgerWriteByte);
     }
 };
 
-BumpExpirationOpFrame::BumpExpirationOpFrame(Operation const& op,
+BumpFootprintExpirationOpFrame::BumpFootprintExpirationOpFrame(Operation const& op,
                                              OperationResult& res,
                                              TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
-    , mBumpExpirationOp(mOperation.body.bumpExpirationOp())
+    , mBumpFootprintExpirationOp(mOperation.body.bumpFootprintExpirationOp())
 {
 }
 
 bool
-BumpExpirationOpFrame::isOpSupported(LedgerHeader const& header) const
+BumpFootprintExpirationOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return header.ledgerVersion >= 20;
 }
 
 bool
-BumpExpirationOpFrame::doApply(AbstractLedgerTxn& ltx)
+BumpFootprintExpirationOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
-    throw std::runtime_error("BumpExpirationOpFrame::doApply needs Config");
+    throw std::runtime_error("BumpFootprintExpirationOpFrame::doApply needs Config");
 }
 
 bool
-BumpExpirationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+BumpFootprintExpirationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                Hash const& sorobanBasePrngSeed)
 {
-    BumpExpirationMetrics metrics(app.getMetrics());
+    BumpFootprintExpirationMetrics metrics(app.getMetrics());
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
@@ -76,7 +76,7 @@ BumpExpirationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 resources.readBytes < metrics.mLedgerWriteByte ||
                 resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                innerResult().code(BUMP_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+                innerResult().code(BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
 
@@ -85,9 +85,9 @@ BumpExpirationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             uint32_t bumpTo = UINT32_MAX;
-            if (UINT32_MAX - ledgerSeq > mBumpExpirationOp.ledgersToExpire())
+            if (UINT32_MAX - ledgerSeq > mBumpFootprintExpirationOp.ledgersToExpire())
             {
-                bumpTo = ledgerSeq + mBumpExpirationOp.ledgersToExpire();
+                bumpTo = ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire();
             }
 
             if (getExpirationLedger(ltxe.current()) < bumpTo)
@@ -99,18 +99,18 @@ BumpExpirationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     mParentTx.pushInitialExpirations(std::move(originalExpirations));
 
-    innerResult().code(BUMP_EXPIRATION_SUCCESS);
+    innerResult().code(BUMP_FOOTPRINT_EXPIRATION_SUCCESS);
     return true;
 }
 
 bool
-BumpExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
                                     uint32_t ledgerVersion)
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
     {
-        innerResult().code(BUMP_EXPIRATION_MALFORMED);
+        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
         return false;
     }
 
@@ -118,15 +118,15 @@ BumpExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     {
         if (!isSorobanEntry(lk))
         {
-            innerResult().code(BUMP_EXPIRATION_MALFORMED);
+            innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
             return false;
         }
     }
 
-    if (mBumpExpirationOp.ledgersToExpire() >
+    if (mBumpFootprintExpirationOp.ledgersToExpire() >
         config.stateExpirationSettings().maxEntryExpiration)
     {
-        innerResult().code(BUMP_EXPIRATION_MALFORMED);
+        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
         return false;
     }
 
@@ -134,20 +134,20 @@ BumpExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 }
 
 bool
-BumpExpirationOpFrame::doCheckValid(uint32_t ledgerVersion)
+BumpFootprintExpirationOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     throw std::runtime_error(
-        "BumpExpirationOpFrame::doCheckValid needs Config");
+        "BumpFootprintExpirationOpFrame::doCheckValid needs Config");
 }
 
 void
-BumpExpirationOpFrame::insertLedgerKeysToPrefetch(
+BumpFootprintExpirationOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
 
 bool
-BumpExpirationOpFrame::isSoroban() const
+BumpFootprintExpirationOpFrame::isSoroban() const
 {
     return true;
 }
