@@ -164,7 +164,13 @@ getShortKey(LedgerKey const& key)
     case CONFIG_SETTING:
         return static_cast<uint8_t>(key.configSetting().configSettingID);
     case CONTRACT_DATA:
-        return key.contractData().contractID.at(0);
+        switch (key.contractData().contract.type())
+        {
+        case SC_ADDRESS_TYPE_ACCOUNT:
+            return getShortKey(key.contractData().contract.accountId());
+        case SC_ADDRESS_TYPE_CONTRACT:
+            return key.contractData().contract.contractId().at(0);
+        }
     case CONTRACT_CODE:
         return key.contractCode().hash.at(0);
 #endif

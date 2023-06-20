@@ -507,7 +507,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         entry.data.contractData() =
             LedgerTestUtils::generateValidContractDataEntry(5);
 
-        entry.data.contractData().contractID = cd.contractID;
+        entry.data.contractData().contract = cd.contract;
         entry.data.contractData().key = cd.key;
     }
 

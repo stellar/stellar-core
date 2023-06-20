@@ -88,8 +88,8 @@ struct LedgerEntryIdCmp
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
         {
-            return lexCompare(a.contractData().contractID,
-                              b.contractData().contractID, a.contractData().key,
+            return lexCompare(a.contractData().contract,
+                              b.contractData().contract, a.contractData().key,
                               b.contractData().key, a.contractData().type,
                               b.contractData().type, getLeType(a),
                               getLeType(b));

@@ -53,7 +53,7 @@ LedgerEntryKey(LedgerEntry const& e)
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
-        k.contractData().contractID = d.contractData().contractID;
+        k.contractData().contract = d.contractData().contract;
         k.contractData().key = d.contractData().key;
         k.contractData().type = d.contractData().type;
         k.contractData().leType = d.contractData().body.leType();
