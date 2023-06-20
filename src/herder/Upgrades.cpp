@@ -1344,7 +1344,8 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
 
     LedgerKey lk;
     lk.type(CONTRACT_DATA);
-    lk.contractData().contractID = upgradeKey.contractID;
+    lk.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
+    lk.contractData().contract.contractId() = upgradeKey.contractID;
     lk.contractData().key = v;
     return lk;
 }

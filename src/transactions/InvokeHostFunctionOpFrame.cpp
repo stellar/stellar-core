@@ -49,7 +49,7 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     info.sequence_number = hdr.ledgerSeq;
     info.timestamp = hdr.scpValue.closeTime;
     info.memory_limit = sorobanConfig.txMemoryLimit();
-    info.min_restorable_entry_expiration =
+    info.min_persistent_entry_expiration =
         sorobanConfig.stateExpirationSettings().minRestorableEntryExpiration;
     info.min_temp_entry_expiration =
         sorobanConfig.stateExpirationSettings().minTempEntryExpiration;

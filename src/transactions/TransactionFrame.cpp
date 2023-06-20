@@ -686,7 +686,7 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.write_bytes = txResources.writeBytes;
 
     cxxResources.transaction_size_bytes =
-        static_cast<uint32>(xdr::xdr_size(mEnvelope.v1().tx));
+        static_cast<uint32>(xdr::xdr_size(mEnvelope));
 
     cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
 

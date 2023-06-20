@@ -241,7 +241,8 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
     LedgerEntry le;
     le.data.type(CONTRACT_DATA);
     le.data.contractData().body.leType(DATA_ENTRY);
-    le.data.contractData().contractID = contractID;
+    le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
+    le.data.contractData().contract.contractId() = contractID;
     le.data.contractData().key = key;
     le.data.contractData().body.data().val = val;
 
@@ -720,7 +721,9 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     LedgerEntry le;
                     le.data.type(CONTRACT_DATA);
                     le.data.contractData().body.leType(DATA_ENTRY);
-                    le.data.contractData().contractID = contractID;
+                    le.data.contractData().contract.type(
+                        SC_ADDRESS_TYPE_CONTRACT);
+                    le.data.contractData().contract.contractId() = contractID;
                     le.data.contractData().key = key;
                     le.data.contractData().body.data().val = val;
 

@@ -82,7 +82,8 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
     {
         auto const& contractData = current ? current->data.contractData()
                                            : previous->data.contractData();
-        if (contractData.contractID != lumenContractID ||
+        if (contractData.contract.type() != SC_ADDRESS_TYPE_CONTRACT ||
+            contractData.contract.contractId() != lumenContractID ||
             contractData.key.type() != SCV_VEC || !contractData.key.vec() ||
             contractData.key.vec().size() == 0)
         {

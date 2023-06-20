@@ -45,7 +45,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             network_id: c.network_id.try_into().unwrap(),
             base_reserve: c.base_reserve,
             min_temp_entry_expiration: c.min_temp_entry_expiration,
-            min_restorable_entry_expiration: c.min_restorable_entry_expiration,
+            min_persistent_entry_expiration: c.min_persistent_entry_expiration,
         }
     }
 }
@@ -211,7 +211,7 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
             asset: tl.asset.clone(),
         })),
         LedgerEntryData::ContractData(cd) => Ok(LedgerKey::ContractData(LedgerKeyContractData {
-            contract_id: cd.contract_id.clone(),
+            contract: cd.contract.clone(),
             key: cd.key.clone(),
             type_: cd.type_.clone(),
             le_type: match &cd.body {

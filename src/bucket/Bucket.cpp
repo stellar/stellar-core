@@ -719,8 +719,7 @@ refersToSameEntry(T const& lhs, T const& rhs)
     {
         if (lhs.type() == CONTRACT_DATA)
         {
-            return lhs.contractData().contractID ==
-                       rhs.contractData().contractID &&
+            return lhs.contractData().contract == rhs.contractData().contract &&
                    lhs.contractData().key == rhs.contractData().key;
         }
         else if (lhs.type() == CONTRACT_CODE)

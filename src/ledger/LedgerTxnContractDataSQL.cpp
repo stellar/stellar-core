@@ -33,7 +33,7 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
         return nullptr;
     }
 
-    auto contractID = toOpaqueBase64(k.contractData().contractID);
+    auto contractID = toOpaqueBase64(k.contractData().contract);
     auto key = toOpaqueBase64(k.contractData().key);
     int32_t type = k.contractData().type;
     std::string contractDataEntryStr;
@@ -116,7 +116,7 @@ class BulkLoadContractDataOperation
             }
 
             mContractIDs.emplace_back(
-                toOpaqueBase64(k.contractData().contractID));
+                toOpaqueBase64(k.contractData().contract));
             mKeys.emplace_back(toOpaqueBase64(k.contractData().key));
             mTypes.emplace_back(k.contractData().type);
         }
@@ -244,7 +244,7 @@ class BulkDeleteContractDataOperation
             }
 
             mContractIDs.emplace_back(
-                toOpaqueBase64(e.key().ledgerKey().contractData().contractID));
+                toOpaqueBase64(e.key().ledgerKey().contractData().contract));
             mKeys.emplace_back(
                 toOpaqueBase64(e.key().ledgerKey().contractData().key));
             mTypes.emplace_back(e.key().ledgerKey().contractData().type);
@@ -338,7 +338,7 @@ class BulkUpsertContractDataOperation
         throwIfNotContractData(entry.data.type());
 
         mContractIDs.emplace_back(
-            toOpaqueBase64(entry.data.contractData().contractID));
+            toOpaqueBase64(entry.data.contractData().contract));
         mKeys.emplace_back(toOpaqueBase64(entry.data.contractData().key));
         mTypes.emplace_back(entry.data.contractData().type);
         mContractDataEntries.emplace_back(toOpaqueBase64(entry));

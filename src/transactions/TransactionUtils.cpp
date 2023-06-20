@@ -282,11 +282,11 @@ configSettingKey(ConfigSettingID const& configSettingID)
 }
 
 LedgerKey
-contractDataKey(Hash const& contractID, SCVal const& dataKey,
+contractDataKey(SCAddress const& contract, SCVal const& dataKey,
                 ContractDataType type, ContractLedgerEntryType leType)
 {
     LedgerKey key(CONTRACT_DATA);
-    key.contractData().contractID = contractID;
+    key.contractData().contract = contract;
     key.contractData().key = dataKey;
     key.contractData().type = type;
     key.contractData().leType = leType;
@@ -433,11 +433,11 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerTxnEntry
-loadContractData(AbstractLedgerTxn& ltx, Hash const& contractID,
+loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
                  SCVal const& dataKey, ContractDataType type)
 {
     ZoneScoped;
-    return ltx.load(contractDataKey(contractID, dataKey, type, DATA_ENTRY));
+    return ltx.load(contractDataKey(contract, dataKey, type, DATA_ENTRY));
 }
 
 LedgerTxnEntry

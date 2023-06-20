@@ -264,9 +264,10 @@ class BucketIndexTest
             return le;
         };
 
-        std::vector<LedgerEntry> entries = {generateEntry(TEMPORARY),
-                                            generateEntry(MERGEABLE),
-                                            generateEntry(EXCLUSIVE)};
+        std::vector<LedgerEntry> entries = {
+            generateEntry(ContractDataType::TEMPORARY),
+            generateEntry(ContractDataType::PERSISTENT),
+        };
         for (auto const& e : entries)
         {
             auto k = LedgerEntryKey(e);

@@ -110,8 +110,8 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
         case CONTRACT_DATA:
             le.data.contractData() =
                 LedgerTestUtils::generateValidContractDataEntry();
-            le.data.contractData().contractID =
-                leBase.data.contractData().contractID;
+            le.data.contractData().contract =
+                leBase.data.contractData().contract;
             le.data.contractData().key = leBase.data.contractData().key;
             le.data.contractData().type = leBase.data.contractData().type;
             break;
