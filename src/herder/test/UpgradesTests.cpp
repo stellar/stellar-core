@@ -2996,6 +2996,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
             cfg.MAX_SLOTS_TO_REMEMBER = 12;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
             return cfg;
         });
 
@@ -3025,9 +3026,9 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     }
 
     auto& loadGen = nodes[0]->getLoadGenerator();
-    // Generate 8 ledgers worth of txs (40 / 5).
+    // Generate 8 ledgers worth of txs (600 / (15*5)).
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 40, /* txRate */ 1, /* batchSize */ 1));
+        /* nAccounts */ 600, /* txRate */ 1, /* batchSize */ 15));
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();

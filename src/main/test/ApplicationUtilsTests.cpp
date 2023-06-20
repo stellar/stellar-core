@@ -214,7 +214,7 @@ class SimulationHelper
 
         // Generate a bit of load, and crank for some time
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY, /* nAccounts */ 10, /* nTxs */ 10,
+            LoadGenMode::PAY, /* nAccounts */ 150, /* nTxs */ 10,
             /*txRate*/ 1,
             /*batchSize*/ 1));
 
@@ -243,9 +243,9 @@ class SimulationHelper
             {"loadgen", "run", "complete"}, "run");
 
         loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 10,
+            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
                                                     /* txRate */ 1,
-                                                    /* batchSize */ 1));
+                                                    /* batchSize */ 15));
         auto currLoadGenCount = loadGenDone.count();
 
         auto checkpoint =

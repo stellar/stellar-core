@@ -131,6 +131,7 @@ class LoadGenerator
     static const uint32_t TX_SUBMIT_MAX_TRIES;
     static const uint32_t TIMEOUT_NUM_LEDGERS;
     static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
+    static const uint32_t MIN_UNIQUE_ACCOUNT_MULTIPLIER;
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
@@ -144,10 +145,24 @@ class LoadGenerator
     // Accounts cache
     std::map<uint64_t, TestAccountPtr> mAccounts;
 
+    // Track account IDs that are currently being referenced by the transaction
+    // queue (to avoid source account collisions during tx submission)
+    std::unordered_set<uint64_t> mAccountsInUse;
+    std::unordered_set<uint64_t> mAccountsAvailable;
+    uint64_t getNextAvailableAccount();
+
+    // For account creation only: allocate a few accounts for creation purposes
+    // (with sufficient balance to create new accounts) to avoid source account
+    // collisions.
+    std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
+
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
 
     bool mFailed{false};
+    bool mStarted{false};
+    bool mInitiaAccountsCreated{false};
+
     uint32_t mWaitTillCompleteForLedgers{0};
 
     void reset();
@@ -159,7 +174,8 @@ class LoadGenerator
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
-                                          uint32_t ledgerNum);
+                                          uint32_t ledgerNum,
+                                          bool initialAccounts);
     bool loadAccount(TestAccount& account, Application& app);
     bool loadAccount(TestAccountPtr account, Application& app);
 
@@ -209,5 +225,7 @@ class LoadGenerator
     void updateMinBalance();
 
     unsigned short chooseOpCount(Config const& cfg) const;
+
+    void cleanupAccounts();
 };
 }

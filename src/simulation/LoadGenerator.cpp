@@ -54,6 +54,8 @@ const uint32_t LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
 // without checking for account consistency.
 const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 
+const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
+
 LoadGenerator::LoadGenerator(Application& app)
     : mMinBalance(0)
     , mLastSecond(0)
@@ -168,33 +170,83 @@ void
 LoadGenerator::reset()
 {
     mAccounts.clear();
+    mAccountsInUse.clear();
+    mAccountsAvailable.clear();
+    mCreationSourceAccounts.clear();
+    mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
     mFailed = false;
+    mStarted = false;
+    mInitiaAccountsCreated = false;
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 {
+    std::optional<std::string> errorMsg;
     // If previously scheduled step of load did not succeed, fail this loadgen
     // run.
     if (mFailed)
     {
-        CLOG_ERROR(LoadGen, "Load generation failed, ensure correct "
-                            "number parameters are set and accounts are "
-                            "created, or retry with smaller tx rate.");
+        errorMsg = "Load generation failed, ensure correct "
+                   "number parameters are set and accounts are "
+                   "created, or retry with smaller tx rate.";
+    }
+    // During account creation, we can create up to
+    // MAX_OPS_PER_TX*MAX_OPS_PER_TX new accounts per ledger. Ensure desired
+    // tx rate is sufficient, and allows some buffer in case ledgers take
+    // longer than usual.
+    else if (cfg.mode == LoadGenMode::CREATE && cfg.nAccounts > cfg.batchSize &&
+             (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
+              MIN_UNIQUE_ACCOUNT_MULTIPLIER) > cfg.batchSize)
+    {
+        errorMsg = fmt::format(
+            "Tx rate is too high, or batch size "
+            "is too low: make sure batch size is at least {}x greater "
+            "than desired number of transactions per ledger",
+            MIN_UNIQUE_ACCOUNT_MULTIPLIER);
+    }
+    // During load submission, we must have enough unique source accounts (with
+    // a buffer) to accommodate the desired tx rate.
+    else if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
+             (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count()) *
+                     MIN_UNIQUE_ACCOUNT_MULTIPLIER >
+                 cfg.nAccounts)
+    {
+        errorMsg = fmt::format(
+            "Tx rate is too high, there are not enough unique accounts. Make "
+            "sure there are at least {}x "
+            "unique accounts than desired number of transactions per ledger.",
+            MIN_UNIQUE_ACCOUNT_MULTIPLIER);
+    }
+
+    if (errorMsg)
+    {
+        CLOG_ERROR(LoadGen, "{}", *errorMsg);
         mLoadgenFail.Mark();
         reset();
         return;
     }
 
+    // First time calling tx load generation, mark all accounts "available" as
+    // source accounts
+    if (!mStarted && cfg.mode != LoadGenMode::CREATE)
+    {
+        for (auto i = 0; i < cfg.nAccounts; i++)
+        {
+            mAccountsAvailable.insert(i + cfg.offset);
+        }
+    }
     if (!mLoadTimer)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
+
+    mStarted = true;
 
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
@@ -215,6 +267,41 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     }
 }
 
+void
+LoadGenerator::cleanupAccounts()
+{
+    // Check if creation source accounts have been created
+    for (auto it = mCreationSourceAccounts.begin();
+         it != mCreationSourceAccounts.end();)
+    {
+        if (loadAccount(it->second, mApp))
+        {
+            mAccountsAvailable.insert(it->first);
+            it = mCreationSourceAccounts.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // "Free" any accounts that aren't used by the tx queue anymore
+    for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
+    {
+        auto name = "TestAccount-" + to_string(*it);
+        if (!mApp.getHerder().sourceAccountPending(
+                txtest::getAccount(name.c_str()).getPublicKey()))
+        {
+            mAccountsAvailable.insert(*it);
+            it = mAccountsInUse.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+}
+
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
@@ -231,6 +318,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     createRootAccount();
+    cleanupAccounts();
 
     // Finish if no more txs need to be created.
     if ((isCreate && cfg.nAccounts == 0) || (!isCreate && cfg.nTxs == 0))
@@ -261,6 +349,15 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
+    if (cfg.mode == LoadGenMode::CREATE)
+    {
+        // Limit creation to the number of accounts we have. This is only the
+        // case at the very beginning, when only root account is available for
+        // account creation
+        size_t expectedSize =
+            mInitiaAccountsCreated ? mAccountsAvailable.size() : 1;
+        txPerStep = std::min<int64_t>(txPerStep, expectedSize);
+    }
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
@@ -276,8 +373,15 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         }
         else
         {
-            auto sourceAccountId =
-                rand_uniform<uint64_t>(0, cfg.nAccounts - 1) + cfg.offset;
+            if (mAccountsAvailable.empty())
+            {
+                CLOG_WARNING(LoadGen, "No more accounts available");
+                mLoadgenFail.Mark();
+                reset();
+                return;
+            }
+
+            uint64_t sourceAccountId = getNextAvailableAccount();
 
             std::function<
                 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
@@ -459,6 +563,21 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     return true;
 }
 
+uint64_t
+LoadGenerator::getNextAvailableAccount()
+{
+    releaseAssert(!mAccountsAvailable.empty());
+
+    auto sourceAccountIdx =
+        rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
+    auto it = mAccountsAvailable.begin();
+    std::advance(it, sourceAccountIdx);
+    uint64_t sourceAccountId = *it;
+    mAccountsAvailable.erase(it);
+    releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+    return sourceAccountId;
+}
+
 void
 LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
                            LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
@@ -496,11 +615,16 @@ std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
-    vector<Operation> creationOps =
-        createAccounts(startAccount, numItems, ledgerNum);
-    return std::make_pair(mRoot, createTransactionFramePtr(mRoot, creationOps,
-                                                           LoadGenMode::CREATE,
-                                                           std::nullopt));
+    TestAccountPtr sourceAcc =
+        mInitiaAccountsCreated
+            ? findAccount(getNextAvailableAccount(), ledgerNum)
+            : mRoot;
+    vector<Operation> creationOps = createAccounts(
+        startAccount, numItems, ledgerNum, !mInitiaAccountsCreated);
+    mInitiaAccountsCreated = true;
+    return std::make_pair(sourceAcc, createTransactionFramePtr(
+                                         sourceAcc, creationOps,
+                                         LoadGenMode::CREATE, std::nullopt));
 }
 
 void
@@ -515,20 +639,24 @@ LoadGenerator::updateMinBalance()
 
 std::vector<Operation>
 LoadGenerator::createAccounts(uint64_t start, uint64_t count,
-                              uint32_t ledgerNum)
+                              uint32_t ledgerNum, bool initialAccounts)
 {
     vector<Operation> ops;
     SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
+    auto balance = initialAccounts ? mMinBalance * 10000000 : mMinBalance * 100;
     for (uint64_t i = start; i < start + count; i++)
     {
         auto name = "TestAccount-" + to_string(i);
         auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
-        ops.push_back(
-            txtest::createAccount(account.getPublicKey(), mMinBalance * 100));
+        ops.push_back(txtest::createAccount(account.getPublicKey(), balance));
 
         // Cache newly created account
-        mAccounts.insert(std::pair<uint64_t, TestAccountPtr>(
-            i, make_shared<TestAccount>(account)));
+        auto acc = make_shared<TestAccount>(account);
+        mAccounts.insert(std::pair(i, acc));
+        if (initialAccounts)
+        {
+            mCreationSourceAccounts.insert(std::pair(i, acc));
+        }
     }
     return ops;
 }
@@ -561,27 +689,8 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
                                uint32_t ledgerNum, uint64_t sourceAccountId)
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
-
-    if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-    {
-        int count = 0;
-        // FIXME: Temporary hack, given the new tx/soruce account limit, loadgen
-        // fails in many situations since it operates under no limits per source
-        // account. Load generation logic needs to be fixed to account for the
-        // limit, and throw if desired tx rate can't be achieved if insufficent
-        // accounts were provided.
-        while (mApp.getHerder().sourceAccountPending(
-            sourceAccount->getPublicKey()))
-        {
-            auto destAccountId =
-                rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
-            sourceAccount = findAccount(destAccountId, ledgerNum);
-            if (++count == 30)
-            {
-                break;
-            }
-        }
-    }
+    releaseAssert(
+        !mApp.getHerder().sourceAccountPending(sourceAccount->getPublicKey()));
 
     auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
 
@@ -673,22 +782,6 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t accountId)
 {
     auto account = findAccount(accountId, ledgerNum);
-    int count = 0;
-    // FIXME: Temporary hack, given the new tx/soruce account limit, loadgen
-    // fails in many situations since it operates under no limits per source
-    // account. Load generation logic needs to be fixed to account for the
-    // limit, and throw if desired tx rate can't be achieved if insufficent
-    // accounts were provided.
-    while (mApp.getHerder().sourceAccountPending(account->getPublicKey()))
-    {
-        auto destAccountId =
-            rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
-        account = findAccount(destAccountId, ledgerNum);
-        if (++count == 30)
-        {
-            break;
-        }
-    }
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
     auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
