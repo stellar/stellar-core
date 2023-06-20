@@ -957,6 +957,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
                     return false;
                 }
             }
+            return true;
         };
 
         if (!checkDuplicates(sorobanData.resources.footprint.readOnly) ||
