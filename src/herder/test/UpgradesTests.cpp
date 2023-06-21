@@ -3000,7 +3000,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
             }
             return loadGenDone.count() > currLoadGenCount;
         },
-        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        11 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Make sure upgrade has happened.
     REQUIRE(upgradeLedger);

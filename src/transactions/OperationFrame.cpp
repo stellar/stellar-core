@@ -5,6 +5,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BeginSponsoringFutureReservesOpFrame.h"
+#include "transactions/BumpFootprintExpirationOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
@@ -118,6 +119,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case INVOKE_HOST_FUNCTION:
         return std::make_shared<InvokeHostFunctionOpFrame>(op, res, tx);
+    case BUMP_FOOTPRINT_EXPIRATION:
+        return std::make_shared<BumpFootprintExpirationOpFrame>(op, res, tx);
 #endif
     default:
         ostringstream err;

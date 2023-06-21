@@ -14,6 +14,7 @@
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
 #endif
+#include "ledger/NetworkConfig.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <autocheck/generator.hpp>
 #include <locale>
@@ -348,6 +349,24 @@ makeValid(ContractDataEntry& cde)
     cde.body.data().flags = 0;
     int t = cde.type;
     cde.type = static_cast<ContractDataType>(std::abs(t % 3));
+
+    LedgerEntry le;
+    le.data.type(CONTRACT_DATA);
+    le.data.contractData() = cde;
+
+    auto key = LedgerEntryKey(le);
+    if (xdr::xdr_size(key) >
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES)
+    {
+        // make the key small to prevent hitting the limit
+        static const uint32_t key_limit =
+            InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES - 50;
+        auto small_bytes =
+            autocheck::generator<xdr::opaque_vec<key_limit>>()(5);
+        SCVal val(SCV_BYTES);
+        val.bytes().assign(small_bytes.begin(), small_bytes.end());
+        cde.key = val;
+    }
 }
 
 void
@@ -615,6 +634,29 @@ generateValidLedgerEntryKeysWithExclusions(
         keys.push_back(LedgerEntryKey(entry));
     }
     return keys;
+}
+
+std::vector<LedgerKey>
+generateValidUniqueLedgerEntryKeysWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+{
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerKey> res;
+    keys.reserve(n);
+    res.reserve(n);
+    while (keys.size() < n)
+    {
+        auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+
+        keys.insert(key);
+        res.emplace_back(key);
+    }
+    return res;
 }
 
 LedgerEntry

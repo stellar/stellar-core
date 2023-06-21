@@ -602,6 +602,31 @@ TEST_CASE("contract storage", "[tx][soroban]")
             true, type);
     };
 
+    auto bumpOp = [&](uint32_t bumpAmount,
+                      xdr::xvector<LedgerKey> const& readOnly) {
+        Operation bumpOp;
+        bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
+        bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire() = bumpAmount;
+
+        SorobanResources bumpResources;
+        bumpResources.footprint.readOnly = readOnly;
+        bumpResources.instructions = 0;
+        bumpResources.readBytes = 1000;
+        bumpResources.writeBytes = 1000;
+        bumpResources.extendedMetaDataSizeBytes = 1000;
+
+        // submit operation
+        auto root = TestAccount::createRoot(*app);
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {bumpOp},
+                                           {}, bumpResources, 100'000, 1'200);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    };
+
     auto delWithFootprint = [&](std::string const& key,
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
@@ -787,8 +812,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     }
 
-    // TODO: uncomment this when we implement the bump_contract_data host
-    // function
     SECTION("manual bump")
     {
         put("key", 0, ContractDataType::PERSISTENT);
@@ -800,6 +823,35 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bump("key", ContractDataType::PERSISTENT, 5'000);
         checkContractDataExpiration("key", ContractDataType::PERSISTENT,
                                     10'000 + autoBump + lcl);
+
+        put("key2", 0, ContractDataType::PERSISTENT);
+        bump("key2", ContractDataType::PERSISTENT, 5'000);
+        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+                                    5'000 + lcl);
+
+        put("key3", 0, ContractDataType::PERSISTENT);
+        bump("key3", ContractDataType::PERSISTENT, 50'000);
+        checkContractDataExpiration("key3", ContractDataType::PERSISTENT,
+                                    50'000 + lcl);
+
+        // Bump to live 10100 ledger from now
+        bumpOp(10100,
+               {contractDataKey(contractID, makeSymbol("key"),
+                                ContractDataType::PERSISTENT, DATA_ENTRY),
+                contractDataKey(contractID, makeSymbol("key2"),
+                                ContractDataType::PERSISTENT, DATA_ENTRY),
+                contractDataKey(contractID, makeSymbol("key3"),
+                                ContractDataType::PERSISTENT, DATA_ENTRY)});
+
+        checkContractDataExpiration("key", ContractDataType::PERSISTENT,
+                                    10'000 + lcl + 100);
+        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+                                    10'000 + lcl + 100);
+
+        // No change for key3 since expiration is already past 10100 ledgers
+        // from now
+        checkContractDataExpiration("key3", ContractDataType::PERSISTENT,
+                                    50'000 + lcl);
     }
 
     SECTION("max expiration")
