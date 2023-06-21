@@ -149,6 +149,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
+    void startExecutionDelayedTimer(
+        VirtualClock::duration d, std::function<void()> const& onSuccess,
+        std::function<void(asio::error_code)> const& onFailure);
+
     Json::Value getJsonInfo(bool compact) const;
 
   protected:
@@ -193,6 +197,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mCreationTime;
 
     VirtualTimer mRecurringTimer;
+    VirtualTimer mDelayedExecutionTimer;
+
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
     VirtualClock::time_point mEnqueueTimeOfLastWrite;

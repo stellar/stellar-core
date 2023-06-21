@@ -261,8 +261,6 @@ class HerderImpl : public Herder
 
     VirtualTimer mTxSetGarbageCollectTimer;
 
-    VirtualTimer mEarlyCatchupTimer;
-
     Application& mApp;
     LedgerManager& mLedgerManager;
 

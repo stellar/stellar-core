@@ -91,13 +91,13 @@ HerderImpl::HerderImpl(Application& app)
     , mTriggerTimer(app)
     , mOutOfSyncTimer(app)
     , mTxSetGarbageCollectTimer(app)
-    , mEarlyCatchupTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
     , mState(Herder::HERDER_BOOTING_STATE)
 {
     auto ln = getSCP().getLocalNode();
+
     mPendingEnvelopes.addSCPQuorumSet(ln->getQuorumSetHash(),
                                       ln->getQuorumSet());
 }
@@ -246,7 +246,6 @@ HerderImpl::shutdown()
     mTrackingTimer.cancel();
     mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
-    mEarlyCatchupTimer.cancel();
     if (mLastQuorumMapIntersectionState.mRecalculating)
     {
         // We want to interrupt any calculation-in-progress at shutdown to
@@ -861,9 +860,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
     // ledger to achieve this
     if (delayCheckpoint)
     {
-        mEarlyCatchupTimer.expires_from_now(
-            Herder::SEND_LATEST_CHECKPOINT_DELAY);
-        mEarlyCatchupTimer.async_wait(
+        peer->startExecutionDelayedTimer(
+            Herder::SEND_LATEST_CHECKPOINT_DELAY,
             [checkpoint, this, sendSlot]() {
                 getSCP().processCurrentState(
                     checkpoint,

@@ -14,6 +14,8 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 
+#include "history/test/HistoryTestsUtils.h"
+
 #include "catchup/CatchupManagerImpl.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
@@ -48,6 +50,7 @@
 using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
+using namespace historytestutils;
 
 TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
@@ -3220,8 +3223,11 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
+    auto histCfg = std::make_shared<TmpDirHistoryConfigurator>();
+
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
 
     SCPQuorumSet qSet;
     qSet.threshold = 1;
@@ -3229,9 +3235,17 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
     Config cfg1 = getTestConfig(1);
     Config cfg2 = getTestConfig(2);
+    Config cfg3 = getTestConfig(3);
+
     cfg2.FORCE_SCP = false;
     cfg2.MODE_DOES_CATCHUP = true;
+    cfg3.FORCE_SCP = false;
+    cfg3.MODE_DOES_CATCHUP = true;
     cfg1.MODE_DOES_CATCHUP = false;
+
+    cfg1 = histCfg->configure(cfg1, true);
+    cfg3 = histCfg->configure(cfg3, false);
+    cfg2 = histCfg->configure(cfg2, false);
 
     auto mainNode = simulation->addNode(v0SecretKey, qSet, &cfg1);
     simulation->startAllNodes();
@@ -3284,24 +3298,48 @@ TEST_CASE("SCP checkpoint", "[catchup][herder]")
 
         // Crank until outOfSync node has recieved checkpoint ledger and started
         // catchup
-        auto f = [&]() {
-            simulation->crankUntil(
-                [&]() {
-                    return cm.isCatchupInitialized() &&
-                           cm.getCatchupWorkState() ==
-                               BasicWork::State::WORK_RUNNING;
-                },
-                2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
-        };
-
-        // History archves have not been configured, so this should throw once
-        // catchup starts
-        REQUIRE_THROWS_WITH(f(), "No GET-enabled history archive in config");
+        simulation->crankUntil([&]() { return cm.isCatchupInitialized(); },
+                               2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
 
         auto const& bufferedLedgers = cm.getBufferedLedgers();
         REQUIRE(!bufferedLedgers.empty());
         REQUIRE(bufferedLedgers.begin()->first == firstCheckpoint);
         REQUIRE(bufferedLedgers.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
+    }
+
+    SECTION("Two out of sync nodes receive checkpoint")
+    {
+        // Start two out of sync nodes
+        auto outOfSync1 = simulation->addNode(v1SecretKey, qSet, &cfg2);
+        auto outOfSync2 = simulation->addNode(v2SecretKey, qSet, &cfg3);
+
+        simulation->addPendingConnection(v0NodeID, v1NodeID);
+        simulation->addPendingConnection(v0NodeID, v2NodeID);
+
+        simulation->startAllNodes();
+        auto& cm1 =
+            static_cast<CatchupManagerImpl&>(outOfSync1->getCatchupManager());
+        auto& cm2 =
+            static_cast<CatchupManagerImpl&>(outOfSync2->getCatchupManager());
+
+        // Crank until outOfSync node has recieved checkpoint ledger and started
+        // catchup
+        simulation->crankUntil(
+            [&]() {
+                return cm1.isCatchupInitialized() && cm2.isCatchupInitialized();
+            },
+            2 * Herder::SEND_LATEST_CHECKPOINT_DELAY, false);
+
+        auto const& bufferedLedgers1 = cm1.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers1.empty());
+        REQUIRE(bufferedLedgers1.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers1.crbegin()->first ==
+                mainNode->getLedgerManager().getLastClosedLedgerNum());
+        auto const& bufferedLedgers2 = cm2.getBufferedLedgers();
+        REQUIRE(!bufferedLedgers2.empty());
+        REQUIRE(bufferedLedgers2.begin()->first == firstCheckpoint);
+        REQUIRE(bufferedLedgers2.crbegin()->first ==
                 mainNode->getLedgerManager().getLastClosedLedgerNum());
     }
 }

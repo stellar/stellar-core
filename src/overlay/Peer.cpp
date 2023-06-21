@@ -61,6 +61,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mRemoteOverlayVersion(0)
     , mCreationTime(app.getClock().now())
     , mRecurringTimer(app)
+    , mDelayedExecutionTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
@@ -282,6 +283,15 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
     }
 }
 
+void
+Peer::startExecutionDelayedTimer(
+    VirtualClock::duration d, std::function<void()> const& onSuccess,
+    std::function<void(asio::error_code)> const& onFailure)
+{
+    mDelayedExecutionTimer.expires_from_now(d);
+    mDelayedExecutionTimer.async_wait(onSuccess, onFailure);
+}
+
 Json::Value
 Peer::getJsonInfo(bool compact) const
 {
@@ -367,6 +377,7 @@ Peer::shutdown()
     mShuttingDown = true;
     mRecurringTimer.cancel();
     mAdvertTimer.cancel();
+    mDelayedExecutionTimer.cancel();
 }
 
 void
