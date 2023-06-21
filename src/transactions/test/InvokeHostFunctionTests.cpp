@@ -610,10 +610,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         SorobanResources bumpResources;
         bumpResources.footprint.readOnly = readOnly;
-        bumpResources.instructions = 200'000;
+        bumpResources.instructions = 0;
         bumpResources.readBytes = 1000;
-        bumpResources.writeBytes = 5000;
-        bumpResources.extendedMetaDataSizeBytes = 6000;
+        bumpResources.writeBytes = 1000;
+        bumpResources.extendedMetaDataSizeBytes = 1000;
 
         // submit operation
         auto root = TestAccount::createRoot(*app);
