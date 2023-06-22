@@ -1348,7 +1348,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
     lk.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     lk.contractData().contract.contractId() = upgradeKey.contractID;
     lk.contractData().key = v;
-    lk.contractData().type = EXCLUSIVE;
+    lk.contractData().durability = PERSISTENT;
     return lk;
 }
 

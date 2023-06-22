@@ -2784,7 +2784,6 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             ltx4.commit();
         }
 #endif
-
     };
 
     SECTION("default")
