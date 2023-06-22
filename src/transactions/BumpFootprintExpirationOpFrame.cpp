@@ -90,10 +90,9 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             uint32_t bumpTo = UINT32_MAX;
             if (UINT32_MAX - ledgerSeq >
-                mBumpFootprintExpirationOp.ledgersToExpire())
+                mBumpFootprintExpirationOp.ledgersToExpire)
             {
-                bumpTo =
-                    ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire();
+                bumpTo = ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
             }
 
             if (getExpirationLedger(ltxe.current()) < bumpTo)
@@ -122,14 +121,14 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 
     for (auto const& lk : footprint.readOnly)
     {
-        if (!isSorobanEntry(lk))
+        if (!isSorobanDataEntry(lk))
         {
             innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
             return false;
         }
     }
 
-    if (mBumpFootprintExpirationOp.ledgersToExpire() >
+    if (mBumpFootprintExpirationOp.ledgersToExpire >
         config.stateExpirationSettings().maxEntryExpiration)
     {
         innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);

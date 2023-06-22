@@ -201,7 +201,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
         auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
         auto expectedExpiration = networkConfig.stateExpirationSettings()
-                                      .minRestorableEntryExpiration +
+                                      .minPersistentEntryExpiration +
                                   lcl;
 
         auto codeLtxe = ltx.load(contractCodeLedgerKey);
@@ -273,7 +273,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
     auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
     auto expectedExpiration =
-        networkConfig.stateExpirationSettings().minRestorableEntryExpiration +
+        networkConfig.stateExpirationSettings().minPersistentEntryExpiration +
         lcl;
 
     auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
@@ -609,7 +609,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                       xdr::xvector<LedgerKey> const& readOnly) {
         Operation bumpOp;
         bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
-        bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire() = bumpAmount;
+        bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire = bumpAmount;
 
         SorobanResources bumpResources;
         bumpResources.footprint.readOnly = readOnly;
@@ -623,6 +623,29 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), root, {bumpOp},
                                            {}, bumpResources, 100'000, 1'200);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    };
+
+    auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite) {
+        Operation restoreOp;
+        restoreOp.body.type(RESTORE_FOOTPRINT);
+
+        SorobanResources bumpResources;
+        bumpResources.footprint.readWrite = readWrite;
+        bumpResources.instructions = 0;
+        bumpResources.readBytes = 1000;
+        bumpResources.writeBytes = 1000;
+        bumpResources.extendedMetaDataSizeBytes = 1000;
+
+        // submit operation
+        auto root = TestAccount::createRoot(*app);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {restoreOp}, {}, bumpResources,
+                                                 100'000, 1'200);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -763,7 +786,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto expectedTempExpiration =
             stateExpirationSettings.minTempEntryExpiration + lcl;
         auto expectedRestorableExpiration =
-            stateExpirationSettings.minRestorableEntryExpiration + lcl;
+            stateExpirationSettings.minPersistentEntryExpiration + lcl;
 
         checkContractDataExpiration("unique",
                                     ContractDataDurability::PERSISTENT,
@@ -795,7 +818,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          ContractDataDurability::PERSISTENT, std::nullopt);
 
         auto expectedInitialExpiration =
-            stateExpirationSettings.minRestorableEntryExpiration + lcl;
+            stateExpirationSettings.minPersistentEntryExpiration + lcl;
 
         checkContractDataExpiration("rw", ContractDataDurability::PERSISTENT,
                                     expectedInitialExpiration + autoBump);
@@ -860,7 +883,26 @@ TEST_CASE("contract storage", "[tx][soroban]")
         checkContractDataExpiration("key3", ContractDataDurability::PERSISTENT,
                                     50'000 + lcl);
     }
-
+    SECTION("restore expired entry")
+    {
+        auto minBump =
+            InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        put("key", 0, ContractDataDurability::PERSISTENT);
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
+                                    minBump + 1);
+        for (size_t i = app->getLedgerManager().getLastClosedLedgerNum();
+             i <= minBump + 1; ++i)
+        {
+            closeLedgerOn(*app, i, 2, 1, 2016);
+        }
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+                minBump + 1);
+        restoreOp(
+            {contractDataKey(contractID, makeSymbol("key"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)});
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
+                                    (minBump * 2) + 1);
+    }
     SECTION("max expiration")
     {
         // Check that manual bump doesn't go over max

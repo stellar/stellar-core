@@ -26,6 +26,7 @@
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/RestoreFootprintOpFrame.h"
 #include "transactions/RevokeSponsorshipOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SetTrustLineFlagsOpFrame.h"
@@ -121,6 +122,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<InvokeHostFunctionOpFrame>(op, res, tx);
     case BUMP_FOOTPRINT_EXPIRATION:
         return std::make_shared<BumpFootprintExpirationOpFrame>(op, res, tx);
+    case RESTORE_FOOTPRINT:
+        return std::make_shared<RestoreFootprintOpFrame>(op, res, tx);
 #endif
     default:
         ostringstream err;
