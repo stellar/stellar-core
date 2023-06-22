@@ -1249,7 +1249,8 @@ ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
     }
     auto const& contractData = ltxe.current().data.contractData();
     if (contractData.body.bodyType() != DATA_ENTRY ||
-        contractData.body.data().val.type() != SCV_BYTES)
+        contractData.body.data().val.type() != SCV_BYTES ||
+        contractData.durability != PERSISTENT)
     {
         return nullptr;
     }
@@ -1347,6 +1348,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
     lk.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     lk.contractData().contract.contractId() = upgradeKey.contractID;
     lk.contractData().key = v;
+    lk.contractData().type = EXCLUSIVE;
     return lk;
 }
 
