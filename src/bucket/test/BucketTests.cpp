@@ -305,13 +305,13 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.leType(DATA_ENTRY);
+                    entry.data.contractCode().body.bodyType(DATA_ENTRY);
                     entry.data.contractCode().expirationLedgerSeq =
                         originalExpiration;
                 }
                 else
                 {
-                    entry.data.contractData().body.leType(DATA_ENTRY);
+                    entry.data.contractData().body.bodyType(DATA_ENTRY);
                     entry.data.contractData().expirationLedgerSeq =
                         originalExpiration;
                 }
@@ -324,14 +324,14 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     auto& newEntry = newExpirationEntries.back();
                     if (newEntry.data.type() == CONTRACT_CODE)
                     {
-                        newEntry.data.contractCode().body.leType(
+                        newEntry.data.contractCode().body.bodyType(
                             EXPIRATION_EXTENSION);
                         newEntry.data.contractCode().expirationLedgerSeq =
                             newExpiration;
                     }
                     else
                     {
-                        newEntry.data.contractData().body.leType(
+                        newEntry.data.contractData().body.bodyType(
                             EXPIRATION_EXTENSION);
                         newEntry.data.contractData().expirationLedgerSeq =
                             newExpiration;
@@ -351,14 +351,14 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                             : newExpiration;
                     if (e.data.type() == CONTRACT_CODE)
                     {
-                        REQUIRE(e.data.contractCode().body.leType() ==
+                        REQUIRE(e.data.contractCode().body.bodyType() ==
                                 DATA_ENTRY);
                         REQUIRE(e.data.contractCode().expirationLedgerSeq ==
                                 expectedExpiration);
                     }
                     else
                     {
-                        REQUIRE(e.data.contractData().body.leType() ==
+                        REQUIRE(e.data.contractData().body.bodyType() ==
                                 DATA_ENTRY);
                         REQUIRE(e.data.contractData().expirationLedgerSeq ==
                                 expectedExpiration);
@@ -389,12 +389,14 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.leType(EXPIRATION_EXTENSION);
+                    entry.data.contractCode().body.bodyType(
+                        EXPIRATION_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq = 0;
                 }
                 else
                 {
-                    entry.data.contractData().body.leType(EXPIRATION_EXTENSION);
+                    entry.data.contractData().body.bodyType(
+                        EXPIRATION_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq = 0;
                 }
             }
@@ -430,13 +432,15 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             {
                 if (entry.data.type() == CONTRACT_CODE)
                 {
-                    entry.data.contractCode().body.leType(EXPIRATION_EXTENSION);
+                    entry.data.contractCode().body.bodyType(
+                        EXPIRATION_EXTENSION);
                     entry.data.contractCode().expirationLedgerSeq =
                         originalExpiration;
                 }
                 else
                 {
-                    entry.data.contractData().body.leType(EXPIRATION_EXTENSION);
+                    entry.data.contractData().body.bodyType(
+                        EXPIRATION_EXTENSION);
                     entry.data.contractData().expirationLedgerSeq =
                         originalExpiration;
                 }

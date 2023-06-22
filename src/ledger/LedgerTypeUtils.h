@@ -15,11 +15,11 @@ namespace stellar
 uint32_t getExpirationLedger(LedgerEntry const& e);
 void setExpirationLedger(LedgerEntry& e, uint32_t expiration);
 
-ContractLedgerEntryType getLeType(LedgerEntry::_data_t const& e);
-ContractLedgerEntryType getLeType(LedgerKey const& k);
+ContractEntryBodyType getLeType(LedgerEntry::_data_t const& e);
+ContractEntryBodyType getLeType(LedgerKey const& k);
 
-void setLeType(LedgerEntry& e, ContractLedgerEntryType leType);
-void setLeType(LedgerKey& k, ContractLedgerEntryType leType);
+void setLeType(LedgerEntry& e, ContractEntryBodyType leType);
+void setLeType(LedgerKey& k, ContractEntryBodyType leType);
 
 LedgerEntry expirationExtensionFromDataEntry(LedgerEntry const& le);
 #endif
@@ -46,7 +46,7 @@ isTemporaryEntry(T const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     return e.type() == CONTRACT_DATA &&
-           e.contractData().type == ContractDataType::TEMPORARY;
+           e.contractData().durability == ContractDataDurability::TEMPORARY;
 #endif
     return false;
 }

@@ -471,7 +471,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
             // ourselves, so the query below will look for exactly 2 keys
             // per input DATA_ENTRY key.
             LedgerKey e = k;
-            setLeType(e, ContractLedgerEntryType::EXPIRATION_EXTENSION);
+            setLeType(e, ContractEntryBodyType::EXPIRATION_EXTENSION);
             keys.emplace(e);
         }
 #endif

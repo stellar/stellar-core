@@ -68,9 +68,9 @@ LedgerKey poolShareTrustLineKey(AccountID const& accountID,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey configSettingKey(ConfigSettingID const& configSettingID);
 LedgerKey contractDataKey(SCAddress const& contract, SCVal const& dataKey,
-                          ContractDataType type,
-                          ContractLedgerEntryType leType);
-LedgerKey contractCodeKey(Hash const& hash, ContractLedgerEntryType leType);
+                          ContractDataDurability type,
+                          ContractEntryBodyType leType);
+LedgerKey contractCodeKey(Hash const& hash, ContractEntryBodyType leType);
 #endif
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
@@ -147,7 +147,7 @@ LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
                                 SCAddress const& contract, SCVal const& dataKey,
-                                ContractDataType type);
+                                ContractDataDurability type);
 LedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
 #endif
 

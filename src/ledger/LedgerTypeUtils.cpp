@@ -36,55 +36,55 @@ setExpirationLedger(LedgerEntry& e, uint32_t expiration)
 }
 
 void
-setLeType(LedgerEntry& e, ContractLedgerEntryType leType)
+setLeType(LedgerEntry& e, ContractEntryBodyType leType)
 {
     releaseAssert(isSorobanEntry(e.data));
     if (e.data.type() == CONTRACT_DATA)
     {
-        e.data.contractData().body.leType(leType);
+        e.data.contractData().body.bodyType(leType);
     }
     else
     {
-        e.data.contractCode().body.leType(leType);
+        e.data.contractCode().body.bodyType(leType);
     }
 }
 
 void
-setLeType(LedgerKey& k, ContractLedgerEntryType leType)
+setLeType(LedgerKey& k, ContractEntryBodyType leType)
 {
     releaseAssert(isSorobanEntry(k));
     if (k.type() == CONTRACT_DATA)
     {
-        k.contractData().leType = leType;
+        k.contractData().bodyType = leType;
     }
     else
     {
-        k.contractCode().leType = leType;
+        k.contractCode().bodyType = leType;
     }
 }
 
-ContractLedgerEntryType
+ContractEntryBodyType
 getLeType(LedgerKey const& k)
 {
     releaseAssert(isSorobanEntry(k));
     if (k.type() == CONTRACT_CODE)
     {
-        return k.contractCode().leType;
+        return k.contractCode().bodyType;
     }
 
-    return k.contractData().leType;
+    return k.contractData().bodyType;
 }
 
-ContractLedgerEntryType
+ContractEntryBodyType
 getLeType(LedgerEntry::_data_t const& e)
 {
     releaseAssert(isSorobanEntry(e));
     if (e.type() == CONTRACT_CODE)
     {
-        return e.contractCode().body.leType();
+        return e.contractCode().body.bodyType();
     }
 
-    return e.contractData().body.leType();
+    return e.contractData().body.bodyType();
 }
 
 LedgerEntry
@@ -96,13 +96,13 @@ expirationExtensionFromDataEntry(LedgerEntry const& le)
     {
         extLe.data.type(CONTRACT_CODE);
         extLe.data.contractCode().expirationLedgerSeq = getExpirationLedger(le);
-        extLe.data.contractCode().body.leType(EXPIRATION_EXTENSION);
+        extLe.data.contractCode().body.bodyType(EXPIRATION_EXTENSION);
     }
     else
     {
         extLe.data.type(CONTRACT_DATA);
         extLe.data.contractData().expirationLedgerSeq = getExpirationLedger(le);
-        extLe.data.contractData().body.leType(EXPIRATION_EXTENSION);
+        extLe.data.contractData().body.bodyType(EXPIRATION_EXTENSION);
     }
 
     return extLe;

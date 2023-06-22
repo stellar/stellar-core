@@ -36,9 +36,10 @@ using namespace stellar::txtest;
 SCVal
 makeWasmRefScContractCode(Hash const& hash)
 {
-    SCVal val(SCValType::SCV_CONTRACT_EXECUTABLE);
-    val.exec().type(SCContractExecutableType::SCCONTRACT_EXECUTABLE_WASM_REF);
-    val.exec().wasm_id() = hash;
+    SCVal val(SCValType::SCV_CONTRACT_INSTANCE);
+    val.instance().executable.type(
+        ContractExecutableType::CONTRACT_EXECUTABLE_WASM);
+    val.instance().executable.wasm_hash() = hash;
     return val;
 }
 
@@ -132,7 +133,7 @@ submitTxToUploadWasm(Application& app, Operation const& op,
     REQUIRE(ltxe);
 
     auto const& body = ltxe.current().data.contractCode().body;
-    REQUIRE(body.leType() == DATA_ENTRY);
+    REQUIRE(body.bodyType() == DATA_ENTRY);
     REQUIRE(body.code() == expectedWasm);
 }
 
@@ -157,12 +158,12 @@ submitTxToCreateContract(Application& app, Operation const& op,
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     SCAddress contract = makeContractAddress(contractID);
     auto ltxe = loadContractData(ltx2, contract, executableKey,
-                                 CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
+                                 CONTRACT_INSTANCE_CONTRACT_DURABILITY);
     REQUIRE(ltxe);
 
     auto const& cd = ltxe.current().data.contractData();
-    REQUIRE(cd.type == CONTRACT_INSTANCE_CONTRACT_DATA_TYPE);
-    REQUIRE(cd.body.leType() == DATA_ENTRY);
+    REQUIRE(cd.durability == CONTRACT_INSTANCE_CONTRACT_DURABILITY);
+    REQUIRE(cd.body.bodyType() == DATA_ENTRY);
     REQUIRE(cd.body.data().val == makeWasmRefScContractCode(expectedWasmHash));
 }
 
@@ -227,8 +228,8 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
     auto& createContractArgs = createHF.createContract();
     createContractArgs.contractIDPreimage = idPreimage;
-    createContractArgs.executable.type(SCCONTRACT_EXECUTABLE_WASM_REF);
-    createContractArgs.executable.wasm_id() =
+    createContractArgs.executable.type(CONTRACT_EXECUTABLE_WASM);
+    createContractArgs.executable.wasm_hash() =
         contractCodeLedgerKey.contractCode().hash;
 
     SorobanAuthorizationEntry auth;
@@ -238,12 +239,12 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     auth.rootInvocation.function.createContractHostFn().contractIDPreimage =
         idPreimage;
     auth.rootInvocation.function.createContractHostFn().executable.type(
-        SCCONTRACT_EXECUTABLE_WASM_REF);
-    auth.rootInvocation.function.createContractHostFn().executable.wasm_id() =
+        CONTRACT_EXECUTABLE_WASM);
+    auth.rootInvocation.function.createContractHostFn().executable.wasm_hash() =
         contractCodeLedgerKey.contractCode().hash;
     createOp.body.invokeHostFunctionOp().auth = {auth};
 
-    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
+    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
 
     LedgerKey contractSourceRefLedgerKey;
     contractSourceRefLedgerKey.type(CONTRACT_DATA);
@@ -252,8 +253,8 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.contractData().contract.contractId() =
         contractID;
     contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
-    contractSourceRefLedgerKey.contractData().type =
-        CONTRACT_INSTANCE_CONTRACT_DATA_TYPE;
+    contractSourceRefLedgerKey.contractData().durability =
+        CONTRACT_INSTANCE_CONTRACT_DURABILITY;
 
     SorobanResources createResources;
     createResources.footprint.readOnly = {contractCodeLedgerKey};
@@ -454,7 +455,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
     auto const& contractID = contractKeys[0].contractData().contract;
-    auto checkContractData = [&](SCVal const& key, ContractDataType type,
+    auto checkContractData = [&](SCVal const& key, ContractDataDurability type,
                                  SCVal const* val) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ltxe = loadContractData(ltx, contractID, key, type);
@@ -463,7 +464,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             REQUIRE(ltxe);
 
             auto const& body = ltxe.current().data.contractData().body;
-            REQUIRE(body.leType() == DATA_ENTRY);
+            REQUIRE(body.bodyType() == DATA_ENTRY);
             REQUIRE(body.data().val == *val);
         }
         else
@@ -473,7 +474,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
     };
 
     auto checkContractDataExpiration = [&](std::string const& key,
-                                           ContractDataType type,
+                                           ContractDataDurability type,
                                            uint32_t expectedExpiration,
                                            uint32_t flags = 0) {
         auto keySymbol = makeSymbol(key);
@@ -515,7 +516,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
                                 uint32_t writeBytes, bool expectSuccess,
-                                ContractDataType type,
+                                ContractDataDurability type,
                                 std::optional<uint32_t> flags) {
         auto keySymbol = makeSymbol(key);
         auto valU64 = makeU64(val);
@@ -524,10 +525,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         std::string funcStr;
         switch (type)
         {
-        case ContractDataType::TEMPORARY:
+        case ContractDataDurability::TEMPORARY:
             funcStr = "put_temporary";
             break;
-        case ContractDataType::PERSISTENT:
+        case ContractDataDurability::PERSISTENT:
             funcStr = "put_persistent";
             break;
         }
@@ -550,7 +551,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto put = [&](std::string const& key, uint64_t val, ContractDataType type,
+    auto put = [&](std::string const& key, uint64_t val,
+                   ContractDataDurability type,
                    std::optional<uint32_t> flags = std::nullopt) {
         putWithFootprint(
             key, val, contractKeys,
@@ -561,17 +563,18 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
                                  xdr::xvector<LedgerKey> const& readOnly,
                                  xdr::xvector<LedgerKey> const& readWrite,
-                                 bool expectSuccess, ContractDataType type) {
+                                 bool expectSuccess,
+                                 ContractDataDurability type) {
         auto keySymbol = makeSymbol(key);
         auto bumpAmountU32 = makeU32(bumpAmount);
 
         std::string funcStr;
         switch (type)
         {
-        case ContractDataType::TEMPORARY:
+        case ContractDataDurability::TEMPORARY:
             funcStr = "bump_temporary";
             break;
-        case ContractDataType::PERSISTENT:
+        case ContractDataDurability::PERSISTENT:
             funcStr = "bump_persistent";
             break;
         }
@@ -594,7 +597,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         ltx->commit();
     };
 
-    auto bump = [&](std::string const& key, ContractDataType type,
+    auto bump = [&](std::string const& key, ContractDataDurability type,
                     uint32_t bumpAmount) {
         bumpWithFootprint(
             key, bumpAmount, contractKeys,
@@ -630,16 +633,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto delWithFootprint = [&](std::string const& key,
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
-                                bool expectSuccess, ContractDataType type) {
+                                bool expectSuccess,
+                                ContractDataDurability type) {
         auto keySymbol = makeSymbol(key);
 
         std::string funcStr;
         switch (type)
         {
-        case ContractDataType::TEMPORARY:
+        case ContractDataDurability::TEMPORARY:
             funcStr = "del_temporary";
             break;
-        case ContractDataType::PERSISTENT:
+        case ContractDataDurability::PERSISTENT:
             funcStr = "del_persistent";
             break;
         }
@@ -662,7 +666,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto del = [&](std::string const& key, ContractDataType type) {
+    auto del = [&](std::string const& key, ContractDataDurability type) {
         delWithFootprint(
             key, contractKeys,
             {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
@@ -672,37 +676,37 @@ TEST_CASE("contract storage", "[tx][soroban]")
     SECTION("default limits")
     {
 
-        put("key1", 0, ContractDataType::PERSISTENT);
-        put("key2", 21, ContractDataType::PERSISTENT);
+        put("key1", 0, ContractDataDurability::PERSISTENT);
+        put("key2", 21, ContractDataDurability::PERSISTENT);
 
         // Failure: contract data isn't in footprint
         putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
-                         ContractDataType::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT, std::nullopt);
         delWithFootprint("key1", contractKeys, {}, false,
-                         ContractDataType::PERSISTENT);
+                         ContractDataDurability::PERSISTENT);
 
         // Failure: contract data is read only
         auto readOnlyFootprint = contractKeys;
         readOnlyFootprint.push_back(
             contractDataKey(contractID, makeSymbol("key2"),
-                            ContractDataType::PERSISTENT, DATA_ENTRY));
+                            ContractDataDurability::PERSISTENT, DATA_ENTRY));
         putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
-                         ContractDataType::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT, std::nullopt);
         delWithFootprint("key2", readOnlyFootprint, {}, false,
-                         ContractDataType::PERSISTENT);
+                         ContractDataDurability::PERSISTENT);
 
         // Failure: insufficient write bytes
         putWithFootprint(
             "key2", 88888, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"),
-                             ContractDataType::PERSISTENT, DATA_ENTRY)},
-            1, false, ContractDataType::PERSISTENT, std::nullopt);
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)},
+            1, false, ContractDataDurability::PERSISTENT, std::nullopt);
 
-        put("key1", 9, ContractDataType::PERSISTENT);
-        put("key2", UINT64_MAX, ContractDataType::PERSISTENT);
+        put("key1", 9, ContractDataDurability::PERSISTENT);
+        put("key2", UINT64_MAX, ContractDataDurability::PERSISTENT);
 
-        del("key1", ContractDataType::PERSISTENT);
-        del("key2", ContractDataType::PERSISTENT);
+        del("key1", ContractDataDurability::PERSISTENT);
+        del("key2", ContractDataDurability::PERSISTENT);
     }
 
     SorobanNetworkConfig refConfig;
@@ -719,8 +723,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         putWithFootprint(
             "key2", 2, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"),
-                             ContractDataType::PERSISTENT, DATA_ENTRY)},
-            1000, false, ContractDataType::PERSISTENT, std::nullopt);
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)},
+            1000, false, ContractDataDurability::PERSISTENT, std::nullopt);
     }
 
     SECTION("Same ScVal key, different types")
@@ -729,20 +733,20 @@ TEST_CASE("contract storage", "[tx][soroban]")
         uint64_t uniqueVal = 0;
         uint64_t recreatableVal = 1;
         uint64_t temporaryVal = 2;
-        put("key", uniqueVal, ContractDataType::PERSISTENT);
+        put("key", uniqueVal, ContractDataDurability::PERSISTENT);
         put("key", temporaryVal, TEMPORARY);
         auto uniqueScVal = makeU64(uniqueVal);
         auto recreatableScVal = makeU64(recreatableVal);
         auto temporaryScVal = makeU64(temporaryVal);
         auto keySymbol = makeSymbol("key");
-        checkContractData(keySymbol, ContractDataType::PERSISTENT,
+        checkContractData(keySymbol, ContractDataDurability::PERSISTENT,
                           &uniqueScVal);
         checkContractData(keySymbol, TEMPORARY, &temporaryScVal);
 
-        put("key2", 3, ContractDataType::PERSISTENT);
+        put("key2", 3, ContractDataDurability::PERSISTENT);
         auto key2Symbol = makeSymbol("key2");
         auto uniqueScVal2 = makeU64(3);
-        checkContractData(key2Symbol, ContractDataType::PERSISTENT,
+        checkContractData(key2Symbol, ContractDataDurability::PERSISTENT,
                           &uniqueScVal2);
         checkContractData(key2Symbol, TEMPORARY, nullptr);
     }
@@ -753,7 +757,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("Enforce rent minimums")
     {
-        put("unique", 0, ContractDataType::PERSISTENT);
+        put("unique", 0, ContractDataDurability::PERSISTENT);
         put("temp", 0, TEMPORARY);
 
         auto expectedTempExpiration =
@@ -761,42 +765,44 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto expectedRestorableExpiration =
             stateExpirationSettings.minRestorableEntryExpiration + lcl;
 
-        checkContractDataExpiration("unique", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("unique",
+                                    ContractDataDurability::PERSISTENT,
                                     expectedRestorableExpiration);
         checkContractDataExpiration("temp", TEMPORARY, expectedTempExpiration);
     }
 
     SECTION("autobump")
     {
-        put("rw", 0, ContractDataType::PERSISTENT);
-        put("ro", 0, ContractDataType::PERSISTENT);
+        put("rw", 0, ContractDataDurability::PERSISTENT);
+        put("ro", 0, ContractDataDurability::PERSISTENT);
 
         uint32_t flags = NO_AUTOBUMP;
-        put("nobump", 0, ContractDataType::PERSISTENT, flags);
+        put("nobump", 0, ContractDataDurability::PERSISTENT, flags);
 
         auto readOnlySet = contractKeys;
-        readOnlySet.emplace_back(contractDataKey(contractID, makeSymbol("ro"),
-                                                 ContractDataType::PERSISTENT,
-                                                 DATA_ENTRY));
+        readOnlySet.emplace_back(
+            contractDataKey(contractID, makeSymbol("ro"),
+                            ContractDataDurability::PERSISTENT, DATA_ENTRY));
 
         auto readWriteSet = {
             contractDataKey(contractID, makeSymbol("nobump"),
-                            ContractDataType::PERSISTENT, DATA_ENTRY),
+                            ContractDataDurability::PERSISTENT, DATA_ENTRY),
             contractDataKey(contractID, makeSymbol("rw"),
-                            ContractDataType::PERSISTENT, DATA_ENTRY)};
+                            ContractDataDurability::PERSISTENT, DATA_ENTRY)};
 
         // Invoke contract with all keys in footprint
         putWithFootprint("rw", 1, readOnlySet, readWriteSet, 1000, true,
-                         ContractDataType::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT, std::nullopt);
 
         auto expectedInitialExpiration =
             stateExpirationSettings.minRestorableEntryExpiration + lcl;
 
-        checkContractDataExpiration("rw", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("rw", ContractDataDurability::PERSISTENT,
                                     expectedInitialExpiration + autoBump);
-        checkContractDataExpiration("ro", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("ro", ContractDataDurability::PERSISTENT,
                                     expectedInitialExpiration + autoBump);
-        checkContractDataExpiration("nobump", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("nobump",
+                                    ContractDataDurability::PERSISTENT,
                                     expectedInitialExpiration, flags);
 
         // Contract instance and WASM should have minimum life and 4 invocations
@@ -814,67 +820,68 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("manual bump")
     {
-        put("key", 0, ContractDataType::PERSISTENT);
-        bump("key", ContractDataType::PERSISTENT, 10'000);
-        checkContractDataExpiration("key", ContractDataType::PERSISTENT,
+        put("key", 0, ContractDataDurability::PERSISTENT);
+        bump("key", ContractDataDurability::PERSISTENT, 10'000);
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
                                     10'000 + lcl);
 
         // Expiration already above 5'000, should be a nop (other than autobump)
-        bump("key", ContractDataType::PERSISTENT, 5'000);
-        checkContractDataExpiration("key", ContractDataType::PERSISTENT,
+        bump("key", ContractDataDurability::PERSISTENT, 5'000);
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
                                     10'000 + autoBump + lcl);
 
-        put("key2", 0, ContractDataType::PERSISTENT);
-        bump("key2", ContractDataType::PERSISTENT, 5'000);
-        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+        put("key2", 0, ContractDataDurability::PERSISTENT);
+        bump("key2", ContractDataDurability::PERSISTENT, 5'000);
+        checkContractDataExpiration("key2", ContractDataDurability::PERSISTENT,
                                     5'000 + lcl);
 
-        put("key3", 0, ContractDataType::PERSISTENT);
-        bump("key3", ContractDataType::PERSISTENT, 50'000);
-        checkContractDataExpiration("key3", ContractDataType::PERSISTENT,
+        put("key3", 0, ContractDataDurability::PERSISTENT);
+        bump("key3", ContractDataDurability::PERSISTENT, 50'000);
+        checkContractDataExpiration("key3", ContractDataDurability::PERSISTENT,
                                     50'000 + lcl);
 
         // Bump to live 10100 ledger from now
-        bumpOp(10100,
-               {contractDataKey(contractID, makeSymbol("key"),
-                                ContractDataType::PERSISTENT, DATA_ENTRY),
-                contractDataKey(contractID, makeSymbol("key2"),
-                                ContractDataType::PERSISTENT, DATA_ENTRY),
-                contractDataKey(contractID, makeSymbol("key3"),
-                                ContractDataType::PERSISTENT, DATA_ENTRY)});
+        bumpOp(
+            10100,
+            {contractDataKey(contractID, makeSymbol("key"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY),
+             contractDataKey(contractID, makeSymbol("key2"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY),
+             contractDataKey(contractID, makeSymbol("key3"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)});
 
-        checkContractDataExpiration("key", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
                                     10'000 + lcl + 100);
-        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("key2", ContractDataDurability::PERSISTENT,
                                     10'000 + lcl + 100);
 
         // No change for key3 since expiration is already past 10100 ledgers
         // from now
-        checkContractDataExpiration("key3", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("key3", ContractDataDurability::PERSISTENT,
                                     50'000 + lcl);
     }
 
     SECTION("max expiration")
     {
         // Check that manual bump doesn't go over max
-        put("key", 0, ContractDataType::PERSISTENT);
-        bump("key", ContractDataType::PERSISTENT, UINT32_MAX);
+        put("key", 0, ContractDataDurability::PERSISTENT);
+        bump("key", ContractDataDurability::PERSISTENT, UINT32_MAX);
 
         auto maxExpiration = stateExpirationSettings.maxEntryExpiration + lcl;
-        checkContractDataExpiration("key", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("key", ContractDataDurability::PERSISTENT,
                                     maxExpiration);
 
         // Manual bump to almost max, then autobump to check that autobump
         // doesn't go over max
-        put("key2", 0, ContractDataType::PERSISTENT);
-        bump("key2", ContractDataType::PERSISTENT,
+        put("key2", 0, ContractDataDurability::PERSISTENT);
+        bump("key2", ContractDataDurability::PERSISTENT,
              stateExpirationSettings.maxEntryExpiration - 1);
-        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+        checkContractDataExpiration("key2", ContractDataDurability::PERSISTENT,
                                     maxExpiration - 1);
 
         // Autobump should only add a single ledger to bring expiration to max
-        put("key2", 1, ContractDataType::PERSISTENT);
-        checkContractDataExpiration("key2", ContractDataType::PERSISTENT,
+        put("key2", 1, ContractDataDurability::PERSISTENT);
+        checkContractDataExpiration("key2", ContractDataDurability::PERSISTENT,
                                     maxExpiration);
     }
 }
@@ -1054,8 +1061,8 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
     auto& createContractArgs = createHF.hostFunction.createContract();
 
-    SCContractExecutable exec;
-    exec.type(SCCONTRACT_EXECUTABLE_TOKEN);
+    ContractExecutable exec;
+    exec.type(CONTRACT_EXECUTABLE_TOKEN);
     createContractArgs.contractIDPreimage.type(CONTRACT_ID_PREIMAGE_FROM_ASSET);
     createContractArgs.contractIDPreimage.fromAsset() = xlm;
     createContractArgs.executable = exec;
@@ -1069,8 +1076,8 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     auto metadataKey = LedgerKey(CONTRACT_DATA);
     metadataKey.contractData().contract = contractID;
     metadataKey.contractData().key = makeSymbol("METADATA");
-    metadataKey.contractData().type = ContractDataType::PERSISTENT;
-    metadataKey.contractData().leType = DATA_ENTRY;
+    metadataKey.contractData().durability = ContractDataDurability::PERSISTENT;
+    metadataKey.contractData().bodyType = DATA_ENTRY;
 
     LedgerKey assetInfoLedgerKey(CONTRACT_DATA);
     assetInfoLedgerKey.contractData().contract = contractID;
@@ -1078,15 +1085,17 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     SCVal assetInfoSCVal(SCValType::SCV_VEC);
     assetInfoSCVal.vec().activate() = assetInfo;
     assetInfoLedgerKey.contractData().key = assetInfoSCVal;
-    assetInfoLedgerKey.contractData().type = ContractDataType::PERSISTENT;
-    assetInfoLedgerKey.contractData().leType = DATA_ENTRY;
+    assetInfoLedgerKey.contractData().durability =
+        ContractDataDurability::PERSISTENT;
+    assetInfoLedgerKey.contractData().bodyType = DATA_ENTRY;
 
     LedgerKey contractExecutableKey(CONTRACT_DATA);
     contractExecutableKey.contractData().contract = contractID;
     contractExecutableKey.contractData().key =
-        SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_EXECUTABLE);
-    contractExecutableKey.contractData().type = ContractDataType::PERSISTENT;
-    contractExecutableKey.contractData().leType = DATA_ENTRY;
+        SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+    contractExecutableKey.contractData().durability =
+        ContractDataDurability::PERSISTENT;
+    contractExecutableKey.contractData().bodyType = DATA_ENTRY;
 
     createResources.footprint.readWrite = {contractExecutableKey, metadataKey,
                                            assetInfoLedgerKey};
@@ -1148,8 +1157,9 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     SCVal balanceKey(SCValType::SCV_VEC);
     balanceKey.vec().activate() = balance;
     balanceLedgerKey.contractData().key = balanceKey;
-    balanceLedgerKey.contractData().type = ContractDataType::PERSISTENT;
-    balanceLedgerKey.contractData().leType = DATA_ENTRY;
+    balanceLedgerKey.contractData().durability =
+        ContractDataDurability::PERSISTENT;
+    balanceLedgerKey.contractData().bodyType = DATA_ENTRY;
 
     resources.footprint.readOnly = {metadataKey, assetInfoLedgerKey,
                                     contractExecutableKey};

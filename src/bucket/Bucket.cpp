@@ -211,7 +211,7 @@ Bucket::loadKeys(
                     {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                         auto k = *currKeyIt;
-                        setLeType(k, ContractLedgerEntryType::DATA_ENTRY);
+                        setLeType(k, ContractEntryBodyType::DATA_ENTRY);
                         expirationExtensions.emplace(
                             k, getExpirationLedger(entryOp->liveEntry()));
 #endif
@@ -236,7 +236,7 @@ Bucket::loadKeys(
                                 // search. Remove it to avoid redundant reads
                                 // since we already found a newer DATA_ENTRY
                                 auto extK = *currKeyIt;
-                                setLeType(extK, ContractLedgerEntryType::
+                                setLeType(extK, ContractEntryBodyType::
                                                     EXPIRATION_EXTENSION);
                                 keys.erase(extK);
                             }
@@ -714,7 +714,7 @@ refersToSameEntry(T const& lhs, T const& rhs)
     }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Return key equality check but ignore ContractLedgerEntryType
+    // Return key equality check but ignore ContractEntryBodyType
     if (lhs.type() == rhs.type())
     {
         if (lhs.type() == CONTRACT_DATA)

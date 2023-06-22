@@ -211,7 +211,7 @@ class BucketIndexTest
 
                 setExpirationLedger(e, NEW_EXPIRATION);
                 setLeType(extensionEntry,
-                          ContractLedgerEntryType::EXPIRATION_EXTENSION);
+                          ContractEntryBodyType::EXPIRATION_EXTENSION);
                 if (shadow)
                 {
                     // Insert dummy expiration that will be shadowed later
@@ -252,12 +252,12 @@ class BucketIndexTest
     {
         auto templateEntry =
             LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
-        templateEntry.data.contractData().body.leType(DATA_ENTRY);
+        templateEntry.data.contractData().body.bodyType(DATA_ENTRY);
 
-        auto generateEntry = [&](ContractDataType t) {
+        auto generateEntry = [&](ContractDataDurability t) {
             static uint32_t expiration = 10000;
             auto le = templateEntry;
-            le.data.contractData().type = t;
+            le.data.contractData().durability = t;
 
             // Distinguish entries via expiration ledger
             le.data.contractData().expirationLedgerSeq = ++expiration;
@@ -265,8 +265,8 @@ class BucketIndexTest
         };
 
         std::vector<LedgerEntry> entries = {
-            generateEntry(ContractDataType::TEMPORARY),
-            generateEntry(ContractDataType::PERSISTENT),
+            generateEntry(ContractDataDurability::TEMPORARY),
+            generateEntry(ContractDataDurability::PERSISTENT),
         };
         for (auto const& e : entries)
         {

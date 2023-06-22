@@ -14,8 +14,8 @@ namespace stellar
 {
 class AbstractLedgerTxn;
 
-static constexpr ContractDataType CONTRACT_INSTANCE_CONTRACT_DATA_TYPE =
-    ContractDataType::PERSISTENT;
+static constexpr ContractDataDurability CONTRACT_INSTANCE_CONTRACT_DURABILITY =
+    ContractDataDurability::PERSISTENT;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
