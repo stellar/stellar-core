@@ -110,6 +110,16 @@ expirationExtensionFromDataEntry(LedgerEntry const& le)
 #endif
 
 bool
+isLive(LedgerEntry const& e, uint32_t expirationCutoff)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return !isSorobanEntry(e.data) ||
+           getExpirationLedger(e) >= expirationCutoff;
+#endif
+    return true;
+}
+
+bool
 autoBumpEnabled(LedgerEntry const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
