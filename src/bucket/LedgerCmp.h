@@ -90,8 +90,8 @@ struct LedgerEntryIdCmp
         {
             return lexCompare(a.contractData().contract,
                               b.contractData().contract, a.contractData().key,
-                              b.contractData().key, a.contractData().type,
-                              b.contractData().type, getLeType(a),
+                              b.contractData().key, a.contractData().durability,
+                              b.contractData().durability, getLeType(a),
                               getLeType(b));
         }
         case CONTRACT_CODE:

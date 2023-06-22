@@ -27,7 +27,7 @@ use super::soroban_env_host::{
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
         self, AccountId, ContractCodeEntryBody, ContractCostParams, ContractDataEntryBody,
-        ContractEvent, ContractEventType, ContractLedgerEntryType, DiagnosticEvent, HostFunction,
+        ContractEvent, ContractEventType, ContractEntryBodyType, DiagnosticEvent, HostFunction,
         LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode,
         LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScErrorCode, ScErrorType,
         SorobanAuthorizationEntry, SorobanResources, WriteXdr, XDR_FILES_SHA256,
@@ -213,20 +213,20 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, CoreHostErr
         LedgerEntryData::ContractData(cd) => Ok(LedgerKey::ContractData(LedgerKeyContractData {
             contract: cd.contract.clone(),
             key: cd.key.clone(),
-            type_: cd.type_.clone(),
-            le_type: match &cd.body {
-                ContractDataEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
+            durability: cd.durability.clone(),
+            body_type: match &cd.body {
+                ContractDataEntryBody::DataEntry(_data) => ContractEntryBodyType::DataEntry,
                 ContractDataEntryBody::ExpirationExtension => {
-                    ContractLedgerEntryType::ExpirationExtension
+                    ContractEntryBodyType::ExpirationExtension
                 }
             },
         })),
         LedgerEntryData::ContractCode(code) => Ok(LedgerKey::ContractCode(LedgerKeyContractCode {
             hash: code.hash.clone(),
-            le_type: match &code.body {
-                ContractCodeEntryBody::DataEntry(_data) => ContractLedgerEntryType::DataEntry,
+            body_type: match &code.body {
+                ContractCodeEntryBody::DataEntry(_data) => ContractEntryBodyType::DataEntry,
                 ContractCodeEntryBody::ExpirationExtension => {
-                    ContractLedgerEntryType::ExpirationExtension
+                    ContractEntryBodyType::ExpirationExtension
                 }
             },
         })),

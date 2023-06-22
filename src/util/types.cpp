@@ -55,12 +55,12 @@ LedgerEntryKey(LedgerEntry const& e)
     case CONTRACT_DATA:
         k.contractData().contract = d.contractData().contract;
         k.contractData().key = d.contractData().key;
-        k.contractData().type = d.contractData().type;
-        k.contractData().leType = d.contractData().body.leType();
+        k.contractData().durability = d.contractData().durability;
+        k.contractData().bodyType = d.contractData().body.bodyType();
         break;
     case CONTRACT_CODE:
         k.contractCode().hash = d.contractCode().hash;
-        k.contractCode().leType = d.contractCode().body.leType();
+        k.contractCode().bodyType = d.contractCode().body.bodyType();
         break;
     case CONFIG_SETTING:
         k.configSetting().configSettingID = d.configSetting().configSettingID();

@@ -1248,7 +1248,7 @@ ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
         return nullptr;
     }
     auto const& contractData = ltxe.current().data.contractData();
-    releaseAssert(contractData.body.leType() == DATA_ENTRY);
+    releaseAssert(contractData.body.bodyType() == DATA_ENTRY);
     if (contractData.body.data().val.type() != SCV_BYTES)
     {
         return nullptr;
