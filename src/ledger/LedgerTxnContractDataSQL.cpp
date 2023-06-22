@@ -154,9 +154,7 @@ class BulkLoadContractDataOperation
                           ") "
                           "SELECT ledgerentry "
                           "FROM contractdata "
-                          "WHERE contractid IN (SELECT value FROM r) "
-                          "AND key IN (SELECT value FROM r) "
-                          "AND type IN (SELECT value FROM r)";
+                          "WHERE (contractid, key, type) IN (SELECT * FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
