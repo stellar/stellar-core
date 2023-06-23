@@ -50,7 +50,7 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     info.timestamp = hdr.scpValue.closeTime;
     info.memory_limit = sorobanConfig.txMemoryLimit();
     info.min_persistent_entry_expiration =
-        sorobanConfig.stateExpirationSettings().minRestorableEntryExpiration;
+        sorobanConfig.stateExpirationSettings().minPersistentEntryExpiration;
     info.min_temp_entry_expiration =
         sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());

@@ -12,7 +12,7 @@ struct BumpFootprintExpirationMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    size_t mLedgerWriteByte{0};
+    size_t mLedgerReadByte{0};
 
     BumpFootprintExpirationMetrics(medida::MetricsRegistry& metrics)
         : mMetrics(metrics)
@@ -22,9 +22,9 @@ struct BumpFootprintExpirationMetrics
     ~BumpFootprintExpirationMetrics()
     {
         mMetrics
-            .NewMeter({"soroban", "bump-fprint-exp-op", "write-ledger-byte"},
+            .NewMeter({"soroban", "bump-fprint-exp-op", "read-ledger-byte"},
                       "byte")
-            .Mark(mLedgerWriteByte);
+            .Mark(mLedgerReadByte);
     }
 };
 
@@ -69,15 +69,14 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         {
             auto keySize = xdr::xdr_size(lk);
             auto entrySize = xdr::xdr_size(ltxe.current());
-            metrics.mLedgerWriteByte += keySize;
-            metrics.mLedgerWriteByte += entrySize;
+            metrics.mLedgerReadByte += keySize;
+            metrics.mLedgerReadByte += entrySize;
 
             // Divide the limit by 2 for the metadata check since the previous
             // state is also included in the meta.
             if (resources.extendedMetaDataSizeBytes / 2 <
-                    metrics.mLedgerWriteByte ||
-                resources.readBytes < metrics.mLedgerWriteByte ||
-                resources.writeBytes < metrics.mLedgerWriteByte)
+                    metrics.mLedgerReadByte ||
+                resources.readBytes < metrics.mLedgerReadByte)
             {
                 innerResult().code(
                     BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
@@ -90,10 +89,9 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             uint32_t bumpTo = UINT32_MAX;
             if (UINT32_MAX - ledgerSeq >
-                mBumpFootprintExpirationOp.ledgersToExpire())
+                mBumpFootprintExpirationOp.ledgersToExpire)
             {
-                bumpTo =
-                    ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire();
+                bumpTo = ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
             }
 
             if (getExpirationLedger(ltxe.current()) < bumpTo)
@@ -122,14 +120,14 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 
     for (auto const& lk : footprint.readOnly)
     {
-        if (!isSorobanEntry(lk))
+        if (!isSorobanDataEntry(lk))
         {
             innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
             return false;
         }
     }
 
-    if (mBumpFootprintExpirationOp.ledgersToExpire() >
+    if (mBumpFootprintExpirationOp.ledgersToExpire >
         config.stateExpirationSettings().maxEntryExpiration)
     {
         innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);

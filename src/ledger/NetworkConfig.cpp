@@ -300,8 +300,8 @@ initialStateExpirationSettings()
         InitialSorobanNetworkConfig::AUTO_BUMP_NUM_LEDGERS;
     entry.stateExpirationSettings().maxEntryExpiration =
         InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
-    entry.stateExpirationSettings().minRestorableEntryExpiration =
-        InitialSorobanNetworkConfig::MINIMUM_RESTORABLE_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().minPersistentEntryExpiration =
+        InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
     entry.stateExpirationSettings().minTempEntryExpiration =
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
 

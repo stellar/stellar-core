@@ -521,7 +521,41 @@ throwIf(InvokeHostFunctionResult const& result)
         throw ex_INVOKE_HOST_FUNCTION_MALFORMED{};
     case INVOKE_HOST_FUNCTION_TRAPPED:
         throw ex_INVOKE_HOST_FUNCTION_TRAPPED{};
+    case INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED:
+        throw ex_INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED{};
     case INVOKE_HOST_FUNCTION_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
+throwIf(BumpFootprintExpirationResult const& result)
+{
+    switch (result.code())
+    {
+    case BUMP_FOOTPRINT_EXPIRATION_MALFORMED:
+        throw ex_BUMP_FOOTPRINT_EXPIRATION_MALFORMED{};
+    case BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED:
+        throw ex_BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED{};
+    case BUMP_FOOTPRINT_EXPIRATION_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
+throwIf(RestoreFootprintResult const& result)
+{
+    switch (result.code())
+    {
+    case RESTORE_FOOTPRINT_MALFORMED:
+        throw ex_RESTORE_FOOTPRINT_MALFORMED{};
+    case RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED:
+        throw ex_RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED{};
+    case RESTORE_FOOTPRINT_SUCCESS:
         break;
     default:
         throw ex_UNKNOWN{};
@@ -646,6 +680,12 @@ throwIf(TransactionResult const& result)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case INVOKE_HOST_FUNCTION:
         throwIf(opResult.tr().invokeHostFunctionResult());
+        break;
+    case BUMP_FOOTPRINT_EXPIRATION:
+        throwIf(opResult.tr().bumpFootprintExpirationResult());
+        break;
+    case RESTORE_FOOTPRINT:
+        throwIf(opResult.tr().restoreFootprintResult());
         break;
 #endif
     }
