@@ -498,13 +498,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SorobanResources resources;
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
-        resources.instructions = 2'000'000;
+        resources.instructions = 4'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
         resources.extendedMetaDataSizeBytes = 3000;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 120'000, 1200);
+            app->getNetworkID(), root, {op}, {}, resources, 200'000, 1200);
         auto ltx = std::make_shared<LedgerTxn>(app->getLedgerTxnRoot());
         auto txm = std::make_shared<TransactionMetaFrame>(
             ltx->loadHeader().current().ledgerVersion);
@@ -1110,7 +1110,7 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     createContractArgs.executable = exec;
 
     SorobanResources createResources;
-    createResources.instructions = 200'000;
+    createResources.instructions = 400'000;
     createResources.readBytes = 1000;
     createResources.writeBytes = 1000;
     createResources.extendedMetaDataSizeBytes = 3000;
@@ -1145,7 +1145,7 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     {
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {createOp}, {}, createResources, 100'000,
+            app->getNetworkID(), root, {createOp}, {}, createResources, 200'000,
             1200);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());

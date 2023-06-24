@@ -30,11 +30,11 @@ struct InitialSorobanNetworkConfig
         64 * 1024; // 64KB
 
     // Compute settings
-    static constexpr int64_t TX_MAX_INSTRUCTIONS = 40'000'000;
+    static constexpr int64_t TX_MAX_INSTRUCTIONS = 100'000'000;
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 10 * TX_MAX_INSTRUCTIONS;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT =
-        100;                                                   // 0.2 XLM/max tx
-    static constexpr uint32_t MEMORY_LIMIT = 50 * 1024 * 1024; // 50MB
+        100; // 0.2 XLM/max tx
+    static constexpr uint32_t MEMORY_LIMIT = 100 * 1024 * 1024; // 100MB
 
     // Ledger access settings
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
