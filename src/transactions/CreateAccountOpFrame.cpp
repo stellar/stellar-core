@@ -47,7 +47,8 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
     bool doesAccountExist =
         protocolVersionStartsFrom(header.current().ledgerVersion,
                                   ProtocolVersion::V_8) ||
-        (bool)ltx.loadWithoutRecord(accountKey(getSourceID()));
+        (bool)ltx.loadWithoutRecord(accountKey(getSourceID()),
+                                    /*loadExpiredEntry=*/false);
 
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (getAvailableBalance(header, sourceAccount) <

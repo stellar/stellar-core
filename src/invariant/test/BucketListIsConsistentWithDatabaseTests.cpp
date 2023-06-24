@@ -295,8 +295,10 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 auto iter = filteredKeys.begin();
                 std::advance(iter, dist(gRandomEngine));
 
+                // For BucketList generation, expirationLedger shouldn't matter
                 mSelected = std::make_shared<LedgerEntry>(
-                    ltx.loadWithoutRecord(*iter).current());
+                    ltx.loadWithoutRecord(*iter, /*loadExpiredEntry=*/true)
+                        .current());
             }
         }
         return BucketListGenerator::generateLiveEntries(ltx);

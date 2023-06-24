@@ -62,7 +62,8 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key) const override;
+    getNewestVersion(InternalLedgerKey const& key,
+                     bool loadExpiredEntry) const override;
 
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,

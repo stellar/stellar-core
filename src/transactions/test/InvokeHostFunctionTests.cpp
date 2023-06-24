@@ -834,7 +834,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         for (auto const& key : contractKeys)
         {
             uint32_t mult = key.type() == CONTRACT_CODE ? 5 : 4;
-            auto ltxe = ltx.loadWithoutRecord(key);
+            auto ltxe = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
             REQUIRE(ltxe);
             REQUIRE(getExpirationLedger(ltxe.current()) ==
                     expectedInitialExpiration + (autoBump * mult));

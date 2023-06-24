@@ -246,7 +246,8 @@ InMemoryLedgerTxn::load(InternalLedgerKey const& key)
 }
 
 ConstLedgerTxnEntry
-InMemoryLedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
+InMemoryLedgerTxn::loadWithoutRecord(InternalLedgerKey const& key,
+                                     bool loadExpiredEntry)
 {
     throw std::runtime_error("called loadWithoutRecord on InMemoryLedgerTxn");
 }
@@ -271,7 +272,7 @@ InMemoryLedgerTxn::getOffersByAccountAndAsset(AccountID const& account,
             continue;
         }
 
-        auto newest = getNewestVersion(key);
+        auto newest = getNewestVersion(key, /*loadExpiredEntry=*/false);
         if (!newest)
         {
             throw std::runtime_error("Invalid ledger state");
@@ -308,8 +309,10 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
             continue;
         }
 
-        auto pool = getNewestVersion(liquidityPoolKey(
-            key.ledgerKey().trustLine().asset.liquidityPoolID()));
+        auto pool = getNewestVersion(
+            liquidityPoolKey(
+                key.ledgerKey().trustLine().asset.liquidityPoolID()),
+            /*loadExpiredEntry=*/false);
         if (!pool)
         {
             throw std::runtime_error("Invalid ledger state");
@@ -319,7 +322,7 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
         auto const& cp = lp.body.constantProduct();
         if (cp.params.assetA == asset || cp.params.assetB == asset)
         {
-            auto newest = getNewestVersion(key);
+            auto newest = getNewestVersion(key, /*loadExpiredEntry=*/false);
             if (!newest)
             {
                 throw std::runtime_error("Invalid ledger state");

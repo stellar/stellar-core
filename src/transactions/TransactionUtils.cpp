@@ -333,7 +333,8 @@ ConstLedgerTxnEntry
 loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(accountKey(accountID));
+    return ltx.loadWithoutRecord(accountKey(accountID),
+                                 /*loadExpiredEntry=*/false);
 }
 
 LedgerTxnEntry
@@ -1403,8 +1404,10 @@ prefetchForRevokeFromPoolShareTrustLines(
     {
         // prefetching shouldn't affect the protocol, so use loadWithoutRecord
         // to not touch lastModified
-        auto pool = ltx.loadWithoutRecord(liquidityPoolKey(
-            trustLine.current().data.trustLine().asset.liquidityPoolID()));
+        auto pool = ltx.loadWithoutRecord(
+            liquidityPoolKey(
+                trustLine.current().data.trustLine().asset.liquidityPoolID()),
+            /*loadExpiredEntry=*/false);
 
         auto const& params =
             pool.current().data.liquidityPool().body.constantProduct().params;

@@ -285,7 +285,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         for (auto const& lk : keys)
         {
             // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk);
+            auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/false);
             size_t nByte{0};
             if (ltxe)
             {

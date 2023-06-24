@@ -420,7 +420,7 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ltx,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = assetToTrustLineAsset(asset);
-        auto entry = ltx.loadWithoutRecord(key);
+        auto entry = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
         if (entry)
         {
             mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));

@@ -794,7 +794,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = assetToTrustLineAsset(asset);
-        auto trust = ltx.loadWithoutRecord(key);
+        auto trust = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
         if (trust && isAuthorizedToMaintainLiabilities(trust))
         {
             auto const& tl = trust.current().data.trustLine();
@@ -1242,7 +1242,8 @@ ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
 {
-    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key));
+    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key),
+                                      /*loadExpiredEntry=*/false);
     if (!ltxe)
     {
         return nullptr;
@@ -1365,9 +1366,9 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
-        bool isSame =
-            ltx.loadWithoutRecord(key).current().data.configSetting() ==
-            updatedEntry;
+        bool isSame = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
+                          .current()
+                          .data.configSetting() == updatedEntry;
         if (!isSame)
         {
             return true;
