@@ -85,9 +85,10 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         {
             VirtualTimer setupTimer(*app);
 
-            auto feedTx = [&](TransactionFramePtr& tx) {
+            auto feedTx = [&](TransactionFramePtr& tx,
+                              TransactionQueue::AddResult expectedRes) {
                 REQUIRE(app->getHerder().recvTransaction(tx, false) ==
-                        TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                        expectedRes);
             };
 
             auto waitForExternalize = [&]() {
@@ -115,13 +116,12 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             auto setup = [&](asio::error_code const& error) {
                 REQUIRE(!error);
                 // create accounts
-                auto txFrameA = root.tx({createAccount(a1, startingBalance)});
-                auto txFrameB = root.tx({createAccount(b1, startingBalance)});
-                auto txFrameC = root.tx({createAccount(c1, startingBalance)});
+                auto txFrame = root.tx({createAccount(a1, startingBalance),
+                                        createAccount(b1, startingBalance),
+                                        createAccount(c1, startingBalance)});
 
-                feedTx(txFrameA);
-                feedTx(txFrameB);
-                feedTx(txFrameC);
+                feedTx(txFrame,
+                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
             };
 
             setupTimer.expires_from_now(std::chrono::seconds(0));
@@ -136,29 +136,6 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
             SECTION("txset with valid txs - but failing later")
             {
-                std::vector<TransactionFramePtr> txAs, txBs, txCs;
-                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-
-                txBs.emplace_back(b1.tx({payment(root, paymentAmount)}));
-                txBs.emplace_back(b1.tx({accountMerge(root)}));
-                txBs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
-
-                auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
-                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
-                txCs.emplace_back(c1.tx({bumpSequence(expectedC1Seq)}));
-                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
-
-                for (auto a : txAs)
-                {
-                    feedTx(a);
-                }
-                for (auto b : txBs)
-                {
-                    feedTx(b);
-                }
-
                 bool hasC = false;
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -166,12 +143,46 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                         ltx.loadHeader().current().ledgerVersion,
                         ProtocolVersion::V_10);
                 }
+
+                std::vector<TransactionFramePtr> txAs, txBs, txCs;
+                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txAs.emplace_back(b1.tx({payment(root, paymentAmount)}));
                 if (hasC)
                 {
-                    for (auto c : txCs)
-                    {
-                        feedTx(c);
-                    }
+                    txAs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+                }
+
+                for (auto a : txAs)
+                {
+                    feedTx(a, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                }
+                waitForExternalize();
+
+                txBs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txBs.emplace_back(b1.tx({accountMerge(root)}));
+                auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
+                if (hasC)
+                {
+                    txBs.emplace_back(c1.tx({bumpSequence(expectedC1Seq)}));
+                }
+
+                for (auto b : txBs)
+                {
+                    feedTx(b, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                }
+                waitForExternalize();
+
+                txCs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txCs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
+                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+
+                feedTx(txCs[0],
+                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                feedTx(txCs[1], TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                if (hasC)
+                {
+                    feedTx(txCs[2],
+                           TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 }
 
                 waitForExternalize();
@@ -188,7 +199,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 {
                     // c1's last transaction failed due to wrong sequence number
                     int64 expectedCBalance =
-                        startingBalance - paymentAmount - 3 * txfee;
+                        startingBalance - paymentAmount - 2 * txfee;
                     REQUIRE(c1.getBalance() == expectedCBalance);
                     REQUIRE(c1.loadSequenceNumber() == expectedC1Seq);
                 }
@@ -280,17 +291,21 @@ static void
 testTxSet(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 15;
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
+    bool uniqueAccounts =
+        protocolVersion >=
+        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
 
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    const int nbAccounts = 2;
-    const int nbTransactions = 5;
+    const int nbAccounts = 3;
+    // Post protocol 20, multiple transactions per accounts aren't allowed
+    const int nbTransactions = uniqueAccounts ? 1 : 5;
 
     auto accounts = std::vector<TestAccount>{};
 
@@ -318,7 +333,7 @@ testTxSet(uint32 protocolVersion)
     SECTION("valid set")
     {
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
+        REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
     }
 
     SECTION("too many txs")
@@ -340,7 +355,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
+            REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
         }
         SECTION("sequence gap")
         {
@@ -354,7 +369,7 @@ testTxSet(uint32 protocolVersion)
                 auto txSet =
                     TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
                 REQUIRE(removed.size() == 1);
-                REQUIRE(txSet->sizeTxTotal() == (2 * nbTransactions));
+                REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
             }
             SECTION("gap begin")
             {
@@ -366,23 +381,30 @@ testTxSet(uint32 protocolVersion)
 
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
-                REQUIRE(txSet->sizeTxTotal() == nbTransactions);
+                REQUIRE(txSet->sizeTxTotal() ==
+                        nbTransactions * (nbAccounts - 1));
             }
             SECTION("gap middle")
             {
-                int remIdx = 2; // 3rd transaction from the first account
-                txs.erase(txs.begin() + remIdx);
+                // Gap in the middle only makes sense if we allow multiple txs
+                // per account
+                if (!uniqueAccounts)
+                {
+                    int remIdx = 2; // 3rd transaction from the first account
+                    txs.erase(txs.begin() + remIdx);
 
-                TxSetFrame::Transactions removed;
-                auto txSet =
-                    TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
+                    TxSetFrame::Transactions removed;
+                    auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0,
+                                                                  0, removed);
 
-                // one account has all its transactions,
-                // the other, we removed transactions after remIdx
-                auto expectedRemoved = nbTransactions - remIdx - 1;
-                REQUIRE(removed.size() == expectedRemoved);
-                REQUIRE(txSet->sizeTxTotal() ==
-                        (nbTransactions * 2 - expectedRemoved - 1));
+                    // one account has all its transactions,
+                    // the other, we removed transactions after remIdx
+                    auto expectedRemoved = nbTransactions - remIdx - 1;
+                    REQUIRE(removed.size() == expectedRemoved);
+                    REQUIRE(
+                        txSet->sizeTxTotal() ==
+                        (nbTransactions * nbAccounts - expectedRemoved - 1));
+                }
             }
         }
         SECTION("insufficient balance")
@@ -394,7 +416,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == (nbTransactions + 1));
-            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions * (nbAccounts - 1));
         }
         SECTION("bad signature")
         {
@@ -405,7 +427,7 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 TxSetFrame::makeFromTransactions(txs, *app, 0, 0, removed);
             REQUIRE(removed.size() == nbTransactions);
-            REQUIRE(txSet->sizeTxTotal() == nbTransactions);
+            REQUIRE(txSet->sizeTxTotal() == nbTransactions * (nbAccounts - 1));
         }
     }
 }
@@ -708,6 +730,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
 
         SECTION("minSeqNum gap")
         {
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                if (ltx.loadHeader().current().ledgerVersion >=
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                {
+                    return;
+                }
+            }
             auto minSeqNumCond = [](SequenceNumber seqNum) {
                 PreconditionsV2 cond;
                 cond.minSeqNum.activate() = seqNum;
@@ -735,6 +765,14 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
         }
         SECTION("minSeqLedgerGap")
         {
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                if (ltx.loadHeader().current().ledgerVersion >=
+                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                {
+                    return;
+                }
+            }
             auto minSeqLedgerGapCond = [](uint32_t minSeqLedgerGap) {
                 PreconditionsV2 cond;
                 cond.minSeqLedgerGap = minSeqLedgerGap;
@@ -1370,6 +1408,11 @@ static void
 surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
           uint32_t expectedReduced)
 {
+    if (protocolVersion >=
+        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        throw std::runtime_error("Surge test does not apply post protocol 19");
+    }
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -1510,10 +1553,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
 
 TEST_CASE("surge pricing", "[herder][txset]")
 {
-    SECTION("protocol current")
+    SECTION("protocol 19")
     {
         // (1+..+4) + (1+2) = 10+3 = 13
-        surgeTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 5, 15, 13);
+        surgeTest(19, 5, 15, 13);
     }
     SECTION("max 0 ops per ledger")
     {
@@ -1581,8 +1624,12 @@ TEST_CASE("surge pricing", "[herder][txset]")
         auto acc3 = root.create("account3", 500000000);
         auto acc4 = root.create("account4", 500000000);
         auto acc5 = root.create("account5", 500000000);
-        std::vector<TestAccount> accounts = {root, acc1, acc2,
-                                             acc3, acc4, acc5};
+        auto acc6 = root.create("account6", 500000000);
+
+        // Ensure these accounts don't overlap with classic tx (with root source
+        // account)
+        std::vector<TestAccount> accounts = {acc1, acc2, acc3,
+                                             acc4, acc5, acc6};
 
         // Valid classic
         auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
@@ -1837,17 +1884,20 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
     auto accountA = root.create("accountA", 5000000000);
     auto accountB = root.create("accountB", 5000000000);
     auto accountC = root.create("accountC", 5000000000);
+    auto accountD = root.create("accountD", 5000000000);
 
     auto seqNumA = accountA.getLastSequenceNumber();
     auto seqNumB = accountB.getLastSequenceNumber();
     auto seqNumC = accountC.getLastSequenceNumber();
+    auto seqNumD = accountD.getLastSequenceNumber();
 
     auto runTest = [&](std::vector<TransactionFrameBasePtr> const& txs,
                        size_t expectedTxsA, size_t expectedTxsB,
-                       size_t expectedTxsC, int64_t expectedNonDexBaseFee,
+                       size_t expectedTxsC, size_t expectedTxsD,
+                       int64_t expectedNonDexBaseFee,
                        int64_t expectedDexBaseFee) {
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-        size_t cntA = 0, cntB = 0, cntC = 0;
+        size_t cntA = 0, cntB = 0, cntC = 0, cntD = 0;
         auto resTxs = txSet->getTxsInApplyOrder();
         for (auto const& tx : resTxs)
         {
@@ -1869,6 +1919,13 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
                 ++seqNumC;
                 REQUIRE(seqNumC == tx->getSeqNum());
             }
+            if (tx->getSourceID() == accountD.getPublicKey())
+            {
+                ++cntD;
+                ++seqNumD;
+                REQUIRE(seqNumD == tx->getSeqNum());
+            }
+
             auto baseFee = txSet->getTxBaseFee(tx, lhCopy);
             REQUIRE(baseFee);
             if (tx->hasDexOperations())
@@ -1883,6 +1940,7 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
         REQUIRE(cntA == expectedTxsA);
         REQUIRE(cntB == expectedTxsB);
         REQUIRE(cntC == expectedTxsC);
+        REQUIRE(cntD == expectedTxsD);
     };
 
     auto nonDexTx = [](TestAccount& account, uint32 nbOps, uint32_t opFee) {
@@ -1891,205 +1949,95 @@ TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
     auto dexTx = [&](TestAccount& account, uint32 nbOps, uint32_t opFee) {
         return createSimpleDexTx(*app, account, nbOps, opFee * nbOps);
     };
-
-    SECTION("single account")
+    SECTION("only non-DEX txs")
     {
-        SECTION("only non DEX txs")
+        runTest({nonDexTx(accountA, 8, 200), nonDexTx(accountB, 4, 300),
+                 nonDexTx(accountC, 2, 400),
+                 /* cutoff */
+                 nonDexTx(accountD, 2, 100)},
+                1, 1, 1, 0, 200, 0);
+    }
+    SECTION("only DEX txs")
+    {
+        runTest({dexTx(accountA, 2, 200), dexTx(accountB, 1, 300),
+                 dexTx(accountC, 2, 400),
+                 /* cutoff */
+                 dexTx(accountD, 1, 100)},
+                1, 1, 1, 0, 0, 200);
+    }
+    SECTION("mixed txs")
+    {
+        SECTION("only DEX surge priced")
         {
-            runTest({nonDexTx(accountA, 3, 200), nonDexTx(accountA, 4, 120),
-                     nonDexTx(accountA, 2, 150), nonDexTx(accountA, 5, 250),
-                     /* cutoff */ nonDexTx(accountA, 2, 300),
-                     nonDexTx(accountA, 1, 500)},
-                    4, 0, 0, 120, 0);
-        }
-        SECTION("only DEX txs")
-        {
-            runTest({dexTx(accountA, 3, 200), dexTx(accountA, 1, 120),
-                     /* cutoff */
-                     dexTx(accountA, 2, 150), dexTx(accountA, 1, 300)},
-                    2, 0, 0, 0, 120);
-        }
-        SECTION("mixed txs")
-        {
-            SECTION("only DEX surge priced")
+            SECTION("DEX limit reached")
             {
-                SECTION("DEX limit reached")
-                {
-                    runTest(
-                        {/* 5 non-DEX ops + 4 DEX ops = 9 ops */
-                         nonDexTx(accountA, 2, 200), dexTx(accountA, 4, 250),
-                         nonDexTx(accountA, 1, 150),
-                         /* cutoff */ dexTx(accountA, 2, 150),
-                         nonDexTx(accountA, 1, 500)},
-                        3, 0, 0, 100, 250);
-                }
-                SECTION("both limits reached")
-                {
-                    // DEX tx didn't fit into both DEX and global limits, but
-                    // there are no remaining non-DEX txs to activate surge
-                    // pricing for them.
-                    runTest(
-                        {
-                            /* 10 non-DEX ops + 4 DEX ops = 14 ops */
-                            nonDexTx(accountA, 10, 200),
-                            dexTx(accountA, 4, 250),
-                            /* cutoff */
-                            dexTx(accountA, 2, 300),
-                            nonDexTx(accountA, 1, 500),
-                        },
-                        2, 0, 0, 100, 250);
-                }
+                runTest(
+                    {
+                        /* 6 non-DEX ops + 5 DEX ops = 11 ops */
+                        nonDexTx(accountA, 6, 100),
+                        dexTx(accountB, 5, 400),
+                        /* cutoff */
+                        dexTx(accountC, 1, 200),
+                        dexTx(accountD, 1, 399),
+                    },
+                    1, 1, 0, 0, 100, 400);
             }
-            SECTION("both DEX and non-dex surge priced")
+            SECTION("both limits reached, but only DEX evicted")
+            {
+                runTest(
+                    {
+                        /* 10 non-DEX ops + 5 DEX ops = 15 ops */
+                        nonDexTx(accountA, 10, 100),
+                        dexTx(accountB, 5, 400),
+                        /* cutoff */
+                        dexTx(accountC, 1, 399),
+                        dexTx(accountD, 1, 399),
+                    },
+                    1, 1, 0, 0, 100, 400);
+            }
+        }
+        SECTION("all txs surge priced")
+        {
+            SECTION("only global limit reached")
+            {
+                runTest(
+                    {
+                        /* 13 non-DEX ops + 2 DEX ops = 15 ops */
+                        nonDexTx(accountA, 13, 250),
+                        dexTx(accountB, 2, 250),
+                        /* cutoff */
+                        dexTx(accountC, 1, 200),
+                        nonDexTx(accountD, 1, 249),
+                    },
+                    1, 1, 0, 0, 250, 250);
+            }
+            SECTION("both limits reached")
             {
                 SECTION("non-DEX fee is lowest")
                 {
                     runTest(
                         {
-                            /* 8 non-DEX ops + 4 DEX ops = 12 ops */
-                            nonDexTx(accountA, 3, 200),
-                            dexTx(accountA, 4, 250),
-                            nonDexTx(accountA, 5, 150),
+                            /* 10 non-DEX ops + 5 DEX ops = 15 ops */
+                            nonDexTx(accountA, 10, 250),
+                            dexTx(accountB, 5, 400),
                             /* cutoff */
-                            nonDexTx(accountA, 4, 500),
-                            dexTx(accountA, 2, 150),
+                            dexTx(accountC, 1, 399),
+                            nonDexTx(accountD, 1, 249),
                         },
-                        3, 0, 0, 150, 150);
+                        1, 1, 0, 0, 250, 400);
                 }
                 SECTION("DEX fee is lowest")
                 {
                     runTest(
                         {
-                            /* 8 non-DEX ops + 4 DEX ops = 12 ops */
-                            nonDexTx(accountA, 3, 200),
-                            dexTx(accountA, 4, 150),
-                            nonDexTx(accountA, 5, 250),
-                            /* cutoff */
-                            nonDexTx(accountA, 4, 500),
-                            dexTx(accountA, 2, 150),
-                        },
-                        3, 0, 0, 150, 150);
-                }
-            }
-        }
-    }
-
-    SECTION("multiple accounts")
-    {
-        SECTION("only non-DEX txs")
-        {
-            // Last 3 txs do not fit into limit and activate surge pricing.
-            runTest({nonDexTx(accountA, 3, 200), nonDexTx(accountA, 5, 250),
-                     nonDexTx(accountB, 4, 300), nonDexTx(accountC, 2, 400),
-                     /* cutoff */
-                     nonDexTx(accountA, 2, 500), nonDexTx(accountB, 2, 180),
-                     nonDexTx(accountC, 2, 100)},
-                    2, 1, 1, 200, 0);
-        }
-        SECTION("only DEX txs")
-        {
-            // Last two txs do not fit into DEX ops limit and activate surge
-            // pricing.
-            runTest({dexTx(accountA, 1, 200), dexTx(accountA, 1, 250),
-                     dexTx(accountB, 1, 300), dexTx(accountC, 2, 400),
-                     /* cutoff */
-                     dexTx(accountA, 4, 500), dexTx(accountB, 1, 180),
-                     dexTx(accountC, 1, 100)},
-                    2, 1, 1, 0, 200);
-        }
-        SECTION("mixed txs")
-        {
-            SECTION("only DEX surge priced")
-            {
-                SECTION("DEX limit reached")
-                {
-                    runTest(
-                        {
-                            /* 6 non-DEX ops + 5 DEX ops = 11 ops */
-                            nonDexTx(accountA, 1, 300),
-                            dexTx(accountA, 2, 400),
-                            dexTx(accountB, 1, 300),
-                            nonDexTx(accountB, 2, 400),
-                            dexTx(accountC, 2, 250),
-                            nonDexTx(accountC, 3, 500),
-                            /* cutoff */
-                            dexTx(accountA, 1, 200),
-                            dexTx(accountB, 1, 200),
-                            dexTx(accountC, 1, 249),
-                        },
-                        2, 2, 2, 100, 250);
-                }
-                SECTION("both limits reached, but only DEX evicted")
-                {
-                    runTest(
-                        {
                             /* 10 non-DEX ops + 5 DEX ops = 15 ops */
-                            nonDexTx(accountA, 2, 600),
-                            dexTx(accountA, 3, 400),
-                            nonDexTx(accountB, 3, 400),
-                            dexTx(accountC, 2, 500),
-                            nonDexTx(accountC, 5, 250),
+                            nonDexTx(accountA, 10, 500),
+                            dexTx(accountB, 5, 200),
                             /* cutoff */
-                            dexTx(accountA, 1, 399),
-                            dexTx(accountB, 1, 399),
-                            dexTx(accountC, 1, 399),
+                            dexTx(accountC, 1, 199),
+                            nonDexTx(accountD, 1, 199),
                         },
-                        2, 1, 2, 100, 400);
-                }
-            }
-            SECTION("all txs surge priced")
-            {
-                SECTION("only global limit reached")
-                {
-                    runTest(
-                        {
-                            /* 13 non-DEX ops + 2 DEX ops = 15 ops */
-                            nonDexTx(accountA, 6, 300),
-                            dexTx(accountB, 1, 400),
-                            nonDexTx(accountB, 3, 400),
-                            nonDexTx(accountC, 4, 250),
-                            dexTx(accountC, 1, 500),
-                            /* cutoff */
-                            dexTx(accountA, 1, 200),
-                            nonDexTx(accountB, 1, 249),
-                            dexTx(accountC, 1, 249),
-                        },
-                        1, 2, 2, 250, 250);
-                }
-                SECTION("both limits reached")
-                {
-                    SECTION("non-DEX fee is lowest")
-                    {
-                        runTest(
-                            {
-                                /* 10 non-DEX ops + 5 DEX ops = 15 ops */
-                                nonDexTx(accountA, 2, 600),
-                                dexTx(accountA, 3, 400),
-                                nonDexTx(accountB, 3, 400),
-                                dexTx(accountC, 2, 500),
-                                nonDexTx(accountC, 5, 250),
-                                /* cutoff */
-                                dexTx(accountA, 1, 399),
-                                nonDexTx(accountB, 1, 249),
-                            },
-                            2, 1, 2, 250, 400);
-                    }
-                    SECTION("DEX fee is lowest")
-                    {
-                        runTest(
-                            {
-                                /* 10 non-DEX ops + 5 DEX ops = 15 ops */
-                                dexTx(accountA, 3, 300),
-                                nonDexTx(accountA, 2, 500),
-                                nonDexTx(accountB, 3, 400),
-                                dexTx(accountC, 2, 200),
-                                nonDexTx(accountC, 5, 250),
-                                /* cutoff */
-                                dexTx(accountA, 1, 199),
-                                nonDexTx(accountB, 1, 199),
-                            },
-                            2, 1, 2, 200, 200);
-                    }
+                        1, 1, 0, 0, 200, 200);
                 }
             }
         }
@@ -2345,7 +2293,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto root = TestAccount::createRoot(*app);
-    auto a1 = TestAccount{*app, getAccount("A")};
+    std::vector<TestAccount> accounts;
 
     using TxPair = std::pair<Value, TxSetFrameConstPtr>;
     auto makeTxUpgradePair = [&](HerderImpl& herder, TxSetFrameConstPtr txSet,
@@ -2383,10 +2331,18 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
         return envelope;
     };
     auto makeTransactions = [&](int n, int nbOps, uint32 feeMulti) {
-        root.loadSequenceNumber();
         std::vector<TransactionFrameBasePtr> txs(n);
+        while (accounts.size() < n)
+        {
+            std::string accountName = fmt::format("A{}", accounts.size());
+            accounts.push_back(root.create(accountName.c_str(), 500000000));
+        }
+        size_t index = 0;
+
         std::generate(std::begin(txs), std::end(txs), [&]() {
-            return makeMultiPayment(root, root, nbOps, 1000, 0, feeMulti);
+            accounts[index].loadSequenceNumber();
+            return makeMultiPayment(root, accounts[index++], nbOps, 1000, 0,
+                                    feeMulti);
         });
 
         return TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
@@ -3361,10 +3317,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                     mix ? static_cast<uint32_t>(ProtocolVersion::V_19)
                         : Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-                if (!mix || i % 2 == 1)
-                {
-                    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
-                }
+                cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = !mix || (i % 2 == 1);
                 return cfg;
             });
 
@@ -4567,7 +4520,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         std::vector<TestAccount> accs;
 
         // number of accounts to use
-        int const nbAccounts = 40;
+        size_t const maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
+        int const nbAccounts = maxOps;
         // number of transactions to generate per fee
         // groups are
         int const feeGroupMaxSize = 7;
@@ -4576,6 +4530,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         uint32 curFeeOffset = 10000;
 
         accs.reserve(nbAccounts);
+        accs.emplace_back(root);
         for (int i = 0; i < nbAccounts; ++i)
         {
             accs.emplace_back(
@@ -4615,18 +4570,20 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             return tx;
         };
 
-        auto genTxRandAccount = [&](uint32_t numOps) {
-            genTx(rand_element(accs), numOps, false);
+        auto nextAccountIt = accs.begin();
+        auto getNextAccountTx = [&](uint32_t numOps, bool highFee = false) {
+            REQUIRE(nextAccountIt != accs.end());
+            auto tx = genTx(*nextAccountIt, numOps, highFee);
+            nextAccountIt++;
+            return tx;
         };
 
-        size_t const maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
-
-        auto tx1a = genTx(accs[0], numOps, false);
-        auto tx1r = genTx(root, numOps, false);
+        auto tx1a = getNextAccountTx(numOps);
+        auto tx1r = getNextAccountTx(numOps);
         size_t numTx = 2;
         for (; (numTx + 2) * numOps <= maxOps; ++numTx)
         {
-            genTxRandAccount(numOps);
+            getNextAccountTx(numOps);
         }
 
         std::map<AccountID, SequenceNumber> bcastTracker;
@@ -4688,7 +4645,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         // from an account with no pending transactions
         // this transactions should be the next one to be broadcasted
         simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
-        genTx(root, numOps, true);
+        getNextAccountTx(numOps, /* highFee */ true);
 
         simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
         REQUIRE(numBroadcast == (numTx - 1));
@@ -4754,7 +4711,8 @@ TEST_CASE("do not flood too many transactions with DEX separation",
         std::vector<TestAccount> accs;
 
         // number of accounts to use
-        int const nbAccounts = 40;
+        int const nbAccounts =
+            app->getConfig().TESTING_UPGRADE_MAX_TX_SET_SIZE * 2;
         // number of transactions to generate per fee groups
         int const feeGroupMaxSize = 7;
         // used to track fee
@@ -4822,9 +4780,11 @@ TEST_CASE("do not flood too many transactions with DEX separation",
             return tx;
         };
 
-        auto genTxRandAccount = [&](bool isDex, uint32_t numOps) {
-            genTx(autocheck::generator<size_t>()(nbAccounts - 3), isDex, numOps,
-                  false);
+        auto nextAccountIdx = 0;
+        auto genNextAccountTx = [&](bool isDex, uint32_t numOps,
+                                    bool highFee = false) {
+            REQUIRE(nextAccountIdx < accs.size());
+            return genTx(nextAccountIdx++, isDex, numOps, highFee);
         };
 
         // Reserve 1 tx in each non-empty group to add in the middle of the
@@ -4847,12 +4807,12 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                              (generatedNonDex >= nonDexTxs || boolGen());
                 if (isDex)
                 {
-                    genTxRandAccount(true, opsPerDexTx);
+                    genNextAccountTx(true, opsPerDexTx);
                     ++generatedDex;
                 }
                 else
                 {
-                    genTxRandAccount(false, opsPerNonDexTx);
+                    genNextAccountTx(false, opsPerNonDexTx);
                     ++generatedNonDex;
                 }
             }
@@ -4863,18 +4823,18 @@ TEST_CASE("do not flood too many transactions with DEX separation",
             {
                 for (uint32_t i = 0; i < dexTxs; ++i)
                 {
-                    genTxRandAccount(true, opsPerDexTx);
+                    genNextAccountTx(true, opsPerDexTx);
                 }
             }
             for (uint32_t i = 0; i < nonDexTxs; ++i)
             {
-                genTxRandAccount(false, opsPerNonDexTx);
+                genNextAccountTx(false, opsPerNonDexTx);
             }
             if (!broadcastDexFirst)
             {
                 for (uint32_t i = 0; i < dexTxs; ++i)
                 {
-                    genTxRandAccount(true, opsPerDexTx);
+                    genNextAccountTx(true, opsPerDexTx);
                 }
             }
         }
@@ -4952,12 +4912,12 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 if (dexTxs > 0)
                 {
                     ++dexTxs;
-                    genTx(nbAccounts - 2, true, opsPerDexTx, true);
+                    genNextAccountTx(true, opsPerDexTx, true);
                 }
                 if (nonDexTxs > 0)
                 {
                     ++nonDexTxs;
-                    genTx(nbAccounts - 1, false, opsPerNonDexTx, true);
+                    genNextAccountTx(false, opsPerNonDexTx, true);
                 }
             }
             auto lastDexOpsBroadcasted = dexOpsBroadcasted;

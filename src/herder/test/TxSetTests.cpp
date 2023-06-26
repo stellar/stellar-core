@@ -445,12 +445,16 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
+    int accountId = 0;
     auto createTxs = [&](int cnt, int fee) {
         std::vector<TransactionFrameBasePtr> txs;
         for (int i = 0; i < cnt; ++i)
         {
+            auto source =
+                root.create("unique " + std::to_string(accountId++),
+                            app->getLedgerManager().getLastMinBalance(2));
             txs.emplace_back(transactionFromOperations(
-                *app, root.getSecretKey(), root.nextSequenceNumber(),
+                *app, source.getSecretKey(), source.nextSequenceNumber(),
                 {createAccount(getAccount(std::to_string(i)).getPublicKey(),
                                1)},
                 fee));
@@ -547,12 +551,8 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     {
         auto const& lclHeader =
             app->getLedgerManager().getLastClosedLedgerHeader();
-        std::vector<TransactionFrameBasePtr> txs;
-        for (int i = 0; i < 5; ++i)
-        {
-            txs.push_back(root.tx({createAccount(
-                getAccount(std::to_string(i)).getPublicKey(), 1)}));
-        }
+        std::vector<TransactionFrameBasePtr> txs =
+            createTxs(5, lclHeader.header.baseFee);
         auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
 
         GeneralizedTransactionSet txSetXdr;
@@ -655,8 +655,11 @@ TEST_CASE("generalized tx set fees", "[txset]")
             ops.emplace_back(createAccount(
                 getAccount(std::to_string(accountId++)).getPublicKey(), 1));
         }
-        return transactionFromOperations(*app, root.getSecretKey(),
-                                         root.nextSequenceNumber(), ops, fee);
+        // Create a new unique accounts to ensure there are no collisions
+        auto source = root.create("unique " + std::to_string(accountId),
+                                  app->getLedgerManager().getLastMinBalance(2));
+        return transactionFromOperations(*app, source.getSecretKey(),
+                                         source.nextSequenceNumber(), ops, fee);
     };
 
     SECTION("valid txset")

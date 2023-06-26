@@ -274,7 +274,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(expectedrootBalance == root.getBalance());
         });
 
-        for_versions_from(9, *app, [&] {
+        for_versions(9, 19, *app, [&] {
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
@@ -292,6 +292,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(expectedb1Balance == b1.getBalance());
             REQUIRE(expectedrootBalance == root.getBalance());
         });
+        // As of protocol 20, it is no longer possible to have multiple txs from
+        // the same source account in a single ledger
     }
 
     SECTION("create, merge, pay, 2 accounts")

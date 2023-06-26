@@ -423,35 +423,51 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto carol = TestAccount{mApp, getAccount("carol")};
 
     std::vector<TransactionFrameBasePtr> txs;
-    // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
     if (ledgerSeq < 5)
     {
-        txs.push_back(root.tx({createAccount(alice, big)}));
-        txs.push_back(root.tx({createAccount(bob, big)}));
-        txs.push_back(root.tx({createAccount(carol, big)}));
+        txs.push_back(
+            root.tx({createAccount(alice, big), createAccount(bob, big),
+                     createAccount(carol, big)}));
     }
     // Allow an occasional empty ledger
     else if (rand_flip() || rand_flip())
     {
-        txs.push_back(root.tx({payment(alice, big)}));
-        txs.push_back(root.tx({payment(bob, big)}));
-        txs.push_back(root.tx({payment(carol, big)}));
-
         // They all randomly send a little to one another every ledger after #4
         if (rand_flip())
+        {
+            txs.push_back(root.tx({payment(alice, big)}));
+        }
+        else
+        {
+            txs.push_back(root.tx({payment(bob, big)}));
+        }
+
+        if (rand_flip())
+        {
             txs.push_back(alice.tx({payment(bob, small)}));
-        if (rand_flip())
+        }
+        else
+        {
             txs.push_back(alice.tx({payment(carol, small)}));
+        }
 
         if (rand_flip())
+        {
             txs.push_back(bob.tx({payment(alice, small)}));
-        if (rand_flip())
+        }
+        else
+        {
             txs.push_back(bob.tx({payment(carol, small)}));
+        }
 
         if (rand_flip())
+        {
             txs.push_back(carol.tx({payment(alice, small)}));
-        if (rand_flip())
+        }
+        else
+        {
             txs.push_back(carol.tx({payment(bob, small)}));
+        }
     }
     TxSetFrameConstPtr txSet =
         TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
