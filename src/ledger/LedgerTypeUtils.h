@@ -29,6 +29,7 @@ bool autoBumpEnabled(LedgerEntry const& e);
 
 template <typename T> bool isSorobanExtEntry(T const& e);
 template <typename T> bool isSorobanDataEntry(T const& e);
+template <typename T> bool isRestorableEntry(T const& e);
 
 template <typename T>
 bool

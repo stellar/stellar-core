@@ -233,6 +233,14 @@ InMemoryLedgerTxn::create(InternalLedgerEntry const& entry)
     throw std::runtime_error("called create on InMemoryLedgerTxn");
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerTxnEntry
+InMemoryLedgerTxn::restore(InternalLedgerEntry const& entry)
+{
+    throw std::runtime_error("called restore on InMemoryLedgerTxn");
+}
+#endif
+
 void
 InMemoryLedgerTxn::erase(InternalLedgerKey const& key)
 {

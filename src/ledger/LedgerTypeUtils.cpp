@@ -161,4 +161,20 @@ isSorobanDataEntry(T const& e)
 template bool
 isSorobanDataEntry<LedgerEntry::_data_t>(LedgerEntry::_data_t const& e);
 template bool isSorobanDataEntry<LedgerKey>(LedgerKey const& e);
+
+template <typename T>
+bool
+isRestorableEntry(T const& e)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return e.type() == CONTRACT_CODE ||
+           (e.type() == CONTRACT_DATA &&
+            e.contractData().durability == PERSISTENT);
+#endif
+    return false;
+}
+
+template bool
+isRestorableEntry<LedgerEntry::_data_t>(LedgerEntry::_data_t const& e);
+template bool isRestorableEntry<LedgerKey>(LedgerKey const& e);
 };
