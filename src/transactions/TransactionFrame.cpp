@@ -43,8 +43,6 @@
 #include <algorithm>
 #include <numeric>
 
-#include "util/XDRCereal.h"
-
 namespace stellar
 {
 
@@ -362,7 +360,8 @@ TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
         // this is buggy caching that existed in old versions of the protocol
         if (res)
         {
-            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
+            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
+                                               /*loadExpiredEntry=*/false);
             mCachedAccount = newest;
         }
         else
@@ -395,7 +394,8 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
             res = ltx.create(*mCachedAccount);
         }
 
-        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
+        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
+                                           /*loadExpiredEntry=*/false);
         mCachedAccount = newest;
         return res;
     }
@@ -1600,7 +1600,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 // specifies a expiration extension outside the bounds, the expiration will be
 // set to the bound and charged accordingly. So long as refundableFee is large
 // enough to cover the adjusted expirations, the tx still succeeds.
-
 bool
 TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
 {
@@ -1612,16 +1611,17 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerTxn ltxTx(ltx);
     auto const& resources = sorobanResources();
-    auto lcl = app.getLedgerManager().getLastClosedLedgerNum();
+    auto ledgerSeq = ltxTx.loadHeader().current().ledgerSeq;
     auto const& expirationSettings = app.getLedgerManager()
                                          .getSorobanNetworkConfig(ltxTx)
                                          .stateExpirationSettings();
 
-    auto maxExpirationLedger = lcl + expirationSettings.maxEntryExpiration;
+    auto maxExpirationLedger =
+        ledgerSeq + expirationSettings.maxEntryExpiration;
     auto minRestorableExpirationLedger =
-        lcl + expirationSettings.minPersistentEntryExpiration;
+        ledgerSeq + expirationSettings.minPersistentEntryExpiration;
     auto minTempExpirationLedger =
-        lcl + expirationSettings.minTempEntryExpiration;
+        ledgerSeq + expirationSettings.minTempEntryExpiration;
     auto autoBumpLedgers = expirationSettings.autoBumpLedgers;
 
     // Applies the correct expiration to LE. If expiration has not changed from
@@ -1631,7 +1631,7 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
         // expiration, so set it to lcl for fee calculation purposes
         auto iter = mOriginalExpirations.find(LedgerEntryKey(le));
         uint32_t preApplyExpiration =
-            iter == mOriginalExpirations.end() ? lcl : iter->second;
+            iter == mOriginalExpirations.end() ? ledgerSeq : iter->second;
         uint32_t postApplyExpiration = getExpirationLedger(le);
         uint32_t minimumForEntry = preApplyExpiration;
 

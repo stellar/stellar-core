@@ -98,7 +98,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
         // in versions < 8, merge account could be called with a stale account
         LedgerKey key(ACCOUNT);
         key.account().accountID = getSourceID();
-        auto thisAccount = ltx.loadWithoutRecord(key);
+        auto thisAccount =
+            ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
         if (!thisAccount)
         {
             innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);

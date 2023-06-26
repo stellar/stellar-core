@@ -718,7 +718,7 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
 
         LedgerKey k;
         fromOpaqueBase64(k, key);
-        auto le = ltx.loadWithoutRecord(k);
+        auto le = ltx.loadWithoutRecord(k, /*loadExpiredEntry=*/false);
         if (le)
         {
             root["state"] = "live";

@@ -24,10 +24,12 @@ void setLeType(LedgerKey& k, ContractEntryBodyType leType);
 LedgerEntry expirationExtensionFromDataEntry(LedgerEntry const& le);
 #endif
 
+bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
 bool autoBumpEnabled(LedgerEntry const& e);
 
 template <typename T> bool isSorobanExtEntry(T const& e);
 template <typename T> bool isSorobanDataEntry(T const& e);
+template <typename T> bool isRestorableEntry(T const& e);
 
 template <typename T>
 bool

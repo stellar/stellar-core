@@ -46,6 +46,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             base_reserve: c.base_reserve,
             min_temp_entry_expiration: c.min_temp_entry_expiration,
             min_persistent_entry_expiration: c.min_persistent_entry_expiration,
+            max_entry_expiration: c.max_entry_expiration
         }
     }
 }
@@ -184,7 +185,7 @@ fn build_storage_footprint_from_xdr(
         read_only,
         read_write,
     } = footprint;
-    let mut access = FootprintMap::new()?;
+    let mut access = FootprintMap::new();
 
     populate_access_map(
         &mut access,
@@ -243,7 +244,7 @@ fn build_storage_map_from_xdr_ledger_entries(
     footprint: &storage::Footprint,
     ledger_entries: &Vec<CxxBuf>,
 ) -> Result<StorageMap, CoreHostError> {
-    let mut map = StorageMap::new()?;
+    let mut map = StorageMap::new();
     for buf in ledger_entries {
         let le = Rc::new(xdr_from_cxx_buf::<LedgerEntry>(buf)?);
         let key = Rc::new(ledger_entry_to_ledger_key(&le)?);
@@ -333,7 +334,6 @@ fn log_debug_events(events: &Events) {
 
 fn extract_bumps(bumps: &ExpirationLedgerBumps) -> Result<Vec<Bump>, HostError> {
     bumps
-        .0
         .iter()
         .map(|e| {
             Ok(Bump {

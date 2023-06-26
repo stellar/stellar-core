@@ -794,7 +794,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = assetToTrustLineAsset(asset);
-        auto trust = ltx.loadWithoutRecord(key);
+        auto trust = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
         if (trust && isAuthorizedToMaintainLiabilities(trust))
         {
             auto const& tl = trust.current().data.trustLine();
@@ -1242,14 +1242,16 @@ ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
 {
-    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key));
+    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key),
+                                      /*loadExpiredEntry=*/false);
     if (!ltxe)
     {
         return nullptr;
     }
     auto const& contractData = ltxe.current().data.contractData();
     if (contractData.body.bodyType() != DATA_ENTRY ||
-        contractData.body.data().val.type() != SCV_BYTES)
+        contractData.body.data().val.type() != SCV_BYTES ||
+        contractData.durability != PERSISTENT)
     {
         return nullptr;
     }
@@ -1347,6 +1349,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
     lk.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     lk.contractData().contract.contractId() = upgradeKey.contractID;
     lk.contractData().key = v;
+    lk.contractData().durability = PERSISTENT;
     return lk;
 }
 
@@ -1363,9 +1366,9 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
-        bool isSame =
-            ltx.loadWithoutRecord(key).current().data.configSetting() ==
-            updatedEntry;
+        bool isSame = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
+                          .current()
+                          .data.configSetting() == updatedEntry;
         if (!isSame)
         {
             return true;

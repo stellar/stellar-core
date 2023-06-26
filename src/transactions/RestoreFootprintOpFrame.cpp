@@ -61,11 +61,19 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     for (auto const& lk : footprint.readWrite)
     {
-        auto ltxe = ltx.load(lk);
+        auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
         if (ltxe)
         {
+            // Skip entries that are already live
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            if (isLive(ltxe.current(), ledgerSeq))
+            {
+                continue;
+            }
+
+            LedgerEntry restoredEntry = ltxe.current();
             auto keySize = xdr::xdr_size(lk);
-            auto entrySize = xdr::xdr_size(ltxe.current());
+            auto entrySize = xdr::xdr_size(restoredEntry);
             metrics.mLedgerWriteByte += keySize;
             metrics.mLedgerWriteByte += entrySize;
 
@@ -80,22 +88,23 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 return false;
             }
 
-            originalExpirations.emplace(LedgerEntryKey(ltxe.current()),
-                                        getExpirationLedger(ltxe.current()));
+            originalExpirations.emplace(LedgerEntryKey(restoredEntry),
+                                        getExpirationLedger(restoredEntry));
 
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             auto const& expirationSettings = app.getLedgerManager()
                                                  .getSorobanNetworkConfig(ltx)
                                                  .stateExpirationSettings();
             auto minPersistentExpirationLedger =
                 ledgerSeq + expirationSettings.minPersistentEntryExpiration;
 
-            if (getExpirationLedger(ltxe.current()) <
+            if (getExpirationLedger(restoredEntry) <
                 minPersistentExpirationLedger)
             {
-                setExpirationLedger(ltxe.current(),
+                setExpirationLedger(restoredEntry,
                                     minPersistentExpirationLedger);
             }
+
+            ltx.restore(restoredEntry);
         }
     }
 
