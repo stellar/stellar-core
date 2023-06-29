@@ -629,6 +629,7 @@ exit /b 0
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
@@ -654,6 +655,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.cpp" />
@@ -1041,6 +1043,7 @@ exit /b 0
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h" />
@@ -1066,6 +1069,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\RestoreFootprintOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.h" />

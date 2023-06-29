@@ -434,19 +434,23 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-LedgerTxnEntry
+ConstLedgerTxnEntry
 loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
-                 SCVal const& dataKey, ContractDataDurability type)
+                 SCVal const& dataKey, ContractDataDurability type,
+                 bool loadExpiredEntry)
 {
     ZoneScoped;
-    return ltx.load(contractDataKey(contract, dataKey, type, DATA_ENTRY));
+    return ltx.loadWithoutRecord(
+        contractDataKey(contract, dataKey, type, DATA_ENTRY), loadExpiredEntry);
 }
 
-LedgerTxnEntry
-loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
+ConstLedgerTxnEntry
+loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash,
+                 bool loadExpiredEntry)
 {
     ZoneScoped;
-    return ltx.load(contractCodeKey(hash, DATA_ENTRY));
+    return ltx.loadWithoutRecord(contractCodeKey(hash, DATA_ENTRY),
+                                 loadExpiredEntry);
 }
 #endif
 

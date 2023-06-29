@@ -145,10 +145,13 @@ LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
 LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-LedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
-                                SCAddress const& contract, SCVal const& dataKey,
-                                ContractDataDurability type);
-LedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
+ConstLedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
+                                     SCAddress const& contract,
+                                     SCVal const& dataKey,
+                                     ContractDataDurability type,
+                                     bool loadExpiredEntry = false);
+ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash,
+                                     bool loadExpiredEntry = false);
 #endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,

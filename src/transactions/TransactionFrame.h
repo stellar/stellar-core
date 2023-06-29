@@ -59,7 +59,8 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<FeePair> mSorobanResourceFee;
     // Size of the emitted Soroban metadata.
     uint32_t mConsumedSorobanMetadataSize{};
-    UnorderedMap<LedgerKey, uint32_t> mOriginalExpirations;
+    int64_t mConsumedRentFee{};
+    int64_t mFeeRefund{};
 #endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -122,8 +123,6 @@ class TransactionFrame : public TransactionFrameBase
                          AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
                          Hash const& sorobanBasePrngSeed);
 
-    bool applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx);
-
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
     bool processSignatures(ValidationType cv,
@@ -138,12 +137,11 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   uint32_t protocolVersion) const;
-    void refundSorobanFee(uint32_t protocolVersion,
-                          SorobanNetworkConfig const& sorobanConfig,
-                          Config const& cfg, AbstractLedgerTxn& ltx);
+    void refundSorobanFee(AbstractLedgerTxn& ltx);
     FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
         Config const& cfg, bool useConsumedRefundableResources) const;
+    int64 sorobanRefundableFee() const;
 #endif
 
   public:
@@ -286,7 +284,11 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
-    void consumeRefundableSorobanResource(uint32_t metadataSizeBytes);
+    void consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
+                                           int64_t rentFee);
+    bool computeSorobanFeeRefund(uint32_t protocolVersion,
+                                 SorobanNetworkConfig const& sorobanConfig,
+                                 Config const& cfg);
 #endif
 };
 }

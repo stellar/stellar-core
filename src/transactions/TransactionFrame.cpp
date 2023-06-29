@@ -138,14 +138,6 @@ TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
     mReturnValue = returnValue;
 }
-
-void
-TransactionFrame::pushInitialExpirations(
-    UnorderedMap<LedgerKey, uint32_t>&& originalExpirations)
-{
-    mOriginalExpirations = originalExpirations;
-}
-
 #endif
 
 TransactionEnvelope const&
@@ -231,19 +223,28 @@ TransactionFrame::getFullFee() const
 int64_t
 TransactionFrame::getFeeBid() const
 {
-    int64_t fullFee = getFullFee();
+    int64_t feeBid = getFullFee();
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!isSoroban())
     {
-        return fullFee;
+        return feeBid;
     }
     // We rely here on the Soroban fee being computed at
     // this point.
     releaseAssertOrThrow(mSorobanResourceFee);
-    return std::max(fullFee - mSorobanResourceFee->fee,
-                    static_cast<int64_t>(0));
+    if (feeBid < mSorobanResourceFee->non_refundable_fee)
+    {
+        return 0;
+    }
+    feeBid -= mSorobanResourceFee->non_refundable_fee;
+    int64_t declaredRefundableFee = sorobanRefundableFee();
+    if (feeBid < declaredRefundableFee)
+    {
+        return 0;
+    }
+    return feeBid - declaredRefundableFee;
 #else
-    return fullFee;
+    return feeBid;
 #endif
 }
 
@@ -678,20 +679,13 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 }
 
 void
-TransactionFrame::refundSorobanFee(uint32_t protocolVersion,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg,
-                                   AbstractLedgerTxn& ltxOuter)
+TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
 {
-    FeePair consumedFee =
-        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
-                                  /* useConsumedRefundableResources */ true);
-    if (mSorobanResourceFee->refundable_fee <= consumedFee.refundable_fee)
+    if (mFeeRefund == 0)
     {
         return;
     }
-    int64_t feeRefund =
-        mSorobanResourceFee->refundable_fee - consumedFee.refundable_fee;
+
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -702,8 +696,8 @@ TransactionFrame::refundSorobanFee(uint32_t protocolVersion,
 
     auto& acc = sourceAccount.current().data.account();
 
-    stellar::addBalance(acc.balance, feeRefund);
-    header.current().feePool -= feeRefund;
+    stellar::addBalance(acc.balance, mFeeRefund);
+    header.current().feePool -= mFeeRefund;
     ltx.commit();
 }
 
@@ -747,6 +741,16 @@ TransactionFrame::computeSorobanResourceFee(
         sorobanConfig.rustBridgeFeeConfiguration());
 }
 
+int64
+TransactionFrame::sorobanRefundableFee() const
+{
+    if (mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
+    {
+        return 0;
+    }
+    return mEnvelope.v1().tx.ext.sorobanData().refundableFee;
+}
+
 void
 TransactionFrame::maybeComputeSorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
@@ -775,17 +779,38 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     mSorobanResourceFee = std::make_optional<FeePair>(
         computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
                                   /* useConsumedRefundableResources */ false));
-    // This is the fee computation invariant.
-    releaseAssertOrThrow(mSorobanResourceFee->fee >=
-                         mSorobanResourceFee->refundable_fee);
 }
 
 void
-TransactionFrame::consumeRefundableSorobanResource(uint32_t metadataSizeBytes)
+TransactionFrame::consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
+                                                    int64_t rentFee)
 {
     mConsumedSorobanMetadataSize += metadataSizeBytes;
+    mConsumedRentFee += rentFee;
 }
 
+bool
+TransactionFrame::computeSorobanFeeRefund(
+    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+    Config const& cfg)
+{
+    mFeeRefund = sorobanRefundableFee();
+    if (mFeeRefund < mConsumedRentFee)
+    {
+        return false;
+    }
+    mFeeRefund -= mConsumedRentFee;
+
+    FeePair consumedFee =
+        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
+                                  /* useConsumedRefundableResources */ true);
+    if (mFeeRefund < consumedFee.refundable_fee)
+    {
+        return false;
+    }
+    mFeeRefund -= consumedFee.refundable_fee;
+    return true;
+}
 #endif
 
 bool
@@ -970,15 +995,9 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         }
 
         auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
-        // Full fee has to be greater than the resource fee or
-        // tx-specified refundable fee.
-        if (getFullFee() < mSorobanResourceFee->fee ||
-            getFullFee() < sorobanData.refundableFee)
-        {
-            getResult().result.code(txINSUFFICIENT_FEE);
-            return false;
-        }
         // Refundable fee shouldn't exceed tx-specified refundable fee.
+        // NB: Overall Soroban resource fee is verified as a part of
+        // the fee bid validation.
         if (sorobanData.refundableFee < mSorobanResourceFee->refundable_fee)
         {
             getResult().result.code(txINSUFFICIENT_FEE);
@@ -1494,7 +1513,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
         }
 
-        success = success && applyExpirationBumps(app, ltxTx);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (isSoroban())
+        {
+            success = success &&
+                      computeSorobanFeeRefund(
+                          ledgerVersion,
+                          app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                          app.getConfig());
+        }
+#endif
 
         if (success)
         {
@@ -1545,8 +1573,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             markResultFailed();
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             // If transaction fails, we don't charge for any
-            // Soroban metadata (as we don't emit any).
-            mConsumedSorobanMetadataSize = 0;
+            // refundable resources.
+            mFeeRefund = sorobanRefundableFee();
             outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
 #endif
         }
@@ -1617,180 +1645,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     outerMeta.clearOperationMetas();
     outerMeta.clearTxChangesAfter();
     return false;
-}
-
-// This function is responsible for auto expiration bumps, enforcing expiration
-// bounds, and charging expiration related fees. After InvokeHostFunctionOp is
-// applied, the host should have set LedgerEnry expirations as follows:
-//
-// If an entry was created with no manual expiration extension:
-//      entry.expirationLedgerSeq == LastClosedLedgerSeq
-//
-// If an entry was manually bumped:
-//      entry.expirationLedgerSeq == specifiedExpiration
-//
-// Where specifiedExpiration is the expiration extension from the manual bump.
-// Note that this is a contract provided expiration so it may be outside the
-// allowed expiration bounds and may need modification. The host should not
-// apply any auto bumps.
-//
-// Once we reach this, the smart contract function has succeeded. To avoid
-// burning fees unnecessarily, we should only fail the tx if refundableFee is
-// not large enough to pay for the required expiration extensions. If a user
-// specifies a expiration extension outside the bounds, the expiration will be
-// set to the bound and charged accordingly. So long as refundableFee is large
-// enough to cover the adjusted expirations, the tx still succeeds.
-bool
-TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
-{
-    if (!isSoroban())
-    {
-        return true;
-    }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerTxn ltxTx(ltx);
-    auto const& resources = sorobanResources();
-    auto ledgerSeq = ltxTx.loadHeader().current().ledgerSeq;
-    auto const& expirationSettings = app.getLedgerManager()
-                                         .getSorobanNetworkConfig(ltxTx)
-                                         .stateExpirationSettings();
-
-    auto maxExpirationLedger =
-        ledgerSeq + expirationSettings.maxEntryExpiration;
-    auto minRestorableExpirationLedger =
-        ledgerSeq + expirationSettings.minPersistentEntryExpiration;
-    auto minTempExpirationLedger =
-        ledgerSeq + expirationSettings.minTempEntryExpiration;
-    auto autoBumpLedgers = expirationSettings.autoBumpLedgers;
-
-    // Applies the correct expiration to LE. If expiration has not changed from
-    // pre-tx apply value, returns false. Otherwise, returns true
-    auto bump = [&](LedgerEntry& le, bool autoBump, bool enforceMinimum) {
-        // If an entry is being created for the first time, there is no original
-        // expiration, so set it to lcl for fee calculation purposes
-        auto iter = mOriginalExpirations.find(LedgerEntryKey(le));
-        uint32_t preApplyExpiration =
-            iter == mOriginalExpirations.end() ? ledgerSeq : iter->second;
-        uint32_t postApplyExpiration = getExpirationLedger(le);
-        uint32_t minimumForEntry = preApplyExpiration;
-
-        // First, calculate minimum expiration that should be applied. This
-        // value is (preApplyExpiration + autobump) or minExpirationForType,
-        // whichever is greater.
-        if (autoBump)
-        {
-            // Note: preApplyExpiration is guarenteed to be a valid expiration
-            // ledger so this can't overflow
-            minimumForEntry = preApplyExpiration + autoBumpLedgers;
-        }
-
-        if (enforceMinimum)
-        {
-            if (isTemporaryEntry(le.data))
-            {
-                minimumForEntry =
-                    std::max(minimumForEntry, minTempExpirationLedger);
-            }
-            else
-            {
-                minimumForEntry =
-                    std::max(minimumForEntry, minRestorableExpirationLedger);
-            }
-        }
-
-        // Check if the expiration bump applied by the host is enough to cover
-        // the required minimum
-        uint32_t expirationToApply = postApplyExpiration < minimumForEntry
-                                         ? minimumForEntry
-                                         : postApplyExpiration;
-
-        // Cap at max expiration
-        expirationToApply = std::min(expirationToApply, maxExpirationLedger);
-
-        if (expirationToApply == preApplyExpiration)
-        {
-            return false;
-        }
-        else
-        {
-            setExpirationLedger(le, expirationToApply);
-            return true;
-        }
-    };
-
-    for (auto const& key : resources.footprint.readWrite)
-    {
-        auto lte = ltxTx.load(key);
-        if (lte && isSorobanDataEntry(lte.current().data))
-        {
-            // Must enforce minimum expirations on write
-            bump(lte.current(),
-                 autoBumpLedgers > 0 && autoBumpEnabled(lte.current()), true);
-        }
-    }
-
-    bool isBumpOp = mOperations.front()->getOperation().body.type() ==
-                    BUMP_FOOTPRINT_EXPIRATION;
-    // TODO: Write expiration extension entries instead of witing whole entry
-    for (auto const& key : resources.footprint.readOnly)
-    {
-        // We don't need to enforce minimum on reads so this is just for
-        // autobump
-        if (autoBumpLedgers > 0)
-        {
-            auto lte = ltxTx.load(key);
-            if (lte && isSorobanDataEntry(lte.current().data))
-            {
-                bump(lte.current(), autoBumpEnabled(lte.current()) && !isBumpOp,
-                     false);
-            }
-        }
-    }
-
-    // WIP
-
-    // for (auto const& key : resources.footprint.readOnly)
-    // {
-    //     // Load without record to avoid rewriting full DATA_ENTRY. Instead,
-    //     // create a EXPIRATION_EXTENSION entry
-    //     auto lte = ltxTx.loadWithoutRecord(key);
-    //     if (lte && isSorobanDataEntry(lte.current().data))
-    //     {
-    //         auto extK = key;
-    //         setLeType(extK, EXPIRATION_EXTENSION);
-
-    //         // If a EXPIRATION_EXTENSION for the given entry already exists,
-    //         load
-    //         // it
-    //         auto extLte = ltxTx.load(extK);
-    //         if (extLte)
-    //         {
-    //             // Extension may be out of date so set the expiration
-    //             auto& extLe = extLte.current();
-    //             setExpirationLedger(extLe,
-    //             getExpirationLedger(lte.current()));
-
-    //             // Don't enforce minimums on reads
-    //             bump(extLe, autoBumpEnabled(lte.current()), false);
-    //         }
-    //         else
-    //         {
-    //             auto extLe = expirationExtensionFromDataEntry(lte.current());
-
-    //             // Don't enforce minimums on reads
-    //             if (bump(extLe, autoBumpEnabled(lte.current()), false))
-    //             {
-    //                 ltxTx.create(InternalLedgerEntry(extLe));
-    //             }
-    //         }
-    //     }
-    // }
-
-    ltxTx.commit();
-#endif
-
-    return true;
 }
 
 bool
@@ -1879,9 +1733,7 @@ TransactionFrame::processPostApply(Application& app,
     // Process Soroban resource fee refund (this is independent of the
     // transaction success).
     LedgerTxn ltx(ltxOuter);
-    refundSorobanFee(ltx.loadHeader().current().ledgerVersion,
-                     app.getLedgerManager().getSorobanNetworkConfig(ltx),
-                     app.getConfig(), ltx);
+    refundSorobanFee(ltx);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
 #endif

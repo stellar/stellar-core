@@ -5,8 +5,9 @@
 use crate::{
     log::partition::TX,
     rust_bridge::{
-        Bump, CxxBuf, CxxFeeConfiguration, CxxLedgerInfo, CxxTransactionResources, FeePair,
-        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
+        Bump, CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
+        CxxRentFeeConfiguration, CxxTransactionResources, FeePair, InvokeHostFunctionOutput,
+        RustBuf, XDRFileHash,
     },
 };
 use log::debug;
@@ -21,13 +22,14 @@ use super::soroban_env_host::{
     events::Events,
     expiration_ledger_bumps::ExpirationLedgerBumps,
     fees::{
+        compute_rent_fee as host_compute_rent_fee,
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
-        FeeConfiguration, TransactionResources,
+        FeeConfiguration, LedgerEntryRentChange, RentFeeConfiguration, TransactionResources,
     },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
         self, AccountId, ContractCodeEntryBody, ContractCostParams, ContractDataEntryBody,
-        ContractEvent, ContractEventType, ContractEntryBodyType, DiagnosticEvent, HostFunction,
+        ContractEntryBodyType, ContractEvent, ContractEventType, DiagnosticEvent, HostFunction,
         LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyContractCode,
         LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScErrorCode, ScErrorType,
         SorobanAuthorizationEntry, SorobanResources, WriteXdr, XDR_FILES_SHA256,
@@ -46,7 +48,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             base_reserve: c.base_reserve,
             min_temp_entry_expiration: c.min_temp_entry_expiration,
             min_persistent_entry_expiration: c.min_persistent_entry_expiration,
-            max_entry_expiration: c.max_entry_expiration
+            max_entry_expiration: c.max_entry_expiration,
         }
     }
 }
@@ -76,6 +78,28 @@ impl From<CxxFeeConfiguration> for FeeConfiguration {
             fee_per_historical_1kb: value.fee_per_historical_1kb,
             fee_per_metadata_1kb: value.fee_per_metadata_1kb,
             fee_per_propagate_1kb: value.fee_per_propagate_1kb,
+        }
+    }
+}
+
+impl From<&CxxLedgerEntryRentChange> for LedgerEntryRentChange {
+    fn from(value: &CxxLedgerEntryRentChange) -> Self {
+        Self {
+            is_persistent: value.is_persistent,
+            old_size_bytes: value.old_size_bytes,
+            new_size_bytes: value.new_size_bytes,
+            old_expiration_ledger: value.old_expiration_ledger,
+            new_expiration_ledger: value.new_expiration_ledger,
+        }
+    }
+}
+
+impl From<CxxRentFeeConfiguration> for RentFeeConfiguration {
+    fn from(value: CxxRentFeeConfiguration) -> Self {
+        Self {
+            fee_per_write_1kb: value.fee_per_write_1kb,
+            persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
+            temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
         }
     }
 }
@@ -403,17 +427,17 @@ fn invoke_host_function_or_maybe_panic(
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
     let auth_entries = build_auth_entries_from_xdr(auth_entries)?;
     let host = Host::with_storage_and_budget(storage, budget);
-    host.set_source_account(source_account);
-    host.set_ledger_info(ledger_info.into());
+    host.set_source_account(source_account)?;
+    host.set_ledger_info(ledger_info.into())?;
     host.set_authorization_entries(auth_entries)?;
     let seed32: [u8; 32] = base_prng_seed
         .data
         .as_slice()
         .try_into()
         .map_err(|_| CoreHostError::General("Wrong base PRNG seed size"))?;
-    host.set_base_prng_seed(seed32);
+    host.set_base_prng_seed(seed32)?;
     if enable_diagnostics {
-        host.set_diagnostic_level(DiagnosticLevel::Debug);
+        host.set_diagnostic_level(DiagnosticLevel::Debug)?;
     }
 
     let res = host.invoke_function(hf);
@@ -431,8 +455,8 @@ fn invoke_host_function_or_maybe_panic(
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
-                cpu_insns: budget.get_cpu_insns_consumed(),
-                mem_bytes: budget.get_mem_bytes_consumed(),
+                cpu_insns: budget.get_cpu_insns_consumed()?,
+                mem_bytes: budget.get_mem_bytes_consumed()?,
                 expiration_bumps: vec![],
             });
         }
@@ -450,8 +474,8 @@ fn invoke_host_function_or_maybe_panic(
         contract_events,
         diagnostic_events,
         modified_ledger_entries,
-        cpu_insns: budget.get_cpu_insns_consumed(),
-        mem_bytes: budget.get_mem_bytes_consumed(),
+        cpu_insns: budget.get_cpu_insns_consumed()?,
+        mem_bytes: budget.get_mem_bytes_consumed()?,
         expiration_bumps,
     })
 }
@@ -460,10 +484,19 @@ pub(crate) fn compute_transaction_resource_fee(
     tx_resources: CxxTransactionResources,
     fee_config: CxxFeeConfiguration,
 ) -> FeePair {
-    let (fee, refundable_fee) =
+    let (non_refundable_fee, refundable_fee) =
         host_compute_transaction_resource_fee(&tx_resources.into(), &fee_config.into());
     FeePair {
-        fee,
+        non_refundable_fee,
         refundable_fee,
     }
+}
+
+pub(crate) fn compute_rent_fee(
+    changed_entries: &Vec<CxxLedgerEntryRentChange>,
+    fee_config: CxxRentFeeConfiguration,
+    current_ledger_seq: u32,
+) -> i64 {
+    let changed_entries = changed_entries.iter().map(|e| e.into()).collect();
+    host_compute_rent_fee(&changed_entries, &fee_config.into(), current_ledger_seq)
 }
