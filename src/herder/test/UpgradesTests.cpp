@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
@@ -281,6 +284,15 @@ getMaxContractSizeKey()
     maxContractSizeKey.configSetting().configSettingID =
         CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
     return maxContractSizeKey;
+}
+
+LedgerKey
+getBucketListSizeWindowKey()
+{
+    LedgerKey windowKey(CONFIG_SETTING);
+    windowKey.configSetting().configSettingID =
+        CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+    return windowKey;
 }
 
 #endif
@@ -2015,6 +2027,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(!ltx.load(getMaxContractSizeKey()));
     }
 
+    auto blSize = app->getBucketManager().getBucketList().getSize();
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
@@ -2025,6 +2038,32 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
             CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     REQUIRE(maxContractSizeEntry.contractMaxSizeBytes() ==
             InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
+
+    // Check that BucketList size window initialized with current BL size
+    auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
+
+    // Check in memory window
+    auto const& inMemoryWindow =
+        networkConfig.getBucketListSizeWindowForTesting();
+    REQUIRE(inMemoryWindow.size() ==
+            InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+    for (auto const& e : inMemoryWindow)
+    {
+        REQUIRE(e == blSize);
+    }
+
+    // Check LedgerEntry with window
+    auto onDiskWindow = ltx.load(getBucketListSizeWindowKey())
+                            .current()
+                            .data.configSetting()
+                            .bucketListSizeWindow();
+    REQUIRE(onDiskWindow.size() ==
+            InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+    for (auto const& e : onDiskWindow)
+    {
+        REQUIRE(e == blSize);
+    }
 }
 #endif
 

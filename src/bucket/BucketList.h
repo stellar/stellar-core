@@ -497,6 +497,10 @@ class BucketList
     // returns the largest level that this ledger will need to merge
     uint32_t getMaxMergeLevel(uint32_t currLedger) const;
 
+    // Returns the total size of the BucketList, in bytes, excluding all
+    // FutureBuckets
+    uint64_t getSize() const;
+
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing
     // `currLedger`. The bucketlist will incorporate these into the smallest

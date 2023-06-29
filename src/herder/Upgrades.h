@@ -169,7 +169,7 @@ class ConfigUpgradeSetFrame
     bool upgradeNeeded(AbstractLedgerTxn& ltx,
                        LedgerHeader const& lclHeader) const;
 
-    void applyTo(AbstractLedgerTxn& ltx) const;
+    void applyTo(AbstractLedgerTxn& ltx, Application& app) const;
 
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;

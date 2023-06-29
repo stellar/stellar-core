@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/NetworkConfig.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
+#include "main/Application.h"
 #include "util/ProtocolVersion.h"
 
 namespace stellar
@@ -335,6 +338,8 @@ initialStateExpirationSettings()
         InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
     entry.stateExpirationSettings().minTempEntryExpiration =
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+    entry.stateExpirationSettings().bucketListSizeWindowSampleSize =
+        InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
 
     return entry;
 }
@@ -450,14 +455,33 @@ initialMemCostParamsEntry(Config const& cfg)
     return entry;
 }
 
+ConfigSettingEntry
+initialbucketListSizeWindow(Application& app)
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
+
+    // Populate 30 day sliding window of BucketList size snapshots with 30
+    // copies of the current BL size
+    auto blSize = app.getBucketManager().getBucketList().getSize();
+    for (auto i = 0;
+         i < InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
+         ++i)
+    {
+        entry.bucketListSizeWindow().push_back(blSize);
+    }
+
+    return entry;
+}
+
 #endif
 }
 
 void
 SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
-                                                Config const& cfg)
+                                                Application& app)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
@@ -473,16 +497,18 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialCpuCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(cfg), ltx);
     createConfigSettingEntry(initialStateExpirationSettings(), ltx);
+
+    createConfigSettingEntry(initialbucketListSizeWindow(app), ltx);
 #endif
 }
 
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
-    uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Config const& cfg)
+    uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Application& app)
 {
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_20))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, cfg);
+        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
 }
 
@@ -502,6 +528,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot)
     loadMemCostParams(ltx);
     loadStateExpirationSettings(ltx);
     loadExecutionLanesSettings(ltx);
+    loadBucketListSizeWindow(ltx);
 }
 
 void
@@ -668,6 +695,68 @@ SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
 #endif
 }
+
+void
+SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+    auto txle = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+    releaseAssert(txle);
+    auto const& leVector =
+        txle.current().data.configSetting().bucketListSizeWindow();
+    mBucketListSizeSnapshots.clear();
+    for (auto e : leVector)
+    {
+        mBucketListSizeSnapshots.push_back(e);
+    }
+
+    updateBucketListSizeAverage();
+#endif
+}
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+SorobanNetworkConfig::writeBucketListSizeWindow(
+    AbstractLedgerTxn& ltxRoot) const
+{
+    // Check that the window is loaded and the number of snapshots is correct
+    releaseAssert(mBucketListSizeSnapshots.size() ==
+                  mStateExpirationSettings.bucketListSizeWindowSampleSize);
+
+    // Load outdated snapshot entry from DB
+    LedgerTxn ltx(ltxRoot);
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+
+    // Copy in-memory snapshots to ledger entry
+    auto& leVector = txle.current().data.configSetting().bucketListSizeWindow();
+    leVector.clear();
+    for (auto e : mBucketListSizeSnapshots)
+    {
+        leVector.push_back(e);
+    }
+
+    ltx.commit();
+}
+
+void
+SorobanNetworkConfig::updateBucketListSizeAverage() const
+{
+    uint64_t sizeSum = 0;
+    for (auto const& size : mBucketListSizeSnapshots)
+    {
+        sizeSum += size;
+    }
+
+    mAverageBucketListSize = sizeSum / mBucketListSizeSnapshots.size();
+}
+#endif
 
 uint32_t
 SorobanNetworkConfig::maxContractSizeBytes() const
@@ -868,6 +957,93 @@ SorobanNetworkConfig::ledgerMaxTxCount() const
     return mLedgerMaxTxCount;
 }
 
+uint32_t
+SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
+{
+#ifdef BUILD_TESTS
+    if (mBucketListSnapshotPeriodForTesting)
+    {
+        return *mBucketListSnapshotPeriodForTesting;
+    }
+#endif
+
+    return BUCKETLIST_SIZE_SNAPSHOT_PERIOD;
+}
+
+void
+SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx,
+                                                      uint32_t newSize) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // // Check if BucketList size window should exist
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_20))
+    {
+        return;
+    }
+
+    auto currSize = mBucketListSizeSnapshots.size();
+    if (newSize == currSize)
+    {
+        // No size change, nothing to update
+        return;
+    }
+
+    if (newSize < currSize)
+    {
+        while (mBucketListSizeSnapshots.size() != newSize)
+        {
+            mBucketListSizeSnapshots.pop_front();
+        }
+    }
+    // If newSize > currSize, backfill new slots with oldest value in window
+    // such that they are the first to get replaced by new values
+    else
+    {
+        auto oldestSize = mBucketListSizeSnapshots.front();
+        while (mBucketListSizeSnapshots.size() != newSize)
+        {
+            mBucketListSizeSnapshots.push_front(oldestSize);
+        }
+    }
+
+    updateBucketListSizeAverage();
+    writeBucketListSizeWindow(ltx);
+#endif
+}
+
+void
+SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
+                                                  AbstractLedgerTxn& ltx,
+                                                  Application& app) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // // Check if BucketList size window should exist
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_20))
+    {
+        return;
+    }
+
+    if (currLedger % getBucketListSizeSnapshotPeriod() == 0)
+    {
+        // Update in memory snapshots
+        mBucketListSizeSnapshots.pop_front();
+        mBucketListSizeSnapshots.push_back(
+            app.getBucketManager().getBucketList().getSize());
+
+        writeBucketListSizeWindow(ltx);
+        updateBucketListSizeAverage();
+    }
+#endif
+}
+
+uint64_t
+SorobanNetworkConfig::getAverageBucketListSize() const
+{
+    return mAverageBucketListSize;
+}
+
 #ifdef BUILD_TESTS
 uint32_t&
 SorobanNetworkConfig::maxContractDataKeySizeBytes()
@@ -879,6 +1055,19 @@ uint32_t&
 SorobanNetworkConfig::maxContractDataEntrySizeBytes()
 {
     return mMaxContractDataEntrySizeBytes;
+}
+
+void
+SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(
+    uint32_t period) const
+{
+    mBucketListSnapshotPeriodForTesting = period;
+}
+
+std::deque<uint64_t> const&
+SorobanNetworkConfig::getBucketListSizeWindowForTesting() const
+{
+    return mBucketListSizeSnapshots;
 }
 #endif
 

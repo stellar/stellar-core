@@ -3692,10 +3692,6 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey,
         ++mPrefetchMisses;
     }
 
-    std::optional<uint32_t> expirationCutoff =
-        loadExpiredEntry ? std::nullopt
-                         : std::make_optional(mHeader->ledgerSeq);
-
     std::shared_ptr<LedgerEntry const> entry;
     try
     {

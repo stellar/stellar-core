@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Upgrades.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
@@ -329,7 +330,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         {
             throw std::runtime_error("config upgrade set is no longer valid");
         }
-        cfgUpgrade->applyTo(ltx);
+        cfgUpgrade->applyTo(ltx, app);
         break;
     }
 #endif
@@ -1217,7 +1218,7 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(SOROBAN_PROTOCOL_VERSION, prevVersion, newVersion))
     {
-        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app.getConfig());
+        SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
 #endif
 }
@@ -1378,13 +1379,25 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
 }
 
 void
-ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx) const
+ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
 {
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
-        key.configSetting().configSettingID = updatedEntry.configSettingID();
+        auto const id = updatedEntry.configSettingID();
+        key.configSetting().configSettingID = id;
         ltx.load(key).current().data.configSetting() = updatedEntry;
+
+        // State Expiration Setting may have changed BucketListWindowSize, so
+        // BucketManager may have to update window
+        if (id == ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION)
+        {
+            auto newWindowSize = updatedEntry.stateExpirationSettings()
+                                     .bucketListSizeWindowSampleSize;
+            app.getLedgerManager()
+                .getSorobanNetworkConfig(ltx)
+                .maybeUpdateBucketListWindowSize(ltx, newWindowSize);
+        }
     }
 }
 
@@ -1443,6 +1456,12 @@ ConfigUpgradeSetFrame::isValidForApply() const
             // Validation should be implemented when implementing/tuning
             // the respective settings.
             valid = true;
+            break;
+        case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+            // While the BucketList size window is stored in a ConfigSetting
+            // entry, the BucketList defines these values, they should never be
+            // changed via upgrade
+            valid = false;
             break;
         }
         if (!valid)
