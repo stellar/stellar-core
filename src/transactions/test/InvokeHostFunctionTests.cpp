@@ -451,6 +451,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto app = createTestApplication(clock, getTestConfig());
     auto root = TestAccount::createRoot(*app);
 
+    {
+        // Autobump is disabled by default, so so enable it here for testing.
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto networkConfig =
+            app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        auto stateExpirationSettings = networkConfig.stateExpirationSettings();
+        stateExpirationSettings.autoBumpLedgers = 10;
+        networkConfig.stateExpirationSettings() = stateExpirationSettings;
+        app->getLedgerManager().setSorobanNetworkConfig(networkConfig);
+    }
+
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
 
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);

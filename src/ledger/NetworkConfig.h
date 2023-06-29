@@ -77,7 +77,7 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4096;
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
-    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 10;
+    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
@@ -191,6 +191,9 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings const& stateExpirationSettings() const;
+#ifdef BUILD_TESTS
+    StateExpirationSettings& stateExpirationSettings();
+#endif
 #endif
 
   private:

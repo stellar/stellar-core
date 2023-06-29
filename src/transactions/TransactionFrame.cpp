@@ -1685,7 +1685,8 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
         if (lte && isSorobanDataEntry(lte.current().data))
         {
             // Must enforce minimum expirations on write
-            bump(lte.current(), autoBumpEnabled(lte.current()), true);
+            bump(lte.current(),
+                 autoBumpLedgers > 0 && autoBumpEnabled(lte.current()), true);
         }
     }
 
@@ -1694,12 +1695,16 @@ TransactionFrame::applyExpirationBumps(Application& app, AbstractLedgerTxn& ltx)
     // TODO: Write expiration extension entries instead of witing whole entry
     for (auto const& key : resources.footprint.readOnly)
     {
-        auto lte = ltxTx.load(key);
-        if (lte && isSorobanDataEntry(lte.current().data))
+        // We don't need to enforce minimum on reads so this is just for
+        // autobump
+        if (autoBumpLedgers > 0)
         {
-            // Must enforce minimum expirations on write
-            bump(lte.current(), autoBumpEnabled(lte.current()) && !isBumpOp,
-                 true);
+            auto lte = ltxTx.load(key);
+            if (lte && isSorobanDataEntry(lte.current().data))
+            {
+                bump(lte.current(), autoBumpEnabled(lte.current()) && !isBumpOp,
+                     false);
+            }
         }
     }
 
