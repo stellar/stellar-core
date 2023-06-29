@@ -1206,7 +1206,9 @@ OverlayManagerImpl::getMaxAdvertSize() const
                           cfg.FLOOD_OP_RATE_PER_LEDGER);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ true,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto limits = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
         opsToFloodPerLedger += getOpsFloodLedger(
             limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
