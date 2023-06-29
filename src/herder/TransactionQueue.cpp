@@ -984,7 +984,9 @@ TransactionQueue::clearAll()
     {
         b.clear();
     }
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     mTxQueueLimiter->reset(ltx);
     mKnownTxHashes.clear();
 }
@@ -1240,7 +1242,7 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
     auto const& cfg = mApp.getConfig();
     double ratePerLedger = cfg.FLOOD_SOROBAN_RATE_PER_LEDGER;
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto sorRes = mApp.getLedgerManager().maxLedgerResources(true, ltx);
 
@@ -1312,7 +1314,8 @@ SorobanTransactionQueue::broadcastSome()
 
     {
         // get Max soroban tx resources
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(), false,
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
         int64_t const opCount = 1;
@@ -1336,7 +1339,9 @@ SorobanTransactionQueue::broadcastSome()
 size_t
 SorobanTransactionQueue::getMaxQueueSizeOps() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
     releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);
@@ -1541,7 +1546,9 @@ TransactionQueue::getInQueueSeqNum(AccountID const& account) const
 size_t
 ClassicTransactionQueue::getMaxQueueSizeOps() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto res = mTxQueueLimiter->maxScaledLedgerResources(false, ltx);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);
