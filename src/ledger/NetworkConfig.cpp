@@ -902,6 +902,14 @@ SorobanNetworkConfig::stateExpirationSettings() const
     return mStateExpirationSettings;
 }
 
+#ifdef BUILD_TESTS
+StateExpirationSettings&
+SorobanNetworkConfig::stateExpirationSettings()
+{
+    return mStateExpirationSettings;
+}
+#endif
+
 bool
 SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)
 {
