@@ -507,6 +507,15 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     {
         return false;
     }
+    if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
+    {
+        auto const& preimage = hostFn.createContract().contractIDPreimage;
+        if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
+            !isAssetValid(preimage.fromAsset(), ledgerVersion))
+        {
+            return false;
+        }
+    }
     return true;
 }
 
