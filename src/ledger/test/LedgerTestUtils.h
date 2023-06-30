@@ -46,6 +46,10 @@ std::vector<LedgerEntry> generateValidUniqueLedgerEntries(size_t n);
 std::vector<LedgerKey> generateValidLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+std::vector<LedgerKey> generateUniqueValidSorobanLedgerEntryKeys(size_t n);
+#endif
+
 std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
 

@@ -136,7 +136,8 @@ class TransactionFrame : public TransactionFrameBase
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     bool validateSorobanOpsConsistency() const;
-    bool validateSorobanResources(SorobanNetworkConfig const& config) const;
+    bool validateSorobanResources(SorobanNetworkConfig const& config,
+                                  uint32_t protocolVersion) const;
     void refundSorobanFee(uint32_t protocolVersion,
                           SorobanNetworkConfig const& sorobanConfig,
                           Config const& cfg, AbstractLedgerTxn& ltx);

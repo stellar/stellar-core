@@ -45,7 +45,7 @@ getAccountID(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return *le.ext.v1().sponsoringID;
     default:
-        abort();
+        throw std::runtime_error("Invalid key type");
     }
 }
 
@@ -434,6 +434,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case LIQUIDITY_POOL:
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
+        case CONTRACT_CODE:
         case CONFIG_SETTING:
 #endif
             innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);

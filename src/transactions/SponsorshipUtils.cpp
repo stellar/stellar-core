@@ -205,6 +205,7 @@ computeMultiplier(LedgerEntry const& le)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
+    case CONTRACT_CODE:
 #endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
@@ -229,6 +230,7 @@ isSubentry(LedgerEntry const& le)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
     case CONFIG_SETTING:
+    case CONTRACT_CODE:
 #endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(

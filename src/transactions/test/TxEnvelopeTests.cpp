@@ -2531,9 +2531,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     resources.extendedMetaDataSizeBytes =
         InitialSorobanNetworkConfig::TX_MAX_EXTENDED_META_DATA_SIZE_BYTES;
 
-    auto keys =
-        LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
-            {}, InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
+    auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
+        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
 
     resources.footprint.readWrite.assign(
         keys.begin(),
