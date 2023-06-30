@@ -473,6 +473,7 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
     uint32_t TESTING_LEDGER_MAX_WRITE_BYTES;
     uint32_t TESTING_LEDGER_MAX_SOROBAN_TX_COUNT;
+    uint32_t TESTING_TX_MAX_SIZE_BYTES;
 
     unsigned short HTTP_PORT; // what port to listen for commands
     bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost

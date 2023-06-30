@@ -181,13 +181,15 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
     {
         e.ledgerMaxPropagateSizeBytes =
             cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+        e.txMaxSizeBytes = cfg.TESTING_TX_MAX_SIZE_BYTES;
     }
     else
     {
         e.ledgerMaxPropagateSizeBytes =
             InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+        e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     }
-    e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+
     e.feePropagateData1KB = InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
 
     return entry;
