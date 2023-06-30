@@ -2533,7 +2533,10 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
 
     auto keys =
         LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
-            {}, InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
+            {LedgerEntryType::OFFER, LedgerEntryType::DATA,
+             LedgerEntryType::CLAIMABLE_BALANCE,
+             LedgerEntryType::LIQUIDITY_POOL, LedgerEntryType::CONFIG_SETTING},
+            InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
 
     resources.footprint.readWrite.assign(
         keys.begin(),

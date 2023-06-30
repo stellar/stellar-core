@@ -586,8 +586,8 @@ TransactionFrame::validateSorobanOpsConsistency() const
 }
 
 bool
-TransactionFrame::validateSorobanResources(
-    SorobanNetworkConfig const& config) const
+TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
+                                           uint32_t protocolVersion) const
 {
     auto const& resources = sorobanResources();
     auto const& readEntries = resources.footprint.readOnly;
@@ -615,16 +615,56 @@ TransactionFrame::validateSorobanResources(
     {
         return false;
     }
+    auto footprintKeyIsValid = [&](LedgerKey const& key) -> bool {
+        if (isSorobanExtEntry(key))
+        {
+            return false;
+        }
+
+        switch (key.type())
+        {
+        case ACCOUNT:
+        case CONTRACT_DATA:
+        case CONTRACT_CODE:
+            break;
+        case TRUSTLINE:
+        {
+            auto const& tl = key.trustLine();
+            if (!isAssetValid(tl.asset, protocolVersion) ||
+                (tl.asset.type() == ASSET_TYPE_NATIVE) ||
+                isIssuer(tl.accountID, tl.asset))
+            {
+                return false;
+            }
+            break;
+        }
+        case OFFER:
+        case DATA:
+        case CLAIMABLE_BALANCE:
+        case LIQUIDITY_POOL:
+        case CONFIG_SETTING:
+            return false;
+        default:
+            throw std::runtime_error("unknown ledger key type");
+        }
+
+        if (xdr::xdr_size(key) > config.maxContractDataKeySizeBytes())
+        {
+            return false;
+        }
+
+        return true;
+    };
     for (auto const& lk : readEntries)
     {
-        if (xdr::xdr_size(lk) > config.maxContractDataKeySizeBytes())
+        if (!footprintKeyIsValid(lk))
         {
             return false;
         }
     }
     for (auto const& lk : writeEntries)
     {
-        if (xdr::xdr_size(lk) > config.maxContractDataKeySizeBytes())
+        if (!footprintKeyIsValid(lk))
         {
             return false;
         }
@@ -923,7 +963,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         }
         auto const& sorobanConfig =
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
-        if (!validateSorobanResources(sorobanConfig))
+        if (!validateSorobanResources(sorobanConfig, ledgerVersion))
         {
             getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
             return false;
