@@ -52,7 +52,7 @@ class FlowControl
 
     NodeID mNodeID;
     std::shared_ptr<FlowControlCapacity> mFlowControlCapacity;
-    std::shared_ptr<FlowControlCapacity> mFlowControlBytesCapacity;
+    std::shared_ptr<FlowControlByteCapacity> mFlowControlBytesCapacity;
 
     Application& mApp;
 
@@ -90,6 +90,9 @@ class FlowControl
     virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
     void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
     virtual size_t getOutboundQueueByteLimit() const;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void handleTxSizeIncrease(uint64_t increase, std::shared_ptr<Peer> peer);
+#endif
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>

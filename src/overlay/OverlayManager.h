@@ -196,5 +196,6 @@ class OverlayManager
     virtual ~OverlayManager()
     {
     }
+    virtual std::pair<uint32_t, uint32_t> getFlowControlBytesConfig() const = 0;
 };
 }

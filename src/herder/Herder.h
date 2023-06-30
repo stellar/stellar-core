@@ -147,6 +147,7 @@ class Herder
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
+    virtual void setMaxClassicTxSize(size_t bytes) = 0;
 
     virtual ClassicTransactionQueue& getTransactionQueue() = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -158,6 +159,8 @@ class Herder
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
     virtual uint32_t trackingConsensusLedgerIndex() const = 0;
+    virtual uint64_t getMaxClassicTxSize() = 0;
+    virtual uint64_t getMaxTxSize() const = 0;
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;
@@ -211,6 +214,7 @@ class Herder
     virtual size_t getMaxQueueSizeOps() const = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual size_t getMaxQueueSizeSorobanOps() const = 0;
+    virtual void maybeHandleUpgrade() = 0;
 #endif
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;

@@ -112,6 +112,18 @@ HerderImpl::getState() const
     return mState;
 }
 
+uint64_t
+HerderImpl::getMaxClassicTxSize()
+{
+#ifdef BUILD_TESTS
+    if (mMaxClassicTxSize)
+    {
+        return *mMaxClassicTxSize;
+    }
+#endif
+    return MAX_CLASSIC_TX_SIZE_BYTES;
+}
+
 void
 HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
                                 bool isTrackingNetwork)
@@ -308,6 +320,10 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Ensure potential upgrades are handled in overlay
+    maybeHandleUpgrade();
+#endif
 }
 
 void
@@ -1934,9 +1950,69 @@ HerderImpl::restoreUpgrades()
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+HerderImpl::maybeHandleUpgrade()
+{
+    uint64_t diff = 0;
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ true,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+        auto conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+
+        if (conf.txMaxSizeBytes() > mMaxTxSize)
+        {
+            diff = conf.txMaxSizeBytes() - mMaxTxSize;
+        }
+        mMaxTxSize =
+            std::max<uint64_t>(getMaxClassicTxSize(), conf.txMaxSizeBytes());
+    }
+
+    // Maybe update capacity to reflect the upgrade
+    for (auto& peer : mApp.getOverlayManager().getAuthenticatedPeers())
+    {
+        peer.second->handleMaxTxSizeIncrease(diff);
+    }
+}
+#endif
+
 void
 HerderImpl::start()
 {
+    auto sz = mApp.getHerder().getMaxClassicTxSize();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ true,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+        auto conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+        mMaxTxSize = std::max<uint64_t>(sz, conf.txMaxSizeBytes());
+    }
+#else
+    mMaxTxSize = sz;
+#endif
+
+    auto const& cfg = mApp.getConfig();
+    // Core will calculate default values automatically
+    bool calculateDefaults = cfg.PEER_FLOOD_READING_CAPACITY_BYTES == 0 &&
+                             cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES == 0;
+
+    if (!calculateDefaults &&
+        !(cfg.PEER_FLOOD_READING_CAPACITY_BYTES -
+              cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
+          mMaxTxSize))
+    {
+        std::string msg = fmt::format(
+            "Invalid configuration: the difference between "
+            "PEER_FLOOD_READING_CAPACITY_BYTES ({}) and "
+            "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES ({}) must be at"
+            " least {} bytes",
+            cfg.PEER_FLOOD_READING_CAPACITY_BYTES,
+            cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES, mMaxTxSize);
+        throw std::runtime_error(msg);
+    }
+
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 

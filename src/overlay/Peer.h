@@ -402,6 +402,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mTxAdvertQueue;
     };
 
+    void handleMaxTxSizeIncrease(uint64_t increase);
+
     friend class LoopbackPeer;
 
 #ifdef BUILD_TESTS

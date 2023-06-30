@@ -1886,4 +1886,12 @@ Peer::fulfillDemand(FloodDemand const& dmd)
     }
 }
 
+void
+Peer::handleMaxTxSizeIncrease(uint64_t increase)
+{
+    if (increase > 0)
+    {
+        mFlowControl->handleTxSizeIncrease(increase, shared_from_this());
+    }
+}
 }
