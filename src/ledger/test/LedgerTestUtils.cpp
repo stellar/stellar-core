@@ -635,6 +635,14 @@ generateValidLedgerEntryKeysWithExclusions(
     }
     return keys;
 }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+std::vector<LedgerKey>
+generateUniqueValidSorobanLedgerEntryKeys(size_t n)
+{
+    return LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
+        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING}, n);
+}
+#endif
 
 std::vector<LedgerKey>
 generateValidUniqueLedgerEntryKeysWithExclusions(

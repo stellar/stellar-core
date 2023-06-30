@@ -1619,15 +1619,15 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 auto write = rand_uniform<uint32_t>(
                     0, std::min(conf.txMaxWriteLedgerEntries(),
                                 (conf.txMaxReadLedgerEntries() - read)));
-                for (auto const& key : LedgerTestUtils::
-                         generateValidLedgerEntryKeysWithExclusions(
-                             {CONFIG_SETTING}, write))
+                for (auto const& key :
+                     LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
+                         write))
                 {
                     res.footprint.readWrite.emplace_back(key);
                 }
-                for (auto const& key : LedgerTestUtils::
-                         generateValidLedgerEntryKeysWithExclusions(
-                             {CONFIG_SETTING}, read))
+                for (auto const& key :
+                     LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
+                         read))
                 {
                     res.footprint.readOnly.emplace_back(key);
                 }
