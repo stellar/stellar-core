@@ -2065,7 +2065,7 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     updateQueue(mSorobanTransactionQueue,
-                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
+                txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN));
 #endif
 }
 
