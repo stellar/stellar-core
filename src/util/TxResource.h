@@ -26,7 +26,7 @@ class Resource
     {
         OPERATIONS = 0,
         INSTRUCTIONS = 1,
-        BYTE_SIZE = 2,
+        TX_BYTE_SIZE = 2,
         READ_BYTES = 3,
         WRITE_BYTES = 4,
         READ_LEDGER_ENTRIES = 5,
