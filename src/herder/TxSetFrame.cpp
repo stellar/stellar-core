@@ -496,6 +496,7 @@ TxSetFrame::previousLedgerHash() const
 TxSetFrame::Transactions const&
 TxSetFrame::getTxsForPhase(Phase phase) const
 {
+    releaseAssert(static_cast<size_t>(phase) < mTxPhases.size());
     return mTxPhases.at(static_cast<size_t>(phase));
 }
 
@@ -705,7 +706,14 @@ TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
 {
     size_t sz = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!phase || phase.value() == Phase::SOROBAN)
+    if (!phase)
+    {
+        if (numPhases() > static_cast<size_t>(Phase::SOROBAN))
+        {
+            sz += sizeOp(Phase::SOROBAN);
+        }
+    }
+    else if (phase.value() == Phase::SOROBAN)
     {
         sz += sizeOp(Phase::SOROBAN);
     }
