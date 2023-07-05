@@ -260,7 +260,8 @@ main(int argc, char* const* argv)
     randHash::initialize();
     xdr::marshaling_stack_limit = 1000;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    checkStellarCoreMajorVersionProtocolIdentity();
+    // TODO: This should only be enabled after we tag a v20 version
+    // checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_lockfile_has_expected_dep_trees(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     checkXDRFileIdentity();
