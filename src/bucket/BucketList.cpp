@@ -718,6 +718,26 @@ BucketList::getMaxMergeLevel(uint32_t currLedger) const
     return i;
 }
 
+uint64_t
+BucketList::getSize() const
+{
+    uint64_t sum = 0;
+    for (auto const& lev : mLevels)
+    {
+        std::array<std::shared_ptr<Bucket>, 2> buckets = {lev.getCurr(),
+                                                          lev.getSnap()};
+        for (auto const& b : buckets)
+        {
+            if (b)
+            {
+                sum += b->getSize();
+            }
+        }
+    }
+
+    return sum;
+}
+
 void
 BucketList::addBatch(Application& app, uint32_t currLedger,
                      uint32_t currLedgerProtocol,

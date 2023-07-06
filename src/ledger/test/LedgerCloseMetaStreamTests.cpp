@@ -2,6 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
+#include "bucket/BucketManagerImpl.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
@@ -208,6 +211,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    else if (lcms.back().v() == 2)
+    {
+        REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
+    }
+#endif
     else
     {
         REQUIRE(false);
@@ -226,6 +235,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    else if (lcmsSafe.back().v() == 2)
+    {
+        REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
+    }
+#endif
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -329,6 +344,12 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    else if (lcm.v() == 2)
+    {
+        REQUIRE(lcm.v2().ledgerHeader.hash == hash);
+    }
+#endif
     else
     {
         REQUIRE(false);
@@ -456,6 +477,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
     cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;
     cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
     cfg.TESTING_LEDGER_MAX_WRITE_BYTES = 1;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
     {
         // Do some stuff
         using namespace stellar::txtest;
@@ -463,6 +485,15 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         auto& lm = app->getLedgerManager();
         auto txFee = lm.getLastTxFee();
         auto bal = app->getLedgerManager().getLastMinBalance(2);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto& networkConfig =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx);
+            networkConfig.setBucketListSnapshotPeriodForTesting(1);
+        }
+#endif
 
         auto root = TestAccount::createRoot(*app);
 
@@ -516,7 +547,9 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
         }
-        else
+        else if (protocolVersionIsBefore(
+                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                     ProtocolVersion::V_20))
         {
             // LCM v1
             REQUIRE(lcm.v() == 1);
@@ -524,6 +557,17 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
         }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        else
+        {
+            // LCM v2
+            REQUIRE(lcm.v() == 2);
+            REQUIRE(lcm.v2().ledgerHeader.header.ledgerVersion ==
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+            ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
+        }
+#endif
 
         if (ledgerSeq == targetSeq)
         {

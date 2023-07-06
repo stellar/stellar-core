@@ -7,12 +7,15 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Config.h"
 #include <cstdint>
+#include <deque>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
 #endif
 
 namespace stellar
 {
+
+class Application;
 
 // Defines the initial values of the network configuration
 // settings that are applied during the protocol version upgrade.
@@ -55,6 +58,8 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t BUCKET_LIST_FEE_RATE_LOW = 1;
     static constexpr int64_t BUCKET_LIST_FEE_RATE_HIGH = 1;
     static constexpr uint32_t BUCKET_LIST_GROWTH_FACTOR = 1;
+    static constexpr uint64_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE =
+        30; // 30 day average
 
     // Historical data settings
     static constexpr int64_t FEE_HISTORICAL_1KB = 100; // 0.001 XLM/max tx
@@ -91,14 +96,13 @@ class SorobanNetworkConfig
     // This should happen once during the correspondent protocol version
     // upgrade.
     static void createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
-                                          Config const& cfg);
+                                          Application& app);
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)
     static void
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
-                                      AbstractLedgerTxn& ltx,
-                                      Config const& cfg);
+                                      AbstractLedgerTxn& ltx, Application& app);
 
     void loadFromLedger(AbstractLedgerTxn& ltx);
     // Maximum allowed size of the contract Wasm that can be uploaded (in
@@ -175,9 +179,32 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
+    // Number of samples in slidign window
+    uint32_t getBucketListSizeSnapshotPeriod() const;
+
+    // If newSize is different than the current BucketList size sliding window,
+    // update the window. If newSize < currSize, pop entries off window. If
+    // newSize > currSize, add as many copies of the current BucketList size to
+    // window until it has newSize entries.
+    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx,
+                                         uint32_t newSize) const;
+
+    // If currLedger is a ledger when we should snapshot, add a new snapshot to
+    // the sliding window and write it to disk.
+    void maybeSnapshotBucketListSize(uint32_t currLedger,
+                                     AbstractLedgerTxn& ltx,
+                                     Application& app) const;
+
+    // Returns the average of all BucketList size snapshots in the sliding
+    // window.
+    uint64_t getAverageBucketListSize() const;
+
 #ifdef BUILD_TESTS
     uint32_t& maxContractDataKeySizeBytes();
     uint32_t& maxContractDataEntrySizeBytes();
+
+    void setBucketListSnapshotPeriodForTesting(uint32_t period) const;
+    std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -197,6 +224,9 @@ class SorobanNetworkConfig
 #endif
 
   private:
+    static constexpr uint32_t BUCKETLIST_SIZE_SNAPSHOT_PERIOD =
+        17280; // 1 day, in ledgers
+
     void loadMaxContractSize(AbstractLedgerTxn& ltx);
     void loadMaxContractDataKeySize(AbstractLedgerTxn& ltx);
     void loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx);
@@ -209,6 +239,12 @@ class SorobanNetworkConfig
     void loadMemCostParams(AbstractLedgerTxn& ltx);
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
+    void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
+    void updateBucketListSizeAverage() const;
+#endif
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -250,6 +286,14 @@ class SorobanNetworkConfig
     uint32_t mLedgerMaxPropagateSizeBytes{};
     uint32_t mTxMaxSizeBytes{};
     int64_t mFeePropagateData1KB{};
+
+    // FIFO queue, push_back/pop_front
+    mutable std::deque<uint64_t> mBucketListSizeSnapshots;
+    mutable uint64_t mAverageBucketListSize{0};
+
+#ifdef BUILD_TESTS
+    mutable std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
+#endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Host cost params
