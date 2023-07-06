@@ -84,7 +84,6 @@ struct InitialSorobanNetworkConfig
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
-    static constexpr uint32_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
     static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
     static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
 
