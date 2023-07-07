@@ -6,7 +6,6 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -22,14 +21,28 @@ signerCompare(Signer const& s1, Signer const& s2)
     return s1.key < s2.key;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerEntryIsValid::LedgerEntryIsValid(
+    LumenContractInfo const& lumenContractInfo)
+    : Invariant(false), mLumenContractInfo(lumenContractInfo)
+{
+}
+#else
 LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
 {
 }
+#endif
 
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
+    return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
+        lumenInfo);
+#else
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>();
+#endif
 }
 
 std::string
@@ -497,6 +510,47 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+    // Lumen contract validation
+    if (cde.contract.type() == SC_ADDRESS_TYPE_CONTRACT &&
+        cde.contract.contractId() == mLumenContractInfo.mLumenContractID)
+    {
+        // Identify balance entries
+        if (cde.key.type() == SCV_VEC && cde.key.vec() &&
+            !cde.key.vec()->empty() &&
+            cde.key.vec()->at(0) == mLumenContractInfo.mBalanceSymbol)
+        {
+            if (cde.durability != ContractDataDurability::PERSISTENT)
+            {
+                return "Balance entry must be persistent";
+            }
+            if (cde.body.bodyType() != DATA_ENTRY)
+            {
+                return "Expected data entry for balance";
+            }
+
+            auto const& val = cde.body.data().val;
+            if (val.type() != SCV_MAP || val.map()->size() == 0)
+            {
+                return "Balance entry val must be a populated Map";
+            }
+
+            auto const& amountEntry = val.map()->at(0);
+            if (!(amountEntry.key == mLumenContractInfo.mAmountSymbol))
+            {
+                return "Balance amount symbol is incorrect";
+            }
+            if (amountEntry.val.type() != SCV_I128)
+            {
+                return "Balance amount must be a I128";
+            }
+            auto lo = amountEntry.val.i128().lo;
+            auto hi = amountEntry.val.i128().hi;
+            if (lo > INT64_MAX || hi > 0)
+            {
+                return "Balance amount is invalid";
+            }
+        }
+    }
     return {};
 }
 
