@@ -6,6 +6,7 @@
 
 #include "invariant/Invariant.h"
 #include "main/Config.h"
+#include "transactions/TransactionUtils.h"
 #include <memory>
 
 namespace stellar
@@ -22,8 +23,7 @@ class ConservationOfLumens : public Invariant
 {
   public:
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    ConservationOfLumens(Hash const& lumenContractID,
-                         SCVal const& balanceSymbol, SCVal const& amountSymbol);
+    ConservationOfLumens(LumenContractInfo const& lumenContractInfo);
 #else
     ConservationOfLumens();
 #endif
@@ -39,9 +39,7 @@ class ConservationOfLumens : public Invariant
 
   private:
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    Hash const mLumenContractID;
-    SCVal const mBalanceSymbol;
-    SCVal const mAmountSymbol;
+    LumenContractInfo const mLumenContractInfo;
 #endif
 };
 }
