@@ -10,6 +10,7 @@
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
+#include <crypto/SHA.h>
 #include <fmt/format.h>
 
 namespace stellar
@@ -551,6 +552,12 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
             }
         }
     }
+
+    if (cde.body.bodyType() == DATA_ENTRY &&
+        (cde.body.data().flags & ~MASK_CONTRACT_DATA_FLAGS_V20) != 0)
+    {
+        return "Invalid contract data flags";
+    }
     return {};
 }
 
@@ -559,6 +566,37 @@ LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+    if (cce.body.bodyType() == DATA_ENTRY &&
+        sha256(cce.body.code()) != cce.hash)
+    {
+        return "Contract code doesn't match hash";
+    }
+
+    if (!previous)
+    {
+        return {};
+    }
+    else if (previous->data.type() != CONTRACT_CODE)
+    {
+        return "ContractCode used to be of different type";
+    }
+
+    auto const& prevCode = previous->data.contractCode();
+    if (cce.hash != prevCode.hash)
+    {
+        return "ContractCode hash modified";
+    }
+
+    if (cce.body.bodyType() != prevCode.body.bodyType())
+    {
+        return "Mismatch on bodytype";
+    }
+
+    if (cce.body.bodyType() == DATA_ENTRY &&
+        cce.body.code() != prevCode.body.code())
+    {
+        return "ContractCode code modified";
+    }
     return {};
 }
 
@@ -567,6 +605,58 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+
+    switch (cfg.configSettingID())
+    {
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+        if (cfg.contractMaxSizeBytes() <= 0)
+        {
+            return "Invalid contractMaxSizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+        if (!SorobanNetworkConfig::isValidCostParams(
+                cfg.contractCostParamsCpuInsns()))
+        {
+            return "Invalid contractCostParamsCpuInsns";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+        if (!SorobanNetworkConfig::isValidCostParams(
+                cfg.contractCostParamsMemBytes()))
+        {
+            return "Invalid contractCostParamsMemBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
+        if (cfg.contractDataKeySizeBytes() <= 0)
+        {
+            return "Invalid contractDataKeySizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
+        if (cfg.contractDataEntrySizeBytes() <= 0)
+        {
+            return "Invalid contractDataEntrySizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+        if (cfg.contractExecutionLanes().ledgerMaxTxCount < 0)
+        {
+            return "Invalid ledgerMaxTxCount";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+    case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:
+    case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+        // TODO: https://github.com/stellar/stellar-core/issues/3802
+        break;
+    }
+
     return {};
 }
 #endif
