@@ -341,6 +341,17 @@ initialStateExpirationSettings()
     entry.stateExpirationSettings().bucketListSizeWindowSampleSize =
         InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
 
+    entry.stateExpirationSettings().bucketListSizeWindowSampleSize =
+        InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
+    entry.stateExpirationSettings().evictionScanSize =
+        InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
+    entry.stateExpirationSettings().maxEntriesToExpire =
+        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+
+    entry.stateExpirationSettings().persistentRentRateDenominator =
+        InitialSorobanNetworkConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
+    entry.stateExpirationSettings().tempRentRateDenominator =
+        InitialSorobanNetworkConfig::TEMP_RENT_RATE_DENOMINATOR;
     return entry;
 }
 
@@ -1138,6 +1149,17 @@ SorobanNetworkConfig::rustBridgeFeeConfiguration() const
 
     res.fee_per_historical_1kb = feeHistorical1KB();
 
+    return res;
+}
+
+CxxRentFeeConfiguration
+SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
+{
+    CxxRentFeeConfiguration res{};
+    auto const& cfg = stateExpirationSettings();
+    res.fee_per_write_1kb = feeWrite1KB();
+    res.persistent_rent_rate_denominator = cfg.persistentRentRateDenominator;
+    res.temporary_rent_rate_denominator = cfg.tempRentRateDenominator;
     return res;
 }
 #endif

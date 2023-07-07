@@ -58,51 +58,65 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
 
-    UnorderedMap<LedgerKey, uint32_t> originalExpirations;
-
+    rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
+    rustEntryRentChanges.reserve(footprint.readOnly.size());
+    uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    // Bump for `ledgersToExpire` more ledgers since the current
+    // ledger. Current ledger has to be payed for in order for entry
+    // to be bump-able, hence don't include it.
+    uint32_t bumpLedger =
+        ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
     for (auto const& lk : footprint.readOnly)
     {
         // When we move to use EXPIRATION_EXTENSIONS, this should become a
         // loadWithoutRecord, and the metrics should be updated.
         auto ltxe = ltx.load(lk);
-        if (ltxe)
+        if (!ltxe)
         {
-            auto keySize = xdr::xdr_size(lk);
-            auto entrySize = xdr::xdr_size(ltxe.current());
-            metrics.mLedgerReadByte += keySize;
-            metrics.mLedgerReadByte += entrySize;
-
-            // Divide the limit by 2 for the metadata check since the previous
-            // state is also included in the meta.
-            if (resources.extendedMetaDataSizeBytes / 2 <
-                    metrics.mLedgerReadByte ||
-                resources.readBytes < metrics.mLedgerReadByte)
-            {
-                innerResult().code(
-                    BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            originalExpirations.emplace(LedgerEntryKey(ltxe.current()),
-                                        getExpirationLedger(ltxe.current()));
-
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            uint32_t bumpTo = UINT32_MAX;
-            if (UINT32_MAX - ledgerSeq >
-                mBumpFootprintExpirationOp.ledgersToExpire)
-            {
-                bumpTo = ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
-            }
-
-            if (getExpirationLedger(ltxe.current()) < bumpTo)
-            {
-                setExpirationLedger(ltxe.current(), bumpTo);
-            }
+            // Skip the missing entries. Since this happens at apply
+            // time and we refund the unspent fees, it is more beneficial
+            // to bump as many entries as possible.
+            continue;
         }
+
+        auto keySize = xdr::xdr_size(lk);
+        auto entrySize = xdr::xdr_size(ltxe.current());
+
+        metrics.mLedgerReadByte += keySize + entrySize;
+        if (resources.readBytes < metrics.mLedgerReadByte ||
+            resources.extendedMetaDataSizeBytes < metrics.mLedgerReadByte * 2)
+        {
+            innerResult().code(
+                BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+        uint32_t currExpiration = getExpirationLedger(ltxe.current());
+
+        if (currExpiration >= bumpLedger)
+        {
+            continue;
+        }
+
+        rustEntryRentChanges.emplace_back();
+        auto& rustChange = rustEntryRentChanges.back();
+        rustChange.is_persistent = !isTemporaryEntry(lk);
+        rustChange.old_size_bytes = keySize + entrySize;
+        rustChange.new_size_bytes = rustChange.old_size_bytes;
+        rustChange.old_expiration_ledger = currExpiration;
+        rustChange.new_expiration_ledger = bumpLedger;
+        setExpirationLedger(ltxe.current(), bumpLedger);
     }
 
-    mParentTx.pushInitialExpirations(std::move(originalExpirations));
-
+    // This may throw, but only in case of the Core version misconfiguration.
+    int64_t rentFee = rust_bridge::compute_rent_fee(
+        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+        ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
+        app.getLedgerManager()
+            .getSorobanNetworkConfig(ltx)
+            .rustBridgeRentFeeConfiguration(),
+        ledgerSeq);
+    mParentTx.consumeRefundableSorobanResources(metrics.mLedgerReadByte * 2,
+                                                rentFee);
     innerResult().code(BUMP_FOOTPRINT_EXPIRATION_SUCCESS);
     return true;
 }

@@ -12,6 +12,7 @@ struct RestoreFootprintMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
+    size_t mLedgerReadByte{0};
     size_t mLedgerWriteByte{0};
 
     RestoreFootprintMetrics(medida::MetricsRegistry& metrics)
@@ -21,6 +22,10 @@ struct RestoreFootprintMetrics
 
     ~RestoreFootprintMetrics()
     {
+        mMetrics
+            .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
+                      "byte")
+            .Mark(mLedgerReadByte);
         mMetrics
             .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
                       "byte")
@@ -56,60 +61,72 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
-    UnorderedMap<LedgerKey, uint32_t> originalExpirations;
-
+    auto const& expirationSettings = app.getLedgerManager()
+                                         .getSorobanNetworkConfig(ltx)
+                                         .stateExpirationSettings();
+    rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
+    // Bump the rent on the restored entry to minimum expiration, including
+    // the current ledger.
+    uint32_t restoredExpirationLedger =
+        ledgerSeq + expirationSettings.minPersistentEntryExpiration - 1;
     for (auto const& lk : footprint.readWrite)
     {
+        auto keySize = xdr::xdr_size(lk);
         auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
-        if (ltxe)
+        if (!ltxe)
         {
-            // Skip entries that are already live
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            if (isLive(ltxe.current(), ledgerSeq))
-            {
-                continue;
-            }
-
-            LedgerEntry restoredEntry = ltxe.current();
-            auto keySize = xdr::xdr_size(lk);
-            auto entrySize = xdr::xdr_size(restoredEntry);
-            metrics.mLedgerWriteByte += keySize;
-            metrics.mLedgerWriteByte += entrySize;
-
-            // Divide the limit by 2 for the metadata check since the previous
-            // state is also included in the meta.
-            if (resources.extendedMetaDataSizeBytes / 2 <
-                    metrics.mLedgerWriteByte ||
-                resources.writeBytes < metrics.mLedgerWriteByte ||
-                resources.readBytes < metrics.mLedgerWriteByte)
-            {
-                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            originalExpirations.emplace(LedgerEntryKey(restoredEntry),
-                                        getExpirationLedger(restoredEntry));
-
-            auto const& expirationSettings = app.getLedgerManager()
-                                                 .getSorobanNetworkConfig(ltx)
-                                                 .stateExpirationSettings();
-            auto minPersistentExpirationLedger =
-                ledgerSeq + expirationSettings.minPersistentEntryExpiration;
-
-            if (getExpirationLedger(restoredEntry) <
-                minPersistentExpirationLedger)
-            {
-                setExpirationLedger(restoredEntry,
-                                    minPersistentExpirationLedger);
-            }
-
-            ltx.restore(restoredEntry);
+            // Skip entries that don't exist.
+            continue;
         }
+
+        auto entrySize = xdr::xdr_size(ltxe.current());
+        metrics.mLedgerReadByte += keySize + entrySize;
+        if (resources.readBytes < metrics.mLedgerReadByte)
+        {
+            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        if (isLive(ltxe.current(), ledgerSeq))
+        {
+            // Skip entries that are already live.
+            continue;
+        }
+        LedgerEntry restoredEntry = ltxe.current();
+        metrics.mLedgerWriteByte += keySize + entrySize;
+
+        if (resources.extendedMetaDataSizeBytes <
+                metrics.mLedgerWriteByte * 2 ||
+            resources.writeBytes < metrics.mLedgerWriteByte ||
+            resources.readBytes < metrics.mLedgerReadByte)
+        {
+            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        rustEntryRentChanges.emplace_back();
+        auto& rustChange = rustEntryRentChanges.back();
+        rustChange.is_persistent = true;
+        // Treat the entry as if it hasn't existed before restoration
+        // for the rent fee purposes.
+        rustChange.old_size_bytes = 0;
+        rustChange.old_expiration_ledger = 0;
+        rustChange.new_size_bytes = keySize + entrySize;
+        rustChange.new_expiration_ledger = restoredExpirationLedger;
+        setExpirationLedger(restoredEntry, restoredExpirationLedger);
+        ltx.restore(restoredEntry);
     }
-
-    mParentTx.pushInitialExpirations(std::move(originalExpirations));
-
+    int64_t rentFee = rust_bridge::compute_rent_fee(
+        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+        ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
+        app.getLedgerManager()
+            .getSorobanNetworkConfig(ltx)
+            .rustBridgeRentFeeConfiguration(),
+        ledgerSeq);
+    mParentTx.consumeRefundableSorobanResources(metrics.mLedgerReadByte * 2,
+                                                rentFee);
     innerResult().code(RESTORE_FOOTPRINT_SUCCESS);
     return true;
 }

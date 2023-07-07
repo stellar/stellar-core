@@ -123,7 +123,7 @@ bool
 autoBumpEnabled(LedgerEntry const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    releaseAssert(isSorobanDataEntry(e.data));
+    releaseAssertOrThrow(isSorobanDataEntry(e.data));
 
     // CONTRACT_CODE always has autobump enabled. For CONTRACT_DATA, check if
     // the NO_AUTOBUMP flag set

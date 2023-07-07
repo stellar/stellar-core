@@ -84,6 +84,14 @@ struct InitialSorobanNetworkConfig
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
+    static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
+
+    // Rent payment of ~1 XLM/year for a max entry.
+    static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 252'480;
+    // Rent payment of ~0.1 XLM/year for a max entry.
+    static constexpr int64_t TEMP_RENT_RATE_DENOMINATOR = 2'524'800;
+
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
 };
@@ -215,6 +223,7 @@ class SorobanNetworkConfig
     static bool isValidCostParams(ContractCostParams const& params);
 
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
+    CxxRentFeeConfiguration rustBridgeRentFeeConfiguration() const;
 
     // State expiration settings
     StateExpirationSettings const& stateExpirationSettings() const;

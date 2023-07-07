@@ -1339,6 +1339,12 @@
     <ClCompile Include="..\..\src\util\TxResource.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2334,6 +2340,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\TxResource.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\RestoreFootprintOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

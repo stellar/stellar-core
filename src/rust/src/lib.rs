@@ -101,13 +101,13 @@ mod rust_bridge {
     }
 
     struct CxxTransactionResources {
-        pub instructions: u32,
-        pub read_entries: u32,
-        pub write_entries: u32,
-        pub read_bytes: u32,
-        pub write_bytes: u32,
-        pub metadata_size_bytes: u32,
-        pub transaction_size_bytes: u32,
+        instructions: u32,
+        read_entries: u32,
+        write_entries: u32,
+        read_bytes: u32,
+        write_bytes: u32,
+        metadata_size_bytes: u32,
+        transaction_size_bytes: u32,
     }
 
     struct CxxFeeConfiguration {
@@ -121,8 +121,22 @@ mod rust_bridge {
         fee_per_propagate_1kb: i64,
     }
 
+    struct CxxLedgerEntryRentChange {
+        is_persistent: bool,
+        old_size_bytes: u32,
+        new_size_bytes: u32,
+        old_expiration_ledger: u32,
+        new_expiration_ledger: u32,
+    }
+
+    struct CxxRentFeeConfiguration {
+        fee_per_write_1kb: i64,
+        persistent_rent_rate_denominator: i64,
+        temporary_rent_rate_denominator: i64,
+    }
+
     struct FeePair {
-        fee: i64,
+        non_refundable_fee: i64,
         refundable_fee: i64,
     }
 
@@ -186,6 +200,14 @@ mod rust_bridge {
             tx_resources: CxxTransactionResources,
             fee_config: CxxFeeConfiguration,
         ) -> Result<FeePair>;
+
+        fn compute_rent_fee(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            changed_entries: &Vec<CxxLedgerEntryRentChange>,
+            fee_config: CxxRentFeeConfiguration,
+            current_ledger_seq: u32,
+        ) -> Result<i64>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -231,7 +253,9 @@ pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Err
 
 use rust_bridge::CxxBuf;
 use rust_bridge::CxxFeeConfiguration;
+use rust_bridge::CxxLedgerEntryRentChange;
 use rust_bridge::CxxLedgerInfo;
+use rust_bridge::CxxRentFeeConfiguration;
 use rust_bridge::CxxTransactionResources;
 use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
@@ -597,5 +621,34 @@ pub(crate) fn compute_transaction_resource_fee(
     Ok(soroban_curr::contract::compute_transaction_resource_fee(
         tx_resources,
         fee_config,
+    ))
+}
+
+pub(crate) fn compute_rent_fee(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    changed_entries: &Vec<CxxLedgerEntryRentChange>,
+    fee_config: CxxRentFeeConfiguration,
+    current_ledger_seq: u32,
+) -> Result<i64, Box<dyn std::error::Error>> {
+    if protocol_version > config_max_protocol {
+        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
+            "unsupported protocol",
+        )));
+    }
+    #[cfg(feature = "soroban-env-host-prev")]
+    {
+        if protocol_version == config_max_protocol - 1 {
+            return Ok(soroban_prev::contract::compute_rent_fee(
+                changed_entries,
+                fee_config,
+                current_ledger_seq,
+            ));
+        }
+    }
+    Ok(soroban_curr::contract::compute_rent_fee(
+        changed_entries,
+        fee_config,
+        current_ledger_seq,
     ))
 }
