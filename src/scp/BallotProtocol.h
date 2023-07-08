@@ -22,8 +22,8 @@ class Slot;
 typedef std::function<bool(SCPStatement const& st)> StatementPredicate;
 
 /**
- * The Slot object is in charge of maintaining the state of the SCP protocol
- * for a given slot index.
+ * The BallotProtocol object implements and maintains the relevant state for the
+ * ballot protocol.
  */
 class BallotProtocol
 {
