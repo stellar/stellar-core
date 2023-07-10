@@ -27,6 +27,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
+#include <Tracy.hpp>
 #include <cmath>
 #include <crypto/SHA.h>
 #include <fmt/format.h>
@@ -54,6 +55,9 @@ const uint32_t LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
 // without checking for account consistency.
 const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 
+// Minimum unique account multiplier. This is used to calculate the minimum
+// number of accounts needed to sustain desired tx/s rate (this provides a
+// buffer in case loadgen is unstable and needs more accounts)
 const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
 LoadGenerator::LoadGenerator(Application& app)
@@ -180,7 +184,7 @@ LoadGenerator::reset()
     mWaitTillCompleteForLedgers = 0;
     mFailed = false;
     mStarted = false;
-    mInitiaAccountsCreated = false;
+    mInitialAccountsCreated = false;
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
@@ -196,10 +200,15 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
                    "number parameters are set and accounts are "
                    "created, or retry with smaller tx rate.";
     }
-    // During account creation, we can create up to
-    // MAX_OPS_PER_TX*MAX_OPS_PER_TX new accounts per ledger. Ensure desired
-    // tx rate is sufficient, and allows some buffer in case ledgers take
-    // longer than usual.
+
+    // During account creation, we start with a single "root" account.
+    // Since we need enough unique accounts to create
+    // the desired number of accounts, we first create batchSize number of
+    // accounts and use them to further account creation. Therefore, it is
+    // important to configure the batch size to be at least
+    // (numTxsPerLedgers)*MIN_UNIQUE_ACCOUNT_MULTIPLIER. Note that because max
+    // batchSize is 100, we can create up to (100 * 100) new accounts per
+    // ledger.
     else if (cfg.mode == LoadGenMode::CREATE && cfg.nAccounts > cfg.batchSize &&
              (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
               MIN_UNIQUE_ACCOUNT_MULTIPLIER) > cfg.batchSize)
@@ -270,6 +279,8 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 void
 LoadGenerator::cleanupAccounts()
 {
+    ZoneScoped;
+
     // Check if creation source accounts have been created
     for (auto it = mCreationSourceAccounts.begin();
          it != mCreationSourceAccounts.end();)
@@ -288,9 +299,10 @@ LoadGenerator::cleanupAccounts()
     // "Free" any accounts that aren't used by the tx queue anymore
     for (auto it = mAccountsInUse.begin(); it != mAccountsInUse.end();)
     {
-        auto name = "TestAccount-" + to_string(*it);
+        auto accIt = mAccounts.find(*it);
+        releaseAssert(accIt != mAccounts.end());
         if (!mApp.getHerder().sourceAccountPending(
-                txtest::getAccount(name.c_str()).getPublicKey()))
+                accIt->second->getPublicKey()))
         {
             mAccountsAvailable.insert(*it);
             it = mAccountsInUse.erase(it);
@@ -308,8 +320,8 @@ LoadGenerator::cleanupAccounts()
 // with the remainder.
 void
 LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
-
 {
+    ZoneScoped;
     bool isCreate = cfg.mode == LoadGenMode::CREATE;
     if (!mStartTime)
     {
@@ -318,7 +330,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     createRootAccount();
-    cleanupAccounts();
 
     // Finish if no more txs need to be created.
     if ((isCreate && cfg.nAccounts == 0) || (!isCreate && cfg.nTxs == 0))
@@ -355,12 +366,20 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         // case at the very beginning, when only root account is available for
         // account creation
         size_t expectedSize =
-            mInitiaAccountsCreated ? mAccountsAvailable.size() : 1;
+            mInitialAccountsCreated ? mAccountsAvailable.size() : 1;
         txPerStep = std::min<int64_t>(txPerStep, expectedSize);
     }
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
+
+    uint64_t now = mApp.timeNow();
+    // Cleaning up accounts every second, so we don't call potentially expensive
+    // cleanup function too often
+    if (now != mLastSecond)
+    {
+        cleanupAccounts();
+    }
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
 
@@ -375,7 +394,9 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         {
             if (mAccountsAvailable.empty())
             {
-                CLOG_WARNING(LoadGen, "No more accounts available");
+                CLOG_WARNING(
+                    LoadGen,
+                    "Load generation failed: no more accounts available");
                 mLoadgenFail.Mark();
                 reset();
                 return;
@@ -459,7 +480,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
     auto submit = submitScope.Stop();
 
-    uint64_t now = mApp.timeNow();
+    now = mApp.timeNow();
 
     // Emit a log message once per second.
     if (now != mLastSecond)
@@ -616,12 +637,12 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
     TestAccountPtr sourceAcc =
-        mInitiaAccountsCreated
+        mInitialAccountsCreated
             ? findAccount(getNextAvailableAccount(), ledgerNum)
             : mRoot;
     vector<Operation> creationOps = createAccounts(
-        startAccount, numItems, ledgerNum, !mInitiaAccountsCreated);
-    mInitiaAccountsCreated = true;
+        startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
+    mInitialAccountsCreated = true;
     return std::make_pair(sourceAcc, createTransactionFramePtr(
                                          sourceAcc, creationOps,
                                          LoadGenMode::CREATE, std::nullopt));
@@ -652,10 +673,10 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 
         // Cache newly created account
         auto acc = make_shared<TestAccount>(account);
-        mAccounts.insert(std::pair(i, acc));
+        mAccounts.emplace(i, acc);
         if (initialAccounts)
         {
-            mCreationSourceAccounts.insert(std::pair(i, acc));
+            mCreationSourceAccounts.emplace(i, acc);
         }
     }
     return ops;

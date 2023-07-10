@@ -160,7 +160,7 @@ class LoadGenerator
 
     bool mFailed{false};
     bool mStarted{false};
-    bool mInitiaAccountsCreated{false};
+    bool mInitialAccountsCreated{false};
 
     uint32_t mWaitTillCompleteForLedgers{0};
 
