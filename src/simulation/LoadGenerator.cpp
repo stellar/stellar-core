@@ -1123,15 +1123,14 @@ GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate,
 
 GeneratedLoadConfig
 GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate, uint32_t batchSize,
-                            uint32_t offset, std::optional<uint32_t> maxFee)
+                            uint32_t txRate, uint32_t offset,
+                            std::optional<uint32_t> maxFee)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = mode;
     cfg.nAccounts = nAccounts;
     cfg.nTxs = nTxs;
     cfg.txRate = txRate;
-    cfg.batchSize = batchSize;
     cfg.offset = offset;
     cfg.maxGeneratedFeeRate = maxFee;
     return cfg;

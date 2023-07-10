@@ -215,8 +215,7 @@ class SimulationHelper
         // Generate a bit of load, and crank for some time
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::PAY, /* nAccounts */ 150, /* nTxs */ 10,
-            /*txRate*/ 1,
-            /*batchSize*/ 1));
+            /*txRate*/ 1));
 
         auto currLoadGenCount = loadGenDone.count();
 

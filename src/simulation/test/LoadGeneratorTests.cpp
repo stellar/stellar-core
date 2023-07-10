@@ -15,7 +15,7 @@
 
 using namespace stellar;
 
-TEST_CASE("account creation", "[loadgen]")
+TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
@@ -53,8 +53,7 @@ TEST_CASE("account creation", "[loadgen]")
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
                                                          /* nAccounts */ 10000,
                                                          /* nTxs */ 10000,
-                                                         /* txRate */ 10,
-                                                         /* batchSize */ 100));
+                                                         /* txRate */ 10));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
@@ -99,8 +98,7 @@ TEST_CASE("account creation", "[loadgen]")
             GeneratedLoadConfig::txLoad(LoadGenMode::PAY,
                                         /* nAccounts */ numAccounts,
                                         /* nTxs */ numAccounts * 2,
-                                        /* txRate */ 100,
-                                        /* batchSize */ 100));
+                                        /* txRate */ 100));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
@@ -151,8 +149,8 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PRETEND, nAccounts, 5, txRate, 100));
+        loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PRETEND,
+                                                         nAccounts, 5, txRate));
 
         simulation->crankUntil(
             [&]() {
@@ -223,8 +221,8 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                            .count() == 1;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        auto config = GeneratedLoadConfig::txLoad(
-            LoadGenMode::MIXED_TXS, numAccounts, 100, txRate, 100);
+        auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_TXS,
+                                                  numAccounts, 100, txRate);
         config.dexTxPercent = 50;
         loadGen.generateLoad(config);
         simulation->crankUntil(

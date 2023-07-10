@@ -412,7 +412,7 @@ TEST_CASE(
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         loadGen.generateLoad(
-            GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 3, 10, 10, 100));
+            GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 3, 10, 10));
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
@@ -544,7 +544,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
 
     // Generate payment txs
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY, numItems,
-                                                     numItems / 10, 10, 100));
+                                                     numItems / 10, 10));
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();

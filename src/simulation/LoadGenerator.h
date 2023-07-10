@@ -44,8 +44,7 @@ struct GeneratedLoadConfig
 
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
-           uint32_t batchSize, uint32_t offset = 0,
-           std::optional<uint32_t> maxFee = std::nullopt);
+           uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
 
     LoadGenMode mode = LoadGenMode::CREATE;
     uint32_t nAccounts = 0;

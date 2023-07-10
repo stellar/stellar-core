@@ -1967,7 +1967,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
 
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::PAY, /* nAccounts */ 150, 200,
-            /*txRate*/ 5, /*batchSize*/ 1));
+            /*txRate*/ 5));
 
         simulation->crankUntil(
             [&]() { return loadGenDone.count() > currLoadGenCount; },
