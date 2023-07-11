@@ -298,9 +298,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     ledgerEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads =
-        [&ledgerEntryCxxBufs, &ltx, &metrics, &sorobanConfig, &entryRentChanges,
-         autobumpLedgerCount](auto const& keys, bool readOnly) -> bool {
+    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &entryRentChanges,
+                     autobumpLedgerCount](auto const& keys,
+                                          bool readOnly) -> bool {
         for (auto const& lk : keys)
         {
             size_t keySize = xdr::xdr_size(lk);
@@ -337,6 +337,12 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                     }
                 }
             }
+            else if (!isTemporaryEntry(lk) &&
+                     ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true))
+            {
+                // Cannot access an expired entry
+                return false;
+            }
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
         }
         return true;
@@ -344,6 +350,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     if (!addReads(footprint.readWrite, false))
     {
+        // TODO: We need a new error code for accessing expired entries
         innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
     }
@@ -359,6 +366,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     if (!addReads(footprint.readOnly, true))
     {
+        // TODO: We need a new error code for accessing expired entries
         innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
     }
