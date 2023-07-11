@@ -1830,6 +1830,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
         if (i == 1)
         {
             cfg.FORCE_SCP = false;
@@ -1855,9 +1856,8 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
     // Generate transactions traffic, which the out of sync node will drop
     auto& loadGen = node->getLoadGenerator();
     loadGen.generateLoad(
-        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 200,
-                                                /* txRate */ 1,
-                                                /* batchSize */ 1));
+        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 3000,
+                                                /* txRate */ 1));
 
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -1900,8 +1900,10 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
-        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 1000;
+        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 6000;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+
         configs.push_back(cfg);
     }
 
@@ -1925,22 +1927,23 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         }
         SECTION("one peer does not support flow control in bytes")
         {
-            setupSimulation();
             configs[2].OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
+            setupSimulation();
         }
         SECTION("one peer disables")
         {
-            setupSimulation();
             configs[2].ENABLE_FLOW_CONTROL_BYTES = false;
+            setupSimulation();
         }
         SECTION("all peers disable")
         {
-            setupSimulation();
             std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
                 cfg.ENABLE_FLOW_CONTROL_BYTES = false;
             });
+            setupSimulation();
         }
+
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(2, 1); },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
@@ -1948,9 +1951,8 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         // close ledgers properly
         auto& loadGen = node->getLoadGenerator();
         loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 10,
-                                                    /* txRate */ 1,
-                                                    /* batchSize */ 1));
+            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
+                                                    /* txRate */ 1));
 
         auto& loadGenDone =
             node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -1963,8 +1965,8 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         currLoadGenCount = loadGenDone.count();
 
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY, /* nAccounts */ 10, 200,
-            /*txRate*/ 5, /*batchSize*/ 1));
+            LoadGenMode::PAY, /* nAccounts */ 150, 200,
+            /*txRate*/ 5));
 
         simulation->crankUntil(
             [&]() { return loadGenDone.count() > currLoadGenCount; },
@@ -2619,9 +2621,8 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     // Set a really high tx rate so we create the txns right away.
     auto const numAccounts = 5;
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts,
-        /* txRate */ 1000,
-        /* batchSize */ 1));
+        /* nAccounts */ numAccounts * 100,
+        /* txRate */ 1));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than

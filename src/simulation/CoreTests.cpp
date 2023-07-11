@@ -397,8 +397,7 @@ TEST_CASE(
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ 3,
-        /* txRate */ 10,
-        /* batchSize */ 100));
+        /* txRate */ 10));
     try
     {
         simulation->crankUntil(
@@ -412,7 +411,7 @@ TEST_CASE(
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         loadGen.generateLoad(
-            GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 3, 10, 10, 100));
+            GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 3, 10, 10));
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
@@ -527,8 +526,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     // Create accounts
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ 10,
-        /* txRate */ 10,
-        /* batchSize */ 100));
+        /* txRate */ 10));
 
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -544,7 +542,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
 
     // Generate payment txs
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY, numItems,
-                                                     numItems / 10, 10, 100));
+                                                     numItems / 10, 10));
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();
@@ -580,8 +578,7 @@ netTopologyTest(std::string const& name,
         auto& loadGen = app.getLoadGenerator();
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
             /* nAccounts */ 50,
-            /* txRate */ 10,
-            /* batchSize */ 100));
+            /* txRate */ 10));
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 

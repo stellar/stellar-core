@@ -3535,7 +3535,7 @@ TEST_CASE("soroban txs accepted by the network",
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 50, /* txRate */ 1, /* batchSize */ 50));
+        /* nAccounts */ 50, /* txRate */ 1));
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
@@ -3549,8 +3549,7 @@ TEST_CASE("soroban txs accepted by the network",
         // Now generate soroban txs.
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::SOROBAN, /* nAccounts */ 50,
-            /* nTxs */ 30, /* txRate */ 1, /* batchSize */ 1, /*offset*/ 0,
-            classicMaxFee));
+            /* nTxs */ 30, /* txRate */ 1, /*offset*/ 0, classicMaxFee));
 
         simulation->crankUntil(
             [&]() { return loadGenDone.count() > currLoadGenCount; },
@@ -3572,14 +3571,12 @@ TEST_CASE("soroban txs accepted by the network",
         // Generate Soroban txs from one node
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::SOROBAN, /* nAccounts */ 25,
-            /* nTxs */ 15, /* txRate */ 1, /* batchSize */ 1, /* offset */ 0,
-            classicMaxFee));
+            /* nTxs */ 15, /* txRate */ 1, /* offset */ 0, classicMaxFee));
         // Generate classic txs from another node (with offset to prevent
         // overlapping accounts)
         secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
             LoadGenMode::PAY, /* nAccounts */ 25,
-            /* nTxs */ 14, /* txRate */ 1, /* batchSize */ 1, /* offset */ 25,
-            classicMaxFee));
+            /* nTxs */ 14, /* txRate */ 1, /* offset */ 25, classicMaxFee));
 
         simulation->crankUntil(
             [&]() {
