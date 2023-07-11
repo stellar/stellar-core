@@ -2596,10 +2596,12 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     qSet.validators.push_back(vNode2NodeID);
 
     auto configs = std::vector<Config>{};
+    auto const numAccounts = 5;
 
     for (auto i = 0; i < 2; i++)
     {
         auto cfg = getTestConfig(i + 1);
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = numAccounts * MAX_OPS_PER_TX;
         configs.push_back(cfg);
     }
 
@@ -2619,9 +2621,8 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
 
     // Create 5 txns each creating one new account.
     // Set a really high tx rate so we create the txns right away.
-    auto const numAccounts = 5;
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts * 100,
+        /* nAccounts */ numAccounts * MAX_OPS_PER_TX,
         /* txRate */ 1));
 
     // Let the network close multiple ledgers.
