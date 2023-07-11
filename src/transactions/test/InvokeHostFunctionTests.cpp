@@ -673,7 +673,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto bumpOp = [&](uint32_t bumpAmount,
                       xdr::xvector<LedgerKey> const& readOnly,
                       int64_t expectedRefundableFeeCharged) {
-        auto root = TestAccount::createRoot(*app);
         Operation bumpOp;
         bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
         bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire = bumpAmount;
@@ -705,7 +704,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpResources.extendedMetaDataSizeBytes = 1000;
 
         // submit operation
-        auto root = TestAccount::createRoot(*app);
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                  {restoreOp}, {}, bumpResources,
                                                  100'000, 1'200);
@@ -974,10 +972,20 @@ TEST_CASE("contract storage", "[tx][soroban]")
         REQUIRE(!isEntryLive("key", ContractDataDurability::PERSISTENT,
                              app->getLedgerManager().getLastClosedLedgerNum()));
 
+        // Trying to use this expired entry should fail.
+        putWithFootprint(
+            "key", 0, contractKeys,
+            {contractDataKey(contractID, makeSymbol("key"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)},
+            1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT,
+            std::nullopt);
+
+        // Restore the entry and then write to it.
         restoreOp(
             {contractDataKey(contractID, makeSymbol("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             68);
+
         REQUIRE(
             isEntryLive("key", ContractDataDurability::PERSISTENT,
                         app->getLedgerManager().getLastClosedLedgerNum() + 1));
@@ -986,6 +994,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         REQUIRE(getContractDataExpiration("key",
                                           ContractDataDurability::PERSISTENT) ==
                 app->getLedgerManager().getLastClosedLedgerNum() + minBump - 1);
+
+        put("key", 1, ContractDataDurability::PERSISTENT);
     }
     SECTION("max expiration")
     {
