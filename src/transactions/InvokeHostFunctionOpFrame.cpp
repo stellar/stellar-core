@@ -350,8 +350,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     if (!addReads(footprint.readWrite, false))
     {
-        // TODO: We need a new error code for accessing expired entries
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
         return false;
     }
     // Metadata includes the ledger entry changes which we
@@ -366,8 +365,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     if (!addReads(footprint.readOnly, true))
     {
-        // TODO: We need a new error code for accessing expired entries
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
         return false;
     }
 
