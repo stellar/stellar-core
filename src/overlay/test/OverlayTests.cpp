@@ -1857,8 +1857,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
     auto& loadGen = node->getLoadGenerator();
     loadGen.generateLoad(
         GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 3000,
-                                                /* txRate */ 1,
-                                                /* batchSize */ 15));
+                                                /* txRate */ 1));
 
     auto& loadGenDone =
         node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -1901,7 +1900,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
-        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 1000;
+        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 6000;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
 
@@ -1928,22 +1927,23 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         }
         SECTION("one peer does not support flow control in bytes")
         {
-            setupSimulation();
             configs[2].OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
+            setupSimulation();
         }
         SECTION("one peer disables")
         {
-            setupSimulation();
             configs[2].ENABLE_FLOW_CONTROL_BYTES = false;
+            setupSimulation();
         }
         SECTION("all peers disable")
         {
-            setupSimulation();
             std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
                 cfg.ENABLE_FLOW_CONTROL_BYTES = false;
             });
+            setupSimulation();
         }
+
         simulation->crankUntil(
             [&] { return simulation->haveAllExternalized(2, 1); },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
@@ -1952,8 +1952,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         auto& loadGen = node->getLoadGenerator();
         loadGen.generateLoad(
             GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 150,
-                                                    /* txRate */ 1,
-                                                    /* batchSize */ 15));
+                                                    /* txRate */ 1));
 
         auto& loadGenDone =
             node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -2622,9 +2621,8 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     // Set a really high tx rate so we create the txns right away.
     auto const numAccounts = 5;
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ numAccounts * 15,
-        /* txRate */ 1,
-        /* batchSize */ 15));
+        /* nAccounts */ numAccounts * 100,
+        /* txRate */ 1));
 
     // Let the network close multiple ledgers.
     // If the logic to advertise or demand incorrectly sends more than

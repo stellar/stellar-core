@@ -3497,7 +3497,7 @@ TEST_CASE("soroban txs accepted by the network",
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 50, /* txRate */ 1, /* batchSize */ 50));
+        /* nAccounts */ 50, /* txRate */ 1));
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);

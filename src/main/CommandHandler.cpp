@@ -968,8 +968,15 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
         cfg.nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
         cfg.txRate = parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
-        cfg.batchSize = parseOptionalParamOrDefault<uint32_t>(
-            map, "batchsize", 100); // Only for account creations
+        auto batchSize = parseOptionalParamOrDefault<uint32_t>(map, "batchsize",
+                                                               MAX_OPS_PER_TX);
+        if (batchSize != MAX_OPS_PER_TX)
+        {
+            CLOG_WARNING(LoadGen,
+                         "LoadGenerator: batchSize is deprecated, "
+                         "automatically set to {}",
+                         MAX_OPS_PER_TX);
+        }
         cfg.offset = parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
         uint32_t spikeIntervalInt =
             parseOptionalParamOrDefault<uint32_t>(map, "spikeinterval", 0);
@@ -983,11 +990,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         // Only for MIXED_TX mode; fraction of DEX transactions.
         cfg.dexTxPercent =
             parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
-        if (cfg.batchSize > 100)
-        {
-            cfg.batchSize = 100;
-            retStr = "Setting batch size to its limit of 100.";
-        }
+
         if (cfg.maxGeneratedFeeRate)
         {
             auto baseFee = mApp.getLedgerManager().getLastTxFee();

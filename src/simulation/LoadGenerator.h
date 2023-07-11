@@ -39,8 +39,8 @@ enum class LoadGenMode
 
 struct GeneratedLoadConfig
 {
-    static GeneratedLoadConfig
-    createAccountsLoad(uint32_t nAccounts, uint32_t txRate, uint32_t batchSize);
+    static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
+                                                  uint32_t txRate);
 
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
@@ -52,7 +52,6 @@ struct GeneratedLoadConfig
     uint32_t nTxs = 0;
     // The number of transactions per second when there is no spike.
     uint32_t txRate = 0;
-    uint32_t batchSize = 0;
     // A spike will occur every spikeInterval seconds.
     // Set this to 0 if no spikes are needed.
     std::chrono::seconds spikeInterval = std::chrono::seconds(0);
@@ -119,8 +118,7 @@ class LoadGenerator
     // sufficient balances etc.
     TransactionQueue::AddResult execute(TransactionFramePtr& txf,
                                         LoadGenMode mode,
-                                        TransactionResultCode& code,
-                                        int32_t batchSize);
+                                        TransactionResultCode& code);
     TransactionFramePtr
     createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
                               LoadGenMode mode,
@@ -209,11 +207,10 @@ class LoadGenerator
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
     void logProgress(std::chrono::nanoseconds submitTimer, LoadGenMode mode,
-                     uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
-                     uint32_t txRate);
+                     uint32_t nAccounts, uint32_t nTxs, uint32_t txRate);
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
-                              uint32_t batchSize, uint32_t ledgerNum);
+                              uint32_t ledgerNum);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>

@@ -40,8 +40,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     {
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
             /* nAccounts */ 10000,
-            /* txRate */ 1,
-            /* batchSize */ 100));
+            /* txRate */ 1));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
@@ -62,30 +61,13 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
             },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
-    SECTION("invalid creation parameters")
-    {
-        size_t batch = 10;
-        loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-            /* nAccounts */ 10000,
-            /* txRate */ batch / Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() +
-                1,
-            /* batchSize */ batch));
-        simulation->crankUntil(
-            [&]() {
-                return app.getMetrics()
-                           .NewMeter({"loadgen", "run", "failed"}, "run")
-                           .count() == 1;
-            },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-    }
     SECTION("invalid loadgen parameters")
     {
         // Succesfully create accounts
         size_t numAccounts = 100;
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
             /* nAccounts */ 100,
-            /* txRate */ 1,
-            /* batchSize */ 100));
+            /* txRate */ 1));
         simulation->crankUntil(
             [&]() {
                 return app.getMetrics()
@@ -137,8 +119,7 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
 
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ nAccounts,
-        /* txRate */ txRate,
-        /* batchSize */ 100));
+        /* txRate */ txRate));
     try
     {
         simulation->crankUntil(
@@ -210,8 +191,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ numAccounts,
-        /* txRate */ txRate,
-        /* batchSize */ 100));
+        /* txRate */ txRate));
     try
     {
         simulation->crankUntil(

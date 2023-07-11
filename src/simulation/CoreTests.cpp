@@ -397,8 +397,7 @@ TEST_CASE(
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ 3,
-        /* txRate */ 10,
-        /* batchSize */ 100));
+        /* txRate */ 10));
     try
     {
         simulation->crankUntil(
@@ -527,8 +526,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     // Create accounts
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ 10,
-        /* txRate */ 10,
-        /* batchSize */ 100));
+        /* txRate */ 10));
 
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -580,8 +578,7 @@ netTopologyTest(std::string const& name,
         auto& loadGen = app.getLoadGenerator();
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
             /* nAccounts */ 50,
-            /* txRate */ 10,
-            /* batchSize */ 100));
+            /* txRate */ 10));
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 

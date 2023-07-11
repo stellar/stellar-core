@@ -200,31 +200,12 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
                    "number parameters are set and accounts are "
                    "created, or retry with smaller tx rate.";
     }
-
-    // During account creation, we start with a single "root" account.
-    // Since we need enough unique accounts to create
-    // the desired number of accounts, we first create batchSize number of
-    // accounts and use them to further account creation. Therefore, it is
-    // important to configure the batch size to be at least
-    // (numTxsPerLedgers)*MIN_UNIQUE_ACCOUNT_MULTIPLIER. Note that because max
-    // batchSize is 100, we can create up to (100 * 100) new accounts per
-    // ledger.
-    else if (cfg.mode == LoadGenMode::CREATE && cfg.nAccounts > cfg.batchSize &&
-             (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-              MIN_UNIQUE_ACCOUNT_MULTIPLIER) > cfg.batchSize)
-    {
-        errorMsg = fmt::format(
-            "Tx rate is too high, or batch size "
-            "is too low: make sure batch size is at least {}x greater "
-            "than desired number of transactions per ledger",
-            MIN_UNIQUE_ACCOUNT_MULTIPLIER);
-    }
     // During load submission, we must have enough unique source accounts (with
     // a buffer) to accommodate the desired tx rate.
-    else if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
-             (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count()) *
-                     MIN_UNIQUE_ACCOUNT_MULTIPLIER >
-                 cfg.nAccounts)
+    if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
+        (cfg.txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count()) *
+                MIN_UNIQUE_ACCOUNT_MULTIPLIER >
+            cfg.nAccounts)
     {
         errorMsg = fmt::format(
             "Tx rate is too high, there are not enough unique accounts. Make "
@@ -354,10 +335,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     {
         cfg.txRate = 1;
     }
-    if (cfg.batchSize == 0)
-    {
-        cfg.batchSize = 1;
-    }
 
     auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
     if (cfg.mode == LoadGenMode::CREATE)
@@ -387,8 +364,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     {
         if (cfg.mode == LoadGenMode::CREATE)
         {
-            cfg.nAccounts = submitCreationTx(cfg.nAccounts, cfg.offset,
-                                             cfg.batchSize, ledgerNum);
+            cfg.nAccounts =
+                submitCreationTx(cfg.nAccounts, cfg.offset, ledgerNum);
         }
         else
         {
@@ -485,8 +462,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     // Emit a log message once per second.
     if (now != mLastSecond)
     {
-        logProgress(submit, cfg.mode, cfg.nAccounts, cfg.nTxs, cfg.batchSize,
-                    cfg.txRate);
+        logProgress(submit, cfg.mode, cfg.nAccounts, cfg.nTxs, cfg.txRate);
     }
 
     mLastSecond = now;
@@ -496,9 +472,10 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
 uint32_t
 LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
-                                uint32_t batchSize, uint32_t ledgerNum)
+                                uint32_t ledgerNum)
 {
-    uint32_t numToProcess = nAccounts < batchSize ? nAccounts : batchSize;
+    uint32_t numToProcess =
+        nAccounts < MAX_OPS_PER_TX ? nAccounts : MAX_OPS_PER_TX;
     TestAccountPtr from;
     TransactionFramePtr tx;
     std::tie(from, tx) =
@@ -508,7 +485,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     bool createDuplicate = false;
     uint32_t numTries = 0;
 
-    while ((status = execute(tx, LoadGenMode::CREATE, code, batchSize)) !=
+    while ((status = execute(tx, LoadGenMode::CREATE, code)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         // Ignore duplicate transactions, simply continue generating load
@@ -550,7 +527,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     TransactionQueue::AddResult status;
     uint32_t numTries = 0;
 
-    while ((status = execute(tx, cfg.mode, code, cfg.batchSize)) !=
+    while ((status = execute(tx, cfg.mode, code)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
 
@@ -602,7 +579,7 @@ LoadGenerator::getNextAvailableAccount()
 void
 LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
                            LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
-                           uint32_t batchSize, uint32_t txRate)
+                           uint32_t txRate)
 {
     using namespace std::chrono;
 
@@ -613,7 +590,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 
     auto remainingTxCount =
-        (mode == LoadGenMode::CREATE) ? nAccounts / batchSize : nTxs;
+        (mode == LoadGenMode::CREATE) ? nAccounts / MAX_OPS_PER_TX : nTxs;
     auto etaSecs = (uint32_t)(((double)remainingTxCount) /
                               max<double>(1, applyTx.one_minute_rate()));
 
@@ -1075,7 +1052,7 @@ LoadGenerator::createTransactionFramePtr(
 
 TransactionQueue::AddResult
 LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
-                       TransactionResultCode& code, int32_t batchSize)
+                       TransactionResultCode& code)
 {
     TxMetrics txm(mApp.getMetrics());
 
@@ -1131,14 +1108,12 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
 }
 
 GeneratedLoadConfig
-GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate,
-                                        uint32_t batchSize)
+GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = LoadGenMode::CREATE;
     cfg.nAccounts = nAccounts;
     cfg.txRate = txRate;
-    cfg.batchSize = batchSize;
     return cfg;
 }
 
