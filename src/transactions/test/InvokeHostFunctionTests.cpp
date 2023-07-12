@@ -536,11 +536,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 xdr::xvector<LedgerKey> const& readOnly,
                                 xdr::xvector<LedgerKey> const& readWrite,
                                 uint32_t writeBytes, bool expectSuccess,
-                                ContractDataDurability type,
-                                std::optional<uint32_t> flags) {
+                                ContractDataDurability type) {
         auto keySymbol = makeSymbol(key);
         auto valU64 = makeU64(val);
-        auto scFlags = flags ? makeU32(*flags) : makeVoid();
 
         std::string funcStr;
         switch (type)
@@ -556,7 +554,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto [tx, ltx, txm] =
             createTx(readOnly, readWrite, writeBytes,
                      {makeContractAddressSCVal(contractID), makeSymbol(funcStr),
-                      keySymbol, valU64, scFlags});
+                      keySymbol, valU64});
 
         if (expectSuccess)
         {
@@ -572,12 +570,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
     };
 
     auto put = [&](std::string const& key, uint64_t val,
-                   ContractDataDurability type,
-                   std::optional<uint32_t> flags = std::nullopt) {
+                   ContractDataDurability type) {
         putWithFootprint(
             key, val, contractKeys,
             {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
-            1000, true, type, flags);
+            1000, true, type);
     };
 
     auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
@@ -760,7 +757,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         // Failure: contract data isn't in footprint
         putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
-                         ContractDataDurability::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT);
         delWithFootprint("key1", contractKeys, {}, false,
                          ContractDataDurability::PERSISTENT);
 
@@ -770,7 +767,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             contractDataKey(contractID, makeSymbol("key2"),
                             ContractDataDurability::PERSISTENT, DATA_ENTRY));
         putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
-                         ContractDataDurability::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT);
         delWithFootprint("key2", readOnlyFootprint, {}, false,
                          ContractDataDurability::PERSISTENT);
 
@@ -779,7 +776,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key2", 88888, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            1, false, ContractDataDurability::PERSISTENT, std::nullopt);
+            1, false, ContractDataDurability::PERSISTENT);
 
         put("key1", 9, ContractDataDurability::PERSISTENT);
         put("key2", UINT64_MAX, ContractDataDurability::PERSISTENT);
@@ -805,7 +802,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key2", 2, contractKeys,
             {contractDataKey(contractID, makeSymbol("key2"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            1000, false, ContractDataDurability::PERSISTENT, std::nullopt);
+            1000, false, ContractDataDurability::PERSISTENT);
     }
 
     SECTION("Same ScVal key, different types")
@@ -858,23 +855,18 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("rw", 0, ContractDataDurability::PERSISTENT);
         put("ro", 0, ContractDataDurability::PERSISTENT);
 
-        uint32_t flags = NO_AUTOBUMP;
-        put("nobump", 0, ContractDataDurability::PERSISTENT, flags);
-
         auto readOnlySet = contractKeys;
         readOnlySet.emplace_back(
             contractDataKey(contractID, makeSymbol("ro"),
                             ContractDataDurability::PERSISTENT, DATA_ENTRY));
 
-        auto readWriteSet = {
-            contractDataKey(contractID, makeSymbol("nobump"),
-                            ContractDataDurability::PERSISTENT, DATA_ENTRY),
-            contractDataKey(contractID, makeSymbol("rw"),
-                            ContractDataDurability::PERSISTENT, DATA_ENTRY)};
+        auto readWriteSet = {contractDataKey(contractID, makeSymbol("rw"),
+                                             ContractDataDurability::PERSISTENT,
+                                             DATA_ENTRY)};
 
         // Invoke contract with all keys in footprint
         putWithFootprint("rw", 1, readOnlySet, readWriteSet, 1000, true,
-                         ContractDataDurability::PERSISTENT, std::nullopt);
+                         ContractDataDurability::PERSISTENT);
 
         auto expectedInitialExpiration =
             stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
@@ -886,16 +878,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         REQUIRE(getContractDataExpiration("ro",
                                           ContractDataDurability::PERSISTENT) ==
                 expectedInitialExpiration + autoBump);
-        REQUIRE(getContractDataExpiration("nobump",
-                                          ContractDataDurability::PERSISTENT,
-                                          flags) == expectedInitialExpiration);
 
-        // Contract instance and Wasm should have minimum life and 4 invocations
+        // Contract instance and Wasm should have minimum life and 3 invocations
         // worth of autobumps
         LedgerTxn ltx(app->getLedgerTxnRoot());
         for (auto const& key : contractKeys)
         {
-            uint32_t mult = key.type() == CONTRACT_CODE ? 5 : 4;
+            uint32_t mult = key.type() == CONTRACT_CODE ? 4 : 3;
             auto ltxe = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
             REQUIRE(ltxe);
             REQUIRE(getExpirationLedger(ltxe.current()) ==
@@ -977,8 +966,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", 0, contractKeys,
             {contractDataKey(contractID, makeSymbol("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT,
-            std::nullopt);
+            1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT);
 
         // Restore the entry and then write to it.
         restoreOp(
