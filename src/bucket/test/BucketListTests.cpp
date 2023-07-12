@@ -687,7 +687,9 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         check();
 
         // Take snapshots more frequently for faster testing
-        networkConfig.setBucketListSnapshotPeriodForTesting(64);
+        app->getLedgerManager()
+            .getMutableSorobanNetworkConfig(ltx)
+            .setBucketListSnapshotPeriodForTesting(64);
 
         // Generate enough ledgers to fill sliding window
         auto ledgersToGenerate =

@@ -489,9 +489,9 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto& networkConfig =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx);
-            networkConfig.setBucketListSnapshotPeriodForTesting(1);
+            app->getLedgerManager()
+                .getMutableSorobanNetworkConfig(ltx)
+                .setBucketListSnapshotPeriodForTesting(1);
         }
 #endif
 

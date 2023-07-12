@@ -133,6 +133,9 @@ class LedgerManager
 #ifdef BUILD_TESTS
     virtual void
     setSorobanNetworkConfig(SorobanNetworkConfig const& config) = 0;
+
+    virtual SorobanNetworkConfig&
+    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
