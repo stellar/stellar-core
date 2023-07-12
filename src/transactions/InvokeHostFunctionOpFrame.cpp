@@ -298,9 +298,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     ledgerEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads =
-        [&ledgerEntryCxxBufs, &ltx, &metrics, &sorobanConfig, &entryRentChanges,
-         autobumpLedgerCount](auto const& keys, bool readOnly) -> bool {
+    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &entryRentChanges,
+                     &resources, autobumpLedgerCount,
+                     this](auto const& keys, bool readOnly) -> bool {
         for (auto const& lk : keys)
         {
             size_t keySize = xdr::xdr_size(lk);
@@ -337,14 +337,28 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                     }
                 }
             }
+            else if (!isTemporaryEntry(lk) &&
+                     ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true))
+            {
+                // Cannot access an expired entry
+                this->innerResult().code(INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
+                return false;
+            }
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
+
+            if (resources.readBytes < metrics.mLedgerReadByte)
+            {
+                this->innerResult().code(
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
         }
         return true;
     };
 
     if (!addReads(footprint.readWrite, false))
     {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        // Error code set in addReads
         return false;
     }
     // Metadata includes the ledger entry changes which we
@@ -359,13 +373,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     if (!addReads(footprint.readOnly, true))
     {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-        return false;
-    }
-
-    if (resources.readBytes < metrics.mLedgerReadByte)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        // Error code set in addReads
         return false;
     }
 
