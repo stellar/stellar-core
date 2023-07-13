@@ -1387,17 +1387,6 @@ ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
         auto const id = updatedEntry.configSettingID();
         key.configSetting().configSettingID = id;
         ltx.load(key).current().data.configSetting() = updatedEntry;
-
-        // State Expiration Setting may have changed BucketListWindowSize, so
-        // BucketManager may have to update window
-        if (id == ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION)
-        {
-            auto newWindowSize = updatedEntry.stateExpirationSettings()
-                                     .bucketListSizeWindowSampleSize;
-            app.getLedgerManager()
-                .getSorobanNetworkConfig(ltx)
-                .maybeUpdateBucketListWindowSize(ltx, newWindowSize);
-        }
     }
 }
 

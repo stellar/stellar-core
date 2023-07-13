@@ -498,8 +498,8 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-SorobanNetworkConfig const&
-LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig&
+LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
 {
     if (!mSorobanNetworkConfig)
     {
@@ -509,11 +509,23 @@ LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
     return *mSorobanNetworkConfig;
 }
 
+SorobanNetworkConfig const&
+LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+{
+    return getSorobanNetworkConfigInternal(ltx);
+}
+
 #ifdef BUILD_TESTS
 void
 LedgerManagerImpl::setSorobanNetworkConfig(SorobanNetworkConfig const& config)
 {
     mSorobanNetworkConfig = config;
+}
+
+SorobanNetworkConfig&
+LedgerManagerImpl::getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+{
+    return getSorobanNetworkConfigInternal(ltx);
 }
 #endif
 
@@ -1156,7 +1168,9 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        mSorobanNetworkConfig->loadFromLedger(rootLtx);
+        mSorobanNetworkConfig->loadFromLedger(
+            rootLtx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
+            ledgerVersion);
     }
 #endif
 }
@@ -1456,9 +1470,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (blEnabled)
     {
-        mApp.getLedgerManager()
-            .getSorobanNetworkConfig(ltx)
-            .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+        getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
+            ledgerSeq, ltx, mApp);
     }
 #endif
 

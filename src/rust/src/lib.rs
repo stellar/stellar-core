@@ -135,6 +135,13 @@ mod rust_bridge {
         temporary_rent_rate_denominator: i64,
     }
 
+    struct CxxWriteFeeConfiguration {
+        bucket_list_target_size_bytes: i64,
+        write_fee_1kb_bucket_list_low: i64,
+        write_fee_1kb_bucket_list_high: i64,
+        bucket_list_write_fee_growth_factor: u32,
+    }
+
     struct FeePair {
         non_refundable_fee: i64,
         refundable_fee: i64,
@@ -192,7 +199,7 @@ mod rust_bridge {
         // Return true if configured with cfg(feature="soroban-env-host-prev")
         fn compiled_with_soroban_prev() -> bool;
 
-        // Comptues the resource fee given the transaction resource consumption
+        // Computes the resource fee given the transaction resource consumption
         // and network configuration.
         fn compute_transaction_resource_fee(
             config_max_protocol: u32,
@@ -201,6 +208,17 @@ mod rust_bridge {
             fee_config: CxxFeeConfiguration,
         ) -> Result<FeePair>;
 
+        // Computes the write fee per 1kb written to the ledger given the
+        // current bucket list size and network configuration.
+        fn compute_write_fee_per_1kb(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            bucket_list_size: i64,
+            fee_config: CxxWriteFeeConfiguration,
+        ) -> Result<i64>;
+
+        // Computes the rent fee given the ledger entry changes and network
+        // configuration.
         fn compute_rent_fee(
             config_max_protocol: u32,
             protocol_version: u32,
@@ -257,6 +275,7 @@ use rust_bridge::CxxLedgerEntryRentChange;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::CxxRentFeeConfiguration;
 use rust_bridge::CxxTransactionResources;
+use rust_bridge::CxxWriteFeeConfiguration;
 use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
 use rust_bridge::RustBuf;
@@ -650,5 +669,31 @@ pub(crate) fn compute_rent_fee(
         changed_entries,
         fee_config,
         current_ledger_seq,
+    ))
+}
+
+pub(crate) fn compute_write_fee_per_1kb(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    bucket_list_size: i64,
+    fee_config: CxxWriteFeeConfiguration,
+) -> Result<i64, Box<dyn std::error::Error>> {
+    if protocol_version > config_max_protocol {
+        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
+            "unsupported protocol",
+        )));
+    }
+    #[cfg(feature = "soroban-env-host-prev")]
+    {
+        if protocol_version == config_max_protocol - 1 {
+            return Ok(soroban_prev::contract::compute_write_fee_per_1kb(
+                bucket_list_size,
+                fee_config,
+            ));
+        }
+    }
+    Ok(soroban_curr::contract::compute_write_fee_per_1kb(
+        bucket_list_size,
+        fee_config,
     ))
 }

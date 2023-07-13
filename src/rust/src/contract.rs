@@ -6,8 +6,8 @@ use crate::{
     log::partition::TX,
     rust_bridge::{
         Bump, CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
-        CxxRentFeeConfiguration, CxxTransactionResources, FeePair, InvokeHostFunctionOutput,
-        RustBuf, XDRFileHash,
+        CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
+        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
 use log::debug;
@@ -24,7 +24,8 @@ use super::soroban_env_host::{
     fees::{
         compute_rent_fee as host_compute_rent_fee,
         compute_transaction_resource_fee as host_compute_transaction_resource_fee,
-        FeeConfiguration, LedgerEntryRentChange, RentFeeConfiguration, TransactionResources,
+        compute_write_fee_per_1kb as host_compute_write_fee_per_1kb, FeeConfiguration,
+        LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
     storage::{self, AccessType, Footprint, FootprintMap, Storage, StorageMap},
     xdr::{
@@ -100,6 +101,17 @@ impl From<CxxRentFeeConfiguration> for RentFeeConfiguration {
             fee_per_write_1kb: value.fee_per_write_1kb,
             persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
             temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
+        }
+    }
+}
+
+impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
+    fn from(value: CxxWriteFeeConfiguration) -> Self {
+        Self {
+            bucket_list_target_size_bytes: value.bucket_list_target_size_bytes,
+            write_fee_1kb_bucket_list_low: value.write_fee_1kb_bucket_list_low,
+            write_fee_1kb_bucket_list_high: value.write_fee_1kb_bucket_list_high,
+            bucket_list_write_fee_growth_factor: value.bucket_list_write_fee_growth_factor,
         }
     }
 }
@@ -499,4 +511,11 @@ pub(crate) fn compute_rent_fee(
 ) -> i64 {
     let changed_entries = changed_entries.iter().map(|e| e.into()).collect();
     host_compute_rent_fee(&changed_entries, &fee_config.into(), current_ledger_seq)
+}
+
+pub(crate) fn compute_write_fee_per_1kb(
+    bucket_list_size: i64,
+    fee_config: CxxWriteFeeConfiguration,
+) -> i64 {
+    host_compute_write_fee_per_1kb(bucket_list_size, &fee_config.into())
 }

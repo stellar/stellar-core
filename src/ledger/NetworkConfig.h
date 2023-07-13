@@ -53,11 +53,15 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t FEE_READ_LEDGER_ENTRY = 5'000;   // 0.02 XLM/max tx
     static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 20'000; // 0.04 XLM/max tx
     static constexpr int64_t FEE_READ_1KB = 1'000;            // 0.02 XLM/max tx
-    static constexpr int64_t FEE_WRITE_1KB = 4'000;           // 0.04 XLM/max tx
-    static constexpr int64_t BUCKET_LIST_SIZE_BYTES = 1;
-    static constexpr int64_t BUCKET_LIST_FEE_RATE_LOW = 1;
-    static constexpr int64_t BUCKET_LIST_FEE_RATE_HIGH = 1;
-    static constexpr uint32_t BUCKET_LIST_GROWTH_FACTOR = 1;
+    static constexpr int64_t BUCKET_LIST_TARGET_SIZE_BYTES =
+        30LL * 1024 * 1024 * 1024; // 30 GB
+    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_LOW =
+        1'000; // 0.01 XLM/max tx
+    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_HIGH =
+        10'000; // 0.1 XLM/max tx
+    // No growth fee initially to make sure fees are accessible
+    static constexpr uint32_t BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR = 1;
+
     static constexpr uint64_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE =
         30; // 30 day average
 
@@ -87,9 +91,9 @@ struct InitialSorobanNetworkConfig
     static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
     static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
 
-    // Rent payment of ~1 XLM/year for a max entry.
+    // Rent payment of a write fee per ~25 days.
     static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 252'480;
-    // Rent payment of ~0.1 XLM/year for a max entry.
+    // Rent payment of a write fee per ~250 days.
     static constexpr int64_t TEMP_RENT_RATE_DENOMINATOR = 2'524'800;
 
     // General execution settings
@@ -112,7 +116,8 @@ class SorobanNetworkConfig
     initializeGenesisLedgerForTesting(uint32_t genesisLedgerProtocol,
                                       AbstractLedgerTxn& ltx, Application& app);
 
-    void loadFromLedger(AbstractLedgerTxn& ltx);
+    void loadFromLedger(AbstractLedgerTxn& ltx, uint32_t configMaxProtocol,
+                        uint32_t protocolVersion);
     // Maximum allowed size of the contract Wasm that can be uploaded (in
     // bytes).
     uint32_t maxContractSizeBytes() const;
@@ -156,15 +161,6 @@ class SorobanNetworkConfig
     int64_t feeRead1KB() const;
     // Fee for writing 1KB
     int64_t feeWrite1KB() const;
-    // Bucket list fees grow slowly up to that size
-    int64_t bucketListSizeBytes() const;
-    // Fee rate in stroops when the bucket list is empty
-    int64_t bucketListFeeRateLow() const;
-    // Fee rate in stroops when the bucket list reached bucketListSizeBytes
-    int64_t bucketListFeeRateHigh() const;
-    // Rate multiplier for any additional data past the first
-    // bucketListSizeBytes
-    uint32_t bucketListGrowthFactor() const;
 
     // Historical data (pushed to core archives) settings for contracts.
     // Fee for storing 1KB in archives
@@ -190,18 +186,10 @@ class SorobanNetworkConfig
     // Number of samples in slidign window
     uint32_t getBucketListSizeSnapshotPeriod() const;
 
-    // If newSize is different than the current BucketList size sliding window,
-    // update the window. If newSize < currSize, pop entries off window. If
-    // newSize > currSize, add as many copies of the current BucketList size to
-    // window until it has newSize entries.
-    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx,
-                                         uint32_t newSize) const;
-
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
     // the sliding window and write it to disk.
     void maybeSnapshotBucketListSize(uint32_t currLedger,
-                                     AbstractLedgerTxn& ltx,
-                                     Application& app) const;
+                                     AbstractLedgerTxn& ltx, Application& app);
 
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
@@ -211,7 +199,7 @@ class SorobanNetworkConfig
     uint32_t& maxContractDataKeySizeBytes();
     uint32_t& maxContractDataEntrySizeBytes();
 
-    void setBucketListSnapshotPeriodForTesting(uint32_t period) const;
+    void setBucketListSnapshotPeriodForTesting(uint32_t period);
     std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
@@ -249,10 +237,16 @@ class SorobanNetworkConfig
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+    void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
+    // If newSize is different than the current BucketList size sliding window,
+    // update the window. If newSize < currSize, pop entries off window. If
+    // newSize > currSize, add as many copies of the current BucketList size to
+    // window until it has newSize entries.
+    void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
-    void updateBucketListSizeAverage() const;
+    void updateBucketListSizeAverage();
 #endif
 
     uint32_t mMaxContractSizeBytes{};
@@ -279,10 +273,10 @@ class SorobanNetworkConfig
     int64_t mFeeWriteLedgerEntry{};
     int64_t mFeeRead1KB{};
     int64_t mFeeWrite1KB{};
-    int64_t mBucketListSizeBytes{};
-    int64_t mBucketListFeeRateLow{};
-    int64_t mBucketListFeeRateHigh{};
-    uint32_t mBucketListGrowthFactor{};
+    int64_t mBucketListTargetSizeBytes{};
+    int64_t mWriteFee1KBBucketListLow{};
+    int64_t mWriteFee1KBBucketListHigh{};
+    uint32_t mBucketListWriteFeeGrowthFactor{};
 
     // Historical data (pushed to core archives) settings for contracts.
     int64_t mFeeHistorical1KB{};
@@ -297,11 +291,11 @@ class SorobanNetworkConfig
     int64_t mFeePropagateData1KB{};
 
     // FIFO queue, push_back/pop_front
-    mutable std::deque<uint64_t> mBucketListSizeSnapshots;
-    mutable uint64_t mAverageBucketListSize{0};
+    std::deque<uint64_t> mBucketListSizeSnapshots;
+    uint64_t mAverageBucketListSize{0};
 
 #ifdef BUILD_TESTS
-    mutable std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
+    std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

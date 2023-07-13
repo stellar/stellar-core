@@ -318,7 +318,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getFeeBid() == 62'170);
+            REQUIRE(tx->getFeeBid() == 65'100);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -927,7 +927,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
              contractDataKey(contractID, makeSymbol("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            187);
+            178);
 
         REQUIRE(getContractDataExpiration("key",
                                           ContractDataDurability::PERSISTENT) ==
@@ -972,8 +972,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         restoreOp(
             {contractDataKey(contractID, makeSymbol("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            68);
-
+            61);
         REQUIRE(
             isEntryLive("key", ContractDataDurability::PERSISTENT,
                         app->getLedgerManager().getLastClosedLedgerNum() + 1));

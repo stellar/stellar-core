@@ -91,6 +91,9 @@ class LedgerManagerImpl : public LedgerManager
 
     void emitNextMeta();
 
+    SorobanNetworkConfig&
+    getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
+
   protected:
     virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
                                                    uint32_t ledgerSeq,
@@ -128,6 +131,8 @@ class LedgerManagerImpl : public LedgerManager
 
 #ifdef BUILD_TESTS
     void setSorobanNetworkConfig(SorobanNetworkConfig const& config) override;
+    SorobanNetworkConfig&
+    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
