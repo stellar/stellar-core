@@ -296,6 +296,10 @@ format.
         Transactions are ordered by fee per operation (transactions with lower 
         operation fees are held for later)
         <br>
+    * `maxsorobantxsetsize` (uint32) This defines the maximum number of Soroban
+       operations in the transaction set to include in a ledger. The semantics is
+       the same as for `maxtxsetsize`, but this affects the Soroban slice of traffic.
+       <br>
     * `protocolversion` (uint32) defines the protocol version to upgrade to.
         When specified it must match one of the protocol versions supported
         by the node and should be greater than ledgerVersion from the current

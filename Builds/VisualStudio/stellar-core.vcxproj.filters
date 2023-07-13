@@ -513,9 +513,6 @@
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp">
       <Filter>util\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\tracy\TracyClient.cpp">
-      <Filter>lib\tracy</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\XDRCereal.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -1344,6 +1341,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
+      <Filter>lib\tracy</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

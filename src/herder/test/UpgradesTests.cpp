@@ -215,6 +215,14 @@ makeTxCountUpgrade(int txCount)
 }
 
 LedgerUpgrade
+makeMaxSorobanTxSizeUpgrade(int txSize)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE};
+    result.newMaxSorobanTxSetSize() = txSize;
+    return result;
+}
+
+LedgerUpgrade
 makeFlagsUpgrade(int flags)
 {
     auto result = LedgerUpgrade{LEDGER_UPGRADE_FLAGS};
@@ -761,7 +769,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     }
 }
 
-TEST_CASE("config upgrades applied to ledger", "[upgrades]")
+TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
@@ -850,6 +858,36 @@ TEST_CASE("config upgrades applied to ledger", "[upgrades]")
         REQUIRE(sorobanConfig.txMaxInstructions() == 444);
         REQUIRE(sorobanConfig.feeHistorical1KB() == 555);
     }
+}
+
+TEST_CASE("Soroban max tx set size upgrade applied to ledger",
+          "[soroban][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+    auto app = createTestApplication(clock, cfg);
+
+    // Need to actually execute the upgrade to v20 to get the config
+    // entries initialized.
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    auto const& sorobanConfig =
+        app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    ltx.commit();
+
+    executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
+    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
+
+    executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(0));
+    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 0);
+
+    executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(321));
+    REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
 }
 
 #endif

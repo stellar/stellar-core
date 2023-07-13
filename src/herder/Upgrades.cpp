@@ -116,7 +116,34 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o,
 
 namespace stellar
 {
+namespace
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+uint32_t
+readMaxSorobanTxSetSize(AbstractLedgerTxn& ltx)
+{
+    LedgerKey key(LedgerEntryType::CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
+    return ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
+        .current()
+        .data.configSetting()
+        .contractExecutionLanes()
+        .ledgerMaxTxCount;
+}
 
+void
+upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
+{
+    LedgerKey key(LedgerEntryType::CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
+    auto& le = ltx.load(key).current();
+    le.data.configSetting().contractExecutionLanes().ledgerMaxTxCount =
+        maxTxSetSize;
+}
+#endif
+} // namespace
 std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
 
 std::string
@@ -279,6 +306,15 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
         }
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (mParams.mMaxSorobanTxSetSize)
+    {
+        if (readMaxSorobanTxSetSize(ltx) != *mParams.mMaxSorobanTxSetSize)
+        {
+            result.emplace_back(LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE);
+            result.back().newMaxSorobanTxSetSize() =
+                *mParams.mMaxSorobanTxSetSize;
+        }
+    }
     auto key = mParams.mConfigUpgradeSetKey;
     if (key)
     {
@@ -333,6 +369,9 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         cfgUpgrade->applyTo(ltx, app);
         break;
     }
+    case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
+        upgradeMaxSorobanTxSetSize(ltx, upgrade.newMaxSorobanTxSetSize());
+        break;
 #endif
     default:
     {
@@ -366,6 +405,9 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
         return fmt::format(
             FMT_STRING("{}"),
             xdr::xdr_to_string(upgrade.newConfig(), "configupgradesetkey"));
+    case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
+        return fmt::format(FMT_STRING("maxsorobantxsetsize={:d}"),
+                           upgrade.newMaxSorobanTxSetSize());
 #endif
     default:
         return "<unsupported>";
@@ -499,6 +541,9 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
             }
             break;
         }
+        case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
+            resetParam(res.mMaxSorobanTxSetSize, lu.newMaxSorobanTxSetSize());
+            break;
 #endif
         default:
             // skip unknown
@@ -581,6 +626,14 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (configUpgradeValid == UpgradeValidity::VALID);
         break;
     }
+    case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
+        if (protocolVersionIsBefore(header.ledgerVersion,
+                                    SOROBAN_PROTOCOL_VERSION))
+        {
+            return UpgradeValidity::INVALID;
+        }
+        // Any size is valid.
+        break;
 #endif
     default:
         res = false;
@@ -628,6 +681,10 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
                cfgUpgrade->isConsistentWith(ConfigUpgradeSetFrame::makeFromKey(
                    ltx, *mParams.mConfigUpgradeSetKey));
     }
+    case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
+        return mParams.mMaxSorobanTxSetSize &&
+               (upgrade.newMaxSorobanTxSetSize() ==
+                *mParams.mMaxSorobanTxSetSize);
 #endif
     default:
         return false;

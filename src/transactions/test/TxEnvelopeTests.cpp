@@ -2589,7 +2589,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         SCVal largeVal(SCV_BYTES);
         largeVal.bytes().resize(InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES -
                                 3000);
-        ihf.invokeContract().push_back(largeVal);
+        ihf.invokeContract().args.push_back(largeVal);
         SECTION("near limit")
         {
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
@@ -2600,7 +2600,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
         SECTION("limit exceeded")
         {
-            ihf.invokeContract().back().bytes().resize(
+            ihf.invokeContract().args.back().bytes().resize(
                 InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
@@ -2690,7 +2690,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract() = {makeSymbol("dummy")};
         SorobanNetworkConfig refConfig;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
