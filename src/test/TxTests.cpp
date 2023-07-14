@@ -1702,6 +1702,50 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
                            upgradeIgnored);
 };
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+ConfigUpgradeSetFrameConstPtr
+makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
+{
+    // Make entry for the upgrade
+    auto opaqueUpgradeSet = xdr::xdr_to_opaque(configUpgradeSet);
+    auto hashOfUpgradeSet = sha256(opaqueUpgradeSet);
+    auto contractID = sha256("contract_id");
+
+    SCVal key;
+    key.type(SCV_BYTES);
+    key.bytes().insert(key.bytes().begin(), hashOfUpgradeSet.begin(),
+                       hashOfUpgradeSet.end());
+
+    SCVal val;
+    val.type(SCV_BYTES);
+    val.bytes().insert(val.bytes().begin(), opaqueUpgradeSet.begin(),
+                       opaqueUpgradeSet.end());
+
+    LedgerEntry le;
+    le.data.type(CONTRACT_DATA);
+    le.data.contractData().body.bodyType(DATA_ENTRY);
+    le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
+    le.data.contractData().contract.contractId() = contractID;
+    le.data.contractData().durability = PERSISTENT;
+    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
+    le.data.contractData().key = key;
+    le.data.contractData().body.data().val = val;
+
+    ltx.create(InternalLedgerEntry(le));
+
+    auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
+    return ConfigUpgradeSetFrame::makeFromKey(ltx, upgradeKey);
+}
+
+LedgerUpgrade
+makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+    result.newConfig() = configUpgradeSet.getKey();
+    return result;
+}
+#endif
+
 // trades is a vector of pairs, where the bool indicates if assetA or assetB is
 // sent in the payment, and the int64_t is the amount
 void

@@ -59,14 +59,17 @@ FlowControlMessageCapacity::canRead() const
 FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
                                                  NodeID const& nodeID)
     : FlowControlCapacity(app, nodeID)
+    , mCapacityLimits(
+          {app.getOverlayManager().getFlowControlBytesConfig().mTotal,
+           std::nullopt})
 {
-    mCapacity = getCapacityLimits();
+    mCapacity = mCapacityLimits;
 }
 
 FlowControlCapacity::ReadingCapacity
 FlowControlByteCapacity::getCapacityLimits() const
 {
-    return {mApp.getConfig().PEER_FLOOD_READING_CAPACITY_BYTES, std::nullopt};
+    return mCapacityLimits;
 }
 
 uint64_t
@@ -96,6 +99,15 @@ FlowControlByteCapacity::canRead() const
     releaseAssert(!mCapacity.mTotalCapacity);
     return true;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+FlowControlByteCapacity::handleTxSizeIncrease(uint64_t increase)
+{
+    mCapacity.mFloodCapacity += increase;
+    mCapacityLimits.mFloodCapacity += increase;
+}
+#endif
 
 FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
     : mApp(app), mNodeID(nodeID)

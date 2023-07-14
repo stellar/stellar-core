@@ -93,9 +93,10 @@ FlowControl::start(std::weak_ptr<Peer> peer,
     {
         mFlowControlBytesCapacity =
             std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);
-        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-                     mApp.getConfig().PEER_FLOOD_READING_CAPACITY_BYTES,
-                     peerPtr);
+        sendSendMore(
+            mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
+            mApp.getOverlayManager().getFlowControlBytesConfig().mTotal,
+            peerPtr);
     }
     else
     {
@@ -110,7 +111,9 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
 
     if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
     {
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         releaseAssert(getNumMessages(msg) > 0);
+#endif
         mNoOutboundCapacity.reset();
 
         mFlowControlCapacity->releaseOutboundCapacity(msg);
@@ -119,11 +122,15 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
             mFlowControlBytesCapacity->releaseOutboundCapacity(msg);
         }
 
-        CLOG_TRACE(Overlay, "{}: Peer {} sent SEND_MORE {}",
+        CLOG_TRACE(Overlay, "{}: Peer {} sent {} ({} messages, {} bytes)",
                    mApp.getConfig().toShortString(
                        mApp.getConfig().NODE_SEED.getPublicKey()),
                    mApp.getConfig().toShortString(mNodeID),
-                   getNumMessages(msg));
+                   xdr::xdr_traits<MessageType>::enum_name(msg.type()),
+                   getNumMessages(msg),
+                   mFlowControlBytesCapacity
+                       ? std::to_string(msg.sendMoreExtendedMessage().numBytes)
+                       : "N/A");
 
         // SEND_MORE means we can free some capacity, and dump the next batch of
         // messages onto the writing queue
@@ -240,6 +247,23 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
     return false;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+FlowControl::handleTxSizeIncrease(uint64_t increase, std::shared_ptr<Peer> peer)
+{
+    ZoneScoped;
+    if (mFlowControlBytesCapacity)
+    {
+        releaseAssert(increase > 0);
+        // Bump flood capacity to accommodate the upgrade
+        mFlowControlBytesCapacity->handleTxSizeIncrease(increase);
+        // Send an additional SEND_MORE to let the other peer know we have more
+        // capacity available (and possibly unblock it)
+        sendSendMore(0, increase, peer);
+    }
+}
+#endif
+
 bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
@@ -267,10 +291,10 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
                           mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
     if (mFlowControlBytesCapacity)
     {
+        auto const byteBatchSize =
+            mApp.getOverlayManager().getFlowControlBytesConfig().mBatchSize;
         shouldSendMore =
-            shouldSendMore ||
-            mFloodDataProcessedBytes >=
-                mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
+            shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
     }
     auto peerPtr = peer.lock();
 
@@ -323,9 +347,18 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
         return false;
     }
 
-    if (getNumMessages(msg) == 0 ||
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // If flow control in bytes isn't enabled, SEND_MORE must have non-zero
+    // messages. If flow control in bytes is enabled, SEND_MORE_EXTENDED must
+    // have non-zero bytes, but _can_ have 0 messages to support upgrades
+    if ((!mFlowControlBytesCapacity && getNumMessages(msg) == 0) ||
         (mFlowControlBytesCapacity &&
          msg.sendMoreExtendedMessage().numBytes == 0))
+#else
+    if ((getNumMessages(msg) == 0) ||
+        (mFlowControlBytesCapacity &&
+         msg.sendMoreExtendedMessage().numBytes == 0))
+#endif
     {
         errorMsg =
             fmt::format("invalid message {}",
@@ -385,7 +418,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
             auto bytes = mFlowControlBytesCapacity->getMsgResourceCount(*msg);
             // Don't accept transactions that are over allowed byte limit: those
             // won't be properly flooded anyways
-            if (bytes > MAX_CLASSIC_TX_SIZE_BYTES)
+            if (bytes > mApp.getHerder().getMaxTxSize())
             {
                 return;
             }

@@ -54,6 +54,12 @@ class SurveyManager;
 class OverlayManager
 {
   public:
+    struct AdjustedFlowControlConfig
+    {
+        uint32_t mTotal;
+        uint32_t mBatchSize;
+    };
+
     static int constexpr MIN_INBOUND_FACTOR = 3;
 
     static std::unique_ptr<OverlayManager> create(Application& app);
@@ -196,5 +202,6 @@ class OverlayManager
     virtual ~OverlayManager()
     {
     }
+    virtual AdjustedFlowControlConfig getFlowControlBytesConfig() const = 0;
 };
 }

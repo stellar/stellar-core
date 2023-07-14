@@ -6,6 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
+#include "herder/Upgrades.h"
 #include "overlay/StellarXDR.h"
 #include <optional>
 
@@ -291,6 +292,9 @@ TransactionFrameBasePtr sorobanTransactionFrameFromOps(
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t fee, uint32_t refundableFee,
     std::optional<std::string> memo = std::nullopt);
+ConfigUpgradeSetFrameConstPtr
+makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet);
+LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet);
 #endif
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);

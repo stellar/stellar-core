@@ -128,7 +128,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 27;
-    OVERLAY_PROTOCOL_VERSION = 28;
+    OVERLAY_PROTOCOL_VERSION = 29;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -211,6 +211,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_LEDGER_MAX_WRITE_BYTES =
         1 * InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
     TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
+    TESTING_TX_MAX_SIZE_BYTES = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
@@ -246,8 +247,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY = 200;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 40;
 
-    PEER_FLOOD_READING_CAPACITY_BYTES = 300000;
-    FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100000;
+    // If set to 0, calculate automatically (this will be done after application
+    // startup as we need to load soroban configs)
+    PEER_FLOOD_READING_CAPACITY_BYTES = 0;
+    FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
     ENABLE_FLOW_CONTROL_BYTES = true;
 
@@ -1514,50 +1517,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
         }
 #endif
-        // PEER_FLOOD_READING_CAPACITY_BYTES (C): This is the initial credit
-        // given to the sender. It is the maximum number of bytes that the
-        // sender can transmit to the receiver before it needs to wait for
-        // an acknowledgement from the receiver. It represents the initial
-        // 'capacity' of the connection.
-
-        // MAX_CLASSIC_TX_SIZE_BYTES (M): This is the maximum size, in bytes, of
-        // a single message that can be sent by the sender. The sender can send
-        // messages of any size up to this limit, provided it has enough credit.
-
-        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A): This is the number of
-        // bytes that the receiver must process before it sends an
-        // acknowledgement back to the sender. The acknowledgement also serves
-        // to replenish the sender's credit by this amount, enabling it to send
-        // more data.
-
-        // The relationship between these three parameters should satisfy: C - A
-        // >= M. This ensures that the sender can always continue sending
-        // messages until it receives an acknowledgement for the previous data,
-        // thus preventing the system from getting stuck.
-
-        // Start with initial PEER_FLOOD_READING_CAPACITY_BYTES (C) credit
-        // Sender (C) -------- M1 bytes ----------> Receiver
-        //          \-- C-M1 --/
-
-        // Receiver processes received bytes and once
-        // FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES (A) or more is processed, an
-        // acknowledgement is sent, which replenishes the sender's credit
-        // Sender (C-M1+A) <-- A bytes ---------- Receiver
-        //             \--- (C-M1+A)-M2 --->/
-
-        // Note:  M1, M2... are message sizes such that M <=
-        // MAX_CLASSIC_TX_SIZE_BYTES
-        if (!(PEER_FLOOD_READING_CAPACITY_BYTES -
-                  FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
-              MAX_CLASSIC_TX_SIZE_BYTES))
-        {
-            std::string msg =
-                "Invalid configuration: the difference between "
-                "PEER_FLOOD_READING_CAPACITY_BYTES and "
-                "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES must be at least "
-                "(MAX_CLASSIC_TX_SIZE_BYTES)";
-            throw std::runtime_error(msg);
-        }
 
         verifyLoadGenOpCountForTestingConfigs();
 

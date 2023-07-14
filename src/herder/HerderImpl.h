@@ -115,6 +115,13 @@ class HerderImpl : public Herder
     }
 
     uint32_t mTriggerNextLedgerSeq{0};
+
+    std::optional<uint64_t> mMaxClassicTxSize;
+    void
+    setMaxClassicTxSize(size_t bytes) override
+    {
+        mMaxClassicTxSize = std::make_optional<uint64_t>(bytes);
+    }
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
@@ -126,6 +133,13 @@ class HerderImpl : public Herder
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();
+
+    uint64_t getMaxClassicTxSize() const override;
+    uint64_t
+    getMaxTxSize() const override
+    {
+        return mMaxTxSize;
+    }
 
     uint32 getMinLedgerSeqToAskPeers() const override;
 
@@ -188,6 +202,7 @@ class HerderImpl : public Herder
     size_t getMaxQueueSizeOps() const override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     size_t getMaxQueueSizeSorobanOps() const override;
+    void maybeHandleUpgrade() override;
 #endif
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
@@ -328,5 +343,7 @@ class HerderImpl : public Herder
     // network or not (Herder::State is used to properly track the state of
     // Herder) On startup, this variable is set to LCL
     ConsensusData mTrackingSCP;
+
+    uint64_t mMaxTxSize{0};
 };
 }
