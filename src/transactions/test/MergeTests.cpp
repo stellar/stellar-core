@@ -623,11 +623,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
     {
         for_versions_from(19, *app, [&]() {
             SequenceNumber curStartSeqNum;
-            uint32_t protocolVersion = 0;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 ltx.loadHeader().current().ledgerSeq += 1;
-                protocolVersion = ltx.loadHeader().current().ledgerVersion;
                 curStartSeqNum = getStartingSequenceNumber(ltx.loadHeader());
             }
 
