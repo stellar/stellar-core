@@ -301,6 +301,13 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
                 SECTION("upgrade decreases limit")
                 {
+                    // Place another large tx in the queue, then immediately
+                    // upgrade to decrease the limit. The transaction should
+                    // still go through, but it will be rejected due to the
+                    // new size limit
+                    conn.getInitiator()->sendMessage(
+                        std::make_shared<StellarMessage>(tx2));
+
                     upgradeApp(app1, txSize / 2);
                     upgradeApp(app2, txSize / 2);
 
@@ -311,6 +318,9 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     // Allow upgrade to go through, no SEND_MORE messages are
                     // sent
                     testutil::crankSome(clock);
+                    REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
+                    REQUIRE(txsRecv.count() == start + 3);
+
                     REQUIRE(before == sendMoreMeter.count());
 
                     // Tx1 can still go through due to classic limit
@@ -318,14 +328,14 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                         std::make_shared<StellarMessage>(tx1));
                     testutil::crankSome(clock);
                     REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
-                    REQUIRE(txsRecv.count() == start + 3);
+                    REQUIRE(txsRecv.count() == start + 4);
 
                     // Tx2 gets dropped
                     conn.getInitiator()->sendMessage(
                         std::make_shared<StellarMessage>(tx2));
                     testutil::crankSome(clock);
                     REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
-                    REQUIRE(txsRecv.count() == start + 3);
+                    REQUIRE(txsRecv.count() == start + 4);
                 }
             }
             SECTION("upgrade delayed")
