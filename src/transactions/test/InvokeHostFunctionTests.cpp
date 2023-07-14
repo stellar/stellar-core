@@ -597,6 +597,48 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          1000, true, type);
     };
 
+    auto hasWithFootprint = [&](std::string const& key,
+                                xdr::xvector<LedgerKey> const& readOnly,
+                                uint32_t writeBytes, bool expectSuccess,
+                                ContractDataDurability type) -> bool {
+        auto keySymbol = makeSymbolSCVal(key);
+
+        std::string funcStr;
+        switch (type)
+        {
+        case ContractDataDurability::TEMPORARY:
+            funcStr = "has_temporary";
+            break;
+        case ContractDataDurability::PERSISTENT:
+            funcStr = "has_persistent";
+            break;
+        }
+
+        auto [tx, ltx, txm] = createTx(readOnly, {}, writeBytes, contractID,
+                                       makeSymbol(funcStr), {keySymbol});
+
+        if (expectSuccess)
+        {
+            REQUIRE(tx->apply(*app, *ltx, *txm));
+            ltx->commit();
+            return txm->getXDR().v3().sorobanMeta->returnValue.b();
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*app, *ltx, *txm));
+            ltx->commit();
+        }
+        return false;
+    };
+
+    auto has = [&](std::string const& key,
+                   ContractDataDurability type) -> bool {
+        auto readOnly = contractKeys;
+        readOnly.emplace_back(contractDataKey(contractID, makeSymbolSCVal(key),
+                                              type, DATA_ENTRY));
+        return hasWithFootprint(key, readOnly, 0, true, type);
+    };
+
     auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
                                  xdr::xvector<LedgerKey> const& readOnly,
                                  xdr::xvector<LedgerKey> const& readWrite,
@@ -1001,6 +1043,41 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 app->getLedgerManager().getLastClosedLedgerNum() + minBump - 1);
 
         put("key", 1, ContractDataDurability::PERSISTENT);
+    }
+    SECTION("re-create expired temporary entry")
+    {
+        auto minBump = InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+        put("key", 0, ContractDataDurability::TEMPORARY);
+        REQUIRE(has("key", ContractDataDurability::TEMPORARY));
+
+        uint32_t initExpirationLedger = ledgerSeq + minBump + autoBump - 1;
+        REQUIRE(getContractDataExpiration("key",
+                                          ContractDataDurability::TEMPORARY) ==
+                initExpirationLedger);
+
+        for (size_t i = app->getLedgerManager().getLastClosedLedgerNum();
+             i <= initExpirationLedger + 1; ++i)
+        {
+            closeLedgerOn(*app, i, 2, 1, 2016);
+        }
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+                initExpirationLedger + 1);
+        REQUIRE(!isEntryLive("key", ContractDataDurability::TEMPORARY,
+                             app->getLedgerManager().getLastClosedLedgerNum()));
+
+        // Entry has expired
+        REQUIRE(!has("key", ContractDataDurability::TEMPORARY));
+
+        // We can recreate an expired temp entry
+        put("key", 0, ContractDataDurability::TEMPORARY);
+        REQUIRE(has("key", ContractDataDurability::TEMPORARY));
+
+        uint32_t newExpirationLedger =
+            app->getLedgerManager().getLastClosedLedgerNum() + minBump +
+            autoBump - 1;
+        REQUIRE(getContractDataExpiration("key",
+                                          ContractDataDurability::TEMPORARY) ==
+                newExpirationLedger);
     }
     SECTION("max expiration")
     {
