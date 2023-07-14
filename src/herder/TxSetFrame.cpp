@@ -641,9 +641,6 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         // First, ensure the tx set does not contain multiple txs per source
         // account
-        // FIXME: Our test suite relies on tx chains per source account, so
-        // introducing this invariant causes a fallout. When the test suite is
-        // updated to accommodate 1 tx/source account, remove this flag.
         if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
         {
             std::unordered_set<AccountID> seenAccounts;

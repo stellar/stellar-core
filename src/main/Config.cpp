@@ -167,12 +167,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
-    LIMIT_TX_QUEUE_SOURCE_ACCOUNT =
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        true;
-#else
-        false;
-#endif
+    LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;

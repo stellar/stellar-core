@@ -35,7 +35,13 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     auto root = TestAccount::createRoot(*app);
-    auto a1 = TestAccount{*app, getAccount("A")};
+    size_t numAccounts = 50;
+    std::vector<TestAccount> accs;
+    for (size_t i = 0; i < numAccounts; i++)
+    {
+        accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
+    }
+
     using TxPair = std::pair<Value, TxSetFrameConstPtr>;
     auto makeTxPair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime,
                           StellarValueType svt) {
@@ -61,10 +67,12 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         herder.signEnvelope(s, envelope);
         return envelope;
     };
+    size_t index = 0;
     auto makeTransactions = [&](Hash hash, int n) {
+        REQUIRE(n <= accs.size());
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),
-                      [&]() { return root.tx({createAccount(a1, 10000000)}); });
+                      [&]() { return accs[index++].tx({payment(root, 1)}); });
         return TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     };
 
@@ -102,7 +110,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     }
     auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
-    auto txSet = makeTransactions(lcl.hash, 50);
+    auto txSet = makeTransactions(lcl.hash, numAccounts);
     auto p = makeTxPair(txSet, 10, STELLAR_VALUE_SIGNED);
     auto saneEnvelope = makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
     auto bigEnvelope = makeEnvelope(p, bigQSetHash, lcl.header.ledgerSeq + 1);

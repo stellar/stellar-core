@@ -256,10 +256,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
         int64 startingBalance = paymentAmount + 5 +
                                 app->getLedgerManager().getLastMinBalance(0) +
                                 txfee * 2;
-        auto b1 = root.create("B", startingBalance);
-        auto rootBalance = root.getBalance();
-
         for_versions_to(8, *app, [&] {
+            auto b1 = root.create("B", startingBalance);
+            auto rootBalance = root.getBalance();
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
@@ -275,10 +274,16 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
         });
 
         for_versions_from(9, *app, [&] {
+            // Starting balance adjusted to have enough fees for 1 tx only
+            // (since tx1 and tx2 have different fee)
+            auto b1 = root.create("B", startingBalance - txfee);
+            auto b2 = root.create("B2", startingBalance - txfee);
+            auto rootBalance = root.getBalance();
             auto tx1 = b1.tx({payment(root, paymentAmount)});
-            auto tx2 = b1.tx({payment(root, 6)});
+            auto tx2 = b2.tx({b1.op(payment(root, 6))});
+            tx2->addSignature(b1);
 
-            auto r = closeLedger(*app, {tx1, tx2});
+            auto r = closeLedger(*app, {tx1, tx2}, /* strictOrder */ true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txFAILED);
             REQUIRE(r[1].first.result.result.results()[0]

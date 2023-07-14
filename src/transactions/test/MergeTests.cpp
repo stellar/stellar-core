@@ -652,17 +652,10 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             }
             SECTION("merge source account")
             {
-                auto tx1 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {accountMerge(b1)}, {});
-
-                // Add some intermediate transactions between the merge and the
-                // gap tx so MAX_SEQ_NUM_TO_APPLY receives additional updates
-                auto tx2 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {payment(root, 1)}, {});
-                auto tx3 = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                   {payment(root, 1)}, {});
-
-                auto r = closeLedger(*app, {tx1, tx2, tx3, txMinSeqNumSrc});
+                auto tx1 =
+                    transactionFrameFromOps(app->getNetworkID(), gateway,
+                                            {a1.op(accountMerge(b1))}, {a1});
+                auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
 
                 REQUIRE(r[0].first.result.result.results()[0]
                             .tr()
@@ -676,8 +669,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 auto tx1 = transactionFrameFromOps(
                     app->getNetworkID(), root,
                     {a1.op(bumpSequence(curStartSeqNum))}, {a1});
-                auto tx2 = transactionFrameFromOps(
-                    app->getNetworkID(), root, {a1.op(accountMerge(b1))}, {a1});
+                auto tx2 =
+                    transactionFrameFromOps(app->getNetworkID(), gateway,
+                                            {a1.op(accountMerge(b1))}, {a1});
 
                 auto r = closeLedger(*app, {tx1, tx2}, true);
 

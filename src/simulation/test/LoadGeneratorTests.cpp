@@ -21,7 +21,6 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
-            cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             return cfg;
         });
@@ -97,7 +96,6 @@ TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
-            cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             // 50% of transactions contain 2 ops,
             // and 50% of transactions contain 3 ops.
             cfg.LOADGEN_OP_COUNT_FOR_TESTING = {2, 3};
@@ -170,7 +168,6 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     Simulation::pointer simulation =
         Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i);
-            cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             cfg.LOADGEN_OP_COUNT_FOR_TESTING = {3};
             cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {1};
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;

@@ -231,11 +231,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.INVARIANT_CHECKS = {".*"};
 
-        // Enabling this config causes a major fallout in the test suite, as
-        // many test use account chains We'll deal with this later - tests that
-        // mix Soroban and classic txs enable this flag manually anyway
-        thisConfig.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = false;
-
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // this forces to pick up any other potential upgrades

@@ -458,7 +458,6 @@
 		"4Nbm1erruzc=",
 		"vCmlwgzENn4="
 	],
-	"payment|protocol version 0|two payments, first breaking second" : [ "ns4DM4E40Nw=" ],
 	"payment|protocol version 1" : 
 	[
 		"c8f9ZedQpBg=",
@@ -1002,7 +1001,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 10|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 10|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 10|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 11" : 
 	[
 		"I474xQR5RsE=",
@@ -1372,7 +1371,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 11|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 11|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 11|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 12" : 
 	[
 		"I474xQR5RsE=",
@@ -1742,7 +1741,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 12|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 12|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 12|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 13" : 
 	[
 		"I474xQR5RsE=",
@@ -2112,7 +2111,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 13|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 13|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 13|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 14" : 
 	[
 		"I474xQR5RsE=",
@@ -2482,7 +2481,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 14|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 14|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 14|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 15" : 
 	[
 		"I474xQR5RsE=",
@@ -2852,7 +2851,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 15|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 15|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 15|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 16" : 
 	[
 		"I474xQR5RsE=",
@@ -3222,7 +3221,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 16|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 16|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 16|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 17" : 
 	[
 		"I474xQR5RsE=",
@@ -3604,7 +3603,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 17|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 17|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 17|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 18" : 
 	[
 		"I474xQR5RsE=",
@@ -3986,7 +3985,7 @@
 		"sTOzapOWynI="
 	],
 	"payment|protocol version 18|simple credit|with trust|positive" : [ "4rxlhWSkAKI=", "OoCI2N0zqgo=" ],
-	"payment|protocol version 18|two payments, first breaking second" : [ "/0FvQZGicBI=" ],
+	"payment|protocol version 18|two payments, first breaking second" : [ "AhF9uMnbZQs=", "3vwjcQhOkrg=" ],
 	"payment|protocol version 19" : 
 	[
 		"3s8wcHiLvNA=",
@@ -4368,7 +4367,7 @@
 		"Fl0YuTtWNnc="
 	],
 	"payment|protocol version 19|simple credit|with trust|positive" : [ "Aazvdg1c5s0=", "iZ3l88UPpG8=" ],
-	"payment|protocol version 19|two payments, first breaking second" : [ "4+6eFQ1y63k=" ],
+	"payment|protocol version 19|two payments, first breaking second" : [ "j+xd3s6njXg=", "lcjxNT+ADQs=" ],
 	"payment|protocol version 1|a pays b, then a merge into b" : [ "tC1VsNNRT18=", "6Cm6IY7Goqo=" ],
 	"payment|protocol version 1|a pays b, then b merge into a" : [ "tC1VsNNRT18=", "L64XLnXWjLE=" ],
 	"payment|protocol version 1|authorize flag|allow trust" : 
@@ -7461,5 +7460,5 @@
 		"0V4+P1RNIZs="
 	],
 	"payment|protocol version 9|simple credit|with trust|positive" : [ "p11w2Nkvdy4=", "gAN2F1zKkyI=" ],
-	"payment|protocol version 9|two payments, first breaking second" : [ "ns4DM4E40Nw=" ]
+	"payment|protocol version 9|two payments, first breaking second" : [ "kT8fmYwcruU=", "EKQA2rm+C1U=" ]
 }
