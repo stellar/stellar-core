@@ -159,7 +159,7 @@ class Herder
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
     virtual uint32_t trackingConsensusLedgerIndex() const = 0;
-    virtual uint64_t getMaxClassicTxSize() = 0;
+    virtual uint64_t getMaxClassicTxSize() const = 0;
     virtual uint64_t getMaxTxSize() const = 0;
 
     // return the smallest ledger number we need messages for when asking peers

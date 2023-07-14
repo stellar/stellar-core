@@ -318,7 +318,7 @@ OverlayManagerImpl::start()
     demand();
 }
 
-std::pair<uint32_t, uint32_t>
+OverlayManager::AdjustedFlowControlConfig
 OverlayManagerImpl::getFlowControlBytesConfig() const
 {
     auto const maxTxSize = mApp.getHerder().getMaxTxSize();
@@ -335,17 +335,17 @@ OverlayManagerImpl::getFlowControlBytesConfig() const
                   INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
               maxTxSize))
         {
-            return std::pair(
-                maxTxSize + INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES,
-                INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES);
+            return {static_cast<uint32_t>(maxTxSize) +
+                        INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES,
+                    INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
         }
-        return std::pair(INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES,
-                         INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES);
+        return {INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES,
+                INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
     }
 
     // If flow control parameters were provided, return them
-    return std::pair(cfg.PEER_FLOOD_READING_CAPACITY_BYTES,
-                     cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES);
+    return {cfg.PEER_FLOOD_READING_CAPACITY_BYTES,
+            cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
 }
 
 void

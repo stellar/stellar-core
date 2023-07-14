@@ -60,7 +60,7 @@ FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
                                                  NodeID const& nodeID)
     : FlowControlCapacity(app, nodeID)
     , mCapacityLimits(
-          {app.getOverlayManager().getFlowControlBytesConfig().first,
+          {app.getOverlayManager().getFlowControlBytesConfig().mTotal,
            std::nullopt})
 {
     mCapacity = mCapacityLimits;

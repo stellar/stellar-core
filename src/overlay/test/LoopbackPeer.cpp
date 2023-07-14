@@ -537,7 +537,7 @@ LoopbackPeer::checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const
                   (otherPeer->getApp()
                        .getOverlayManager()
                        .getFlowControlBytesConfig()
-                       .first ==
+                       .mTotal ==
                    getFlowControl()->getCapacityBytes()->getOutboundCapacity());
     }
 

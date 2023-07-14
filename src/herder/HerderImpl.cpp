@@ -113,7 +113,7 @@ HerderImpl::getState() const
 }
 
 uint64_t
-HerderImpl::getMaxClassicTxSize()
+HerderImpl::getMaxClassicTxSize() const
 {
 #ifdef BUILD_TESTS
     if (mMaxClassicTxSize)
@@ -1959,12 +1959,20 @@ HerderImpl::maybeHandleUpgrade()
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        auto conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+        if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                    ProtocolVersion::V_20))
+        {
+            // no-op on any earlier protocol
+            return;
+        }
+        auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
 
         if (conf.txMaxSizeBytes() > mMaxTxSize)
         {
             diff = conf.txMaxSizeBytes() - mMaxTxSize;
         }
+        // mMaxTxSize may decrease post-upgrade, always choose the max between
+        // classic tx size (static) and Soroban max tx size
         mMaxTxSize =
             std::max<uint64_t>(getMaxClassicTxSize(), conf.txMaxSizeBytes());
     }
@@ -1980,17 +1988,15 @@ HerderImpl::maybeHandleUpgrade()
 void
 HerderImpl::start()
 {
-    auto sz = mApp.getHerder().getMaxClassicTxSize();
+    mMaxTxSize = mApp.getHerder().getMaxClassicTxSize();
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        auto conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        mMaxTxSize = std::max<uint64_t>(sz, conf.txMaxSizeBytes());
+        auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+        mMaxTxSize = std::max<uint64_t>(mMaxTxSize, conf.txMaxSizeBytes());
     }
-#else
-    mMaxTxSize = sz;
 #endif
 
     auto const& cfg = mApp.getConfig();

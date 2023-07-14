@@ -134,7 +134,7 @@ class HerderImpl : public Herder
 
     void processSCPQueue();
 
-    uint64_t getMaxClassicTxSize() override;
+    uint64_t getMaxClassicTxSize() const override;
     uint64_t
     getMaxTxSize() const override
     {

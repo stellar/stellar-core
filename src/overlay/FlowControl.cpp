@@ -93,9 +93,10 @@ FlowControl::start(std::weak_ptr<Peer> peer,
     {
         mFlowControlBytesCapacity =
             std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);
-        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-                     mApp.getOverlayManager().getFlowControlBytesConfig().first,
-                     peerPtr);
+        sendSendMore(
+            mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
+            mApp.getOverlayManager().getFlowControlBytesConfig().mTotal,
+            peerPtr);
     }
     else
     {
@@ -291,7 +292,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
     if (mFlowControlBytesCapacity)
     {
         auto const byteBatchSize =
-            mApp.getOverlayManager().getFlowControlBytesConfig().second;
+            mApp.getOverlayManager().getFlowControlBytesConfig().mBatchSize;
         shouldSendMore =
             shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
     }

@@ -228,6 +228,6 @@ class OverlayManagerImpl : public OverlayManager
     void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
                              std::vector<Peer::pointer>& result);
     void shufflePeerList(std::vector<Peer::pointer>& peerList);
-    std::pair<uint32_t, uint32_t> getFlowControlBytesConfig() const override;
+    AdjustedFlowControlConfig getFlowControlBytesConfig() const override;
 };
 }

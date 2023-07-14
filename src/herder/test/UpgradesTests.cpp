@@ -2954,7 +2954,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
             cfg.MAX_SLOTS_TO_REMEMBER = 12;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
-            // Set max tx size to accommodate loadge
+            // Set max tx size to accommodate loadgen
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             return cfg;
         });
