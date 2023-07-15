@@ -10,7 +10,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 log = "0.4.17"
-tracy-client = { version = "=0.15.2", features = ["enable"], default-features = false }
+tracy-client = { version = "=0.15.2", features = ["enable"], default-features = false, optional = true}
 cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
@@ -28,7 +28,7 @@ rustc-simple-version = "0.1.0"
 version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "42980d1502910564a3e582b5682c3e9b0f679d9e"
+rev = "1b9e67e7e7e7592b8c670cae9af2c5cb267df926"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -67,3 +67,4 @@ features = ["dependency-tree"]
 # writing it out in full here cross-checks that nobody _removed_ that line.
 [features]
 soroban-env-host-prev = ["dep:soroban-env-host-prev"]
+tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]

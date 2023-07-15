@@ -12,7 +12,6 @@ use crate::{
 };
 use log::debug;
 use std::{fmt::Display, io::Cursor, panic, rc::Rc};
-use tracy_client::{span, Client};
 
 // This module (contract) is bound to _two separate locations_ in the module
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
@@ -117,6 +116,10 @@ impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
     }
 }
 
+// FIXME: plumb this through from the limit xdrpp uses.
+// Currently they are just two same-valued constants.
+const MARSHALLING_STACK_LIMIT: u32 = 1000;
+
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
     Host(HostError),
@@ -144,14 +147,20 @@ impl From<xdr::Error> for CoreHostError {
 impl std::error::Error for CoreHostError {}
 
 fn xdr_from_slice<T: ReadXdr>(v: &[u8]) -> Result<T, HostError> {
-    Ok(T::read_xdr(&mut Cursor::new(v))
-        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?)
+    Ok(T::read_xdr(&mut xdr::DepthLimitedRead::new(
+        Cursor::new(v),
+        MARSHALLING_STACK_LIMIT,
+    ))
+    .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?)
 }
 
 fn xdr_to_vec_u8<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
-    t.write_xdr(&mut Cursor::new(&mut vec))
-        .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
+    t.write_xdr(&mut xdr::DepthLimitedWrite::new(
+        Cursor::new(&mut vec),
+        MARSHALLING_STACK_LIMIT,
+    ))
+    .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec)
 }
 
@@ -425,8 +434,9 @@ fn invoke_host_function_or_maybe_panic(
     ledger_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
-    let _client = Client::start();
-    let _span = span!("invoke_host_function");
+    #[cfg(feature = "tracy")]
+    let client = tracy_client::Client::start();
+    let _span0 = tracy_span!("invoke_host_function_or_maybe_panic");
 
     let hf = xdr_from_cxx_buf::<HostFunction>(&hf_buf)?;
     let source_account = xdr_from_cxx_buf::<AccountId>(&source_account_buf)?;
@@ -456,11 +466,28 @@ fn invoke_host_function_or_maybe_panic(
         host.set_diagnostic_level(DiagnosticLevel::Debug)?;
     }
 
-    let res = host.invoke_function(hf);
+    let res = {
+        let _span1 = tracy_span!("Host::invoke_function");
+        host.invoke_function(hf)
+    };
+
     let (storage, budget, events, bumps) = host
         .try_finish()
         .map_err(|_h| CoreHostError::General("could not finalize host"))?;
     log_debug_events(&events);
+    let cpu_insns = budget.get_cpu_insns_consumed()?;
+    let mem_bytes = budget.get_mem_bytes_consumed()?;
+    #[cfg(feature = "tracy")]
+    {
+        client.plot(
+            tracy_client::plot_name!("soroban budget cpu"),
+            cpu_insns as f64,
+        );
+        client.plot(
+            tracy_client::plot_name!("soroban budget mem"),
+            mem_bytes as f64,
+        );
+    }
     let result_value = match res {
         Ok(rv) => xdr_to_rust_buf(&rv)?,
         Err(err) => {
@@ -471,8 +498,8 @@ fn invoke_host_function_or_maybe_panic(
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
-                cpu_insns: budget.get_cpu_insns_consumed()?,
-                mem_bytes: budget.get_mem_bytes_consumed()?,
+                cpu_insns,
+                mem_bytes,
                 expiration_bumps: vec![],
             });
         }

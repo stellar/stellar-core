@@ -5,6 +5,26 @@
 #![crate_type = "staticlib"]
 #![allow(non_snake_case)]
 
+#[cfg(feature = "tracy")]
+macro_rules! tracy_span {
+    () => {
+        tracy_client::span!()
+    };
+    ($name:expr) => {
+        tracy_client::span!($name)
+    };
+}
+
+#[cfg(not(feature = "tracy"))]
+macro_rules! tracy_span {
+    () => {
+        ()
+    };
+    ($name:expr) => {
+        ()
+    };
+}
+
 // The cxx::bridge attribute says that everything in mod rust_bridge is
 // interpreted by cxx.rs.
 #[cxx::bridge]
@@ -700,5 +720,6 @@ pub(crate) fn compute_write_fee_per_1kb(
 }
 
 fn start_tracy() {
+    #[cfg(feature = "tracy")]
     tracy_client::Client::start();
 }

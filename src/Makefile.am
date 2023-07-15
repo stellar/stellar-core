@@ -27,6 +27,9 @@ CARGO_FEATURES = --features soroban-env-host-prev
 else
 CARGO_FEATURES =
 endif
+if USE_TRACY
+CARGO_FEATURES += --features tracy
+endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\

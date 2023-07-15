@@ -27,7 +27,7 @@
 #include <system_error>
 #include <xdrpp/marshal.h>
 #ifdef USE_TRACY
-#include <tracy/TracyC.h>
+#include <TracyC.h>
 #endif
 
 namespace stellar
