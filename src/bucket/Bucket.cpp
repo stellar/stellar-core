@@ -919,19 +919,45 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 
     if (newEntry.type() == INITENTRY)
     {
-        // The only legal new-is-INIT case is merging a delete+create to an
-        // update.
+        // For all entries except TEMPORARY entries, the only legal new-is-INIT
+        // case is merging a delete+create to an update. For TEMPORARY entries,
+        // an INIT entry may merge with another INIT entry as long as the older
+        // INIT entry is expired. Because merging occurs on a background thread
+        // and different validators may start a merge at different times, it is
+        // not possible to accurately know the current ledgerSeq or to know if a
+        // given TEMPORARY entry has expired. Due to this, we don't check this
+        // invariant for TEMPORARY entries
+
+        // TODO: Add invariant check for TEMPORARY entries based on ledgerSeq
+        // when the given bucket started to merge
         if (oldEntry.type() != DEADENTRY)
         {
-            throw std::runtime_error(
-                "Malformed bucket: old non-DEAD + new INIT.");
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            if (auto const& oldData = oldEntry.liveEntry().data;
+                oldData.type() == CONTRACT_DATA &&
+                oldData.contractData().durability == TEMPORARY)
+            {
+                // Treat merge as if old entry did not exist
+                ++mc.mNewEntriesDefaultAccepted;
+                Bucket::checkProtocolLegality(newEntry, protocolVersion);
+                countNewEntryType(mc, newEntry);
+                maybePut(out, newEntry, shadowIterators,
+                         keepShadowedLifecycleEntries, mc);
+            }
+            else
+#endif
+                throw std::runtime_error(
+                    "Malformed bucket: old non-DEAD + new INIT.");
         }
-        BucketEntry newLive;
-        newLive.type(LIVEENTRY);
-        newLive.liveEntry() = newEntry.liveEntry();
-        ++mc.mNewInitEntriesMergedWithOldDead;
-        maybePut(out, newLive, shadowIterators, keepShadowedLifecycleEntries,
-                 mc);
+        else
+        {
+            BucketEntry newLive;
+            newLive.type(LIVEENTRY);
+            newLive.liveEntry() = newEntry.liveEntry();
+            ++mc.mNewInitEntriesMergedWithOldDead;
+            maybePut(out, newLive, shadowIterators,
+                     keepShadowedLifecycleEntries, mc);
+        }
     }
     else if (oldEntry.type() == INITENTRY)
     {
@@ -961,11 +987,6 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
         else
         {
             // Merge a create+delete to nothingness.
-            if (newEntry.type() != DEADENTRY)
-            {
-                throw std::runtime_error(
-                    "Malformed bucket: old INIT + new non-DEAD.");
-            }
             ++mc.mOldInitEntriesMergedWithNewDead;
         }
     }
