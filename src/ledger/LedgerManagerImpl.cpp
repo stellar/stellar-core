@@ -855,7 +855,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             Upgrades::applyTo(lupgrade, mApp, ltxUpgrade);
 
             auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
-            LedgerEntryChanges changes = ltxUpgrade.getChanges();
+            LedgerEntryChanges changes =
+                ltxUpgrade.getChanges(EntryChangeType::TRANSACTION);
             if (ledgerCloseMeta)
             {
                 auto& up = ledgerCloseMeta->upgradesProcessing();
@@ -1258,7 +1259,8 @@ LedgerManagerImpl::processFeesSeqNums(
                 }
             }
 
-            LedgerEntryChanges changes = ltxTx.getChanges();
+            LedgerEntryChanges changes =
+                ltxTx.getChanges(EntryChangeType::TRANSACTION);
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->pushTxProcessingEntry();
@@ -1503,6 +1505,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     {
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
+
+        // mApp.getBucketManager().scanForEntryEviction(ltx, ledgerSeq);
     }
 #endif
 
