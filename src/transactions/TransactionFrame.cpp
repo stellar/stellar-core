@@ -1491,7 +1491,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // The operation meta will be empty if the transaction
                 // doesn't succeed so we may as well not do any work in that
                 // case
-                operationMetas.emplace_back(ltxOp.getChanges());
+                operationMetas.emplace_back(
+                    ltxOp.getChanges(EntryChangeType::TRANSACTION));
             }
 
             if (txRes ||
@@ -1519,7 +1520,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // owner to remove that signer
                 LedgerTxn ltxAfter(ltxTx);
                 removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
-                changesAfter = ltxAfter.getChanges();
+                changesAfter =
+                    ltxAfter.getChanges(EntryChangeType::TRANSACTION);
                 ltxAfter.commit();
             }
             else if (protocolVersionStartsFrom(ledgerVersion,
@@ -1650,7 +1652,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
         bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
 
-        meta.pushTxChangesBefore(ltxTx.getChanges());
+        meta.pushTxChangesBefore(
+            ltxTx.getChanges(EntryChangeType::TRANSACTION));
         ltxTx.commit();
 
         bool ok = signaturesValid && cv == ValidationType::kMaybeValid;
@@ -1711,7 +1714,7 @@ TransactionFrame::processPostApply(Application& app,
     // transaction success).
     LedgerTxn ltx(ltxOuter);
     refundSorobanFee(ltx);
-    meta.pushTxChangesAfter(ltx.getChanges());
+    meta.pushTxChangesAfter(ltx.getChanges(EntryChangeType::TRANSACTION));
     ltx.commit();
 #endif
 }
