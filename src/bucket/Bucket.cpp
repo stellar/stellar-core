@@ -933,9 +933,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
         if (oldEntry.type() != DEADENTRY)
         {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (auto const& oldData = oldEntry.liveEntry().data;
-                oldData.type() == CONTRACT_DATA &&
-                oldData.contractData().durability == TEMPORARY)
+            if (auto type = oldEntry.liveEntry().data.type();
+                type == CONTRACT_DATA || type == CONTRACT_CODE)
             {
                 // Treat merge as if old entry did not exist
                 ++mc.mNewEntriesDefaultAccepted;
