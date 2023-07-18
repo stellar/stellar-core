@@ -1,5 +1,8 @@
 [workspace]
-members = ["src/rust"]
+members = ["src/rust", "lib/tracy-client-sys"]
+
+[patch.crates-io]
+tracy-client-sys = { path = "lib/tracy-client-sys" }
 
 # [patch."https://github.com/stellar/rs-soroban-env"]
 # soroban-env-common = { path = "../rs-soroban-env/soroban-env-common" }
