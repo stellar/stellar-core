@@ -214,6 +214,7 @@ makeTxCountUpgrade(int txCount)
     return result;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerUpgrade
 makeMaxSorobanTxSizeUpgrade(int txSize)
 {
@@ -221,6 +222,7 @@ makeMaxSorobanTxSizeUpgrade(int txSize)
     result.newMaxSorobanTxSetSize() = txSize;
     return result;
 }
+#endif
 
 LedgerUpgrade
 makeFlagsUpgrade(int flags)
