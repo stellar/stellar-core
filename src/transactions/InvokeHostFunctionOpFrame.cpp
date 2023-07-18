@@ -154,28 +154,28 @@ struct HostFunctionMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    size_t mReadEntry{0};
-    size_t mWriteEntry{0};
+    uint32 mReadEntry{0};
+    uint32 mWriteEntry{0};
 
-    size_t mLedgerReadByte{0};
-    size_t mLedgerWriteByte{0};
+    uint32 mLedgerReadByte{0};
+    uint32 mLedgerWriteByte{0};
 
-    size_t mReadKeyByte{0};
-    size_t mWriteKeyByte{0};
+    uint32 mReadKeyByte{0};
+    uint32 mWriteKeyByte{0};
 
-    size_t mReadDataByte{0};
-    size_t mWriteDataByte{0};
+    uint32 mReadDataByte{0};
+    uint32 mWriteDataByte{0};
 
-    size_t mReadCodeByte{0};
-    size_t mWriteCodeByte{0};
+    uint32 mReadCodeByte{0};
+    uint32 mWriteCodeByte{0};
 
-    size_t mEmitEvent{0};
-    size_t mEmitEventByte{0};
+    uint32 mEmitEvent{0};
+    uint32 mEmitEventByte{0};
 
-    size_t mCpuInsn{0};
-    size_t mMemByte{0};
+    uint32 mCpuInsn{0};
+    uint32 mMemByte{0};
 
-    size_t mMetadataSizeByte{0};
+    uint32 mMetadataSizeByte{0};
 
     bool mSuccess{false};
 
@@ -184,7 +184,7 @@ struct HostFunctionMetrics
     }
 
     void
-    noteReadEntry(bool isCodeEntry, size_t keySize, size_t entrySize)
+    noteReadEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
     {
         mReadEntry++;
         mReadKeyByte += keySize;
@@ -200,7 +200,7 @@ struct HostFunctionMetrics
     }
 
     void
-    noteWriteEntry(bool isCodeEntry, size_t keySize, size_t entrySize)
+    noteWriteEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
     {
         mWriteEntry++;
         mWriteKeyByte += keySize;
@@ -303,8 +303,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                      this](auto const& keys, bool readOnly) -> bool {
         for (auto const& lk : keys)
         {
-            size_t keySize = xdr::xdr_size(lk);
-            size_t entrySize = 0;
+            uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
+            uint32 entrySize = 0u;
             auto& entryRentChange = entryRentChanges[lk];
             // The invariant is that the footprint is unique, so we can't
             // accidentally override RW entry with RO flag.
@@ -315,11 +315,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             {
                 auto const& le = ltxe.current();
                 auto buf = toCxxBuf(le);
-                entrySize = buf.data->size();
+                entrySize = static_cast<uint32>(buf.data->size());
                 ledgerEntryCxxBufs.emplace_back(std::move(buf));
                 if (isSorobanEntry(le.data))
                 {
-                    uint32_t totalReadSize = keySize + entrySize;
+                    uint32_t const totalReadSize = keySize + entrySize;
                     entryRentChange.oldSize = totalReadSize;
                     entryRentChange.newSize = totalReadSize;
 
@@ -415,8 +415,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}", e.what());
     }
 
-    metrics.mCpuInsn = out.cpu_insns;
-    metrics.mMemByte = out.mem_bytes;
+    metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
+    metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
     if (!metrics.mSuccess)
     {
         if (resources.instructions < out.cpu_insns ||
@@ -446,8 +446,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         auto lk = LedgerEntryKey(le);
         remainingRWKeys.insert(lk);
 
-        size_t keySize = xdr::xdr_size(lk);
-        size_t entrySize = buf.data.size();
+        uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
+        uint32 entrySize = static_cast<uint32>(buf.data.size());
         metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
@@ -469,7 +469,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         {
             auto entryIt = entryRentChanges.find(lk);
             releaseAssertOrThrow(entryIt != entryRentChanges.end());
-            entryIt->second.newSize = keySize + buf.data.size();
+            entryIt->second.newSize =
+                keySize + static_cast<uint32>(buf.data.size());
             entryIt->second.newExpirationLedger = std::max(
                 entryIt->second.newExpirationLedger, getExpirationLedger(le));
         }
@@ -568,7 +569,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             // simplicity).
             if (entryChange.readOnly)
             {
-                metrics.mMetadataSizeByte += 2 * xdr::xdr_size(lk);
+                metrics.mMetadataSizeByte +=
+                    2 * static_cast<uint32>(xdr::xdr_size(lk));
             }
             auto ltxe = ltx.load(lk);
             releaseAssertOrThrow(ltxe);
@@ -598,8 +600,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
-        metrics.mEmitEventByte += buf.data.size();
-        metrics.mMetadataSizeByte += buf.data.size();
+        metrics.mEmitEventByte += static_cast<uint32>(buf.data.size());
+        metrics.mMetadataSizeByte += static_cast<uint32>(buf.data.size());
         if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);

@@ -24,7 +24,7 @@ typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 static auto const MAX_MESSAGE_SIZE = 0x1000000;
 // max tx size is 100KB
-static const uint64_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
+static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
 class LoopbackPeer;
@@ -416,7 +416,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     };
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void handleMaxTxSizeIncrease(uint64_t increase);
+    void handleMaxTxSizeIncrease(uint32_t increase);
 #endif
 
     friend class LoopbackPeer;

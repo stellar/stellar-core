@@ -1265,8 +1265,7 @@ OverlayManagerImpl::getMaxDemandSize() const
             cfg.getExpectedLedgerCloseTime())
             .count();
     int64_t queueSizeInOps = getOpsFloodLedger(
-        static_cast<double>(mApp.getHerder().getMaxQueueSizeOps()),
-        cfg.FLOOD_OP_RATE_PER_LEDGER);
+        mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     queueSizeInOps +=

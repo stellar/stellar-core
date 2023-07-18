@@ -249,7 +249,7 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-FlowControl::handleTxSizeIncrease(uint64_t increase, std::shared_ptr<Peer> peer)
+FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
 {
     ZoneScoped;
     if (mFlowControlBytesCapacity)

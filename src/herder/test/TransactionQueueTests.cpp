@@ -1453,7 +1453,8 @@ TEST_CASE("Soroban TransactionQueue limits",
     int initialFee = 10'000'000;
 
     auto resAdjusted = resources;
-    resAdjusted.instructions = conf.ledgerMaxInstructions();
+    resAdjusted.instructions =
+        static_cast<uint32>(conf.ledgerMaxInstructions());
 
     auto tx =
         createUploadWasmTx(*app, root, initialFee, refundableFee, resAdjusted);
@@ -1484,10 +1485,10 @@ TEST_CASE("Soroban TransactionQueue limits",
         SECTION("reject")
         {
             // New Soroban tx fits within limits, but now there's no space
-            auto tx2 = createUploadWasmTx(*app, account1, initialFee,
-                                          refundableFee, resources);
+            auto txNew = createUploadWasmTx(*app, account1, initialFee,
+                                            refundableFee, resources);
 
-            REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+            REQUIRE(app->getHerder().recvTransaction(txNew, false) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
             SECTION("insufficient fee")
@@ -1505,7 +1506,8 @@ TEST_CASE("Soroban TransactionQueue limits",
             SECTION("invalid resources")
             {
                 // Instruction count over max
-                resources.instructions = conf.txMaxInstructions() + 1;
+                resources.instructions =
+                    static_cast<uint32>(conf.txMaxInstructions() + 1);
 
                 // Double the fee
                 auto tx2 = createUploadWasmTx(*app, account2, initialFee * 2,
@@ -1523,7 +1525,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         {
             // Add two more txs that will cause instructions to go over limit;
             // evict the first tx (lowest fee)
-            resources.instructions = conf.txMaxInstructions();
+            resources.instructions =
+                static_cast<uint32>(conf.txMaxInstructions());
 
             auto tx2 = createUploadWasmTx(*app, account1, initialFee * 2,
                                           refundableFee, resources);
@@ -1560,7 +1563,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         std::vector<std::pair<TxStackPtr, bool>> toEvict;
 
         // Generic tx, takes 1/2 of instruction limits
-        resources.instructions = conf.ledgerMaxInstructions() / 2;
+        resources.instructions =
+            static_cast<uint32>(conf.ledgerMaxInstructions() / 2);
         tx = createUploadWasmTx(*app, root, initialFee, refundableFee,
                                 resources);
 
@@ -1573,7 +1577,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         SECTION("limited too big")
         {
             // Fits into generic, but doesn't fit into limited
-            resources.instructions = conf.txMaxInstructions() / 2;
+            resources.instructions =
+                static_cast<uint32>(conf.txMaxInstructions() / 2);
             auto tx2 = createUploadWasmTx(
                 *app, account1, initialFee, refundableFee, resources,
                 std::make_optional<std::string>("limit"));
@@ -1588,23 +1593,25 @@ TEST_CASE("Soroban TransactionQueue limits",
         SECTION("limited fits")
         {
             // Fits into limited
-            resources.instructions = conf.txMaxInstructions() / 8;
-            auto tx2 = createUploadWasmTx(
+            resources.instructions =
+                static_cast<uint32>(conf.txMaxInstructions() / 8);
+            auto txNew = createUploadWasmTx(
                 *app, account1, initialFee * 2, refundableFee, resources,
                 std::make_optional<std::string>("limit"));
 
-            REQUIRE(config->getLane(*tx2) ==
+            REQUIRE(config->getLane(*txNew) ==
                     SorobanLimitingLaneConfigForTesting::LARGE_SOROBAN_LANE);
 
             REQUIRE(
-                queue->canFitWithEviction(*tx2, std::nullopt, toEvict).first);
+                queue->canFitWithEviction(*txNew, std::nullopt, toEvict).first);
             REQUIRE(toEvict.empty());
 
             SECTION("limited evicts")
             {
                 // Add 2 generic transactions to reach generic limit
                 queue->add(std::make_shared<SingleTxStack>(tx));
-                resources.instructions = conf.ledgerMaxInstructions() / 2;
+                resources.instructions =
+                    static_cast<uint32>(conf.ledgerMaxInstructions() / 2);
                 // The fee is slightly higher so this transactions is more
                 // favorable during evictions
                 auto secondGeneric = createUploadWasmTx(
@@ -1621,7 +1628,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 {
                     // Fit within limited lane
                     REQUIRE(
-                        queue->canFitWithEviction(*tx2, std::nullopt, toEvict)
+                        queue->canFitWithEviction(*txNew, std::nullopt, toEvict)
                             .first);
                     REQUIRE(toEvict.size() == 1);
                     REQUIRE(toEvict[0].first->getTopTx() == tx);
@@ -1643,8 +1650,10 @@ TEST_CASE("Soroban TransactionQueue limits",
 
                     // Add, new tx with max limited lane resources, set a high
                     // fee
-                    resources.instructions = conf.txMaxInstructions() / 4;
-                    resources.instructions = conf.txMaxWriteBytes() / 4;
+                    resources.instructions =
+                        static_cast<uint32>(conf.txMaxInstructions() / 4);
+                    resources.instructions =
+                        static_cast<uint32>(conf.txMaxWriteBytes() / 4);
                     auto tx3 = createUploadWasmTx(
                         *app, account2, initialFee * 3, refundableFee,
                         resources, std::make_optional<std::string>("limit"));

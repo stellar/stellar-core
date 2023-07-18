@@ -12,8 +12,8 @@ struct RestoreFootprintMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    size_t mLedgerReadByte{0};
-    size_t mLedgerWriteByte{0};
+    uint32_t mLedgerReadByte{0};
+    uint32_t mLedgerWriteByte{0};
 
     RestoreFootprintMetrics(medida::MetricsRegistry& metrics)
         : mMetrics(metrics)
@@ -73,7 +73,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         ledgerSeq + expirationSettings.minPersistentEntryExpiration - 1;
     for (auto const& lk : footprint.readWrite)
     {
-        auto keySize = xdr::xdr_size(lk);
+        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
         auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
         if (!ltxe)
         {
@@ -81,7 +81,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             continue;
         }
 
-        auto entrySize = xdr::xdr_size(ltxe.current());
+        auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
         metrics.mLedgerReadByte += keySize + entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {

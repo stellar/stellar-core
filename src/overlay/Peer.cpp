@@ -1888,7 +1888,7 @@ Peer::fulfillDemand(FloodDemand const& dmd)
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-Peer::handleMaxTxSizeIncrease(uint64_t increase)
+Peer::handleMaxTxSizeIncrease(uint32_t increase)
 {
     if (increase > 0)
     {

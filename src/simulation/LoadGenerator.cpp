@@ -226,7 +226,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     // source accounts
     if (!mStarted && cfg.mode != LoadGenMode::CREATE)
     {
-        for (auto i = 0; i < cfg.nAccounts; i++)
+        for (auto i = 0u; i < cfg.nAccounts; i++)
         {
             mAccountsAvailable.insert(i + cfg.offset);
         }

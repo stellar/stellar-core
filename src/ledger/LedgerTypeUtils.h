@@ -37,9 +37,9 @@ isSorobanEntry(T const& e)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     return e.type() == CONTRACT_DATA || e.type() == CONTRACT_CODE;
-#endif
-
+#else
     return false;
+#endif
 }
 
 template <typename T>
@@ -49,8 +49,9 @@ isTemporaryEntry(T const& e)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     return e.type() == CONTRACT_DATA &&
            e.contractData().durability == ContractDataDurability::TEMPORARY;
-#endif
+#else
     return false;
+#endif
 }
 
 }

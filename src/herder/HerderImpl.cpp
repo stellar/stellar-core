@@ -113,7 +113,7 @@ HerderImpl::getState() const
     return mState;
 }
 
-uint64_t
+uint32_t
 HerderImpl::getMaxClassicTxSize() const
 {
 #ifdef BUILD_TESTS
@@ -1955,7 +1955,7 @@ HerderImpl::restoreUpgrades()
 void
 HerderImpl::maybeHandleUpgrade()
 {
-    uint64_t diff = 0;
+    uint32_t diff = 0;
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
@@ -1974,8 +1974,7 @@ HerderImpl::maybeHandleUpgrade()
         }
         // mMaxTxSize may decrease post-upgrade, always choose the max between
         // classic tx size (static) and Soroban max tx size
-        mMaxTxSize =
-            std::max<uint64_t>(getMaxClassicTxSize(), conf.txMaxSizeBytes());
+        mMaxTxSize = std::max(getMaxClassicTxSize(), conf.txMaxSizeBytes());
     }
 
     // Maybe update capacity to reflect the upgrade
@@ -1996,7 +1995,7 @@ HerderImpl::start()
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        mMaxTxSize = std::max<uint64_t>(mMaxTxSize, conf.txMaxSizeBytes());
+        mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
     }
 #endif
 

@@ -102,7 +102,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     StellarMessage tx1;
     tx1.type(TRANSACTION);
-    auto txSize = xdr::xdr_argpack_size(tx1);
+    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(tx1));
 
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
@@ -225,7 +225,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
-        auto txSize2 = xdr::xdr_argpack_size(tx2);
+        uint32 txSize2 = static_cast<uint32>(xdr::xdr_argpack_size(tx2));
         REQUIRE(txSize2 > txSize + 1);
 
         // Configure flow control such that tx2 can't be sent
@@ -251,7 +251,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
         REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
 
-        auto upgradeApp = [&](Application::pointer app, size_t maxTxSize) {
+        auto upgradeApp = [&](Application::pointer app, uint32 maxTxSize) {
             ConfigUpgradeSetFrameConstPtr res;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -529,7 +529,7 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     // tx is invalid, but it doesn't matter
     StellarMessage msg;
     msg.type(TRANSACTION);
-    auto txSize = xdr::xdr_argpack_size(msg);
+    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
     auto test = [&](bool fcBytes) {
         if (fcBytes)
@@ -586,7 +586,7 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
 
     StellarMessage msg;
     msg.type(TRANSACTION);
-    auto txSize = xdr::xdr_argpack_size(msg);
+    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
     auto test = [&](bool fcBytes) {
         if (fcBytes)

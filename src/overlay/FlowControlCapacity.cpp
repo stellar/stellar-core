@@ -102,7 +102,7 @@ FlowControlByteCapacity::canRead() const
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
-FlowControlByteCapacity::handleTxSizeIncrease(uint64_t increase)
+FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
 {
     mCapacity.mFloodCapacity += increase;
     mCapacityLimits.mFloodCapacity += increase;

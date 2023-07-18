@@ -68,7 +68,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         return envelope;
     };
     size_t index = 0;
-    auto makeTransactions = [&](Hash hash, int n) {
+    auto makeTransactions = [&](Hash hash, size_t n) {
         REQUIRE(n <= accs.size());
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),

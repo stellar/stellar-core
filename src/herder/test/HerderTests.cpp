@@ -1656,8 +1656,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             for (auto& acc : accounts)
             {
                 SorobanResources res;
-                res.instructions =
-                    rand_uniform<uint32_t>(1, conf.txMaxInstructions());
+                res.instructions = rand_uniform<uint32_t>(
+                    1, static_cast<uint32>(conf.txMaxInstructions()));
                 res.readBytes =
                     rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
                 res.writeBytes =
@@ -4521,7 +4521,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 
         // number of accounts to use
         size_t const maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
-        int const nbAccounts = maxOps;
+        int const nbAccounts = static_cast<int>(maxOps);
         // number of transactions to generate per fee
         // groups are
         int const feeGroupMaxSize = 7;

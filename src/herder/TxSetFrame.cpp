@@ -1035,7 +1035,6 @@ TxSetFrame::summary() const
                            sizeTxTotal(), sizeOpTotal(),
                            *mTxBaseFeeClassic.begin()->second);
     }
-    return "";
 }
 
 void
