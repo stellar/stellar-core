@@ -52,6 +52,14 @@ operator<<(std::ostream& out, MergeKey const& b)
     out << fmt::format(FMT_STRING("], keep={}]"), b.mKeepDeadEntries);
     return out;
 }
+
+std::string
+format_as(MergeKey const& k)
+{
+    std::stringstream ss;
+    ss << k;
+    return ss.str();
+}
 }
 
 namespace std

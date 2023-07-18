@@ -137,7 +137,7 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {}",
-               peer->toString(), peer->getState());
+               peer->toString(), Peer::format_as(peer->getState()));
     auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
     if (pendingIt == std::end(mPending))
     {

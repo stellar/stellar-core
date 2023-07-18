@@ -11,6 +11,7 @@
 #include <memory>
 #include <ostream>
 #include <set>
+#include <sstream>
 
 extern "C"
 {
@@ -370,4 +371,12 @@ operator<<(std::ostream& out, BitSet const& b)
 {
     b.stream(out);
     return out;
+}
+
+inline std::string
+format_as(BitSet const& b)
+{
+    std::stringstream s;
+    s << b;
+    return s.str();
 }

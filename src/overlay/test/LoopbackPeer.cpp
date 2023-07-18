@@ -154,7 +154,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
     if (mState != GOT_AUTH)
     {
         CLOG_DEBUG(Overlay, "LoopbackPeer::drop {} in state {} we called:{}",
-                   toString(), mState, mRole);
+                   toString(), format_as(mState), format_as(mRole));
     }
     else if (direction == Peer::DropDirection::WE_DROPPED_REMOTE)
     {

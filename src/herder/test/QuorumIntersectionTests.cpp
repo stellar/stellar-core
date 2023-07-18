@@ -892,7 +892,7 @@ debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
                 *(pair.second.mQuorumSet),
                 [&cfg](PublicKey const& k) { return cfg.toShortString(k); });
             CLOG_DEBUG(Herder, "qmap[{}] = {}", cfg.toShortString(pair.first),
-                       str);
+                       str.toStyledString());
         }
         else
         {

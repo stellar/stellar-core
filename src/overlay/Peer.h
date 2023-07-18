@@ -84,11 +84,24 @@ class Peer : public std::enable_shared_from_this<Peer>,
         CLOSING = 4
     };
 
+    static inline int
+    format_as(PeerState const& s)
+    {
+        return static_cast<int>(s);
+    }
+
     enum PeerRole
     {
         REMOTE_CALLED_US,
         WE_CALLED_REMOTE
     };
+
+    static inline std::string
+    format_as(PeerRole const& r)
+    {
+        return (r == REMOTE_CALLED_US) ? "REMOTE_CALLED_US"
+                                       : "WE_CALLED_REMOTE";
+    }
 
     enum class DropMode
     {

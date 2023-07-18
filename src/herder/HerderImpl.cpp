@@ -37,6 +37,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/types.h"
 #include <Tracy.hpp>
 
 #include "util/GlobalChecks.h"
@@ -748,7 +749,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             ZoneText(txt.c_str(), txt.size());
         }
         CLOG_TRACE(Herder, "recvSCPEnvelope ({}) from: {} s:{} i:{} a:{}",
-                   status,
+                   static_cast<int>(status),
                    mApp.getConfig().toShortString(envelope.statement.nodeID),
                    envelope.statement.pledges.type(),
                    envelope.statement.slotIndex, mApp.getStateHuman());
@@ -1325,7 +1326,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                 Herder,
                 "HerderImpl::triggerNextLedger exceeded size for upgrade "
                 "step (got {} ) for upgrade type {}",
-                v.size(), std::to_string(upgrade.type()));
+                v.size(), upgrade.type());
             CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
         }
         else

@@ -249,7 +249,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         CLOG_WARNING(
             LoadGen,
             "Application is not in sync, load generation inhibited. State {}",
-            mApp.getState());
+            mApp.getStateHuman());
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait(
             [this, cfg]() { this->scheduleLoadGeneration(cfg); },

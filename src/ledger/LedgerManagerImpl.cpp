@@ -740,7 +740,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         CLOG_ERROR(
             Ledger,
             "Corrupt transaction set: TxSet hash is {}, SCP value reports {}",
-            txSet->getContentsHash(), ledgerData.getValue().txSetHash);
+            binToHex(txSet->getContentsHash()),
+            binToHex(ledgerData.getValue().txSetHash));
         CLOG_ERROR(Ledger, "{}", POSSIBLY_CORRUPTED_QUORUM_SET);
 
         throw std::runtime_error("corrupt transaction set");
