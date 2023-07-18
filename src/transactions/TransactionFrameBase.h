@@ -51,7 +51,7 @@ class TransactionFrameBase
     virtual int64_t getFullFee() const = 0;
     // Returns the part of the full fee used to make decisions as to
     // whether this transaction should be included into ledger.
-    virtual int64_t getFeeBid() const = 0;
+    virtual int64_t getInclusionFee() const = 0;
     virtual int64_t getFee(LedgerHeader const& header,
                            std::optional<int64_t> baseFee,
                            bool applying) const = 0;

@@ -18,8 +18,8 @@ computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
                  TransactionFrameBase const& tx)
 {
     if (evictedBid.second != 0 &&
-        feeRate3WayCompare(evictedBid.first, evictedBid.second, tx.getFeeBid(),
-                           tx.getNumOperations()) >= 0)
+        feeRate3WayCompare(evictedBid.first, evictedBid.second,
+                           tx.getInclusionFee(), tx.getNumOperations()) >= 0)
     {
         return computeBetterFee(tx, evictedBid.first, evictedBid.second);
     }
@@ -213,14 +213,14 @@ TxQueueLimiter::evictTransactions(
             // txs in this lane have to beat it. However, other txs could still
             // fit with a lower fee.
             mLaneEvictedFeeBid[mSurgePricingLaneConfig->getLane(*tx)] = {
-                tx->getFeeBid(), tx->getNumOperations()};
+                tx->getInclusionFee(), tx->getNumOperations()};
         }
         else
         {
             // If tx has been evicted before reaching the lane limit, we just
             // add it to generic lane, so that every new tx has to beat it.
             mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE] = {
-                tx->getFeeBid(), tx->getNumOperations()};
+                tx->getInclusionFee(), tx->getNumOperations()};
         }
 
         evict(tx);

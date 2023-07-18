@@ -104,9 +104,9 @@ static bool
 canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
                 int64_t& minFee)
 {
-    int64_t newFee = tx->getFeeBid();
+    int64_t newFee = tx->getInclusionFee();
     uint32_t newNumOps = std::max<uint32_t>(1, tx->getNumOperations());
-    int64_t oldFee = oldTx->getFeeBid();
+    int64_t oldFee = oldTx->getInclusionFee();
     uint32_t oldNumOps = std::max<uint32_t>(1, oldTx->getNumOperations());
 
     // newFee / newNumOps >= FEE_MULTIPLIER * oldFee / oldNumOps
@@ -129,7 +129,7 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
         else
         {
             // Add the potential flat component to the resulting min fee.
-            minFee += tx->getFullFee() - tx->getFeeBid();
+            minFee += tx->getFullFee() - tx->getInclusionFee();
         }
     }
     return res;
@@ -238,7 +238,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         ltx.loadHeader().current().ledgerVersion,
         mApp.getLedgerManager().getSorobanNetworkConfig(ltx), mApp.getConfig());
 #endif
-    int64_t netFee = tx->getFeeBid();
+    int64_t netFee = tx->getInclusionFee();
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
 
@@ -316,7 +316,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     }
 
                     oldTx = txToReplaceIter->mTx;
-                    int64_t oldFee = oldTx->getFeeBid();
+                    int64_t oldFee = oldTx->getInclusionFee();
                     if (oldTx->getFeeSourceID() == tx->getFeeSourceID())
                     {
                         netFee -= oldFee;

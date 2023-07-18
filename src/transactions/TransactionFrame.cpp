@@ -221,7 +221,7 @@ TransactionFrame::getFullFee() const
 }
 
 int64_t
-TransactionFrame::getFeeBid() const
+TransactionFrame::getInclusionFee() const
 {
     int64_t feeBid = getFullFee();
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -260,14 +260,14 @@ TransactionFrame::getFee(LedgerHeader const& header,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
-        int64_t feeBid = getFeeBid();
+        int64_t feeBid = getInclusionFee();
         int64_t flatFee = getFullFee() - feeBid;
         int64_t adjustedFee =
             *baseFee * std::max<int64_t>(1, getNumOperations());
 
         if (applying)
         {
-            return flatFee + std::min<int64_t>(getFeeBid(), adjustedFee);
+            return flatFee + std::min<int64_t>(getInclusionFee(), adjustedFee);
         }
         else
         {
@@ -1038,12 +1038,12 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-    if (chargeFee && getFeeBid() < getMinFee(*this, header.current()))
+    if (chargeFee && getInclusionFee() < getMinFee(*this, header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
-    if (!chargeFee && getFeeBid() < 0)
+    if (!chargeFee && getInclusionFee() < 0)
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -1239,7 +1239,7 @@ TransactionFrame::commonValid(Application& app,
         (applying && protocolVersionStartsFrom(header.current().ledgerVersion,
                                                ProtocolVersion::V_9))
             ? 0
-            : static_cast<uint32_t>(getFeeBid());
+            : static_cast<uint32_t>(getInclusionFee());
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (chargeFee && getAvailableBalance(header, sourceAccount) < feeToPay)

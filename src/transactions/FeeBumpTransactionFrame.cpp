@@ -232,15 +232,16 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (getFeeBid() < getMinFee(*this, header.current()))
+    if (getInclusionFee() < getMinFee(*this, header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     auto const& lh = header.current();
-    uint128_t v1 = bigMultiply(getFeeBid(), getMinFee(*mInnerTx, lh));
-    uint128_t v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(*this, lh));
+    uint128_t v1 = bigMultiply(getInclusionFee(), getMinFee(*mInnerTx, lh));
+    uint128_t v2 =
+        bigMultiply(mInnerTx->getInclusionFee(), getMinFee(*this, lh));
     if (v1 < v2)
     {
         if (!bigDivide128(getResult().feeCharged, v2, getMinFee(*mInnerTx, lh),
@@ -313,9 +314,9 @@ FeeBumpTransactionFrame::getFullFee() const
 }
 
 int64_t
-FeeBumpTransactionFrame::getFeeBid() const
+FeeBumpTransactionFrame::getInclusionFee() const
 {
-    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getFeeBid();
+    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getInclusionFee();
     return mEnvelope.feeBump().tx.fee - flatFee;
 }
 
@@ -328,11 +329,11 @@ FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
     {
         return getFullFee();
     }
-    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getFeeBid();
+    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getInclusionFee();
     int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {
-        return flatFee + std::min<int64_t>(getFeeBid(), adjustedFee);
+        return flatFee + std::min<int64_t>(getInclusionFee(), adjustedFee);
     }
     else
     {

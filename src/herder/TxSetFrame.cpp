@@ -208,8 +208,8 @@ computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
                         ? Rounding::ROUND_DOWN
                         : Rounding::ROUND_UP;
     auto txOps = tx.getNumOperations();
-    return bigDivideOrThrow(tx.getFeeBid(), 1, static_cast<int64_t>(txOps),
-                            rounding);
+    return bigDivideOrThrow(tx.getInclusionFee(), 1,
+                            static_cast<int64_t>(txOps), rounding);
 }
 
 } // namespace
@@ -605,12 +605,14 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                         hexAbbrev(mPreviousLedgerHash), *fee);
                     return false;
                 }
-                if (tx->getFeeBid() < getMinFee(*tx, lcl.header, fee))
+                if (tx->getInclusionFee() < getMinFee(*tx, lcl.header, fee))
                 {
-                    CLOG_DEBUG(Herder,
-                               "Got bad txSet: {} has tx with fee bid lower "
-                               "than base fee",
-                               hexAbbrev(mPreviousLedgerHash));
+                    CLOG_DEBUG(
+                        Herder,
+                        "Got bad txSet: {} has tx with fee bid ({}) lower "
+                        "than base fee ({})",
+                        hexAbbrev(mPreviousLedgerHash), tx->getInclusionFee(),
+                        getMinFee(*tx, lcl.header, fee));
                     return false;
                 }
             }
@@ -963,7 +965,7 @@ TxSetFrame::getTotalBids() const
                       total += std::accumulate(
                           phase.begin(), phase.end(), int64_t(0),
                           [&](int64_t t, TransactionFrameBasePtr const& tx) {
-                              return t + tx->getFeeBid();
+                              return t + tx->getInclusionFee();
                           });
                   });
 
@@ -979,7 +981,7 @@ TxSetFrame::summary() const
     }
     if (isGeneralizedTxSet())
     {
-        auto feeStats = [&](auto& feeMap) {
+        auto feeStats = [&](auto const& feeMap) {
             std::map<std::optional<int64_t>, std::pair<int, int>>
                 componentStats;
             for (auto const& [tx, fee] : feeMap)
@@ -1211,8 +1213,9 @@ TxSetFrame::applySurgePricing(Application& app)
             phase = includedTxs;
             if (isGeneralizedTxSet())
             {
-                computeTxFees(phaseType, lclHeader, *surgePricingLaneConfig,
-                              lowestLaneFee, hadTxNotFittingLane);
+                computeTxFees(TxSetFrame::Phase::CLASSIC, lclHeader,
+                              *surgePricingLaneConfig, lowestLaneFee,
+                              hadTxNotFittingLane);
             }
             else
             {
