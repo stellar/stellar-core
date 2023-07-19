@@ -14,6 +14,7 @@ namespace stellar
 namespace
 {
 
+// Use _inclusion_ fee to order transactions
 int
 feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
 {
@@ -461,7 +462,8 @@ SurgePricingPriorityQueue::canFitWithEviction(
         {
             auto minFee = computeBetterFee(tx, evictTx.getInclusionFee(),
                                            evictTx.getNumOperations());
-            return std::make_pair(false, minFee);
+            return std::make_pair(
+                false, minFee + (tx.getFullFee() - tx.getInclusionFee()));
         }
         // Ensure that this transaction is not from the same account.
         if (tx.getSourceID() == evictTx.getSourceID())

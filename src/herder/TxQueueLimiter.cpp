@@ -164,9 +164,13 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
         computeBetterFee(
             mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE],
             *newTx));
+    // minFeeToBeatEvicted is the minimum _inclusion_ fee to evict txs. For
+    // reporting, return _full_ minimum fee
     if (minFeeToBeatEvicted > 0)
     {
-        return std::make_pair(false, minFeeToBeatEvicted);
+        return std::make_pair(
+            false, minFeeToBeatEvicted +
+                       (newTx->getFullFee() - newTx->getInclusionFee()));
     }
 
     uint32_t txOpsDiscount = 0;
