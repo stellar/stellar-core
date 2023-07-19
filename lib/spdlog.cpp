@@ -11,6 +11,5 @@
 #include "lib/spdlog/src/cfg.cpp"
 #include "lib/spdlog/src/color_sinks.cpp"
 #include "lib/spdlog/src/file_sinks.cpp"
-#include "lib/spdlog/src/fmt.cpp"
 #include "lib/spdlog/src/spdlog.cpp"
 #include "lib/spdlog/src/stdout_sinks.cpp"

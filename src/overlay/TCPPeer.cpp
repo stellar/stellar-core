@@ -705,7 +705,7 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
     if (mState != GOT_AUTH)
     {
         CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
-                   toString(), mState, mRole);
+                   toString(), format_as(mState), format_as(mRole));
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {

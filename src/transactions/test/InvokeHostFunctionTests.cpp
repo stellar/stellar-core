@@ -111,13 +111,6 @@ makeU32(uint32_t u32)
     return val;
 }
 
-static SCVal
-makeVoid()
-{
-    SCVal val(SCV_VOID);
-    return val;
-}
-
 static void
 submitTxToUploadWasm(Application& app, Operation const& op,
                      SorobanResources const& resources,
@@ -975,7 +968,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         REQUIRE(getContractDataExpiration("key",
                                           ContractDataDurability::PERSISTENT) ==
                 initExpirationLedger);
-        for (size_t i = app->getLedgerManager().getLastClosedLedgerNum();
+        for (uint32 i = app->getLedgerManager().getLastClosedLedgerNum();
              i <= initExpirationLedger + 1; ++i)
         {
             closeLedgerOn(*app, i, 2, 1, 2016);

@@ -63,7 +63,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     SECTION("invalid loadgen parameters")
     {
         // Succesfully create accounts
-        size_t numAccounts = 100;
+        uint32 numAccounts = 100;
         loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
             /* nAccounts */ 100,
             /* txRate */ 1));
@@ -184,7 +184,8 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
 
     uint32_t txRate = 5;
     uint32_t numAccounts =
-        txRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 3;
+        txRate *
+        static_cast<uint32>(Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 3);
     auto& loadGen = app.getLoadGenerator();
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ numAccounts,

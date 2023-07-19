@@ -137,7 +137,7 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {}",
-               peer->toString(), peer->getState());
+               peer->toString(), Peer::format_as(peer->getState()));
     auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
     if (pendingIt == std::end(mPending))
     {
@@ -1265,8 +1265,7 @@ OverlayManagerImpl::getMaxDemandSize() const
             cfg.getExpectedLedgerCloseTime())
             .count();
     int64_t queueSizeInOps = getOpsFloodLedger(
-        static_cast<double>(mApp.getHerder().getMaxQueueSizeOps()),
-        cfg.FLOOD_OP_RATE_PER_LEDGER);
+        mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     queueSizeInOps +=

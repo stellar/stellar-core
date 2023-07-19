@@ -37,6 +37,7 @@
 #include "util/XDRStream.h"
 #include "xdr/Stellar-internal.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/types.h"
 #include <Tracy.hpp>
 
 #include "util/GlobalChecks.h"
@@ -112,7 +113,7 @@ HerderImpl::getState() const
     return mState;
 }
 
-uint64_t
+uint32_t
 HerderImpl::getMaxClassicTxSize() const
 {
 #ifdef BUILD_TESTS
@@ -748,7 +749,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             ZoneText(txt.c_str(), txt.size());
         }
         CLOG_TRACE(Herder, "recvSCPEnvelope ({}) from: {} s:{} i:{} a:{}",
-                   status,
+                   static_cast<int>(status),
                    mApp.getConfig().toShortString(envelope.statement.nodeID),
                    envelope.statement.pledges.type(),
                    envelope.statement.slotIndex, mApp.getStateHuman());
@@ -1325,7 +1326,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
                 Herder,
                 "HerderImpl::triggerNextLedger exceeded size for upgrade "
                 "step (got {} ) for upgrade type {}",
-                v.size(), std::to_string(upgrade.type()));
+                v.size(), upgrade.type());
             CLOG_ERROR(Herder, "{}", REPORT_INTERNAL_BUG);
         }
         else
@@ -1954,7 +1955,7 @@ HerderImpl::restoreUpgrades()
 void
 HerderImpl::maybeHandleUpgrade()
 {
-    uint64_t diff = 0;
+    uint32_t diff = 0;
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
@@ -1973,8 +1974,7 @@ HerderImpl::maybeHandleUpgrade()
         }
         // mMaxTxSize may decrease post-upgrade, always choose the max between
         // classic tx size (static) and Soroban max tx size
-        mMaxTxSize =
-            std::max<uint64_t>(getMaxClassicTxSize(), conf.txMaxSizeBytes());
+        mMaxTxSize = std::max(getMaxClassicTxSize(), conf.txMaxSizeBytes());
     }
 
     // Maybe update capacity to reflect the upgrade
@@ -1995,7 +1995,7 @@ HerderImpl::start()
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        mMaxTxSize = std::max<uint64_t>(mMaxTxSize, conf.txMaxSizeBytes());
+        mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
     }
 #endif
 

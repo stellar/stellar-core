@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 #include "util/RandomEvictionCache.h"
 #include <list>
+#include <optional>
 #ifdef USE_POSTGRES
 #include <iomanip>
 #include <libpq-fe.h>

@@ -116,11 +116,11 @@ class HerderImpl : public Herder
 
     uint32_t mTriggerNextLedgerSeq{0};
 
-    std::optional<uint64_t> mMaxClassicTxSize;
+    std::optional<uint32_t> mMaxClassicTxSize;
     void
-    setMaxClassicTxSize(size_t bytes) override
+    setMaxClassicTxSize(uint32 bytes) override
     {
-        mMaxClassicTxSize = std::make_optional<uint64_t>(bytes);
+        mMaxClassicTxSize = std::make_optional<uint32_t>(bytes);
     }
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
@@ -134,8 +134,8 @@ class HerderImpl : public Herder
 
     void processSCPQueue();
 
-    uint64_t getMaxClassicTxSize() const override;
-    uint64_t
+    uint32_t getMaxClassicTxSize() const override;
+    uint32_t
     getMaxTxSize() const override
     {
         return mMaxTxSize;
@@ -344,6 +344,6 @@ class HerderImpl : public Herder
     // Herder) On startup, this variable is set to LCL
     ConsensusData mTrackingSCP;
 
-    uint64_t mMaxTxSize{0};
+    uint32_t mMaxTxSize{0};
 };
 }

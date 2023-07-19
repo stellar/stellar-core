@@ -31,7 +31,7 @@ TEST_CASE("subprocess", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname", "").lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG_DEBUG(Process, "process exited: {}", ec);
+        CLOG_DEBUG(Process, "process exited: {}", ec.value());
         if (ec)
         {
             CLOG_DEBUG(Process, "error code: {}", ec.message());
@@ -59,7 +59,7 @@ TEST_CASE("subprocess fails", "[process]")
                    .lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG_DEBUG(Process, "process exited: {}", ec);
+        CLOG_DEBUG(Process, "process exited: {}", ec.value());
         if (ec)
         {
             CLOG_DEBUG(Process, "error code: {}", ec.message());
@@ -87,7 +87,7 @@ TEST_CASE("subprocess redirect to new file", "[process]")
     auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG_DEBUG(Process, "process exited: {}", ec);
+        CLOG_DEBUG(Process, "process exited: {}", ec.value());
         if (ec)
         {
             CLOG_DEBUG(Process, "error code: {}", ec.message());
@@ -168,7 +168,7 @@ TEST_CASE("subprocess storm", "[process]")
                        .lock();
         REQUIRE(evt);
         evt->async_wait([&](asio::error_code ec) {
-            CLOG_INFO(Process, "process exited: {}", ec);
+            CLOG_INFO(Process, "process exited: {}", ec.value());
             if (ec)
             {
                 CLOG_DEBUG(Process, "error code: {}", ec.message());
@@ -222,7 +222,7 @@ TEST_CASE("shutdown while process running", "[process]")
     {
         REQUIRE(event);
         event->async_wait([&](asio::error_code ec) {
-            CLOG_DEBUG(Process, "process exited: {}", ec);
+            CLOG_DEBUG(Process, "process exited: {}", ec.value());
             if (ec)
             {
                 CLOG_DEBUG(Process, "error code: {}", ec.message());
@@ -271,7 +271,7 @@ TEST_CASE("ProcessManager::tryProcessShutdown test", "[process]")
 
     REQUIRE(event);
     event->async_wait([&](asio::error_code ec) {
-        CLOG_DEBUG(Process, "process exited: {}", ec);
+        CLOG_DEBUG(Process, "process exited: {}", ec.value());
         if (ec)
         {
             CLOG_DEBUG(Process, "error code: {}", ec.message());

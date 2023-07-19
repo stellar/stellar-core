@@ -166,8 +166,8 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     }
     catch (std::future_error& e)
     {
-        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
-                   e.what());
+        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}",
+                   e.code().value(), e.what());
         REQUIRE(false);
     }
 }
@@ -496,8 +496,8 @@ TEST_CASE_VERSIONS("single entry bubbling up",
     }
     catch (std::future_error& e)
     {
-        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
-                   e.what());
+        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}",
+                   e.code().value(), e.what());
         REQUIRE(false);
     }
 }
@@ -651,7 +651,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         uint32_t windowSize = networkConfig.stateExpirationSettings()
                                   .bucketListSizeWindowSampleSize;
         std::deque<uint64_t> correctWindow;
-        for (auto i = 0; i < windowSize; ++i)
+        for (auto i = 0u; i < windowSize; ++i)
         {
             correctWindow.push_back(0);
         }

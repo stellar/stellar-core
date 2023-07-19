@@ -4,7 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "xdrpp/types.h"
 #include <array>
+#include <filesystem>
 #include <iostream>
 #include <map>
 
@@ -198,4 +200,22 @@ class Logging
 #undef LOG_PARTITION
 #endif
 };
+
+// custom formatters that can be used by fmt::format
+
+template <typename T>
+inline typename std::enable_if<xdr::xdr_traits<T>::is_enum, std::string>::type
+format_as(T const& u)
+{
+    return std::string(xdr::xdr_traits<T>::enum_name(u));
+}
+}
+
+namespace std::filesystem
+{
+inline std::string
+format_as(path const& p)
+{
+    return p.string();
+}
 }

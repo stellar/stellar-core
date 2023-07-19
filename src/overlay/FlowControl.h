@@ -91,7 +91,7 @@ class FlowControl
     void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
     virtual size_t getOutboundQueueByteLimit() const;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void handleTxSizeIncrease(uint64_t increase, std::shared_ptr<Peer> peer);
+    void handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer);
 #endif
 
 #ifdef BUILD_TESTS

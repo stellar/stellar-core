@@ -12,7 +12,7 @@ struct BumpFootprintExpirationMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    size_t mLedgerReadByte{0};
+    uint32 mLedgerReadByte{0};
 
     BumpFootprintExpirationMetrics(medida::MetricsRegistry& metrics)
         : mMetrics(metrics)
@@ -79,8 +79,8 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             continue;
         }
 
-        auto keySize = xdr::xdr_size(lk);
-        auto entrySize = xdr::xdr_size(ltxe.current());
+        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
+        auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
 
         metrics.mLedgerReadByte += keySize + entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte ||
@@ -100,7 +100,7 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(lk);
-        rustChange.old_size_bytes = keySize + entrySize;
+        rustChange.old_size_bytes = static_cast<uint32>(keySize + entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
         rustChange.old_expiration_ledger = currExpiration;
         rustChange.new_expiration_ledger = bumpLedger;
