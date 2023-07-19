@@ -2,7 +2,7 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.67"
+rust-version = "1.71"
 
 [lib]
 name = "rust_stellar_core"
@@ -28,7 +28,7 @@ rustc-simple-version = "0.1.0"
 version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "0bbeec2d6e5f6a484c797a7211a4ce99e3325c27"
+rev = "6392e6c838452dfafcb0b3f6ddfdd387fedcf426"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
