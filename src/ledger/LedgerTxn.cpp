@@ -1519,7 +1519,28 @@ LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key,
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // Captive core holds entries in memory, so it's possible for entries at
+        // the LedgerTxn level to expire.
+        auto ile_ptr = iter->second.get();
+        if (!ile_ptr ||
+            ile_ptr->type() != InternalLedgerEntryType::LEDGER_ENTRY)
+        {
+            return ile_ptr;
+        }
+
+        if (loadExpiredEntry ||
+            isLive(ile_ptr->ledgerEntry(), mHeader->ledgerSeq))
+        {
+            return ile_ptr;
+        }
+        else
+        {
+            return nullptr;
+        }
+#else
         return iter->second.get();
+#endif
     }
     return mParent.getNewestVersion(key, loadExpiredEntry);
 }
