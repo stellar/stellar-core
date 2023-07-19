@@ -1239,7 +1239,7 @@ TransactionFrame::commonValid(Application& app,
         (applying && protocolVersionStartsFrom(header.current().ledgerVersion,
                                                ProtocolVersion::V_9))
             ? 0
-            : static_cast<uint32_t>(getInclusionFee());
+            : static_cast<uint32_t>(getFullFee());
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (chargeFee && getAvailableBalance(header, sourceAccount) < feeToPay)
