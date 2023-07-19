@@ -88,10 +88,18 @@ makeI128(uint64_t u64)
 }
 
 static SCVal
-makeSymbol(std::string const& str)
+makeSymbolSCVal(std::string const& str)
 {
     SCVal val(SCV_SYMBOL);
     val.sym().assign(str.begin(), str.end());
+    return val;
+}
+
+static SCSymbol
+makeSymbol(std::string const& str)
+{
+    SCSymbol val;
+    val.assign(str.begin(), str.end());
     return val;
 }
 
@@ -297,13 +305,16 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
     auto const& contractID = contractKeys[0].contractData().contract;
-    auto call = [&](SorobanResources const& resources, SCVec const& parameters,
-                    bool success) {
+    auto call = [&](SorobanResources const& resources, SCAddress const& address,
+                    SCSymbol const& functionName,
+                    std::vector<SCVal> const& args, bool success) {
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract() = parameters;
+        ihf.invokeContract().contractAddress = address;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
@@ -318,7 +329,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getFeeBid() == 65'100);
+            REQUIRE(tx->getFeeBid() == 65'117);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -399,8 +410,6 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         return resultVal;
     };
 
-    SCVal scContractID(SCValType::SCV_ADDRESS);
-    scContractID.address() = contractID;
     auto scFunc = makeSymbol("add");
     auto sc7 = makeI32(7);
     auto sc16 = makeI32(16);
@@ -413,7 +422,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     SECTION("correct invocation")
     {
-        call(resources, {scContractID, scFunc, sc7, sc16}, true);
+        call(resources, contractID, scFunc, {sc7, sc16}, true);
         REQUIRE(app->getMetrics()
                     .NewTimer({"soroban", "host-fn-op", "exec"})
                     .count() != 0);
@@ -424,24 +433,38 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     SECTION("incorrect invocation parameters")
     {
-        // Too few parameters
-        call(resources, {}, false);
-        call(resources, {scContractID}, false);
-        call(resources, {scContractID, scFunc}, false);
-        call(resources, {scContractID, scFunc, sc7}, false);
-        // Too many parameters
-        call(resources, {scContractID, scFunc, sc7, sc16, makeI32(0)}, false);
+        SECTION("non-existent contract id")
+        {
+            SCAddress address(SC_ADDRESS_TYPE_CONTRACT);
+            address.contractId()[0] = 1;
+            call(resources, address, scFunc, {sc7, sc16}, false);
+        }
+        SECTION("account address")
+        {
+            SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
+            address.accountId() = root.getPublicKey();
+            call(resources, address, scFunc, {sc7, sc16}, false);
+        }
+        SECTION("too few parameters")
+        {
+            call(resources, contractID, scFunc, {sc7}, false);
+        }
+        SECTION("too many parameters")
+        {
+            // Too many parameters
+            call(resources, contractID, scFunc, {sc7, sc16, makeI32(0)}, false);
+        }
     }
 
     SECTION("insufficient instructions")
     {
         resources.instructions = 10000;
-        call(resources, {scContractID, scFunc, sc7, sc16}, false);
+        call(resources, contractID, scFunc, {sc7, sc16}, false);
     }
     SECTION("insufficient read bytes")
     {
         resources.readBytes = 100;
-        call(resources, {scContractID, scFunc, sc7, sc16}, false);
+        call(resources, contractID, scFunc, {sc7, sc16}, false);
     }
 }
 
@@ -487,7 +510,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto getContractDataExpiration = [&](std::string const& key,
                                          ContractDataDurability type,
                                          uint32_t flags = 0) {
-        auto keySymbol = makeSymbol(key);
+        auto keySymbol = makeSymbolSCVal(key);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
         REQUIRE(ltxe);
@@ -497,7 +520,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto isEntryLive = [&](std::string const& key, ContractDataDurability type,
                            uint32_t ledgerSeq) {
-        auto keySymbol = makeSymbol(key);
+        auto keySymbol = makeSymbolSCVal(key);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ltxe = loadContractData(ltx, contractID, keySymbol, type,
                                      /*loadExpiredEntry*/ true);
@@ -507,14 +530,18 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto createTx = [&](xdr::xvector<LedgerKey> const& readOnly,
                         xdr::xvector<LedgerKey> const& readWrite,
-                        uint32_t writeBytes, SCVec const& invokeVector)
+                        uint32_t writeBytes, SCAddress const& contractAddress,
+                        SCSymbol const& functionName,
+                        std::vector<SCVal> const& args)
         -> std::tuple<TransactionFrameBasePtr, std::shared_ptr<LedgerTxn>,
                       std::shared_ptr<TransactionMetaFrame>> {
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract() = invokeVector;
+        ihf.invokeContract().contractAddress = contractAddress;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
         SorobanResources resources;
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
@@ -537,7 +564,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 xdr::xvector<LedgerKey> const& readWrite,
                                 uint32_t writeBytes, bool expectSuccess,
                                 ContractDataDurability type) {
-        auto keySymbol = makeSymbol(key);
+        auto keySymbol = makeSymbolSCVal(key);
         auto valU64 = makeU64(val);
 
         std::string funcStr;
@@ -552,9 +579,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         auto [tx, ltx, txm] =
-            createTx(readOnly, readWrite, writeBytes,
-                     {makeContractAddressSCVal(contractID), makeSymbol(funcStr),
-                      keySymbol, valU64});
+            createTx(readOnly, readWrite, writeBytes, contractID,
+                     makeSymbol(funcStr), {keySymbol, valU64});
 
         if (expectSuccess)
         {
@@ -571,10 +597,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto put = [&](std::string const& key, uint64_t val,
                    ContractDataDurability type) {
-        putWithFootprint(
-            key, val, contractKeys,
-            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
-            1000, true, type);
+        putWithFootprint(key, val, contractKeys,
+                         {contractDataKey(contractID, makeSymbolSCVal(key),
+                                          type, DATA_ENTRY)},
+                         1000, true, type);
     };
 
     auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
@@ -582,7 +608,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                  xdr::xvector<LedgerKey> const& readWrite,
                                  bool expectSuccess,
                                  ContractDataDurability type) {
-        auto keySymbol = makeSymbol(key);
+        auto keySymbol = makeSymbolSCVal(key);
         auto bumpAmountU32 = makeU32(bumpAmount);
 
         std::string funcStr;
@@ -598,9 +624,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         // TODO: Better bytes to write value
         auto [tx, ltx, txm] =
-            createTx(readOnly, readWrite, 1000,
-                     {makeContractAddressSCVal(contractID), makeSymbol(funcStr),
-                      keySymbol, bumpAmountU32});
+            createTx(readOnly, readWrite, 1000, contractID, makeSymbol(funcStr),
+                     {keySymbol, bumpAmountU32});
 
         if (expectSuccess)
         {
@@ -616,10 +641,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     auto bump = [&](std::string const& key, ContractDataDurability type,
                     uint32_t bumpAmount) {
-        bumpWithFootprint(
-            key, bumpAmount, contractKeys,
-            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
-            true, type);
+        bumpWithFootprint(key, bumpAmount, contractKeys,
+                          {contractDataKey(contractID, makeSymbolSCVal(key),
+                                           type, DATA_ENTRY)},
+                          true, type);
     };
 
     auto runExpirationOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
@@ -712,7 +737,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 xdr::xvector<LedgerKey> const& readWrite,
                                 bool expectSuccess,
                                 ContractDataDurability type) {
-        auto keySymbol = makeSymbol(key);
+        auto keySymbol = makeSymbolSCVal(key);
 
         std::string funcStr;
         switch (type)
@@ -726,9 +751,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         // TODO: Better bytes to write value
-        auto [tx, ltx, txm] = createTx(readOnly, readWrite, 1000,
-                                       {makeContractAddressSCVal(contractID),
-                                        makeSymbol(funcStr), keySymbol});
+        auto [tx, ltx, txm] = createTx(readOnly, readWrite, 1000, contractID,
+                                       makeSymbol(funcStr), {keySymbol});
 
         if (expectSuccess)
         {
@@ -744,10 +768,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
     };
 
     auto del = [&](std::string const& key, ContractDataDurability type) {
-        delWithFootprint(
-            key, contractKeys,
-            {contractDataKey(contractID, makeSymbol(key), type, DATA_ENTRY)},
-            true, type);
+        delWithFootprint(key, contractKeys,
+                         {contractDataKey(contractID, makeSymbolSCVal(key),
+                                          type, DATA_ENTRY)},
+                         true, type);
     };
 
     SECTION("default limits")
@@ -764,7 +788,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Failure: contract data is read only
         auto readOnlyFootprint = contractKeys;
         readOnlyFootprint.push_back(
-            contractDataKey(contractID, makeSymbol("key2"),
+            contractDataKey(contractID, makeSymbolSCVal("key2"),
                             ContractDataDurability::PERSISTENT, DATA_ENTRY));
         putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
                          ContractDataDurability::PERSISTENT);
@@ -774,7 +798,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Failure: insufficient write bytes
         putWithFootprint(
             "key2", 88888, contractKeys,
-            {contractDataKey(contractID, makeSymbol("key2"),
+            {contractDataKey(contractID, makeSymbolSCVal("key2"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             1, false, ContractDataDurability::PERSISTENT);
 
@@ -800,7 +824,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // this fails due to the contract code itself exceeding the entry limit
         putWithFootprint(
             "key2", 2, contractKeys,
-            {contractDataKey(contractID, makeSymbol("key2"),
+            {contractDataKey(contractID, makeSymbolSCVal("key2"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             1000, false, ContractDataDurability::PERSISTENT);
     }
@@ -816,13 +840,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto uniqueScVal = makeU64(uniqueVal);
         auto recreatableScVal = makeU64(recreatableVal);
         auto temporaryScVal = makeU64(temporaryVal);
-        auto keySymbol = makeSymbol("key");
+        auto keySymbol = makeSymbolSCVal("key");
         checkContractData(keySymbol, ContractDataDurability::PERSISTENT,
                           &uniqueScVal);
         checkContractData(keySymbol, TEMPORARY, &temporaryScVal);
 
         put("key2", 3, ContractDataDurability::PERSISTENT);
-        auto key2Symbol = makeSymbol("key2");
+        auto key2Symbol = makeSymbolSCVal("key2");
         auto uniqueScVal2 = makeU64(3);
         checkContractData(key2Symbol, ContractDataDurability::PERSISTENT,
                           &uniqueScVal2);
@@ -857,10 +881,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         auto readOnlySet = contractKeys;
         readOnlySet.emplace_back(
-            contractDataKey(contractID, makeSymbol("ro"),
+            contractDataKey(contractID, makeSymbolSCVal("ro"),
                             ContractDataDurability::PERSISTENT, DATA_ENTRY));
 
-        auto readWriteSet = {contractDataKey(contractID, makeSymbol("rw"),
+        auto readWriteSet = {contractDataKey(contractID, makeSymbolSCVal("rw"),
                                              ContractDataDurability::PERSISTENT,
                                              DATA_ENTRY)};
 
@@ -921,11 +945,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Bump to live 10100 ledger from now
         bumpOp(
             10100,
-            {contractDataKey(contractID, makeSymbol("key"),
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
-             contractDataKey(contractID, makeSymbol("key2"),
+             contractDataKey(contractID, makeSymbolSCVal("key2"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
-             contractDataKey(contractID, makeSymbol("key3"),
+             contractDataKey(contractID, makeSymbolSCVal("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             178);
 
@@ -964,13 +988,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Trying to use this expired entry should fail.
         putWithFootprint(
             "key", 0, contractKeys,
-            {contractDataKey(contractID, makeSymbol("key"),
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT);
 
         // Restore the entry and then write to it.
         restoreOp(
-            {contractDataKey(contractID, makeSymbol("key"),
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             61);
         REQUIRE(
@@ -1032,14 +1056,14 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
 
     auto sc1 = makeI32(7);
     auto scMax = makeI32(INT32_MAX);
-    SCVec parameters = {makeContractAddressSCVal(contractID), makeSymbol("add"),
-                        sc1, scMax};
 
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
     auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
     ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract() = parameters;
+    ihf.invokeContract().contractAddress = contractID;
+    ihf.invokeContract().functionName = makeSymbol("add");
+    ihf.invokeContract().args = {sc1, scMax};
     SorobanResources resources;
     resources.footprint.readOnly = contractKeys;
     resources.instructions = 2'000'000;
@@ -1083,18 +1107,17 @@ TEST_CASE("complex contract", "[tx][soroban]")
         auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
         auto const& contractID = contractKeys[0].contractData().contract;
 
-        auto scFunc = makeSymbol("go");
-
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract() = {makeContractAddressSCVal(contractID), scFunc};
+        ihf.invokeContract().contractAddress = contractID;
+        ihf.invokeContract().functionName = makeSymbol("go");
 
         // Contract writes a single `data` CONTRACT_DATA entry.
         LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
         dataKey.contractData().contract = contractID;
-        dataKey.contractData().key = makeSymbol("data");
+        dataKey.contractData().key = makeSymbolSCVal("data");
 
         SorobanResources resources;
         resources.footprint.readOnly = contractKeys;
@@ -1202,13 +1225,13 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     auto metadataKey = LedgerKey(CONTRACT_DATA);
     metadataKey.contractData().contract = contractID;
-    metadataKey.contractData().key = makeSymbol("METADATA");
+    metadataKey.contractData().key = makeSymbolSCVal("METADATA");
     metadataKey.contractData().durability = ContractDataDurability::PERSISTENT;
     metadataKey.contractData().bodyType = DATA_ENTRY;
 
     LedgerKey assetInfoLedgerKey(CONTRACT_DATA);
     assetInfoLedgerKey.contractData().contract = contractID;
-    SCVec assetInfo = {makeSymbol("AssetInfo")};
+    SCVec assetInfo = {makeSymbolSCVal("AssetInfo")};
     SCVal assetInfoSCVal(SCValType::SCV_VEC);
     assetInfoSCVal.vec().activate() = assetInfo;
     assetInfoLedgerKey.contractData().key = assetInfoSCVal;
@@ -1254,15 +1277,14 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
     transfer.body.type(INVOKE_HOST_FUNCTION);
     auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
     ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract() = {makeContractAddressSCVal(contractID), fn, from, to,
-                            makeI128(10)};
+    ihf.invokeContract().contractAddress = contractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {from, to, makeI128(10)};
 
     // build auth
     SorobanAuthorizedInvocation ai;
     ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn().contractAddress = contractID;
-    ai.function.contractFn().functionName = fn.sym();
-    ai.function.contractFn().args = {from, to, makeI128(10)};
+    ai.function.contractFn() = ihf.invokeContract();
 
     SorobanAuthorizationEntry a;
     a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
@@ -1280,7 +1302,7 @@ TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
 
     LedgerKey balanceLedgerKey(CONTRACT_DATA);
     balanceLedgerKey.contractData().contract = contractID;
-    SCVec balance = {makeSymbol("Balance"), to};
+    SCVec balance = {makeSymbolSCVal("Balance"), to};
     SCVal balanceKey(SCValType::SCV_VEC);
     balanceKey.vec().activate() = balance;
     balanceLedgerKey.contractData().key = balanceKey;

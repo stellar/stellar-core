@@ -588,6 +588,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 
             p.mConfigUpgradeSetKey = key;
         }
+        p.mMaxSorobanTxSetSize =
+            parseOptionalParam<uint32>(retMap, "maxsorobantxsetsize");
 #endif
         mApp.getHerder().setUpgrades(p);
     }

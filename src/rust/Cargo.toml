@@ -28,7 +28,7 @@ rustc-simple-version = "0.1.0"
 version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "1b9e67e7e7e7592b8c670cae9af2c5cb267df926"
+rev = "0bbeec2d6e5f6a484c797a7211a4ce99e3325c27"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -52,11 +52,11 @@ optional = true
 version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "7079248c69dc2d60ce88ceb2086706912db2db1c"
+rev = "1b9e67e7e7e7592b8c670cae9af2c5cb267df926"
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "42980d1502910564a3e582b5682c3e9b0f679d9e"
+rev = "0bbeec2d6e5f6a484c797a7211a4ce99e3325c27"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"

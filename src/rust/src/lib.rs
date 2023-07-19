@@ -722,4 +722,6 @@ pub(crate) fn compute_write_fee_per_1kb(
 fn start_tracy() {
     #[cfg(feature = "tracy")]
     tracy_client::Client::start();
+    #[cfg(not(feature = "tracy"))] 
+    panic!("called start_tracy from non-cfg(feature=\"tracy\") build")
 }
