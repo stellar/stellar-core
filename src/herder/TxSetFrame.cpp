@@ -605,14 +605,14 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                         hexAbbrev(mPreviousLedgerHash), *fee);
                     return false;
                 }
-                if (tx->getInclusionFee() < getMinFee(*tx, lcl.header, fee))
+                if (tx->getInclusionFee() < getMinInclusionFee(*tx, lcl.header, fee))
                 {
                     CLOG_DEBUG(
                         Herder,
                         "Got bad txSet: {} has tx with fee bid ({}) lower "
                         "than base fee ({})",
                         hexAbbrev(mPreviousLedgerHash), tx->getInclusionFee(),
-                        getMinFee(*tx, lcl.header, fee));
+                        getMinInclusionFee(*tx, lcl.header, fee));
                     return false;
                 }
             }
@@ -956,7 +956,7 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 }
 
 int64_t
-TxSetFrame::getTotalBids() const
+TxSetFrame::getTotalInclusionFees() const
 {
     ZoneScoped;
     int64_t total{0};

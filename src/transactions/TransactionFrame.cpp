@@ -1038,7 +1038,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-    if (chargeFee && getInclusionFee() < getMinFee(*this, header.current()))
+    if (chargeFee && getInclusionFee() < getMinInclusionFee(*this, header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;

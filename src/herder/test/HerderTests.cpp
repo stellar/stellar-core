@@ -266,7 +266,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) * feeMult + extraFee);
+    setFee(tx,
+           static_cast<uint32_t>(tx->getInclusionFee()) * feeMult + extraFee);
     getSignatures(tx).clear();
     tx->addSignature(src);
     return tx;

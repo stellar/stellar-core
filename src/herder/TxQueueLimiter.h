@@ -65,9 +65,9 @@ class TxQueueLimiter
     // When non-nullopt, limit the number dex operations by this value
     std::optional<Resource> mMaxDexOperations;
 
-    // Stores the maximum bid among the transactions evicted from every tx lane.
-    // Bids are stored as ratios (fee_bid / num_ops).
-    std::vector<std::pair<int64, uint32_t>> mLaneEvictedFeeBid;
+    // Stores the maximum inclusion fee among the transactions evicted from
+    // every tx lane. Inclusion fees are stored as ratios (fee_bid / num_ops).
+    std::vector<std::pair<int64, uint32_t>> mLaneEvictedInclusionFee;
 
     // Configuration of SurgePricingPriorityQueue with the per-lane operation
     // limits.

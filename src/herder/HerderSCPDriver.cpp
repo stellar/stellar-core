@@ -581,8 +581,8 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        auto lBids = l->getTotalBids();
-        auto rBids = r->getTotalBids();
+        auto lBids = l->getTotalInclusionFees();
+        auto rBids = r->getTotalInclusionFees();
         if (lBids != rBids)
         {
             return lBids < rBids;

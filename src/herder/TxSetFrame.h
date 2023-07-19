@@ -145,7 +145,7 @@ class TxSetFrame : public NonMovableOrCopyable
 
     // Returns the sum of all _inclusion fee_ bids for all transactions in this
     // set.
-    int64_t getTotalBids() const;
+    int64_t getTotalInclusionFees() const;
 
     // Returns whether this transaction set is generalized, i.e. representable
     // by GeneralizedTransactionSet XDR.
