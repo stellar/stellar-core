@@ -1830,7 +1830,7 @@ maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
 
 int64_t
 getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
-          std::optional<int64_t> baseFee)
+                   std::optional<int64_t> baseFee)
 {
     int64_t effectiveBaseFee = header.baseFee;
     if (baseFee)

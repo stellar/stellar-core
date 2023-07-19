@@ -304,6 +304,7 @@ void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
                                          LedgerTxnEntry& account);
 
 // Get min _inclusion_ fee needed for this transaction to get included
-int64_t getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
-                  std::optional<int64_t> baseFee = std::nullopt);
+int64_t getMinInclusionFee(TransactionFrameBase const& tx,
+                           LedgerHeader const& header,
+                           std::optional<int64_t> baseFee = std::nullopt);
 }

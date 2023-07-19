@@ -605,7 +605,8 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                         hexAbbrev(mPreviousLedgerHash), *fee);
                     return false;
                 }
-                if (tx->getInclusionFee() < getMinInclusionFee(*tx, lcl.header, fee))
+                if (tx->getInclusionFee() <
+                    getMinInclusionFee(*tx, lcl.header, fee))
                 {
                     CLOG_DEBUG(
                         Herder,
