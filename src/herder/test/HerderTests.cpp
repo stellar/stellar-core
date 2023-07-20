@@ -266,7 +266,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) * feeMult + extraFee);
+    setFee(tx,
+           static_cast<uint32_t>(tx->getInclusionFee()) * feeMult + extraFee);
     getSignatures(tx).clear();
     tx->addSignature(src);
     return tx;
@@ -1460,7 +1461,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
+            setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) - 1);
             getSignatures(tx).clear();
             tx->addSignature(accountB);
             rootTxs.push_back(tx);
@@ -1484,7 +1485,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             REQUIRE(rTx->getNumOperations() == n + 1);
             REQUIRE(tx->getNumOperations() == n + 2);
             // use the same fee
-            setFee(tx, static_cast<uint32_t>(rTx->getFeeBid()));
+            setFee(tx, static_cast<uint32_t>(rTx->getInclusionFee()));
             getSignatures(tx).clear();
             tx->addSignature(accountB);
             rootTxs.push_back(tx);
@@ -1506,11 +1507,11 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
+                setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) - 1);
             }
             else
             {
-                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) + 1);
+                setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) + 1);
             }
             getSignatures(tx).clear();
             tx->addSignature(accountB);
@@ -4545,7 +4546,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 ops.emplace_back(payment(source, i));
             }
             auto tx = source.tx(ops);
-            auto txFee = static_cast<uint32_t>(tx->getFeeBid());
+            auto txFee = static_cast<uint32_t>(tx->getInclusionFee());
             if (highFee)
             {
                 txFee += 100000;
@@ -4598,7 +4599,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 REQUIRE(expected == tx->getSeqNum());
             }
             // check if we have the expected fee
-            REQUIRE(tx->getFeeBid() == fees.front());
+            REQUIRE(tx->getInclusionFee() == fees.front());
             fees.pop_front();
             ++numBroadcast;
         };
@@ -4754,7 +4755,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 }
             }
             auto tx = source.tx(ops);
-            auto txFee = tx->getFeeBid();
+            auto txFee = tx->getInclusionFee();
             if (highFee)
             {
                 txFee += 100000;
@@ -4874,7 +4875,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                     ->front()
                     .first;
 
-            REQUIRE(tx->getFeeBid() == expectedFee);
+            REQUIRE(tx->getInclusionFee() == expectedFee);
             accountFees[accountToIndex[tx->getSourceID()]].pop_front();
             if (tx->hasDexOperations())
             {

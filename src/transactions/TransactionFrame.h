@@ -211,7 +211,7 @@ class TransactionFrame : public TransactionFrameBase
     std::vector<Operation> const& getRawOperations() const override;
 
     int64_t getFullFee() const override;
-    int64_t getFeeBid() const override;
+    int64_t getInclusionFee() const override;
 
     virtual int64_t getFee(LedgerHeader const& header,
                            std::optional<int64_t> baseFee,

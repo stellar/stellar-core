@@ -18,8 +18,8 @@ computeBetterFee(std::pair<int64, uint32_t> const& evictedBid,
                  TransactionFrameBase const& tx)
 {
     if (evictedBid.second != 0 &&
-        feeRate3WayCompare(evictedBid.first, evictedBid.second, tx.getFeeBid(),
-                           tx.getNumOperations()) >= 0)
+        feeRate3WayCompare(evictedBid.first, evictedBid.second,
+                           tx.getInclusionFee(), tx.getNumOperations()) >= 0)
     {
         return computeBetterFee(tx, evictedBid.first, evictedBid.second);
     }
@@ -157,16 +157,20 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     // that the new transaction is better (even if it fits otherwise). This
     // guarantees that we don't replace transactions with higher bids with
     // transactions with lower bids and less operations.
-    int64_t minFeeToBeatEvicted = std::max(
+    int64_t minInclusionFeeToBeatEvicted = std::max(
         computeBetterFee(
-            mLaneEvictedFeeBid[mSurgePricingLaneConfig->getLane(*newTx)],
+            mLaneEvictedInclusionFee[mSurgePricingLaneConfig->getLane(*newTx)],
             *newTx),
         computeBetterFee(
-            mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE],
+            mLaneEvictedInclusionFee[SurgePricingPriorityQueue::GENERIC_LANE],
             *newTx));
-    if (minFeeToBeatEvicted > 0)
+    // minInclusionFeeToBeatEvicted is the minimum _inclusion_ fee to evict txs.
+    // For reporting, return _full_ minimum fee
+    if (minInclusionFeeToBeatEvicted > 0)
     {
-        return std::make_pair(false, minFeeToBeatEvicted);
+        return std::make_pair(
+            false, minInclusionFeeToBeatEvicted +
+                       (newTx->getFullFee() - newTx->getInclusionFee()));
     }
 
     uint32_t txOpsDiscount = 0;
@@ -212,15 +216,15 @@ TxQueueLimiter::evictTransactions(
             // If tx has been evicted due to lane limit, then all the following
             // txs in this lane have to beat it. However, other txs could still
             // fit with a lower fee.
-            mLaneEvictedFeeBid[mSurgePricingLaneConfig->getLane(*tx)] = {
-                tx->getFeeBid(), tx->getNumOperations()};
+            mLaneEvictedInclusionFee[mSurgePricingLaneConfig->getLane(*tx)] = {
+                tx->getInclusionFee(), tx->getNumOperations()};
         }
         else
         {
             // If tx has been evicted before reaching the lane limit, we just
             // add it to generic lane, so that every new tx has to beat it.
-            mLaneEvictedFeeBid[SurgePricingPriorityQueue::GENERIC_LANE] = {
-                tx->getFeeBid(), tx->getNumOperations()};
+            mLaneEvictedInclusionFee[SurgePricingPriorityQueue::GENERIC_LANE] =
+                {tx->getInclusionFee(), tx->getNumOperations()};
         }
 
         evict(tx);
@@ -273,12 +277,12 @@ TxQueueLimiter::resetEvictionState()
 {
     if (mSurgePricingLaneConfig != nullptr)
     {
-        mLaneEvictedFeeBid.assign(
+        mLaneEvictedInclusionFee.assign(
             mSurgePricingLaneConfig->getLaneLimits().size(), {0, 0});
     }
     else
     {
-        releaseAssert(mLaneEvictedFeeBid.empty());
+        releaseAssert(mLaneEvictedInclusionFee.empty());
     }
 }
 }

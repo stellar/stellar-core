@@ -14,11 +14,13 @@ namespace stellar
 namespace
 {
 
+// Use _inclusion_ fee to order transactions
 int
 feeRate3WayCompare(TransactionFrameBase const& l, TransactionFrameBase const& r)
 {
-    return stellar::feeRate3WayCompare(l.getFeeBid(), l.getNumOperations(),
-                                       r.getFeeBid(), r.getNumOperations());
+    return stellar::feeRate3WayCompare(
+        l.getInclusionFee(), l.getNumOperations(), r.getInclusionFee(),
+        r.getNumOperations());
 }
 
 } // namespace
@@ -84,8 +86,8 @@ bool
 SurgePricingPriorityQueue::TxStackComparator::compareFeeOnly(
     TransactionFrameBase const& tx1, TransactionFrameBase const& tx2) const
 {
-    return compareFeeOnly(tx1.getFeeBid(), tx1.getNumOperations(),
-                          tx2.getFeeBid(), tx2.getNumOperations());
+    return compareFeeOnly(tx1.getInclusionFee(), tx1.getNumOperations(),
+                          tx2.getInclusionFee(), tx2.getNumOperations());
 }
 
 bool
@@ -458,9 +460,10 @@ SurgePricingPriorityQueue::canFitWithEviction(
         // computation is a no-op.
         if (!mComparator.compareFeeOnly(evictTx, tx))
         {
-            auto minFee = computeBetterFee(tx, evictTx.getFeeBid(),
+            auto minFee = computeBetterFee(tx, evictTx.getInclusionFee(),
                                            evictTx.getNumOperations());
-            return std::make_pair(false, minFee);
+            return std::make_pair(
+                false, minFee + (tx.getFullFee() - tx.getInclusionFee()));
         }
         // Ensure that this transaction is not from the same account.
         if (tx.getSourceID() == evictTx.getSourceID())

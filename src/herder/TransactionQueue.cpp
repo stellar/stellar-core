@@ -98,15 +98,16 @@ TransactionQueue::~TransactionQueue()
 }
 
 // returns true, if a transaction can be replaced by another
-// `minFee` is set when returning false, and is the smallest fee
+// `minFee` is set when returning false, and is the smallest _full_ fee
 // that would allow replace by fee to succeed in this situation
+// Note that replace-by-fee logic is done on _inclusion_ fee
 static bool
 canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
                 int64_t& minFee)
 {
-    int64_t newFee = tx->getFeeBid();
+    int64_t newFee = tx->getInclusionFee();
     uint32_t newNumOps = std::max<uint32_t>(1, tx->getNumOperations());
-    int64_t oldFee = oldTx->getFeeBid();
+    int64_t oldFee = oldTx->getInclusionFee();
     uint32_t oldNumOps = std::max<uint32_t>(1, oldTx->getNumOperations());
 
     // newFee / newNumOps >= FEE_MULTIPLIER * oldFee / oldNumOps
@@ -129,7 +130,7 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
         else
         {
             // Add the potential flat component to the resulting min fee.
-            minFee += tx->getFullFee() - tx->getFeeBid();
+            minFee += tx->getFullFee() - tx->getInclusionFee();
         }
     }
     return res;
@@ -238,7 +239,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         ltx.loadHeader().current().ledgerVersion,
         mApp.getLedgerManager().getSorobanNetworkConfig(ltx), mApp.getConfig());
 #endif
-    int64_t netFee = tx->getFeeBid();
+    int64_t newInclusionFee = tx->getInclusionFee();
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
 
@@ -316,10 +317,10 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     }
 
                     oldTx = txToReplaceIter->mTx;
-                    int64_t oldFee = oldTx->getFeeBid();
+                    int64_t oldInclusionFee = oldTx->getInclusionFee();
                     if (oldTx->getFeeSourceID() == tx->getFeeSourceID())
                     {
-                        netFee -= oldFee;
+                        newInclusionFee -= oldInclusionFee;
                     }
                 }
 
@@ -402,7 +403,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     int64_t totalFees = feeStateIter == mAccountStates.end()
                             ? 0
                             : feeStateIter->second.mTotalFees;
-    if (getAvailableBalance(ltx.loadHeader(), feeSource) - netFee < totalFees)
+    if (getAvailableBalance(ltx.loadHeader(), feeSource) - newInclusionFee <
+        totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;

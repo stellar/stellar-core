@@ -142,9 +142,9 @@ class TransactionQueueTest
             for (auto const& tx : accountState.mAccountTransactions)
             {
                 auto& fee = expectedFees[tx->getFeeSourceID()];
-                if (INT64_MAX - fee > tx->getFeeBid())
+                if (INT64_MAX - fee > tx->getInclusionFee())
                 {
-                    fee += tx->getFeeBid();
+                    fee += tx->getInclusionFee();
                 }
                 else
                 {
@@ -158,9 +158,9 @@ class TransactionQueueTest
         for (auto const& tx : queueTxs)
         {
             auto& fee = fees[tx->getFeeSourceID()];
-            if (INT64_MAX - fee > tx->getFeeBid())
+            if (INT64_MAX - fee > tx->getInclusionFee())
             {
-                fee += tx->getFeeBid();
+                fee += tx->getInclusionFee();
             }
             else
             {
@@ -1814,8 +1814,8 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                     txsToEvict, *tx, [&](TransactionFrameBasePtr const& evict) {
                         // can't evict cheaper transactions
                         auto cmp3 = feeRate3WayCompare(
-                            evict->getFeeBid(), evict->getNumOperations(),
-                            tx->getFeeBid(), tx->getNumOperations());
+                            evict->getInclusionFee(), evict->getNumOperations(),
+                            tx->getInclusionFee(), tx->getNumOperations());
                         REQUIRE(cmp3 < 0);
                         // can't evict self
                         bool same = evict->getSourceID() == tx->getSourceID();
@@ -1967,9 +1967,9 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
                 txsToEvict, *tx, [&](TransactionFrameBasePtr const& evict) {
                     // can't evict cheaper transactions (
                     // evict.bid/evict.ops < tx->bid/tx->ops)
-                    REQUIRE(bigMultiply(evict->getFeeBid(),
+                    REQUIRE(bigMultiply(evict->getInclusionFee(),
                                         tx->getNumOperations()) <
-                            bigMultiply(tx->getFeeBid(),
+                            bigMultiply(tx->getInclusionFee(),
                                         evict->getNumOperations()));
                     // can't evict self
                     bool same = evict->getSourceID() == tx->getSourceID();

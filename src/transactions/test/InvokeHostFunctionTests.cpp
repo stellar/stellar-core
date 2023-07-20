@@ -322,11 +322,12 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getFeeBid() == 65'117);
+            REQUIRE(tx->getInclusionFee() == 65'117);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
-            int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) + 100;
+            int64_t baseCharged =
+                (tx->getFullFee() - tx->getInclusionFee()) + 100;
             REQUIRE(tx->getResult().feeCharged == baseCharged);
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -652,7 +653,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // Initially we store in result the charge for resources plus
         // minimum inclusion  fee bid (currently equivalent to the network
         // `baseFee` of 100).
-        int64_t baseCharged = (tx->getFullFee() - tx->getFeeBid()) + 100;
+        int64_t baseCharged = (tx->getFullFee() - tx->getInclusionFee()) + 100;
         REQUIRE(tx->getResult().feeCharged == baseCharged);
         // Charge the fee.
         {

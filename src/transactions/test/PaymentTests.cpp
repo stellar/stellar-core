@@ -114,7 +114,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(b1.exists());
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-            REQUIRE((a1Balance + b1Balance - txFrame->getFeeBid()) ==
+            REQUIRE((a1Balance + b1Balance - txFrame->getInclusionFee()) ==
                     b1.getBalance());
         });
     }
@@ -139,7 +139,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!b1.exists());
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-            REQUIRE((a1Balance + b1Balance - txFrame->getFeeBid()) ==
+            REQUIRE((a1Balance + b1Balance - txFrame->getInclusionFee()) ==
                     a1.getBalance());
         });
     }
@@ -162,7 +162,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
             REQUIRE(b1Balance == b1.getBalance());
-            REQUIRE((a1Balance - txFrame->getFeeBid()) == a1.getBalance());
+            REQUIRE((a1Balance - txFrame->getInclusionFee()) ==
+                    a1.getBalance());
         });
 
         for_versions_from(8, *app, [&] {
@@ -175,7 +176,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
             REQUIRE(b1Balance == b1.getBalance());
-            REQUIRE((a1Balance - txFrame->getFeeBid()) == a1.getBalance());
+            REQUIRE((a1Balance - txFrame->getInclusionFee()) ==
+                    a1.getBalance());
         });
     }
 
@@ -318,7 +320,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, createSourceAccount));
             REQUIRE(createSourceAccount.getBalance() ==
-                    amount - tx->getFeeBid());
+                    amount - tx->getInclusionFee());
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
             REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
@@ -342,7 +344,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - createAmount - tx->getFeeBid());
+                    amount - createAmount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
             REQUIRE(tx->getResult()
@@ -361,7 +363,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!applyCheck(tx, *app));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(!doesAccountExist(*app, createSourceAccount));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -386,7 +389,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - createAmount - tx->getFeeBid());
+                    amount - createAmount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
         });
     }
@@ -411,7 +414,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(!doesAccountExist(*app, createSourceAccount));
             REQUIRE(doesAccountExist(*app, payAccount));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(payAccount.getBalance() == amount);
 
             REQUIRE(tx->getResult().result.code() == txINTERNAL_ERROR);
@@ -427,7 +431,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(!doesAccountExist(*app, createSourceAccount));
             REQUIRE(doesAccountExist(*app, payAccount));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(payAccount.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
 
@@ -453,7 +458,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - createAmount - tx->getFeeBid());
+                    amount - createAmount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
         });
         // 10 and above, operation #2 fails (already covered in merge tests)
@@ -486,7 +491,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount - createAmount - tx->getFeeBid());
+                    amount + amount - createAmount - tx->getInclusionFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
             REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
@@ -511,7 +516,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[1]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -547,7 +553,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount - createAmount - tx->getFeeBid());
+                    amount + amount - createAmount - tx->getInclusionFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
             REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
                     payAndMergeDestinationSeqNum);
@@ -572,7 +578,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[1]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -616,9 +623,9 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() ==
-                    amount - pay1Amount - pay2Amount - tx->getFeeBid());
+                    amount - pay1Amount - pay2Amount - tx->getInclusionFee());
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount + pay2Amount - tx->getFeeBid() -
+                    amount + amount + pay2Amount - tx->getInclusionFee() -
                         createAmount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
@@ -645,7 +652,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - pay1Amount - tx->getFeeBid());
+                    amount - pay1Amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -679,7 +686,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount + pay2Amount - tx->getFeeBid() -
+                    amount + amount + pay2Amount - tx->getInclusionFee() -
                         createAmount);
             REQUIRE(sourceAccount.loadSequenceNumber() == 0x700000000ull);
             REQUIRE(payAndMergeDestination.loadSequenceNumber() ==
@@ -706,7 +713,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - pay1Amount - tx->getFeeBid());
+                    amount - pay1Amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -753,10 +760,10 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, secondSourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() ==
-                    amount - pay1Amount - pay2Amount - tx->getFeeBid());
+                    amount - pay1Amount - pay2Amount - tx->getInclusionFee());
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount + pay2Amount - tx->getFeeBid());
+                    amount + amount + pay2Amount - tx->getInclusionFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(secondSourceAccount.loadSequenceNumber() ==
                     secondSourceSeqNum);
@@ -784,7 +791,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - pay1Amount - tx->getFeeBid());
+                    amount - pay1Amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -820,7 +827,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
-                    amount + amount + pay2Amount - tx->getFeeBid());
+                    amount + amount + pay2Amount - tx->getInclusionFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == 0x800000000ull);
             REQUIRE(secondSourceAccount.loadSequenceNumber() ==
                     secondSourceSeqNum);
@@ -848,7 +855,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .tr()
                         .accountMergeResult()
                         .sourceAccountBalance() ==
-                    amount - pay1Amount - tx->getFeeBid());
+                    amount - pay1Amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     CREATE_ACCOUNT);
@@ -899,7 +906,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(doesAccountExist(*app, createSource));
             REQUIRE(doesAccountExist(*app, createDestination));
             REQUIRE(doesAccountExist(*app, payDestination));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(createSource.getBalance() == amount + amount -
                                                      create1Amount -
                                                      create2Amount + payAmount);
@@ -972,8 +980,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount -
-                                                         tx->getFeeBid() -
-                                                         tx->getFeeBid());
+                                                         tx->getInclusionFee() -
+                                                         tx->getInclusionFee());
             REQUIRE(mergeDestination.loadSequenceNumber() ==
                     mergeDestinationSeqNum);
 
@@ -995,7 +1003,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[1]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
             REQUIRE(tx->getResult()
@@ -1013,7 +1022,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[3]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
         });
 
         for_versions(5, 7, *app, [&] {
@@ -1025,7 +1035,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!applyCheck(tx, *app));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1049,7 +1060,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[1]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
             REQUIRE(tx->getResult()
@@ -1074,7 +1086,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!applyCheck(tx, *app));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1098,7 +1111,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[1]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
             REQUIRE(tx->getResult().result.results()[3].code() == opNO_ACCOUNT);
         });
@@ -1130,8 +1144,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount -
-                                                         tx->getFeeBid() -
-                                                         tx->getFeeBid());
+                                                         tx->getInclusionFee() -
+                                                         tx->getInclusionFee());
             REQUIRE(mergeDestination.loadSequenceNumber() ==
                     mergeDestinationSeqNum);
 
@@ -1188,7 +1202,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[6]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[7].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[7].tr().type() == PAYMENT);
             REQUIRE(tx->getResult()
@@ -1213,7 +1228,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[9]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
         });
 
         for_versions(5, 7, *app, [&] {
@@ -1231,7 +1247,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!applyCheck(tx, *app));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1290,7 +1307,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[6]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[7].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[7].tr().type() == PAYMENT);
             REQUIRE(tx->getResult()
@@ -1328,7 +1346,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             REQUIRE(!applyCheck(tx, *app));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, mergeDestination));
-            REQUIRE(sourceAccount.getBalance() == amount - tx->getFeeBid());
+            REQUIRE(sourceAccount.getBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1387,7 +1406,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                         .result.results()[6]
                         .tr()
                         .accountMergeResult()
-                        .sourceAccountBalance() == amount - tx->getFeeBid());
+                        .sourceAccountBalance() ==
+                    amount - tx->getInclusionFee());
             REQUIRE(tx->getResult().result.results()[7].code() == opNO_ACCOUNT);
             REQUIRE(tx->getResult().result.results()[8].code() == opNO_ACCOUNT);
             REQUIRE(tx->getResult().result.results()[9].code() == opNO_ACCOUNT);

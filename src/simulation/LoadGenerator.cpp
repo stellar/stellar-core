@@ -541,7 +541,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             // transaction.
             from->setSequenceNumber(from->getLastSequenceNumber() - 1);
             CLOG_INFO(LoadGen, "skipped low fee tx with fee {}",
-                      tx->getFeeBid());
+                      tx->getInclusionFee());
             return false;
         }
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
