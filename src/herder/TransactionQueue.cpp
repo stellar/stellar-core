@@ -1312,24 +1312,10 @@ SorobanTransactionQueue::broadcastSome()
         std::make_shared<SorobanGenericLaneConfig>(resToFlood), mBroadcastSeed);
     queue.visitTopTxs(trackersToBroadcast, visitor, mBroadcastOpCarryover);
 
-    Resource maxPerTx(std::vector<int64_t>(resToFlood.size(), 0));
-
-    {
-        // get Max soroban tx resources
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ true,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        int64_t const opCount = 1;
-        std::vector<int64_t> limits = {opCount,
-                                       conf.txMaxInstructions(),
-                                       conf.txMaxSizeBytes(),
-                                       conf.txMaxReadBytes(),
-                                       conf.txMaxWriteBytes(),
-                                       conf.txMaxReadLedgerEntries(),
-                                       conf.txMaxWriteLedgerEntries()};
-        maxPerTx = Resource(limits);
-    }
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
+        /* isSoroban */ true, ltx);
     for (auto& resLeft : mBroadcastOpCarryover)
     {
         // Limit carry-over to 1 maximum resource transaction
