@@ -455,7 +455,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             return false;
         }
 
-        auto ltxe = ltx.load(lk);
+        // Temp entries can be overwritten even when expired
+        auto ltxe = ltx.load(lk, /*loadExpiredEntry=*/true);
         if (ltxe)
         {
             ltxe.current() = le;
