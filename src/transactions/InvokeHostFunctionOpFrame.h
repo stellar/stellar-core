@@ -26,7 +26,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
     }
 
     void maybePopulateDiagnosticEvents(Config const& cfg,
-                                       InvokeHostFunctionOutput const& output);
+                                       InvokeHostFunctionOutput const& output,
+                                       HostFunctionMetrics const& metrics);
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 

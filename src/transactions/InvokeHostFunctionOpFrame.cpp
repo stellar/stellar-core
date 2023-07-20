@@ -112,45 +112,38 @@ validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
     return true;
 }
 
+SCVal
+makeSymbol(std::string const& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(str.begin(), str.end());
+    return val;
+}
+
+SCVal
+makeU64(uint64_t u)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u;
+    return val;
+}
+
+DiagnosticEvent
+metrics_event(bool success, std::string const& topic, uint32 value)
+{
+    DiagnosticEvent de;
+    de.inSuccessfulContractCall = success;
+    de.event.type = ContractEventType::DIAGNOSTIC;
+    SCVec topics = {
+        makeSymbol("core_metrics"),
+        makeSymbol(topic),
+    };
+    de.event.body.v0().topics = topics;
+    de.event.body.v0().data = makeU64(value);
+    return de;
+}
+
 } // namespace
-
-InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
-                                                     OperationResult& res,
-                                                     TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mInvokeHostFunction(mOperation.body.invokeHostFunctionOp())
-{
-}
-
-bool
-InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
-{
-    return header.ledgerVersion >= 20;
-}
-
-bool
-InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
-{
-    throw std::runtime_error(
-        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
-}
-
-void
-InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
-    Config const& cfg, InvokeHostFunctionOutput const& output)
-{
-    if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        xdr::xvector<DiagnosticEvent> diagnosticEvents;
-        for (auto const& e : output.diagnostic_events)
-        {
-            DiagnosticEvent evt;
-            xdr::xdr_from_opaque(e.data, evt);
-            diagnosticEvents.emplace_back(evt);
-        }
-        mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
-    }
-}
 
 struct HostFunctionMetrics
 {
@@ -303,6 +296,92 @@ struct HostFunctionMetrics
     }
 };
 
+InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
+                                                     OperationResult& res,
+                                                     TransactionFrame& parentTx)
+    : OperationFrame(op, res, parentTx)
+    , mInvokeHostFunction(mOperation.body.invokeHostFunctionOp())
+{
+}
+
+bool
+InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
+{
+    return header.ledgerVersion >= 20;
+}
+
+bool
+InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
+{
+    throw std::runtime_error(
+        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
+}
+
+void
+InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
+    Config const& cfg, InvokeHostFunctionOutput const& output,
+    HostFunctionMetrics const& metrics)
+{
+    if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        xdr::xvector<DiagnosticEvent> diagnosticEvents;
+        for (auto const& e : output.diagnostic_events)
+        {
+            DiagnosticEvent evt;
+            xdr::xdr_from_opaque(e.data, evt);
+            diagnosticEvents.emplace_back(evt);
+        }
+
+        // add additional diagnostic events for metrics
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "read_entry", metrics.mReadEntry));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "write_entry", metrics.mWriteEntry));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "ledger_read_byte", metrics.mLedgerReadByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "ledger_write_byte", metrics.mLedgerWriteByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "read_key_byte", metrics.mReadKeyByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "write_key_byte", metrics.mWriteKeyByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "read_data_byte", metrics.mReadDataByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "write_data_byte", metrics.mWriteDataByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "read_code_byte", metrics.mReadCodeByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "write_code_byte", metrics.mWriteCodeByte));
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "emit_event_byte", metrics.mEmitEventByte));
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "mem_byte", metrics.mMemByte));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "invoke_time_nsecs", metrics.mInvokeTimeNsecs));
+        diagnosticEvents.emplace_back(metrics_event(
+            metrics.mSuccess, "max_rw_key_byte", metrics.mMaxReadWriteKeyByte));
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "max_rw_data_byte",
+                          metrics.mMaxReadWriteDataByte));
+        diagnosticEvents.emplace_back(
+            metrics_event(metrics.mSuccess, "max_rw_code_byte",
+                          metrics.mMaxReadWriteCodeByte));
+        diagnosticEvents.emplace_back(metrics_event(metrics.mSuccess,
+                                                    "max_emit_event_byte",
+                                                    metrics.mMaxEmitEventByte));
+        diagnosticEvents.emplace_back(metrics_event(metrics.mSuccess,
+                                                    "max_meta_data_size_byte",
+                                                    metrics.mMetadataSizeByte));
+
+        mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
+    }
+}
+
 bool
 InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed)
@@ -436,7 +515,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         else
         {
-            maybePopulateDiagnosticEvents(cfg, out);
+            maybePopulateDiagnosticEvents(cfg, out, metrics);
         }
     }
     catch (std::exception& e)
@@ -646,7 +725,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         success.events.emplace_back(evt);
     }
 
-    maybePopulateDiagnosticEvents(cfg, out);
+    maybePopulateDiagnosticEvents(cfg, out, metrics);
     // This may throw, but only in case of the Core version misconfiguration.
     int64_t rentFee = rust_bridge::compute_rent_fee(
         cfg.CURRENT_LEDGER_PROTOCOL_VERSION,

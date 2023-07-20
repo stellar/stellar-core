@@ -1151,7 +1151,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 2);
+    REQUIRE(opEvents.size() == 22);
 
     auto const& call_ev = opEvents.at(0);
     REQUIRE(!call_ev.inSuccessfulContractCall);
@@ -1162,6 +1162,14 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(!contract_ev.inSuccessfulContractCall);
     REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
+
+    auto const& read_entry_ev = opEvents.at(2);
+    REQUIRE(!read_entry_ev.inSuccessfulContractCall);
+    REQUIRE(read_entry_ev.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& v0 = read_entry_ev.event.body.v0();
+    REQUIRE((v0.topics.size() == 2 && v0.topics.at(0).sym() == "core_metrics" &&
+             v0.topics.at(1).sym() == "read_entry"));
+    REQUIRE(v0.data.type() == SCV_U64);
 }
 
 TEST_CASE("complex contract", "[tx][soroban]")
@@ -1200,7 +1208,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
         auto verifyDiagnosticEvents =
             [&](xdr::xvector<DiagnosticEvent> events) {
-                REQUIRE(events.size() == 3);
+                REQUIRE(events.size() == 23);
 
                 auto call_ev = events.at(0);
                 REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
@@ -1213,6 +1221,14 @@ TEST_CASE("complex contract", "[tx][soroban]")
                 auto return_ev = events.at(2);
                 REQUIRE(return_ev.event.type == ContractEventType::DIAGNOSTIC);
                 REQUIRE(return_ev.event.body.v0().data.type() == SCV_VOID);
+
+                auto const& metrics_ev = events.back();
+                REQUIRE(metrics_ev.event.type == ContractEventType::DIAGNOSTIC);
+                auto const& v0 = metrics_ev.event.body.v0();
+                REQUIRE((v0.topics.size() == 2 &&
+                         v0.topics.at(0).sym() == "core_metrics" &&
+                         v0.topics.at(1).sym() == "max_meta_data_size_byte"));
+                REQUIRE(v0.data.type() == SCV_U64);
             };
 
         SECTION("single op")
