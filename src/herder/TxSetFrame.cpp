@@ -339,14 +339,18 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     }
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
-    bool invalid = txSet->numPhases() != outputTxSet->numPhases();
-    for (int i = 0; i < txSet->numPhases(); ++i)
+    bool valid = txSet->numPhases() == outputTxSet->numPhases();
+    if (valid)
     {
-        invalid |= txSet->sizeTx(static_cast<Phase>(i)) !=
-                   outputTxSet->sizeTx(static_cast<Phase>(i));
+        for (int i = 0; i < txSet->numPhases(); ++i)
+        {
+            valid = valid && txSet->sizeTx(static_cast<Phase>(i)) ==
+                                 outputTxSet->sizeTx(static_cast<Phase>(i));
+        }
     }
-    if (invalid || !outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset))
+    valid = valid && outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
+                                             upperBoundCloseTimeOffset);
+    if (!valid)
     {
         throw std::runtime_error("Created invalid tx set frame");
     }
