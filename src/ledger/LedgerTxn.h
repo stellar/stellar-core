@@ -119,7 +119,7 @@
 //    access this entry in this LedgerTxn." See below for the
 //    concurrency-control issues this is designed to trap.
 //
-//  - Entries are made-active by calling load(), create(), or restore(), each
+//  - Entries are made-active by calling load(), or create(), each
 //    of which returns a LedgerTxnEntry which is a handle that can be used to
 //    get at the underlying LedgerEntry. References to the underlying
 //    LedgerEntries should generally not be retained anywhere, because the
@@ -541,7 +541,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void commit() noexcept = 0;
     virtual void rollback() noexcept = 0;
 
-    // loadHeader, create, restore, erase, load, and loadWithoutRecord provide
+    // loadHeader, create, erase, load, and loadWithoutRecord provide
     // the main interface to interact with data stored in the AbstractLedgerTxn.
     // These functions only allow one instance of a particular data to be active
     // at a time.
@@ -552,11 +552,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     Creates a new LedgerTxnEntry from entry. Throws if the key
     //     associated with this entry is already associated with an entry in
     //     this AbstractLedgerTxn or any parent.
-    // - restore
-    //     Creates a new LedgerTxnEntry from expired entry. Throws if the key
-    //     associated with this entry is already associated with an entry in
-    //     this AbstractLedgerTxn or any parent or if the expired entry being
-    //     restored does not exist
     // - erase
     //     Erases the existing entry associated with key. Throws if the key is
     //     not already associated with an entry in this AbstractLedgerTxn or
@@ -578,12 +573,9 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    virtual LedgerTxnEntry restore(InternalLedgerEntry const& entry) = 0;
-#endif
-
     virtual void erase(InternalLedgerKey const& key) = 0;
-    virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
+    virtual LedgerTxnEntry load(InternalLedgerKey const& key,
+                                bool loadExpiredEntry = false) = 0;
     virtual ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
                                                   bool loadExpiredEntry) = 0;
 
@@ -716,10 +708,6 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerTxnEntry restore(InternalLedgerEntry const& entry) override;
-#endif
-
     void erase(InternalLedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
@@ -760,7 +748,8 @@ class LedgerTxn : public AbstractLedgerTxn
     getNewestVersion(InternalLedgerKey const& key,
                      bool loadExpiredEntry) const override;
 
-    LedgerTxnEntry load(InternalLedgerKey const& key) override;
+    LedgerTxnEntry load(InternalLedgerKey const& key,
+                        bool loadExpiredEntry = false) override;
 
     void createWithoutLoading(InternalLedgerEntry const& entry) override;
     void updateWithoutLoading(InternalLedgerEntry const& entry) override;
