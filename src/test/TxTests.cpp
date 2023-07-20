@@ -20,6 +20,7 @@
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
@@ -826,7 +827,7 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
                    uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo)
+                   std::optional<std::string> memo, int addInvalidOps)
 {
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
@@ -846,10 +847,33 @@ createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
         resources.footprint.readWrite = {contractCodeLedgerKey};
     }
 
+    std::vector<Operation> ops{deployOp};
+    for (int i = 0; i < addInvalidOps; i++)
+    {
+        ops.emplace_back(deployOp);
+    }
+
     auto tx =
-        sorobanTransactionFrameFromOps(app.getNetworkID(), account, {deployOp},
-                                       {}, resources, fee, refundableFee, memo);
+        sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops, {},
+                                       resources, fee, refundableFee, memo);
     return std::dynamic_pointer_cast<TransactionFrame>(tx);
+}
+
+void
+setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
+                 uint32_t refundableFee, Application& app, TestAccount& source)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    tx->maybeComputeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion,
+        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+    auto flatFee = tx->getSorobanResourceFee()->non_refundable_fee;
+
+    txbridge::setFee(tx, flatFee + inclusionFee + refundableFee);
+    txbridge::getSignatures(tx).clear();
+    tx->addSignature(source.getSecretKey());
 }
 #endif
 
