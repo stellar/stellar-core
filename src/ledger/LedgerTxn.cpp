@@ -605,18 +605,23 @@ LedgerTxn::create(InternalLedgerEntry const& entry)
     return getImpl()->create(*this, entry);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerTxnEntry
-LedgerTxn::restore(InternalLedgerEntry const& entry)
+LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 {
-    return getImpl()->restore(*this, entry);
-}
-#endif
+    throwIfSealed();
+    throwIfChild();
 
-LedgerTxnEntry
-LedgerTxn::Impl::createRestoreCommon(LedgerTxn& self,
-                                     InternalLedgerEntry const& entry)
-{
+    auto key = entry.toKey();
+
+    // For entries that can be restored, we need to check the key for both
+    // expired entries and live entries
+    auto checkExpired = key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+                        isRestorableEntry(key.ledgerKey());
+    if (getNewestVersion(key, checkExpired))
+    {
+        throw std::runtime_error("Key already exists");
+    }
+
     auto current = std::make_shared<InternalLedgerEntry>(entry);
     auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
 
@@ -637,76 +642,6 @@ LedgerTxn::Impl::createRestoreCommon(LedgerTxn& self,
                 /* effectiveActive */ true);
     return ltxe;
 }
-
-LedgerTxnEntry
-LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
-{
-    throwIfSealed();
-    throwIfChild();
-
-    auto key = entry.toKey();
-
-    // For entries that can be restored, we need to check the key for both
-    // expired entries and live entries
-    auto checkExpired = key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
-                        isRestorableEntry(key.ledgerKey());
-    if (getNewestVersion(key, checkExpired))
-    {
-        throw std::runtime_error("Key already exists");
-    }
-
-    return createRestoreCommon(self, entry);
-}
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-LedgerTxnEntry
-LedgerTxn::Impl::restore(LedgerTxn& self, InternalLedgerEntry const& entry)
-{
-    throwIfSealed();
-    throwIfChild();
-
-    auto key = entry.toKey();
-
-    if (!isRestorableEntry(key.ledgerKey()))
-    {
-        throw std::runtime_error(
-            "Restored entry that is not a restorable type");
-    }
-
-    auto expiredVersion = getNewestVersion(key, /*loadExpiredEntry=*/true);
-    if (!expiredVersion)
-    {
-        throw std::runtime_error("Restored entry that does not exist");
-    }
-
-    if (getNewestVersion(key, /*loadExpiredEntry=*/false))
-    {
-        throw std::runtime_error("Restored live entry");
-    }
-
-    // Check that data fields of expired version and new version are identical.
-    bool integrityCheck;
-    auto const& expiredLE = expiredVersion->ledgerEntry();
-    if (key.ledgerKey().type() == CONTRACT_DATA)
-    {
-        integrityCheck = expiredLE.data.contractData().body ==
-                         entry.ledgerEntry().data.contractData().body;
-    }
-    else
-    {
-        integrityCheck = expiredLE.data.contractCode().body ==
-                         entry.ledgerEntry().data.contractCode().body;
-    }
-
-    if (!integrityCheck)
-    {
-        throw std::runtime_error(
-            "Restored version has different data than expired version");
-    }
-
-    return createRestoreCommon(self, entry);
-}
-#endif
 
 void
 LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
@@ -812,7 +747,7 @@ LedgerTxn::Impl::erase(InternalLedgerKey const& key)
     throwIfSealed();
     throwIfChild();
 
-    auto newest = getNewestVersionEntryMap(key);
+    auto newest = getNewestVersionEntryMap(key, false);
     if (!newest.first)
     {
         throw std::runtime_error("Key does not exist");
@@ -1219,7 +1154,7 @@ LedgerTxn::Impl::getChanges()
             else
             {
                 auto previous =
-                    mParent.getNewestVersion(key, /*loadExpiredEntry=*/false);
+                    mParent.getNewestVersion(key, /*loadExpiredEntry=*/true);
                 // entry is not init, so previous must exist. If not, then
                 // we're modifying an entry that doesn't exist.
                 releaseAssert(previous);
@@ -1547,15 +1482,17 @@ LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key,
 
 std::pair<std::shared_ptr<InternalLedgerEntry const>,
           LedgerTxn::Impl::EntryMap::iterator>
-LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key)
+LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key,
+                                          bool loadExpiredEntry)
 {
+    // TODO: check for expiration?
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
         return std::make_pair(iter->second.get(), iter);
     }
-    return std::make_pair(
-        mParent.getNewestVersion(key, /*loadExpiredEntry=*/false), iter);
+    return std::make_pair(mParent.getNewestVersion(key, loadExpiredEntry),
+                          iter);
 }
 
 UnorderedMap<LedgerKey, LedgerEntry>
@@ -1666,13 +1603,14 @@ LedgerTxn::Impl::getPoolShareTrustLinesByAccountAndAsset(
 }
 
 LedgerTxnEntry
-LedgerTxn::load(InternalLedgerKey const& key)
+LedgerTxn::load(InternalLedgerKey const& key, bool loadExpiredEntry)
 {
-    return getImpl()->load(*this, key);
+    return getImpl()->load(*this, key, loadExpiredEntry);
 }
 
 LedgerTxnEntry
-LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
+LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key,
+                      bool loadExpiredEntry)
 {
     throwIfSealed();
     throwIfChild();
@@ -1681,7 +1619,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
         throw std::runtime_error("Key is active");
     }
 
-    auto newest = getNewestVersionEntryMap(key);
+    auto newest = getNewestVersionEntryMap(key, loadExpiredEntry);
     if (!newest.first)
     {
         return {};
@@ -1738,7 +1676,7 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
         {
             auto const& key = kv.first;
             auto const& sellerID = key.offer().sellerID;
-            offersByAccount[sellerID].emplace_back(load(self, key));
+            offersByAccount[sellerID].emplace_back(load(self, key, false));
         }
         return offersByAccount;
     }
@@ -1767,7 +1705,7 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
     throwIfChild();
 
     auto le = getBestOffer(buying, selling);
-    auto res = le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
+    auto res = le ? load(self, LedgerEntryKey(*le), false) : LedgerTxnEntry();
 
     try
     {
@@ -1884,7 +1822,7 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
         for (auto const& kv : offers)
         {
             auto const& key = kv.first;
-            res.emplace_back(load(self, key));
+            res.emplace_back(load(self, key, false));
         }
         return res;
     }
@@ -1923,7 +1861,7 @@ LedgerTxn::Impl::loadPoolShareTrustLinesByAccountAndAsset(
         for (auto const& kv : trustLines)
         {
             auto const& key = kv.first;
-            res.emplace_back(load(self, key));
+            res.emplace_back(load(self, key, false));
         }
         return res;
     }

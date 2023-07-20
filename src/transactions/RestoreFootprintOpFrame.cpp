@@ -61,7 +61,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     for (auto const& lk : footprint.readWrite)
     {
-        auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
+        auto ltxe = ltx.load(lk, /*loadExpiredEntry=*/true);
         if (ltxe)
         {
             // Skip entries that are already live
@@ -71,7 +71,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 continue;
             }
 
-            LedgerEntry restoredEntry = ltxe.current();
+            auto& restoredEntry = ltxe.current();
             auto keySize = xdr::xdr_size(lk);
             auto entrySize = xdr::xdr_size(restoredEntry);
             metrics.mLedgerWriteByte += keySize;
@@ -103,8 +103,6 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 setExpirationLedger(restoredEntry,
                                     minPersistentExpirationLedger);
             }
-
-            ltx.restore(restoredEntry);
         }
     }
 
