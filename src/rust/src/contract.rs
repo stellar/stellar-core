@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use log::debug;
-use std::{fmt::Display, io::Cursor, panic, rc::Rc};
+use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
@@ -466,9 +466,13 @@ fn invoke_host_function_or_maybe_panic(
         host.set_diagnostic_level(DiagnosticLevel::Debug)?;
     }
 
-    let res = {
+    let (res, time_nsecs) = {
         let _span1 = tracy_span!("Host::invoke_function");
-        host.invoke_function(hf)
+        let start_time = Instant::now();
+        let res = host.invoke_function(hf);
+        let stop_time = Instant::now();
+        let time_nsecs = stop_time.duration_since(start_time).as_nanos() as u64;
+        (res, time_nsecs)
     };
 
     let (storage, budget, events, bumps) = host
@@ -498,9 +502,10 @@ fn invoke_host_function_or_maybe_panic(
                 contract_events: vec![],
                 diagnostic_events: extract_diagnostic_events(&events)?,
                 modified_ledger_entries: vec![],
+                expiration_bumps: vec![],
                 cpu_insns,
                 mem_bytes,
-                expiration_bumps: vec![],
+                time_nsecs,
             });
         }
     };
@@ -517,9 +522,10 @@ fn invoke_host_function_or_maybe_panic(
         contract_events,
         diagnostic_events,
         modified_ledger_entries,
-        cpu_insns: budget.get_cpu_insns_consumed()?,
-        mem_bytes: budget.get_mem_bytes_consumed()?,
         expiration_bumps,
+        cpu_insns,
+        mem_bytes,
+        time_nsecs,
     })
 }
 

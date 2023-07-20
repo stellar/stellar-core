@@ -174,8 +174,16 @@ struct HostFunctionMetrics
     uint32 mEmitEvent{0};
     uint32 mEmitEventByte{0};
 
+    // host runtime metrics
     uint32 mCpuInsn{0};
     uint32 mMemByte{0};
+    uint32 mInvokeTimeNsecs{0};
+
+    // max single entity size metrics
+    uint32 mMaxReadWriteKeyByte{0};
+    uint32 mMaxReadWriteDataByte{0};
+    uint32 mMaxReadWriteCodeByte{0};
+    uint32 mMaxEmitEventByte{0};
 
     uint32 mMetadataSizeByte{0};
 
@@ -190,14 +198,17 @@ struct HostFunctionMetrics
     {
         mReadEntry++;
         mReadKeyByte += keySize;
+        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
         mLedgerReadByte += keySize + entrySize;
         if (isCodeEntry)
         {
             mReadCodeByte += keySize + entrySize;
+            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
             mReadDataByte += keySize + entrySize;
+            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
 
@@ -206,14 +217,17 @@ struct HostFunctionMetrics
     {
         mWriteEntry++;
         mWriteKeyByte += keySize;
+        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
         mLedgerWriteByte += keySize + entrySize;
         if (isCodeEntry)
         {
             mWriteCodeByte += keySize + entrySize;
+            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
             mWriteDataByte += keySize + entrySize;
+            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
 
@@ -257,6 +271,19 @@ struct HostFunctionMetrics
             .Mark(mCpuInsn);
         mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
             .Mark(mMemByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
+            .Mark(mInvokeTimeNsecs);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
+            .Mark(mMaxReadWriteKeyByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-data-byte"}, "byte")
+            .Mark(mMaxReadWriteDataByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-code-byte"}, "byte")
+            .Mark(mMaxReadWriteCodeByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "max-emit-event-byte"}, "byte")
+            .Mark(mMaxEmitEventByte);
 
         if (mSuccess)
         {
@@ -419,6 +446,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
     metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
+    metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
+
     if (!metrics.mSuccess)
     {
         if (resources.instructions < out.cpu_insns ||
@@ -602,8 +631,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
-        metrics.mEmitEventByte += static_cast<uint32>(buf.data.size());
-        metrics.mMetadataSizeByte += static_cast<uint32>(buf.data.size());
+        uint32 eventSize = static_cast<uint32>(buf.data.size());
+        metrics.mEmitEventByte += eventSize;
+        metrics.mMaxEmitEventByte =
+            std::max(metrics.mMaxEmitEventByte, eventSize);
+        metrics.mMetadataSizeByte += eventSize;
         if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
