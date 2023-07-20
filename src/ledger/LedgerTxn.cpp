@@ -1447,6 +1447,29 @@ LedgerTxn::getNewestVersion(InternalLedgerKey const& key,
     return getImpl()->getNewestVersion(key, loadExpiredEntry);
 }
 
+static std::shared_ptr<InternalLedgerEntry const>
+checkExpiration(std::shared_ptr<InternalLedgerEntry const> ile_ptr,
+                int32_t ledgerSeq, bool loadExpiredEntry)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (!ile_ptr || ile_ptr->type() != InternalLedgerEntryType::LEDGER_ENTRY)
+    {
+        return ile_ptr;
+    }
+
+    if (loadExpiredEntry || isLive(ile_ptr->ledgerEntry(), ledgerSeq))
+    {
+        return ile_ptr;
+    }
+    else
+    {
+        return nullptr;
+    }
+#else
+    return ile_ptr;
+#endif
+}
+
 std::shared_ptr<InternalLedgerEntry const>
 LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key,
                                   bool loadExpiredEntry) const
@@ -1454,7 +1477,8 @@ LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key,
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
-        return iter->second.get();
+        return checkExpiration(iter->second.get(), mHeader->ledgerSeq,
+                               loadExpiredEntry);
     }
     return mParent.getNewestVersion(key, loadExpiredEntry);
 }
@@ -1464,11 +1488,13 @@ std::pair<std::shared_ptr<InternalLedgerEntry const>,
 LedgerTxn::Impl::getNewestVersionEntryMap(InternalLedgerKey const& key,
                                           bool loadExpiredEntry)
 {
-    // TODO: check for expiration?
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
     {
-        return std::make_pair(iter->second.get(), iter);
+        return std::make_pair(checkExpiration(iter->second.get(),
+                                              mHeader->ledgerSeq,
+                                              loadExpiredEntry),
+                              iter);
     }
     return std::make_pair(mParent.getNewestVersion(key, loadExpiredEntry),
                           iter);
