@@ -42,7 +42,7 @@ CxxLedgerInfo
 getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
               SorobanNetworkConfig const& sorobanConfig)
 {
-    CxxLedgerInfo info;
+    CxxLedgerInfo info{};
     auto const& hdr = ltx.loadHeader().current();
     info.base_reserve = hdr.baseReserve;
     info.protocol_version = hdr.ledgerVersion;
@@ -53,6 +53,8 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
         sorobanConfig.stateExpirationSettings().minPersistentEntryExpiration;
     info.min_temp_entry_expiration =
         sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
+    info.max_entry_expiration =
+        sorobanConfig.stateExpirationSettings().maxEntryExpiration;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
