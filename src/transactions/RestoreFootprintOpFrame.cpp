@@ -61,48 +61,51 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     for (auto const& lk : footprint.readWrite)
     {
-        auto ltxe = ltx.load(lk, /*loadExpiredEntry=*/true);
-        if (ltxe)
+        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
         {
-            // Skip entries that are already live
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            if (isLive(ltxe.current(), ledgerSeq))
+            auto const_ltxe =
+                ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
+
+            // Skip entries that don't exist or are already live
+            if (!const_ltxe || isLive(const_ltxe.current(), ledgerSeq))
             {
                 continue;
             }
+        }
 
-            auto& restoredEntry = ltxe.current();
-            auto keySize = xdr::xdr_size(lk);
-            auto entrySize = xdr::xdr_size(restoredEntry);
-            metrics.mLedgerWriteByte += keySize;
-            metrics.mLedgerWriteByte += entrySize;
+        // Entry exists if we get this this point due to the loadWithoutRecord
+        // logic above.
+        auto ltxe = ltx.load(lk, /*loadExpiredEntry=*/true);
 
-            // Divide the limit by 2 for the metadata check since the previous
-            // state is also included in the meta.
-            if (resources.extendedMetaDataSizeBytes / 2 <
-                    metrics.mLedgerWriteByte ||
-                resources.writeBytes < metrics.mLedgerWriteByte ||
-                resources.readBytes < metrics.mLedgerWriteByte)
-            {
-                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
+        auto& restoredEntry = ltxe.current();
+        auto keySize = xdr::xdr_size(lk);
+        auto entrySize = xdr::xdr_size(restoredEntry);
+        metrics.mLedgerWriteByte += keySize;
+        metrics.mLedgerWriteByte += entrySize;
 
-            originalExpirations.emplace(LedgerEntryKey(restoredEntry),
-                                        getExpirationLedger(restoredEntry));
+        // Divide the limit by 2 for the metadata check since the previous
+        // state is also included in the meta.
+        if (resources.extendedMetaDataSizeBytes / 2 <
+                metrics.mLedgerWriteByte ||
+            resources.writeBytes < metrics.mLedgerWriteByte ||
+            resources.readBytes < metrics.mLedgerWriteByte)
+        {
+            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
 
-            auto const& expirationSettings = app.getLedgerManager()
-                                                 .getSorobanNetworkConfig(ltx)
-                                                 .stateExpirationSettings();
-            auto minPersistentExpirationLedger =
-                ledgerSeq + expirationSettings.minPersistentEntryExpiration;
+        originalExpirations.emplace(LedgerEntryKey(restoredEntry),
+                                    getExpirationLedger(restoredEntry));
 
-            if (getExpirationLedger(restoredEntry) <
-                minPersistentExpirationLedger)
-            {
-                setExpirationLedger(restoredEntry,
-                                    minPersistentExpirationLedger);
-            }
+        auto const& expirationSettings = app.getLedgerManager()
+                                             .getSorobanNetworkConfig(ltx)
+                                             .stateExpirationSettings();
+        auto minPersistentExpirationLedger =
+            ledgerSeq + expirationSettings.minPersistentEntryExpiration;
+
+        if (getExpirationLedger(restoredEntry) < minPersistentExpirationLedger)
+        {
+            setExpirationLedger(restoredEntry, minPersistentExpirationLedger);
         }
     }
 
