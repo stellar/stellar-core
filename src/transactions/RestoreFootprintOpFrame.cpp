@@ -74,28 +74,35 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& lk : footprint.readWrite)
     {
         auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
-        // TODO: This will update lastModified even if we don't end up updating
-        // the entry. Change this to use loadWithoutRecord first.
+        uint32_t entrySize = UINT32_MAX;
+        {
+            auto const_ltxe =
+                ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
+            if (!const_ltxe)
+            {
+                continue;
+            }
+
+            entrySize =
+                static_cast<uint32>(xdr::xdr_size(const_ltxe.current()));
+            metrics.mLedgerReadByte += keySize + entrySize;
+            if (resources.readBytes < metrics.mLedgerReadByte)
+            {
+                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
+
+            if (isLive(const_ltxe.current(), ledgerSeq))
+            {
+                // Skip entries that are already live.
+                continue;
+            }
+        }
+
+        // Entry exists if we get this this point due to the loadWithoutRecord
+        // logic above.
         auto ltxe = ltx.load(lk, /*loadExpiredEntry=*/true);
-        if (!ltxe)
-        {
-            // Skip entries that don't exist.
-            continue;
-        }
 
-        auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
-        metrics.mLedgerReadByte += keySize + entrySize;
-        if (resources.readBytes < metrics.mLedgerReadByte)
-        {
-            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
-
-        if (isLive(ltxe.current(), ledgerSeq))
-        {
-            // Skip entries that are already live.
-            continue;
-        }
         auto& restoredEntry = ltxe.current();
         metrics.mLedgerWriteByte += keySize + entrySize;
 
