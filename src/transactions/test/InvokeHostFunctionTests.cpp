@@ -1183,7 +1183,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
     }
 }
 
-TEST_CASE("Stellar asset contract XLM transfer", "[tx][soroban]")
+TEST_CASE("Stellar asset contract XLM transfer",
+          "[tx][soroban][invariant][conservationoflumens]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

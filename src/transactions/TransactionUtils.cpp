@@ -1840,6 +1840,35 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LumenContractInfo
+getLumenContractInfo(std::string networkPassphrase)
+{
+    // Calculate contractID
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().networkID = sha256(networkPassphrase);
+
+    Asset native;
+    native.type(ASSET_TYPE_NATIVE);
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = native;
+
+    auto lumenContractID = xdrSha256(preImage);
+
+    // Calculate SCVal for balance key
+    SCVal balanceSymbol(SCV_SYMBOL);
+    balanceSymbol.sym() = "Balance";
+
+    // Calculate SCVal for amount key
+    SCVal amountSymbol(SCV_SYMBOL);
+    amountSymbol.sym() = "amount";
+
+    return {lumenContractID, balanceSymbol, amountSymbol};
+}
+#endif
+
 namespace detail
 {
 struct MuxChecker

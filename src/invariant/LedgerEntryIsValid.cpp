@@ -6,11 +6,11 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/printer.h"
+#include <crypto/SHA.h>
 #include <fmt/format.h>
 
 namespace stellar
@@ -22,14 +22,28 @@ signerCompare(Signer const& s1, Signer const& s2)
     return s1.key < s2.key;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerEntryIsValid::LedgerEntryIsValid(
+    LumenContractInfo const& lumenContractInfo)
+    : Invariant(false), mLumenContractInfo(lumenContractInfo)
+{
+}
+#else
 LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
 {
 }
+#endif
 
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
+    return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
+        lumenInfo);
+#else
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>();
+#endif
 }
 
 std::string
@@ -497,6 +511,53 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+    // Lumen contract validation
+    if (cde.contract.type() == SC_ADDRESS_TYPE_CONTRACT &&
+        cde.contract.contractId() == mLumenContractInfo.mLumenContractID)
+    {
+        // Identify balance entries
+        if (cde.key.type() == SCV_VEC && cde.key.vec() &&
+            !cde.key.vec()->empty() &&
+            cde.key.vec()->at(0) == mLumenContractInfo.mBalanceSymbol)
+        {
+            if (cde.durability != ContractDataDurability::PERSISTENT)
+            {
+                return "Balance entry must be persistent";
+            }
+            if (cde.body.bodyType() != DATA_ENTRY)
+            {
+                return "Expected data entry for balance";
+            }
+
+            auto const& val = cde.body.data().val;
+            if (val.type() != SCV_MAP || val.map()->size() == 0)
+            {
+                return "Balance entry val must be a populated Map";
+            }
+
+            auto const& amountEntry = val.map()->at(0);
+            if (!(amountEntry.key == mLumenContractInfo.mAmountSymbol))
+            {
+                return "Balance amount symbol is incorrect";
+            }
+            if (amountEntry.val.type() != SCV_I128)
+            {
+                return "Balance amount must be a I128";
+            }
+            auto lo = amountEntry.val.i128().lo;
+            auto hi = amountEntry.val.i128().hi;
+            if (lo > INT64_MAX || hi > 0)
+            {
+                return "Balance amount is invalid";
+            }
+        }
+    }
+
+    if (cde.body.bodyType() == DATA_ENTRY &&
+        (cde.body.data().flags & ~MASK_CONTRACT_DATA_FLAGS_V20) != 0)
+    {
+        return "Invalid contract data flags";
+    }
     return {};
 }
 
@@ -505,6 +566,37 @@ LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+    if (cce.body.bodyType() == DATA_ENTRY &&
+        sha256(cce.body.code()) != cce.hash)
+    {
+        return "Contract code doesn't match hash";
+    }
+
+    if (!previous)
+    {
+        return {};
+    }
+    else if (previous->data.type() != CONTRACT_CODE)
+    {
+        return "ContractCode used to be of different type";
+    }
+
+    auto const& prevCode = previous->data.contractCode();
+    if (cce.hash != prevCode.hash)
+    {
+        return "ContractCode hash modified";
+    }
+
+    if (cce.body.bodyType() != prevCode.body.bodyType())
+    {
+        return "Mismatch on bodytype";
+    }
+
+    if (cce.body.bodyType() == DATA_ENTRY &&
+        cce.body.code() != prevCode.body.code())
+    {
+        return "ContractCode code modified";
+    }
     return {};
 }
 
@@ -513,6 +605,58 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
+
+    switch (cfg.configSettingID())
+    {
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+        if (cfg.contractMaxSizeBytes() <= 0)
+        {
+            return "Invalid contractMaxSizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+        if (!SorobanNetworkConfig::isValidCostParams(
+                cfg.contractCostParamsCpuInsns()))
+        {
+            return "Invalid contractCostParamsCpuInsns";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+        if (!SorobanNetworkConfig::isValidCostParams(
+                cfg.contractCostParamsMemBytes()))
+        {
+            return "Invalid contractCostParamsMemBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
+        if (cfg.contractDataKeySizeBytes() <= 0)
+        {
+            return "Invalid contractDataKeySizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
+        if (cfg.contractDataEntrySizeBytes() <= 0)
+        {
+            return "Invalid contractDataEntrySizeBytes";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+        if (cfg.contractExecutionLanes().ledgerMaxTxCount < 0)
+        {
+            return "Invalid ledgerMaxTxCount";
+        }
+        break;
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+    case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:
+    case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+        // TODO: https://github.com/stellar/stellar-core/issues/3802
+        break;
+    }
+
     return {};
 }
 #endif

@@ -307,4 +307,14 @@ void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
 int64_t getMinInclusionFee(TransactionFrameBase const& tx,
                            LedgerHeader const& header,
                            std::optional<int64_t> baseFee = std::nullopt);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+struct LumenContractInfo
+{
+    Hash mLumenContractID;
+    SCVal mBalanceSymbol;
+    SCVal mAmountSymbol;
+};
+LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+#endif
 }
