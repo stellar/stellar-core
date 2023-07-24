@@ -440,11 +440,6 @@ class LedgerTxn::Impl
     std::pair<std::shared_ptr<InternalLedgerEntry const>, EntryMap::iterator>
     getNewestVersionEntryMap(InternalLedgerKey const& key);
 
-    // Common logic for create and restore code paths. Input correctness
-    // checking should be done before calling this function
-    LedgerTxnEntry createRestoreCommon(LedgerTxn& self,
-                                       InternalLedgerEntry const& entry);
-
   public:
     // Constructor has the strong exception safety guarantee
     Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
@@ -463,15 +458,6 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry create(LedgerTxn& self, InternalLedgerEntry const& entry);
-
-    // restore has the basic exception safety guarantee. If it throws an
-    // exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
-    // - the entry cache may be, but is not guaranteed to be, cleared.
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerTxnEntry restore(LedgerTxn& self, InternalLedgerEntry const& entry);
-#endif
 
     // deactivate has the strong exception safety guarantee
     void deactivate(InternalLedgerKey const& key);

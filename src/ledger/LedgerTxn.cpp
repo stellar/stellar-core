@@ -605,39 +605,6 @@ LedgerTxn::create(InternalLedgerEntry const& entry)
     return getImpl()->create(*this, entry);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-LedgerTxnEntry
-LedgerTxn::restore(InternalLedgerEntry const& entry)
-{
-    return getImpl()->restore(*this, entry);
-}
-#endif
-
-LedgerTxnEntry
-LedgerTxn::Impl::createRestoreCommon(LedgerTxn& self,
-                                     InternalLedgerEntry const& entry)
-{
-    auto current = std::make_shared<InternalLedgerEntry>(entry);
-    auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
-
-    // Set the key to active before constructing the LedgerTxnEntry, as this
-    // can throw and the LedgerTxnEntry destructor requires that mActive
-    // contains key. LedgerTxnEntry constructor does not throw so this is
-    // still exception safe.
-    mActive.emplace(entry.toKey(), toEntryImplBase(impl));
-    LedgerTxnEntry ltxe(impl);
-
-    auto it = mEntry.end(); // hint that key is not in mEntry
-
-    // If the key currently exists in mEntry as a DELETED entry, the new state
-    // after this INIT entry is merged with the DELETED will be a LIVE. This is
-    // because the entry would have been a LIVE before the delete. If it were an
-    // INIT instead, the key would've been annihilated.
-    updateEntry(entry.toKey(), &it, LedgerEntryPtr::Init(current),
-                /* effectiveActive */ true);
-    return ltxe;
-}
-
 LedgerTxnEntry
 LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 {
@@ -646,67 +613,32 @@ LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 
     auto key = entry.toKey();
 
-    // For entries that can be restored, we need to check the key for both
-    // expired entries and live entries
-    auto checkExpired = key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
-                        isRestorableEntry(key.ledgerKey());
-    if (getNewestVersion(key, checkExpired))
+    // TODO: Enforce PErsistent collision resistance
+    if (getNewestVersion(key, /*loadExpiredEntry=*/false))
     {
         throw std::runtime_error("Key already exists");
     }
 
-    return createRestoreCommon(self, entry);
+    auto current = std::make_shared<InternalLedgerEntry>(entry);
+    auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
+
+    // Set the key to active before constructing the LedgerTxnEntry, as this
+    // can throw and the LedgerTxnEntry destructor requires that mActive
+    // contains key. LedgerTxnEntry constructor does not throw so this is
+    // still exception safe.
+    mActive.emplace(key, toEntryImplBase(impl));
+    LedgerTxnEntry ltxe(impl);
+
+    auto it = mEntry.end(); // hint that key is not in mEntry
+
+    // If the key currently exists in mEntry as a DELETED entry, the new state
+    // after this INIT entry is merged with the DELETED will be a LIVE. This is
+    // because the entry would have been a LIVE before the delete. If it were an
+    // INIT instead, the key would've been annihilated.
+    updateEntry(key, &it, LedgerEntryPtr::Init(current),
+                /* effectiveActive */ true);
+    return ltxe;
 }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-LedgerTxnEntry
-LedgerTxn::Impl::restore(LedgerTxn& self, InternalLedgerEntry const& entry)
-{
-    throwIfSealed();
-    throwIfChild();
-
-    auto key = entry.toKey();
-
-    if (!isRestorableEntry(key.ledgerKey()))
-    {
-        throw std::runtime_error(
-            "Restored entry that is not a restorable type");
-    }
-
-    auto expiredVersion = getNewestVersion(key, /*loadExpiredEntry=*/true);
-    if (!expiredVersion)
-    {
-        throw std::runtime_error("Restored entry that does not exist");
-    }
-
-    if (getNewestVersion(key, /*loadExpiredEntry=*/false))
-    {
-        throw std::runtime_error("Restored live entry");
-    }
-
-    // Check that data fields of expired version and new version are identical.
-    bool integrityCheck;
-    auto const& expiredLE = expiredVersion->ledgerEntry();
-    if (key.ledgerKey().type() == CONTRACT_DATA)
-    {
-        integrityCheck = expiredLE.data.contractData().body ==
-                         entry.ledgerEntry().data.contractData().body;
-    }
-    else
-    {
-        integrityCheck = expiredLE.data.contractCode().body ==
-                         entry.ledgerEntry().data.contractCode().body;
-    }
-
-    if (!integrityCheck)
-    {
-        throw std::runtime_error(
-            "Restored version has different data than expired version");
-    }
-
-    return createRestoreCommon(self, entry);
-}
-#endif
 
 void
 LedgerTxn::createWithoutLoading(InternalLedgerEntry const& entry)
