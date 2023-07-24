@@ -90,7 +90,8 @@ const uint32_t LedgerManager::GENESIS_LEDGER_VERSION = 0;
 const uint32_t LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
 const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
 const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
-const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
+//Total is 2100 0000 0000, by Frex, for everyone in the world has one token at least 
+const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 210000000000;
 
 std::unique_ptr<LedgerManager>
 LedgerManager::create(Application& app)
