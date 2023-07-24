@@ -434,8 +434,7 @@ class AbstractLedgerTxnParent
     // invoking getNewestVersion on its parent. Returns nullptr if the key does
     // not exist or if the corresponding LedgerEntry has been erased.
     virtual std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const = 0;
+    getNewestVersion(InternalLedgerKey const& key) const = 0;
 
     // Return the count of the number of ledger objects of type `let`. Will
     // throw when called on anything other than a (real or stub) root LedgerTxn.
@@ -574,8 +573,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
-    virtual ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
-                                                  bool loadExpiredEntry) = 0;
+    virtual ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) = 0;
 
     // Somewhat unsafe, non-recommended access methods: for use only during
     // bulk-loading as in catchup from buckets. These methods set an entry
@@ -743,8 +742,7 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerKey>& deadEntries) override;
 
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const override;
+    getNewestVersion(InternalLedgerKey const& key) const override;
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
@@ -767,8 +765,8 @@ class LedgerTxn : public AbstractLedgerTxn
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                              Asset const& asset) override;
 
-    ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
-                                          bool loadExpiredEntry) override;
+    ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) override;
 
     void rollback() noexcept override;
 
@@ -881,8 +879,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const override;
+    getNewestVersion(InternalLedgerKey const& key) const override;
 
     void rollbackChild() noexcept override;
 

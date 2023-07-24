@@ -125,7 +125,7 @@ readMaxSorobanTxSetSize(AbstractLedgerTxn& ltx)
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    return ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
+    return ltx.loadWithoutRecord(key)
         .current()
         .data.configSetting()
         .contractExecutionLanes()
@@ -852,7 +852,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = assetToTrustLineAsset(asset);
-        auto trust = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+        auto trust = ltx.loadWithoutRecord(key);
         if (trust && isAuthorizedToMaintainLiabilities(trust))
         {
             auto const& tl = trust.current().data.trustLine();
@@ -1300,8 +1300,7 @@ ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
 {
-    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key),
-                                      /*loadExpiredEntry=*/false);
+    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key));
     if (!ltxe)
     {
         return nullptr;
@@ -1424,9 +1423,9 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
-        bool isSame = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
-                          .current()
-                          .data.configSetting() == updatedEntry;
+        bool isSame =
+            ltx.loadWithoutRecord(key).current().data.configSetting() ==
+            updatedEntry;
         if (!isSame)
         {
             return true;

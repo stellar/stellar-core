@@ -148,10 +148,8 @@ LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 ConstLedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
                                      SCAddress const& contract,
                                      SCVal const& dataKey,
-                                     ContractDataDurability type,
-                                     bool loadExpiredEntry = false);
-ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash,
-                                     bool loadExpiredEntry = false);
+                                     ContractDataDurability type);
+ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
 #endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,

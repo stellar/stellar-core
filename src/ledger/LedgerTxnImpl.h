@@ -13,7 +13,6 @@
 #include <iomanip>
 #include <libpq-fe.h>
 #include <limits>
-#include <optional>
 #include <sstream>
 #endif
 
@@ -552,7 +551,7 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key, bool loadExpiredEntry) const;
+    getNewestVersion(InternalLedgerKey const& key) const;
 
     // load has the basic exception safety guarantee. If it throws an exception,
     // then
@@ -618,8 +617,7 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     ConstLedgerTxnEntry loadWithoutRecord(LedgerTxn& self,
-                                          InternalLedgerKey const& key,
-                                          bool loadExpiredEntry);
+                                          InternalLedgerKey const& key);
 
     void rollback() noexcept;
     void rollbackChild() noexcept;
@@ -706,20 +704,7 @@ class LedgerTxnRoot::Impl
         LoadType type;
     };
 
-    // RandomEvictionCache, but override get to account for expiration behavior
-    class EntryCache : public RandomEvictionCache<LedgerKey, CacheEntry>
-    {
-      public:
-        // Load entry from cache. If expirationCutoff is not empty, only returns
-        // an entry if its expirationLedger > expirationCutoff
-        CacheEntry get(LedgerKey const& k,
-                       std::optional<uint32_t> expirationCutoff);
-
-        using RandomEvictionCache<LedgerKey, CacheEntry>::RandomEvictionCache;
-
-      private:
-        using RandomEvictionCache<LedgerKey, CacheEntry>::get;
-    };
+    typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
     typedef AssetPair BestOffersKey;
 
@@ -836,7 +821,7 @@ class LedgerTxnRoot::Impl
     //    database for the keyset that it has entries for. It's a precise
     //    image of a subset of the database.
     std::shared_ptr<InternalLedgerEntry const>
-    getFromEntryCache(LedgerKey const& key, bool loadExpiredEntry) const;
+    getFromEntryCache(LedgerKey const& key) const;
     void putInEntryCache(LedgerKey const& key,
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
@@ -965,7 +950,7 @@ class LedgerTxnRoot::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key, bool loadExpiredEntry) const;
+    getNewestVersion(InternalLedgerKey const& key) const;
 
     void rollbackChild() noexcept;
 

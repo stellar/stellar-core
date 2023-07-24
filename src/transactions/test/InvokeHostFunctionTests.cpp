@@ -516,8 +516,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                            uint32_t ledgerSeq) {
         auto keySymbol = makeSymbolSCVal(key);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = loadContractData(ltx, contractID, keySymbol, type,
-                                     /*loadExpiredEntry*/ true);
+        auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
         REQUIRE(ltxe);
         return isLive(ltxe.current(), ledgerSeq);
     };
@@ -945,7 +944,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         for (auto const& key : contractKeys)
         {
             uint32_t mult = key.type() == CONTRACT_CODE ? 4 : 3;
-            auto ltxe = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+            auto ltxe = ltx.loadWithoutRecord(key);
             REQUIRE(ltxe);
             REQUIRE(getExpirationLedger(ltxe.current()) ==
                     expectedInitialExpiration + (autoBump * mult));

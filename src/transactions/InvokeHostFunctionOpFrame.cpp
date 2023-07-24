@@ -312,7 +312,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             // accidentally override RW entry with RO flag.
             entryRentChange.readOnly = readOnly;
             // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/false);
+            auto ltxe = ltx.loadWithoutRecord(lk);
             if (ltxe)
             {
                 auto const& le = ltxe.current();
@@ -339,8 +339,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                     }
                 }
             }
-            else if (!isTemporaryEntry(lk) &&
-                     ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true))
+            else if (!isTemporaryEntry(lk) && ltx.loadWithoutRecord(lk))
             {
                 // Cannot access an expired entry
                 this->innerResult().code(INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);

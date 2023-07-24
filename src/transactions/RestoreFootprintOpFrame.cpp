@@ -74,7 +74,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& lk : footprint.readWrite)
     {
         auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
-        auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
+        auto ltxe = ltx.loadWithoutRecord(lk);
         if (!ltxe)
         {
             // Skip entries that don't exist.
@@ -116,7 +116,8 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.new_size_bytes = keySize + entrySize;
         rustChange.new_expiration_ledger = restoredExpirationLedger;
         setExpirationLedger(restoredEntry, restoredExpirationLedger);
-        ltx.restore(restoredEntry);
+
+        // TODO: Fix
     }
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,

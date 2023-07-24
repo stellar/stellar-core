@@ -532,7 +532,7 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
         {
             LedgerTxn ltx(root, false);
             ltx.create(le);
-            auto entry = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+            auto entry = ltx.loadWithoutRecord(key);
             REQUIRE(entry);
             f(ltx);
             REQUIRE_THROWS_AS(!entry, std::runtime_error);
@@ -871,9 +871,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE_NOTHROW(ltx1.eraseWithoutLoading(key));
             REQUIRE_THROWS_AS(ltx1.getDelta(), std::runtime_error);
-            REQUIRE(
-                ltx1.getNewestVersion(key, /*loadExpiredEntry=*/false).get() ==
-                nullptr);
+            REQUIRE(ltx1.getNewestVersion(key).get() == nullptr);
         }
 
         SECTION("when key exists in parent")
@@ -884,9 +882,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             LedgerTxn ltx2(ltx1);
             REQUIRE_NOTHROW(ltx2.eraseWithoutLoading(key));
             REQUIRE_THROWS_AS(ltx2.getDelta(), std::runtime_error);
-            REQUIRE(
-                ltx2.getNewestVersion(key, /*loadExpiredEntry=*/false).get() ==
-                nullptr);
+            REQUIRE(ltx2.getNewestVersion(key).get() == nullptr);
         }
 
         SECTION("when key exists in grandparent, erased in parent")
@@ -907,9 +903,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             LedgerTxn ltx3(ltx2);
             REQUIRE_NOTHROW(ltx3.eraseWithoutLoading(key));
             REQUIRE_THROWS_AS(ltx3.getDelta(), std::runtime_error);
-            REQUIRE(
-                ltx3.getNewestVersion(key, /*loadExpiredEntry=*/false).get() ==
-                nullptr);
+            REQUIRE(ltx3.getNewestVersion(key).get() == nullptr);
         }
     };
 
@@ -1483,25 +1477,11 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                 setExpirationLedger(dataEntry, 0);
                 LedgerTxn ltx1(app->getLedgerTxnRoot());
                 REQUIRE(ltx1.create(codeEntry));
-                REQUIRE(ltx1.create(dataEntry));
                 ltx1.commit();
 
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
-                auto codeKey = LedgerEntryKey(codeEntry);
-                auto dataKey = LedgerEntryKey(dataEntry);
-                REQUIRE(!ltx2.load(codeKey));
-                REQUIRE(!ltx2.load(dataKey));
-
-                // Check that you can still load expired entry with flag set
-                auto loadedCode =
-                    ltx2.loadWithoutRecord(codeKey, /*loadExpiredEntry=*/true);
-                REQUIRE(loadedCode);
-                REQUIRE(loadedCode.current().data == codeEntry.data);
-
-                auto loadedData =
-                    ltx2.loadWithoutRecord(dataKey, /*loadExpiredEntry=*/true);
-                REQUIRE(loadedData);
-                REQUIRE(loadedData.current().data == dataEntry.data);
+                REQUIRE(!ltx2.load(LedgerEntryKey(codeEntry)));
+                REQUIRE(!ltx2.load(LedgerEntryKey(dataEntry)));
             }
 #endif
         }
@@ -1599,24 +1579,20 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
     {
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(
-            ltx1.loadWithoutRecord(key, /*loadExpiredEntry=*/false),
-            std::runtime_error);
+        REQUIRE_THROWS_AS(ltx1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
-        REQUIRE_THROWS_AS(
-            ltx1.loadWithoutRecord(key, /*loadExpiredEntry=*/false),
-            std::runtime_error);
+        REQUIRE_THROWS_AS(ltx1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
         LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(!ltx1.loadWithoutRecord(key, /*loadExpiredEntry=*/false));
+        REQUIRE(!ltx1.loadWithoutRecord(key));
         validate(ltx1, {});
     }
 
@@ -1626,7 +1602,7 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
         REQUIRE(ltx1.create(le));
 
         LedgerTxn ltx2(ltx1);
-        REQUIRE(ltx2.loadWithoutRecord(key, /*loadExpiredEntry=*/false));
+        REQUIRE(ltx2.loadWithoutRecord(key));
         validate(ltx2, {});
     }
 
@@ -1639,7 +1615,7 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
         REQUIRE_NOTHROW(ltx2.erase(key));
 
         LedgerTxn ltx3(ltx2);
-        REQUIRE(!ltx3.loadWithoutRecord(key, /*loadExpiredEntry=*/false));
+        REQUIRE(!ltx3.loadWithoutRecord(key));
         validate(ltx3, {});
     }
 }
@@ -2628,25 +2604,20 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
             REQUIRE_THROWS_AS(ltx.load(key1), std::runtime_error);
-            REQUIRE_THROWS_AS(
-                ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false),
-                std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadWithoutRecord(key1), std::runtime_error);
         }
 
         SECTION("const entry")
         {
             LedgerTxn ltx(root, false);
             ltx.create(le1);
-            auto entry1 =
-                ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false);
+            auto entry1 = ltx.loadWithoutRecord(key1);
             // Avoid warning for explicit move-to-self
             ConstLedgerTxnEntry& entryRef = entry1;
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
             REQUIRE_THROWS_AS(ltx.load(key1), std::runtime_error);
-            REQUIRE_THROWS_AS(
-                ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false),
-                std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadWithoutRecord(key1), std::runtime_error);
         }
 
         SECTION("header")
@@ -2672,8 +2643,7 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
             REQUIRE(entry1.current() == le2);
             REQUIRE_THROWS_AS(ltx.load(key2), std::runtime_error);
             REQUIRE(ltx.load(key1).current() == le1);
-            REQUIRE(ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false)
-                        .current() == le1);
+            REQUIRE(ltx.loadWithoutRecord(key1).current() == le1);
         }
 
         SECTION("const entry")
@@ -2681,16 +2651,13 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
             LedgerTxn ltx(root, false);
             ltx.create(le1);
             ltx.create(le2);
-            auto entry1 =
-                ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false);
-            auto entry2 =
-                ltx.loadWithoutRecord(key2, /*loadExpiredEntry=*/false);
+            auto entry1 = ltx.loadWithoutRecord(key1);
+            auto entry2 = ltx.loadWithoutRecord(key2);
             entry1 = std::move(entry2);
             REQUIRE(entry1.current() == le2);
             REQUIRE_THROWS_AS(ltx.load(key2), std::runtime_error);
             REQUIRE(ltx.load(key1).current() == le1);
-            REQUIRE(ltx.loadWithoutRecord(key1, /*loadExpiredEntry=*/false)
-                        .current() == le1);
+            REQUIRE(ltx.loadWithoutRecord(key1).current() == le1);
         }
 
         SECTION("header")
@@ -3655,8 +3622,7 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             {
-                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a),
-                                                 /*loadExpiredEntry=*/false);
+                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
                 checkOrderBook(ltx, {});
             }
             checkOrderBook(ltx, {});
@@ -3668,8 +3634,7 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
             checkOrderBook(ltx, {{assets, {le1a}}});
 
             {
-                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a),
-                                                 /*loadExpiredEntry=*/false);
+                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
                 checkOrderBook(ltx, {});
             }
             checkOrderBook(ltx, {{assets, {le1a}}});
@@ -3847,12 +3812,10 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
 
         SECTION("loadWithoutRecord")
         {
-            auto entry =
-                ltx1.loadWithoutRecord(lk1, /*loadExpiredEntry=*/false);
+            auto entry = ltx1.loadWithoutRecord(lk1);
             REQUIRE(entry);
 
-            auto missingEntry = ltx1.loadWithoutRecord(
-                missingEntryKey, /*loadExpiredEntry=*/false);
+            auto missingEntry = ltx1.loadWithoutRecord(missingEntryKey);
             REQUIRE(!missingEntry);
 
             // this will deactivate entry
@@ -3892,7 +3855,7 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
         SECTION("loadWithoutRecord and move assign")
         {
             ConstLedgerTxnEntry entry;
-            entry = ltx1.loadWithoutRecord(lk1, /*loadExpiredEntry=*/false);
+            entry = ltx1.loadWithoutRecord(lk1);
             REQUIRE(entry);
 
             ConstLedgerTxnEntry ltxe2;
@@ -3901,8 +3864,7 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
         }
         SECTION("loadWithoutRecord and move construct")
         {
-            auto entry =
-                ltx1.loadWithoutRecord(lk1, /*loadExpiredEntry=*/false);
+            auto entry = ltx1.loadWithoutRecord(lk1);
             REQUIRE(entry);
 
             ConstLedgerTxnEntry ltxe2(std::move(entry));

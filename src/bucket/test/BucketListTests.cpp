@@ -674,7 +674,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             LedgerKey key(CONFIG_SETTING);
             key.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-            auto txle = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+            auto txle = ltx.loadWithoutRecord(key);
             releaseAssert(txle);
             auto const& leVector =
                 txle.current().data.configSetting().bucketListSizeWindow();
