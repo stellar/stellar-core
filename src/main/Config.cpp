@@ -276,6 +276,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
+    TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
+        InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 #endif
 
 #ifdef BUILD_TESTS
@@ -1448,6 +1450,22 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "ENABLE_SOROBAN_DIAGNOSTIC_EVENTS")
             {
                 ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
+            }
+            else if (item.first == "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME")
+            {
+                TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
+                    readInt<uint32_t>(item);
+                if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME == 0)
+                {
+                    throw std::invalid_argument(
+                        "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME must be "
+                        "positive");
+                }
+
+                LOG_WARNING(
+                    DEFAULT_LOG,
+                    "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",
+                    TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME);
             }
 #endif
             else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")
