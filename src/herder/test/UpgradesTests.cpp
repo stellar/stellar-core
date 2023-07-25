@@ -788,7 +788,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     auto const& sorobanConfig =
         app->getLedgerManager().getSorobanNetworkConfig(ltx);
     ltx.commit();
-    SECTION("unknown config upgrade set results in exception")
+    SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
         auto upgradeHash = autocheck::generator<Hash>()(5);

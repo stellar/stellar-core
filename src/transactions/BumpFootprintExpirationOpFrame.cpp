@@ -105,17 +105,25 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         rustChange.new_expiration_ledger = bumpLedger;
         setExpirationLedger(ltxe.current(), bumpLedger);
     }
-
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // This may throw, but only in case of the Core version misconfiguration.
     int64_t rentFee = rust_bridge::compute_rent_fee(
-        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-        ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
+        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+        rustEntryRentChanges,
         app.getLedgerManager()
             .getSorobanNetworkConfig(ltx)
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    mParentTx.consumeRefundableSorobanResources(metrics.mLedgerReadByte * 2,
-                                                rentFee);
+    if (!mParentTx.consumeRefundableSorobanResources(
+            0, rentFee, ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig()))
+    {
+        // TODO: This probably should have a more precise error code as here
+        // the refundable fee limit is exceeded (and not some resource).
+        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
     innerResult().code(BUMP_FOOTPRINT_EXPIRATION_SUCCESS);
     return true;
 }
@@ -141,7 +149,7 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     }
 
     if (mBumpFootprintExpirationOp.ledgersToExpire >
-        config.stateExpirationSettings().maxEntryExpiration)
+        config.stateExpirationSettings().maxEntryExpiration - 1)
     {
         innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
         return false;

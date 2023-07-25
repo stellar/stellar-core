@@ -284,11 +284,11 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
-    void consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
-                                           int64_t rentFee);
-    bool computeSorobanFeeRefund(uint32_t protocolVersion,
-                                 SorobanNetworkConfig const& sorobanConfig,
-                                 Config const& cfg);
+    bool
+    consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
+                                      int64_t rentFee, uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg);
 #endif
 };
 }
