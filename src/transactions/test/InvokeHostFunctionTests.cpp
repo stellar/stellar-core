@@ -891,22 +891,63 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
     auto autoBump = stateExpirationSettings.autoBumpLedgers;
 
-    SECTION("Enforce rent minimums")
+    SECTION("Enforce rent minimums and expiration")
     {
         put("unique", 0, ContractDataDurability::PERSISTENT);
         put("temp", 0, TEMPORARY);
 
         auto expectedTempExpiration =
             stateExpirationSettings.minTempEntryExpiration + ledgerSeq - 1;
-        auto expectedRestorableExpiration =
+        auto expectedPersistentExpiration =
             stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
             1;
 
+        // Check for expected minimum lifetime values
         REQUIRE(getContractDataExpiration("unique",
                                           ContractDataDurability::PERSISTENT) ==
-                expectedRestorableExpiration);
+                expectedPersistentExpiration);
         REQUIRE(getContractDataExpiration("temp", TEMPORARY) ==
                 expectedTempExpiration);
+
+        // Close ledgers until temp entry expires
+        uint32 ledger = app->getLedgerManager().getLastClosedLedgerNum();
+        for (; ledger <= expectedTempExpiration + 1; ++ledger)
+        {
+            closeLedgerOn(*app, ledger, 2, 1, 2016);
+        }
+
+        // Check that temp entry is not live
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+                expectedTempExpiration + 1);
+        REQUIRE(!isEntryLive("temp", TEMPORARY,
+                             app->getLedgerManager().getLastClosedLedgerNum()));
+        REQUIRE(isEntryLive("unique", ContractDataDurability::PERSISTENT,
+                            app->getLedgerManager().getLastClosedLedgerNum()));
+
+        // Check that we can recreate an expired TEMPORARY entry
+        putWithFootprint("temp", 0, contractKeys,
+                         {contractDataKey(contractID, makeSymbolSCVal("temp"),
+                                          TEMPORARY, DATA_ENTRY)},
+                         1000, /*expectSuccess*/ true,
+                         ContractDataDurability::TEMPORARY);
+
+        // Close ledgers until PERSISTENT entry expires
+        for (; ledger <= expectedPersistentExpiration + 1; ++ledger)
+        {
+            closeLedgerOn(*app, ledger, 2, 1, 2016);
+        }
+
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+                expectedPersistentExpiration + 1);
+        REQUIRE(!isEntryLive("unique", ContractDataDurability::PERSISTENT,
+                             app->getLedgerManager().getLastClosedLedgerNum()));
+
+        // Check that we can't recreate expired PERSISTENT
+        putWithFootprint(
+            "unique", 0, contractKeys,
+            {contractDataKey(contractID, makeSymbolSCVal("unique"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)},
+            1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT);
     }
 
     SECTION("autobump")

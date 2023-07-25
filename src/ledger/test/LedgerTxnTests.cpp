@@ -1463,27 +1463,6 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                     ltx1.commit();
                 }
             });
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            SECTION("Do not load expired entry")
-            {
-                auto codeEntry =
-                    LedgerTestUtils::generateValidLedgerEntryWithTypes(
-                        {LedgerEntryType::CONTRACT_CODE});
-                auto dataEntry =
-                    LedgerTestUtils::generateValidLedgerEntryWithTypes(
-                        {LedgerEntryType::CONTRACT_DATA});
-                setExpirationLedger(codeEntry, 0);
-                setExpirationLedger(dataEntry, 0);
-                LedgerTxn ltx1(app->getLedgerTxnRoot());
-                REQUIRE(ltx1.create(codeEntry));
-                ltx1.commit();
-
-                LedgerTxn ltx2(app->getLedgerTxnRoot());
-                REQUIRE(!ltx2.load(LedgerEntryKey(codeEntry)));
-                REQUIRE(!ltx2.load(LedgerEntryKey(dataEntry)));
-            }
-#endif
         }
 
         SECTION("load tests for all versions")
@@ -2733,57 +2712,6 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
             ltx2.commit();
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        SECTION("do not prefetch expired entries")
-        {
-            auto sorobanEntries =
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                    {CONTRACT_DATA, CONTRACT_CODE}, 100);
-            UnorderedSet<LedgerKey> sorobanKeysToPrefetch;
-            UnorderedSet<LedgerKey> expiredKeys;
-
-            LedgerTxn ltx3(root);
-            for (auto e : sorobanEntries)
-            {
-                auto k = LedgerEntryKey(e);
-                sorobanKeysToPrefetch.emplace(k);
-                if (rand_flip())
-                {
-                    expiredKeys.emplace(k);
-                    setExpirationLedger(e, 0);
-                }
-                else
-                {
-                    setExpirationLedger(e, 2);
-                }
-
-                ltx3.create(e);
-            }
-            ltx3.commit();
-
-            REQUIRE(root.prefetch(sorobanKeysToPrefetch) ==
-                    sorobanKeysToPrefetch.size());
-
-            LedgerTxn ltx4(root);
-            for (auto const& key : sorobanKeysToPrefetch)
-            {
-                auto loadedEntry = ltx4.load(key);
-                if (expiredKeys.find(key) == expiredKeys.end())
-                {
-                    REQUIRE(loadedEntry);
-                }
-                else
-                {
-                    REQUIRE(!loadedEntry);
-                }
-            }
-
-            // 100% hit rate but make it floating point
-            REQUIRE(fabs(ltx4.getPrefetchHitRate() - 1.0f) < 0.0001f);
-            ltx4.commit();
-        }
-#endif
     };
 
     SECTION("default")
