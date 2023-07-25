@@ -129,7 +129,7 @@ makeU64(uint64_t u)
 }
 
 DiagnosticEvent
-metrics_event(bool success, std::string const& topic, uint32 value)
+metricsEvent(bool success, std::string const& topic, uint32 value)
 {
     DiagnosticEvent de;
     de.inSuccessfulContractCall = success;
@@ -334,49 +334,49 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 
         // add additional diagnostic events for metrics
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "read_entry", metrics.mReadEntry));
-        diagnosticEvents.emplace_back(metrics_event(
-            metrics.mSuccess, "write_entry", metrics.mWriteEntry));
-        diagnosticEvents.emplace_back(metrics_event(
+            metricsEvent(metrics.mSuccess, "read_entry", metrics.mReadEntry));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "write_entry", metrics.mWriteEntry));
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "ledger_read_byte", metrics.mLedgerReadByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "ledger_write_byte", metrics.mLedgerWriteByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "read_key_byte", metrics.mReadKeyByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "write_key_byte", metrics.mWriteKeyByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "read_data_byte", metrics.mReadDataByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "write_data_byte", metrics.mWriteDataByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "read_code_byte", metrics.mReadCodeByte));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "write_code_byte", metrics.mWriteCodeByte));
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
-        diagnosticEvents.emplace_back(metrics_event(
+            metricsEvent(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "emit_event_byte", metrics.mEmitEventByte));
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
+            metricsEvent(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "mem_byte", metrics.mMemByte));
-        diagnosticEvents.emplace_back(metrics_event(
+            metricsEvent(metrics.mSuccess, "mem_byte", metrics.mMemByte));
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "invoke_time_nsecs", metrics.mInvokeTimeNsecs));
-        diagnosticEvents.emplace_back(metrics_event(
+        diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "max_rw_key_byte", metrics.mMaxReadWriteKeyByte));
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "max_rw_data_byte",
-                          metrics.mMaxReadWriteDataByte));
+            metricsEvent(metrics.mSuccess, "max_rw_data_byte",
+                         metrics.mMaxReadWriteDataByte));
         diagnosticEvents.emplace_back(
-            metrics_event(metrics.mSuccess, "max_rw_code_byte",
-                          metrics.mMaxReadWriteCodeByte));
-        diagnosticEvents.emplace_back(metrics_event(metrics.mSuccess,
-                                                    "max_emit_event_byte",
-                                                    metrics.mMaxEmitEventByte));
-        diagnosticEvents.emplace_back(metrics_event(metrics.mSuccess,
-                                                    "max_meta_data_size_byte",
-                                                    metrics.mMetadataSizeByte));
+            metricsEvent(metrics.mSuccess, "max_rw_code_byte",
+                         metrics.mMaxReadWriteCodeByte));
+        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
+                                                   "max_emit_event_byte",
+                                                   metrics.mMaxEmitEventByte));
+        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
+                                                   "max_meta_data_size_byte",
+                                                   metrics.mMetadataSizeByte));
 
         mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
     }
