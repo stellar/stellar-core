@@ -1179,7 +1179,7 @@ Peer::recvTxSet(StellarMessage const& msg)
     CLOG_INFO(Overlay,
               "Peer::recvTxSet received {}, trying to fulfill pending requests",
               hexAbbrev(frame->getContentsHash()));
-    auto& pendingTxSetRequests =
+    auto pendingTxSetRequests =
         mApp.getOverlayManager().getPendingTxSetRequests();
 
     for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
