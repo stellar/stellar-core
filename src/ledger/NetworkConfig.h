@@ -100,6 +100,39 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
 };
 
+// Defines the minimum values allowed for the network configuration
+// settings during upgrades. An upgrade that does not follow the minimums
+// will be rejected.
+struct MinimumSorobanNetworkConfig
+{
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 5;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 5000;
+
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 5000;
+
+    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 5;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 5000;
+    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 2;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 5000;
+
+    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 15000;
+
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10000;
+    static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES = 10000;
+
+    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 5'000'000;
+    static constexpr uint32_t LEDGER_MAX_INSTRUCTIONS = 5'000'000;
+    static constexpr uint32_t MEMORY_LIMIT = 5'000'000;
+
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 500;
+    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 5000;
+    static constexpr uint32_t MAX_CONTRACT_SIZE = 5000;
+
+    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 100;
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 259200; // 15 days
+};
+
 // Wrapper for the contract-related network configuration.
 class SorobanNetworkConfig
 {

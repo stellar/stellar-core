@@ -98,11 +98,45 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+ClaimPredicate
+recursivePredicate(uint32_t counter)
+{
+    if (counter == 10)
+    {
+        ClaimPredicate u;
+        u.type(CLAIM_PREDICATE_UNCONDITIONAL);
+        return u;
+    }
+
+    ClaimPredicate andPred;
+    andPred.type(CLAIM_PREDICATE_AND);
+    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
+    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
+
+    return andPred;
+}
+
 TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     StellarMessage tx1;
     tx1.type(TRANSACTION);
+
+    // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
+    {
+        Claimant c;
+        c.v0().destination = txtest::getAccount("acc").getPublicKey();
+        c.v0().predicate = recursivePredicate(0);
+        CreateClaimableBalanceOp cbOp;
+        cbOp.claimants.emplace_back(c);
+
+        Operation op;
+        op.body.type(CREATE_CLAIMABLE_BALANCE);
+        op.body.createClaimableBalanceOp() = cbOp;
+
+        tx1.transaction().v0().tx.operations.emplace_back(op);
+    }
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(tx1));
+    REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
@@ -225,7 +259,9 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
+
         uint32 txSize2 = static_cast<uint32>(xdr::xdr_argpack_size(tx2));
+        REQUIRE(txSize2 > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
         REQUIRE(txSize2 > txSize + 1);
 
         // Configure flow control such that tx2 can't be sent
@@ -260,7 +296,12 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     configUpgradeSet.updatedEntry.emplace_back();
                 configEntry.configSettingID(
                     CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
+                configEntry.contractBandwidth().feePropagateData1KB =
+                    InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
                 configEntry.contractBandwidth().txMaxSizeBytes = maxTxSize;
+                configEntry.contractBandwidth().ledgerMaxPropagateSizeBytes =
+                    InitialSorobanNetworkConfig::
+                        LEDGER_MAX_PROPAGATE_SIZE_BYTES;
                 res = txtest::makeConfigUpgradeSet(ltx, configUpgradeSet);
                 ltx.commit();
             }
@@ -308,8 +349,12 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     conn.getInitiator()->sendMessage(
                         std::make_shared<StellarMessage>(tx2));
 
-                    upgradeApp(app1, txSize / 2);
-                    upgradeApp(app2, txSize / 2);
+                    // We already verified that txSize2 >
+                    // MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES
+                    upgradeApp(app1,
+                               MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+                    upgradeApp(app2,
+                               MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
                     auto& sendMoreMeter = app1->getMetrics().NewMeter(
                         {"overlay", "send", "send-more"}, "message");

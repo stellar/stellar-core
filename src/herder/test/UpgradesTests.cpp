@@ -841,9 +841,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
             configEntry.configSettingID(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
             configEntry.contractCompute().feeRatePerInstructionsIncrement = 111;
-            configEntry.contractCompute().ledgerMaxInstructions = 222;
-            configEntry.contractCompute().txMemoryLimit = 333;
-            configEntry.contractCompute().txMaxInstructions = 444;
+            configEntry.contractCompute().ledgerMaxInstructions =
+                MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+            configEntry.contractCompute().txMemoryLimit =
+                MinimumSorobanNetworkConfig::MEMORY_LIMIT;
+            configEntry.contractCompute().txMaxInstructions =
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
             auto& configEntry2 =
                 configUpgradeSetXdr.updatedEntry.emplace_back();
             configEntry2.configSettingID(
@@ -855,10 +858,44 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         }
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
-        REQUIRE(sorobanConfig.ledgerMaxInstructions() == 222);
-        REQUIRE(sorobanConfig.txMemoryLimit() == 333);
-        REQUIRE(sorobanConfig.txMaxInstructions() == 444);
+        REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
+                MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
+        REQUIRE(sorobanConfig.txMemoryLimit() ==
+                MinimumSorobanNetworkConfig::MEMORY_LIMIT);
+        REQUIRE(sorobanConfig.txMaxInstructions() ==
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
         REQUIRE(sorobanConfig.feeHistorical1KB() == 555);
+    }
+    SECTION("upgrade rejected due to value below minimum")
+    {
+        // This just test one setting. We should test more.
+        auto upgrade = [&](uint32_t min, uint32_t upgradeVal) {
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            // Copy current settings
+            LedgerKey key(CONFIG_SETTING);
+            key.configSetting().configSettingID =
+                ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+            auto le = ltx2.loadWithoutRecord(key, false).current();
+            auto configSetting = le.data.configSetting();
+            configSetting.contractLedgerCost().txMaxWriteBytes = upgradeVal;
+
+            ConfigUpgradeSet configUpgradeSetXdr;
+            configUpgradeSetXdr.updatedEntry.emplace_back(configSetting);
+            configUpgradeSet = makeConfigUpgradeSet(ltx2, configUpgradeSetXdr);
+            ltx2.commit();
+
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+            REQUIRE(sorobanConfig.txMaxWriteBytes() == min);
+        };
+
+        // First set to minimum
+        upgrade(MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES,
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES);
+
+        // Then try to go below minimum
+        upgrade(MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES,
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES - 1);
     }
 }
 

@@ -605,7 +605,6 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-
     switch (cfg.configSettingID())
     {
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
@@ -641,19 +640,120 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
         }
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
-        if (cfg.contractExecutionLanes().ledgerMaxTxCount < 0)
-        {
-            return "Invalid ledgerMaxTxCount";
-        }
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+        if (cfg.contractBandwidth().feePropagateData1KB < 0 ||
+            cfg.contractBandwidth().ledgerMaxPropagateSizeBytes <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES ||
+            cfg.contractBandwidth().txMaxSizeBytes <
+                MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES)
+        {
+            return "Invalid contractBandwidth";
+        }
+        break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+        if (cfg.contractCompute().feeRatePerInstructionsIncrement < 0 ||
+            cfg.contractCompute().ledgerMaxInstructions <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS ||
+            cfg.contractCompute().txMaxInstructions <
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS ||
+            cfg.contractCompute().txMemoryLimit <
+                MinimumSorobanNetworkConfig::MEMORY_LIMIT)
+        {
+            return "Invalid contractCompute";
+        }
+        break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+        if (cfg.contractHistoricalData().feeHistorical1KB < 0)
+        {
+            return "Invalid feeHistorical1KB";
+        }
+        break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+        if (cfg.contractLedgerCost().ledgerMaxReadLedgerEntries <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES ||
+            cfg.contractLedgerCost().ledgerMaxReadBytes <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_READ_BYTES ||
+            cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES ||
+            cfg.contractLedgerCost().ledgerMaxWriteBytes <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES ||
+            cfg.contractLedgerCost().txMaxReadLedgerEntries <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES ||
+            cfg.contractLedgerCost().txMaxReadBytes <
+                MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES ||
+            cfg.contractLedgerCost().txMaxWriteLedgerEntries <
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES ||
+            cfg.contractLedgerCost().txMaxWriteBytes <
+                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES ||
+            cfg.contractLedgerCost().feeReadLedgerEntry < 0 ||
+            cfg.contractLedgerCost().feeWriteLedgerEntry < 0 ||
+            cfg.contractLedgerCost().feeRead1KB < 0 ||
+            cfg.contractLedgerCost().bucketListTargetSizeBytes <= 0 ||
+            cfg.contractLedgerCost().writeFee1KBBucketListLow < 0 ||
+            cfg.contractLedgerCost().writeFee1KBBucketListHigh < 0 ||
+            cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor < 0)
+        {
+            return "Invalid contractLedgerCost";
+        }
+        if (cfg.contractLedgerCost().ledgerMaxReadLedgerEntries <
+            cfg.contractLedgerCost().txMaxReadLedgerEntries)
+        {
+            return "ledgerMaxReadLedgerEntries < txMaxReadLedgerEntries";
+        }
+        if (cfg.contractLedgerCost().ledgerMaxReadBytes <
+            cfg.contractLedgerCost().txMaxReadBytes)
+        {
+            return "ledgerMaxReadBytes < txMaxReadBytes";
+        }
+        if (cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries <
+            cfg.contractLedgerCost().txMaxWriteLedgerEntries)
+        {
+            return "ledgerMaxWriteLedgerEntries < txMaxWriteLedgerEntries";
+        }
+        if (cfg.contractLedgerCost().ledgerMaxWriteBytes <
+            cfg.contractLedgerCost().txMaxWriteBytes)
+        {
+            return "ledgerMaxWriteBytes < txMaxWriteBytes";
+        }
+        break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+        if (cfg.contractMetaData().txMaxExtendedMetaDataSizeBytes <
+                MinimumSorobanNetworkConfig::
+                    TX_MAX_EXTENDED_META_DATA_SIZE_BYTES ||
+            cfg.contractMetaData().feeExtendedMetaData1KB < 0)
+        {
+            return "Invalid contractMetaData";
+        }
     case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:
+        if (cfg.stateExpirationSettings().maxEntryExpiration <
+                MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME ||
+            cfg.stateExpirationSettings().minTempEntryExpiration < 1 ||
+            cfg.stateExpirationSettings().minPersistentEntryExpiration <
+                MinimumSorobanNetworkConfig::
+                    MINIMUM_PERSISTENT_ENTRY_LIFETIME ||
+            cfg.stateExpirationSettings().autoBumpLedgers < 0 ||
+            cfg.stateExpirationSettings().persistentRentRateDenominator < 1 ||
+            cfg.stateExpirationSettings().tempRentRateDenominator < 1 ||
+            cfg.stateExpirationSettings().maxEntriesToExpire < 1 ||
+            cfg.stateExpirationSettings().bucketListSizeWindowSampleSize < 1 ||
+            cfg.stateExpirationSettings().evictionScanSize < 1)
+        {
+            return "Invalid stateExpirationSettings";
+        }
+
+        if (cfg.stateExpirationSettings().maxEntryExpiration <=
+            cfg.stateExpirationSettings().minPersistentEntryExpiration)
+        {
+            return "maxEntryExpiration <= minPersistentEntryExpiration";
+        }
+
+        if (cfg.stateExpirationSettings().maxEntryExpiration <=
+            cfg.stateExpirationSettings().minTempEntryExpiration)
+        {
+            return "maxEntryExpiration <= minTempEntryExpiration";
+        }
     case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
-        // TODO: https://github.com/stellar/stellar-core/issues/3802
         break;
     }
 
