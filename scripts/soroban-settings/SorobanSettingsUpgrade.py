@@ -11,6 +11,9 @@ import argparse
 import time
 import sys
 
+# The soroban branch of py-stellar-base hasn't been merged into main and released yet, so we have to install it locally.
+sys.path.append("/Users/dev/py-stellar-base")
+
 secret = "SAAPYAPTTRZMCUZFPG3G66V4ZMHTK4TWA6NS7U4F7Z3IMUD52EK4DDEV"
 # public -> GDAT5HWTGIU4TSSZ4752OUC4SABDLTLZFRPZUJ3D6LKBNEPA7V2CIG54
 
