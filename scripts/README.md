@@ -37,15 +37,14 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - Description - A python script that can setup a setting upgrade or retrieve
   current settings for Futurenet through Soroban RPC. The next step is to submit all transactions directly to stellar-core's `tx` endpoint. Note that the actual upgrade command will have to be
   submitted manually on the core nodes. 
-- Prerequisites - run `make build` under `soroban-settings/write_upgrade_bytes`
-  to the build WASM contract used to write the proposed upgrade.
-- Usage - Ex. `SorobanSettingsUpgrade.py getSettings -id 10` to print out the
+- Prerequisites - cd `soroban-settings/write_upgrade_bytes` and then run both `rustup target add wasm32-unknown-unknown` and `make build` to build the WASM contract used to write the proposed upgrade.
+- Usage - Ex. `python3 SorobanSettingsUpgrade.py getSettings -id 10` to print out the
   current state expiration settings. `SorobanSettingsUpgrade.py setupUpgrade`
   to setup the upgrade for the settings hardcoded in the script.
   -  `getSettings -id n` - Returns the `ConfigSettingEntry` for the `ConfigSettingID` enum that maps to `n`.
-  - `setupUpgrade` - `SorobanSettingsUpgrade.py setupUpgrade` to setup the upgrade for the settings hardcoded in the script.
+  - `setupUpgrade` - `python3 SorobanSettingsUpgrade.py setupUpgrade` to setup the upgrade for the settings hardcoded in the script.
     - 1. Include the settings you want to upgrade in the `ConfigUpgradeSet` that is returned in `get_upgrade_set`.
-    - 2. Run `SorobanSettingsUpgrade.py setupUpgrade`
+    - 2. Run `python3 SorobanSettingsUpgrade.py setupUpgrade`
     - 3. Take the URL encoded upgrade at the bottom of the output Ex. `url encoded upgrade: A2UbJ1lMHignaTyRtB9lTQT2DoN7zBUiepl68lfNdz5vy3TMBHuWLuVigdUG2XA/k1KxRH6RQ8WUKprvSRfm4A%3D%3D` and
     submit that to the core codes being upgraded. Make sure the UTC `upgradetime` is in the future so every validator has time to arm all nodes. Ex. `curl "http://localhost:11626/upgrades?mode=set&configupgradesetkey=A2UbJ1lMHignaTyRtB9lTQT2DoN7zBUiepl68lfNdz5vy3TMBHuWLuVigdUG2XA/k1KxRH6RQ8WUKprvSRfm4A%3D%3D&upgradetime=2023-07-19T21:59:00Z"`.
 
