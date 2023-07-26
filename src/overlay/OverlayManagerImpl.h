@@ -194,6 +194,9 @@ class OverlayManagerImpl : public OverlayManager
                              std::shared_ptr<Peer> peer) override;
     size_t getMaxAdvertSize() const override;
 
+    UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>
+    getPendingTxSetRequests() override;
+
   private:
     struct ResolvedPeers
     {
@@ -206,6 +209,7 @@ class OverlayManagerImpl : public OverlayManager
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
+    UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>> mPendingTxSetRequests;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

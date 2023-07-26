@@ -1179,8 +1179,10 @@ Peer::recvTxSet(StellarMessage const& msg)
     CLOG_INFO(Overlay,
               "Peer::recvTxSet received {}, trying to fulfill pending requests",
               hexAbbrev(frame->getContentsHash()));
-    for (auto& weakPeer : mApp.getOverlayManager()
-                              .mPendingTxSetRequests[frame->getContentsHash()])
+    auto& pendingTxSetRequests =
+        mApp.getOverlayManager().getPendingTxSetRequests();
+
+    for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
     {
         auto peer = weakPeer.lock();
         if (peer)
@@ -1188,9 +1190,7 @@ Peer::recvTxSet(StellarMessage const& msg)
             peer->sendTxSet(frame);
         }
     }
-    mApp.getOverlayManager()
-        .mPendingTxSetRequests[frame->getContentsHash()]
-        .clear();
+    pendingTxSetRequests[frame->getContentsHash()].clear();
 }
 
 void

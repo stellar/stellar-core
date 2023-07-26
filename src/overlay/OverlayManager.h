@@ -204,8 +204,8 @@ class OverlayManager
 
     virtual size_t getMaxAdvertSize() const = 0;
 
-    // Obviously this should be private and we should add a getter.
-    UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>> mPendingTxSetRequests;
+    virtual UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>> getPendingTxSetRequests() = 0;
+
 
     virtual ~OverlayManager()
     {

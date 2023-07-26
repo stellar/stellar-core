@@ -285,6 +285,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mDemandTimer(app)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
+    , mPendingTxSetRequests{}
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -1292,6 +1293,12 @@ OverlayManagerImpl::getMaxAdvertSize() const
     res = std::max<size_t>(1, res);
     res = std::min<size_t>(TX_ADVERT_VECTOR_MAX_SIZE, res);
     return res;
+}
+
+UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>
+OverlayManagerImpl::getPendingTxSetRequests()
+{
+    return mPendingTxSetRequests;
 }
 
 size_t

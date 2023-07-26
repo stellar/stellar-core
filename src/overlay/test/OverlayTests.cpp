@@ -2999,8 +2999,9 @@ TEST_CASE("overlay tx set fetching test", "[overlay][acceptance]")
     auto const numAccounts = 1;
     loadGen.generateLoad(
         GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ numAccounts,
-                                                /* txRate */ 1,
-                                                /* batchSize */ 1));
+                                                /* txRate */ 1, ));
+    // TODO: Add batchSize parameter.
+    // /* batchSize */ 1));
 
     auto& loadGenDone =
         node1->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
