@@ -37,7 +37,9 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - Description - A python script that can setup a setting upgrade or retrieve
   current settings for Futurenet through Soroban RPC. The next step is to submit all transactions directly to stellar-core's `tx` endpoint. Note that the actual upgrade command will have to be
   submitted manually on the core nodes. 
-- Prerequisites - cd `soroban-settings/write_upgrade_bytes` and then run both `rustup target add wasm32-unknown-unknown` and `make build` to build the WASM contract used to write the proposed upgrade.
+- Prerequisites
+  - cd `soroban-settings/write_upgrade_bytes` and then run both `rustup target add wasm32-unknown-unknown` and `make build` to build the WASM contract used to write the proposed upgrade.
+  - If the soroban branch of py-stellar-base (https://github.com/StellarCN/py-stellar-base/tree/soroban) has not been merged into main and released, then you'll have to checkout that branch locally and run `make install` in the `py-stellar-base` directory.
 - Usage - Ex. `python3 SorobanSettingsUpgrade.py getSettings -id 10` to print out the
   current state expiration settings. `SorobanSettingsUpgrade.py setupUpgrade`
   to setup the upgrade for the settings hardcoded in the script.

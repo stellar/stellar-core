@@ -1088,6 +1088,22 @@ An improper plan may cause issues such as:
 
 For more information look at [`docs/versioning.md`](../versioning.md).
 
+### Upgrading Soroban Settings
+
+The mechanism to update Soroban settings is more complex than updating something
+like the `baseReserve`. The upgrade endpoint in stellar-core will require
+validators to vote on a serialized `ConfigUpgradeSetKey`, which contains a
+contractID and the SHA-256 hash of the `ConfigUpgradeSet` that will be applied
+to the existing settings. The serialized `ConfigUpgradeSet` must exist in the
+ledger as `Persistent` `ContractData` under the contractID specified earlier and
+with the `SCVal` `Bytes` key that contains the SHA-256 hash of the
+`ConfigUpgradeSet`. This means that someone that wants to propose a setting
+upgrade will need to create a contract that writes the `ConfigUpgradeSet` bytes
+into `ContractData`, invoke it to write the upgrade xdr, and then share the
+serialized `ConfigUpgradeSetKey` to vote on. You can read about the Python
+script that can be used to help set these upgrades up
+[here](../../scripts/README.md#soroban-settings-upgrade).
+
 ### Example upgrade command
 
 Example here is to upgrade the protocol version to version 9 on January-31-2018.
