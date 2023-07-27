@@ -876,7 +876,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             LedgerKey key(CONFIG_SETTING);
             key.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-            auto le = ltx2.loadWithoutRecord(key, false).current();
+            auto le = ltx2.loadWithoutRecord(key).current();
             auto configSetting = le.data.configSetting();
             configSetting.contractLedgerCost().txMaxWriteBytes = upgradeVal;
 
