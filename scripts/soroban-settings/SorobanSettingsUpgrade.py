@@ -1,4 +1,4 @@
-from stellar_sdk import xdr as stellar_xdr
+from stellar_sdk.xdr import *
 from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils
 from stellar_sdk.soroban import SorobanServer
 from stellar_sdk.soroban.types import Address, Int128, Bytes
@@ -10,9 +10,6 @@ import urllib.parse
 import argparse
 import time
 import sys
-
-# The soroban branch of py-stellar-base hasn't been merged into main and released yet, so we have to install it locally.
-sys.path.append("/Users/dev/py-stellar-base")
 
 secret = "SAAPYAPTTRZMCUZFPG3G66V4ZMHTK4TWA6NS7U4F7Z3IMUD52EK4DDEV"
 # public -> GDAT5HWTGIU4TSSZ4752OUC4SABDLTLZFRPZUJ3D6LKBNEPA7V2CIG54
@@ -87,15 +84,16 @@ def deploy_contract():
     print(f"transaction: {get_transaction_data}\n\n")
 
     wasm_id = None
-    if get_transaction_data.status == GetTransactionStatus.SUCCESS:
-        assert get_transaction_data.result_meta_xdr is not None
-        transaction_meta = TransactionMeta.from_xdr(
-            get_transaction_data.result_meta_xdr
-        )
-        wasm_id = transaction_meta.v3.soroban_meta.return_value.bytes.sc_bytes.hex()  # type: ignore
-        print(f"wasm id: {wasm_id}")
 
-        assert wasm_id, "wasm id should not be empty"
+    assert get_transaction_data.status == GetTransactionStatus.SUCCESS
+    assert get_transaction_data.result_meta_xdr is not None
+    transaction_meta = TransactionMeta.from_xdr(
+        get_transaction_data.result_meta_xdr
+    )
+    wasm_id = transaction_meta.v3.soroban_meta.return_value.bytes.sc_bytes.hex()  # type: ignore
+    print(f"wasm id: {wasm_id}")
+
+    assert wasm_id, "wasm id should not be empty"
 
     print("creating contract...")
 
@@ -128,13 +126,12 @@ def deploy_contract():
 
     print(f"transaction: {get_transaction_data}\n\n")
 
-    if get_transaction_data.status == GetTransactionStatus.SUCCESS:
-        assert get_transaction_data.result_meta_xdr is not None
-        transaction_meta = stellar_xdr.TransactionMeta.from_xdr(
-            get_transaction_data.result_meta_xdr
-        )
-        result = transaction_meta.v3.soroban_meta.return_value.address.contract_id.hash  # type: ignore
-    return result
+    assert get_transaction_data.status == GetTransactionStatus.SUCCESS
+    assert get_transaction_data.result_meta_xdr is not None
+    transaction_meta = TransactionMeta.from_xdr(
+        get_transaction_data.result_meta_xdr
+    )
+    return transaction_meta.v3.soroban_meta.return_value.address.contract_id.hash  # type: ignore
 
 
 def upload_upgrade_bytes(contract_id, upgrade):
@@ -220,7 +217,7 @@ def get_settings(args):
             f"Ledger entry not found, maybe you need to activate",
         )
     assert len(resp.entries) == 1
-    data = stellar_xdr.LedgerEntryData.from_xdr(resp.entries[0].xdr)
+    data = LedgerEntryData.from_xdr(resp.entries[0].xdr)
     assert data.config_setting is not None
     print(data)
 
