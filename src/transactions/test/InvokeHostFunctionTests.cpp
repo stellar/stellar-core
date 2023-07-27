@@ -298,6 +298,24 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
     auto const& contractID = contractKeys[0].contractData().contract;
+    auto isValid = [&](SorobanResources const& resources,
+                       SCAddress const& address, SCSymbol const& functionName,
+                       std::vector<SCVal> const& args) -> bool {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = address;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return tx->checkValid(*app, ltx, 0, 0, 0);
+    };
+
     auto call = [&](SorobanResources const& resources, SCAddress const& address,
                     SCSymbol const& functionName,
                     std::vector<SCVal> const& args, bool success) {
@@ -459,6 +477,81 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     {
         resources.readBytes = 100;
         call(resources, contractID, scFunc, {sc7, sc16}, false);
+    }
+
+    SECTION("invalid footprint keys")
+    {
+        auto invalidFootprint = [&](xdr::xvector<stellar::LedgerKey>&
+                                        footprint) {
+            auto acc = root.create(
+                "acc", app->getLedgerManager().getLastMinBalance(1));
+            SECTION("valid")
+            {
+                // add a valid trustline to the footprint to make sure the
+                // initial tx is valid.
+                footprint.emplace_back(
+                    trustlineKey(root.getPublicKey(), makeAsset(acc, "USD")));
+                REQUIRE(isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("native asset trustline")
+            {
+                footprint.emplace_back(
+                    trustlineKey(root.getPublicKey(), makeNativeAsset()));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("issuer trustline")
+            {
+                footprint.emplace_back(
+                    trustlineKey(root.getPublicKey(), makeAsset(root, "USD")));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            auto invalidAssets = testutil::getInvalidAssets(root);
+            for (size_t i = 0; i < invalidAssets.size(); ++i)
+            {
+                auto key = trustlineKey(acc.getPublicKey(), invalidAssets[i]);
+                SECTION("invalid asset " + std::to_string(i))
+                {
+                    footprint.emplace_back(key);
+                    REQUIRE(
+                        !isValid(resources, contractID, scFunc, {sc7, sc16}));
+                }
+            }
+            SECTION("offer")
+            {
+                footprint.emplace_back(offerKey(root, 1));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("data")
+            {
+                footprint.emplace_back(dataKey(root, "name"));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("claimable balance")
+            {
+                footprint.emplace_back(
+                    claimableBalanceKey(ClaimableBalanceID{}));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("liquidity pool")
+            {
+                footprint.emplace_back(liquidityPoolKey(PoolID{}));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+            SECTION("config setting")
+            {
+                footprint.emplace_back(configSettingKey(ConfigSettingID{}));
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
+        };
+
+        SECTION("readOnly")
+        {
+            invalidFootprint(resources.footprint.readOnly);
+        }
+        SECTION("readWrite")
+        {
+            invalidFootprint(resources.footprint.readWrite);
+        }
     }
 }
 
