@@ -1262,6 +1262,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          /*expectSuccess*/ false,
                          ContractDataDurability::PERSISTENT);
 
+        // Bump operation should skip expired entries
+        bumpOp(1'000, {lk}, 0);
+
+        // Make sure expirationLedger is unchanged by bumpOp
+        checkContractDataExpirationLedger(
+            "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
+
         // Restore the entry
         restoreOp({lk}, 61);
 
