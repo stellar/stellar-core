@@ -112,45 +112,38 @@ validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
     return true;
 }
 
+SCVal
+makeSymbol(std::string const& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(str.begin(), str.end());
+    return val;
+}
+
+SCVal
+makeU64(uint64_t u)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u;
+    return val;
+}
+
+DiagnosticEvent
+metricsEvent(bool success, std::string const& topic, uint32 value)
+{
+    DiagnosticEvent de;
+    de.inSuccessfulContractCall = success;
+    de.event.type = ContractEventType::DIAGNOSTIC;
+    SCVec topics = {
+        makeSymbol("core_metrics"),
+        makeSymbol(topic),
+    };
+    de.event.body.v0().topics = topics;
+    de.event.body.v0().data = makeU64(value);
+    return de;
+}
+
 } // namespace
-
-InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
-                                                     OperationResult& res,
-                                                     TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mInvokeHostFunction(mOperation.body.invokeHostFunctionOp())
-{
-}
-
-bool
-InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
-{
-    return header.ledgerVersion >= 20;
-}
-
-bool
-InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
-{
-    throw std::runtime_error(
-        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
-}
-
-void
-InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
-    Config const& cfg, InvokeHostFunctionOutput const& output)
-{
-    if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        xdr::xvector<DiagnosticEvent> diagnosticEvents;
-        for (auto const& e : output.diagnostic_events)
-        {
-            DiagnosticEvent evt;
-            xdr::xdr_from_opaque(e.data, evt);
-            diagnosticEvents.emplace_back(evt);
-        }
-        mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
-    }
-}
 
 struct HostFunctionMetrics
 {
@@ -174,8 +167,16 @@ struct HostFunctionMetrics
     uint32 mEmitEvent{0};
     uint32 mEmitEventByte{0};
 
+    // host runtime metrics
     uint32 mCpuInsn{0};
     uint32 mMemByte{0};
+    uint32 mInvokeTimeNsecs{0};
+
+    // max single entity size metrics
+    uint32 mMaxReadWriteKeyByte{0};
+    uint32 mMaxReadWriteDataByte{0};
+    uint32 mMaxReadWriteCodeByte{0};
+    uint32 mMaxEmitEventByte{0};
 
     uint32 mMetadataSizeByte{0};
 
@@ -190,14 +191,17 @@ struct HostFunctionMetrics
     {
         mReadEntry++;
         mReadKeyByte += keySize;
+        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
         mLedgerReadByte += keySize + entrySize;
         if (isCodeEntry)
         {
             mReadCodeByte += keySize + entrySize;
+            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
             mReadDataByte += keySize + entrySize;
+            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
 
@@ -206,14 +210,17 @@ struct HostFunctionMetrics
     {
         mWriteEntry++;
         mWriteKeyByte += keySize;
+        mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
         mLedgerWriteByte += keySize + entrySize;
         if (isCodeEntry)
         {
             mWriteCodeByte += keySize + entrySize;
+            mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
             mWriteDataByte += keySize + entrySize;
+            mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
 
@@ -257,6 +264,19 @@ struct HostFunctionMetrics
             .Mark(mCpuInsn);
         mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
             .Mark(mMemByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
+            .Mark(mInvokeTimeNsecs);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
+            .Mark(mMaxReadWriteKeyByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-data-byte"}, "byte")
+            .Mark(mMaxReadWriteDataByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-code-byte"}, "byte")
+            .Mark(mMaxReadWriteCodeByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "max-emit-event-byte"}, "byte")
+            .Mark(mMaxEmitEventByte);
 
         if (mSuccess)
         {
@@ -275,6 +295,92 @@ struct HostFunctionMetrics
         return mMetrics.NewTimer({"soroban", "host-fn-op", "exec"}).TimeScope();
     }
 };
+
+InvokeHostFunctionOpFrame::InvokeHostFunctionOpFrame(Operation const& op,
+                                                     OperationResult& res,
+                                                     TransactionFrame& parentTx)
+    : OperationFrame(op, res, parentTx)
+    , mInvokeHostFunction(mOperation.body.invokeHostFunctionOp())
+{
+}
+
+bool
+InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
+{
+    return header.ledgerVersion >= 20;
+}
+
+bool
+InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
+{
+    throw std::runtime_error(
+        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
+}
+
+void
+InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
+    Config const& cfg, InvokeHostFunctionOutput const& output,
+    HostFunctionMetrics const& metrics)
+{
+    if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        xdr::xvector<DiagnosticEvent> diagnosticEvents;
+        for (auto const& e : output.diagnostic_events)
+        {
+            DiagnosticEvent evt;
+            xdr::xdr_from_opaque(e.data, evt);
+            diagnosticEvents.emplace_back(evt);
+        }
+
+        // add additional diagnostic events for metrics
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "read_entry", metrics.mReadEntry));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "write_entry", metrics.mWriteEntry));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "ledger_read_byte", metrics.mLedgerReadByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "ledger_write_byte", metrics.mLedgerWriteByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "read_key_byte", metrics.mReadKeyByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "write_key_byte", metrics.mWriteKeyByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "read_data_byte", metrics.mReadDataByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "write_data_byte", metrics.mWriteDataByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "read_code_byte", metrics.mReadCodeByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "write_code_byte", metrics.mWriteCodeByte));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "emit_event", metrics.mEmitEvent));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "emit_event_byte", metrics.mEmitEventByte));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "cpu_insn", metrics.mCpuInsn));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "mem_byte", metrics.mMemByte));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "invoke_time_nsecs", metrics.mInvokeTimeNsecs));
+        diagnosticEvents.emplace_back(metricsEvent(
+            metrics.mSuccess, "max_rw_key_byte", metrics.mMaxReadWriteKeyByte));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "max_rw_data_byte",
+                         metrics.mMaxReadWriteDataByte));
+        diagnosticEvents.emplace_back(
+            metricsEvent(metrics.mSuccess, "max_rw_code_byte",
+                         metrics.mMaxReadWriteCodeByte));
+        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
+                                                   "max_emit_event_byte",
+                                                   metrics.mMaxEmitEventByte));
+        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
+                                                   "max_meta_data_size_byte",
+                                                   metrics.mMetadataSizeByte));
+
+        mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
+    }
+}
 
 bool
 InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
@@ -409,7 +515,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         else
         {
-            maybePopulateDiagnosticEvents(cfg, out);
+            maybePopulateDiagnosticEvents(cfg, out, metrics);
         }
     }
     catch (std::exception& e)
@@ -419,6 +525,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
     metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
+    metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
+
     if (!metrics.mSuccess)
     {
         if (resources.instructions < out.cpu_insns ||
@@ -602,8 +710,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
-        metrics.mEmitEventByte += static_cast<uint32>(buf.data.size());
-        metrics.mMetadataSizeByte += static_cast<uint32>(buf.data.size());
+        uint32 eventSize = static_cast<uint32>(buf.data.size());
+        metrics.mEmitEventByte += eventSize;
+        metrics.mMaxEmitEventByte =
+            std::max(metrics.mMaxEmitEventByte, eventSize);
+        metrics.mMetadataSizeByte += eventSize;
         if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -614,7 +725,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         success.events.emplace_back(evt);
     }
 
-    maybePopulateDiagnosticEvents(cfg, out);
+    maybePopulateDiagnosticEvents(cfg, out, metrics);
     // This may throw, but only in case of the Core version misconfiguration.
     int64_t rentFee = rust_bridge::compute_rent_fee(
         cfg.CURRENT_LEDGER_PROTOCOL_VERSION,

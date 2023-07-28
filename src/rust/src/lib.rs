@@ -71,6 +71,7 @@ mod rust_bridge {
         expiration_bumps: Vec<Bump>,
         cpu_insns: u64,
         mem_bytes: u64,
+        time_nsecs: u64,
     }
 
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
