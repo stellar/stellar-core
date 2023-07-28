@@ -1,12 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contractmeta, Env, Bytes, BytesN};
+use soroban_sdk::{contract, contractimpl, Env, Bytes, BytesN};
 
 pub(crate) const BUMP_AMOUNT: u32 = 518400; // 30 days
-
-contractmeta!(
-    key = "v",
-    val = "1"
-);
 
 #[contract]
 pub struct WriteBytesContract;
@@ -21,10 +16,6 @@ impl WriteBytesContract {
         env.storage().instance().bump(BUMP_AMOUNT);
 
         hash
-    }
-
-    pub fn get(env: Env, hash: BytesN<32>) -> Bytes {
-        env.storage().persistent().get(&hash).unwrap()
     }
 }
 

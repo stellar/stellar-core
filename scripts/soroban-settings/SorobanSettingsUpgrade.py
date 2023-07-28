@@ -183,9 +183,7 @@ Note that the upgrade is specified in code at the moment (upgrade = get_upgrade_
 
 def setup_upgrade(args):
     # Get upgrade xdr
-
     upgrade = get_upgrade_set()
-    upgrade_xdr = upgrade.to_xdr()
     upgrade_hash = utils.sha256(upgrade.to_xdr_bytes())
 
     # Deploy contract
