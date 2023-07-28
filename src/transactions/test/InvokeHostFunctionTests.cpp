@@ -908,22 +908,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key1", 0, ContractDataDurability::PERSISTENT);
         put("key2", 21, ContractDataDurability::PERSISTENT);
 
-        // Failure: contract data isn't in footprint
-        putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
-                         ContractDataDurability::PERSISTENT);
-        delWithFootprint("key1", contractKeys, {}, false,
-                         ContractDataDurability::PERSISTENT);
-
-        // Failure: contract data is read only
-        auto readOnlyFootprint = contractKeys;
-        readOnlyFootprint.push_back(
-            contractDataKey(contractID, makeSymbolSCVal("key2"),
-                            ContractDataDurability::PERSISTENT, DATA_ENTRY));
-        putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
-                         ContractDataDurability::PERSISTENT);
-        delWithFootprint("key2", readOnlyFootprint, {}, false,
-                         ContractDataDurability::PERSISTENT);
-
         // Failure: insufficient write bytes
         putWithFootprint(
             "key2", 88888, contractKeys,
@@ -1198,6 +1182,46 @@ TEST_CASE("contract storage", "[tx][soroban]")
         REQUIRE(getContractDataExpiration("key2",
                                           ContractDataDurability::PERSISTENT) ==
                 maxExpiration);
+    }
+    SECTION("footprint tests")
+    {
+        put("key1", 0, ContractDataDurability::PERSISTENT);
+        put("key2", 21, ContractDataDurability::PERSISTENT);
+        SECTION("unused readWrite key")
+        {
+            auto acc = root.create(
+                "acc", app->getLedgerManager().getLastMinBalance(1));
+
+            REQUIRE(doesAccountExist(*app, acc));
+
+            putWithFootprint(
+                "key1", 0, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key1"),
+                                 ContractDataDurability::PERSISTENT,
+                                 DATA_ENTRY),
+                 accountKey(acc)},
+                1000, true, ContractDataDurability::PERSISTENT);
+            // make sure account still exists and hasn't change
+            REQUIRE(doesAccountExist(*app, acc));
+        }
+        SECTION("incorrect footprint")
+        {
+            // Failure: contract data isn't in footprint
+            putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
+                             ContractDataDurability::PERSISTENT);
+            delWithFootprint("key1", contractKeys, {}, false,
+                             ContractDataDurability::PERSISTENT);
+
+            // Failure: contract data is read only
+            auto readOnlyFootprint = contractKeys;
+            readOnlyFootprint.push_back(contractDataKey(
+                contractID, makeSymbolSCVal("key2"),
+                ContractDataDurability::PERSISTENT, DATA_ENTRY));
+            putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
+                             ContractDataDurability::PERSISTENT);
+            delWithFootprint("key2", readOnlyFootprint, {}, false,
+                             ContractDataDurability::PERSISTENT);
+        }
     }
 }
 
