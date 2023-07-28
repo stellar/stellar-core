@@ -62,7 +62,7 @@ impl From<CxxTransactionResources> for TransactionResources {
             write_entries: value.write_entries,
             read_bytes: value.read_bytes,
             write_bytes: value.write_bytes,
-            metadata_size_bytes: value.metadata_size_bytes,
+            contract_events_size_bytes: value.contract_events_size_bytes,
             transaction_size_bytes: value.transaction_size_bytes,
         }
     }
@@ -77,8 +77,8 @@ impl From<CxxFeeConfiguration> for FeeConfiguration {
             fee_per_read_1kb: value.fee_per_read_1kb,
             fee_per_write_1kb: value.fee_per_write_1kb,
             fee_per_historical_1kb: value.fee_per_historical_1kb,
-            fee_per_metadata_1kb: value.fee_per_metadata_1kb,
-            fee_per_propagate_1kb: value.fee_per_propagate_1kb,
+            fee_per_contract_event_1kb: value.fee_per_contract_event_1kb,
+            fee_per_transaction_size_1kb: value.fee_per_transaction_size_1kb,
         }
     }
 }

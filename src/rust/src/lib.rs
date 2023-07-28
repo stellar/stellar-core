@@ -127,7 +127,7 @@ mod rust_bridge {
         write_entries: u32,
         read_bytes: u32,
         write_bytes: u32,
-        metadata_size_bytes: u32,
+        contract_events_size_bytes: u32,
         transaction_size_bytes: u32,
     }
 
@@ -138,8 +138,8 @@ mod rust_bridge {
         fee_per_read_1kb: i64,
         fee_per_write_1kb: i64,
         fee_per_historical_1kb: i64,
-        fee_per_metadata_1kb: i64,
-        fee_per_propagate_1kb: i64,
+        fee_per_contract_event_1kb: i64,
+        fee_per_transaction_size_1kb: i64,
     }
 
     struct CxxLedgerEntryRentChange {

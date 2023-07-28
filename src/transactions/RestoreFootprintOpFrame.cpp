@@ -105,9 +105,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         auto& restoredEntry = ltxe.current();
         metrics.mLedgerWriteByte += keySize + entrySize;
 
-        if (resources.extendedMetaDataSizeBytes <
-                metrics.mLedgerWriteByte * 2 ||
-            resources.writeBytes < metrics.mLedgerWriteByte ||
+        if (resources.writeBytes < metrics.mLedgerWriteByte ||
             resources.readBytes < metrics.mLedgerReadByte)
         {
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);

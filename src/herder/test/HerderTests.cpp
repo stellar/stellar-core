@@ -1646,7 +1646,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.instructions = 800'000;
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
-        resources.extendedMetaDataSizeBytes = 3000;
+        resources.contractEventsSizeBytes = 0;
         auto sorobanTx =
             createUploadWasmTx(*app, acc2, baseFee,
                                /* refundableFee */ 1200, resources);
@@ -1663,8 +1663,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                     rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
                 res.writeBytes =
                     rand_uniform<uint32_t>(1, conf.txMaxWriteBytes());
-                res.extendedMetaDataSizeBytes = rand_uniform<uint32_t>(
-                    1, conf.txMaxExtendedMetaDataSizeBytes());
+                res.contractEventsSizeBytes = rand_uniform<uint32_t>(
+                    1, conf.txMaxContractEventsSizeBytes());
                 auto read =
                     rand_uniform<uint32_t>(0, conf.txMaxReadLedgerEntries());
                 auto write = rand_uniform<uint32_t>(
@@ -1692,7 +1692,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
                           "data bytes, {} read ledger entries, {} "
                           "write ledger entries",
                           res.instructions, res.readBytes, res.writeBytes,
-                          res.extendedMetaDataSizeBytes, read, write);
+                          res.contractEventsSizeBytes, read, write);
             }
             return txs;
         };
@@ -1786,7 +1786,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.instructions = 1;
             resources.readBytes = 1;
             resources.writeBytes = 1;
-            resources.extendedMetaDataSizeBytes = 1;
+            resources.contractEventsSizeBytes = 1;
 
             auto smallSorobanLowFee = createUploadWasmTx(
                 *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
@@ -4372,7 +4372,7 @@ TEST_CASE("do not flood too many soroban transactions",
     resources.instructions = 800'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.extendedMetaDataSizeBytes = 3000;
+    resources.contractEventsSizeBytes = 0;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
         auto txFee = baseFee;

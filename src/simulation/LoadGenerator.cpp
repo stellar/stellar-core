@@ -798,7 +798,7 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
     resources.instructions = 200'000;
     resources.readBytes = 1000;
     resources.writeBytes = 5000;
-    resources.extendedMetaDataSizeBytes = 6000;
+    resources.contractEventsSizeBytes = 0;
     auto inclusionFeeDistr = uniform_int_distribution<uint32_t>(100, 1000);
     auto tx = sorobanTransactionFrameFromOps(
         mApp.getNetworkID(), *account, {deployOp}, {}, resources,

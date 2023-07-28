@@ -208,7 +208,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     uploadResources.instructions = 200'000;
     uploadResources.readBytes = 1000;
     uploadResources.writeBytes = 5000;
-    uploadResources.extendedMetaDataSizeBytes = 6000;
+    uploadResources.contractEventsSizeBytes = 0;
     submitTxToUploadWasm(app, uploadOp, uploadResources,
                          contractCodeLedgerKey.contractCode().hash,
                          uploadHF.wasm(), 100'000, 1'200);
@@ -281,7 +281,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     createResources.instructions = 200'000;
     createResources.readBytes = 5000;
     createResources.writeBytes = 5000;
-    createResources.extendedMetaDataSizeBytes = 6000;
+    createResources.contractEventsSizeBytes = 0;
 
     submitTxToCreateContract(
         app, createOp, createResources, contractID, scContractSourceRefKey,
@@ -340,7 +340,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 65'117);
+            REQUIRE(tx->getInclusionFee() == 66'094);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -429,8 +429,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     resources.footprint.readOnly = contractKeys;
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
-    resources.writeBytes = 1000;
-    resources.extendedMetaDataSizeBytes = 3000;
+    resources.writeBytes = 0;
+    resources.contractEventsSizeBytes = 100;
 
     SECTION("correct invocation")
     {
@@ -526,7 +526,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.instructions = 4'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
-        resources.extendedMetaDataSizeBytes = 3000;
+        resources.contractEventsSizeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
@@ -764,15 +764,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SorobanResources bumpResources;
         bumpResources.footprint.readOnly = readOnly;
         bumpResources.instructions = 0;
-        bumpResources.readBytes = 5'000;
+        bumpResources.readBytes = 5000;
         bumpResources.writeBytes = 0;
-        bumpResources.extendedMetaDataSizeBytes = 10'000;
+        bumpResources.contractEventsSizeBytes = 0;
 
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), root, {bumpOp},
-                                           {}, bumpResources, 100'000, 2'000);
+                                           {}, bumpResources, 100'000, 1200);
 
-        runExpirationOp(root, tx, 2'000, expectedRefundableFeeCharged);
+        runExpirationOp(root, tx, 1200, expectedRefundableFeeCharged);
     };
 
     auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite,
@@ -783,15 +783,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SorobanResources bumpResources;
         bumpResources.footprint.readWrite = readWrite;
         bumpResources.instructions = 0;
-        bumpResources.readBytes = 5'000;
-        bumpResources.writeBytes = 5'000;
-        bumpResources.extendedMetaDataSizeBytes = 10'000;
+        bumpResources.readBytes = 5000;
+        bumpResources.writeBytes = 5000;
+        bumpResources.contractEventsSizeBytes = 0;
 
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                  {restoreOp}, {}, bumpResources,
-                                                 100'000, 2'000);
-        runExpirationOp(root, tx, 2'000, expectedRefundableFeeCharged);
+                                                 100'000, 1'200);
+        runExpirationOp(root, tx, 1200, expectedRefundableFeeCharged);
     };
 
     auto delWithFootprint = [&](std::string const& key,
@@ -864,6 +864,28 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 getExpirationLedger(ltxe.current()));
     };
 
+    SorobanNetworkConfig refConfig;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }
+
+    auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
+    auto ledgerSeq = getLedgerSeq(*app);
+
+    // Autobump is disabled by default, enable it for some tests
+    auto enableAutobump = [&]() {
+        auto autobumpAmount = 10;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto networkConfig =
+            app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        auto newStateExpirationSettings = stateExpirationSettings;
+        newStateExpirationSettings.autoBumpLedgers = autobumpAmount;
+        networkConfig.stateExpirationSettings() = newStateExpirationSettings;
+        app->getLedgerManager().setSorobanNetworkConfig(networkConfig);
+        return autobumpAmount;
+    };
+
     SECTION("default limits")
     {
         put("key1", 0, ContractDataDurability::PERSISTENT);
@@ -898,15 +920,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         del("key1", ContractDataDurability::PERSISTENT);
         del("key2", ContractDataDurability::PERSISTENT);
     }
-
-    SorobanNetworkConfig refConfig;
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    }
-
-    auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
-    auto ledgerSeq = getLedgerSeq(*app);
 
     SECTION("failure: entry exceeds max size")
     {
@@ -974,7 +987,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract instance and wasm")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 1715);
+            restoreOp(contractKeys, 68);
 
             // Instance should now be useable
             putWithFootprint(
@@ -993,7 +1006,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract instance, not wasm")
         {
             // Only restore contract instance
-            restoreOp({contractKeys[0]}, 68);
+            restoreOp({contractKeys[0]}, 3);
 
             // invocation should fail
             putWithFootprint(
@@ -1012,7 +1025,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract wasm, not instance")
         {
             // Only restore WASM
-            restoreOp({contractKeys[1]}, 1648);
+            restoreOp({contractKeys[1]}, 65);
 
             // invocation should fail
             putWithFootprint(
@@ -1031,16 +1044,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("lifetime extensions")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 1715);
+            restoreOp(contractKeys, 68);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
 
             // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]}, 69);
+            bumpOp(instanceBumpAmount, {contractKeys[0]}, 4);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 1754);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 171);
 
             checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
                                      ledgerSeq + instanceBumpAmount);
@@ -1121,19 +1134,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1000, /*expectSuccess*/ false, ContractDataDurability::PERSISTENT);
     }
 
-    // Autobump is disabled by default, enable it for some tests
-    auto enableAutobump = [&]() {
-        auto autobumpAmount = 10;
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        auto newStateExpirationSettings = stateExpirationSettings;
-        newStateExpirationSettings.autoBumpLedgers = autobumpAmount;
-        networkConfig.stateExpirationSettings() = newStateExpirationSettings;
-        app->getLedgerManager().setSorobanNetworkConfig(networkConfig);
-        return autobumpAmount;
-    };
-
     SECTION("autobump")
     {
         auto autobump = enableAutobump();
@@ -1207,7 +1207,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
              contractDataKey(contractID, makeSymbolSCVal("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            178);
+            4);
 
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
@@ -1227,7 +1227,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 1744);
+        bumpOp(10'000, contractKeys, 97);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1270,7 +1270,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
 
         // Restore the entry
-        restoreOp({lk}, 61);
+        restoreOp({lk}, 3);
 
         ledgerSeq = getLedgerSeq(*app);
         checkContractDataExpirationState(
@@ -1382,7 +1382,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.extendedMetaDataSizeBytes = 3000;
+    resources.contractEventsSizeBytes = 100;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
                                              {}, resources, 100'000, 1200);
@@ -1393,7 +1393,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 22);
+    REQUIRE(opEvents.size() == 21);
 
     auto const& call_ev = opEvents.at(0);
     REQUIRE(!call_ev.inSuccessfulContractCall);
@@ -1446,11 +1446,11 @@ TEST_CASE("complex contract", "[tx][soroban]")
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 1000;
-        resources.extendedMetaDataSizeBytes = 3000;
+        resources.contractEventsSizeBytes = 200;
 
         auto verifyDiagnosticEvents =
             [&](xdr::xvector<DiagnosticEvent> events) {
-                REQUIRE(events.size() == 23);
+                REQUIRE(events.size() == 22);
 
                 auto call_ev = events.at(0);
                 REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
@@ -1467,9 +1467,9 @@ TEST_CASE("complex contract", "[tx][soroban]")
                 auto const& metrics_ev = events.back();
                 REQUIRE(metrics_ev.event.type == ContractEventType::DIAGNOSTIC);
                 auto const& v0 = metrics_ev.event.body.v0();
-                REQUIRE((v0.topics.size() == 2 &&
-                         v0.topics.at(0).sym() == "core_metrics" &&
-                         v0.topics.at(1).sym() == "max_meta_data_size_byte"));
+                REQUIRE(v0.topics.size() == 2);
+                REQUIRE(v0.topics.at(0).sym() == "core_metrics");
+                REQUIRE(v0.topics.at(1).sym() == "max_emit_event_byte");
                 REQUIRE(v0.data.type() == SCV_U64);
             };
 
@@ -1551,7 +1551,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
     createResources.instructions = 400'000;
     createResources.readBytes = 1000;
     createResources.writeBytes = 1000;
-    createResources.extendedMetaDataSizeBytes = 3000;
+    createResources.contractEventsSizeBytes = 0;
 
     auto metadataKey = LedgerKey(CONTRACT_DATA);
     metadataKey.contractData().contract = contractID;
@@ -1625,7 +1625,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1072;
-    resources.extendedMetaDataSizeBytes = 3000;
+    resources.contractEventsSizeBytes = 400;
 
     LedgerKey accountLedgerKey(ACCOUNT);
     accountLedgerKey.account().accountID = root.getPublicKey();

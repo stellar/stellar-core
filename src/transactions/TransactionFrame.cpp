@@ -603,8 +603,8 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     {
         return false;
     }
-    if (resources.extendedMetaDataSizeBytes >
-        config.txMaxExtendedMetaDataSizeBytes())
+    if (resources.contractEventsSizeBytes >
+        config.txMaxContractEventsSizeBytes())
     {
         return false;
     }
@@ -720,16 +720,19 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.transaction_size_bytes =
         static_cast<uint32>(xdr::xdr_size(mEnvelope));
 
-    cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
+    cxxResources.contract_events_size_bytes =
+        txResources.contractEventsSizeBytes;
 
     if (useConsumedRefundableResources)
     {
-        // It is possible that consumed metadata size is higher than the
+        // It is possible that consumed events size is higher than the
         // declared size (in such a case the transaction will fail). We
         // still don't want to overcharge the fees though.
-        if (cxxResources.metadata_size_bytes > mConsumedSorobanMetadataSize)
+        if (cxxResources.contract_events_size_bytes >
+            mConsumedContractEventsSizeBytes)
         {
-            cxxResources.metadata_size_bytes = mConsumedSorobanMetadataSize;
+            cxxResources.contract_events_size_bytes =
+                mConsumedContractEventsSizeBytes;
         }
     }
 
@@ -780,10 +783,10 @@ TransactionFrame::maybeComputeSorobanResourceFee(
 }
 
 void
-TransactionFrame::consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
-                                                    int64_t rentFee)
+TransactionFrame::consumeRefundableSorobanResources(
+    uint32_t contractEventSizeBytes, int64_t rentFee)
 {
-    mConsumedSorobanMetadataSize += metadataSizeBytes;
+    mConsumedContractEventsSizeBytes += contractEventSizeBytes;
     mConsumedRentFee += rentFee;
 }
 
