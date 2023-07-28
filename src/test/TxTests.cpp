@@ -1726,7 +1726,7 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
     le.data.contractData().body.bodyType(DATA_ENTRY);
     le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     le.data.contractData().contract.contractId() = contractID;
-    le.data.contractData().durability = PERSISTENT;
+    le.data.contractData().durability = TEMPORARY;
     le.data.contractData().expirationLedgerSeq = UINT32_MAX;
     le.data.contractData().key = key;
     le.data.contractData().body.data().val = val;
