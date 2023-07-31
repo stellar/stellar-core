@@ -91,6 +91,7 @@ struct InitialSorobanNetworkConfig
 
     static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
     static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
+    static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
     static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 252'480;

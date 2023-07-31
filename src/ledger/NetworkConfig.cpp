@@ -351,6 +351,8 @@ initialStateExpirationSettings(Config const& cfg)
         InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
     entry.stateExpirationSettings().maxEntriesToExpire =
         InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    entry.stateExpirationSettings().startingEvictionScanLevel =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
     entry.stateExpirationSettings().persistentRentRateDenominator =
         InitialSorobanNetworkConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
@@ -478,6 +480,17 @@ initialbucketListSizeWindow(Application& app)
         entry.bucketListSizeWindow().push_back(blSize);
     }
 
+    return entry;
+}
+
+ConfigSettingEntry
+initialEvictionIterator()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_EVICTION_ITERATOR);
+    entry.evictionIterator().bucketFileOffset = 0;
+    entry.evictionIterator().bucketListLevel =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+    entry.evictionIterator().isCurrBucket = true;
     return entry;
 }
 
@@ -613,11 +626,13 @@ bool
 SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     ConfigSettingEntry const& cfg)
 {
-    // While the BucketList size window is stored in a ConfigSetting
-    // entry, the BucketList defines these values, they should never be
-    // changed via upgrade
+    // While the BucketList size window and eviction iterator are stored in a
+    // ConfigSetting entry, the BucketList defines these values, they should
+    // never be changed via upgrade
     return cfg.configSettingID() ==
-           ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+               ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW ||
+           cfg.configSettingID() ==
+               ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
 #endif
@@ -645,6 +660,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialStateExpirationSettings(cfg), ltx);
 
     createConfigSettingEntry(initialbucketListSizeWindow(app), ltx);
+    createConfigSettingEntry(initialEvictionIterator(), ltx);
 #endif
 }
 
