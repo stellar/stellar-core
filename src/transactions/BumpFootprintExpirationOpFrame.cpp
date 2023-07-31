@@ -68,10 +68,10 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
     for (auto const& lk : footprint.readOnly)
     {
-        // When we move to use EXPIRATION_EXTENSIONS, this should become a
+        // TODO: when we move to use EXPIRATION_EXTENSIONS, this should become a
         // loadWithoutRecord, and the metrics should be updated.
         auto ltxe = ltx.load(lk);
-        if (!ltxe)
+        if (!ltxe || !isLive(ltxe.current(), ledgerSeq))
         {
             // Skip the missing entries. Since this happens at apply
             // time and we refund the unspent fees, it is more beneficial

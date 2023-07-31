@@ -361,8 +361,7 @@ TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
         // this is buggy caching that existed in old versions of the protocol
         if (res)
         {
-            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
-                                               /*loadExpiredEntry=*/false);
+            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
             mCachedAccount = newest;
         }
         else
@@ -395,8 +394,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
             res = ltx.create(*mCachedAccount);
         }
 
-        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
-                                           /*loadExpiredEntry=*/false);
+        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
         mCachedAccount = newest;
         return res;
     }

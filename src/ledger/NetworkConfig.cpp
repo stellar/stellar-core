@@ -562,7 +562,7 @@ SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
 #endif
 }
@@ -574,7 +574,7 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractDataKeySizeBytes =
         le.data.configSetting().contractDataKeySizeBytes();
 #endif
@@ -587,7 +587,7 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractDataEntrySizeBytes =
         le.data.configSetting().contractDataEntrySizeBytes();
 #endif
@@ -600,7 +600,7 @@ SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractCompute();
     mLedgerMaxInstructions = configSetting.ledgerMaxInstructions;
     mTxMaxInstructions = configSetting.txMaxInstructions;
@@ -617,7 +617,7 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractLedgerCost();
     mLedgerMaxReadLedgerEntries = configSetting.ledgerMaxReadLedgerEntries;
     mLedgerMaxReadBytes = configSetting.ledgerMaxReadBytes;
@@ -645,7 +645,7 @@ SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting =
         le.data.configSetting().contractHistoricalData();
     mFeeHistorical1KB = configSetting.feeHistorical1KB;
@@ -659,7 +659,7 @@ SorobanNetworkConfig::loadMetaDataSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractMetaData();
     mFeeExtendedMetaData1KB = configSetting.feeExtendedMetaData1KB;
     mTxMaxExtendedMetaDataSizeBytes =
@@ -674,7 +674,7 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractBandwidth();
     mLedgerMaxPropagateSizeBytes = configSetting.ledgerMaxPropagateSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
@@ -689,7 +689,7 @@ SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
 #endif
 }
@@ -701,7 +701,7 @@ SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
 #endif
 }
@@ -713,7 +713,7 @@ SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting =
         le.data.configSetting().contractExecutionLanes();
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
@@ -727,7 +727,7 @@ SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-    auto txle = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+    auto txle = ltx.loadWithoutRecord(key);
     releaseAssert(txle);
     auto const& leVector =
         txle.current().data.configSetting().bucketListSizeWindow();
@@ -807,7 +807,7 @@ SorobanNetworkConfig::loadStateExpirationSettings(AbstractLedgerTxn& ltx)
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION;
-    auto le = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false).current();
+    auto le = ltx.loadWithoutRecord(key).current();
     mStateExpirationSettings =
         le.data.configSetting().stateExpirationSettings();
 #endif

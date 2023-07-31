@@ -418,39 +418,54 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             // accidentally override RW entry with RO flag.
             entryRentChange.readOnly = readOnly;
             // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/false);
+            auto ltxe = ltx.loadWithoutRecord(lk);
             if (ltxe)
             {
                 auto const& le = ltxe.current();
-                auto buf = toCxxBuf(le);
-                entrySize = static_cast<uint32>(buf.data->size());
-                ledgerEntryCxxBufs.emplace_back(std::move(buf));
-                if (isSorobanEntry(le.data))
+                bool shouldAddEntry = true;
+                if (!isLive(le, ltx.getHeader().ledgerSeq))
                 {
-                    uint32_t const totalReadSize = keySize + entrySize;
-                    entryRentChange.oldSize = totalReadSize;
-                    entryRentChange.newSize = totalReadSize;
-
-                    entryRentChange.oldExpirationLedger =
-                        getExpirationLedger(le);
-                    entryRentChange.newExpirationLedger =
-                        entryRentChange.oldExpirationLedger;
-                    if (autobumpLedgerCount > 0 && autoBumpEnabled(le))
+                    if (isTemporaryEntry(lk))
                     {
-                        // Add the autobump ledgers on top of the old
-                        // expiration. Since expiration is inclusive, the rent
-                        // must be already payed for `oldExpirationLedger`.
-                        entryRentChange.newExpirationLedger +=
-                            autobumpLedgerCount;
+                        // For temporary entries, treat the expired entry as if
+                        // the key did not exist
+                        shouldAddEntry = false;
+                    }
+                    else
+                    {
+                        // Cannot access an expired entry
+                        this->innerResult().code(
+                            INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
+                        return false;
                     }
                 }
-            }
-            else if (!isTemporaryEntry(lk) &&
-                     ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true))
-            {
-                // Cannot access an expired entry
-                this->innerResult().code(INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
-                return false;
+
+                if (shouldAddEntry)
+                {
+                    auto buf = toCxxBuf(le);
+                    entrySize = static_cast<uint32>(buf.data->size());
+                    ledgerEntryCxxBufs.emplace_back(std::move(buf));
+                    if (isSorobanEntry(le.data))
+                    {
+                        uint32_t const totalReadSize = keySize + entrySize;
+                        entryRentChange.oldSize = totalReadSize;
+                        entryRentChange.newSize = totalReadSize;
+
+                        entryRentChange.oldExpirationLedger =
+                            getExpirationLedger(le);
+                        entryRentChange.newExpirationLedger =
+                            entryRentChange.oldExpirationLedger;
+                        if (autobumpLedgerCount > 0 && autoBumpEnabled(le))
+                        {
+                            // Add the autobump ledgers on top of the old
+                            // expiration. Since expiration is inclusive, the
+                            // rent must be already payed for
+                            // `oldExpirationLedger`.
+                            entryRentChange.newExpirationLedger +=
+                                autobumpLedgerCount;
+                        }
+                    }
+                }
             }
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
 

@@ -674,7 +674,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             LedgerKey key(CONFIG_SETTING);
             key.configSetting().configSettingID =
                 ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
-            auto txle = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+            auto txle = ltx.loadWithoutRecord(key);
             releaseAssert(txle);
             auto const& leVector =
                 txle.current().data.configSetting().bucketListSizeWindow();
@@ -719,59 +719,6 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
                 check();
             }
         }
-    });
-}
-
-TEST_CASE_VERSIONS("new temp entry merges with expired entry with same key",
-                   "[bucket][bucketlist]")
-{
-    VirtualClock clock;
-    Config cfg(getTestConfig());
-    Application::pointer app = createTestApplication(clock, cfg);
-    BucketList& bl = app->getBucketManager().getBucketList();
-    uint32_t ledgerSeq = 1;
-
-    for_versions_from(20, *app, [&] {
-        auto startingLedger = ledgerSeq;
-        auto tempEntry =
-            LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
-        setExpirationLedger(tempEntry, startingLedger + 4);
-        tempEntry.data.contractData().durability = TEMPORARY;
-
-        bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {tempEntry}, {},
-                    {});
-        ++ledgerSeq;
-
-        // Run BucketList until entry has expired
-        for (; ledgerSeq <= startingLedger + 4; ++ledgerSeq)
-        {
-            bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {}, {}, {});
-        }
-
-        setExpirationLedger(tempEntry, startingLedger + 500);
-        bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {tempEntry}, {},
-                    {});
-        ++ledgerSeq;
-
-        // Run BucketList until entry has expired
-        for (; ledgerSeq <= startingLedger + 1024; ++ledgerSeq)
-        {
-            bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {}, {}, {});
-        }
-
-        bool foundValidEntry = false;
-        auto b = bl.getLevel(5).getCurr();
-        for (BucketInputIterator iter(b); iter; ++iter)
-        {
-            auto entry = *iter;
-            if (entry.type() == INITENTRY && entry.liveEntry() == tempEntry)
-            {
-                foundValidEntry = true;
-                break;
-            }
-        }
-
-        REQUIRE(foundValidEntry);
     });
 }
 #endif

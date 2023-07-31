@@ -125,10 +125,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                     // Prior to protocol 11, INITENTRY didn't exist, so we need
                     // to check ltx to see if this is an update or a create
                     auto key = InternalLedgerEntry(e.liveEntry()).toKey();
-
-                    // Bucket Apply should process every entry in bucket
-                    // including expired ones to get the DB in the correct state
-                    if (ltx->getNewestVersion(key, /*loadExpiredEntry=*/true))
+                    if (ltx->getNewestVersion(key))
                     {
                         ltx->updateWithoutLoading(e.liveEntry());
                     }
@@ -158,8 +155,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                 {
                     // Prior to protocol 11, DEAD entries could exist
                     // without LIVE entries in between
-                    if (ltx->getNewestVersion(e.deadEntry(),
-                                              /*loadExpiredEntry=*/true))
+                    if (ltx->getNewestVersion(e.deadEntry()))
                     {
                         ltx->eraseWithoutLoading(e.deadEntry());
                     }
