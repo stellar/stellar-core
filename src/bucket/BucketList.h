@@ -342,6 +342,7 @@ namespace stellar
 // peer to artificially degenerate to "new peer syncing for the first time"
 // behavior, which ought to be tolerably fast anyways.
 
+class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class Config;
@@ -441,6 +442,9 @@ class BucketList
     // Returns true if at given `level` dead entries should be kept.
     static bool keepDeadEntries(uint32_t level);
 
+    // Number of ledgers it takes a bucket to spill/receive an incoming spill
+    static uint32_t bucketChangeRate(uint32_t level, bool isCurr);
+
     // Create a new BucketList with every `kNumLevels` levels, each with
     // an empty bucket in `curr` and `snap`.
     BucketList();
@@ -513,5 +517,8 @@ class BucketList
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+
+    void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
+                         uint32_t ledgerSeq);
 };
 }

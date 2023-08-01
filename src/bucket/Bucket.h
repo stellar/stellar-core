@@ -29,6 +29,7 @@ namespace stellar
  * merged in sorted order, and all elements are hashed while being added.
  */
 
+class AbstractLedgerTxn;
 class Application;
 class BucketManager;
 
@@ -132,7 +133,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    static uint32_t getExpiration(LedgerEntry const& e);
+    // Returns false if eof reached, true otherwise
+    bool scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
+                         uint32_t ledgerSeq);
 #endif
 
 #ifdef BUILD_TESTS

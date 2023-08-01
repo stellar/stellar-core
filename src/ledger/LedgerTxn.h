@@ -565,6 +565,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     not be the most recent version of the entry. This function checks if
     //     the entry is the newest version, and if so evicts the entry. Throws
     //     if there is an active LedgerTxnEntry associated with this key.
+    //     Returns true if entry evicted, false otherwise.
     // - erase
     //     Erases the existing entry associated with key. Throws if the key is
     //     not already associated with an entry in this AbstractLedgerTxn or
@@ -585,7 +586,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
-    virtual void maybeEvict(InternalLedgerEntry const& entry) = 0;
+    virtual bool maybeEvict(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
@@ -720,7 +721,7 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
-    void maybeEvict(InternalLedgerEntry const& entry) override;
+    bool maybeEvict(InternalLedgerEntry const& entry) override;
     void erase(InternalLedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;

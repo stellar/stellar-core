@@ -218,7 +218,7 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
-    // Number of samples in slidign window
+    // Number of samples in sliding window
     uint32_t getBucketListSizeSnapshotPeriod() const;
 
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
@@ -251,6 +251,13 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings const& stateExpirationSettings() const;
+    EvictionIterator const& evictionIterator() const;
+
+    void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
+                                EvictionIterator const& newIter) const;
+#ifdef BUILD_TESTS
+    StateExpirationSettings& stateExpirationSettings();
+#endif
 #endif
 
   private:
@@ -270,6 +277,7 @@ class SorobanNetworkConfig
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+    void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
@@ -348,6 +356,7 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings mStateExpirationSettings{};
+    mutable EvictionIterator mEvictionIterator{};
 
 #endif
 };
