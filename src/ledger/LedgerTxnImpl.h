@@ -466,7 +466,7 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry create(LedgerTxn& self, InternalLedgerEntry const& entry);
 
-    void maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry);
+    bool maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry);
 
     // deactivate has the strong exception safety guarantee
     void deactivate(InternalLedgerKey const& key);

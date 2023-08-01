@@ -26,6 +26,7 @@ namespace stellar
 {
 
 class TmpDir;
+class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class BucketList;
@@ -131,6 +132,7 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
+    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
 
     std::shared_ptr<LedgerEntry>
     getLedgerEntry(LedgerKey const& k) const override;

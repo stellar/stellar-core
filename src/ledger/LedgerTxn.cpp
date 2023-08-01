@@ -611,13 +611,13 @@ LedgerTxn::create(InternalLedgerEntry const& entry)
     return getImpl()->create(*this, entry);
 }
 
-void
+bool
 LedgerTxn::maybeEvict(InternalLedgerEntry const& entry)
 {
-    getImpl()->maybeEvict(*this, entry);
+    return getImpl()->maybeEvict(*this, entry);
 }
 
-void
+bool
 LedgerTxn::Impl::maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -626,9 +626,10 @@ LedgerTxn::Impl::maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry)
 
     auto key = entry.toKey();
     throwIfErasingConfig(key);
-    if (!isSorobanDataEntry(entry.ledgerEntry().data))
+    if (!isSorobanDataEntry(entry.ledgerEntry().data) ||
+        !isTemporaryEntry(entry.ledgerEntry().data))
     {
-        throw std::runtime_error("Evicted non-soroban entry");
+        throw std::runtime_error("Evicted invalid type");
     }
 
     if (isLive(entry.ledgerEntry(), self.getHeader().ledgerSeq))
@@ -636,21 +637,16 @@ LedgerTxn::Impl::maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry)
         throw std::runtime_error("Evicted live entry");
     }
 
-    auto newest = getNewestVersion(key);
-    if (!newest)
-    {
-        throw std::runtime_error("Evicted entry that does not exist");
-    }
-
     // When scanning the BucketList, we call maybeEvict on every BucketEntry
     // that has an expirationLedger > currentLedger. Due to the structure of the
     // BucketList, the entry may have received an update on a more recent level
-    // or have already been evicted. !txle checks if the entry has already been
-    // evicted and the equality check makes sure this is the most recent version
-    // of the entry
-    if (*newest != entry)
+    // or have already been evicted. !newest checks if the entry has already
+    // been evicted and the equality check makes sure this is the most recent
+    // version of the entry.
+    auto newest = getNewestVersion(key);
+    if (!newest || *newest != entry)
     {
-        return;
+        return false;
     }
 
     auto activeIter = mActive.find(key);
@@ -661,6 +657,7 @@ LedgerTxn::Impl::maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry)
 
     updateEntry(key, /*keyHint=*/nullptr, LedgerEntryPtr::Delete(), false,
                 EntryChangeType::EVICTION);
+    return true;
 
 #endif
 }

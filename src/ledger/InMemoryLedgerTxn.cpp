@@ -239,7 +239,7 @@ InMemoryLedgerTxn::create(InternalLedgerEntry const& entry)
     throw std::runtime_error("called create on InMemoryLedgerTxn");
 }
 
-void
+bool
 InMemoryLedgerTxn::maybeEvict(InternalLedgerEntry const& entry)
 {
     throw std::runtime_error("called evict on InMemoryLedgerTxn");

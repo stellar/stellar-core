@@ -1503,10 +1503,9 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     if (blEnabled &&
         protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        mApp.getBucketManager().scanForEviction(ltx, ledgerSeq);
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
-
-        // mApp.getBucketManager().scanForEntryEviction(ltx, ledgerSeq);
     }
 #endif
 

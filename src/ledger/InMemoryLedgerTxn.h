@@ -91,7 +91,7 @@ class InMemoryLedgerTxn : public LedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
-    void maybeEvict(InternalLedgerEntry const& entry) override;
+    bool maybeEvict(InternalLedgerEntry const& entry) override;
 
     void erase(InternalLedgerKey const& key) override;
     LedgerTxnEntry load(InternalLedgerKey const& key) override;

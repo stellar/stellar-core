@@ -693,6 +693,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
     loadStateExpirationSettings(ltx);
     loadExecutionLanesSettings(ltx);
     loadBucketListSizeWindow(ltx);
+    loadEvictionIterator(ltx);
     // NB: this should follow loading state expiration settings
     maybeUpdateBucketListWindowSize(ltx);
     // NB: this should follow loading/updating bucket list window
@@ -882,6 +883,19 @@ SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
     }
 
     updateBucketListSizeAverage();
+#endif
+}
+
+void
+SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    auto txle = ltx.loadWithoutRecord(key);
+    releaseAssert(txle);
+    mEvictionIterator = txle.current().data.configSetting().evictionIterator();
 #endif
 }
 
@@ -1115,6 +1129,23 @@ SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
 }
 
 void
+SorobanNetworkConfig::updateEvictionIterator(
+    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
+{
+    mEvictionIterator = newIter;
+
+    LedgerTxn ltx(ltxRoot);
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+
+    txle.current().data.configSetting().evictionIterator() = mEvictionIterator;
+    ltx.commit();
+}
+
+void
 SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -1233,6 +1264,12 @@ StateExpirationSettings const&
 SorobanNetworkConfig::stateExpirationSettings() const
 {
     return mStateExpirationSettings;
+}
+
+EvictionIterator const&
+SorobanNetworkConfig::evictionIterator() const
+{
+    return mEvictionIterator;
 }
 
 #ifdef BUILD_TESTS

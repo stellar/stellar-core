@@ -881,6 +881,17 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
     }
 }
 
+void
+BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                  ProtocolVersion::V_20))
+    {
+        mBucketList->scanForEviction(mApp, ltx, ledgerSeq);
+    }
+}
+
 medida::Timer&
 BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
 {

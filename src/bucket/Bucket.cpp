@@ -18,6 +18,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "medida/timer.h"
@@ -30,6 +31,8 @@
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
 #include <future>
+
+#include "util/XDRCereal.h"
 
 namespace stellar
 {
@@ -994,6 +997,61 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     ++oi;
     ++ni;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+                        uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
+                        uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    if (isEmpty())
+    {
+        // EOF
+        return false;
+    }
+
+    if (maxEntriesToEvict == 0 || bytesToScan == 0)
+    {
+        // Reached end of scan region
+        return true;
+    }
+
+    auto& stream = getStream();
+    stream.seek(iter.bucketFileOffset);
+
+    BucketEntry be;
+    while (stream.readOne(be))
+    {
+        if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+        {
+            auto const& le = be.liveEntry();
+            if (isSorobanDataEntry(le.data) && isTemporaryEntry(le.data) &&
+                !isLive(le, ledgerSeq))
+            {
+                if (ltx.maybeEvict(le))
+                {
+                    --maxEntriesToEvict;
+                }
+            }
+        }
+
+        auto newPos = stream.pos();
+        auto bytesRead = newPos - iter.bucketFileOffset;
+        iter.bucketFileOffset = newPos;
+        if (bytesRead > bytesToScan)
+        {
+            // Reached end of scan region
+            return true;
+        }
+
+        bytesToScan -= bytesRead;
+    }
+
+    // Hit eof
+    return false;
+}
+#endif
 
 std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
