@@ -642,9 +642,9 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
-        if (cfg.contractBandwidth().feePropagateData1KB < 0 ||
-            cfg.contractBandwidth().ledgerMaxPropagateSizeBytes <
-                MinimumSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES ||
+        if (cfg.contractBandwidth().feeTxSize1KB < 0 ||
+            cfg.contractBandwidth().ledgerMaxTxsSizeBytes <
+                MinimumSorobanNetworkConfig::LEDGER_MAX_TX_SIZE_BYTES ||
             cfg.contractBandwidth().txMaxSizeBytes <
                 MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES)
         {
@@ -717,11 +717,11 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
             return "ledgerMaxWriteBytes < txMaxWriteBytes";
         }
         break;
-    case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
-        if (cfg.contractMetaData().txMaxExtendedMetaDataSizeBytes <
+    case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
+        if (cfg.contractEvents().txMaxContractEventsSizeBytes <
                 MinimumSorobanNetworkConfig::
-                    TX_MAX_EXTENDED_META_DATA_SIZE_BYTES ||
-            cfg.contractMetaData().feeExtendedMetaData1KB < 0)
+                    TX_MAX_CONTRACT_EVENTS_SIZE_BYTES ||
+            cfg.contractEvents().feeContractEvents1KB < 0)
         {
             return "Invalid contractMetaData";
         }

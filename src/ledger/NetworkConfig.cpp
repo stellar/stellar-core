@@ -158,15 +158,15 @@ initialContractHistoricalDataSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractMetaDataSettingsEntry(Config const& cfg)
+initialContractEventsSettingsEntry(Config const& cfg)
 {
-    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_META_DATA_V0);
-    auto& e = entry.contractMetaData();
+    ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EVENTS_V0);
+    auto& e = entry.contractEvents();
 
-    e.txMaxExtendedMetaDataSizeBytes =
-        InitialSorobanNetworkConfig::TX_MAX_EXTENDED_META_DATA_SIZE_BYTES;
-    e.feeExtendedMetaData1KB =
-        InitialSorobanNetworkConfig::FEE_EXTENDED_META_DATA_1KB;
+    e.txMaxContractEventsSizeBytes =
+        InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
+    e.feeContractEvents1KB =
+        InitialSorobanNetworkConfig::FEE_CONTRACT_EVENTS_SIZE_1KB;
 
     return entry;
 }
@@ -179,18 +179,18 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
 
     if (cfg.USE_CONFIG_FOR_GENESIS)
     {
-        e.ledgerMaxPropagateSizeBytes =
-            cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+        e.ledgerMaxTxsSizeBytes =
+            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES;
         e.txMaxSizeBytes = cfg.TESTING_TX_MAX_SIZE_BYTES;
     }
     else
     {
-        e.ledgerMaxPropagateSizeBytes =
-            InitialSorobanNetworkConfig::LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+        e.ledgerMaxTxsSizeBytes =
+            InitialSorobanNetworkConfig::LEDGER_MAX_TRANSACTION_SIZES_BYTES;
         e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     }
 
-    e.feePropagateData1KB = InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
+    e.feeTxSize1KB = InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
 
     return entry;
 }
@@ -507,7 +507,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                              ltx);
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(cfg),
                              ltx);
-    createConfigSettingEntry(initialContractMetaDataSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx);
     createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
     createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
                              ltx);
@@ -541,7 +541,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
     loadComputeSettings(ltx);
     loadLedgerAccessSettings(ltx);
     loadHistoricalSettings(ltx);
-    loadMetaDataSettings(ltx);
+    loadContractEventsSettings(ltx);
     loadBandwidthSettings(ltx);
     loadCpuCostParams(ltx);
     loadMemCostParams(ltx);
@@ -653,17 +653,16 @@ SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
 }
 
 void
-SorobanNetworkConfig::loadMetaDataSettings(AbstractLedgerTxn& ltx)
+SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0;
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0;
     auto le = ltx.loadWithoutRecord(key).current();
-    auto const& configSetting = le.data.configSetting().contractMetaData();
-    mFeeExtendedMetaData1KB = configSetting.feeExtendedMetaData1KB;
-    mTxMaxExtendedMetaDataSizeBytes =
-        configSetting.txMaxExtendedMetaDataSizeBytes;
+    auto const& configSetting = le.data.configSetting().contractEvents();
+    mFeeContractEvents1KB = configSetting.feeContractEvents1KB;
+    mTxMaxContractEventsSizeBytes = configSetting.txMaxContractEventsSizeBytes;
 #endif
 }
 
@@ -676,9 +675,9 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
     auto le = ltx.loadWithoutRecord(key).current();
     auto const& configSetting = le.data.configSetting().contractBandwidth();
-    mLedgerMaxPropagateSizeBytes = configSetting.ledgerMaxPropagateSizeBytes;
+    mLedgerMaxTransactionsSizeBytes = configSetting.ledgerMaxTxsSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
-    mFeePropagateData1KB = configSetting.feePropagateData1KB;
+    mFeeTransactionSize1KB = configSetting.feeTxSize1KB;
 #endif
 }
 
@@ -918,24 +917,24 @@ SorobanNetworkConfig::feeHistorical1KB() const
     return mFeeHistorical1KB;
 }
 
-// Meta data (pushed to downstream systems) settings for contracts.
+// Maximum size of the emitted contract events.
 uint32_t
-SorobanNetworkConfig::txMaxExtendedMetaDataSizeBytes() const
+SorobanNetworkConfig::txMaxContractEventsSizeBytes() const
 {
-    return mTxMaxExtendedMetaDataSizeBytes;
+    return mTxMaxContractEventsSizeBytes;
 }
 
 int64_t
-SorobanNetworkConfig::feeExtendedMetaData1KB() const
+SorobanNetworkConfig::feeContractEventsSize1KB() const
 {
-    return mFeeExtendedMetaData1KB;
+    return mFeeContractEvents1KB;
 }
 
 // Bandwidth related data settings for contracts
 uint32_t
-SorobanNetworkConfig::ledgerMaxPropagateSizeBytes() const
+SorobanNetworkConfig::ledgerMaxTransactionSizesBytes() const
 {
-    return mLedgerMaxPropagateSizeBytes;
+    return mLedgerMaxTransactionsSizeBytes;
 }
 
 uint32_t
@@ -945,9 +944,9 @@ SorobanNetworkConfig::txMaxSizeBytes() const
 }
 
 int64_t
-SorobanNetworkConfig::feePropagateData1KB() const
+SorobanNetworkConfig::feeTransactionSize1KB() const
 {
-    return mFeePropagateData1KB;
+    return mFeeTransactionSize1KB;
 }
 
 // General execution lanes settings for contracts
@@ -1132,9 +1131,9 @@ SorobanNetworkConfig::rustBridgeFeeConfiguration() const
     // we'll just use the flat rate here.
     res.fee_per_write_1kb = feeWrite1KB();
 
-    res.fee_per_propagate_1kb = feePropagateData1KB();
+    res.fee_per_transaction_size_1kb = feeTransactionSize1KB();
 
-    res.fee_per_metadata_1kb = feeExtendedMetaData1KB();
+    res.fee_per_contract_event_1kb = feeContractEventsSize1KB();
 
     res.fee_per_historical_1kb = feeHistorical1KB();
 

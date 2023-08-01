@@ -178,8 +178,6 @@ struct HostFunctionMetrics
     uint32 mMaxReadWriteCodeByte{0};
     uint32 mMaxEmitEventByte{0};
 
-    uint32 mMetadataSizeByte{0};
-
     bool mSuccess{false};
 
     HostFunctionMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
@@ -255,10 +253,6 @@ struct HostFunctionMetrics
             .Mark(mEmitEvent);
         mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
             .Mark(mEmitEventByte);
-
-        mMetrics
-            .NewMeter({"soroban", "host-fn-op", "metadata-size-byte"}, "byte")
-            .Mark(mMetadataSizeByte);
 
         mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
             .Mark(mCpuInsn);
@@ -374,9 +368,6 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
         diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
                                                    "max_emit_event_byte",
                                                    metrics.mMaxEmitEventByte));
-        diagnosticEvents.emplace_back(metricsEvent(metrics.mSuccess,
-                                                   "max_meta_data_size_byte",
-                                                   metrics.mMetadataSizeByte));
 
         mParentTx.pushDiagnosticEvents(std::move(diagnosticEvents));
     }
@@ -479,22 +470,13 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         return true;
     };
 
-    if (!addReads(footprint.readWrite, false))
+    if (!addReads(footprint.readOnly, true))
     {
         // Error code set in addReads
         return false;
     }
-    // Metadata includes the ledger entry changes which we
-    // approximate as the size of the RW entries that we read
-    // plus size of the RW entries that we write back to the ledger.
-    metrics.mMetadataSizeByte += metrics.mLedgerReadByte;
-    if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-        return false;
-    }
 
-    if (!addReads(footprint.readOnly, true))
+    if (!addReads(footprint.readWrite, false))
     {
         // Error code set in addReads
         return false;
@@ -601,13 +583,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
     }
 
-    metrics.mMetadataSizeByte += metrics.mLedgerWriteByte;
-    if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-        return false;
-    }
-
     // Erase every entry not returned.
     // NB: The entries that haven't been touched are passed through
     // from host, so this should never result in removing an entry
@@ -687,16 +662,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         if (entryChange.oldExpirationLedger < entryChange.newExpirationLedger)
         {
-
-            // Bumped read-only entries should only use the expiration extension
-            // entries, so just charge for the extension entry change (roughly
-            // 2x the key size + small constant that we give for free for
-            // simplicity).
-            if (entryChange.readOnly)
-            {
-                metrics.mMetadataSizeByte +=
-                    2 * static_cast<uint32>(xdr::xdr_size(lk));
-            }
             auto ltxe = ltx.load(lk);
             releaseAssertOrThrow(ltxe);
 
@@ -713,11 +678,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.old_expiration_ledger = entryChange.oldExpirationLedger;
         rustChange.new_expiration_ledger = entryChange.newExpirationLedger;
     }
-    if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
-    {
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-        return false;
-    }
 
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
@@ -729,8 +689,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mEmitEventByte += eventSize;
         metrics.mMaxEmitEventByte =
             std::max(metrics.mMaxEmitEventByte, eventSize);
-        metrics.mMetadataSizeByte += eventSize;
-        if (resources.extendedMetaDataSizeBytes < metrics.mMetadataSizeByte)
+        if (resources.contractEventsSizeBytes < metrics.mEmitEventByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -746,7 +705,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         cfg.CURRENT_LEDGER_PROTOCOL_VERSION,
         ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
         sorobanConfig.rustBridgeRentFeeConfiguration(), ledgerSeq);
-    mParentTx.consumeRefundableSorobanResources(metrics.mMetadataSizeByte,
+    mParentTx.consumeRefundableSorobanResources(metrics.mEmitEventByte,
                                                 rentFee);
 
     xdr::xdr_from_opaque(out.result_value.data, success.returnValue);

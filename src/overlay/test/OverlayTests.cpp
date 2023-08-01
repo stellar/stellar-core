@@ -296,12 +296,12 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     configUpgradeSet.updatedEntry.emplace_back();
                 configEntry.configSettingID(
                     CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
-                configEntry.contractBandwidth().feePropagateData1KB =
-                    InitialSorobanNetworkConfig::FEE_PROPAGATE_DATA_1KB;
+                configEntry.contractBandwidth().feeTxSize1KB =
+                    InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
                 configEntry.contractBandwidth().txMaxSizeBytes = maxTxSize;
-                configEntry.contractBandwidth().ledgerMaxPropagateSizeBytes =
+                configEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
                     InitialSorobanNetworkConfig::
-                        LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+                        LEDGER_MAX_TRANSACTION_SIZES_BYTES;
                 res = txtest::makeConfigUpgradeSet(ltx, configUpgradeSet);
                 ltx.commit();
             }

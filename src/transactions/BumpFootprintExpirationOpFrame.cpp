@@ -83,8 +83,7 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
 
         metrics.mLedgerReadByte += keySize + entrySize;
-        if (resources.readBytes < metrics.mLedgerReadByte ||
-            resources.extendedMetaDataSizeBytes < metrics.mLedgerReadByte * 2)
+        if (resources.readBytes < metrics.mLedgerReadByte)
         {
             innerResult().code(
                 BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);

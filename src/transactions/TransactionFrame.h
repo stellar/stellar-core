@@ -57,8 +57,8 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
     SCVal mReturnValue;
     std::optional<FeePair> mSorobanResourceFee;
-    // Size of the emitted Soroban metadata.
-    uint32_t mConsumedSorobanMetadataSize{};
+    // Size of the emitted Soroban events.
+    uint32_t mConsumedContractEventsSizeBytes{};
     int64_t mConsumedRentFee{};
     int64_t mFeeRefund{};
 #endif
@@ -284,7 +284,7 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
-    void consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
+    void consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
                                            int64_t rentFee);
     bool computeSorobanFeeRefund(uint32_t protocolVersion,
                                  SorobanNetworkConfig const& sorobanConfig,
