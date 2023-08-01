@@ -782,19 +782,13 @@ TransactionFrame::maybeComputeSorobanResourceFee(
                                   /* useConsumedRefundableResources */ false));
 }
 
-void
+bool
 TransactionFrame::consumeRefundableSorobanResources(
-    uint32_t contractEventSizeBytes, int64_t rentFee)
+    uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
+    SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
     mConsumedContractEventsSizeBytes += contractEventSizeBytes;
     mConsumedRentFee += rentFee;
-}
-
-bool
-TransactionFrame::computeSorobanFeeRefund(
-    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-    Config const& cfg)
-{
     mFeeRefund = sorobanRefundableFee();
     if (mFeeRefund < mConsumedRentFee)
     {
@@ -812,6 +806,7 @@ TransactionFrame::computeSorobanFeeRefund(
     mFeeRefund -= consumedFee.refundable_fee;
     return true;
 }
+
 #endif
 
 bool
@@ -1514,17 +1509,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 ltxOp.commit();
             }
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (isSoroban())
-        {
-            success = success &&
-                      computeSorobanFeeRefund(
-                          ledgerVersion,
-                          app.getLedgerManager().getSorobanNetworkConfig(ltx),
-                          app.getConfig());
-        }
-#endif
 
         if (success)
         {

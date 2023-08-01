@@ -123,15 +123,24 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.new_expiration_ledger = restoredExpirationLedger;
         setExpirationLedger(restoredEntry, restoredExpirationLedger);
     }
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
-        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-        ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
+        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+        rustEntryRentChanges,
         app.getLedgerManager()
             .getSorobanNetworkConfig(ltx)
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    mParentTx.consumeRefundableSorobanResources(metrics.mLedgerReadByte * 2,
-                                                rentFee);
+    if (!mParentTx.consumeRefundableSorobanResources(
+            0, rentFee, ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig()))
+    {
+        // TODO: This probably should have a more precise error code as here
+        // the refundable fee limit is exceeded (and not some resource).
+        innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
     innerResult().code(RESTORE_FOOTPRINT_SUCCESS);
     return true;
 }

@@ -1180,23 +1180,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key", 0, ContractDataDurability::PERSISTENT);
         bump("key", ContractDataDurability::PERSISTENT, 10'000);
         checkContractDataExpirationLedger(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000 - 1);
+            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
         // Expiration already above 5'000, should be a no-op
         bump("key", ContractDataDurability::PERSISTENT, 5'000);
         checkContractDataExpirationLedger(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000 - 1);
+            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
         // Small bump followed by larger bump
         put("key2", 0, ContractDataDurability::PERSISTENT);
         bump("key2", ContractDataDurability::PERSISTENT, 5'000);
         checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 5'000 - 1);
+            "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 5'000);
 
         put("key3", 0, ContractDataDurability::PERSISTENT);
         bump("key3", ContractDataDurability::PERSISTENT, 50'000);
         checkContractDataExpirationLedger(
-            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000 - 1);
+            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
 
         // Bump multiple keys to live 10100 ledger from now
         bumpOp(
@@ -1217,7 +1217,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // No change for key3 since expiration is already past 10100 ledgers
         // from now
         checkContractDataExpirationLedger(
-            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000 - 1);
+            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
     }
 
     SECTION("restore expired entry")
@@ -1341,7 +1341,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bump("key2", ContractDataDurability::PERSISTENT,
              stateExpirationSettings.maxEntryExpiration - 1);
         checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, maxExpiration - 1);
+            "key2", ContractDataDurability::PERSISTENT, maxExpiration);
 
         // Autobump should only add a single ledger to bring expiration to max
         put("key2", 1, ContractDataDurability::PERSISTENT);
@@ -1553,22 +1553,6 @@ TEST_CASE("Stellar asset contract XLM transfer",
     createResources.writeBytes = 1000;
     createResources.contractEventsSizeBytes = 0;
 
-    auto metadataKey = LedgerKey(CONTRACT_DATA);
-    metadataKey.contractData().contract = contractID;
-    metadataKey.contractData().key = makeSymbolSCVal("METADATA");
-    metadataKey.contractData().durability = ContractDataDurability::PERSISTENT;
-    metadataKey.contractData().bodyType = DATA_ENTRY;
-
-    LedgerKey assetInfoLedgerKey(CONTRACT_DATA);
-    assetInfoLedgerKey.contractData().contract = contractID;
-    SCVec assetInfo = {makeSymbolSCVal("AssetInfo")};
-    SCVal assetInfoSCVal(SCValType::SCV_VEC);
-    assetInfoSCVal.vec().activate() = assetInfo;
-    assetInfoLedgerKey.contractData().key = assetInfoSCVal;
-    assetInfoLedgerKey.contractData().durability =
-        ContractDataDurability::PERSISTENT;
-    assetInfoLedgerKey.contractData().bodyType = DATA_ENTRY;
-
     LedgerKey contractExecutableKey(CONTRACT_DATA);
     contractExecutableKey.contractData().contract = contractID;
     contractExecutableKey.contractData().key =
@@ -1577,8 +1561,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
         ContractDataDurability::PERSISTENT;
     contractExecutableKey.contractData().bodyType = DATA_ENTRY;
 
-    createResources.footprint.readWrite = {contractExecutableKey, metadataKey,
-                                           assetInfoLedgerKey};
+    createResources.footprint.readWrite = {contractExecutableKey};
 
     {
         // submit operation
@@ -1640,8 +1623,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
         ContractDataDurability::PERSISTENT;
     balanceLedgerKey.contractData().bodyType = DATA_ENTRY;
 
-    resources.footprint.readOnly = {metadataKey, assetInfoLedgerKey,
-                                    contractExecutableKey};
+    resources.footprint.readOnly = {contractExecutableKey};
 
     resources.footprint.readWrite = {accountLedgerKey, balanceLedgerKey};
 
