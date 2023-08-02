@@ -249,9 +249,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         auto& transactions = stateIter->second.mTransactions;
 
         // Invariant: there must be one transaction per source account at all
-        // times if LIMIT_TX_QUEUE_SOURCE_ACCOUNT is on
-        if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT &&
-            transactions.size() > 1)
+        // times
+        if (transactions.size() > 1)
         {
             throw std::runtime_error(
                 "TransactionQueue::canAdd invalid state: more than one "
@@ -271,24 +270,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
                 }
 
-                if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-                {
-                    // If there's already a transaction in the queue, we reject
-                    // any new transaction
-                    return TransactionQueue::AddResult::
-                        ADD_STATUS_TRY_AGAIN_LATER;
-                }
-
-                // By this point, there's already a tx in the queue for this
-                // account, and only the tx with the lowest seqnum for an
-                // account can have non-zero values for these fields.
-                if (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0)
-                {
-                    return TransactionQueue::AddResult::
-                        ADD_STATUS_TRY_AGAIN_LATER;
-                }
-
-                seqNum = transactions.back().mTx->getSeqNum();
+                // If there's already a transaction in the queue, we reject
+                // any new transaction
+                return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
             }
             else
             {
@@ -338,8 +322,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 // loaded from the account)
                 if (txToReplaceIter == transactions.end())
                 {
-                    if (!transactions.empty() &&
-                        mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+                    if (!transactions.empty())
                     {
                         // This is a new fee-bump transaction. We didn't find
                         // any existing transaction to replace, so it should be
@@ -590,8 +573,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     }
 
     // Maybe replaced-by-fee, make sure we maintain the invariant
-    if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT &&
-        stateIter->second.mTransactions.size() > 1)
+    if (stateIter->second.mTransactions.size() > 1)
     {
         throw std::runtime_error(
             "Invalid state: tx queue source account limit violated");

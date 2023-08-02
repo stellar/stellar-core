@@ -485,13 +485,11 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     bool hasClassic =
         mTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
         tx->isSoroban();
-    bool reject = mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT &&
-                  (hasSoroban || hasClassic);
-    if (reject)
+    if (hasSoroban || hasClassic)
     {
         CLOG_DEBUG(Herder,
-                   "recv transaction {} for {} rejected due to "
-                   "LIMIT_TX_QUEUE_SOURCE_ACCOUNT flag",
+                   "recv transaction {} for {} rejected due to 1 tx per source "
+                   "account per ledger limit",
                    hexAbbrev(tx->getFullHash()),
                    KeyUtils::toShortString(tx->getSourceID()));
         result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;

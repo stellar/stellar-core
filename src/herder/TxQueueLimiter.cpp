@@ -42,11 +42,8 @@ TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app,
             std::make_optional<Resource>(*maxDexOps * multiplier);
     }
 
-    if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-    {
-        mEnforceSingleAccounts =
-            std::make_optional<std::unordered_set<AccountID>>();
-    }
+    mEnforceSingleAccounts =
+        std::make_optional<std::unordered_set<AccountID>>();
 }
 
 TxQueueLimiter::~TxQueueLimiter()

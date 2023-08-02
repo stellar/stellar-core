@@ -1030,7 +1030,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "LIMIT_TX_QUEUE_SOURCE_ACCOUNT")
             {
-                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = readBool(item);
+                LOG_WARNING(
+                    DEFAULT_LOG,
+                    "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is deprecated: the limit is "
+                    "now always enforced and setting it to false will have no "
+                    "effect. Please remove this setting from the config file.");
+                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             }
             else if (item.first == "DISABLE_XDR_FSYNC")
             {
@@ -1518,18 +1523,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "can't be greater than PEER_FLOOD_READING_CAPACITY_BYTES";
             throw std::runtime_error(msg);
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (!LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-        {
-            std::string msg =
-                "Invalid configuration: disabling "
-                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is not allowed. Starting core "
-                "with LIMIT_TX_QUEUE_SOURCE_ACCOUNT=true";
-            LOG_WARNING(DEFAULT_LOG, "{}", msg);
-            LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
-        }
-#endif
 
         verifyLoadGenOpCountForTestingConfigs();
 
