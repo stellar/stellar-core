@@ -15,6 +15,12 @@
 #include <optional>
 #include <string>
 
+namespace medida
+{
+class Counter;
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -133,10 +139,15 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Returns false if eof reached, true otherwise
+    // Returns false if eof reached, true otherwise. Modifies iter as the bucket
+    // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
+    // after this function returns:
+    // bytesToScan -= amount_bytes_scanned
+    // maxEntriesToEvict -= entries_evicted
     bool scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                          uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                         uint32_t ledgerSeq);
+                         uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
+                         medida::Counter& bytesScannedForEvictionMeter);
 #endif
 
 #ifdef BUILD_TESTS

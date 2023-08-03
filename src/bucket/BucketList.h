@@ -12,6 +12,12 @@
 #include <optional>
 #include <set>
 
+namespace medida
+{
+class Meter;
+class Counter;
+}
+
 namespace stellar
 {
 // This is the "bucket list", a set sets-of-hashed-objects, organized into
@@ -519,6 +525,7 @@ class BucketList
                   std::vector<LedgerKey> const& deadEntries);
 
     void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
-                         uint32_t ledgerSeq);
+                         uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
+                         medida::Counter& bytesScannedForEvictionMeter);
 };
 }

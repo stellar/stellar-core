@@ -122,6 +122,10 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
+    , mEntriesEvicted(app.getMetrics().NewMeter(
+          {"state-expiration", "eviction", "entries-evicted"}, "eviction"))
+    , mBytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-expiration", "eviction", "bytes-scanned"}))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -845,6 +849,18 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     }
     return hashes;
 }
+
+medida::Meter&
+BucketManagerImpl::getEntriesEvictedMeter() const
+{
+    return mEntriesEvicted;
+}
+
+medida::Counter&
+BucketManagerImpl::getBytesScannedForEvictionCounter() const
+{
+    return mBytesScannedForEviction;
+}
 #endif
 
 // updates the given LedgerHeader to reflect the current state of the bucket
@@ -888,7 +904,8 @@ BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
     if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
                                   ProtocolVersion::V_20))
     {
-        mBucketList->scanForEviction(mApp, ltx, ledgerSeq);
+        mBucketList->scanForEviction(mApp, ltx, ledgerSeq, mEntriesEvicted,
+                                     mBytesScannedForEviction);
     }
 }
 
