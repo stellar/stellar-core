@@ -721,6 +721,329 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         }
     });
 }
+
+TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+
+    // BucketTestApplication writes directly to BL and circumvents LedgerTxn
+    // interface, so we have to use BucketListDB for lookups
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+
+    auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+    for_versions_from(20, *app, [&] {
+        LedgerManagerForBucketTests& lm = app->getLedgerManager();
+        auto& bm = app->getBucketManager();
+        auto& bl = bm.getBucketList();
+
+        auto& networkCfg = [&]() -> SorobanNetworkConfig& {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            return app->getLedgerManager().getMutableSorobanNetworkConfig(ltx);
+        }();
+
+        auto& stateExpirationSettings = networkCfg.stateExpirationSettings();
+        auto& evictionIter = networkCfg.evictionIterator();
+        auto const levelToScan = 3;
+        uint32_t ledgerSeq = 1;
+
+        stateExpirationSettings.minTempEntryExpiration = 1;
+        stateExpirationSettings.minPersistentEntryExpiration = 1;
+
+        // Because this test uses BucketTestApplication, we must manually add
+        // the Network Config LedgerEntries to the BucketList with
+        // setNextLedgerEntryBatchForBucketTesting whenever state expiration
+        // settings or the eviction iterator is manually changed
+        auto getNetworkCfgLE = [&] {
+            std::vector<LedgerEntry> result;
+            LedgerEntry sesLE;
+            sesLE.data.type(CONFIG_SETTING);
+            sesLE.data.configSetting().configSettingID(
+                ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION);
+            sesLE.data.configSetting().stateExpirationSettings() =
+                stateExpirationSettings;
+            result.emplace_back(sesLE);
+
+            LedgerEntry iterLE;
+            iterLE.data.type(CONFIG_SETTING);
+            iterLE.data.configSetting().configSettingID(
+                ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR);
+            iterLE.data.configSetting().evictionIterator() = evictionIter;
+            result.emplace_back(iterLE);
+
+            return result;
+        };
+
+        auto updateNetworkCfg = [&] {
+            lm.setNextLedgerEntryBatchForBucketTesting({}, getNetworkCfgLE(),
+                                                       {});
+            closeLedger(*app);
+            ++ledgerSeq;
+        };
+
+        auto checkIfEntryExists = [&](std::set<LedgerKey> const& keys,
+                                      bool shouldExist) {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (auto const& key : keys)
+            {
+                auto txle = ltx.loadWithoutRecord(key);
+                REQUIRE(static_cast<bool>(txle) == shouldExist);
+            }
+        };
+
+        std::set<LedgerKey> tempEntries;
+        std::set<LedgerKey> persistentEntries;
+        auto entries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_DATA}, 10);
+        for (auto& e : entries)
+        {
+            setExpirationLedger(e, ledgerSeq + 1);
+
+            // Set half of the entries to be persistent, half temporary
+            if (rand_flip())
+            {
+                e.data.contractData().durability = TEMPORARY;
+                tempEntries.emplace(LedgerEntryKey(e));
+            }
+            else
+            {
+                e.data.contractData().durability = PERSISTENT;
+                persistentEntries.emplace(LedgerEntryKey(e));
+            }
+        }
+
+        lm.setNextLedgerEntryBatchForBucketTesting(entries, getNetworkCfgLE(),
+                                                   {});
+        closeLedger(*app);
+        ++ledgerSeq;
+
+        // Iterate until entries reach the level where eviction will start
+        for (; bl.getLevel(levelToScan).getCurr()->isEmpty(); ++ledgerSeq)
+        {
+            checkIfEntryExists(tempEntries, true);
+            checkIfEntryExists(persistentEntries, true);
+            lm.setNextLedgerEntryBatchForBucketTesting({}, {}, {});
+            closeLedger(*app);
+        }
+
+        SECTION("basic eviction test")
+        {
+            // Set eviction to start at level where the entries currently are
+            stateExpirationSettings.startingEvictionScanLevel = levelToScan;
+            updateNetworkCfg();
+
+            // All entries should be evicted at once
+            closeLedger(*app);
+            ++ledgerSeq;
+            checkIfEntryExists(tempEntries, false);
+            checkIfEntryExists(persistentEntries, true);
+
+            auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
+            REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
+
+            // Close ledgers until evicted DEADENTRY merges with original
+            // LIVEENTRY. This checks that BucketList invariants are respected
+            // and that entries are not evicted multiple times.
+            for (auto initialSize = bl.getSize(); bl.getSize() >= initialSize;
+                 ++ledgerSeq)
+            {
+                closeLedger(*app);
+            }
+
+            REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
+        }
+
+        SECTION("shadowed entries not evicted")
+        {
+            // Set eviction to start at level where the entries currently are
+            stateExpirationSettings.startingEvictionScanLevel = levelToScan;
+            updateNetworkCfg();
+
+            // Shadow expired entries with updated versions
+            lm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+            closeLedger(*app);
+            ++ledgerSeq;
+
+            // Entries are shadowed, should not be evicted
+            checkIfEntryExists(tempEntries, true);
+            checkIfEntryExists(persistentEntries, true);
+        }
+
+        SECTION("maxEntriesToExpire")
+        {
+            // Check that we only expire one entry at a time
+            stateExpirationSettings.maxEntriesToExpire = 1;
+            stateExpirationSettings.startingEvictionScanLevel = levelToScan;
+            updateNetworkCfg();
+
+            auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
+            for (auto prevCount = entriesEvictedMeter.count();
+                 prevCount < tempEntries.size();)
+            {
+                closeLedger(*app);
+
+                // Check that we only expire at most maxEntriesToExpire per
+                // ledger
+                auto newCount = entriesEvictedMeter.count();
+                REQUIRE(newCount + 1 >= prevCount);
+                prevCount = newCount;
+            }
+
+            // All entries should have been evicted
+            checkIfEntryExists(tempEntries, false);
+            checkIfEntryExists(persistentEntries, true);
+        }
+
+        auto constexpr xdrOverheadBytes = 4;
+
+        BucketInputIterator metaIn(bl.getLevel(0).getCurr());
+        BucketEntry be(METAENTRY);
+        be.metaEntry() = metaIn.getMetadata();
+        auto const metadataSize = xdr::xdr_size(be) + xdrOverheadBytes;
+
+        SECTION("evictionScanSize")
+        {
+            // Set smallest possible scan size so eviction iterator scans one
+            // entry per scan
+            stateExpirationSettings.evictionScanSize = 1;
+            stateExpirationSettings.startingEvictionScanLevel = levelToScan;
+            updateNetworkCfg();
+
+            // First eviction scan will only read meta
+            closeLedger(*app);
+            ++ledgerSeq;
+
+            REQUIRE(evictionIter.bucketFileOffset == metadataSize);
+            REQUIRE(evictionIter.bucketListLevel == levelToScan);
+            REQUIRE(evictionIter.isCurrBucket == true);
+
+            // Check that each scan only reads one entry
+            for (BucketInputIterator in(bl.getLevel(levelToScan).getCurr()); in;
+                 ++in)
+            {
+                auto startingOffset = evictionIter.bucketFileOffset;
+                closeLedger(*app);
+                ++ledgerSeq;
+
+                REQUIRE(evictionIter.bucketFileOffset ==
+                        xdr::xdr_size(*in) + startingOffset + xdrOverheadBytes);
+                REQUIRE(evictionIter.bucketListLevel == levelToScan);
+                REQUIRE(evictionIter.isCurrBucket == true);
+            }
+        }
+
+        SECTION("scans across multiple buckets")
+        {
+            for (; bl.getLevel(2).getSnap()->getSize() < 1'000; ++ledgerSeq)
+            {
+                lm.setNextLedgerEntryBatchForBucketTesting(
+                    {},
+                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                        {CONFIG_SETTING}, 10),
+                    {});
+                closeLedger(*app);
+            }
+
+            // Reset iterator to level 2 curr bucket that we just populated
+            stateExpirationSettings.startingEvictionScanLevel = 2;
+
+            // Scan size should scan all of curr bucket and one entry in snap
+            // per scan
+            stateExpirationSettings.evictionScanSize =
+                bl.getLevel(2).getCurr()->getSize() + 1;
+
+            // Reset iterator
+            evictionIter.bucketFileOffset = 0;
+            evictionIter.bucketListLevel = 2;
+            evictionIter.isCurrBucket = true;
+            updateNetworkCfg();
+
+            closeLedger(*app);
+            ++ledgerSeq;
+
+            // Iter should have advanced to snap and read first entry only
+            REQUIRE(evictionIter.bucketFileOffset == metadataSize);
+            REQUIRE(evictionIter.bucketListLevel == 2);
+            REQUIRE(evictionIter.isCurrBucket == false);
+        }
+
+        SECTION("iterator resets when bucket changes")
+        {
+            auto testIterReset = [&](bool isCurr) {
+                auto const levelToTest = 1;
+                auto bucket = [&]() {
+                    return isCurr ? bl.getLevel(levelToTest).getCurr()
+                                  : bl.getLevel(levelToTest).getSnap();
+                };
+
+                // Iterate until entries spill into level 1 bucket
+                for (; bucket()->getSize() < 1'000; ++ledgerSeq)
+                {
+                    lm.setNextLedgerEntryBatchForBucketTesting(
+                        {},
+                        LedgerTestUtils::
+                            generateValidLedgerEntriesWithExclusions(
+                                {CONFIG_SETTING}, 10),
+                        {});
+                    closeLedger(*app);
+                }
+
+                // Reset eviction iter start of bucket being tested
+                stateExpirationSettings.evictionScanSize = 1;
+                stateExpirationSettings.startingEvictionScanLevel = levelToTest;
+                evictionIter.bucketFileOffset = 0;
+                evictionIter.isCurrBucket = isCurr;
+                evictionIter.bucketListLevel = 1;
+                updateNetworkCfg();
+
+                // Advance until one ledger before bucket is updated
+                auto ledgersUntilUpdate =
+                    BucketList::bucketChangeRate(levelToTest, isCurr) -
+                    1; // updateNetworkCfg closes a ledger that we need to
+                       // count
+                for (uint32_t i = 0; i < ledgersUntilUpdate - 1; ++i)
+                {
+                    auto startingIter = evictionIter;
+                    closeLedger(*app);
+                    ++ledgerSeq;
+
+                    // Check that iterator is making progress correctly
+                    REQUIRE(evictionIter.bucketFileOffset >
+                            startingIter.bucketFileOffset);
+                    REQUIRE(evictionIter.bucketListLevel == levelToTest);
+                    REQUIRE(evictionIter.isCurrBucket == isCurr);
+                }
+
+                // Next ledger close should update bucket
+                auto startingHash = bucket()->getHash();
+                closeLedger(*app);
+                ++ledgerSeq;
+
+                // Check that bucket actually changed
+                REQUIRE(bucket()->getHash() != startingHash);
+
+                // Check that iterator has reset to beginning of bucket and read
+                // one entry
+                REQUIRE(evictionIter.bucketFileOffset == metadataSize);
+                REQUIRE(evictionIter.bucketListLevel == levelToTest);
+                REQUIRE(evictionIter.isCurrBucket == isCurr);
+            };
+
+            SECTION("curr bucket")
+            {
+                testIterReset(true);
+            }
+
+            SECTION("snap bucket")
+            {
+                testIterReset(false);
+            }
+        }
+    });
+}
+
 #endif
 
 static std::string
