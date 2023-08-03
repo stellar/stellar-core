@@ -1278,6 +1278,12 @@ SorobanNetworkConfig::stateExpirationSettings()
 {
     return mStateExpirationSettings;
 }
+
+EvictionIterator&
+SorobanNetworkConfig::evictionIterator()
+{
+    return mEvictionIterator;
+}
 #endif
 
 bool

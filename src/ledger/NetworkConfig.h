@@ -89,8 +89,8 @@ struct InitialSorobanNetworkConfig
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
-    static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
+    static constexpr uint64_t EVICTION_SCAN_SIZE = 100'000; // 100 kb
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 100;
     static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
@@ -258,6 +258,7 @@ class SorobanNetworkConfig
                                 EvictionIterator const& newIter) const;
 #ifdef BUILD_TESTS
     StateExpirationSettings& stateExpirationSettings();
+    EvictionIterator& evictionIterator();
 #endif
 #endif
 
