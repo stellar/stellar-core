@@ -1779,8 +1779,6 @@ overrideSettingsToMin(Application& app)
         .contractLedgerCost() = costEntry;
 
     ConfigSettingContractEventsV0 events;
-    events.txMaxContractEventsSizeBytes =
-        MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     ltx.load(
            configSettingKey(ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0))
         .current()
@@ -1856,6 +1854,7 @@ TEST_CASE("settings upgrade with minimum settings", "[tx][soroban][upgrades]")
 
     // check a couple settings to make sure they're at the minimum
     REQUIRE(cost.contractLedgerCost().feeRead1KB == 0);
+    REQUIRE(cost.contractLedgerCost().writeFee1KBBucketListLow == 0);
     REQUIRE(cost.contractLedgerCost().ledgerMaxReadLedgerEntries ==
             MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES);
     REQUIRE(cost.contractLedgerCost().ledgerMaxReadBytes ==
