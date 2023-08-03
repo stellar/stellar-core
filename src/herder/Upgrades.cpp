@@ -1532,8 +1532,7 @@ ConfigUpgradeSetFrame::isValidForApply() const
                 cfg.contractLedgerCost().ledgerMaxWriteBytes >=
                     MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES &&
                 cfg.contractLedgerCost().txMaxReadLedgerEntries >=
-                    MinimumSorobanNetworkConfig::
-                        LEDGER_MAX_READ_LEDGER_ENTRIES &&
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
                 cfg.contractLedgerCost().txMaxReadBytes >=
                     MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
                 cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
