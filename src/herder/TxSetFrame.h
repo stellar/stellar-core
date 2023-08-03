@@ -229,7 +229,7 @@ class TxSetFrame : public NonMovableOrCopyable
     // fee for each transaction (lowest base fee is identical for all
     // transactions in the same lane)
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
-    getFeeMap(Phase phase) const;
+    getInclusionFeeMap(Phase phase) const;
 };
 
 } // namespace stellar

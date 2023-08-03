@@ -499,7 +499,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                 resources.instructions = 800'000;
                 resources.readBytes = 1000;
                 resources.writeBytes = 1000;
-                resources.extendedMetaDataSizeBytes = 3000;
+                resources.contractEventsSizeBytes = 0;
                 txs.emplace_back(createUploadWasmTx(*app, source, fee,
                                                     /* refundableFee */ 1200,
                                                     resources));
@@ -773,7 +773,7 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
         resources.instructions = 800'000;
         resources.readBytes = 1000;
         resources.writeBytes = 1000;
-        resources.extendedMetaDataSizeBytes = 3000;
+        resources.contractEventsSizeBytes = 0;
         uint32_t inclusionFee = 500;
         uint32_t refundableFee = 10'000;
         auto sorobanTx = createUploadWasmTx(*app, root, inclusionFee,
@@ -819,7 +819,7 @@ TEST_CASE("generalized tx set fees", "[txset]")
             resources.instructions = 800'000;
             resources.readBytes = 1000;
             resources.writeBytes = 1000;
-            resources.extendedMetaDataSizeBytes = 3000;
+            resources.contractEventsSizeBytes = 0;
             auto tx = createUploadWasmTx(*app, source, inclusionFee,
                                          refundableFee, resources);
             setValidTotalFee(tx, inclusionFee, refundableFee, *app, source);

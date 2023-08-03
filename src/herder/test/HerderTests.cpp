@@ -3478,22 +3478,15 @@ TEST_CASE("soroban txs each parameter surge priced")
             4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES =
-                    10 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-                cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
-                    10 * InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-                cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
-                    10 *
-                    InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-                cfg.TESTING_LEDGER_MAX_READ_BYTES =
-                    10 * InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
-                cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-                    10 *
-                    InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
-                cfg.TESTING_LEDGER_MAX_WRITE_BYTES =
-                    10 * InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-                cfg.TESTING_TX_MAX_SIZE_BYTES =
-                    10 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+                // Set all Soroban resources to maximum initially; each section
+                // will adjust the config as desired
+                cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_READ_BYTES = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = UINT32_MAX;
+                cfg.TESTING_LEDGER_MAX_WRITE_BYTES = UINT32_MAX;
                 tweakConfig(cfg);
                 return cfg;
             });
@@ -3550,8 +3543,7 @@ TEST_CASE("soroban txs each parameter surge priced")
 
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
     // can only accept up to desiredTxRate for each resource dimension,
-    // triggering surge pricing. Set max Soroban tx count to max so we can
-    // trigger surge pricing based on other resources
+    // triggering surge pricing
     SECTION("operations")
     {
         auto tweakConfig = [&](Config& cfg) {
@@ -3563,7 +3555,6 @@ TEST_CASE("soroban txs each parameter surge priced")
     SECTION("instructions")
     {
         auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
             cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
@@ -3573,8 +3564,7 @@ TEST_CASE("soroban txs each parameter surge priced")
     SECTION("tx size")
     {
         auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
-            cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES =
+            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
         };
@@ -3583,7 +3573,6 @@ TEST_CASE("soroban txs each parameter surge priced")
     SECTION("read entries")
     {
         auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
             cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
@@ -3593,7 +3582,6 @@ TEST_CASE("soroban txs each parameter surge priced")
     SECTION("write entries")
     {
         auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
             cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
@@ -3603,7 +3591,6 @@ TEST_CASE("soroban txs each parameter surge priced")
     SECTION("read bytes")
     {
         auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
             cfg.TESTING_LEDGER_MAX_READ_BYTES =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
@@ -3636,7 +3623,7 @@ TEST_CASE("soroban txs accepted by the network",
             cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT =
                 2 * desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-            cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES =
+            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES =
                 10 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
             cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
                 10 * InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
