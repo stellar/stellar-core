@@ -32,7 +32,8 @@
 #include <Tracy.hpp>
 #include <future>
 
-#include "util/XDRCereal.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
 
 namespace stellar
 {
@@ -1002,7 +1003,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 bool
 Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                        uint32_t ledgerSeq)
+                        uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
+                        medida::Counter& bytesScannedForEvictionMeter)
 {
     ZoneScoped;
     if (isEmpty())
@@ -1031,6 +1033,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             {
                 if (ltx.maybeEvict(le))
                 {
+                    entriesEvictedMeter.Mark();
                     --maxEntriesToEvict;
                 }
             }
@@ -1039,6 +1042,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         auto newPos = stream.pos();
         auto bytesRead = newPos - iter.bucketFileOffset;
         iter.bucketFileOffset = newPos;
+        bytesScannedForEvictionMeter.inc(bytesRead);
         if (bytesRead > bytesToScan)
         {
             // Reached end of scan region

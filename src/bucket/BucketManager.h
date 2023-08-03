@@ -242,6 +242,9 @@ class BucketManager : NonMovableOrCopyable
     // This interface exists only for checking that the BucketDir isn't
     // leaking buckets, in tests.
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
+
+    virtual medida::Meter& getEntriesEvictedMeter() const = 0;
+    virtual medida::Counter& getBytesScannedForEvictionCounter() const = 0;
 #endif
 
     // Return the set of buckets referenced by the BucketList
