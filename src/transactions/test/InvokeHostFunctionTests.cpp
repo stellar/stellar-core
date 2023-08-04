@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/Logging.h"
 #include "xdr/Stellar-transaction.h"
 #include <iterator>
 #include <stdexcept>
@@ -1638,6 +1639,54 @@ TEST_CASE("Stellar asset contract XLM transfer",
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
         REQUIRE(tx->apply(*app, ltx, txm));
         ltx.commit();
+    }
+}
+
+TEST_CASE("errors roll back", "[tx][soroban]")
+{
+    // This tests that various sorts of error created inside a contract
+    // cause the invocation to fail and that in turn aborts the tx.
+
+    auto call_fn_check_failure = [&](std::string const& name) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig());
+        auto root = TestAccount::createRoot(*app);
+
+        auto const errWasm = rust_bridge::get_test_wasm_err();
+        auto contractKeys = deployContractWithSourceAccount(*app, errWasm);
+        auto const& contractID = contractKeys[0].contractData().contract;
+
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = contractID;
+        ihf.invokeContract().functionName = makeSymbol(name);
+
+        SorobanResources resources;
+        resources.footprint.readOnly = contractKeys;
+        resources.instructions = 2'000'000;
+        resources.readBytes = 3000;
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(!tx->apply(*app, ltx, txm));
+        REQUIRE(tx->getResult()
+                    .result.results()
+                    .at(0)
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(tx->getResultCode() == txFAILED);
+    };
+
+    for (auto name :
+         {"err_eek", "err_err", "ok_err", "ok_val_err", "err", "val"})
+    {
+        call_fn_check_failure(name);
     }
 }
 

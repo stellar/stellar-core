@@ -202,6 +202,7 @@ mod rust_bridge {
         fn get_test_wasm_add_i32() -> Result<RustBuf>;
         fn get_test_wasm_contract_data() -> Result<RustBuf>;
         fn get_test_wasm_complex() -> Result<RustBuf>;
+        fn get_test_wasm_err() -> Result<RustBuf>;
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
@@ -297,6 +298,12 @@ pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn std::erro
 pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::COMPLEX.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::ERR.iter().cloned().collect(),
     })
 }
 
