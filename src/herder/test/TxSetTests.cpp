@@ -320,6 +320,45 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             }
         }
     }
+    SECTION("wrong tx type in phases")
+    {
+        xdrTxSet.v1TxSet().phases.emplace_back();
+        xdrTxSet.v1TxSet().phases.emplace_back();
+        SECTION("classic phase")
+        {
+            xdrTxSet.v1TxSet().phases[1].v0Components().emplace_back(
+                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+            xdrTxSet.v1TxSet()
+                .phases[1]
+                .v0Components()
+                .back()
+                .txsMaybeDiscountedFee()
+                .txs.emplace_back();
+        }
+        SECTION("soroban phase")
+        {
+            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
+                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+            xdrTxSet.v1TxSet()
+                .phases[0]
+                .v0Components()
+                .back()
+                .txsMaybeDiscountedFee()
+                .txs.emplace_back();
+
+            auto& txEnv = xdrTxSet.v1TxSet()
+                              .phases[0]
+                              .v0Components()
+                              .back()
+                              .txsMaybeDiscountedFee()
+                              .txs.back();
+
+            txEnv.v0().tx.operations.emplace_back();
+            txEnv.v0().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
+        }
+        auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
+        REQUIRE(!txSet->checkValidStructure());
+    }
     SECTION("valid XDR")
     {
 
@@ -443,21 +482,36 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 5;
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int accountId = 0;
-    auto createTxs = [&](int cnt, int fee) {
+    auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
         std::vector<TransactionFrameBasePtr> txs;
         for (int i = 0; i < cnt; ++i)
         {
             auto source =
                 root.create("unique " + std::to_string(accountId++),
                             app->getLedgerManager().getLastMinBalance(2));
-            txs.emplace_back(transactionFromOperations(
-                *app, source.getSecretKey(), source.nextSequenceNumber(),
-                {createAccount(getAccount(std::to_string(i)).getPublicKey(),
-                               1)},
-                fee));
+            if (isSoroban)
+            {
+                SorobanResources resources;
+                resources.instructions = 800'000;
+                resources.readBytes = 1000;
+                resources.writeBytes = 1000;
+                resources.contractEventsSizeBytes = 0;
+                txs.emplace_back(createUploadWasmTx(*app, source, fee,
+                                                    /* refundableFee */ 1200,
+                                                    resources));
+            }
+            else
+            {
+                txs.emplace_back(transactionFromOperations(
+                    *app, source.getSecretKey(), source.nextSequenceNumber(),
+                    {createAccount(getAccount(std::to_string(i)).getPublicKey(),
+                                   1)},
+                    fee));
+            }
         }
         return txs;
     };
@@ -552,23 +606,102 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
         auto const& lclHeader =
             app->getLedgerManager().getLastClosedLedgerHeader();
         std::vector<TransactionFrameBasePtr> txs =
-            createTxs(5, lclHeader.header.baseFee);
-        auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+            createTxs(5, lclHeader.header.baseFee, /* isSoroban */ false);
+        std::vector<TransactionFrameBasePtr> sorobanTxs =
+            createTxs(5, 10'000'000, /* isSoroban */ true);
 
-        GeneralizedTransactionSet txSetXdr;
-        txSet->toXDR(txSetXdr);
-        REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().size() == 1);
-        REQUIRE(*txSetXdr.v1TxSet()
-                     .phases[0]
-                     .v0Components()[0]
-                     .txsMaybeDiscountedFee()
-                     .baseFee == lclHeader.header.baseFee);
-        REQUIRE(txSetXdr.v1TxSet()
-                    .phases[0]
-                    .v0Components()[0]
-                    .txsMaybeDiscountedFee()
-                    .txs.size() == 5);
-        checkXdrRoundtrip(txSetXdr);
+        SECTION("classic only")
+        {
+            auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+            GeneralizedTransactionSet txSetXdr;
+            txSet->toXDR(txSetXdr);
+            REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
+            REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().size() == 1);
+            REQUIRE(*txSetXdr.v1TxSet()
+                         .phases[0]
+                         .v0Components()[0]
+                         .txsMaybeDiscountedFee()
+                         .baseFee == lclHeader.header.baseFee);
+            REQUIRE(txSetXdr.v1TxSet()
+                        .phases[0]
+                        .v0Components()[0]
+                        .txsMaybeDiscountedFee()
+                        .txs.size() == 5);
+            checkXdrRoundtrip(txSetXdr);
+        }
+        SECTION("classic and soroban")
+        {
+            SECTION("valid")
+            {
+                SECTION("minimum base fee")
+                {
+                    auto txSet = TxSetFrame::makeFromTransactions(
+                        {txs, sorobanTxs}, *app, 0, 0);
+                    GeneralizedTransactionSet txSetXdr;
+                    txSet->toXDR(txSetXdr);
+                    REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
+                    for (auto const& phase : txSetXdr.v1TxSet().phases)
+                    {
+                        // Base inclusion fee is 100 for all phases since no
+                        // surge pricing kicked in
+                        REQUIRE(phase.v0Components().size() == 1);
+                        REQUIRE(*phase.v0Components()[0]
+                                     .txsMaybeDiscountedFee()
+                                     .baseFee == lclHeader.header.baseFee);
+                        REQUIRE(phase.v0Components()[0]
+                                    .txsMaybeDiscountedFee()
+                                    .txs.size() == 5);
+                    }
+                    checkXdrRoundtrip(txSetXdr);
+                }
+                SECTION("higher base fee")
+                {
+                    // generate more soroban txs with higher fee to trigger
+                    // surge pricing
+                    auto higherFeeSorobanTxs =
+                        createTxs(5, 20'000'000, /* isSoroban */ true);
+                    sorobanTxs.insert(sorobanTxs.begin(),
+                                      higherFeeSorobanTxs.begin(),
+                                      higherFeeSorobanTxs.end());
+                    auto txSet = TxSetFrame::makeFromTransactions(
+                        {txs, sorobanTxs}, *app, 0, 100);
+                    GeneralizedTransactionSet txSetXdr;
+                    txSet->toXDR(txSetXdr);
+                    REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
+                    for (int i = 0; i < txSetXdr.v1TxSet().phases.size(); i++)
+                    {
+                        auto const& phase = txSetXdr.v1TxSet().phases[i];
+                        auto expectedBaseFee =
+                            i == 0 ? lclHeader.header.baseFee
+                                   : higherFeeSorobanTxs[0]->getInclusionFee();
+                        REQUIRE(phase.v0Components().size() == 1);
+                        REQUIRE(*phase.v0Components()[0]
+                                     .txsMaybeDiscountedFee()
+                                     .baseFee == expectedBaseFee);
+                        REQUIRE(phase.v0Components()[0]
+                                    .txsMaybeDiscountedFee()
+                                    .txs.size() == 5);
+                    }
+                    checkXdrRoundtrip(txSetXdr);
+                }
+            }
+            SECTION("invalid, soroban tx in wrong phase")
+            {
+                sorobanTxs[4] = txs[0];
+                REQUIRE_THROWS_WITH(TxSetFrame::makeFromTransactions(
+                                        {txs, sorobanTxs}, *app, 0, 0),
+                                    "TxSetFrame::makeFromTransactions: phases "
+                                    "contain txs of wrong type");
+            }
+            SECTION("invalid, classic tx in wrong phase")
+            {
+                txs[4] = sorobanTxs[0];
+                REQUIRE_THROWS_WITH(TxSetFrame::makeFromTransactions(
+                                        {txs, sorobanTxs}, *app, 0, 0),
+                                    "TxSetFrame::makeFromTransactions: phases "
+                                    "contain txs of wrong type");
+            }
+        }
     }
 }
 
@@ -634,6 +767,32 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
     }
+    SECTION("invalid, classic and soroban")
+    {
+        SorobanResources resources;
+        resources.instructions = 800'000;
+        resources.readBytes = 1000;
+        resources.writeBytes = 1000;
+        resources.contractEventsSizeBytes = 0;
+        uint32_t inclusionFee = 500;
+        uint32_t refundableFee = 10'000;
+        auto sorobanTx = createUploadWasmTx(*app, root, inclusionFee,
+                                            refundableFee, resources);
+        setValidTotalFee(sorobanTx, inclusionFee, refundableFee, *app, root);
+        // Make sure fees got computed correctly
+        REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
+
+        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+            {{std::make_pair(
+                 500,
+                 std::vector<TransactionFrameBasePtr>{
+                     createTx(1, 1000, false), createTx(3, 1500, false)})},
+             {std::make_pair(500,
+                             std::vector<TransactionFrameBasePtr>{sorobanTx})}},
+            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
+    }
 }
 
 TEST_CASE("generalized tx set fees", "[txset]")
@@ -644,22 +803,41 @@ TEST_CASE("generalized tx set fees", "[txset]")
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 10;
+
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
+    uint32_t refundableFee = 10'000;
 
-    auto createTx = [&](int opCnt, int fee) {
-        std::vector<Operation> ops;
-        for (int i = 0; i < opCnt; ++i)
-        {
-            ops.emplace_back(createAccount(
-                getAccount(std::to_string(accountId++)).getPublicKey(), 1));
-        }
-        // Create a new unique accounts to ensure there are no collisions
-        auto source = root.create("unique " + std::to_string(accountId),
+    auto createTx = [&](int opCnt, int inclusionFee, bool isSoroban = false) {
+        auto source = root.create("unique " + std::to_string(accountId++),
                                   app->getLedgerManager().getLastMinBalance(2));
-        return transactionFromOperations(*app, source.getSecretKey(),
-                                         source.nextSequenceNumber(), ops, fee);
+        if (isSoroban)
+        {
+            SorobanResources resources;
+            resources.instructions = 800'000;
+            resources.readBytes = 1000;
+            resources.writeBytes = 1000;
+            resources.contractEventsSizeBytes = 0;
+            auto tx = createUploadWasmTx(*app, source, inclusionFee,
+                                         refundableFee, resources);
+            setValidTotalFee(tx, inclusionFee, refundableFee, *app, source);
+            REQUIRE(tx->getInclusionFee() == inclusionFee);
+            return tx;
+        }
+        else
+        {
+            std::vector<Operation> ops;
+            for (int i = 0; i < opCnt; ++i)
+            {
+                ops.emplace_back(createAccount(
+                    getAccount(std::to_string(accountId++)).getPublicKey(), 1));
+            }
+            return transactionFromOperations(*app, source.getSecretKey(),
+                                             source.nextSequenceNumber(), ops,
+                                             inclusionFee);
+        }
     };
 
     SECTION("valid txset")
@@ -675,43 +853,89 @@ TEST_CASE("generalized tx set fees", "[txset]")
               std::make_pair(std::nullopt,
                              std::vector<TransactionFrameBasePtr>{
                                  createTx(2, 10000), createTx(5, 100000)})},
-             {}},
+             {std::make_pair(500,
+                             std::vector<TransactionFrameBasePtr>{
+                                 createTx(1, 1000, /* isSoroban */ true),
+                                 createTx(1, 500, /* isSoroban */ true)}),
+              std::make_pair(1000,
+                             std::vector<TransactionFrameBasePtr>{
+                                 createTx(1, 1250, /* isSoroban */ true),
+                                 createTx(1, 1000, /* isSoroban */ true),
+                                 createTx(1, 1200, /* isSoroban */ true)}),
+              std::make_pair(std::nullopt,
+                             std::vector<TransactionFrameBasePtr>{
+                                 createTx(1, 5000, /* isSoroban */ true),
+                                 createTx(1, 20000, /* isSoroban */ true)})}},
             *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
-        std::vector<std::optional<int64_t>> fees;
-        for (auto const& tx : txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC))
+        for (int i = 0; i < TxSetFrame::Phase::PHASE_COUNT; ++i)
         {
-            fees.push_back(txSet->getTxBaseFee(
-                tx,
-                app->getLedgerManager().getLastClosedLedgerHeader().header));
+            std::vector<std::optional<int64_t>> fees;
+            for (auto const& tx :
+                 txSet->getTxsForPhase(static_cast<TxSetFrame::Phase>(i)))
+            {
+                fees.push_back(
+                    txSet->getTxBaseFee(tx, app->getLedgerManager()
+                                                .getLastClosedLedgerHeader()
+                                                .header));
+            }
+            std::sort(fees.begin(), fees.end());
+            REQUIRE(fees == std::vector<std::optional<int64_t>>{
+                                std::nullopt, std::nullopt, 500, 500, 1000,
+                                1000, 1000});
         }
-        std::sort(fees.begin(), fees.end());
-        REQUIRE(fees ==
-                std::vector<std::optional<int64_t>>{
-                    std::nullopt, std::nullopt, 500, 500, 1000, 1000, 1000});
     }
     SECTION("tx with too low discounted fee")
     {
-        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {{std::make_pair(
-                 500, std::vector<TransactionFrameBasePtr>{createTx(2, 999)})},
-             {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        SECTION("classic")
+        {
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                {{std::make_pair(
+                     500,
+                     std::vector<TransactionFrameBasePtr>{createTx(2, 999)})},
+                 {}},
+                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-        REQUIRE(!txSet->checkValid(*app, 0, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+        }
+        SECTION("soroban")
+        {
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                {{},
+                 {std::make_pair(500,
+                                 std::vector<TransactionFrameBasePtr>{
+                                     createTx(1, 499, /* isSoroban */ true)})}},
+                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+        }
     }
 
     SECTION("tx with too low non-discounted fee")
     {
-        auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
-            {{std::make_pair(
-                 std::nullopt,
-                 std::vector<TransactionFrameBasePtr>{createTx(2, 199)})},
-             {}},
-            *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+        SECTION("classic")
+        {
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                {{std::make_pair(
+                     std::nullopt,
+                     std::vector<TransactionFrameBasePtr>{createTx(2, 199)})},
+                 {}},
+                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-        REQUIRE(!txSet->checkValid(*app, 0, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+        }
+        SECTION("soroban")
+        {
+            auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                {{},
+                 {std::make_pair(
+                     std::nullopt,
+                     std::vector<TransactionFrameBasePtr>{createTx(1, 199)})}},
+                *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
+        }
     }
 }
 #endif

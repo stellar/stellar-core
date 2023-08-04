@@ -195,6 +195,14 @@ class TransactionFrame : public TransactionFrameBase
     void setReturnValue(SCVal&& returnValue);
     void pushInitialExpirations(
         UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
+#ifdef BUILD_TESTS
+    // Used to test the behavior of the transaction fee bump feature.
+    std::optional<FeePair>
+    getSorobanResourceFee() const
+    {
+        return mSorobanResourceFee;
+    }
+#endif
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;

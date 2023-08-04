@@ -1520,6 +1520,18 @@ TEST_CASE("Soroban TransactionQueue limits",
                     tx2->getResultCode() ==
                     TransactionResultCode::txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
             }
+            SECTION("too many ops")
+            {
+                auto tx2 = createUploadWasmTx(
+                    *app, account2, initialFee * 2, refundableFee, resources,
+                    std::nullopt, /* addInvalidOps */ 99);
+
+                REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                        TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
+                REQUIRE(tx2->getResultCode() ==
+                        TransactionResultCode::txMALFORMED);
+            }
         }
         SECTION("accept but evict first tx")
         {

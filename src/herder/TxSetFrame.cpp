@@ -339,14 +339,18 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     }
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
-    bool invalid = txSet->numPhases() != outputTxSet->numPhases();
-    for (int i = 0; i < txSet->numPhases(); ++i)
+    bool valid = txSet->numPhases() == outputTxSet->numPhases();
+    if (valid)
     {
-        invalid |= txSet->sizeTx(static_cast<Phase>(i)) !=
-                   outputTxSet->sizeTx(static_cast<Phase>(i));
+        for (int i = 0; i < txSet->numPhases(); ++i)
+        {
+            valid = valid && txSet->sizeTx(static_cast<Phase>(i)) ==
+                                 outputTxSet->sizeTx(static_cast<Phase>(i));
+        }
     }
-    if (invalid || !outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset))
+    valid = valid && outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
+                                             upperBoundCloseTimeOffset);
+    if (!valid)
     {
         throw std::runtime_error("Created invalid tx set frame");
     }
@@ -620,12 +624,12 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
             return true;
         };
 
-        if (!checkFeeMap(getFeeMap(Phase::CLASSIC)))
+        if (!checkFeeMap(getInclusionFeeMap(Phase::CLASSIC)))
         {
             return false;
         }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (!checkFeeMap(getFeeMap(Phase::SOROBAN)))
+        if (!checkFeeMap(getInclusionFeeMap(Phase::SOROBAN)))
         {
             return false;
         }
@@ -886,7 +890,7 @@ TxSetFrame::computeTxFees(TxSetFrame::Phase phase,
     }
 
     auto const& txs = mTxPhases.at(phase);
-    auto& feeMap = getFeeMap(phase);
+    auto& feeMap = getInclusionFeeMap(phase);
     for (auto const& tx : txs)
     {
         feeMap[tx] = laneBaseFee[surgePricingConfig.getLane(*tx)];
@@ -1026,9 +1030,9 @@ TxSetFrame::summary() const
             {
                 status += ", ";
             }
-            status += fmt::format(FMT_STRING("{} phase: {}"),
-                                  getPhaseName(static_cast<Phase>(i)),
-                                  feeStats(getFeeMap(static_cast<Phase>(i))));
+            status += fmt::format(
+                FMT_STRING("{} phase: {}"), getPhaseName(static_cast<Phase>(i)),
+                feeStats(getInclusionFeeMap(static_cast<Phase>(i))));
         }
         return status;
     }
@@ -1074,7 +1078,7 @@ TxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
         auto& phase =
             generalizedTxSet.v1TxSet().phases.emplace_back().v0Components();
 
-        auto const& feeMap = getFeeMap(static_cast<Phase>(i));
+        auto const& feeMap = getInclusionFeeMap(static_cast<Phase>(i));
         std::map<std::optional<int64_t>, size_t> feeTxCount;
         for (auto const& [tx, fee] : feeMap)
         {
@@ -1146,7 +1150,7 @@ TxSetFrame::addTxsFromXdr(Application& app,
         phaseTxs.push_back(tx);
         if (useBaseFee)
         {
-            getFeeMap(phase)[tx] = baseFee;
+            getInclusionFeeMap(phase)[tx] = baseFee;
         }
     }
     return std::is_sorted(phaseTxs.begin() + oldSize, phaseTxs.end(),
@@ -1292,7 +1296,7 @@ TxSetFrame::computeContentsHash()
 }
 
 std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
-TxSetFrame::getFeeMap(Phase phase) const
+TxSetFrame::getInclusionFeeMap(Phase phase) const
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (phase == Phase::SOROBAN)
