@@ -32,6 +32,7 @@ class LedgerCloseMetaFrame
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void setTotalByteSizeOfBucketList(uint64_t size);
+    void populateEvictedEntries(LedgerEntryChanges const& evictionChanges);
 #endif
 
     LedgerCloseMeta const& getXDR() const;
