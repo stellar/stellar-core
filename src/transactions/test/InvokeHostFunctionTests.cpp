@@ -999,7 +999,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract instance and wasm")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 68);
+            restoreOp(contractKeys, 54);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1037,7 +1037,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract wasm, not instance")
         {
             // Only restore WASM
-            restoreOp({contractKeys[1]}, 65);
+            restoreOp({contractKeys[1]}, 51);
 
             // invocation should fail
             putWithFootprint(
@@ -1056,7 +1056,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("lifetime extensions")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 68);
+            restoreOp(contractKeys, 54);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
@@ -1065,7 +1065,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             bumpOp(instanceBumpAmount, {contractKeys[0]}, 4);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 171);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 135);
 
             checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
                                      ledgerSeq + instanceBumpAmount);
@@ -1239,7 +1239,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 97);
+        bumpOp(10'000, contractKeys, 77);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
