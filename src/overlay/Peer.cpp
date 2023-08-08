@@ -1101,8 +1101,9 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     }
 
     auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-    CLOG_INFO(Overlay, "Peer::recvGetTxSet found the tx set for {}, sending it",
-              hexAbbrev(txSet->getContentsHash()));
+    CLOG_INFO(Overlay,
+              "Peer::recvGetTxSet {} found the tx set for {}, sending it",
+              toString(), hexAbbrev(txSet->getContentsHash()));
     sendMessage(newMsgPtr);
 }
 
@@ -1134,15 +1135,16 @@ Peer::recvGetTxSet(StellarMessage const& msg)
         }
 
         auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-        CLOG_INFO(Overlay,
-                  "Peer::recvGetTxSet found the tx set for {}, sending it back",
-                  hexAbbrev(msg.txSetHash()));
+        CLOG_INFO(
+            Overlay,
+            "Peer::recvGetTxSet {} found the tx set for {}, sending it back",
+            toString(), hexAbbrev(msg.txSetHash()));
         self->sendMessage(newMsgPtr);
     }
     else
     {
-        CLOG_INFO(Overlay, "Peer::recvGetTxSet sending DONT_HAVE for {}",
-                  hexAbbrev(msg.txSetHash()));
+        CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
+                  toString(), hexAbbrev(msg.txSetHash()));
         // Technically we don't exactly know what is the kind of the tx set
         // missing, however both TX_SET and GENERALIZED_TX_SET get the same
         // treatment when missing, so it should be ok to maybe send the
@@ -1176,18 +1178,27 @@ Peer::recvTxSet(StellarMessage const& msg)
     ZoneScoped;
     auto frame = TxSetFrame::makeFromWire(mApp, msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
-    CLOG_INFO(Overlay,
-              "Peer::recvTxSet received {}, trying to fulfill pending requests",
-              hexAbbrev(frame->getContentsHash()));
+    CLOG_INFO(
+        Overlay,
+        "Peer::recvTxSet {} received {}, trying to fulfill pending requests",
+        toString(), hexAbbrev(frame->getContentsHash()));
     auto pendingTxSetRequests =
         mApp.getOverlayManager().getPendingTxSetRequests();
+
+    CLOG_INFO(Overlay, "pending requests length: {}",
+              pendingTxSetRequests[frame->getContentsHash()].size());
 
     for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
     {
         auto peer = weakPeer.lock();
         if (peer)
         {
+            CLOG_INFO(Overlay, "Pending request to peer {}", peer->toString());
             peer->sendTxSet(frame);
+        }
+        else
+        {
+            CLOG_INFO(Overlay, "Peer does not exist");
         }
     }
     pendingTxSetRequests[frame->getContentsHash()].clear();
