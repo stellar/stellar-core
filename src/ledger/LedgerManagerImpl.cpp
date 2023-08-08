@@ -528,7 +528,7 @@ LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
     // maybeUpdateNetworkConfig will throw if protocol version is invalid
     if (!mSorobanNetworkConfig)
     {
-        maybeUpdateNetworkConfig(false, ltx);
+        updateNetworkConfig(ltx);
     }
 
     return *mSorobanNetworkConfig;
@@ -822,7 +822,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     }
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
-    bool upgradeHappened = false;
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -874,7 +873,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                               static_cast<int>(i + 1));
             }
             ltxUpgrade.commit();
-            upgradeHappened = true;
         }
         catch (std::runtime_error& e)
         {
@@ -891,7 +889,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   ProtocolVersion::V_20))
     {
-        maybeUpdateNetworkConfig(upgradeHappened, ltx);
+        updateNetworkConfig(ltx);
     }
 
     ledgerClosed(ltx);
@@ -1172,15 +1170,13 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 }
 
 void
-LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
-                                            AbstractLedgerTxn& rootLtx)
+LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!upgradeHappened && mSorobanNetworkConfig)
+    if (!mSorobanNetworkConfig)
     {
-        return;
+        mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
     }
-
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,

@@ -105,7 +105,7 @@ class LedgerManagerImpl : public LedgerManager
     // This needs to be called after the protocol upgrades or once
     // during the catchups/test setup etc.
     // This call is read-only and hence `ltx` can be read-only.
-    void maybeUpdateNetworkConfig(bool upgradeHappened, AbstractLedgerTxn& ltx);
+    void updateNetworkConfig(AbstractLedgerTxn& ltx);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
