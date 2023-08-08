@@ -246,6 +246,16 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
             MIN_UNIQUE_ACCOUNT_MULTIPLIER);
     }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (cfg.mode == LoadGenMode::SOROBAN &&
+        protocolVersionIsBefore(mApp.getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        errorMsg = "Soroban mode requires protocol version 20 or higher";
+    }
+#endif
     if (errorMsg)
     {
         CLOG_ERROR(LoadGen, "{}", *errorMsg);

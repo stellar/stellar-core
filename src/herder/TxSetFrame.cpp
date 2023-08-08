@@ -1129,17 +1129,19 @@ TxSetFrame::addTxsFromXdr(Application& app,
     LedgerTxn ltx(app.getLedgerTxnRoot(), false,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfig(ltx);
-    auto const& appConfig = app.getConfig();
 #endif
     for (auto const& env : txs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             app.getNetworkID(), env);
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        tx->maybeComputeSorobanResourceFee(ledgerVersion, sorobanConfig,
-                                           appConfig);
+        if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+        {
+            tx->maybeComputeSorobanResourceFee(
+                ledgerVersion,
+                app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                app.getConfig());
+        }
         // Phase should be consistent with the tx we're trying to add
         if ((tx->isSoroban() && phase != Phase::SOROBAN) ||
             (!tx->isSoroban() && phase != Phase::CLASSIC))

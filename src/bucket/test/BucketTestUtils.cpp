@@ -110,9 +110,12 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         std::vector<LedgerEntry> init, live;
         std::vector<LedgerKey> dead;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        mApp.getLedgerManager()
-            .getMutableSorobanNetworkConfig(ltx)
-            .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+        if (protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
+        {
+            mApp.getLedgerManager()
+                .getMutableSorobanNetworkConfig(ltx)
+                .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+        }
 #endif
         ltx.getAllEntries(init, live, dead);
         // Use the testing values.

@@ -1354,9 +1354,14 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         minBaseFee = 0;
     }
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig());
+    }
 
 #endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);

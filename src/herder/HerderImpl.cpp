@@ -1235,7 +1235,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  ProtocolVersion::V_20))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         txPhases.emplace_back(
             mSorobanTransactionQueue.getTransactions(lcl.header));
@@ -1994,8 +1994,14 @@ HerderImpl::start()
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
+
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            auto const& conf =
+                mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
+        }
     }
 #endif
 
