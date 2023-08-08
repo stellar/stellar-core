@@ -791,15 +791,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             header.current().ledgerVersion);
         ledgerCloseMeta->reserveTxProcessing(txSet->sizeTxTotal());
         ledgerCloseMeta->populateTxSet(*txSet);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                      ProtocolVersion::V_20))
-        {
-            auto blSize =
-                getSorobanNetworkConfig(ltx).getAverageBucketListSize();
-            ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
-        }
-#endif
     }
 
     // the transaction set that was agreed upon by consensus
@@ -1533,6 +1524,9 @@ LedgerManagerImpl::ledgerClosed(
     {
         ledgerCloseMeta->populateEvictedEntries(
             ltx.getChanges(EntryChangeType::EVICTION));
+
+        auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
+        ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
     }
 #endif
 
