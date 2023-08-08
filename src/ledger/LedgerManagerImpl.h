@@ -78,7 +78,9 @@ class LedgerManagerImpl : public LedgerManager
         TransactionResultSet& txResultSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
-    void ledgerClosed(AbstractLedgerTxn& ltx);
+    void
+    ledgerClosed(AbstractLedgerTxn& ltx,
+                 std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
     void

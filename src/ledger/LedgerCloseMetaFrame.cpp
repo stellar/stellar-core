@@ -200,6 +200,20 @@ LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
         releaseAssert(false);
     }
 }
+
+void
+LedgerCloseMetaFrame::populateEvictedEntries(
+    LedgerEntryChanges const& evictionChanges)
+{
+    releaseAssert(mVersion == 2);
+    for (auto const& change : evictionChanges)
+    {
+        releaseAssert(change.type() == LEDGER_ENTRY_REMOVED);
+        auto key = change.removed();
+        releaseAssert(isTemporaryEntry(key));
+        mLedgerCloseMeta.v2().evictedTemporaryLedgerKeys.push_back(key);
+    }
+}
 #endif
 
 LedgerCloseMeta const&

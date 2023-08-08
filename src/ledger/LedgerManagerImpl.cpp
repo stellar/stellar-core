@@ -243,7 +243,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr);
     ltx.commit();
 }
 
@@ -886,7 +886,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         updateNetworkConfig(ltx);
     }
 
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, ledgerCloseMeta);
 
     if (ledgerData.getExpectedHash() &&
         *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
@@ -1508,7 +1508,9 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
 }
 
 void
-LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::ledgerClosed(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
@@ -1518,6 +1520,15 @@ LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
                ledgerSeq, ledgerVers);
 
     transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (ledgerCloseMeta &&
+        protocolVersionStartsFrom(ledgerVers, ProtocolVersion::V_20))
+    {
+        ledgerCloseMeta->populateEvictedEntries(
+            ltx.getChanges(EntryChangeType::EVICTION));
+    }
+#endif
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
