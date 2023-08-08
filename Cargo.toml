@@ -4,9 +4,10 @@ members = ["src/rust", "lib/tracy-client-sys"]
 [patch.crates-io]
 tracy-client-sys = { path = "lib/tracy-client-sys" }
 
-# [patch."https://github.com/stellar/rs-soroban-env"]
-# soroban-env-common = { path = "../rs-soroban-env/soroban-env-common" }
-# soroban-env-host = { path = "../rs-soroban-env/soroban-env-host/" }
+#[patch."https://github.com/stellar/rs-soroban-env"]
+#soroban-env-common = { path = "../rs-soroban-env/soroban-env-common" }
+#soroban-env-host = { path = "../rs-soroban-env/soroban-env-host/" }
+#soroban-test-wasms = { path = "../rs-soroban-env/soroban-test-wasms/" }
 
 # [patch."https://github.com/stellar/rs-stellar-xdr"]
 # stellar-xdr = { path = "../rs-stellar-xdr/" }

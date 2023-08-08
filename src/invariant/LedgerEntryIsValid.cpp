@@ -718,10 +718,7 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
         }
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
-        if (cfg.contractEvents().txMaxContractEventsSizeBytes <
-                MinimumSorobanNetworkConfig::
-                    TX_MAX_CONTRACT_EVENTS_SIZE_BYTES ||
-            cfg.contractEvents().feeContractEvents1KB < 0)
+        if (cfg.contractEvents().feeContractEvents1KB < 0)
         {
             return "Invalid contractMetaData";
         }

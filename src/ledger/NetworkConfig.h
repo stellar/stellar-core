@@ -117,8 +117,6 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 2;
     static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 5000;
 
-    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 0;
-
     static constexpr uint32_t TX_MAX_SIZE_BYTES = 10000;
     static constexpr uint32_t LEDGER_MAX_TX_SIZE_BYTES = 10000;
 

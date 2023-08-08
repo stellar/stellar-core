@@ -1532,8 +1532,7 @@ ConfigUpgradeSetFrame::isValidForApply() const
                 cfg.contractLedgerCost().ledgerMaxWriteBytes >=
                     MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES &&
                 cfg.contractLedgerCost().txMaxReadLedgerEntries >=
-                    MinimumSorobanNetworkConfig::
-                        LEDGER_MAX_READ_LEDGER_ENTRIES &&
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
                 cfg.contractLedgerCost().txMaxReadBytes >=
                     MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
                 cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
@@ -1561,9 +1560,7 @@ ConfigUpgradeSetFrame::isValidForApply() const
                                  cfg.contractLedgerCost().txMaxWriteBytes;
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
-            valid = cfg.contractEvents().txMaxContractEventsSizeBytes >=
-                        MinimumSorobanNetworkConfig::
-                            TX_MAX_CONTRACT_EVENTS_SIZE_BYTES &&
+            valid = cfg.contractEvents().txMaxContractEventsSizeBytes >= 0 &&
                     cfg.contractEvents().feeContractEvents1KB >= 0;
             break;
         case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:
