@@ -23,6 +23,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "util/Thread.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -1241,9 +1242,13 @@ OverlayManagerImpl::getMaxAdvertSize() const
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        auto limits = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-        opsToFloodPerLedger += getOpsFloodLedger(
-            limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            auto limits = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+            opsToFloodPerLedger += getOpsFloodLedger(
+                limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
+        }
     }
 #endif
 

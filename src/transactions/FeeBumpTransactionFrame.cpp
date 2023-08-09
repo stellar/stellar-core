@@ -191,9 +191,14 @@ FeeBumpTransactionFrame::checkValid(Application& app,
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    mInnerTx->maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mInnerTx->maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig());
+    }
 #endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 

@@ -525,6 +525,7 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
 {
+    // maybeUpdateNetworkConfig will throw if protocol version is invalid
     if (!mSorobanNetworkConfig)
     {
         maybeUpdateNetworkConfig(false, ltx);
@@ -711,13 +712,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                      std::chrono::milliseconds::max()};
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    uint64_t blSize = mApp.getLedgerManager()
-                          .getSorobanNetworkConfig(ltx)
-                          .getAverageBucketListSize();
-#endif
-
     auto header = ltx.loadHeader();
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = mLastClosedLedger.hash;
@@ -801,6 +795,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         if (protocolVersionStartsFrom(header.current().ledgerVersion,
                                       ProtocolVersion::V_20))
         {
+            auto blSize =
+                getSorobanNetworkConfig(ltx).getAverageBucketListSize();
             ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
         }
 #endif
@@ -891,8 +887,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // Technically only a subset of upgrades affects network configuration, but
     // it's simpler/safer to just refresh it for any upgrade (sometimes as a
     // no-op).
-
-    maybeUpdateNetworkConfig(upgradeHappened, ltx);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_20))
+    {
+        maybeUpdateNetworkConfig(upgradeHappened, ltx);
+    }
 
     ledgerClosed(ltx);
 
@@ -1180,10 +1179,7 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
     {
         return;
     }
-    if (!mSorobanNetworkConfig)
-    {
-        mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
-    }
+
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,
@@ -1193,9 +1189,18 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
+        if (!mSorobanNetworkConfig)
+        {
+            mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
+        }
         mSorobanNetworkConfig->loadFromLedger(
             rootLtx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
             ledgerVersion);
+    }
+    else
+    {
+        throw std::runtime_error("Protocol version is before 20: "
+                                 "cannot load Soroban network config");
     }
 #endif
 }
@@ -1493,7 +1498,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     // Since snapshots are stored in a LedgerEntry, need to snapshot before
     // sealing the ledger with ltx.getAllEntries
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (blEnabled)
+    if (blEnabled &&
+        protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);

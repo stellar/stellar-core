@@ -232,12 +232,17 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Transaction queue performs read-only transactions to the database and
-    // there are no concurrent writers, so it is safe to not enclose all the
-    // SQL statements into one transaction here.
-    tx->maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        mApp.getLedgerManager().getSorobanNetworkConfig(ltx), mApp.getConfig());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        // Transaction queue performs read-only transactions to the database and
+        // there are no concurrent writers, so it is safe to not enclose all the
+        // SQL statements into one transaction here.
+        tx->maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            mApp.getLedgerManager().getSorobanNetworkConfig(ltx),
+            mApp.getConfig());
+    }
 #endif
     int64_t newInclusionFee = tx->getInclusionFee();
     int64_t seqNum = 0;
@@ -1246,6 +1251,14 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
+    // If we're not on the right protocol yet, there's nothing to broadcast
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return std::make_pair(Resource::makeEmpty(true), std::nullopt);
+    }
+
     auto sorRes = mApp.getLedgerManager().maxLedgerResources(true, ltx);
 
     auto totalFloodPerLedger = multiplyByDouble(sorRes, ratePerLedger);
@@ -1314,12 +1327,16 @@ SorobanTransactionQueue::broadcastSome()
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
-        /* isSoroban */ true, ltx);
-    for (auto& resLeft : mBroadcastOpCarryover)
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
-        // Limit carry-over to 1 maximum resource transaction
-        resLeft = limitTo(resLeft, maxPerTx);
+        Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
+            /* isSoroban */ true, ltx);
+        for (auto& resLeft : mBroadcastOpCarryover)
+        {
+            // Limit carry-over to 1 maximum resource transaction
+            resLeft = limitTo(resLeft, maxPerTx);
+        }
     }
     return !totalResToFlood.isZero();
 }
@@ -1330,9 +1347,17 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
-    releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
-    return res.getVal(Resource::Type::OPERATIONS);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
+        releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
+        return res.getVal(Resource::Type::OPERATIONS);
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 #endif
