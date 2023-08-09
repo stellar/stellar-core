@@ -211,6 +211,8 @@ class TxSetFrame : public NonMovableOrCopyable
     bool const mIsGeneralized;
 
     Hash const mPreviousLedgerHash;
+    // There can only be 1 phase (classic) prior to protocol 20.
+    // Starting protocol 20, there will be 2 phases (classic and soroban).
     std::vector<Transactions> mTxPhases;
 
     mutable std::vector<bool> mFeesComputed;
@@ -223,8 +225,11 @@ class TxSetFrame : public NonMovableOrCopyable
         mTxBaseFeeSoroban;
     std::optional<Resource> getTxSetSorobanResource() const;
 #endif
+    // Get _inclusion_ fee map for a given phase. The map contains lowest base
+    // fee for each transaction (lowest base fee is identical for all
+    // transactions in the same lane)
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
-    getFeeMap(Phase phase) const;
+    getInclusionFeeMap(Phase phase) const;
 };
 
 } // namespace stellar

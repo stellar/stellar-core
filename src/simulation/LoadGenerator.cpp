@@ -27,6 +27,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
+#include "ledger/test/LedgerTestUtils.h"
 #include <Tracy.hpp>
 #include <cmath>
 #include <crypto/SHA.h>
@@ -103,6 +104,37 @@ LoadGenerator::getMode(std::string const& mode)
         // unknown mode
         abort();
     }
+}
+
+int
+generateFee(std::optional<uint32_t> maxGeneratedFeeRate, Application& app,
+            size_t opsCnt)
+{
+    int fee = 0;
+    auto baseFee = app.getLedgerManager().getLastTxFee();
+
+    if (maxGeneratedFeeRate)
+    {
+        auto feeRateDistr =
+            uniform_int_distribution<uint32_t>(baseFee, *maxGeneratedFeeRate);
+        // Add a bit more fee to get non-integer fee rates, such that
+        // `floor(fee / opsCnt) == feeRate`, but
+        // `fee / opsCnt >= feeRate`.
+        // This is to create a bit more realistic fee structure: in reality not
+        // every transaction would necessarily have the `fee == ops_count *
+        // some_int`. This also would exercise more code paths/logic during the
+        // transaction comparisons.
+        auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
+            0, static_cast<uint32_t>(opsCnt) - 1);
+        fee = static_cast<uint32_t>(opsCnt) * feeRateDistr(gRandomEngine) +
+              fractionalFeeDistr(gRandomEngine);
+    }
+    else
+    {
+        fee = opsCnt * baseFee;
+    }
+
+    return fee;
 }
 
 void
@@ -431,8 +463,45 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             case LoadGenMode::SOROBAN:
             {
                 generateTx = [&]() {
-                    return sorobanTransaction(cfg.nAccounts, cfg.offset,
-                                              ledgerNum, sourceAccountId);
+                    SorobanResources resources;
+                    uint32_t wasmSize{1000};
+                    {
+                        LedgerTxn ltx(
+                            mApp.getLedgerTxnRoot(), true,
+                            TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+                        Resource maxPerTx =
+                            mApp.getLedgerManager().maxTransactionResources(
+                                /* isSoroban */ true, ltx);
+
+                        resources.instructions = rand_uniform<uint32_t>(
+                            1, maxPerTx.getVal(Resource::Type::INSTRUCTIONS));
+                        wasmSize = rand_uniform<uint32_t>(
+                            1, mApp.getLedgerManager()
+                                   .getSorobanNetworkConfig(ltx)
+                                   .maxContractSizeBytes());
+                        resources.readBytes = rand_uniform<uint32_t>(
+                            1, maxPerTx.getVal(Resource::Type::READ_BYTES));
+                        resources.writeBytes = rand_uniform<uint32_t>(
+                            1, maxPerTx.getVal(Resource::Type::WRITE_BYTES));
+                        auto keys = LedgerTestUtils::
+                            generateUniqueValidSorobanLedgerEntryKeys(
+                                rand_uniform<uint32_t>(
+                                    1,
+                                    maxPerTx.getVal(
+                                        Resource::Type::WRITE_LEDGER_ENTRIES)));
+
+                        for (auto const& key : keys)
+                        {
+                            resources.footprint.readWrite.emplace_back(key);
+                        }
+                        resources.contractEventsSizeBytes = 0;
+                    }
+
+                    return sorobanTransaction(
+                        cfg.nAccounts, cfg.offset, ledgerNum, sourceAccountId,
+                        resources, wasmSize,
+                        generateFee(cfg.maxGeneratedFeeRate, mApp,
+                                    /* opsCnt */ 1));
                 };
             }
             break;
@@ -777,34 +846,27 @@ LoadGenerator::manageOfferTransaction(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
-                                  uint32_t ledgerNum, uint64_t accountId)
+                                  uint32_t ledgerNum, uint64_t accountId,
+                                  SorobanResources resources, size_t wasmSize,
+                                  uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
     auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().resize(1000);
+    uploadHF.wasm().resize(wasmSize);
     auto byteDistr = uniform_int_distribution<uint8_t>();
     std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
                   [&byteDistr]() { return byteDistr(gRandomEngine); });
 
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
-
-    SorobanResources resources;
-    resources.footprint.readWrite = {contractCodeLedgerKey};
-    resources.instructions = 200'000;
-    resources.readBytes = 1000;
-    resources.writeBytes = 5000;
-    resources.extendedMetaDataSizeBytes = 6000;
-    auto inclusionFeeDistr = uniform_int_distribution<uint32_t>(100, 1000);
-    auto tx = sorobanTransactionFrameFromOps(
-        mApp.getNetworkID(), *account, {deployOp}, {}, resources,
-        100'000 + inclusionFeeDistr(gRandomEngine), 10'000);
-    return std::make_pair(account,
-                          std::dynamic_pointer_cast<TransactionFrame>(tx));
+    uint32_t refundableFee = 10'000;
+    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                       {deployOp}, {}, resources, inclusionFee,
+                                       refundableFee));
+    setValidTotalFee(tx, inclusionFee, refundableFee, mApp, *account);
+    return std::make_pair(account, tx);
 }
 #endif
 
@@ -1014,27 +1076,10 @@ LoadGenerator::createTransactionFramePtr(
     TestAccountPtr from, std::vector<Operation> ops, LoadGenMode mode,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    int fee = 0;
 
-    if (maxGeneratedFeeRate)
-    {
-        auto baseFee = mApp.getLedgerManager().getLastTxFee();
-        auto feeRateDistr =
-            uniform_int_distribution<uint32_t>(baseFee, *maxGeneratedFeeRate);
-        // Add a bit more fee to get non-integer fee rates, such that
-        // `floor(fee / ops.size()) == feeRate`, but
-        // `fee / ops.size() >= feeRate`.
-        // This is to create a bit more realistic fee structure: in reality not
-        // every transaction would necessarily have the `fee == ops_count *
-        // some_int`. This also would exercise more code paths/logic during the
-        // transaction comparisons.
-        auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
-            0, static_cast<uint32_t>(ops.size()) - 1);
-        fee = static_cast<uint32_t>(ops.size()) * feeRateDistr(gRandomEngine) +
-              fractionalFeeDistr(gRandomEngine);
-    }
-    auto txf = transactionFromOperations(mApp, from->getSecretKey(),
-                                         from->nextSequenceNumber(), ops, fee);
+    auto txf = transactionFromOperations(
+        mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
+        generateFee(maxGeneratedFeeRate, mApp, ops.size()));
     if (mode == LoadGenMode::PRETEND)
     {
         Memo memo(MEMO_TEXT);
@@ -1088,9 +1133,11 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     auto status = mApp.getHerder().recvTransaction(txf, true);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        CLOG_INFO(LoadGen, "tx rejected '{}': {} ===> {}",
+        CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}",
                   TX_STATUS_STRING[static_cast<int>(status)],
-                  xdr_to_string(txf->getEnvelope(), "TransactionEnvelope"),
+                  txf->isSoroban() ? "soroban"
+                                   : xdr_to_string(txf->getEnvelope(),
+                                                   "TransactionEnvelope"),
                   xdr_to_string(txf->getResult(), "TransactionResult"));
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {

@@ -148,10 +148,8 @@ LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 ConstLedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
                                      SCAddress const& contract,
                                      SCVal const& dataKey,
-                                     ContractDataDurability type,
-                                     bool loadExpiredEntry = false);
-ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash,
-                                     bool loadExpiredEntry = false);
+                                     ContractDataDurability type);
+ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
 #endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
@@ -307,4 +305,14 @@ void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
 int64_t getMinInclusionFee(TransactionFrameBase const& tx,
                            LedgerHeader const& header,
                            std::optional<int64_t> baseFee = std::nullopt);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+struct LumenContractInfo
+{
+    Hash mLumenContractID;
+    SCVal mBalanceSymbol;
+    SCVal mAmountSymbol;
+};
+LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+#endif
 }

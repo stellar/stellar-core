@@ -1447,7 +1447,7 @@ TEST_CASE("Soroban TransactionQueue limits",
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.extendedMetaDataSizeBytes = 3000;
+    resources.contractEventsSizeBytes = 0;
 
     int refundableFee = 1200;
     int initialFee = 10'000'000;
@@ -1519,6 +1519,18 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(
                     tx2->getResultCode() ==
                     TransactionResultCode::txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            }
+            SECTION("too many ops")
+            {
+                auto tx2 = createUploadWasmTx(
+                    *app, account2, initialFee * 2, refundableFee, resources,
+                    std::nullopt, /* addInvalidOps */ 99);
+
+                REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                        TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
+                REQUIRE(tx2->getResultCode() ==
+                        TransactionResultCode::txMALFORMED);
             }
         }
         SECTION("accept but evict first tx")

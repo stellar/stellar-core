@@ -125,7 +125,7 @@ readMaxSorobanTxSetSize(AbstractLedgerTxn& ltx)
     LedgerKey key(LedgerEntryType::CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
-    return ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
+    return ltx.loadWithoutRecord(key)
         .current()
         .data.configSetting()
         .contractExecutionLanes()
@@ -852,7 +852,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = assetToTrustLineAsset(asset);
-        auto trust = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false);
+        auto trust = ltx.loadWithoutRecord(key);
         if (trust && isAuthorizedToMaintainLiabilities(trust))
         {
             auto const& tl = trust.current().data.trustLine();
@@ -1300,16 +1300,15 @@ ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
 {
-    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key),
-                                      /*loadExpiredEntry=*/false);
-    if (!ltxe)
+    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key));
+    if (!ltxe || !isLive(ltxe.current(), ltx.getHeader().ledgerSeq))
     {
         return nullptr;
     }
     auto const& contractData = ltxe.current().data.contractData();
     if (contractData.body.bodyType() != DATA_ENTRY ||
         contractData.body.data().val.type() != SCV_BYTES ||
-        contractData.durability != PERSISTENT)
+        contractData.durability != TEMPORARY)
     {
         return nullptr;
     }
@@ -1407,7 +1406,7 @@ ConfigUpgradeSetFrame::getLedgerKey(ConfigUpgradeSetKey const& upgradeKey)
     lk.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     lk.contractData().contract.contractId() = upgradeKey.contractID;
     lk.contractData().key = v;
-    lk.contractData().durability = PERSISTENT;
+    lk.contractData().durability = TEMPORARY;
     return lk;
 }
 
@@ -1424,9 +1423,9 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
     {
         LedgerKey key(LedgerEntryType::CONFIG_SETTING);
         key.configSetting().configSettingID = updatedEntry.configSettingID();
-        bool isSame = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/false)
-                          .current()
-                          .data.configSetting() == updatedEntry;
+        bool isSame =
+            ltx.loadWithoutRecord(key).current().data.configSetting() ==
+            updatedEntry;
         if (!isSame)
         {
             return true;
@@ -1466,42 +1465,129 @@ ConfigUpgradeSetFrame::isValidForApply() const
     {
         return Upgrades::UpgradeValidity::XDR_INVALID;
     }
-    for (auto const& configEntry : mConfigUpgradeSet.updatedEntry)
+    for (auto const& cfg : mConfigUpgradeSet.updatedEntry)
     {
         bool valid = false;
-        switch (configEntry.configSettingID())
+        switch (cfg.configSettingID())
         {
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
-            valid = configEntry.contractMaxSizeBytes() > 0;
+            valid = cfg.contractMaxSizeBytes() >=
+                    MinimumSorobanNetworkConfig::MAX_CONTRACT_SIZE;
             break;
         case ConfigSettingID::
             CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
             valid = SorobanNetworkConfig::isValidCostParams(
-                configEntry.contractCostParamsCpuInsns());
+                cfg.contractCostParamsCpuInsns());
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
             valid = SorobanNetworkConfig::isValidCostParams(
-                configEntry.contractCostParamsMemBytes());
+                cfg.contractCostParamsMemBytes());
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
-            valid = configEntry.contractDataKeySizeBytes() > 0;
+            valid =
+                cfg.contractDataKeySizeBytes() >=
+                MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
-            valid = configEntry.contractDataEntrySizeBytes() > 0;
+            valid =
+                cfg.contractDataEntrySizeBytes() >=
+                MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
-            valid = configEntry.contractExecutionLanes().ledgerMaxTxCount >= 0;
+            valid = true;
             break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+            valid = cfg.contractBandwidth().feeTxSize1KB >= 0 &&
+                    cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
+                        MinimumSorobanNetworkConfig::LEDGER_MAX_TX_SIZE_BYTES &&
+                    cfg.contractBandwidth().txMaxSizeBytes >=
+                        MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+            break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+            valid =
+                cfg.contractCompute().feeRatePerInstructionsIncrement >= 0 &&
+                cfg.contractCompute().ledgerMaxInstructions >=
+                    MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS &&
+                cfg.contractCompute().txMaxInstructions >=
+                    MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS &&
+                cfg.contractCompute().txMemoryLimit >=
+                    MinimumSorobanNetworkConfig::MEMORY_LIMIT;
+
+            valid = valid && cfg.contractCompute().ledgerMaxInstructions >=
+                                 cfg.contractCompute().txMaxInstructions;
+            break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+            valid = cfg.contractHistoricalData().feeHistorical1KB >= 0;
+            break;
         case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-        case ConfigSettingID::CONFIG_SETTING_CONTRACT_META_DATA_V0:
+            valid =
+                cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
+                    MinimumSorobanNetworkConfig::
+                        LEDGER_MAX_READ_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().ledgerMaxReadBytes >=
+                    MinimumSorobanNetworkConfig::LEDGER_MAX_READ_BYTES &&
+                cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
+                    MinimumSorobanNetworkConfig::
+                        LEDGER_MAX_WRITE_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().ledgerMaxWriteBytes >=
+                    MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES &&
+                cfg.contractLedgerCost().txMaxReadLedgerEntries >=
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().txMaxReadBytes >=
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
+                cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
+                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().txMaxWriteBytes >=
+                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
+                cfg.contractLedgerCost().feeReadLedgerEntry >= 0 &&
+                cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
+                cfg.contractLedgerCost().feeRead1KB >= 0 &&
+                cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
+                cfg.contractLedgerCost().writeFee1KBBucketListLow >= 0 &&
+                cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
+                cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
+
+            valid =
+                valid && cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
+                             cfg.contractLedgerCost().txMaxReadLedgerEntries;
+            valid = valid && cfg.contractLedgerCost().ledgerMaxReadBytes >=
+                                 cfg.contractLedgerCost().txMaxReadBytes;
+
+            valid =
+                valid && cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
+                             cfg.contractLedgerCost().txMaxWriteLedgerEntries;
+            valid = valid && cfg.contractLedgerCost().ledgerMaxWriteBytes >=
+                                 cfg.contractLedgerCost().txMaxWriteBytes;
+            break;
+        case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
+            valid = cfg.contractEvents().txMaxContractEventsSizeBytes >= 0 &&
+                    cfg.contractEvents().feeContractEvents1KB >= 0;
+            break;
         case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:
-            // For now none of these settings have any semantical value.
-            // Validation should be implemented when implementing/tuning
-            // the respective settings.
-            valid = true;
+            valid =
+                cfg.stateExpirationSettings().maxEntryExpiration >=
+                    MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME &&
+                cfg.stateExpirationSettings().minTempEntryExpiration > 0 &&
+                cfg.stateExpirationSettings().minPersistentEntryExpiration >=
+                    MinimumSorobanNetworkConfig::
+                        MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
+                cfg.stateExpirationSettings().autoBumpLedgers >=
+                    0 && // autobumpLedgers can be disabled by setting to 0
+                cfg.stateExpirationSettings().persistentRentRateDenominator >
+                    0 &&
+                cfg.stateExpirationSettings().tempRentRateDenominator > 0 &&
+                cfg.stateExpirationSettings().maxEntriesToExpire > 0 &&
+                cfg.stateExpirationSettings().bucketListSizeWindowSampleSize >
+                    0 &&
+                cfg.stateExpirationSettings().evictionScanSize > 0;
+
+            valid =
+                valid &&
+                cfg.stateExpirationSettings().maxEntryExpiration >
+                    cfg.stateExpirationSettings().minPersistentEntryExpiration;
+            valid = valid &&
+                    cfg.stateExpirationSettings().maxEntryExpiration >
+                        cfg.stateExpirationSettings().minTempEntryExpiration;
             break;
         case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
             // While the BucketList size window is stored in a ConfigSetting

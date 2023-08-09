@@ -2531,8 +2531,8 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     resources.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     resources.readBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
     resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-    resources.extendedMetaDataSizeBytes =
-        InitialSorobanNetworkConfig::TX_MAX_EXTENDED_META_DATA_SIZE_BYTES;
+    resources.contractEventsSizeBytes =
+        InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
 
     auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
@@ -2561,7 +2561,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     }
     SECTION("metadata size exceeded")
     {
-        resources.extendedMetaDataSizeBytes += 1;
+        resources.contractEventsSizeBytes += 1;
         validateResources(resources, false);
     }
     SECTION("max read entries exceeded")

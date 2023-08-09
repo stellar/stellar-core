@@ -74,32 +74,38 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& lk : footprint.readWrite)
     {
         auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
-        auto ltxe = ltx.loadWithoutRecord(lk, /*loadExpiredEntry=*/true);
-        if (!ltxe)
+        uint32_t entrySize = UINT32_MAX;
         {
-            // Skip entries that don't exist.
-            continue;
+            auto const_ltxe = ltx.loadWithoutRecord(lk);
+            if (!const_ltxe)
+            {
+                continue;
+            }
+
+            entrySize =
+                static_cast<uint32>(xdr::xdr_size(const_ltxe.current()));
+            metrics.mLedgerReadByte += keySize + entrySize;
+            if (resources.readBytes < metrics.mLedgerReadByte)
+            {
+                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
+
+            if (isLive(const_ltxe.current(), ledgerSeq))
+            {
+                // Skip entries that are already live.
+                continue;
+            }
         }
 
-        auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
-        metrics.mLedgerReadByte += keySize + entrySize;
-        if (resources.readBytes < metrics.mLedgerReadByte)
-        {
-            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
+        // Entry exists if we get this this point due to the loadWithoutRecord
+        // logic above.
+        auto ltxe = ltx.load(lk);
 
-        if (isLive(ltxe.current(), ledgerSeq))
-        {
-            // Skip entries that are already live.
-            continue;
-        }
-        LedgerEntry restoredEntry = ltxe.current();
+        auto& restoredEntry = ltxe.current();
         metrics.mLedgerWriteByte += keySize + entrySize;
 
-        if (resources.extendedMetaDataSizeBytes <
-                metrics.mLedgerWriteByte * 2 ||
-            resources.writeBytes < metrics.mLedgerWriteByte ||
+        if (resources.writeBytes < metrics.mLedgerWriteByte ||
             resources.readBytes < metrics.mLedgerReadByte)
         {
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
@@ -116,17 +122,25 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.new_size_bytes = keySize + entrySize;
         rustChange.new_expiration_ledger = restoredExpirationLedger;
         setExpirationLedger(restoredEntry, restoredExpirationLedger);
-        ltx.restore(restoredEntry);
     }
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
-        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
-        ltx.loadHeader().current().ledgerVersion, rustEntryRentChanges,
+        app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
+        rustEntryRentChanges,
         app.getLedgerManager()
             .getSorobanNetworkConfig(ltx)
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    mParentTx.consumeRefundableSorobanResources(metrics.mLedgerReadByte * 2,
-                                                rentFee);
+    if (!mParentTx.consumeRefundableSorobanResources(
+            0, rentFee, ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig()))
+    {
+        // TODO: This probably should have a more precise error code as here
+        // the refundable fee limit is exceeded (and not some resource).
+        innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
     innerResult().code(RESTORE_FOOTPRINT_SUCCESS);
     return true;
 }

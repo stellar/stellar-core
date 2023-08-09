@@ -441,7 +441,7 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban,
         auto conf = getSorobanNetworkConfig(ltxOuter);
         std::vector<int64_t> limits = {conf.ledgerMaxTxCount(),
                                        conf.ledgerMaxInstructions(),
-                                       conf.ledgerMaxPropagateSizeBytes(),
+                                       conf.ledgerMaxTransactionSizesBytes(),
                                        conf.ledgerMaxReadBytes(),
                                        conf.ledgerMaxWriteBytes(),
                                        conf.ledgerMaxReadLedgerEntries(),
@@ -452,6 +452,30 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban,
     {
         uint32_t maxOpsLedger = getLastMaxTxSetSizeOps();
         return Resource(maxOpsLedger);
+    }
+}
+
+Resource
+LedgerManagerImpl::maxTransactionResources(bool isSoroban,
+                                           AbstractLedgerTxn& ltxOuter)
+{
+    if (isSoroban)
+    {
+        auto const& conf =
+            mApp.getLedgerManager().getSorobanNetworkConfig(ltxOuter);
+        int64_t const opCount = 1;
+        std::vector<int64_t> limits = {opCount,
+                                       conf.txMaxInstructions(),
+                                       conf.txMaxSizeBytes(),
+                                       conf.txMaxReadBytes(),
+                                       conf.txMaxWriteBytes(),
+                                       conf.txMaxReadLedgerEntries(),
+                                       conf.txMaxWriteLedgerEntries()};
+        return Resource(limits);
+    }
+    else
+    {
+        return Resource(1);
     }
 }
 

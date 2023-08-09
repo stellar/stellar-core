@@ -361,8 +361,7 @@ TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
         // this is buggy caching that existed in old versions of the protocol
         if (res)
         {
-            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
-                                               /*loadExpiredEntry=*/false);
+            auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
             mCachedAccount = newest;
         }
         else
@@ -395,8 +394,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
             res = ltx.create(*mCachedAccount);
         }
 
-        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()),
-                                           /*loadExpiredEntry=*/false);
+        auto newest = ltx.getNewestVersion(LedgerEntryKey(res.current()));
         mCachedAccount = newest;
         return res;
     }
@@ -605,8 +603,8 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     {
         return false;
     }
-    if (resources.extendedMetaDataSizeBytes >
-        config.txMaxExtendedMetaDataSizeBytes())
+    if (resources.contractEventsSizeBytes >
+        config.txMaxContractEventsSizeBytes())
     {
         return false;
     }
@@ -722,16 +720,19 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.transaction_size_bytes =
         static_cast<uint32>(xdr::xdr_size(mEnvelope));
 
-    cxxResources.metadata_size_bytes = txResources.extendedMetaDataSizeBytes;
+    cxxResources.contract_events_size_bytes =
+        txResources.contractEventsSizeBytes;
 
     if (useConsumedRefundableResources)
     {
-        // It is possible that consumed metadata size is higher than the
+        // It is possible that consumed events size is higher than the
         // declared size (in such a case the transaction will fail). We
         // still don't want to overcharge the fees though.
-        if (cxxResources.metadata_size_bytes > mConsumedSorobanMetadataSize)
+        if (cxxResources.contract_events_size_bytes >
+            mConsumedContractEventsSizeBytes)
         {
-            cxxResources.metadata_size_bytes = mConsumedSorobanMetadataSize;
+            cxxResources.contract_events_size_bytes =
+                mConsumedContractEventsSizeBytes;
         }
     }
 
@@ -781,19 +782,13 @@ TransactionFrame::maybeComputeSorobanResourceFee(
                                   /* useConsumedRefundableResources */ false));
 }
 
-void
-TransactionFrame::consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
-                                                    int64_t rentFee)
-{
-    mConsumedSorobanMetadataSize += metadataSizeBytes;
-    mConsumedRentFee += rentFee;
-}
-
 bool
-TransactionFrame::computeSorobanFeeRefund(
-    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-    Config const& cfg)
+TransactionFrame::consumeRefundableSorobanResources(
+    uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
+    SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
+    mConsumedContractEventsSizeBytes += contractEventSizeBytes;
+    mConsumedRentFee += rentFee;
     mFeeRefund = sorobanRefundableFee();
     if (mFeeRefund < mConsumedRentFee)
     {
@@ -811,6 +806,7 @@ TransactionFrame::computeSorobanFeeRefund(
     mFeeRefund -= consumedFee.refundable_fee;
     return true;
 }
+
 #endif
 
 bool
@@ -1513,17 +1509,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 ltxOp.commit();
             }
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (isSoroban())
-        {
-            success = success &&
-                      computeSorobanFeeRefund(
-                          ledgerVersion,
-                          app.getLedgerManager().getSorobanNetworkConfig(ltx),
-                          app.getConfig());
-        }
-#endif
 
         if (success)
         {

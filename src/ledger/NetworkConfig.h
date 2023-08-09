@@ -70,13 +70,14 @@ struct InitialSorobanNetworkConfig
 
     // Bandwidth settings
     static constexpr uint32_t TX_MAX_SIZE_BYTES = 100 * 1024;
-    static constexpr uint32_t LEDGER_MAX_PROPAGATE_SIZE_BYTES =
+    static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
         10 * TX_MAX_SIZE_BYTES;
-    static constexpr int64_t FEE_PROPAGATE_DATA_1KB = 2'000; // 0.02 XLM/max tx
+    static constexpr int64_t FEE_TRANSACTION_SIZE_1KB =
+        2'000; // 0.02 XLM/max tx
 
-    // Meta data settings
-    static constexpr uint32_t TX_MAX_EXTENDED_META_DATA_SIZE_BYTES = 500 * 1024;
-    static constexpr int64_t FEE_EXTENDED_META_DATA_1KB = 200;
+    // Contract events settings
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 10 * 1024;
+    static constexpr int64_t FEE_CONTRACT_EVENTS_SIZE_1KB = 200;
 
     // State expiration settings
     // 1 year in ledgers
@@ -98,6 +99,37 @@ struct InitialSorobanNetworkConfig
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
+};
+
+// Defines the minimum values allowed for the network configuration
+// settings during upgrades. An upgrade that does not follow the minimums
+// will be rejected.
+struct MinimumSorobanNetworkConfig
+{
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 5;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 5000;
+
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 5000;
+
+    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 5;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 5000;
+    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 2;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 5000;
+
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10000;
+    static constexpr uint32_t LEDGER_MAX_TX_SIZE_BYTES = 10000;
+
+    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 5'000'000;
+    static constexpr uint32_t LEDGER_MAX_INSTRUCTIONS = 5'000'000;
+    static constexpr uint32_t MEMORY_LIMIT = 5'000'000;
+
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 500;
+    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 5000;
+    static constexpr uint32_t MAX_CONTRACT_SIZE = 5000;
+
+    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 100;
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 259200; // 15 days
 };
 
 // Wrapper for the contract-related network configuration.
@@ -166,19 +198,19 @@ class SorobanNetworkConfig
     // Fee for storing 1KB in archives
     int64_t feeHistorical1KB() const;
 
-    // Meta data (pushed to downstream systems) settings for contracts.
-    // Maximum size of extended meta data produced by a transaction
-    uint32_t txMaxExtendedMetaDataSizeBytes() const;
-    // Fee for generating 1KB of extended meta data
-    int64_t feeExtendedMetaData1KB() const;
+    // Contract events settings.
+    // Maximum size of contract events produced by a transaction.
+    uint32_t txMaxContractEventsSizeBytes() const;
+    // Fee for generating 1KB of contract events.
+    int64_t feeContractEventsSize1KB() const;
 
     // Bandwidth related data settings for contracts
     // Maximum size in bytes to propagate per ledger
-    uint32_t ledgerMaxPropagateSizeBytes() const;
+    uint32_t ledgerMaxTransactionSizesBytes() const;
     // Maximum size in bytes for a transaction
     uint32_t txMaxSizeBytes() const;
     // Fee for propagating 1KB of data
-    int64_t feePropagateData1KB() const;
+    int64_t feeTransactionSize1KB() const;
 
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
@@ -230,7 +262,7 @@ class SorobanNetworkConfig
     void loadComputeSettings(AbstractLedgerTxn& ltx);
     void loadLedgerAccessSettings(AbstractLedgerTxn& ltx);
     void loadHistoricalSettings(AbstractLedgerTxn& ltx);
-    void loadMetaDataSettings(AbstractLedgerTxn& ltx);
+    void loadContractEventsSettings(AbstractLedgerTxn& ltx);
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
@@ -281,14 +313,14 @@ class SorobanNetworkConfig
     // Historical data (pushed to core archives) settings for contracts.
     int64_t mFeeHistorical1KB{};
 
-    // Meta data (pushed to downstream systems) settings for contracts.
-    uint32_t mTxMaxExtendedMetaDataSizeBytes{};
-    int64_t mFeeExtendedMetaData1KB{};
+    // Contract events settings.
+    uint32_t mTxMaxContractEventsSizeBytes{};
+    int64_t mFeeContractEvents1KB{};
 
     // Bandwidth related data settings for contracts
-    uint32_t mLedgerMaxPropagateSizeBytes{};
+    uint32_t mLedgerMaxTransactionsSizeBytes{};
     uint32_t mTxMaxSizeBytes{};
-    int64_t mFeePropagateData1KB{};
+    int64_t mFeeTransactionSize1KB{};
 
     // FIFO queue, push_back/pop_front
     std::deque<uint64_t> mBucketListSizeSnapshots;

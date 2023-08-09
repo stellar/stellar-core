@@ -333,8 +333,7 @@ ConstLedgerTxnEntry
 loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(accountKey(accountID),
-                                 /*loadExpiredEntry=*/false);
+    return ltx.loadWithoutRecord(accountKey(accountID));
 }
 
 LedgerTxnEntry
@@ -436,21 +435,18 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConstLedgerTxnEntry
 loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
-                 SCVal const& dataKey, ContractDataDurability type,
-                 bool loadExpiredEntry)
+                 SCVal const& dataKey, ContractDataDurability type)
 {
     ZoneScoped;
     return ltx.loadWithoutRecord(
-        contractDataKey(contract, dataKey, type, DATA_ENTRY), loadExpiredEntry);
+        contractDataKey(contract, dataKey, type, DATA_ENTRY));
 }
 
 ConstLedgerTxnEntry
-loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash,
-                 bool loadExpiredEntry)
+loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(contractCodeKey(hash, DATA_ENTRY),
-                                 loadExpiredEntry);
+    return ltx.loadWithoutRecord(contractCodeKey(hash, DATA_ENTRY));
 }
 #endif
 
@@ -1408,10 +1404,8 @@ prefetchForRevokeFromPoolShareTrustLines(
     {
         // prefetching shouldn't affect the protocol, so use loadWithoutRecord
         // to not touch lastModified
-        auto pool = ltx.loadWithoutRecord(
-            liquidityPoolKey(
-                trustLine.current().data.trustLine().asset.liquidityPoolID()),
-            /*loadExpiredEntry=*/false);
+        auto pool = ltx.loadWithoutRecord(liquidityPoolKey(
+            trustLine.current().data.trustLine().asset.liquidityPoolID()));
 
         auto const& params =
             pool.current().data.liquidityPool().body.constantProduct().params;
@@ -1839,6 +1833,35 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     }
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LumenContractInfo
+getLumenContractInfo(std::string networkPassphrase)
+{
+    // Calculate contractID
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().networkID = sha256(networkPassphrase);
+
+    Asset native;
+    native.type(ASSET_TYPE_NATIVE);
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = native;
+
+    auto lumenContractID = xdrSha256(preImage);
+
+    // Calculate SCVal for balance key
+    SCVal balanceSymbol(SCV_SYMBOL);
+    balanceSymbol.sym() = "Balance";
+
+    // Calculate SCVal for amount key
+    SCVal amountSymbol(SCV_SYMBOL);
+    amountSymbol.sym() = "amount";
+
+    return {lumenContractID, balanceSymbol, amountSymbol};
+}
+#endif
 
 namespace detail
 {

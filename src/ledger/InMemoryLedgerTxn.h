@@ -88,15 +88,10 @@ class InMemoryLedgerTxn : public LedgerTxn
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerTxnEntry restore(InternalLedgerEntry const& entry) override;
-#endif
-
     void erase(InternalLedgerKey const& key) override;
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
-    ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
-                                          bool loadExpiredEntry) override;
+    ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

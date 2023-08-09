@@ -471,7 +471,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
     // TODO: later when network configs per ledger are settled, regenerate
     // meta and remove the 7 lines below
     cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
-    cfg.TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES = 1;
+    cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES = 1;
     cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
     cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
     cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;

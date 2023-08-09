@@ -55,22 +55,29 @@ mod rust_bridge {
         hash: String,
     }
 
-    struct Bump {
+    struct ReadOnlyBump {
         ledger_key: RustBuf,
         min_expiration: u32,
     }
 
-    // If success is false, the only thing that may be populated is
-    // diagnostic_events. The rest of the fields should be ignored.
+    // Result of invoking a host function.
+    // When `success` is `false`, the function has failed. The diagnostic events
+    // and metering data will be populated, but result value and effects won't
+    // be populated.
     struct InvokeHostFunctionOutput {
+        // Diagnostic information concerning the host function execution.
         success: bool,
-        result_value: RustBuf,
-        contract_events: Vec<RustBuf>,
         diagnostic_events: Vec<RustBuf>,
-        modified_ledger_entries: Vec<RustBuf>,
-        expiration_bumps: Vec<Bump>,
         cpu_insns: u64,
         mem_bytes: u64,
+        time_nsecs: u64,
+
+        // Effects of the invocation that are only populated in case of success.
+        result_value: RustBuf,
+        contract_events: Vec<RustBuf>,
+        modified_ledger_entries: Vec<RustBuf>,
+        read_only_bumps: Vec<ReadOnlyBump>,
+        rent_fee: i64,
     }
 
     // LogLevel declares to cxx.rs a shared type that both Rust and C+++ will
@@ -96,6 +103,7 @@ mod rust_bridge {
         pub min_temp_entry_expiration: u32,
         pub min_persistent_entry_expiration: u32,
         pub max_entry_expiration: u32,
+        pub autobump_ledgers: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }
@@ -126,7 +134,7 @@ mod rust_bridge {
         write_entries: u32,
         read_bytes: u32,
         write_bytes: u32,
-        metadata_size_bytes: u32,
+        contract_events_size_bytes: u32,
         transaction_size_bytes: u32,
     }
 
@@ -137,8 +145,8 @@ mod rust_bridge {
         fee_per_read_1kb: i64,
         fee_per_write_1kb: i64,
         fee_per_historical_1kb: i64,
-        fee_per_metadata_1kb: i64,
-        fee_per_propagate_1kb: i64,
+        fee_per_contract_event_1kb: i64,
+        fee_per_transaction_size_1kb: i64,
     }
 
     struct CxxLedgerEntryRentChange {
@@ -178,6 +186,7 @@ mod rust_bridge {
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
+            instruction_limit: u32,
             hf_buf: &CxxBuf,
             resources: &CxxBuf,
             source_account: &CxxBuf,
@@ -185,6 +194,7 @@ mod rust_bridge {
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
+            rent_fee_configuration: CxxRentFeeConfiguration,
         ) -> Result<InvokeHostFunctionOutput>;
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
@@ -192,6 +202,8 @@ mod rust_bridge {
         fn get_test_wasm_add_i32() -> Result<RustBuf>;
         fn get_test_wasm_contract_data() -> Result<RustBuf>;
         fn get_test_wasm_complex() -> Result<RustBuf>;
+        fn get_test_wasm_err() -> Result<RustBuf>;
+        fn get_write_bytes() -> Result<RustBuf>;
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
@@ -287,6 +299,18 @@ pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn std::erro
 pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::COMPLEX.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::ERR.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::WRITE_BYTES.iter().cloned().collect(),
     })
 }
 
@@ -598,6 +622,7 @@ pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
 pub(crate) fn invoke_host_function(
     config_max_protocol: u32,
     enable_diagnostics: bool,
+    instruction_limit: u32,
     hf_buf: &CxxBuf,
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
@@ -605,6 +630,7 @@ pub(crate) fn invoke_host_function(
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
+    rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     if ledger_info.protocol_version > config_max_protocol {
         return Err(Box::new(soroban_curr::contract::CoreHostError::General(
@@ -616,6 +642,7 @@ pub(crate) fn invoke_host_function(
         if ledger_info.protocol_version == config_max_protocol - 1 {
             return soroban_prev::contract::invoke_host_function(
                 enable_diagnostics,
+                instruction_limit,
                 hf_buf,
                 resources_buf,
                 source_account_buf,
@@ -623,11 +650,13 @@ pub(crate) fn invoke_host_function(
                 ledger_info,
                 ledger_entries,
                 base_prng_seed,
+                rent_fee_configuration,
             );
         }
     }
     soroban_curr::contract::invoke_host_function(
         enable_diagnostics,
+        instruction_limit,
         hf_buf,
         resources_buf,
         source_account_buf,
@@ -635,6 +664,7 @@ pub(crate) fn invoke_host_function(
         ledger_info,
         ledger_entries,
         base_prng_seed,
+        rent_fee_configuration,
     )
 }
 
@@ -722,6 +752,6 @@ pub(crate) fn compute_write_fee_per_1kb(
 fn start_tracy() {
     #[cfg(feature = "tracy")]
     tracy_client::Client::start();
-    #[cfg(not(feature = "tracy"))] 
+    #[cfg(not(feature = "tracy"))]
     panic!("called start_tracy from non-cfg(feature=\"tracy\") build")
 }

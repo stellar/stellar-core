@@ -197,7 +197,9 @@ class LoadGenerator
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t accountId);
+                       uint32_t ledgerNum, uint64_t accountId,
+                       SorobanResources resources, size_t wasmSize,
+                       uint32_t inclusionFee);
 #endif
     void maybeHandleFailedTx(TransactionFramePtr tx,
                              TestAccountPtr sourceAccount,

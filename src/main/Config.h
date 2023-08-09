@@ -466,7 +466,7 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_UPGRADE_RESERVE;     // in stroops
     uint32_t TESTING_UPGRADE_MAX_TX_SET_SIZE;
     uint32_t TESTING_UPGRADE_FLAGS;
-    uint32_t TESTING_LEDGER_MAX_PROPAGATE_SIZE_BYTES;
+    uint32_t TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES;
     int64_t TESTING_LEDGER_MAX_INSTRUCTIONS;
     uint32_t TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES;
     uint32_t TESTING_LEDGER_MAX_READ_BYTES;
@@ -576,6 +576,10 @@ class Config : public std::enable_shared_from_this<Config>
     // events so ordering can be maintained between all events. The default
     // value is false, and this should not be enabled on validators.
     bool ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
+
+    // Override the initial hardcoded MINIMUM_PERSISTENT_ENTRY_LIFETIME
+    // for testing.
+    uint32_t TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 #endif
 
 #ifdef BUILD_TESTS

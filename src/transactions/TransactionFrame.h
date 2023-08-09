@@ -57,8 +57,8 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
     SCVal mReturnValue;
     std::optional<FeePair> mSorobanResourceFee;
-    // Size of the emitted Soroban metadata.
-    uint32_t mConsumedSorobanMetadataSize{};
+    // Size of the emitted Soroban events.
+    uint32_t mConsumedContractEventsSizeBytes{};
     int64_t mConsumedRentFee{};
     int64_t mFeeRefund{};
 #endif
@@ -195,6 +195,14 @@ class TransactionFrame : public TransactionFrameBase
     void setReturnValue(SCVal&& returnValue);
     void pushInitialExpirations(
         UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
+#ifdef BUILD_TESTS
+    // Used to test the behavior of the transaction fee bump feature.
+    std::optional<FeePair>
+    getSorobanResourceFee() const
+    {
+        return mSorobanResourceFee;
+    }
+#endif
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;
@@ -284,11 +292,11 @@ class TransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
-    void consumeRefundableSorobanResources(uint32_t metadataSizeBytes,
-                                           int64_t rentFee);
-    bool computeSorobanFeeRefund(uint32_t protocolVersion,
-                                 SorobanNetworkConfig const& sorobanConfig,
-                                 Config const& cfg);
+    bool
+    consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
+                                      int64_t rentFee, uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg);
 #endif
 };
 }

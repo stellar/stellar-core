@@ -191,7 +191,11 @@ TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
                    uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo = std::nullopt);
+                   std::optional<std::string> memo = std::nullopt,
+                   int addInvalidOps = 0);
+void setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
+                      uint32_t refundableFee, Application& app,
+                      TestAccount& source);
 #endif
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,

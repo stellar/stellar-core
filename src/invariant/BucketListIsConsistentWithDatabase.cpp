@@ -28,10 +28,7 @@ namespace stellar
 static std::string
 checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
 {
-    // Database should contain same expried entries as BucketList even if they
-    // are not accesible
-    auto fromDb =
-        ltx.loadWithoutRecord(LedgerEntryKey(entry), /*loadExpiredEntry=*/true);
+    auto fromDb = ltx.loadWithoutRecord(LedgerEntryKey(entry));
     if (!fromDb)
     {
         std::string s{
@@ -56,9 +53,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
 static std::string
 checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
 {
-    // Database should contain same expried entries as BucketList even if they
-    // are not accesible
-    auto fromDb = ltx.loadWithoutRecord(key, /*loadExpiredEntry=*/true);
+    auto fromDb = ltx.loadWithoutRecord(key);
     if (!fromDb)
     {
         return {};

@@ -119,9 +119,9 @@
 //    access this entry in this LedgerTxn." See below for the
 //    concurrency-control issues this is designed to trap.
 //
-//  - Entries are made-active by calling load(), create(), or restore(), each
-//    of which returns a LedgerTxnEntry which is a handle that can be used to
-//    get at the underlying LedgerEntry. References to the underlying
+//  - Entries are made-active by calling load() or create(), each of which
+//    returns a LedgerTxnEntry which is a handle that can be used to get at
+//    the underlying LedgerEntry. References to the underlying
 //    LedgerEntries should generally not be retained anywhere, because the
 //    LedgerTxnEntry handles may be "deactivated", and access to a
 //    deactivated entry is a _logic error_ in the client that this
@@ -434,8 +434,7 @@ class AbstractLedgerTxnParent
     // invoking getNewestVersion on its parent. Returns nullptr if the key does
     // not exist or if the corresponding LedgerEntry has been erased.
     virtual std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const = 0;
+    getNewestVersion(InternalLedgerKey const& key) const = 0;
 
     // Return the count of the number of ledger objects of type `let`. Will
     // throw when called on anything other than a (real or stub) root LedgerTxn.
@@ -541,10 +540,10 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void commit() noexcept = 0;
     virtual void rollback() noexcept = 0;
 
-    // loadHeader, create, restore, erase, load, and loadWithoutRecord provide
-    // the main interface to interact with data stored in the AbstractLedgerTxn.
-    // These functions only allow one instance of a particular data to be active
-    // at a time.
+    // loadHeader, create, erase, load, and loadWithoutRecord provide the main
+    // interface to interact with data stored in the AbstractLedgerTxn. These
+    // functions only allow one instance of a particular data to be active at a
+    // time.
     // - loadHeader
     //     Loads the current LedgerHeader. Throws if there is already an active
     //     LedgerTxnHeader.
@@ -552,11 +551,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     Creates a new LedgerTxnEntry from entry. Throws if the key
     //     associated with this entry is already associated with an entry in
     //     this AbstractLedgerTxn or any parent.
-    // - restore
-    //     Creates a new LedgerTxnEntry from expired entry. Throws if the key
-    //     associated with this entry is already associated with an entry in
-    //     this AbstractLedgerTxn or any parent or if the expired entry being
-    //     restored does not exist
     // - erase
     //     Erases the existing entry associated with key. Throws if the key is
     //     not already associated with an entry in this AbstractLedgerTxn or
@@ -577,15 +571,10 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    virtual LedgerTxnEntry restore(InternalLedgerEntry const& entry) = 0;
-#endif
-
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
-    virtual ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
-                                                  bool loadExpiredEntry) = 0;
+    virtual ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) = 0;
 
     // Somewhat unsafe, non-recommended access methods: for use only during
     // bulk-loading as in catchup from buckets. These methods set an entry
@@ -716,10 +705,6 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    LedgerTxnEntry restore(InternalLedgerEntry const& entry) override;
-#endif
-
     void erase(InternalLedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
@@ -757,8 +742,7 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerKey>& deadEntries) override;
 
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const override;
+    getNewestVersion(InternalLedgerKey const& key) const override;
 
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
 
@@ -781,8 +765,8 @@ class LedgerTxn : public AbstractLedgerTxn
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                              Asset const& asset) override;
 
-    ConstLedgerTxnEntry loadWithoutRecord(InternalLedgerKey const& key,
-                                          bool loadExpiredEntry) override;
+    ConstLedgerTxnEntry
+    loadWithoutRecord(InternalLedgerKey const& key) override;
 
     void rollback() noexcept override;
 
@@ -895,8 +879,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
     std::shared_ptr<InternalLedgerEntry const>
-    getNewestVersion(InternalLedgerKey const& key,
-                     bool loadExpiredEntry) const override;
+    getNewestVersion(InternalLedgerKey const& key) const override;
 
     void rollbackChild() noexcept override;
 
