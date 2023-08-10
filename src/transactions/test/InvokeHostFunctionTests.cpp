@@ -1338,9 +1338,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
         auto autobump = enableAutobump();
         REQUIRE(autobump > 1);
 
-        // Check that manual bump doesn't go over max
+        // Check that attempting to bump past max ledger results in error
         put("key", 0, ContractDataDurability::PERSISTENT);
-        bump("key", ContractDataDurability::PERSISTENT, UINT32_MAX);
+        bumpWithFootprint(
+            "key", UINT32_MAX, contractKeys,
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
+                             ContractDataDurability::PERSISTENT, DATA_ENTRY)},
+            false, ContractDataDurability::PERSISTENT);
+
+        // Now bump to max
+        bump("key", ContractDataDurability::PERSISTENT,
+             stateExpirationSettings.maxEntryExpiration - 1);
 
         auto maxExpiration =
             ledgerSeq + stateExpirationSettings.maxEntryExpiration - 1;
@@ -1351,9 +1359,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // doesn't go over max
         put("key2", 0, ContractDataDurability::PERSISTENT);
         bump("key2", ContractDataDurability::PERSISTENT,
-             stateExpirationSettings.maxEntryExpiration - 1);
+             stateExpirationSettings.maxEntryExpiration - 2);
         checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, maxExpiration);
+            "key2", ContractDataDurability::PERSISTENT, maxExpiration - 1);
 
         // Autobump should only add a single ledger to bring expiration to max
         put("key2", 1, ContractDataDurability::PERSISTENT);
@@ -1455,7 +1463,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
         SorobanResources resources;
         resources.footprint.readOnly = contractKeys;
         resources.footprint.readWrite = {dataKey};
-        resources.instructions = 2'000'000;
+        resources.instructions = 4'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 1000;
         resources.contractEventsSizeBytes = 200;
@@ -1488,7 +1496,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
         SECTION("single op")
         {
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+                app->getNetworkID(), root, {op}, {}, resources, 200'000, 1200);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
