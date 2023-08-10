@@ -129,7 +129,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t MAX_CONTRACT_SIZE = 5000;
 
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 100;
-    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 259200; // 15 days
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535680; // 31 days
 };
 
 // Wrapper for the contract-related network configuration.
