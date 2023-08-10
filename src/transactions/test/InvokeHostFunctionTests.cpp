@@ -1346,16 +1346,22 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
             false, ContractDataDurability::PERSISTENT);
 
+        // Now bump to max
+        bump("key", ContractDataDurability::PERSISTENT,
+             stateExpirationSettings.maxEntryExpiration - 1);
+
         auto maxExpiration =
             ledgerSeq + stateExpirationSettings.maxEntryExpiration - 1;
+        checkContractDataExpirationLedger(
+            "key", ContractDataDurability::PERSISTENT, maxExpiration);
 
         // Manual bump to almost max, then autobump to check that autobump
         // doesn't go over max
         put("key2", 0, ContractDataDurability::PERSISTENT);
         bump("key2", ContractDataDurability::PERSISTENT,
-             stateExpirationSettings.maxEntryExpiration - 1);
+             stateExpirationSettings.maxEntryExpiration - 2);
         checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, maxExpiration);
+            "key2", ContractDataDurability::PERSISTENT, maxExpiration - 1);
 
         // Autobump should only add a single ledger to bring expiration to max
         put("key2", 1, ContractDataDurability::PERSISTENT);
