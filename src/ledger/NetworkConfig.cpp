@@ -227,99 +227,92 @@ initialCpuCostParamsEntry(Config const& cfg)
         switch (val)
         {
         case WasmInsnExec:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 7, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 6, 0};
             break;
+
         case WasmMemAlloc:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case HostMemAlloc:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2350, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1141, 1};
             break;
         case HostMemCpy:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 23, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 39, 24};
             break;
         case HostMemCmp:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 43, 1};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 20, 64};
             break;
-        case InvokeHostFunction:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 928, 0};
+        case DispatchHostFunction:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 263, 0};
             break;
         case VisitObject:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 19, 0};
-            break;
-        case ValXdrConv:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 134, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 108, 0};
             break;
         case ValSer:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 587, 1};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 591, 69};
             break;
         case ValDeser:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 870, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1112, 34};
             break;
         case ComputeSha256Hash:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1725, 33};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2924, 4149};
             break;
         case ComputeEd25519PubKey:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 25551, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 25584, 0};
             break;
         case MapEntry:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 53, 0};
             break;
         case VecEntry:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5, 0};
-            break;
-        case GuardFrame:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 4050, 0};
-            break;
-        case VerifyEd25519Sig:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 369634, 21};
-            break;
-        case VmMemRead:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
+        case VerifyEd25519Sig:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 376877, 2747};
+            break;
+        case VmMemRead:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 182, 24};
+            break;
         case VmMemWrite:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 124, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 182, 24};
             break;
         case VmInstantiation:
             params[val] =
-                ContractCostParamEntry{ExtensionPoint{0}, 600447, 484};
+                ContractCostParamEntry{ExtensionPoint{0}, 967154, 69991};
             break;
         case VmCachedInstantiation:
             params[val] =
-                ContractCostParamEntry{ExtensionPoint{0}, 600447, 484};
+                ContractCostParamEntry{ExtensionPoint{0}, 967154, 69991};
             break;
         case InvokeVmFunction:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5926, 0};
-            break;
-        case ChargeBudget:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 130, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1125, 0};
             break;
         case ComputeKeccak256Hash:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3322, 46};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2890, 3561};
             break;
         case ComputeEcdsaSecp256k1Key:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 56525, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 38363, 0};
             break;
         case ComputeEcdsaSecp256k1Sig:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 250, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 224, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2319640, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1666155, 0};
             break;
         case Int256AddSub:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 735, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1716, 0};
             break;
         case Int256Mul:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1224, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2226, 0};
             break;
         case Int256Div:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1347, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 2333, 0};
             break;
         case Int256Pow:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5350, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5212, 0};
             break;
         case Int256Shift:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 538, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 412, 0};
             break;
         }
     }
@@ -380,7 +373,7 @@ initialMemCostParamsEntry(Config const& cfg)
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1, 0};
             break;
         case HostMemAlloc:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 8, 1};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 16, 128};
             break;
         case HostMemCpy:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
@@ -388,20 +381,17 @@ initialMemCostParamsEntry(Config const& cfg)
         case HostMemCmp:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
-        case InvokeHostFunction:
+        case DispatchHostFunction:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case VisitObject:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
-        case ValXdrConv:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
-            break;
         case ValSer:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 9, 3};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 18, 384};
             break;
         case ValDeser:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 4, 1};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 16, 128};
             break;
         case ComputeSha256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 40, 0};
@@ -415,9 +405,6 @@ initialMemCostParamsEntry(Config const& cfg)
         case VecEntry:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
-        case GuardFrame:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 472, 0};
-            break;
         case VerifyEd25519Sig:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
@@ -428,16 +415,15 @@ initialMemCostParamsEntry(Config const& cfg)
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case VmInstantiation:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 117871, 40};
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 131103, 5080};
             break;
         case VmCachedInstantiation:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 117871, 40};
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 131103, 5080};
             break;
         case InvokeVmFunction:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 486, 0};
-            break;
-        case ChargeBudget:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 14, 0};
             break;
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 40, 0};
@@ -449,7 +435,7 @@ initialMemCostParamsEntry(Config const& cfg)
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 181, 0};
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 201, 0};
             break;
         case Int256AddSub:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 119, 0};

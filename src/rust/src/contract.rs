@@ -289,7 +289,7 @@ fn invoke_host_function_or_maybe_panic(
     let client = tracy_client::Client::start();
     let _span0 = tracy_span!("invoke_host_function_or_maybe_panic");
 
-    let budget = Budget::from_configs(
+    let budget = Budget::try_from_configs(
         instruction_limit as u64,
         ledger_info.memory_limit as u64,
         // These are the only non-metered XDR conversions that we perform. They
@@ -297,7 +297,7 @@ fn invoke_host_function_or_maybe_panic(
         // data.
         non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.cpu_cost_params)?,
         non_metered_xdr_from_cxx_buf::<ContractCostParams>(&ledger_info.mem_cost_params)?,
-    );
+    )?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
     let (res, time_nsecs) = {
