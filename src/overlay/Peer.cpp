@@ -425,6 +425,7 @@ void
 Peer::sendGetTxSet(uint256 const& setID)
 {
     ZoneScoped;
+    CLOG_INFO(Overlay, "Peer {} sends get tx set for hash.", toString());
     StellarMessage newMsg;
     newMsg.type(GET_TX_SET);
     newMsg.txSetHash() = setID;
@@ -1080,6 +1081,7 @@ Peer::recvDontHave(StellarMessage const& msg)
 void
 Peer::sendTxSet(TxSetFrameConstPtr txSet)
 {
+
     StellarMessage newMsg;
     if (txSet->isGeneralizedTxSet())
     {
@@ -1089,6 +1091,11 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
             // The peer wouldn't be able to accept the generalized tx set,
             // but it wouldn't be correct to say we don't have it. So we
             // just let the request to timeout.
+            CLOG_INFO(
+                Overlay,
+                "Peer {} has remote overlay version < first version "
+                "supporting generalized tx set ({}). Return from sendTxSet.",
+                toString(), Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET);
             return;
         }
         newMsg.type(GENERALIZED_TX_SET);
@@ -1120,9 +1127,15 @@ Peer::recvGetTxSet(StellarMessage const& msg)
             if (mRemoteOverlayVersion <
                 Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
             {
-                // The peer wouldn't be able to accept the generalized tx
-                // set, but it wouldn't be correct to say we don't have it.
-                // So we just let the request to timeout.
+                // The peer wouldn't be able to accept the generalized tx set,
+                // but it wouldn't be correct to say we don't have it. So we
+                // just let the request to timeout.
+                CLOG_INFO(Overlay,
+                          "Peer {} remote overlay version < first version "
+                          "supporting generalized transaction set {}. Return "
+                          "from recvGetTxSet",
+                          toString(),
+                          Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET);
                 return;
             }
             newMsg.type(GENERALIZED_TX_SET);
@@ -1209,6 +1222,8 @@ Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     auto frame = TxSetFrame::makeFromWire(mApp, msg.generalizedTxSet());
+    CLOG_INFO(Overlay, "Peer {} receives generalized transaction set {}",
+              toString(), hexAbbrev(frame->getContentsHash()));
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
@@ -1218,6 +1233,10 @@ Peer::recvTransaction(StellarMessage const& msg)
     ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
         mApp.getNetworkID(), msg.transaction());
+
+    CLOG_INFO(Overlay, "Peer {} receives transaction {}", toString(),
+              hexAbbrev(transaction->getContentsHash()));
+
     if (transaction)
     {
         // record that this peer sent us this transaction
@@ -1861,6 +1880,8 @@ Peer::startAdvertTimer()
 void
 Peer::sendTxDemand(TxDemandVector&& demands)
 {
+    CLOG_INFO(Overlay, "Peer {} sends demands for {} transaction hashes.",
+              toString(), demands.size());
     if (demands.size() > 0)
     {
         auto msg = std::make_shared<StellarMessage>();
