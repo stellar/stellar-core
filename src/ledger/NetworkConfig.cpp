@@ -520,6 +520,9 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                     MinimumSorobanNetworkConfig::LEDGER_MAX_TX_SIZE_BYTES &&
                 cfg.contractBandwidth().txMaxSizeBytes >=
                     MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+
+        valid = valid && cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
+                             cfg.contractBandwidth().txMaxSizeBytes;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
         valid = cfg.contractCompute().feeRatePerInstructionsIncrement >= 0 &&
