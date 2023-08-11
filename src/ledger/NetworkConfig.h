@@ -236,6 +236,10 @@ class SorobanNetworkConfig
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
+    static bool
+    isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
+
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
     ContractCostParams const& memCostParams() const;
