@@ -825,12 +825,12 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
     auto v = mApp.getHerder().getJsonQuorumInfo(mSCP.getLocalNodeID(), true,
                                                 false, index);
     auto qset = v.get("qset", "");
-    // if (!qset.empty())
-    // {
-    //     Json::FastWriter fw;
-    //     CLOG_INFO(Herder, "Quorum information for {} : {}", index,
-    //               fw.write(qset));
-    // }
+    if (!qset.empty())
+    {
+        Json::FastWriter fw;
+        CLOG_INFO(Herder, "Quorum information for {} : {}", index,
+                  fw.write(qset));
+    }
 
     std::unordered_set<Hash> referencedValues;
     auto collectReferencedHashes = [&](SCPEnvelope const& envelope) {
