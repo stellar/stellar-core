@@ -648,20 +648,17 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     {
         // First, ensure the tx set does not contain multiple txs per source
         // account
-        if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+        std::unordered_set<AccountID> seenAccounts;
+        for (auto const& phase : mTxPhases)
         {
-            std::unordered_set<AccountID> seenAccounts;
-            for (auto const& phase : mTxPhases)
+            for (auto const& tx : phase)
             {
-                for (auto const& tx : phase)
+                if (!seenAccounts.insert(tx->getSourceID()).second)
                 {
-                    if (!seenAccounts.insert(tx->getSourceID()).second)
-                    {
-                        CLOG_DEBUG(
-                            Herder,
-                            "Got bad txSet: multiple txs per source account");
-                        return false;
-                    }
+                    CLOG_DEBUG(
+                        Herder,
+                        "Got bad txSet: multiple txs per source account");
+                    return false;
                 }
             }
         }

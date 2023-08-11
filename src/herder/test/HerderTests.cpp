@@ -3308,17 +3308,11 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     std::shared_ptr<Simulation> simulation;
     std::shared_ptr<Application> app;
 
-    auto setup = [&](bool mix) {
+    auto setup = [&]() {
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
         simulation = std::make_shared<Simulation>(
-            Simulation::OVER_LOOPBACK, networkID, [mix](int i) {
+            Simulation::OVER_LOOPBACK, networkID, [](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-                // Mixed setup does not work in protocol 20 and onward (tx set
-                // with multiple source accounts are invalid)
-                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                    mix ? static_cast<uint32_t>(ProtocolVersion::V_19)
-                        : Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-                cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = !mix || (i % 2 == 1);
                 return cfg;
             });
 
@@ -3367,103 +3361,61 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         return std::make_tuple(root, a1, b1, tx1, tx2);
     };
 
-    SECTION("mixed")
+    setup();
+
+    auto [root, a1, b1, tx1, tx2] = makeTxs(app);
+
+    // Submit txs for the same account, should be good
+    REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+    // Second tx is rejected due to limit
+    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+
+    uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    simulation->crankUntil(
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+        },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    for (auto const& node : simulation->getNodes())
     {
-        setup(true);
-
-        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
-
-        // Submit txs for the same account, should be good
-        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied txs were removed and banned
-            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
-            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Both accounts are in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            auto acc1 = stellar::loadAccount(ltx, a1.getPublicKey());
-            auto acc2 = stellar::loadAccount(ltx, b1.getPublicKey());
-            REQUIRE(acc1);
-            REQUIRE(acc2);
-            REQUIRE(acc1.current().lastModifiedLedgerSeq ==
-                    acc2.current().lastModifiedLedgerSeq);
-        }
+        // Applied txs were removed and banned
+        REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
+        // Second tx is not banned because it's never been flooded and
+        // applied
+        REQUIRE(!node->getHerder().isBannedTx(tx2->getFullHash()));
+        // Only first account is in the ledger
+        LedgerTxn ltx(node->getLedgerTxnRoot());
+        REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+        REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
     }
-    SECTION("all limited")
+
+    // Now submit the second tx (which was rejected earlier) and make sure
+    // it ends up in the ledger
+    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+    lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    simulation->crankUntil(
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+        },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    for (auto const& node : simulation->getNodes())
     {
-        setup(false);
-
-        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
-
-        // Submit txs for the same account, should be good
-        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        // Second tx is rejected due to limit
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-
-        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied txs were removed and banned
-            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
-            // Second tx is not banned because it's never been flooded and
-            // applied
-            REQUIRE(!node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Only first account is in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
-            REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
-        }
-
-        // Now submit the second tx (which was rejected earlier) and make sure
-        // it ends up in the ledger
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied tx was removed and banned
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Both accounts are in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
-            REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
-        }
+        // Applied tx was removed and banned
+        REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
+        // Both accounts are in the ledger
+        LedgerTxn ltx(node->getLedgerTxnRoot());
+        REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+        REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
     }
 }
 

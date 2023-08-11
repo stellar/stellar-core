@@ -709,7 +709,6 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     cfg.LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
