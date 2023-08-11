@@ -1295,7 +1295,7 @@ OverlayManagerImpl::getMaxAdvertSize() const
     return res;
 }
 
-UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>
+UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
 OverlayManagerImpl::getPendingTxSetRequests()
 {
     return mPendingTxSetRequests;

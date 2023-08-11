@@ -194,7 +194,7 @@ class OverlayManagerImpl : public OverlayManager
                              std::shared_ptr<Peer> peer) override;
     size_t getMaxAdvertSize() const override;
 
-    UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>
+    UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
     getPendingTxSetRequests() override;
 
   private:

@@ -1156,6 +1156,13 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     }
     else
     {
+        // We do not have the tx set, so make a pending tx set request and
+        // respond back to the node once we have it.
+        std::weak_ptr<Peer> peer = shared_from_this();
+        auto& pendingTxSetRequests =
+            mApp.getOverlayManager().getPendingTxSetRequests();
+        pendingTxSetRequests[msg.txSetHash()].emplace_back(peer);
+
         CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
                   toString(), hexAbbrev(msg.txSetHash()));
         // Technically we don't exactly know what is the kind of the tx set
@@ -1195,7 +1202,7 @@ Peer::recvTxSet(StellarMessage const& msg)
         Overlay,
         "Peer::recvTxSet {} received {}, trying to fulfill pending requests",
         toString(), hexAbbrev(frame->getContentsHash()));
-    auto pendingTxSetRequests =
+    auto& pendingTxSetRequests =
         mApp.getOverlayManager().getPendingTxSetRequests();
 
     CLOG_INFO(Overlay, "pending requests length: {}",
