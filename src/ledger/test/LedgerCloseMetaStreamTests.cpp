@@ -468,15 +468,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
     VirtualClock clock;
     cfg.METADATA_OUTPUT_STREAM = metaPath;
-    // TODO: later when network configs per ledger are settled, regenerate
-    // meta and remove the 7 lines below
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
-    cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES = 1;
-    cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
-    cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
-    cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;
-    cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
-    cfg.TESTING_LEDGER_MAX_WRITE_BYTES = 1;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     {
         // Do some stuff

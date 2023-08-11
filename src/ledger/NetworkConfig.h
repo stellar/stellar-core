@@ -124,7 +124,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t LEDGER_MAX_INSTRUCTIONS = 5'000'000;
     static constexpr uint32_t MEMORY_LIMIT = 5'000'000;
 
-    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 500;
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 5000;
     static constexpr uint32_t MAX_CONTRACT_SIZE = 5000;
 
@@ -236,6 +236,10 @@ class SorobanNetworkConfig
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
+    static bool
+    isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
+
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
     ContractCostParams const& memCostParams() const;
