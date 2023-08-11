@@ -210,6 +210,9 @@ class Config : public std::enable_shared_from_this<Config>
     // This config should only be enabled when testing.
     std::chrono::microseconds ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
 
+    // Timeout before publishing externalized values to archive
+    std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
+
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
     // The probability that it sleeps for

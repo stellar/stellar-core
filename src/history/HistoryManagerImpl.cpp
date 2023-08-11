@@ -33,6 +33,7 @@
 #include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
+#include "work/ConditionalWork.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -278,14 +279,28 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 
     std::vector<std::shared_ptr<BasicWork>> seq{resolveFutures, writeSnap,
                                                 putSnap};
+
+    auto start = mApp.getClock().now();
+    ConditionFn delayTimeout = [start](Application& app) {
+        auto delayDuration = app.getConfig().PUBLISH_TO_ARCHIVE_DELAY;
+
+        auto time = app.getClock().now();
+        auto dur = time - start;
+        return std::chrono::duration_cast<std::chrono::seconds>(dur) >=
+               delayDuration;
+    };
+
     // Pass in all bucket hashes from HAS. We cannot rely on StateSnapshot
     // buckets here, because its buckets might have some futures resolved by
     // now, differing from the state of the bucketlist during queueing.
     //
     // NB: if WorkScheduler is aborting this returns nullptr, but that
     // which means we don't "really" start publishing.
-    mPublishWork = mApp.getWorkScheduler().scheduleWork<PublishWork>(
-        snap, seq, allBucketsFromHAS);
+    auto publishWork =
+        std::make_shared<PublishWork>(mApp, snap, seq, allBucketsFromHAS);
+
+    mPublishWork = mApp.getWorkScheduler().scheduleWork<ConditionalWork>(
+        "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
 size_t

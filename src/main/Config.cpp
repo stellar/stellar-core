@@ -142,6 +142,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -1122,6 +1123,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
             {
                 ALLOW_LOCALHOST_FOR_TESTING = readBool(item);
+            }
+            else if (item.first == "PUBLISH_TO_ARCHIVE_DELAY")
+            {
+                PUBLISH_TO_ARCHIVE_DELAY =
+                    std::chrono::seconds(readInt<uint32_t>(item));
             }
             else if (item.first == "AUTOMATIC_MAINTENANCE_PERIOD")
             {
