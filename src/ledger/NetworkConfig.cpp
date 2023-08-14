@@ -31,7 +31,7 @@ createConfigSettingEntry(ConfigSettingEntry const& configSetting,
 }
 
 ConfigSettingEntry
-initialMaxContractSizeEntry(Config const& cfg)
+initialMaxContractSizeEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
 
@@ -42,7 +42,7 @@ initialMaxContractSizeEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialMaxContractDataKeySizeEntry(Config const& cfg)
+initialMaxContractDataKeySizeEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
 
@@ -53,7 +53,7 @@ initialMaxContractDataKeySizeEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialMaxContractDataEntrySizeEntry(Config const& cfg)
+initialMaxContractDataEntrySizeEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
 
@@ -64,20 +64,14 @@ initialMaxContractDataEntrySizeEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractComputeSettingsEntry(Config const& cfg)
+initialContractComputeSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     auto& e = entry.contractCompute();
 
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxInstructions = cfg.TESTING_LEDGER_MAX_INSTRUCTIONS;
-    }
-    else
-    {
-        e.ledgerMaxInstructions =
-            InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
-    }
+    e.ledgerMaxInstructions =
+        InitialSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+
     e.txMaxInstructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     e.feeRatePerInstructionsIncrement =
         InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT;
@@ -87,49 +81,21 @@ initialContractComputeSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractLedgerAccessSettingsEntry(Config const& cfg)
+initialContractLedgerAccessSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
 
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxReadLedgerEntries =
-            cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES;
-    }
-    else
-    {
-        e.ledgerMaxReadLedgerEntries =
-            InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
-    }
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxReadBytes = cfg.TESTING_LEDGER_MAX_READ_BYTES;
-    }
-    else
-    {
-        e.ledgerMaxReadBytes =
-            InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
-    }
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxWriteLedgerEntries =
-            cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    }
-    else
-    {
-        e.ledgerMaxWriteLedgerEntries =
-            InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    }
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxWriteBytes = cfg.TESTING_LEDGER_MAX_WRITE_BYTES;
-    }
-    else
-    {
-        e.ledgerMaxWriteBytes =
-            InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
-    }
+    e.ledgerMaxReadLedgerEntries =
+        InitialSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
+
+    e.ledgerMaxReadBytes = InitialSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
+
+    e.ledgerMaxWriteLedgerEntries =
+        InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+
+    e.ledgerMaxWriteBytes = InitialSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+
     e.txMaxReadLedgerEntries =
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
     e.txMaxReadBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
@@ -152,7 +118,7 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractHistoricalDataSettingsEntry(Config const& cfg)
+initialContractHistoricalDataSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
     auto& e = entry.contractHistoricalData();
@@ -163,7 +129,7 @@ initialContractHistoricalDataSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractEventsSettingsEntry(Config const& cfg)
+initialContractEventsSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EVENTS_V0);
     auto& e = entry.contractEvents();
@@ -177,23 +143,14 @@ initialContractEventsSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractBandwidthSettingsEntry(Config const& cfg)
+initialContractBandwidthSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
     auto& e = entry.contractBandwidth();
 
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxTxsSizeBytes =
-            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES;
-        e.txMaxSizeBytes = cfg.TESTING_TX_MAX_SIZE_BYTES;
-    }
-    else
-    {
-        e.ledgerMaxTxsSizeBytes =
-            InitialSorobanNetworkConfig::LEDGER_MAX_TRANSACTION_SIZES_BYTES;
-        e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-    }
+    e.ledgerMaxTxsSizeBytes =
+        InitialSorobanNetworkConfig::LEDGER_MAX_TRANSACTION_SIZES_BYTES;
+    e.txMaxSizeBytes = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
 
     e.feeTxSize1KB = InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
 
@@ -201,25 +158,16 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialContractExecutionLanesSettingsEntry(Config const& cfg)
+initialContractExecutionLanesSettingsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
     auto& e = entry.contractExecutionLanes();
-
-    if (cfg.USE_CONFIG_FOR_GENESIS)
-    {
-        e.ledgerMaxTxCount = cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT;
-    }
-    else
-    {
-        e.ledgerMaxTxCount = InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
-    }
-
+    e.ledgerMaxTxCount = InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
     return entry;
 }
 
 ConfigSettingEntry
-initialCpuCostParamsEntry(Config const& cfg)
+initialCpuCostParamsEntry()
 {
     ConfigSettingEntry entry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
@@ -335,10 +283,13 @@ initialStateExpirationSettings(Config const& cfg)
     entry.stateExpirationSettings().maxEntryExpiration =
         InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
-    // TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME defaults to
-    // InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME
     entry.stateExpirationSettings().minPersistentEntryExpiration =
-        cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+    if (cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME != 0)
+    {
+        entry.stateExpirationSettings().minPersistentEntryExpiration =
+            cfg.TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+    }
 
     entry.stateExpirationSettings().minTempEntryExpiration =
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
@@ -360,7 +311,7 @@ initialStateExpirationSettings(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialMemCostParamsEntry(Config const& cfg)
+initialMemCostParamsEntry()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
 
@@ -464,7 +415,7 @@ initialMemCostParamsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialbucketListSizeWindow(Application& app)
+initialBucketListSizeWindow(Application& app)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
 
@@ -516,64 +467,47 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
         valid = cfg.contractBandwidth().feeTxSize1KB >= 0 &&
-                cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
-                    MinimumSorobanNetworkConfig::LEDGER_MAX_TX_SIZE_BYTES &&
                 cfg.contractBandwidth().txMaxSizeBytes >=
-                    MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-
-        valid = valid && cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
-                             cfg.contractBandwidth().txMaxSizeBytes;
+                    MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES &&
+                cfg.contractBandwidth().ledgerMaxTxsSizeBytes >=
+                    cfg.contractBandwidth().txMaxSizeBytes;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0:
         valid = cfg.contractCompute().feeRatePerInstructionsIncrement >= 0 &&
-                cfg.contractCompute().ledgerMaxInstructions >=
-                    MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS &&
                 cfg.contractCompute().txMaxInstructions >=
                     MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS &&
+                cfg.contractCompute().ledgerMaxInstructions >=
+                    cfg.contractCompute().txMaxInstructions &&
                 cfg.contractCompute().txMemoryLimit >=
                     MinimumSorobanNetworkConfig::MEMORY_LIMIT;
-
-        valid = valid && cfg.contractCompute().ledgerMaxInstructions >=
-                             cfg.contractCompute().txMaxInstructions;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
         valid = cfg.contractHistoricalData().feeHistorical1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-        valid =
-            cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
-                MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES &&
-            cfg.contractLedgerCost().ledgerMaxReadBytes >=
-                MinimumSorobanNetworkConfig::LEDGER_MAX_READ_BYTES &&
-            cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
-                MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES &&
-            cfg.contractLedgerCost().ledgerMaxWriteBytes >=
-                MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES &&
-            cfg.contractLedgerCost().txMaxReadLedgerEntries >=
-                MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
-            cfg.contractLedgerCost().txMaxReadBytes >=
-                MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
-            cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
-                MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
-            cfg.contractLedgerCost().txMaxWriteBytes >=
-                MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
-            cfg.contractLedgerCost().feeReadLedgerEntry >= 0 &&
-            cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
-            cfg.contractLedgerCost().feeRead1KB >= 0 &&
-            cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
-            cfg.contractLedgerCost().writeFee1KBBucketListLow >= 0 &&
-            cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
-            cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
-
-        valid = valid && cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
-                             cfg.contractLedgerCost().txMaxReadLedgerEntries;
-        valid = valid && cfg.contractLedgerCost().ledgerMaxReadBytes >=
-                             cfg.contractLedgerCost().txMaxReadBytes;
-
-        valid = valid && cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
-                             cfg.contractLedgerCost().txMaxWriteLedgerEntries;
-        valid = valid && cfg.contractLedgerCost().ledgerMaxWriteBytes >=
-                             cfg.contractLedgerCost().txMaxWriteBytes;
+        valid = cfg.contractLedgerCost().txMaxReadLedgerEntries >=
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().ledgerMaxReadLedgerEntries >=
+                    cfg.contractLedgerCost().txMaxReadLedgerEntries &&
+                cfg.contractLedgerCost().txMaxReadBytes >=
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES &&
+                cfg.contractLedgerCost().ledgerMaxReadBytes >=
+                    cfg.contractLedgerCost().txMaxReadBytes &&
+                cfg.contractLedgerCost().txMaxWriteLedgerEntries >=
+                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES &&
+                cfg.contractLedgerCost().ledgerMaxWriteLedgerEntries >=
+                    cfg.contractLedgerCost().txMaxWriteLedgerEntries &&
+                cfg.contractLedgerCost().txMaxWriteBytes >=
+                    MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES &&
+                cfg.contractLedgerCost().ledgerMaxWriteBytes >=
+                    cfg.contractLedgerCost().txMaxWriteBytes &&
+                cfg.contractLedgerCost().feeReadLedgerEntry >= 0 &&
+                cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
+                cfg.contractLedgerCost().feeRead1KB >= 0 &&
+                cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
+                cfg.contractLedgerCost().writeFee1KBBucketListLow >= 0 &&
+                cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
+                cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
         valid = cfg.contractEvents().txMaxContractEventsSizeBytes >= 0 &&
@@ -627,24 +561,20 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                                 Application& app)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    auto const& cfg = app.getConfig();
-    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg),
+    createConfigSettingEntry(initialMaxContractSizeEntry(), ltx);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(), ltx);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(), ltx);
+    createConfigSettingEntry(initialContractComputeSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractEventsSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(), ltx);
+    createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
+    createConfigSettingEntry(initialStateExpirationSettings(app.getConfig()),
                              ltx);
-    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialCpuCostParamsEntry(cfg), ltx);
-    createConfigSettingEntry(initialMemCostParamsEntry(cfg), ltx);
-    createConfigSettingEntry(initialStateExpirationSettings(cfg), ltx);
-
-    createConfigSettingEntry(initialbucketListSizeWindow(app), ltx);
+    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
 #endif
 }
 
@@ -1174,18 +1104,6 @@ SorobanNetworkConfig::getAverageBucketListSize() const
 }
 
 #ifdef BUILD_TESTS
-uint32_t&
-SorobanNetworkConfig::maxContractDataKeySizeBytes()
-{
-    return mMaxContractDataKeySizeBytes;
-}
-
-uint32_t&
-SorobanNetworkConfig::maxContractDataEntrySizeBytes()
-{
-    return mMaxContractDataEntrySizeBytes;
-}
-
 void
 SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(uint32_t period)
 {
@@ -1218,14 +1136,6 @@ SorobanNetworkConfig::stateExpirationSettings() const
 {
     return mStateExpirationSettings;
 }
-
-#ifdef BUILD_TESTS
-StateExpirationSettings&
-SorobanNetworkConfig::stateExpirationSettings()
-{
-    return mStateExpirationSettings;
-}
-#endif
 
 bool
 SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)

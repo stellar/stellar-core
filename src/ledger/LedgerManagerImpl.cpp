@@ -541,12 +541,6 @@ LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 }
 
 #ifdef BUILD_TESTS
-void
-LedgerManagerImpl::setSorobanNetworkConfig(SorobanNetworkConfig const& config)
-{
-    mSorobanNetworkConfig = config;
-}
-
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 {

@@ -199,8 +199,11 @@ submitTxToCreateContract(Application& app, Operation const& op,
 }
 
 static xdr::xvector<LedgerKey>
-deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
-                                uint256 salt = sha256("salt"))
+deployContractWithSourceAccountWithResources(Application& app,
+                                             RustBuf const& contractWasm,
+                                             SorobanResources uploadResources,
+                                             SorobanResources createResources,
+                                             uint256 salt = sha256("salt"))
 {
     auto root = TestAccount::createRoot(app);
 
@@ -214,13 +217,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     LedgerKey contractCodeLedgerKey;
     contractCodeLedgerKey.type(CONTRACT_CODE);
     contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
-
-    SorobanResources uploadResources;
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-    uploadResources.instructions = 200'000;
-    uploadResources.readBytes = 1000;
-    uploadResources.writeBytes = 5000;
-    uploadResources.contractEventsSizeBytes = 0;
     submitTxToUploadWasm(app, uploadOp, uploadResources,
                          contractCodeLedgerKey.contractCode().hash,
                          uploadHF.wasm(), 100'000, 1'200);
@@ -287,13 +284,8 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     contractSourceRefLedgerKey.contractData().durability =
         CONTRACT_INSTANCE_CONTRACT_DURABILITY;
 
-    SorobanResources createResources;
     createResources.footprint.readOnly = {contractCodeLedgerKey};
     createResources.footprint.readWrite = {contractSourceRefLedgerKey};
-    createResources.instructions = 200'000;
-    createResources.readBytes = 5000;
-    createResources.writeBytes = 5000;
-    createResources.contractEventsSizeBytes = 0;
 
     submitTxToCreateContract(
         app, createOp, createResources, contractID, scContractSourceRefKey,
@@ -315,12 +307,31 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
 
+static xdr::xvector<LedgerKey>
+deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
+                                uint256 salt = sha256("salt"))
+{
+    SorobanResources uploadResources{};
+    uploadResources.instructions = 200'000;
+    uploadResources.readBytes = 1000;
+    uploadResources.writeBytes = 5000;
+
+    SorobanResources createResources{};
+    createResources.instructions = 200'000;
+    createResources.readBytes = 5000;
+    createResources.writeBytes = 5000;
+    return deployContractWithSourceAccountWithResources(
+        app, contractWasm, uploadResources, createResources, salt);
+}
+
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
     auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+
     auto root = TestAccount::createRoot(*app);
     int64_t initBalance = root.getBalance();
 
@@ -589,10 +600,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
+    overrideSorobanNetworkConfigForTest(*app);
     auto root = TestAccount::createRoot(*app);
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
     auto const& contractID = contractKeys[0].contractData().contract;
+    LedgerTxn ltxCfg(app->getLedgerTxnRoot());
+    SorobanNetworkConfig const& sorobanConfig =
+        app->getLedgerManager().getSorobanNetworkConfig(ltxCfg);
+    auto const& stateExpirationSettings =
+        sorobanConfig.stateExpirationSettings();
+    ltxCfg.commit();
     auto checkContractData = [&](SCVal const& key, ContractDataDurability type,
                                  SCVal const* val) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -969,25 +987,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 getExpirationLedger(ltxe.current()));
     };
 
-    SorobanNetworkConfig refConfig;
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    }
-
-    auto const& stateExpirationSettings = refConfig.stateExpirationSettings();
     auto ledgerSeq = getLedgerSeq(*app);
 
     // Autobump is disabled by default, enable it for some tests
     auto enableAutobump = [&]() {
-        auto autobumpAmount = 10;
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        auto newStateExpirationSettings = stateExpirationSettings;
-        newStateExpirationSettings.autoBumpLedgers = autobumpAmount;
-        networkConfig.stateExpirationSettings() = newStateExpirationSettings;
-        app->getLedgerManager().setSorobanNetworkConfig(networkConfig);
+        uint32_t autobumpAmount = 10;
+        modifySorobanNetworkConfig(
+            *app, [autobumpAmount](SorobanNetworkConfig& cfg) {
+                cfg.mStateExpirationSettings.autoBumpLedgers = autobumpAmount;
+            });
         return autobumpAmount;
     };
 
@@ -1012,9 +1020,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("failure: entry exceeds max size")
     {
-        refConfig.maxContractDataKeySizeBytes() = 300;
-        refConfig.maxContractDataEntrySizeBytes() = 1;
-        app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mMaxContractDataEntrySizeBytes = 1;
+        });
         // this fails due to the contract code itself exceeding the entry limit
         putWithFootprint(
             "key2", 2, contractKeys,
@@ -1051,7 +1059,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("contract instance and wasm expiration")
     {
-        auto originalExpectedExpiration =
+        uint32_t originalExpectedExpiration =
             stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
             1;
 
@@ -1498,6 +1506,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
     auto root = TestAccount::createRoot(*app);
 
     auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
@@ -1558,6 +1567,7 @@ TEST_CASE("complex contract", "[tx][soroban]")
         auto cfg = getTestConfig();
         cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = enableDiagnostics;
         auto app = createTestApplication(clock, cfg);
+        overrideSorobanNetworkConfigForTest(*app);
         auto root = TestAccount::createRoot(*app);
 
         auto const complexWasm = rust_bridge::get_test_wasm_complex();
@@ -1660,6 +1670,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
+    overrideSorobanNetworkConfigForTest(*app);
     auto root = TestAccount::createRoot(*app);
     auto xlm = txtest::makeNativeAsset();
 
@@ -1786,6 +1797,7 @@ TEST_CASE("errors roll back", "[tx][soroban]")
     auto call_fn_check_failure = [&](std::string const& name) {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
+        overrideSorobanNetworkConfigForTest(*app);
         auto root = TestAccount::createRoot(*app);
 
         auto const errWasm = rust_bridge::get_test_wasm_err();
@@ -1827,7 +1839,7 @@ TEST_CASE("errors roll back", "[tx][soroban]")
 }
 
 static void
-overrideSettingsToMin(Application& app)
+overrideNetworkSettingsToMin(Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
@@ -1850,36 +1862,33 @@ overrideSettingsToMin(Application& app)
         .data.configSetting()
         .contractDataEntrySizeBytes() =
         MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
+    auto& bandwidth =
+        ltx.load(configSettingKey(
+                     ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0))
+            .current()
+            .data.configSetting()
+            .contractBandwidth();
 
-    ConfigSettingContractBandwidthV0 bandwidth;
-    bandwidth.ledgerMaxTxsSizeBytes =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_TX_SIZE_BYTES;
     bandwidth.txMaxSizeBytes = MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-    ltx.load(configSettingKey(
-                 ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0))
-        .current()
-        .data.configSetting()
-        .contractBandwidth() = bandwidth;
+    bandwidth.ledgerMaxTxsSizeBytes = bandwidth.txMaxSizeBytes;
 
-    ConfigSettingContractComputeV0 compute;
-    compute.ledgerMaxInstructions =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+    auto& compute =
+        ltx.load(configSettingKey(
+                     ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0))
+            .current()
+            .data.configSetting()
+            .contractCompute();
     compute.txMaxInstructions =
         MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+    compute.ledgerMaxInstructions = compute.txMaxInstructions;
     compute.txMemoryLimit = MinimumSorobanNetworkConfig::MEMORY_LIMIT;
-    ltx.load(configSettingKey(
-                 ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0))
-        .current()
-        .data.configSetting()
-        .contractCompute() = compute;
-    ltx.load(configSettingKey(
-                 ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0))
-        .current()
-        .data.configSetting()
-        .contractHistoricalData()
-        .feeHistorical1KB = 0;
 
-    ConfigSettingContractLedgerCostV0 costEntry;
+    auto& costEntry =
+        ltx.load(configSettingKey(
+                     ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0))
+            .current()
+            .data.configSetting()
+            .contractLedgerCost();
     costEntry.txMaxReadLedgerEntries =
         MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
     costEntry.txMaxReadBytes = MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
@@ -1888,49 +1897,29 @@ overrideSettingsToMin(Application& app)
         MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
     costEntry.txMaxWriteBytes = MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
-    costEntry.ledgerMaxReadLedgerEntries =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
-    costEntry.ledgerMaxReadBytes =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
-    costEntry.ledgerMaxWriteLedgerEntries =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    costEntry.ledgerMaxWriteBytes =
-        MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
-    costEntry.bucketListTargetSizeBytes = 1;
-    ltx.load(configSettingKey(
-                 ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0))
-        .current()
-        .data.configSetting()
-        .contractLedgerCost() = costEntry;
+    costEntry.ledgerMaxReadLedgerEntries = costEntry.txMaxReadLedgerEntries;
+    costEntry.ledgerMaxReadBytes = costEntry.txMaxReadBytes;
+    costEntry.ledgerMaxWriteLedgerEntries = costEntry.txMaxWriteLedgerEntries;
+    costEntry.ledgerMaxWriteBytes = costEntry.txMaxWriteBytes;
 
-    ConfigSettingContractEventsV0 events;
-    ltx.load(
-           configSettingKey(ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0))
-        .current()
-        .data.configSetting()
-        .contractEvents() = events;
-
-    StateExpirationSettings exp;
+    auto& exp = ltx.load(configSettingKey(
+                             ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
+                    .current()
+                    .data.configSetting()
+                    .stateExpirationSettings();
     exp.maxEntryExpiration =
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
-    exp.minTempEntryExpiration = 1;
     exp.minPersistentEntryExpiration =
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-    exp.persistentRentRateDenominator = 1;
-    exp.tempRentRateDenominator = 1;
-    exp.maxEntriesToExpire = 1;
-    exp.bucketListSizeWindowSampleSize = 1;
-    exp.evictionScanSize = 1;
-
-    ltx.load(configSettingKey(ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
-        .current()
-        .data.configSetting()
-        .stateExpirationSettings() = exp;
-
     ltx.commit();
+
+    // submit a no-op upgrade so the cached soroban settings are updated.
+    auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE};
+    upgrade.newMaxSorobanTxSetSize() = 1;
+    executeUpgrade(app, upgrade);
 }
 
-TEST_CASE("settings upgrade with minimum settings", "[tx][soroban][upgrades]")
+TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -1940,130 +1929,148 @@ TEST_CASE("settings upgrade with minimum settings", "[tx][soroban][upgrades]")
     auto root = TestAccount::createRoot(*app);
     auto& lm = app->getLedgerManager();
 
-    overrideSettingsToMin(*app);
+    auto runTest = [&]() {
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
 
-    // submit an actual upgrade so the cached soroban settings are updated.
-    auto result = LedgerUpgrade{LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE};
-    result.newMaxSorobanTxSetSize() =
-        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT + 1;
-    executeUpgrade(*app, result);
+            // make sure LedgerManager picked up cached values by looking at
+            // a couple settings
+            auto const& networkConfig = lm.getSorobanNetworkConfig(ltx);
 
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(networkConfig.txMaxReadBytes() ==
+                    MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES);
+            REQUIRE(networkConfig.ledgerMaxReadBytes() ==
+                    networkConfig.txMaxReadBytes());
+        }
 
-        // make sure LedgerManager picked up cached values by looking at a
-        // couple settings
-        auto const& networkConfig = lm.getSorobanNetworkConfig(ltx);
+        auto const writeByteWasm = rust_bridge::get_write_bytes();
 
-        REQUIRE(networkConfig.txMaxReadBytes() ==
+        SorobanResources uploadResources{};
+        uploadResources.instructions = 200'000;
+        uploadResources.readBytes = 1000;
+        uploadResources.writeBytes = 1000;
+
+        SorobanResources createResources{};
+        createResources.instructions = 200'000;
+        createResources.readBytes = 1000;
+        createResources.writeBytes = 300;
+        auto contractKeys = deployContractWithSourceAccountWithResources(
+            *app, writeByteWasm, uploadResources, createResources);
+        auto const& contractID = contractKeys[0].contractData().contract;
+
+        // build upgrade
+        auto costKey = configSettingKey(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+
+        ConfigSettingEntry cost{};
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto costEntry = ltx.load(costKey);
+            cost = costEntry.current().data.configSetting();
+        }
+
+        // check a couple settings to make sure they're at the minimum
+        REQUIRE(cost.contractLedgerCost().txMaxReadLedgerEntries ==
+                MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
+        REQUIRE(cost.contractLedgerCost().txMaxReadBytes ==
+                MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES);
+        REQUIRE(cost.contractLedgerCost().txMaxWriteBytes ==
                 MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES);
-        REQUIRE(networkConfig.ledgerMaxReadBytes() ==
-                MinimumSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES);
-    }
+        REQUIRE(cost.contractLedgerCost().ledgerMaxReadLedgerEntries ==
+                cost.contractLedgerCost().txMaxReadLedgerEntries);
+        REQUIRE(cost.contractLedgerCost().ledgerMaxReadBytes ==
+                cost.contractLedgerCost().txMaxReadBytes);
+        REQUIRE(cost.contractLedgerCost().ledgerMaxWriteBytes ==
+                cost.contractLedgerCost().txMaxWriteBytes);
+        cost.contractLedgerCost().feeRead1KB = 1000;
 
-    auto const writeByteWasm = rust_bridge::get_write_bytes();
+        ConfigUpgradeSet upgradeSet;
+        upgradeSet.updatedEntry.emplace_back(cost);
 
-    auto contractKeys = deployContractWithSourceAccount(*app, writeByteWasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
+        auto xdr = xdr::xdr_to_opaque(upgradeSet);
+        auto upgrade_hash = sha256(xdr);
 
-    // build upgrade
-    auto costKey = configSettingKey(
-        ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+        // write upgrade
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = contractID;
+        ihf.invokeContract().functionName = makeSymbol("write");
+        ihf.invokeContract().args.emplace_back(makeBytes(xdr));
 
-    ConfigSettingEntry cost;
+        LedgerKey upgrade(CONTRACT_DATA);
+        upgrade.contractData().durability = TEMPORARY;
+        upgrade.contractData().contract = contractID;
+        upgrade.contractData().bodyType = DATA_ENTRY;
+        upgrade.contractData().key =
+            makeBytes(xdr::xdr_to_opaque(upgrade_hash));
+
+        SorobanResources resources{};
+        resources.footprint.readOnly = contractKeys;
+        resources.footprint.readWrite = {upgrade};
+        resources.instructions = 2'000'000;
+        resources.readBytes = 1000;
+        resources.writeBytes = 1000;
+        resources.contractEventsSizeBytes = 0;
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 2'000'000, 30'000);
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+
+        // arm the upgrade through commandHandler. This isn't required
+        // because we'll trigger the upgrade through externalizeValue, but
+        // this will test the submission and deserialization code.
+        ConfigUpgradeSetKey key;
+        key.contentHash = upgrade_hash;
+        key.contractID = contractID.contractId();
+
+        auto& commandHandler = app->getCommandHandler();
+
+        std::string command = "mode=set&configupgradesetkey=";
+        command += decoder::encode_b64(xdr::xdr_to_opaque(key));
+        command += "&upgradetime=2000-07-21T22:04:00Z";
+
+        std::string ret;
+        commandHandler.upgrades(command, ret);
+        REQUIRE(ret == "");
+
+        // trigger upgrade
+        auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+        ledgerUpgrade.newConfig() = key;
+
+        auto const& lcl = lm.getLastClosedLedgerHeader();
+        auto txSet = TxSetFrame::makeEmpty(lcl);
+        auto lastCloseTime = lcl.header.scpValue.closeTime;
+        app->getHerder().externalizeValue(
+            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+
+        // validate upgrade succeeded
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto costEntry = ltx.load(costKey);
+            REQUIRE(costEntry.current()
+                        .data.configSetting()
+                        .contractLedgerCost()
+                        .feeRead1KB == 1000);
+        }
+    };
+    SECTION("from init settings")
     {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costEntry = ltx.load(costKey);
-        cost = costEntry.current().data.configSetting();
+        runTest();
     }
-
-    // check a couple settings to make sure they're at the minimum
-    REQUIRE(cost.contractLedgerCost().feeRead1KB == 0);
-    REQUIRE(cost.contractLedgerCost().writeFee1KBBucketListLow == 0);
-    REQUIRE(cost.contractLedgerCost().ledgerMaxReadLedgerEntries ==
-            MinimumSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES);
-    REQUIRE(cost.contractLedgerCost().ledgerMaxReadBytes ==
-            MinimumSorobanNetworkConfig::LEDGER_MAX_READ_BYTES);
-    REQUIRE(cost.contractLedgerCost().txMaxWriteBytes ==
-            MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES);
-    cost.contractLedgerCost().feeRead1KB = 1000;
-
-    ConfigUpgradeSet upgradeSet;
-    upgradeSet.updatedEntry.emplace_back(cost);
-
-    auto xdr = xdr::xdr_to_opaque(upgradeSet);
-    auto upgrade_hash = sha256(xdr);
-
-    // write upgrade
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = contractID;
-    ihf.invokeContract().functionName = makeSymbol("write");
-    ihf.invokeContract().args.emplace_back(makeBytes(xdr));
-
-    LedgerKey upgrade(CONTRACT_DATA);
-    upgrade.contractData().durability = TEMPORARY;
-    upgrade.contractData().contract = contractID;
-    upgrade.contractData().bodyType = DATA_ENTRY;
-    upgrade.contractData().key = makeBytes(xdr::xdr_to_opaque(upgrade_hash));
-
-    SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
-    resources.footprint.readWrite = {upgrade};
-    resources.instructions = 5'000'000;
-    resources.readBytes = 5000;
-    resources.writeBytes = 5000;
-    resources.contractEventsSizeBytes = 0;
-
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 1'000'000, 60000);
-
+    SECTION("from min settings")
     {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
-    }
-
-    // arm the upgrade through commandHandler. This isn't required because we'll
-    // trigger the upgrade through externalizeValue, but this will test the
-    // submission and deserialization code.
-    ConfigUpgradeSetKey key;
-    key.contentHash = upgrade_hash;
-    key.contractID = contractID.contractId();
-
-    auto& commandHandler = app->getCommandHandler();
-
-    std::string command = "mode=set&configupgradesetkey=";
-    command += decoder::encode_b64(xdr::xdr_to_opaque(key));
-    command += "&upgradetime=2000-07-21T22:04:00Z";
-
-    std::string ret;
-    commandHandler.upgrades(command, ret);
-    REQUIRE(ret == "");
-
-    // trigger upgrade
-    auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
-    ledgerUpgrade.newConfig() = key;
-
-    auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = TxSetFrame::makeEmpty(lcl);
-    auto lastCloseTime = lcl.header.scpValue.closeTime;
-    app->getHerder().externalizeValue(
-        txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
-        {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
-
-    // validate upgrade succeeded
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costEntry = ltx.load(costKey);
-        REQUIRE(costEntry.current()
-                    .data.configSetting()
-                    .contractLedgerCost()
-                    .feeRead1KB == 1000);
+        overrideNetworkSettingsToMin(*app);
+        runTest();
     }
 }
 #endif

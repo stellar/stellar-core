@@ -1096,10 +1096,15 @@ TEST_CASE("Soroban TransactionQueue limits",
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 4;
 
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = 4;
+        // Restrict instructions to only allow 1 max instructions tx.
+        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions;
+    });
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
     auto root = TestAccount::createRoot(*app);
     auto account1 = root.create("a1", minBalance2);
@@ -1121,8 +1126,7 @@ TEST_CASE("Soroban TransactionQueue limits",
     int initialFee = 10'000'000;
 
     auto resAdjusted = resources;
-    resAdjusted.instructions =
-        static_cast<uint32>(conf.ledgerMaxInstructions());
+    resAdjusted.instructions = static_cast<uint32>(conf.txMaxInstructions());
 
     auto tx =
         createUploadWasmTx(*app, root, initialFee, refundableFee, resAdjusted);
@@ -1192,7 +1196,7 @@ TEST_CASE("Soroban TransactionQueue limits",
             {
                 auto tx2 = createUploadWasmTx(
                     *app, account2, initialFee * 2, refundableFee, resources,
-                    std::nullopt, /* addInvalidOps */ 99);
+                    std::nullopt, /* addInvalidOps */ 1);
 
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);

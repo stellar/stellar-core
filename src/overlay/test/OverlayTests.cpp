@@ -149,19 +149,25 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
     auto cfg2 = getTestConfig(1);
-    cfg1.TESTING_TX_MAX_SIZE_BYTES = txSize;
-    cfg2.TESTING_TX_MAX_SIZE_BYTES = txSize;
-
     REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
     auto test = [&](bool shouldRequestMore) {
         auto app1 = createTestApplication(clock, cfg1, true, false);
         auto app2 = createTestApplication(clock, cfg2, true, false);
-        app1->getHerder().setMaxClassicTxSize(txSize);
-        app2->getHerder().setMaxClassicTxSize(txSize);
-        app1->start();
-        app2->start();
+        auto setupApp = [txSize](Application& app) {
+            app.getHerder().setMaxClassicTxSize(txSize);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            overrideSorobanNetworkConfigForTest(app);
+            modifySorobanNetworkConfig(app,
+                                       [txSize](SorobanNetworkConfig& cfg) {
+                                           cfg.mTxMaxSizeBytes = txSize;
+                                       });
+#endif
+            app.start();
+        };
+        setupApp(*app1);
+        setupApp(*app2);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
@@ -308,13 +314,14 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
                 configEntry.contractBandwidth().txMaxSizeBytes = maxTxSize;
                 configEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
-                    InitialSorobanNetworkConfig::
-                        LEDGER_MAX_TRANSACTION_SIZES_BYTES;
+                    maxTxSize * 10;
                 res = txtest::makeConfigUpgradeSet(ltx, configUpgradeSet);
                 ltx.commit();
             }
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
+        upgradeApp(app1, txSize);
+        upgradeApp(app2, txSize);
 
         auto& txsRecv =
             app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
@@ -591,7 +598,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         {
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize + 1;
             cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
-            cfg1.TESTING_TX_MAX_SIZE_BYTES = txSize;
         }
         else
         {
@@ -604,6 +610,15 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
             cfg1.PEER_READING_CAPACITY = 2;
         }
         auto app1 = createTestApplication(clock, cfg1, true, false);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (fcBytes)
+        {
+            modifySorobanNetworkConfig(*app1,
+                                       [txSize](SorobanNetworkConfig& cfg) {
+                                           cfg.mTxMaxSizeBytes = txSize;
+                                       });
+        }
+#endif
         auto app2 = createTestApplication(clock, cfg2, true, false);
         app1->getHerder().setMaxClassicTxSize(txSize);
         app2->getHerder().setMaxClassicTxSize(txSize);
@@ -2134,8 +2149,6 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
             MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES + 100;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-        cfg.TESTING_TX_MAX_SIZE_BYTES =
-            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
         configs.push_back(cfg);
     }
 
@@ -2151,6 +2164,15 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
         simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        for (auto& node : simulation->getNodes())
+        {
+            modifySorobanNetworkConfig(*node, [](SorobanNetworkConfig& cfg) {
+                cfg.mTxMaxSizeBytes =
+                    MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+            });
+        }
+#endif
         simulation->startAllNodes();
     };
 

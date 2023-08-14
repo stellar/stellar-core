@@ -193,4 +193,44 @@ genesis(int minute, int second)
     return VirtualClock::tmToSystemPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
 }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+modifySorobanNetworkConfig(Application& app,
+                           std::function<void(SorobanNetworkConfig&)> modifyFn)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig(ltx);
+    modifyFn(cfg);
+}
+
+void
+overrideSorobanNetworkConfigForTest(Application& app)
+{
+    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+        cfg.mMaxContractSizeBytes = 64 * 1024;
+        cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
+
+        cfg.mTxMaxSizeBytes = 100 * 1024;
+        cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
+
+        cfg.mTxMaxInstructions = 100'000'000;
+        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
+        cfg.mTxMemoryLimit = 100 * 1024 * 1024;
+
+        cfg.mTxMaxReadLedgerEntries = 40;
+        cfg.mTxMaxReadBytes = 200 * 1024;
+
+        cfg.mTxMaxWriteLedgerEntries = 20;
+        cfg.mTxMaxWriteBytes = 100 * 1024;
+
+        cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
+        cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
+        cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
+        cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
+
+        cfg.mStateExpirationSettings.maxEntryExpiration = 6'312'000;
+        cfg.mLedgerMaxTxCount = 100;
+    });
+}
+#endif
 }
