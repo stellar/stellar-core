@@ -1914,6 +1914,20 @@ overrideNetworkSettingsToMin(Application& app)
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
     exp.minPersistentEntryExpiration =
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+    exp.persistentRentRateDenominator = 1;
+    exp.tempRentRateDenominator = 1;
+    exp.maxEntriesToExpire = 1;
+    exp.bucketListSizeWindowSampleSize = 1;
+    exp.evictionScanSize = 1;
+    exp.startingEvictionScanLevel = 1;
+    exp.autoBumpLedgers = 0;
+
+    ltx.load(configSettingKey(ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
+        .current()
+        .data.configSetting()
+        .stateExpirationSettings() = exp;
+
+    ltx.commit();
 
     auto& events =
         ltx.load(configSettingKey(

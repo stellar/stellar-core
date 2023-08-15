@@ -1158,10 +1158,6 @@ void
 LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!mSorobanNetworkConfig)
-    {
-        mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
-    }
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,

@@ -542,7 +542,8 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
             cfg.stateExpirationSettings().tempRentRateDenominator > 0 &&
             cfg.stateExpirationSettings().maxEntriesToExpire > 0 &&
             cfg.stateExpirationSettings().bucketListSizeWindowSampleSize > 0 &&
-            cfg.stateExpirationSettings().evictionScanSize > 0;
+            cfg.stateExpirationSettings().evictionScanSize > 0 &&
+            cfg.stateExpirationSettings().startingEvictionScanLevel > 0;
 
         valid = valid &&
                 cfg.stateExpirationSettings().maxEntryExpiration >
@@ -552,6 +553,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                          cfg.stateExpirationSettings().minTempEntryExpiration;
         break;
     case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+    case ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR:
         valid = true;
         break;
     }
@@ -1061,23 +1063,6 @@ SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
 }
 
 void
-SorobanNetworkConfig::updateEvictionIterator(
-    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
-{
-    mEvictionIterator = newIter;
-
-    LedgerTxn ltx(ltxRoot);
-    LedgerKey key(CONFIG_SETTING);
-    key.configSetting().configSettingID =
-        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
-    auto txle = ltx.load(key);
-    releaseAssert(txle);
-
-    txle.current().data.configSetting().evictionIterator() = mEvictionIterator;
-    ltx.commit();
-}
-
-void
 SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -1190,6 +1175,23 @@ EvictionIterator const&
 SorobanNetworkConfig::evictionIterator() const
 {
     return mEvictionIterator;
+}
+
+void
+SorobanNetworkConfig::updateEvictionIterator(
+    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
+{
+    mEvictionIterator = newIter;
+
+    LedgerTxn ltx(ltxRoot);
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+
+    txle.current().data.configSetting().evictionIterator() = mEvictionIterator;
+    ltx.commit();
 }
 
 #ifdef BUILD_TESTS
