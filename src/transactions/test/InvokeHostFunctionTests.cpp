@@ -1921,6 +1921,8 @@ overrideSettingsToMin(Application& app)
     exp.maxEntriesToExpire = 1;
     exp.bucketListSizeWindowSampleSize = 1;
     exp.evictionScanSize = 1;
+    exp.startingEvictionScanLevel = 1;
+    exp.autoBumpLedgers = 0;
 
     ltx.load(configSettingKey(ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
         .current()
