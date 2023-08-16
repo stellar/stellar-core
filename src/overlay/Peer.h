@@ -212,6 +212,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
+    VirtualTimer mTxSetRequestTimer;
 
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
@@ -247,7 +248,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendTxSet(std::shared_ptr<TxSetFrame const> txSet);
 
-    void recvGetTxSet(StellarMessage const& msg);
+    void recvGetTxSet(StellarMessage const& msg, bool wait = true);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);

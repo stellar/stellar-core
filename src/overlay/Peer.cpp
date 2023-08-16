@@ -67,6 +67,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
     , mTxAdvertQueue(app)
+    , mTxSetRequestTimer(app)
     , mAdvertTimer(app)
     , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
@@ -1080,7 +1081,6 @@ Peer::recvDontHave(StellarMessage const& msg)
 void
 Peer::sendTxSet(TxSetFrameConstPtr txSet)
 {
-
     StellarMessage newMsg;
     if (txSet->isGeneralizedTxSet())
     {
@@ -1114,7 +1114,7 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
 }
 
 void
-Peer::recvGetTxSet(StellarMessage const& msg)
+Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 {
     ZoneScoped;
     auto self = shared_from_this();
@@ -1155,6 +1155,11 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     }
     else
     {
+        if (wait)
+        {
+            // mTxSetRequestTimer.se
+        }
+
         // We do not have the tx set, so make a pending tx set request and
         // respond back to the node once we have it.
         std::weak_ptr<Peer> peer = shared_from_this();
@@ -1195,29 +1200,18 @@ void
 Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+
     auto frame = TxSetFrame::makeFromWire(mApp, msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
-    CLOG_INFO(
-        Overlay,
-        "Peer::recvTxSet {} received {}, trying to fulfill pending requests",
-        toString(), hexAbbrev(frame->getContentsHash()));
     auto& pendingTxSetRequests =
         mApp.getOverlayManager().getPendingTxSetRequests();
-
-    CLOG_INFO(Overlay, "pending requests length: {}",
-              pendingTxSetRequests[frame->getContentsHash()].size());
 
     for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
     {
         auto peer = weakPeer.lock();
         if (peer)
         {
-            CLOG_INFO(Overlay, "Pending request to peer {}", peer->toString());
             peer->sendTxSet(frame);
-        }
-        else
-        {
-            CLOG_INFO(Overlay, "Peer does not exist");
         }
     }
     pendingTxSetRequests[frame->getContentsHash()].clear();
