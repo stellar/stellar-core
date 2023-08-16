@@ -1157,7 +1157,12 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     {
         if (wait)
         {
-            // mTxSetRequestTimer.se
+            mTxSetRequestTimer.expires_from_now(
+                mApp.getConfig().SEND_DONT_HAVE_DELAY);
+            mTxSetRequestTimer.async_wait(
+                [this, msg] { recvGetTxSet(msg, false); },
+                VirtualTimer::onFailureNoop);
+            return;
         }
 
         // We do not have the tx set, so make a pending tx set request and
