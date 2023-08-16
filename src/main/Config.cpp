@@ -156,7 +156,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     AUTOMATIC_MAINTENANCE_COUNT = 400;
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
-    SEND_DONT_HAVE_DELAY = std::chrono::seconds{0};
+    SEND_DONT_HAVE_DELAY = std::chrono::seconds{2};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;

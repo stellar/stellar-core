@@ -378,6 +378,7 @@ Peer::shutdown()
     mShuttingDown = true;
     mRecurringTimer.cancel();
     mAdvertTimer.cancel();
+    mTxSetRequestTimer.cancel();
     mDelayedExecutionTimer.cancel();
 }
 
@@ -1117,6 +1118,8 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 {
     ZoneScoped;
+    CLOG_INFO(Overlay, "recvGetTxSet. Wait: {} ", wait ? "true" : "false");
+
     auto self = shared_from_this();
     if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
     {
@@ -1157,11 +1160,16 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     {
         if (wait)
         {
-            mTxSetRequestTimer.expires_from_now(
-                mApp.getConfig().SEND_DONT_HAVE_DELAY);
+            CLOG_INFO(Overlay,
+                      "Peer::recvGetTxSet {} did not find the tx set for {}, "
+                      "triggering mTxSetRequestTimer.",
+                      toString(), hexAbbrev(msg.txSetHash()));
             mTxSetRequestTimer.async_wait(
-                [this, msg] { recvGetTxSet(msg, false); },
-                VirtualTimer::onFailureNoop);
+                [this, msg] {
+                    CLOG_INFO(Overlay, "Dont have try again...");
+                    recvGetTxSet(msg, false);
+                },
+                &VirtualTimer::onFailureNoop);
             return;
         }
 
