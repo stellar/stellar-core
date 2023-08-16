@@ -1164,12 +1164,17 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
                       "Peer::recvGetTxSet {} did not find the tx set for {}, "
                       "triggering mTxSetRequestTimer.",
                       toString(), hexAbbrev(msg.txSetHash()));
+
+            mTxSetRequestTimer.expires_from_now(
+                mApp.getConfig().SEND_DONT_HAVE_DELAY);
             mTxSetRequestTimer.async_wait(
                 [this, msg] {
                     CLOG_INFO(Overlay, "Dont have try again...");
                     recvGetTxSet(msg, false);
                 },
                 &VirtualTimer::onFailureNoop);
+
+            CLOG_INFO(Overlay, "Return after setting timer.");
             return;
         }
 

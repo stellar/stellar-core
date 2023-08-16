@@ -163,7 +163,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Interwal for a peer to wait before sending DONT_HAVE for a tx set
     // request.
-    std::chrono::seconds SEND_DONT_HAVE_DELAY;
+    std::chrono::milliseconds SEND_DONT_HAVE_DELAY;
 
     // A config parameter that enables synthetic load generation on demand,
     // using the `generateload` runtime command (see CommandHandler.cpp).
