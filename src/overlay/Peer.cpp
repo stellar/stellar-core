@@ -425,7 +425,6 @@ void
 Peer::sendGetTxSet(uint256 const& setID)
 {
     ZoneScoped;
-    CLOG_INFO(Overlay, "Peer {} sends get tx set for hash.", toString());
     StellarMessage newMsg;
     newMsg.type(GET_TX_SET);
     newMsg.txSetHash() = setID;
@@ -1229,8 +1228,6 @@ Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     auto frame = TxSetFrame::makeFromWire(mApp, msg.generalizedTxSet());
-    CLOG_INFO(Overlay, "Peer {} receives generalized transaction set {}",
-              toString(), hexAbbrev(frame->getContentsHash()));
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
@@ -1240,9 +1237,6 @@ Peer::recvTransaction(StellarMessage const& msg)
     ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
         mApp.getNetworkID(), msg.transaction());
-
-    CLOG_INFO(Overlay, "Peer {} receives transaction {}", toString(),
-              hexAbbrev(transaction->getContentsHash()));
 
     if (transaction)
     {
@@ -1887,8 +1881,6 @@ Peer::startAdvertTimer()
 void
 Peer::sendTxDemand(TxDemandVector&& demands)
 {
-    CLOG_INFO(Overlay, "Peer {} sends demands for {} transaction hashes.",
-              toString(), demands.size());
     if (demands.size() > 0)
     {
         auto msg = std::make_shared<StellarMessage>();
