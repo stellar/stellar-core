@@ -161,10 +161,14 @@ class Config : public std::enable_shared_from_this<Config>
     // Interval between automatic invocations of self-check.
     std::chrono::seconds AUTOMATIC_SELF_CHECK_PERIOD;
 
+    // Interwal for a peer to wait before sending DONT_HAVE for a tx set
+    // request.
+    std::chrono::seconds SEND_DONT_HAVE_DELAY;
+
     // A config parameter that enables synthetic load generation on demand,
-    // using the `generateload` runtime command (see CommandHandler.cpp). This
-    // option only exists for stress-testing and should not be enabled in
-    // production networks.
+    // using the `generateload` runtime command (see CommandHandler.cpp).
+    // This option only exists for stress-testing and should not be enabled
+    // in production networks.
     bool ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
 
     // A config parameter that reduces ledger close time to 1s and checkpoint
