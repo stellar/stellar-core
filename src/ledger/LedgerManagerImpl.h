@@ -97,9 +97,10 @@ class LedgerManagerImpl : public LedgerManager
     getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
 
   protected:
-    virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                   uint32_t ledgerSeq,
-                                                   uint32_t ledgerVers);
+    virtual void transferLedgerEntriesToBucketList(
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t ledgerSeq, uint32_t ledgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);

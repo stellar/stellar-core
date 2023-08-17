@@ -845,8 +845,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             Upgrades::applyTo(lupgrade, mApp, ltxUpgrade);
 
             auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
-            LedgerEntryChanges changes =
-                ltxUpgrade.getChanges(EntryChangeType::TRANSACTION);
+            LedgerEntryChanges changes = ltxUpgrade.getChanges();
             if (ledgerCloseMeta)
             {
                 auto& up = ledgerCloseMeta->upgradesProcessing();
@@ -1242,8 +1241,7 @@ LedgerManagerImpl::processFeesSeqNums(
                 }
             }
 
-            LedgerEntryChanges changes =
-                ltxTx.getChanges(EntryChangeType::TRANSACTION);
+            LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->pushTxProcessingEntry();
@@ -1471,9 +1469,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
 
 // NB: This is a separate method so a testing subclass can override it.
 void
-LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                     uint32_t ledgerSeq,
-                                                     uint32_t ledgerVers)
+LedgerManagerImpl::transferLedgerEntriesToBucketList(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t ledgerSeq, uint32_t ledgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1486,7 +1485,17 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     if (blEnabled &&
         protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        mApp.getBucketManager().scanForEviction(ltx, ledgerSeq);
+        {
+            LedgerTxn ltxEvictions(ltx);
+            mApp.getBucketManager().scanForEviction(ltxEvictions, ledgerSeq);
+            if (ledgerCloseMeta)
+            {
+                ledgerCloseMeta->populateEvictedEntries(
+                    ltxEvictions.getChanges());
+            }
+            ltxEvictions.commit();
+        }
+
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
     }
@@ -1512,15 +1521,13 @@ LedgerManagerImpl::ledgerClosed(
                "sealing ledger {} with version {}, sending to bucket list",
                ledgerSeq, ledgerVers);
 
-    transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
+    transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
+                                      ledgerVers);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(ledgerVers, ProtocolVersion::V_20))
     {
-        ledgerCloseMeta->populateEvictedEntries(
-            ltx.getChanges(EntryChangeType::EVICTION));
-
         auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
         ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
     }

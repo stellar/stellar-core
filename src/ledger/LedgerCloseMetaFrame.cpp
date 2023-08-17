@@ -208,7 +208,21 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     releaseAssert(mVersion == 2);
     for (auto const& change : evictionChanges)
     {
-        releaseAssert(change.type() == LEDGER_ENTRY_REMOVED);
+        if (change.type() != LEDGER_ENTRY_REMOVED)
+        {
+            if (change.type() == LEDGER_ENTRY_STATE)
+            {
+                continue;
+            }
+            else if (change.type() == LEDGER_ENTRY_UPDATED)
+            {
+                // The scan also updates the eviction iterator...
+                releaseAssert(change.updated().data.type() == CONFIG_SETTING);
+            }
+
+            continue;
+        }
+
         auto key = change.removed();
         releaseAssert(isTemporaryEntry(key));
         mLedgerCloseMeta.v2().evictedTemporaryLedgerKeys.push_back(key);

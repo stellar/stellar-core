@@ -1031,8 +1031,10 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             if (isSorobanDataEntry(le.data) && isTemporaryEntry(le.data) &&
                 !isLive(le, ledgerSeq))
             {
-                if (ltx.maybeEvict(le))
+                auto ltxe = ltx.load(LedgerEntryKey(le));
+                if (ltxe && !isLive(ltxe.current(), ledgerSeq))
                 {
+                    ltxe.erase();
                     entriesEvictedMeter.Mark();
                     --maxEntriesToEvict;
                 }
