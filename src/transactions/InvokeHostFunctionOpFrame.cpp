@@ -582,7 +582,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mEmitEventByte += eventSize;
         metrics.mMaxEmitEventByte =
             std::max(metrics.mMaxEmitEventByte, eventSize);
-        if (resources.contractEventsSizeBytes < metrics.mEmitEventByte)
+        if (sorobanConfig.txMaxContractEventsSizeBytes() <
+            metrics.mEmitEventByte)
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -594,13 +595,18 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     maybePopulateDiagnosticEvents(cfg, out, metrics);
 
+    metrics.mEmitEventByte += out.result_value.data.size();
+    if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
+    {
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
+
     if (!mParentTx.consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, cfg))
     {
-        // TODO: This probably should have a more precise error code as here
-        // the refundable fee limit is exceeded (and not some resource).
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
 

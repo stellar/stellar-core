@@ -510,7 +510,9 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                 cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0:
-        valid = cfg.contractEvents().txMaxContractEventsSizeBytes >= 0 &&
+        valid = cfg.contractEvents().txMaxContractEventsSizeBytes >=
+                    MinimumSorobanNetworkConfig::
+                        TX_MAX_CONTRACT_EVENTS_SIZE_BYTES &&
                 cfg.contractEvents().feeContractEvents1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION:

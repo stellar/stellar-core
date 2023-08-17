@@ -604,11 +604,6 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     {
         return false;
     }
-    if (resources.contractEventsSizeBytes >
-        config.txMaxContractEventsSizeBytes())
-    {
-        return false;
-    }
     if (readEntries.size() + writeEntries.size() >
             config.txMaxReadLedgerEntries() ||
         writeEntries.size() > config.txMaxWriteLedgerEntries())
@@ -705,7 +700,7 @@ TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg, bool useConsumedRefundableResources) const
 {
-    CxxTransactionResources cxxResources;
+    CxxTransactionResources cxxResources{};
     auto const& txResources = sorobanResources();
     cxxResources.instructions = txResources.instructions;
 
@@ -721,20 +716,10 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.transaction_size_bytes =
         static_cast<uint32>(xdr::xdr_size(mEnvelope));
 
-    cxxResources.contract_events_size_bytes =
-        txResources.contractEventsSizeBytes;
-
     if (useConsumedRefundableResources)
     {
-        // It is possible that consumed events size is higher than the
-        // declared size (in such a case the transaction will fail). We
-        // still don't want to overcharge the fees though.
-        if (cxxResources.contract_events_size_bytes >
-            mConsumedContractEventsSizeBytes)
-        {
-            cxxResources.contract_events_size_bytes =
-                mConsumedContractEventsSizeBytes;
-        }
+        cxxResources.contract_events_size_bytes =
+            mConsumedContractEventsSizeBytes;
     }
 
     // This may throw, but only in case of the Core version misconfiguration.

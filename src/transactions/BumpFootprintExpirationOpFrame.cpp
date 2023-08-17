@@ -119,9 +119,8 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             app.getLedgerManager().getSorobanNetworkConfig(ltx),
             app.getConfig()))
     {
-        // TODO: This probably should have a more precise error code as here
-        // the refundable fee limit is exceeded (and not some resource).
-        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(
+            BUMP_FOOTPRINT_EXPIRATION_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
     innerResult().code(BUMP_FOOTPRINT_EXPIRATION_SUCCESS);

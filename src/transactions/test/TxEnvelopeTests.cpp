@@ -2531,8 +2531,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     resources.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     resources.readBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
     resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-    resources.contractEventsSizeBytes =
-        InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
 
     auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
@@ -2557,11 +2555,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     SECTION("write bytes exceeded")
     {
         resources.writeBytes += 1;
-        validateResources(resources, false);
-    }
-    SECTION("metadata size exceeded")
-    {
-        resources.contractEventsSizeBytes += 1;
         validateResources(resources, false);
     }
     SECTION("max read entries exceeded")
@@ -2627,14 +2620,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op0}, {}, resources,
                                                      1'000'000, 1'000'001);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
-        }
-        SECTION("refundable fee exceeds tx refundable fee")
-        {
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op0}, {}, resources, 1'000'000, 10);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);

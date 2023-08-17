@@ -136,9 +136,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             app.getLedgerManager().getSorobanNetworkConfig(ltx),
             app.getConfig()))
     {
-        // TODO: This probably should have a more precise error code as here
-        // the refundable fee limit is exceeded (and not some resource).
-        innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
     innerResult().code(RESTORE_FOOTPRINT_SUCCESS);

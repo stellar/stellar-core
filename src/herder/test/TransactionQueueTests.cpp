@@ -1120,7 +1120,6 @@ TEST_CASE("Soroban TransactionQueue limits",
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.contractEventsSizeBytes = 0;
 
     int refundableFee = 1200;
     int initialFee = 10'000'000;
