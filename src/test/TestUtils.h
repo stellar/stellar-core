@@ -92,4 +92,14 @@ std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
                         int second);
 
 VirtualClock::system_time_point genesis(int minute, int second);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+// Override Soroban network config defaults with generous settings suitable
+// for most of the unit tests (unless the test is meant to exercise the
+// configuration limits).
+void overrideSorobanNetworkConfigForTest(Application& app);
+void
+modifySorobanNetworkConfig(Application& app,
+                           std::function<void(SorobanNetworkConfig&)> modifyFn);
+#endif
 }

@@ -132,7 +132,6 @@ class LedgerManagerImpl : public LedgerManager
     getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 
 #ifdef BUILD_TESTS
-    void setSorobanNetworkConfig(SorobanNetworkConfig const& config) override;
     SorobanNetworkConfig&
     getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 #endif

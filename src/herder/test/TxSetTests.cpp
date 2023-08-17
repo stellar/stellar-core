@@ -482,8 +482,11 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 5;
     Application::pointer app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mLedgerMaxTxCount = 5;
+    });
     auto root = TestAccount::createRoot(*app);
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
@@ -802,9 +805,12 @@ TEST_CASE("generalized tx set fees", "[txset]")
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 10;
 
     Application::pointer app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mLedgerMaxTxCount = 10;
+    });
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
     uint32_t refundableFee = 10'000;

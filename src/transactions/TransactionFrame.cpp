@@ -197,7 +197,8 @@ TransactionFrame::getResources() const
 
         return Resource({opCount, r.instructions, txSize, r.readBytes,
                          r.writeBytes,
-                         static_cast<int64_t>(r.footprint.readOnly.size()),
+                         static_cast<int64_t>(r.footprint.readOnly.size() +
+                                              r.footprint.readWrite.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
 #endif
