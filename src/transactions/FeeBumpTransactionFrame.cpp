@@ -121,8 +121,7 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
     {
         LedgerTxn ltxTx(ltx);
         removeOneTimeSignerKeyFromFeeSource(ltxTx);
-        meta.pushTxChangesBefore(
-            ltxTx.getChanges(EntryChangeType::TRANSACTION));
+        meta.pushTxChangesBefore(ltxTx.getChanges());
         ltxTx.commit();
     }
     catch (std::exception& e)

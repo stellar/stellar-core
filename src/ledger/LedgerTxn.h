@@ -191,13 +191,6 @@ enum class EntryPtrState
     DELETED
 };
 
-// Specifies what event initiated the LedgerEntry change
-enum class EntryChangeType
-{
-    TRANSACTION,
-    EVICTION
-};
-
 class LedgerEntryPtr
 {
   public:
@@ -366,7 +359,6 @@ class EntryIterator
 
     InternalLedgerEntry const& entry() const;
     LedgerEntryPtr const& entryPtr() const;
-    EntryChangeType type() const;
 
     bool entryExists() const;
 
@@ -559,13 +551,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     Creates a new LedgerTxnEntry from entry. Throws if the key
     //     associated with this entry is already associated with an entry in
     //     this AbstractLedgerTxn or any parent.
-    // - maybeEvict
-    //     One each ledger close, this function is called on an expired
-    //     LedgerEntry in the given Bucket level. The LedgerEntry provided may
-    //     not be the most recent version of the entry. This function checks if
-    //     the entry is the newest version, and if so evicts the entry. Throws
-    //     if there is an active LedgerTxnEntry associated with this key.
-    //     Returns true if entry evicted, false otherwise.
     // - erase
     //     Erases the existing entry associated with key. Throws if the key is
     //     not already associated with an entry in this AbstractLedgerTxn or
@@ -586,7 +571,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // the AbstractLedgerTxn has a child.
     virtual LedgerTxnHeader loadHeader() = 0;
     virtual LedgerTxnEntry create(InternalLedgerEntry const& entry) = 0;
-    virtual bool maybeEvict(InternalLedgerEntry const& entry) = 0;
     virtual void erase(InternalLedgerKey const& key) = 0;
     virtual LedgerTxnEntry load(InternalLedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry
@@ -611,7 +595,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
     // necessary.
-    // - getChanges(EntryChangeType)
+    // - getChanges
     //     Extract all changes of the given type from this AbstractLedgerTxn in
     //     XDR format. To be stored as meta.
     // - getDelta
@@ -625,7 +609,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     inserted into the BucketList.
     //
     // All of these functions throw if the AbstractLedgerTxn has a child.
-    virtual LedgerEntryChanges getChanges(EntryChangeType type) = 0;
+    virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
@@ -721,7 +705,6 @@ class LedgerTxn : public AbstractLedgerTxn
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
 
-    bool maybeEvict(InternalLedgerEntry const& entry) override;
     void erase(InternalLedgerKey const& key) override;
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
@@ -734,7 +717,7 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void forAllWorstBestOffers(WorstOfferProcessor proc) override;
 
-    LedgerEntryChanges getChanges(EntryChangeType type) override;
+    LedgerEntryChanges getChanges() override;
 
     LedgerTxnDelta getDelta() override;
 

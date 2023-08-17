@@ -41,8 +41,6 @@ class EntryIterator::AbstractImpl
 
     virtual LedgerEntryPtr const& entryPtr() const = 0;
 
-    virtual EntryChangeType type() const = 0;
-
     virtual bool entryExists() const = 0;
 
     virtual InternalLedgerKey const& key() const = 0;
@@ -203,13 +201,7 @@ class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
 
-    struct EntryMapEntry
-    {
-        LedgerEntryPtr ptr;
-        EntryChangeType type;
-    };
-
-    typedef UnorderedMap<InternalLedgerKey, EntryMapEntry> EntryMap;
+    typedef UnorderedMap<InternalLedgerKey, LedgerEntryPtr> EntryMap;
 
     AbstractLedgerTxnParent& mParent;
     AbstractLedgerTxn* mChild;
@@ -437,7 +429,7 @@ class LedgerTxn::Impl
                                bool effectiveActive);
     void updateEntry(InternalLedgerKey const& key,
                      EntryMap::iterator const* keyHint, LedgerEntryPtr lePtr,
-                     bool effectiveActive, EntryChangeType type) noexcept;
+                     bool effectiveActive) noexcept;
 
     // updateWorstBestOffer has the strong exception safety guarantee
     void updateWorstBestOffer(AssetPair const& assets,
@@ -465,8 +457,6 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry create(LedgerTxn& self, InternalLedgerEntry const& entry);
-
-    bool maybeEvict(LedgerTxn& self, InternalLedgerEntry const& entry);
 
     // deactivate has the strong exception safety guarantee
     void deactivate(InternalLedgerKey const& key);
@@ -508,7 +498,7 @@ class LedgerTxn::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    LedgerEntryChanges getChanges(EntryChangeType type);
+    LedgerEntryChanges getChanges();
 
     // getDelta has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -682,8 +672,6 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     InternalLedgerEntry const& entry() const override;
 
     LedgerEntryPtr const& entryPtr() const override;
-
-    EntryChangeType type() const override;
 
     bool entryExists() const override;
 
