@@ -102,7 +102,9 @@ EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
 
 void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
-    AbstractLedgerTxn& ltx, uint32_t ledgerSeq, uint32_t ledgerVers)
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t ledgerSeq, uint32_t ledgerVers)
 {
     if (mUseTestEntries)
     {
@@ -112,7 +114,17 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
         {
-            mApp.getBucketManager().scanForEviction(ltx, ledgerSeq);
+            {
+                LedgerTxn ltxEvictions(ltx);
+                mApp.getBucketManager().scanForEviction(ltxEvictions,
+                                                        ledgerSeq);
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->populateEvictedEntries(
+                        ltxEvictions.getChanges());
+                }
+                ltxEvictions.commit();
+            }
             mApp.getLedgerManager()
                 .getMutableSorobanNetworkConfig(ltx)
                 .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
@@ -127,8 +139,8 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     }
     else
     {
-        LedgerManagerImpl::transferLedgerEntriesToBucketList(ltx, ledgerSeq,
-                                                             ledgerVers);
+        LedgerManagerImpl::transferLedgerEntriesToBucketList(
+            ltx, ledgerCloseMeta, ledgerSeq, ledgerVers);
     }
 }
 

@@ -8,6 +8,7 @@
 #include <stdexcept>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
+#include "crypto/Random.h"
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
@@ -25,6 +26,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
+#include "util/TmpDir.h"
 #include "util/XDRCereal.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -1485,6 +1487,124 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT);
         }
     }
+}
+
+TEST_CASE("temp entry eviction", "[tx][soroban]")
+{
+    VirtualClock clock;
+
+    Config cfg = getTestConfig();
+    TmpDirManager tdm(std::string("soroban-storage-meta-") +
+                      binToHex(randomBytes(8)));
+    TmpDir td = tdm.tmpDir("soroban-meta-ok");
+    std::string metaPath = td.getName() + "/stream.xdr";
+
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
+
+    auto app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
+    auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
+    auto const& contractID = contractKeys[0].contractData().contract;
+
+    // TODO:de-duplicate code?
+    auto createTx =
+        [&](xdr::xvector<LedgerKey> const& readOnly,
+            xdr::xvector<LedgerKey> const& readWrite, uint32_t writeBytes,
+            SCAddress const& contractAddress, SCSymbol const& functionName,
+            std::vector<SCVal> const& args) -> TransactionFrameBasePtr {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = contractAddress;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 4'000'000;
+        resources.readBytes = 5000;
+        resources.writeBytes = writeBytes;
+        resources.contractEventsSizeBytes = 0;
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
+        return tx;
+    };
+
+    auto putWithFootprint = [&](std::string const& key, uint64_t val,
+                                xdr::xvector<LedgerKey> const& readOnly,
+                                xdr::xvector<LedgerKey> const& readWrite,
+                                uint32_t writeBytes, bool expectSuccess,
+                                ContractDataDurability type) {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto valU64 = makeU64(val);
+
+        std::string funcStr;
+        switch (type)
+        {
+        case ContractDataDurability::TEMPORARY:
+            funcStr = "put_temporary";
+            break;
+        case ContractDataDurability::PERSISTENT:
+            funcStr = "put_persistent";
+            break;
+        }
+
+        auto tx = createTx(readOnly, readWrite, writeBytes, contractID,
+                           makeSymbol(funcStr), {keySymbol, valU64});
+
+        closeLedger(*app, {tx});
+    };
+
+    auto checkContractDataExpirationState =
+        [&](std::string const& key, ContractDataDurability type,
+            uint32_t ledgerSeq, bool expectedIsLive) {
+            auto le = loadStorageEntry(*app, contractID, key, type);
+            REQUIRE(isLive(le, ledgerSeq) == expectedIsLive);
+        };
+
+    auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY,
+                              DATA_ENTRY);
+    putWithFootprint("temp", 0, contractKeys, {lk}, 1000, true, TEMPORARY);
+
+    // Close ledgers until temp entry is evicted
+    uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
+    for (; currLedger <= 4096; ++currLedger)
+    {
+        closeLedgerOn(*app, currLedger, 2, 1, 2016);
+    }
+
+    // Check that temp entry has expired
+    checkContractDataExpirationState(
+        "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
+        false);
+
+    // close one more ledger to trigger the eviction
+    closeLedgerOn(*app, 4097, 2, 1, 2016);
+
+    XDRInputFileStream in;
+    in.open(metaPath);
+    LedgerCloseMeta lcm;
+    uint32_t maxSeq = 0;
+    bool evicted = false;
+    while (in.readOne(lcm))
+    {
+        REQUIRE(lcm.v() == 2);
+        if (lcm.v2().ledgerHeader.header.ledgerSeq == 4097)
+        {
+            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.size() == 1);
+            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[0] == lk);
+            evicted = true;
+        }
+        else
+        {
+            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.empty());
+        }
+    }
+
+    REQUIRE(evicted);
 }
 
 TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
