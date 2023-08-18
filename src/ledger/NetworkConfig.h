@@ -23,15 +23,15 @@ class Application;
 struct MinimumSorobanNetworkConfig
 {
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 3;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 5'000;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 3'000;
 
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 2'000;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 3'000;
 
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10'000;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 5'000;
 
-    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 5'000'000;
-    static constexpr uint32_t MEMORY_LIMIT = 5'000'000;
+    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 2'000'000;
+    static constexpr uint32_t MEMORY_LIMIT = 2'000'000;
 
     static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
