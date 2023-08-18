@@ -23,19 +23,19 @@ class Application;
 struct MinimumSorobanNetworkConfig
 {
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 3;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 3'000;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 3'200;
 
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 3'000;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 3'200;
 
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 5'000;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10'000;
 
-    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 2'000'000;
+    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 2'500'000;
     static constexpr uint32_t MEMORY_LIMIT = 2'000'000;
 
     static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
-    static constexpr uint32_t MAX_CONTRACT_SIZE = 5'000;
+    static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
 
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4'096;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
@@ -64,7 +64,7 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
     static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT = 100;
     static constexpr uint32_t MEMORY_LIMIT =
-        MinimumSorobanNetworkConfig::MEMORY_LIMIT; // 5MB
+        MinimumSorobanNetworkConfig::MEMORY_LIMIT;
 
     // Ledger access settings
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES =
