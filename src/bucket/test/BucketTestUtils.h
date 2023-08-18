@@ -53,9 +53,10 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     std::vector<LedgerKey> mTestDeadEntries;
 
   protected:
-    void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                           uint32_t ledgerSeq,
-                                           uint32_t ledgerVers) override;
+    void transferLedgerEntriesToBucketList(
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t ledgerSeq, uint32_t ledgerVers) override;
 
   public:
     void
