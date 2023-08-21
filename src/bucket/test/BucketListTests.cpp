@@ -861,10 +861,17 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             stateExpirationSettings.startingEvictionScanLevel = levelToScan;
             updateNetworkCfg();
 
-            // Shadow expired entries with updated versions
+            // Shadow expired entries with updated, not expired versions
+            for (auto& e : entries)
+            {
+                setExpirationLedger(e, ledgerSeq + 10);
+            }
             lm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
+
+            // Close two ledgers to give eviction scan opportunity to process
+            // new entries
             closeLedger(*app);
-            ++ledgerSeq;
+            closeLedger(*app);
 
             // Entries are shadowed, should not be evicted
             checkIfEntryExists(tempEntries, true);

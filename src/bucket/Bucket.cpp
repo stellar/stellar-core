@@ -1031,6 +1031,11 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             if (isSorobanDataEntry(le.data) && isTemporaryEntry(le.data) &&
                 !isLive(le, ledgerSeq))
             {
+                // This check ensures:
+                // 1. The entry being scanned is not deleted, i.e., has not been
+                //    evicted by a previous scan.
+                // 2. The entry being scanned is not shadowed by a newer, live
+                //    version of the entry.
                 auto ltxe = ltx.load(LedgerEntryKey(le));
                 if (ltxe && !isLive(ltxe.current(), ledgerSeq))
                 {
