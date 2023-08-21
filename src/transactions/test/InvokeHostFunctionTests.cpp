@@ -1959,16 +1959,27 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto const& contractID = contractKeys[0].contractData().contract;
 
         // build upgrade
-        auto costKey = configSettingKey(
-            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
 
-        ConfigSettingEntry cost{};
+        // This test assumes that all settings including and after
+        // CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW are not upgradeable, so they
+        // won't be included in the upgrade.
+        xdr::xvector<ConfigSettingEntry> updatedEntries;
+        for (uint32_t i = 0;
+             i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
+             ++i)
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto costEntry = ltx.load(costKey);
-            cost = costEntry.current().data.configSetting();
+            auto costEntry =
+                ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+            updatedEntries.emplace_back(
+                costEntry.current().data.configSetting());
         }
 
+        // Update one of the settings. The rest will be the same so will not get
+        // upgraded, but this will still test that the limits work when writing
+        // all settings to the contract.
+        auto& cost = updatedEntries.at(static_cast<uint32_t>(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0));
         // check a couple settings to make sure they're at the minimum
         REQUIRE(cost.contractLedgerCost().txMaxReadLedgerEntries ==
                 MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
@@ -1985,7 +1996,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         cost.contractLedgerCost().feeRead1KB = 1000;
 
         ConfigUpgradeSet upgradeSet;
-        upgradeSet.updatedEntry.emplace_back(cost);
+        upgradeSet.updatedEntry = updatedEntries;
 
         auto xdr = xdr::xdr_to_opaque(upgradeSet);
         auto upgrade_hash = sha256(xdr);
@@ -2010,12 +2021,12 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         resources.footprint.readOnly = contractKeys;
         resources.footprint.readWrite = {upgrade};
         resources.instructions = 2'000'000;
-        resources.readBytes = 1000;
-        resources.writeBytes = 1000;
+        resources.readBytes = 3000;
+        resources.writeBytes = 2000;
         resources.contractEventsSizeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 2'000'000, 30'000);
+            app->getNetworkID(), root, {op}, {}, resources, 20'000'000, 30'000);
 
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -2055,6 +2066,8 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
 
         // validate upgrade succeeded
         {
+            auto costKey = configSettingKey(
+                ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto costEntry = ltx.load(costKey);
             REQUIRE(costEntry.current()

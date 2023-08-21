@@ -54,7 +54,7 @@ recursivePredicate(uint32_t counter)
 }
 
 Operation
-getOperationGreateThanMinMaxSizeBytes()
+getOperationGreaterThanMinMaxSizeBytes()
 {
     Claimant c;
     c.v0().destination = txtest::getAccount("acc").getPublicKey();
@@ -142,7 +142,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
     // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
     tx1.transaction().v0().tx.operations.emplace_back(
-        getOperationGreateThanMinMaxSizeBytes());
+        getOperationGreaterThanMinMaxSizeBytes());
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(tx1));
     REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
@@ -590,7 +590,7 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     StellarMessage msg;
     msg.type(TRANSACTION);
     msg.transaction().v0().tx.operations.emplace_back(
-        getOperationGreateThanMinMaxSizeBytes());
+        getOperationGreaterThanMinMaxSizeBytes());
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
     auto test = [&](bool fcBytes) {
