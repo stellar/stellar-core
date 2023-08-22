@@ -95,6 +95,7 @@ impl From<CxxRentFeeConfiguration> for RentFeeConfiguration {
     fn from(value: CxxRentFeeConfiguration) -> Self {
         Self {
             fee_per_write_1kb: value.fee_per_write_1kb,
+            fee_per_write_entry: value.fee_per_write_entry,
             persistent_rent_rate_denominator: value.persistent_rent_rate_denominator,
             temporary_rent_rate_denominator: value.temporary_rent_rate_denominator,
         }
