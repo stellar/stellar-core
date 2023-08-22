@@ -2079,8 +2079,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
 
     // Check in memory window
-    auto const& inMemoryWindow =
-        networkConfig.getBucketListSizeWindowForTesting();
+    auto const& inMemoryWindow = networkConfig.mBucketListSizeSnapshots;
     REQUIRE(inMemoryWindow.size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
     for (auto const& e : inMemoryWindow)

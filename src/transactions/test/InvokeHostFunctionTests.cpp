@@ -1517,6 +1517,8 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     cfg.METADATA_OUTPUT_STREAM = metaPath;
 
     auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+
     auto root = TestAccount::createRoot(*app);
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
@@ -1541,7 +1543,6 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         resources.instructions = 4'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
-        resources.contractEventsSizeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
@@ -1602,7 +1603,6 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     XDRInputFileStream in;
     in.open(metaPath);
     LedgerCloseMeta lcm;
-    uint32_t maxSeq = 0;
     bool evicted = false;
     while (in.readOne(lcm))
     {
@@ -2034,20 +2034,19 @@ overrideNetworkSettingsToMin(Application& app)
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
     exp.minPersistentEntryExpiration =
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-    exp.persistentRentRateDenominator = 1;
-    exp.tempRentRateDenominator = 1;
-    exp.maxEntriesToExpire = 1;
-    exp.bucketListSizeWindowSampleSize = 1;
-    exp.evictionScanSize = 1;
-    exp.startingEvictionScanLevel = 1;
-    exp.autoBumpLedgers = 0;
-
-    ltx.load(configSettingKey(ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
-        .current()
-        .data.configSetting()
-        .stateExpirationSettings() = exp;
-
-    ltx.commit();
+    exp.minTempEntryExpiration =
+        MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+    exp.persistentRentRateDenominator =
+        MinimumSorobanNetworkConfig::RENT_RATE_DENOMINATOR;
+    exp.tempRentRateDenominator =
+        MinimumSorobanNetworkConfig::RENT_RATE_DENOMINATOR;
+    exp.maxEntriesToExpire = MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    exp.bucketListSizeWindowSampleSize =
+        MinimumSorobanNetworkConfig::BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE;
+    exp.evictionScanSize = MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE;
+    exp.startingEvictionScanLevel =
+        MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL;
+    exp.autoBumpLedgers = MinimumSorobanNetworkConfig::AUTOBUMP_LEDGERS;
 
     auto& events =
         ltx.load(configSettingKey(

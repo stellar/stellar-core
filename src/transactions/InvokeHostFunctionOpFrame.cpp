@@ -392,8 +392,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();
 
-    uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-
     ledgerEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &resources,

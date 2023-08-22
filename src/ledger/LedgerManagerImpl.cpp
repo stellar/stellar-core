@@ -525,7 +525,7 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
 {
-    // maybeUpdateNetworkConfig will throw if protocol version is invalid
+    // updateNetworkConfig will throw if protocol version is invalid
     if (!mSorobanNetworkConfig)
     {
         updateNetworkConfig(ltx);

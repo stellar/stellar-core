@@ -532,18 +532,26 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
         valid =
             cfg.stateExpirationSettings().maxEntryExpiration >=
                 MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME &&
-            cfg.stateExpirationSettings().minTempEntryExpiration > 0 &&
+            cfg.stateExpirationSettings().minTempEntryExpiration >=
+                MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME &&
             cfg.stateExpirationSettings().minPersistentEntryExpiration >=
                 MinimumSorobanNetworkConfig::
                     MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
             cfg.stateExpirationSettings().autoBumpLedgers >=
-                0 && // autobumpLedgers can be disabled by setting to 0
+                MinimumSorobanNetworkConfig::
+                    AUTOBUMP_LEDGERS && // autobumpLedgers can be disabled by
+                                        // setting to 0
             cfg.stateExpirationSettings().persistentRentRateDenominator > 0 &&
             cfg.stateExpirationSettings().tempRentRateDenominator > 0 &&
-            cfg.stateExpirationSettings().maxEntriesToExpire > 0 &&
-            cfg.stateExpirationSettings().bucketListSizeWindowSampleSize > 0 &&
-            cfg.stateExpirationSettings().evictionScanSize > 0 &&
-            cfg.stateExpirationSettings().startingEvictionScanLevel > 0;
+            cfg.stateExpirationSettings().maxEntriesToExpire >=
+                MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE &&
+            cfg.stateExpirationSettings().bucketListSizeWindowSampleSize >=
+                MinimumSorobanNetworkConfig::
+                    BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE &&
+            cfg.stateExpirationSettings().evictionScanSize >=
+                MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE &&
+            cfg.stateExpirationSettings().startingEvictionScanLevel >=
+                MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL;
 
         valid = valid &&
                 cfg.stateExpirationSettings().maxEntryExpiration >
@@ -1144,10 +1152,122 @@ SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(uint32_t period)
     mBucketListSnapshotPeriodForTesting = period;
 }
 
-std::deque<uint64_t> const&
-SorobanNetworkConfig::getBucketListSizeWindowForTesting() const
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
+                        AbstractLedgerTxn& ltxRoot)
 {
-    return mBucketListSizeSnapshots;
+    LedgerEntry e;
+    e.data.type(CONFIG_SETTING);
+    e.data.configSetting() = configSetting;
+
+    LedgerTxn ltx(ltxRoot);
+    auto ltxe = ltx.load(LedgerEntryKey(e));
+    releaseAssert(ltxe);
+    ltxe.current() = e;
+    ltx.commit();
+}
+#endif
+
+void
+SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConfigSettingEntry maxContractSizeEntry(
+        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+    maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
+    writeConfigSettingEntry(maxContractSizeEntry, ltx);
+
+    ConfigSettingEntry maxContractDataKeySizeEntry(
+        CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
+    maxContractDataKeySizeEntry.contractDataKeySizeBytes() =
+        mMaxContractDataKeySizeBytes;
+    writeConfigSettingEntry(maxContractDataKeySizeEntry, ltx);
+
+    ConfigSettingEntry maxContractDataEntrySizeEntry(
+        CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
+    maxContractDataEntrySizeEntry.contractDataEntrySizeBytes() =
+        mMaxContractDataEntrySizeBytes;
+    writeConfigSettingEntry(maxContractDataEntrySizeEntry, ltx);
+
+    ConfigSettingEntry computeSettingsEntry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
+    computeSettingsEntry.contractCompute().ledgerMaxInstructions =
+        mLedgerMaxInstructions;
+    computeSettingsEntry.contractCompute().txMaxInstructions =
+        mTxMaxInstructions;
+    computeSettingsEntry.contractCompute().feeRatePerInstructionsIncrement =
+        mFeeRatePerInstructionsIncrement;
+    computeSettingsEntry.contractCompute().txMemoryLimit = mTxMemoryLimit;
+    writeConfigSettingEntry(computeSettingsEntry, ltx);
+
+    ConfigSettingEntry ledgerAccessSettingsEntry(
+        CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+    auto& cost = ledgerAccessSettingsEntry.contractLedgerCost();
+    cost.ledgerMaxReadBytes = mLedgerMaxReadBytes;
+    cost.ledgerMaxReadLedgerEntries = mLedgerMaxReadLedgerEntries;
+    cost.ledgerMaxWriteBytes = mLedgerMaxWriteBytes;
+    cost.ledgerMaxWriteLedgerEntries = mLedgerMaxWriteLedgerEntries;
+    cost.txMaxReadBytes = mTxMaxReadBytes;
+    cost.txMaxReadLedgerEntries = mTxMaxReadLedgerEntries;
+    cost.txMaxWriteBytes = mTxMaxWriteBytes;
+    cost.txMaxWriteLedgerEntries = mTxMaxWriteLedgerEntries;
+    cost.feeReadLedgerEntry = mFeeReadLedgerEntry;
+    cost.feeWriteLedgerEntry = mFeeWriteLedgerEntry;
+    cost.feeRead1KB = mFeeRead1KB;
+    cost.bucketListTargetSizeBytes = mBucketListTargetSizeBytes;
+    cost.writeFee1KBBucketListLow = mWriteFee1KBBucketListLow;
+    cost.writeFee1KBBucketListHigh = mWriteFee1KBBucketListHigh;
+    cost.bucketListWriteFeeGrowthFactor = mBucketListWriteFeeGrowthFactor;
+    writeConfigSettingEntry(ledgerAccessSettingsEntry, ltx);
+
+    ConfigSettingEntry historicalSettingsEntry(
+        CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
+    historicalSettingsEntry.contractHistoricalData().feeHistorical1KB =
+        mFeeHistorical1KB;
+    writeConfigSettingEntry(historicalSettingsEntry, ltx);
+
+    ConfigSettingEntry contractEventsSettingsEntry(
+        CONFIG_SETTING_CONTRACT_EVENTS_V0);
+    contractEventsSettingsEntry.contractEvents().feeContractEvents1KB =
+        mFeeContractEvents1KB;
+    contractEventsSettingsEntry.contractEvents().txMaxContractEventsSizeBytes =
+        mTxMaxContractEventsSizeBytes;
+    writeConfigSettingEntry(contractEventsSettingsEntry, ltx);
+
+    ConfigSettingEntry bandwidthSettingsEntry(
+        CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
+    bandwidthSettingsEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
+        mLedgerMaxTransactionsSizeBytes;
+    bandwidthSettingsEntry.contractBandwidth().txMaxSizeBytes = mTxMaxSizeBytes;
+    bandwidthSettingsEntry.contractBandwidth().feeTxSize1KB =
+        mFeeTransactionSize1KB;
+    writeConfigSettingEntry(bandwidthSettingsEntry, ltx);
+
+    ConfigSettingEntry executionLanesSettingsEntry(
+        CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
+    executionLanesSettingsEntry.contractExecutionLanes().ledgerMaxTxCount =
+        mLedgerMaxTxCount;
+    writeConfigSettingEntry(executionLanesSettingsEntry, ltx);
+
+    ConfigSettingEntry cpuCostParamsEntry(
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
+    cpuCostParamsEntry.contractCostParamsCpuInsns() = mCpuCostParams;
+    writeConfigSettingEntry(cpuCostParamsEntry, ltx);
+
+    ConfigSettingEntry memCostParamsEntry(
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
+    memCostParamsEntry.contractCostParamsMemBytes() = mMemCostParams;
+    writeConfigSettingEntry(memCostParamsEntry, ltx);
+
+    ConfigSettingEntry stateExpirationSettingsEntry(
+        CONFIG_SETTING_STATE_EXPIRATION);
+    stateExpirationSettingsEntry.stateExpirationSettings() =
+        mStateExpirationSettings;
+    writeConfigSettingEntry(stateExpirationSettingsEntry, ltx);
+
+    writeBucketListSizeWindow(ltx);
+    updateEvictionIterator(ltx, mEvictionIterator);
+#endif
 }
 #endif
 

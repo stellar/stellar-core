@@ -38,7 +38,14 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
 
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4'096;
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+    static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 0;
+    static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
+    static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
+    static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
+    static constexpr uint32_t AUTOBUMP_LEDGERS = 0;
 
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
 };
@@ -348,6 +355,8 @@ class SorobanNetworkConfig
 
 #ifdef BUILD_TESTS
     std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
+
+    void writeAllSettings(AbstractLedgerTxn& ltx) const;
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
