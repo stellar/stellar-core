@@ -504,7 +504,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         {
                             resources.footprint.readWrite.emplace_back(key);
                         }
-                        resources.contractEventsSizeBytes = 0;
                     }
 
                     return sorobanTransaction(

@@ -357,8 +357,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         return tx->checkValid(*app, ltx, 0, 0, 0);
     };
 
-    auto call = [&](SorobanResources const& resources, SCAddress const& address,
-                    SCSymbol const& functionName,
+    auto call = [&](SorobanResources const& resources, uint32_t refundableFee,
+                    SCAddress const& address, SCSymbol const& functionName,
                     std::vector<SCVal> const& args, bool success) {
         Operation op;
         op.body.type(INVOKE_HOST_FUNCTION);
@@ -368,8 +368,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         ihf.invokeContract().functionName = functionName;
         ihf.invokeContract().args.assign(args.begin(), args.end());
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                           resources, 100'000, refundableFee);
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -381,7 +382,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 66'094);
+            REQUIRE(tx->getInclusionFee() == 66'102);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -410,10 +411,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 REQUIRE(changesAfter.size() == 2);
                 REQUIRE(changesAfter[1].updated().data.account().balance -
                             changesAfter[0].state().data.account().balance ==
-                        1182);
+                        1180);
             }
             // The account should receive a refund for unspent refundable fee.
-            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 1182);
+            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 1180);
         }
         else
         {
@@ -425,21 +426,27 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 ltx.commit();
             }
             int64_t balanceAfterFeeCharged = root.getBalance();
+
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 // Unsuccessfully apply the tx and process refunds.
                 REQUIRE(!tx->apply(*app, ltx, txm));
                 tx->processPostApply(*app, ltx, txm);
                 ltx.commit();
-                auto changesAfter = txm.getChangesAfter();
-                REQUIRE(changesAfter.size() == 2);
-                REQUIRE(changesAfter[1].updated().data.account().balance -
+                if (refundableFee > 0)
+                {
+                    auto changesAfter = txm.getChangesAfter();
+                    REQUIRE(changesAfter.size() == 2);
+                    REQUIRE(
+                        changesAfter[1].updated().data.account().balance -
                             changesAfter[0].state().data.account().balance ==
-                        1200);
+                        refundableFee);
+                }
+                // The account should receive a full refund for metadata
+                // in case of tx failure.
+                REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
+                        refundableFee);
             }
-            // The account should receive a full refund for metadata
-            // in case of tx failure.
-            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 1200);
         }
         SCVal resultVal;
         if (tx->getResult().result.code() == txSUCCESS &&
@@ -471,11 +478,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 0;
-    resources.contractEventsSizeBytes = 100;
 
     SECTION("correct invocation")
     {
-        call(resources, contractID, scFunc, {sc7, sc16}, true);
+        call(resources, 1200, contractID, scFunc, {sc7, sc16}, true);
         REQUIRE(app->getMetrics()
                     .NewTimer({"soroban", "host-fn-op", "exec"})
                     .count() != 0);
@@ -490,36 +496,40 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         {
             SCAddress address(SC_ADDRESS_TYPE_CONTRACT);
             address.contractId()[0] = 1;
-            call(resources, address, scFunc, {sc7, sc16}, false);
+            call(resources, 1200, address, scFunc, {sc7, sc16}, false);
         }
         SECTION("account address")
         {
             SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
             address.accountId() = root.getPublicKey();
-            call(resources, address, scFunc, {sc7, sc16}, false);
+            call(resources, 1200, address, scFunc, {sc7, sc16}, false);
         }
         SECTION("too few parameters")
         {
-            call(resources, contractID, scFunc, {sc7}, false);
+            call(resources, 1200, contractID, scFunc, {sc7}, false);
         }
         SECTION("too many parameters")
         {
             // Too many parameters
-            call(resources, contractID, scFunc, {sc7, sc16, makeI32(0)}, false);
+            call(resources, 1200, contractID, scFunc, {sc7, sc16, makeI32(0)},
+                 false);
         }
     }
 
     SECTION("insufficient instructions")
     {
         resources.instructions = 10000;
-        call(resources, contractID, scFunc, {sc7, sc16}, false);
+        call(resources, 1200, contractID, scFunc, {sc7, sc16}, false);
     }
     SECTION("insufficient read bytes")
     {
         resources.readBytes = 100;
-        call(resources, contractID, scFunc, {sc7, sc16}, false);
+        call(resources, 1200, contractID, scFunc, {sc7, sc16}, false);
     }
-
+    SECTION("insufficient refundable fee")
+    {
+        call(resources, 0, contractID, scFunc, {sc7, sc16}, false);
+    }
     SECTION("invalid footprint keys")
     {
         auto invalidFootprint = [&](xdr::xvector<stellar::LedgerKey>&
@@ -649,7 +659,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.instructions = 4'000'000;
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
-        resources.contractEventsSizeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
@@ -889,7 +898,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpResources.instructions = 0;
         bumpResources.readBytes = 5000;
         bumpResources.writeBytes = 0;
-        bumpResources.contractEventsSizeBytes = 0;
 
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), root, {bumpOp},
@@ -908,7 +916,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpResources.instructions = 0;
         bumpResources.readBytes = 5000;
         bumpResources.writeBytes = 5000;
-        bumpResources.contractEventsSizeBytes = 0;
 
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
@@ -1528,7 +1535,6 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.contractEventsSizeBytes = 100;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
                                              {}, resources, 100'000, 1200);
@@ -1593,7 +1599,6 @@ TEST_CASE("complex contract", "[tx][soroban]")
         resources.instructions = 4'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 1000;
-        resources.contractEventsSizeBytes = 200;
 
         auto verifyDiagnosticEvents =
             [&](xdr::xvector<DiagnosticEvent> events) {
@@ -1699,7 +1704,6 @@ TEST_CASE("Stellar asset contract XLM transfer",
     createResources.instructions = 400'000;
     createResources.readBytes = 1000;
     createResources.writeBytes = 1000;
-    createResources.contractEventsSizeBytes = 0;
 
     LedgerKey contractExecutableKey(CONTRACT_DATA);
     contractExecutableKey.contractData().contract = contractID;
@@ -1756,7 +1760,6 @@ TEST_CASE("Stellar asset contract XLM transfer",
     resources.instructions = 2'000'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1072;
-    resources.contractEventsSizeBytes = 400;
 
     LedgerKey accountLedgerKey(ACCOUNT);
     accountLedgerKey.account().accountID = root.getPublicKey();
@@ -1911,8 +1914,17 @@ overrideNetworkSettingsToMin(Application& app)
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
     exp.minPersistentEntryExpiration =
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-    ltx.commit();
 
+    auto& events =
+        ltx.load(configSettingKey(
+                     ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0))
+            .current()
+            .data.configSetting()
+            .contractEvents();
+    events.txMaxContractEventsSizeBytes =
+        MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
+
+    ltx.commit();
     // submit a no-op upgrade so the cached soroban settings are updated.
     auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE};
     upgrade.newMaxSorobanTxSetSize() = 1;
@@ -2023,7 +2035,6 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 2000;
-        resources.contractEventsSizeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {op}, {}, resources, 20'000'000, 30'000);

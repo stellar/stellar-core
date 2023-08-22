@@ -39,6 +39,8 @@ struct MinimumSorobanNetworkConfig
 
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4'096;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
 };
 
 // Defines the initial values of the network configuration
@@ -105,7 +107,8 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t FEE_TRANSACTION_SIZE_1KB = 2'000;
 
     // Contract events settings
-    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 1'000;
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
+        MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     static constexpr int64_t FEE_CONTRACT_EVENTS_SIZE_1KB = 200;
 
     // State expiration settings

@@ -1648,7 +1648,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.instructions = 800'000;
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
-        resources.contractEventsSizeBytes = 0;
         auto sorobanTx =
             createUploadWasmTx(*app, acc2, baseFee,
                                /* refundableFee */ 1200, resources);
@@ -1665,8 +1664,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
                     rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
                 res.writeBytes =
                     rand_uniform<uint32_t>(1, conf.txMaxWriteBytes());
-                res.contractEventsSizeBytes = rand_uniform<uint32_t>(
-                    1, conf.txMaxContractEventsSizeBytes());
                 auto read =
                     rand_uniform<uint32_t>(0, conf.txMaxReadLedgerEntries());
                 auto write = rand_uniform<uint32_t>(
@@ -1690,11 +1687,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
                                                     res));
                 CLOG_INFO(Herder,
                           "Generated tx with {} instructions, {} read "
-                          "bytes, {} write bytes, {} extended meta "
-                          "data bytes, {} read ledger entries, {} "
-                          "write ledger entries",
-                          res.instructions, res.readBytes, res.writeBytes,
-                          res.contractEventsSizeBytes, read, write);
+                          "bytes, {} write bytes, data bytes, {} read "
+                          "ledger entries, {} write ledger entries",
+                          res.instructions, res.readBytes, res.writeBytes, read,
+                          write);
             }
             return txs;
         };
@@ -1788,7 +1784,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.instructions = 1;
             resources.readBytes = 1;
             resources.writeBytes = 1;
-            resources.contractEventsSizeBytes = 1;
 
             auto smallSorobanLowFee = createUploadWasmTx(
                 *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
@@ -4519,7 +4514,6 @@ TEST_CASE("do not flood too many soroban transactions",
     resources.instructions = 800'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.contractEventsSizeBytes = 0;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
         auto txFee = baseFee;
