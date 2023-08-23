@@ -1590,9 +1590,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 cfg.mLedgerMaxTxCount = 0;
             });
             SorobanResources resources;
-            auto sorobanTx =
-                createUploadWasmTx(*app, root, baseFee,
-                                   /* refundableFee */ 1200, resources);
+            auto sorobanTx = createUploadWasmTx(
+                *app, root, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
             invalidTxs.resize(2);
@@ -1648,9 +1647,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.instructions = 800'000;
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
-        auto sorobanTx =
-            createUploadWasmTx(*app, acc2, baseFee,
-                               /* refundableFee */ 1200, resources);
+        auto sorobanTx = createUploadWasmTx(
+            *app, acc2, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
         auto generateTxs = [&](std::vector<TestAccount>& accounts,
                                SorobanNetworkConfig conf) {
@@ -1702,7 +1700,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 // Fee too small
                 invalidSoroban = createUploadWasmTx(
-                    *app, acc2, 100, /* refundableFee */ 1200, resources);
+                    *app, acc2, 100, DEFAULT_TEST_REFUNDABLE_FEE, resources);
             }
             SECTION("invalid resource")
             {
@@ -1710,7 +1708,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 resources.instructions = UINT32_MAX;
                 invalidSoroban =
                     createUploadWasmTx(*app, acc2, baseFee,
-                                       /* refundableFee */ 1200, resources);
+                                       DEFAULT_TEST_REFUNDABLE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1750,8 +1748,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
-            auto sorobanTxHighFee = createUploadWasmTx(
-                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            auto sorobanTxHighFee =
+                createUploadWasmTx(*app, acc3, baseFee * 2,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
@@ -1776,8 +1775,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
             resources.readBytes = conf.txMaxReadBytes() / 2;
-            auto sorobanTxHighFee = createUploadWasmTx(
-                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            auto sorobanTxHighFee =
+                createUploadWasmTx(*app, acc3, baseFee * 2,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             // Create another small soroban tx, with small fee. It should be
             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
@@ -1785,8 +1785,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.readBytes = 1;
             resources.writeBytes = 1;
 
-            auto smallSorobanLowFee = createUploadWasmTx(
-                *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
+            auto smallSorobanLowFee =
+                createUploadWasmTx(*app, acc4, baseFee / 10,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -4530,7 +4531,7 @@ TEST_CASE("do not flood too many soroban transactions",
         curFeeOffset--;
 
         auto tx = createUploadWasmTx(*app, source, txFee,
-                                     /* refundableFee */ 1200, resources);
+                                     DEFAULT_TEST_REFUNDABLE_FEE, resources);
         REQUIRE(herder.recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return tx;
