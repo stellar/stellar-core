@@ -32,6 +32,7 @@
 #include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/DebugMetaUtils.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -1068,7 +1069,7 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     {
         if (mMetaDebugStream)
         {
-            if (!FlushAndRotateMetaDebugWork::isDebugSegmentBoundary(ledgerSeq))
+            if (!metautils::isDebugSegmentBoundary(ledgerSeq))
             {
                 // If we've got a stream open and aren't at a reset boundary,
                 // just return -- keep streaming into it.
@@ -1111,7 +1112,7 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
             mApp.getClock().getIOContext(),
             /*fsyncOnClose=*/true);
 
-        mMetaDebugPath = FlushAndRotateMetaDebugWork::getMetaDebugFilePath(
+        mMetaDebugPath = metautils::getMetaDebugFilePath(
             mApp.getBucketManager().getBucketDir(), ledgerSeq);
         releaseAssert(mMetaDebugPath.has_parent_path());
         try

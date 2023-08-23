@@ -20,6 +20,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/DebugMetaUtils.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -415,13 +416,11 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     auto app = createTestApplication(clock, cfg);
     app->start();
     auto bucketDir = app->getBucketManager().getBucketDir();
-    auto n = FlushAndRotateMetaDebugWork::getNumberOfDebugFilesToKeep(
-        cfg.METADATA_DEBUG_LEDGERS);
+    auto n = metautils::getNumberOfDebugFilesToKeep(cfg.METADATA_DEBUG_LEDGERS);
     bool gotToExpectedSize = false;
     auto& lm = app->getLedgerManager();
     bool debugFilesGenerated = false;
-    auto const& debugFilePath =
-        FlushAndRotateMetaDebugWork::getMetaDebugDirPath(bucketDir);
+    auto const& debugFilePath = metautils::getMetaDebugDirPath(bucketDir);
     while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
     {
         clock.crank(false);
@@ -433,8 +432,7 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
 
         if (app->getWorkScheduler().allChildrenDone() && debugFilesGenerated)
         {
-            auto files =
-                FlushAndRotateMetaDebugWork::listMetaDebugFiles(bucketDir);
+            auto files = metautils::listMetaDebugFiles(bucketDir);
             REQUIRE(files.size() <= n);
             if (files.size() == n)
             {
