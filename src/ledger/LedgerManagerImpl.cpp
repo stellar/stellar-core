@@ -686,6 +686,10 @@ LedgerManagerImpl::emitNextMeta()
     if (mMetaDebugStream)
     {
         mMetaDebugStream->writeOne(mNextMetaToEmit->getXDR());
+        // Flush debug meta in case there's a crash later in commit (in which
+        // case we'd lose the data in internal buffers). This way we preserve
+        // the meta for problematic ledgers that is vital for diagnostics.
+        mMetaDebugStream->flush();
     }
     mNextMetaToEmit.reset();
 }
