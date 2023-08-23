@@ -1121,7 +1121,7 @@ TEST_CASE("Soroban TransactionQueue limits",
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
 
-    int refundableFee = 1200;
+    int refundableFee = DEFAULT_TEST_REFUNDABLE_FEE;
     int initialFee = 10'000'000;
 
     auto resAdjusted = resources;

@@ -159,6 +159,7 @@ mod rust_bridge {
 
     struct CxxRentFeeConfiguration {
         fee_per_write_1kb: i64,
+        fee_per_write_entry: i64,
         persistent_rent_rate_denominator: i64,
         temporary_rent_rate_denominator: i64,
     }

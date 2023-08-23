@@ -502,9 +502,8 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                 resources.instructions = 800'000;
                 resources.readBytes = 1000;
                 resources.writeBytes = 1000;
-                txs.emplace_back(createUploadWasmTx(*app, source, fee,
-                                                    /* refundableFee */ 1200,
-                                                    resources));
+                txs.emplace_back(createUploadWasmTx(
+                    *app, source, fee, DEFAULT_TEST_REFUNDABLE_FEE, resources));
             }
             else
             {
