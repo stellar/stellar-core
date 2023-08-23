@@ -872,6 +872,7 @@ SorobanNetworkConfig::writeBucketListSizeWindow(
 void
 SorobanNetworkConfig::updateBucketListSizeAverage()
 {
+    releaseAssert(!mBucketListSizeSnapshots.empty());
     uint64_t sizeSum = 0;
     for (auto const& size : mBucketListSizeSnapshots)
     {
