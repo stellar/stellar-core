@@ -14,6 +14,7 @@ namespace metautils
 {
 
 const std::string META_DEBUG_DIRNAME{"meta-debug"};
+const std::string DEBUG_TX_SET_FILENAME{"debug-tx-set.xdr"};
 const std::string META_DEBUG_FILE_FMT_STR{"meta-debug-{:08x}-{}.xdr"};
 const std::regex META_DEBUG_FILE_REGEX{
     "meta-debug-[[:xdigit:]]+-[[:xdigit:]]+\\.xdr(\\.gz)?"};
@@ -29,6 +30,9 @@ const uint32_t META_DEBUG_LEDGER_SEGMENT_SIZE = 256;
 
 std::filesystem::path
 getMetaDebugFilePath(std::filesystem::path const& bucketDir, uint32_t seqNum);
+
+std::filesystem::path
+getLatestTxSetFilePath(std::filesystem::path const& bucketDir);
 
 std::filesystem::path
 getMetaDebugDirPath(std::filesystem::path const& bucketDir);

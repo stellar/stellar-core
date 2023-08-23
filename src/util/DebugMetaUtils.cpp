@@ -27,6 +27,13 @@ getMetaDebugFilePath(std::filesystem::path const& bucketDir, uint32_t seqNum)
     return getMetaDebugDirPath(bucketDir) / file;
 }
 
+std::filesystem::path
+getLatestTxSetFilePath(std::filesystem::path const& bucketDir)
+{
+    auto dir = getMetaDebugDirPath(bucketDir);
+    return dir / DEBUG_TX_SET_FILENAME;
+}
+
 std::vector<std::filesystem::path>
 listMetaDebugFiles(std::filesystem::path const& bucketDir)
 {

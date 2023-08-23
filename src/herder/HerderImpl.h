@@ -88,7 +88,8 @@ class HerderImpl : public Herder
         return mState == State::HERDER_TRACKING_NETWORK_STATE;
     }
 
-    void processExternalized(uint64 slotIndex, StellarValue const& value);
+    void processExternalized(uint64 slotIndex, StellarValue const& value,
+                             bool isLatestSlot);
     void valueExternalized(uint64 slotIndex, StellarValue const& value,
                            bool isLatestSlot);
     void emitEnvelope(SCPEnvelope const& envelope);
@@ -226,6 +227,7 @@ class HerderImpl : public Herder
     void safelyProcessSCPQueue(bool synchronous);
     void newSlotExternalized(bool synchronous, StellarValue const& value);
     void purgeOldPersistedTxSets();
+    void writeDebugTxSet(LedgerCloseData const& lcd);
 
     ClassicTransactionQueue mTransactionQueue;
     SorobanTransactionQueue mSorobanTransactionQueue;
