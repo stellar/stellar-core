@@ -384,7 +384,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 47'202);
+            REQUIRE(tx->getInclusionFee() == 46'302);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -910,9 +910,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {bumpOp}, {}, bumpResources, 100'000,
-            DEFAULT_TEST_REFUNDABLE_FEE);
+            DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size());
 
-        runExpirationOp(root, tx, DEFAULT_TEST_REFUNDABLE_FEE,
+        runExpirationOp(root, tx, DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size(),
                         expectedRefundableFeeCharged);
     };
 
@@ -930,8 +930,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {restoreOp}, {}, bumpResources, 300'000,
-            DEFAULT_TEST_REFUNDABLE_FEE * 3);
-        runExpirationOp(root, tx, DEFAULT_TEST_REFUNDABLE_FEE * 3,
+            DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size());
+        runExpirationOp(root, tx,
+                        DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size(),
                         expectedRefundableFeeCharged);
     };
 
@@ -1163,16 +1164,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      187 /* rent bump */ + 20000 /* two LE writes */);
+                      187 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
 
             // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]}, 4);
+            bumpOp(instanceBumpAmount, {contractKeys[0]}, 20071);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 135);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20202);
 
             checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
                                      ledgerSeq + instanceBumpAmount);
@@ -1326,7 +1327,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
              contractDataKey(contractID, makeSymbolSCVal("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            4);
+            40137); // only 2 ledger writes because key3 won't be bumped
 
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
@@ -1346,7 +1347,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 77);
+        bumpOp(10'000, contractKeys, 40210);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1389,7 +1390,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
 
         // Restore the entry
-        restoreOp({lk}, 3);
+        restoreOp({lk}, 20070);
 
         ledgerSeq = getLedgerSeq(*app);
         checkContractDataExpirationState(
