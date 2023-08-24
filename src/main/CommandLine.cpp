@@ -5,8 +5,8 @@
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
-#include "catchup/CatchupFromDebugMeta.h"
 #include "catchup/CatchupRange.h"
+#include "catchup/ReplayDebugMetaWork.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -202,7 +202,8 @@ outputDirParser(std::string& string)
 clara::Opt
 metaDirParser(std::string& string)
 {
-    return clara::Opt{string, "DIR-NAME"}["--meta-dir"]("debug meta dir");
+    return clara::Opt{string, "DIR-NAME"}["--meta-dir"](
+        "external directory that contains debug meta");
 }
 
 clara::Opt
@@ -719,7 +720,7 @@ diagBucketStats(CommandLineArgs const& args)
 }
 
 int
-runCatchupFromDebugMeta(CommandLineArgs const& args)
+runReplayDebugMeta(CommandLineArgs const& args)
 {
     // targetLedger=0 means replay all available tx meta
     uint32_t targetLedger = 0;
@@ -745,7 +746,7 @@ runCatchupFromDebugMeta(CommandLineArgs const& args)
             std::filesystem::path dir(metaDir);
 
             auto catchupWork =
-                wm.executeWork<CatchupFromDebugMeta>(targetLedger, dir);
+                wm.executeWork<ReplayDebugMetaWork>(targetLedger, dir);
             if (catchupWork->getState() == BasicWork::State::WORK_SUCCESS)
             {
                 LOG_INFO(DEFAULT_LOG, "Replay finished");
@@ -1870,9 +1871,8 @@ handleCommandLine(int argc, char* const* argv)
           "execute catchup from history archives without connecting to "
           "network",
           runCatchup},
-         {"catchup-from-debug-meta",
-          "execute catchup from local debug metadata files",
-          runCatchupFromDebugMeta},
+         {"replay-debug-meta", "apply ledgers from local debug metadata files",
+          runReplayDebugMeta},
          {"verify-checkpoints", "write verified checkpoint ledger hashes",
           runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
