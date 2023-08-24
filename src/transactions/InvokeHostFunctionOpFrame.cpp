@@ -192,15 +192,15 @@ struct HostFunctionMetrics
         mReadEntry++;
         mReadKeyByte += keySize;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerReadByte += keySize + entrySize;
+        mLedgerReadByte += entrySize;
         if (isCodeEntry)
         {
-            mReadCodeByte += keySize + entrySize;
+            mReadCodeByte += entrySize;
             mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
-            mReadDataByte += keySize + entrySize;
+            mReadDataByte += entrySize;
             mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
@@ -209,17 +209,16 @@ struct HostFunctionMetrics
     noteWriteEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
     {
         mWriteEntry++;
-        mWriteKeyByte += keySize;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerWriteByte += keySize + entrySize;
+        mLedgerWriteByte += entrySize;
         if (isCodeEntry)
         {
-            mWriteCodeByte += keySize + entrySize;
+            mWriteCodeByte += entrySize;
             mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
-            mWriteDataByte += keySize + entrySize;
+            mWriteDataByte += entrySize;
             mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }

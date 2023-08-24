@@ -1104,7 +1104,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      125 /* rent bump */ + 40000 /* two LE-writes */);
+                      123 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1124,7 +1124,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore contract instance
             restoreOp({contractKeys[0]},
-                      39 /* rent bump */ + 20000 /* one LE write */);
+                      38 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1144,7 +1144,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore WASM
             restoreOp({contractKeys[1]},
-                      87 /* rent bump */ + 20000 /* one LE write */);
+                      86 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1164,16 +1164,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      125 /* rent bump */ + 40000 /* two LE writes */);
+                      123 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
 
             // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]}, 20040);
+            bumpOp(instanceBumpAmount, {contractKeys[0]}, 20039);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20171);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20170);
 
             checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
                                      ledgerSeq + instanceBumpAmount);
@@ -1327,7 +1327,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
              contractDataKey(contractID, makeSymbolSCVal("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            40075); // only 2 ledger writes because key3 won't be bumped
+            40074); // only 2 ledger writes because key3 won't be bumped
 
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
@@ -1347,7 +1347,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 40148);
+        bumpOp(10'000, contractKeys, 40147);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1390,7 +1390,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
 
         // Restore the entry
-        restoreOp({lk}, 20039);
+        restoreOp({lk}, 20038);
 
         ledgerSeq = getLedgerSeq(*app);
         checkContractDataExpirationState(

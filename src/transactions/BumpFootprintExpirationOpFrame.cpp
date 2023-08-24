@@ -79,10 +79,9 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             continue;
         }
 
-        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
         auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
 
-        metrics.mLedgerReadByte += keySize + entrySize;
+        metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             innerResult().code(
@@ -99,7 +98,7 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(lk);
-        rustChange.old_size_bytes = static_cast<uint32>(keySize + entrySize);
+        rustChange.old_size_bytes = static_cast<uint32>(entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
         rustChange.old_expiration_ledger = currExpiration;
         rustChange.new_expiration_ledger = bumpLedger;
