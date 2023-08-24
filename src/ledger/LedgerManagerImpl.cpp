@@ -243,7 +243,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr);
     ltx.commit();
 }
 
@@ -525,10 +525,10 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
 {
-    // maybeUpdateNetworkConfig will throw if protocol version is invalid
+    // updateNetworkConfig will throw if protocol version is invalid
     if (!mSorobanNetworkConfig)
     {
-        maybeUpdateNetworkConfig(false, ltx);
+        updateNetworkConfig(ltx);
     }
 
     return *mSorobanNetworkConfig;
@@ -785,15 +785,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             header.current().ledgerVersion);
         ledgerCloseMeta->reserveTxProcessing(txSet->sizeTxTotal());
         ledgerCloseMeta->populateTxSet(*txSet);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                      ProtocolVersion::V_20))
-        {
-            auto blSize =
-                getSorobanNetworkConfig(ltx).getAverageBucketListSize();
-            ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
-        }
-#endif
     }
 
     // the transaction set that was agreed upon by consensus
@@ -816,7 +807,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     }
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
-    bool upgradeHappened = false;
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -867,7 +857,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                               static_cast<int>(i + 1));
             }
             ltxUpgrade.commit();
-            upgradeHappened = true;
         }
         catch (std::runtime_error& e)
         {
@@ -884,10 +873,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   ProtocolVersion::V_20))
     {
-        maybeUpdateNetworkConfig(upgradeHappened, ltx);
+        updateNetworkConfig(ltx);
     }
 
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, ledgerCloseMeta);
 
     if (ledgerData.getExpectedHash() &&
         *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
@@ -1165,15 +1154,9 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 }
 
 void
-LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
-                                            AbstractLedgerTxn& rootLtx)
+LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!upgradeHappened && mSorobanNetworkConfig)
-    {
-        return;
-    }
-
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,
@@ -1480,9 +1463,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
 
 // NB: This is a separate method so a testing subclass can override it.
 void
-LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                     uint32_t ledgerSeq,
-                                                     uint32_t ledgerVers)
+LedgerManagerImpl::transferLedgerEntriesToBucketList(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t ledgerSeq, uint32_t ledgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1495,6 +1479,17 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     if (blEnabled &&
         protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        {
+            LedgerTxn ltxEvictions(ltx);
+            mApp.getBucketManager().scanForEviction(ltxEvictions, ledgerSeq);
+            if (ledgerCloseMeta)
+            {
+                ledgerCloseMeta->populateEvictedEntries(
+                    ltxEvictions.getChanges());
+            }
+            ltxEvictions.commit();
+        }
+
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
     }
@@ -1509,7 +1504,9 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
 }
 
 void
-LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::ledgerClosed(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
@@ -1518,7 +1515,17 @@ LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
                "sealing ledger {} with version {}, sending to bucket list",
                ledgerSeq, ledgerVers);
 
-    transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
+    transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
+                                      ledgerVers);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (ledgerCloseMeta &&
+        protocolVersionStartsFrom(ledgerVers, ProtocolVersion::V_20))
+    {
+        auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
+        ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
+    }
+#endif
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);

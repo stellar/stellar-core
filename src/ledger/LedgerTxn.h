@@ -596,8 +596,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // to enter the sealed state, simultaneously updating last modified if
     // necessary.
     // - getChanges
-    //     Extract all changes from this AbstractLedgerTxn in XDR format. To
-    //     be stored as meta.
+    //     Extract all changes of the given type from this AbstractLedgerTxn in
+    //     XDR format. To be stored as meta.
     // - getDelta
     //     Extract all changes from this AbstractLedgerTxn (including changes
     //     to the LedgerHeader) in a format convenient for answering queries

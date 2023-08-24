@@ -78,7 +78,9 @@ class LedgerManagerImpl : public LedgerManager
         TransactionResultSet& txResultSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
-    void ledgerClosed(AbstractLedgerTxn& ltx);
+    void
+    ledgerClosed(AbstractLedgerTxn& ltx,
+                 std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
     void
@@ -95,9 +97,10 @@ class LedgerManagerImpl : public LedgerManager
     getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
 
   protected:
-    virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                   uint32_t ledgerSeq,
-                                                   uint32_t ledgerVers);
+    virtual void transferLedgerEntriesToBucketList(
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t ledgerSeq, uint32_t ledgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);
@@ -105,7 +108,7 @@ class LedgerManagerImpl : public LedgerManager
     // This needs to be called after the protocol upgrades or once
     // during the catchups/test setup etc.
     // This call is read-only and hence `ltx` can be read-only.
-    void maybeUpdateNetworkConfig(bool upgradeHappened, AbstractLedgerTxn& ltx);
+    void updateNetworkConfig(AbstractLedgerTxn& ltx);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 

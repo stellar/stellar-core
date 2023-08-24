@@ -503,7 +503,17 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     else
     {
-        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+        if (!txs.empty() && txs.at(0)->isSoroban())
+        {
+            TxSetFrame::TxPhases phases;
+            phases.resize(1);
+            phases.emplace_back(txs);
+            txSet = TxSetFrame::makeFromTransactions(phases, app, 0, 0);
+        }
+        else
+        {
+            txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+        }
     }
     if (!strictOrder)
     {
@@ -512,10 +522,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         // themselves maybe intentionally invalid for testing purpose.
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
-
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
-
     auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
     auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 

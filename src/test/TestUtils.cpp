@@ -201,6 +201,8 @@ modifySorobanNetworkConfig(Application& app,
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig(ltx);
     modifyFn(cfg);
+    cfg.writeAllSettings(ltx);
+    ltx.commit();
 }
 
 void

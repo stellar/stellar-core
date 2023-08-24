@@ -37,8 +37,15 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
     static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
 
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+    static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 0;
+    static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
+    static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
+    static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
+    static constexpr uint32_t AUTOBUMP_LEDGERS = 0;
 
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
 };
@@ -123,8 +130,9 @@ struct InitialSorobanNetworkConfig
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
-    static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
+    static constexpr uint64_t EVICTION_SCAN_SIZE = 100'000; // 100 kb
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 100;
+    static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
     static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 252'480;
@@ -218,7 +226,7 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
-    // Number of samples in slidign window
+    // Number of samples in sliding window
     uint32_t getBucketListSizeSnapshotPeriod() const;
 
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
@@ -251,6 +259,14 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings const& stateExpirationSettings() const;
+    EvictionIterator const& evictionIterator() const;
+
+    void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
+                                EvictionIterator const& newIter) const;
+#ifdef BUILD_TESTS
+    StateExpirationSettings& stateExpirationSettings();
+    EvictionIterator& evictionIterator();
+#endif
 #endif
 
   private:
@@ -270,6 +286,7 @@ class SorobanNetworkConfig
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+    void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
@@ -339,6 +356,8 @@ class SorobanNetworkConfig
 
 #ifdef BUILD_TESTS
     std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
+
+    void writeAllSettings(AbstractLedgerTxn& ltx) const;
 #endif
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -348,6 +367,7 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings mStateExpirationSettings{};
+    mutable EvictionIterator mEvictionIterator{};
 
 #endif
 };

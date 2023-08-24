@@ -11,6 +11,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
@@ -20,6 +21,9 @@
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+
+#include "medida/counter.h"
+
 #include <Tracy.hpp>
 #include <algorithm>
 #include <fmt/format.h>
@@ -657,6 +661,29 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
             ledger == roundDown(ledger, levelSize(level)));
 }
 
+// Update period for curr buckets is the incoming spill frequency of the level
+// which the bucket is in. For snap buckets, the update period is the incoming
+// spill frequency of the level below.
+// incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
+// incoming_spill_frequency(0) = 1
+uint32_t
+BucketList::bucketUpdatePeriod(uint32_t level, bool isCurr)
+{
+    if (!isCurr)
+    {
+        // Snap bucket changeRate is the same as the change rate of the curr
+        // bucket in the level below
+        return bucketUpdatePeriod(level + 1, true);
+    }
+
+    if (level == 0)
+    {
+        return 1;
+    }
+
+    return 1u << (2 * level - 1);
+}
+
 bool
 BucketList::keepDeadEntries(uint32_t level)
 {
@@ -858,6 +885,121 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     {
         resolveAnyReadyFutures();
     }
+}
+
+void
+BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
+                            uint32_t ledgerSeq,
+                            medida::Meter& entriesEvictedMeter,
+                            medida::Counter& bytesScannedForEvictionCounter,
+                            medida::Counter& incompleteBucketScanCounter)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
+        auto& level = levels.at(iter.bucketListLevel);
+        return iter.isCurrBucket ? level.getCurr() : level.getSnap();
+    };
+
+    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                  ProtocolVersion::V_20))
+    {
+        auto const& networkConfig =
+            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+        auto const firstScanLevel =
+            networkConfig.stateExpirationSettings().startingEvictionScanLevel;
+        auto evictionIter = networkConfig.evictionIterator();
+
+        // Check if an upgrade has changed the starting scan level to below the
+        // current iterator level
+        if (evictionIter.bucketListLevel < firstScanLevel)
+        {
+            // Reset iterator to the new minimum level
+            evictionIter.bucketFileOffset = 0;
+            evictionIter.isCurrBucket = true;
+            evictionIter.bucketListLevel = firstScanLevel;
+        }
+
+        // Check if bucket has changed since iterator was set
+        if (evictionIter.isCurrBucket)
+        {
+            // Check if bucket received an incoming spill
+            releaseAssert(evictionIter.bucketListLevel != 0);
+            if (BucketList::levelShouldSpill(ledgerSeq,
+                                             evictionIter.bucketListLevel - 1))
+            {
+                // If Bucket changed, reset to start of bucket
+                evictionIter.bucketFileOffset = 0;
+            }
+        }
+        else
+        {
+            if (BucketList::levelShouldSpill(ledgerSeq,
+                                             evictionIter.bucketListLevel))
+            {
+                // If Bucket changed, reset to start of bucket
+                evictionIter.bucketFileOffset = 0;
+            }
+        }
+
+        auto scanSize =
+            networkConfig.stateExpirationSettings().evictionScanSize;
+        auto maxEntriesToEvict =
+            networkConfig.stateExpirationSettings().maxEntriesToExpire;
+
+        auto initialLevel = evictionIter.bucketListLevel;
+        auto initialIsCurr = evictionIter.isCurrBucket;
+        auto b = getBucketFromIter(evictionIter);
+        while (!b->scanForEviction(
+            ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
+            entriesEvictedMeter, bytesScannedForEvictionCounter))
+        {
+            // If we reached eof in curr bucket, start scanning snap.
+            // Last level has no snap so cycle back to the initial level.
+            if (evictionIter.isCurrBucket &&
+                evictionIter.bucketListLevel != kNumLevels - 1)
+            {
+                evictionIter.isCurrBucket = false;
+                evictionIter.bucketFileOffset = 0;
+            }
+            else
+            {
+                // If we reached eof in snap, move to next level
+                evictionIter.bucketListLevel++;
+                evictionIter.isCurrBucket = true;
+                evictionIter.bucketFileOffset = 0;
+
+                // If we have scanned the last level, cycle back to initial
+                // level
+                if (evictionIter.bucketListLevel == kNumLevels)
+                {
+                    evictionIter.bucketListLevel = firstScanLevel;
+                }
+            }
+
+            // If we are back to the bucket we started at, break
+            if (evictionIter.bucketListLevel == initialLevel &&
+                evictionIter.isCurrBucket == initialIsCurr)
+            {
+                break;
+            }
+
+            b = getBucketFromIter(evictionIter);
+
+            // Check to see if we can finish scanning the new bucket before it
+            // receives an update
+            auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                             evictionIter.isCurrBucket);
+            if (period * scanSize < b->getSize())
+            {
+                CLOG_WARNING(
+                    Bucket, "Bucket too large for current eviction scan size.");
+                incompleteBucketScanCounter.inc();
+            }
+        }
+
+        networkConfig.updateEvictionIterator(ltx, evictionIter);
+    }
+#endif
 }
 
 void

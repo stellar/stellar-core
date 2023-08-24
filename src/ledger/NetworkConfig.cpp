@@ -302,6 +302,8 @@ initialStateExpirationSettings(Config const& cfg)
         InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
     entry.stateExpirationSettings().maxEntriesToExpire =
         InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    entry.stateExpirationSettings().startingEvictionScanLevel =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
     entry.stateExpirationSettings().persistentRentRateDenominator =
         InitialSorobanNetworkConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
@@ -432,6 +434,17 @@ initialBucketListSizeWindow(Application& app)
     return entry;
 }
 
+ConfigSettingEntry
+initialEvictionIterator()
+{
+    ConfigSettingEntry entry(CONFIG_SETTING_EVICTION_ITERATOR);
+    entry.evictionIterator().bucketFileOffset = 0;
+    entry.evictionIterator().bucketListLevel =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+    entry.evictionIterator().isCurrBucket = true;
+    return entry;
+}
+
 #endif
 }
 
@@ -519,17 +532,28 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
         valid =
             cfg.stateExpirationSettings().maxEntryExpiration >=
                 MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME &&
-            cfg.stateExpirationSettings().minTempEntryExpiration > 0 &&
+            cfg.stateExpirationSettings().minTempEntryExpiration >=
+                MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME &&
             cfg.stateExpirationSettings().minPersistentEntryExpiration >=
                 MinimumSorobanNetworkConfig::
                     MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
             cfg.stateExpirationSettings().autoBumpLedgers >=
-                0 && // autobumpLedgers can be disabled by setting to 0
+                MinimumSorobanNetworkConfig::
+                    AUTOBUMP_LEDGERS && // autobumpLedgers can be disabled by
+                                        // setting to 0
             cfg.stateExpirationSettings().persistentRentRateDenominator > 0 &&
             cfg.stateExpirationSettings().tempRentRateDenominator > 0 &&
-            cfg.stateExpirationSettings().maxEntriesToExpire > 0 &&
-            cfg.stateExpirationSettings().bucketListSizeWindowSampleSize > 0 &&
-            cfg.stateExpirationSettings().evictionScanSize > 0;
+            cfg.stateExpirationSettings().maxEntriesToExpire >=
+                MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE &&
+            cfg.stateExpirationSettings().bucketListSizeWindowSampleSize >=
+                MinimumSorobanNetworkConfig::
+                    BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE &&
+            cfg.stateExpirationSettings().evictionScanSize >=
+                MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE &&
+            cfg.stateExpirationSettings().startingEvictionScanLevel >=
+                MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
+            cfg.stateExpirationSettings().startingEvictionScanLevel <
+                BucketList::kNumLevels;
 
         valid = valid &&
                 cfg.stateExpirationSettings().maxEntryExpiration >
@@ -539,6 +563,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                          cfg.stateExpirationSettings().minTempEntryExpiration;
         break;
     case ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW:
+    case ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR:
         valid = true;
         break;
     }
@@ -549,11 +574,13 @@ bool
 SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     ConfigSettingEntry const& cfg)
 {
-    // While the BucketList size window is stored in a ConfigSetting
-    // entry, the BucketList defines these values, they should never be
-    // changed via upgrade
+    // While the BucketList size window and eviction iterator are stored in a
+    // ConfigSetting entry, the BucketList defines these values, they should
+    // never be changed via upgrade
     return cfg.configSettingID() ==
-           ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
+               ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW ||
+           cfg.configSettingID() ==
+               ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
 #endif
@@ -577,6 +604,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialStateExpirationSettings(app.getConfig()),
                              ltx);
     createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
+    createConfigSettingEntry(initialEvictionIterator(), ltx);
 #endif
 }
 
@@ -609,6 +637,7 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
     loadStateExpirationSettings(ltx);
     loadExecutionLanesSettings(ltx);
     loadBucketListSizeWindow(ltx);
+    loadEvictionIterator(ltx);
     // NB: this should follow loading state expiration settings
     maybeUpdateBucketListWindowSize(ltx);
     // NB: this should follow loading/updating bucket list window
@@ -801,6 +830,19 @@ SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
 #endif
 }
 
+void
+SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerTxn& ltx)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    auto txle = ltx.loadWithoutRecord(key);
+    releaseAssert(txle);
+    mEvictionIterator = txle.current().data.configSetting().evictionIterator();
+#endif
+}
+
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 SorobanNetworkConfig::writeBucketListSizeWindow(
@@ -832,6 +874,7 @@ SorobanNetworkConfig::writeBucketListSizeWindow(
 void
 SorobanNetworkConfig::updateBucketListSizeAverage()
 {
+    releaseAssert(!mBucketListSizeSnapshots.empty());
     uint64_t sizeSum = 0;
     for (auto const& size : mBucketListSizeSnapshots)
     {
@@ -1112,10 +1155,122 @@ SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(uint32_t period)
     mBucketListSnapshotPeriodForTesting = period;
 }
 
-std::deque<uint64_t> const&
-SorobanNetworkConfig::getBucketListSizeWindowForTesting() const
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
+                        AbstractLedgerTxn& ltxRoot)
 {
-    return mBucketListSizeSnapshots;
+    LedgerEntry e;
+    e.data.type(CONFIG_SETTING);
+    e.data.configSetting() = configSetting;
+
+    LedgerTxn ltx(ltxRoot);
+    auto ltxe = ltx.load(LedgerEntryKey(e));
+    releaseAssert(ltxe);
+    ltxe.current() = e;
+    ltx.commit();
+}
+#endif
+
+void
+SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    ConfigSettingEntry maxContractSizeEntry(
+        CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
+    maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
+    writeConfigSettingEntry(maxContractSizeEntry, ltx);
+
+    ConfigSettingEntry maxContractDataKeySizeEntry(
+        CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
+    maxContractDataKeySizeEntry.contractDataKeySizeBytes() =
+        mMaxContractDataKeySizeBytes;
+    writeConfigSettingEntry(maxContractDataKeySizeEntry, ltx);
+
+    ConfigSettingEntry maxContractDataEntrySizeEntry(
+        CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
+    maxContractDataEntrySizeEntry.contractDataEntrySizeBytes() =
+        mMaxContractDataEntrySizeBytes;
+    writeConfigSettingEntry(maxContractDataEntrySizeEntry, ltx);
+
+    ConfigSettingEntry computeSettingsEntry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
+    computeSettingsEntry.contractCompute().ledgerMaxInstructions =
+        mLedgerMaxInstructions;
+    computeSettingsEntry.contractCompute().txMaxInstructions =
+        mTxMaxInstructions;
+    computeSettingsEntry.contractCompute().feeRatePerInstructionsIncrement =
+        mFeeRatePerInstructionsIncrement;
+    computeSettingsEntry.contractCompute().txMemoryLimit = mTxMemoryLimit;
+    writeConfigSettingEntry(computeSettingsEntry, ltx);
+
+    ConfigSettingEntry ledgerAccessSettingsEntry(
+        CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+    auto& cost = ledgerAccessSettingsEntry.contractLedgerCost();
+    cost.ledgerMaxReadBytes = mLedgerMaxReadBytes;
+    cost.ledgerMaxReadLedgerEntries = mLedgerMaxReadLedgerEntries;
+    cost.ledgerMaxWriteBytes = mLedgerMaxWriteBytes;
+    cost.ledgerMaxWriteLedgerEntries = mLedgerMaxWriteLedgerEntries;
+    cost.txMaxReadBytes = mTxMaxReadBytes;
+    cost.txMaxReadLedgerEntries = mTxMaxReadLedgerEntries;
+    cost.txMaxWriteBytes = mTxMaxWriteBytes;
+    cost.txMaxWriteLedgerEntries = mTxMaxWriteLedgerEntries;
+    cost.feeReadLedgerEntry = mFeeReadLedgerEntry;
+    cost.feeWriteLedgerEntry = mFeeWriteLedgerEntry;
+    cost.feeRead1KB = mFeeRead1KB;
+    cost.bucketListTargetSizeBytes = mBucketListTargetSizeBytes;
+    cost.writeFee1KBBucketListLow = mWriteFee1KBBucketListLow;
+    cost.writeFee1KBBucketListHigh = mWriteFee1KBBucketListHigh;
+    cost.bucketListWriteFeeGrowthFactor = mBucketListWriteFeeGrowthFactor;
+    writeConfigSettingEntry(ledgerAccessSettingsEntry, ltx);
+
+    ConfigSettingEntry historicalSettingsEntry(
+        CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
+    historicalSettingsEntry.contractHistoricalData().feeHistorical1KB =
+        mFeeHistorical1KB;
+    writeConfigSettingEntry(historicalSettingsEntry, ltx);
+
+    ConfigSettingEntry contractEventsSettingsEntry(
+        CONFIG_SETTING_CONTRACT_EVENTS_V0);
+    contractEventsSettingsEntry.contractEvents().feeContractEvents1KB =
+        mFeeContractEvents1KB;
+    contractEventsSettingsEntry.contractEvents().txMaxContractEventsSizeBytes =
+        mTxMaxContractEventsSizeBytes;
+    writeConfigSettingEntry(contractEventsSettingsEntry, ltx);
+
+    ConfigSettingEntry bandwidthSettingsEntry(
+        CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
+    bandwidthSettingsEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
+        mLedgerMaxTransactionsSizeBytes;
+    bandwidthSettingsEntry.contractBandwidth().txMaxSizeBytes = mTxMaxSizeBytes;
+    bandwidthSettingsEntry.contractBandwidth().feeTxSize1KB =
+        mFeeTransactionSize1KB;
+    writeConfigSettingEntry(bandwidthSettingsEntry, ltx);
+
+    ConfigSettingEntry executionLanesSettingsEntry(
+        CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
+    executionLanesSettingsEntry.contractExecutionLanes().ledgerMaxTxCount =
+        mLedgerMaxTxCount;
+    writeConfigSettingEntry(executionLanesSettingsEntry, ltx);
+
+    ConfigSettingEntry cpuCostParamsEntry(
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
+    cpuCostParamsEntry.contractCostParamsCpuInsns() = mCpuCostParams;
+    writeConfigSettingEntry(cpuCostParamsEntry, ltx);
+
+    ConfigSettingEntry memCostParamsEntry(
+        CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
+    memCostParamsEntry.contractCostParamsMemBytes() = mMemCostParams;
+    writeConfigSettingEntry(memCostParamsEntry, ltx);
+
+    ConfigSettingEntry stateExpirationSettingsEntry(
+        CONFIG_SETTING_STATE_EXPIRATION);
+    stateExpirationSettingsEntry.stateExpirationSettings() =
+        mStateExpirationSettings;
+    writeConfigSettingEntry(stateExpirationSettingsEntry, ltx);
+
+    writeBucketListSizeWindow(ltx);
+    updateEvictionIterator(ltx, mEvictionIterator);
+#endif
 }
 #endif
 
@@ -1138,6 +1293,43 @@ SorobanNetworkConfig::stateExpirationSettings() const
 {
     return mStateExpirationSettings;
 }
+
+EvictionIterator const&
+SorobanNetworkConfig::evictionIterator() const
+{
+    return mEvictionIterator;
+}
+
+void
+SorobanNetworkConfig::updateEvictionIterator(
+    AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
+{
+    mEvictionIterator = newIter;
+
+    LedgerTxn ltx(ltxRoot);
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    auto txle = ltx.load(key);
+    releaseAssert(txle);
+
+    txle.current().data.configSetting().evictionIterator() = mEvictionIterator;
+    ltx.commit();
+}
+
+#ifdef BUILD_TESTS
+StateExpirationSettings&
+SorobanNetworkConfig::stateExpirationSettings()
+{
+    return mStateExpirationSettings;
+}
+
+EvictionIterator&
+SorobanNetworkConfig::evictionIterator()
+{
+    return mEvictionIterator;
+}
+#endif
 
 bool
 SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)

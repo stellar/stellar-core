@@ -26,6 +26,7 @@ namespace stellar
 {
 
 class TmpDir;
+class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class BucketList;
@@ -49,6 +50,9 @@ class BucketManagerImpl : public BucketManager
     medida::Meter& mBucketListDBQueryMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
+    medida::Meter& mEntriesEvicted;
+    medida::Counter& mBytesScannedForEviction;
+    medida::Counter& mIncompleteBucketScans;
     mutable UnorderedMap<LedgerEntryType, medida::Timer&>
         mBucketListDBPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
@@ -131,6 +135,7 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
+    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
 
     std::shared_ptr<LedgerEntry>
     getLedgerEntry(LedgerKey const& k) const override;
@@ -152,6 +157,8 @@ class BucketManagerImpl : public BucketManager
                                               uint256 const& hash) override;
 
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
+
+    medida::Meter& getEntriesEvictedMeter() const override;
 #endif
 
     std::set<Hash> getBucketListReferencedBuckets() const override;
