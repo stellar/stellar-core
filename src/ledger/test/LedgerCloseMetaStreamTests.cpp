@@ -5,6 +5,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "catchup/ReplayDebugMetaWork.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
@@ -421,30 +422,71 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     auto& lm = app->getLedgerManager();
     bool debugFilesGenerated = false;
     auto const& debugFilePath = metautils::getMetaDebugDirPath(bucketDir);
-    while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
-    {
-        clock.crank(false);
-        // Don't check for debug files until the directory has been generated
-        if (!debugFilesGenerated)
-        {
-            debugFilesGenerated = fs::exists(debugFilePath.string());
-        }
 
-        if (app->getWorkScheduler().allChildrenDone() && debugFilesGenerated)
+    auto closeLedgers = [&](uint32_t numLedgers) {
+        while (lm.getLastClosedLedgerNum() < numLedgers)
         {
-            auto files = metautils::listMetaDebugFiles(bucketDir);
-            REQUIRE(files.size() <= n);
-            if (files.size() == n)
+            clock.crank(false);
+            // Don't check for debug files until the directory has been
+            // generated
+            if (!debugFilesGenerated)
             {
-                gotToExpectedSize = true;
+                debugFilesGenerated = fs::exists(debugFilePath.string());
+            }
+
+            if (app->getWorkScheduler().allChildrenDone() &&
+                debugFilesGenerated)
+            {
+                auto files = metautils::listMetaDebugFiles(bucketDir);
+                REQUIRE(files.size() <= n);
+                if (files.size() + 1 >= n)
+                {
+                    gotToExpectedSize = true;
+                }
             }
         }
-    }
-    while (!app->getWorkScheduler().allChildrenDone())
+        while (!app->getWorkScheduler().allChildrenDone())
+        {
+            clock.crank(false);
+        }
+        REQUIRE(gotToExpectedSize);
+    };
+
+    SECTION("meta zipped and garbage collected")
     {
-        clock.crank(false);
+        closeLedgers(2 * cfg.METADATA_DEBUG_LEDGERS);
     }
-    REQUIRE(gotToExpectedSize);
+    SECTION("meta replayed")
+    {
+        // Generate just enough meta to not triggers garbage collection
+        closeLedgers(cfg.METADATA_DEBUG_LEDGERS);
+        app->gracefulStop();
+
+        // Verify presence of the latest debug tx set
+        auto txSetPath = metautils::getLatestTxSetFilePath(bucketDir);
+        REQUIRE(fs::exists(txSetPath.string()));
+
+        StoredDebugTransactionSet sts;
+        {
+            XDRInputFileStream in;
+            in.open(txSetPath);
+            in.readOne(sts);
+        }
+        REQUIRE(sts.ledgerSeq == lm.getLastClosedLedgerNum());
+
+        // Now test replay from meta
+        VirtualClock clock2;
+        Config cfg2 = getTestConfig(1);
+        auto replayApp = createTestApplication(clock2, cfg2);
+        replayApp->start();
+
+        auto replayWork =
+            replayApp->getWorkScheduler().executeWork<ReplayDebugMetaWork>(
+                lm.getLastClosedLedgerNum(), bucketDir);
+        REQUIRE(replayWork->getState() == BasicWork::State::WORK_SUCCESS);
+        REQUIRE(replayApp->getLedgerManager().getLastClosedLedgerNum() ==
+                lm.getLastClosedLedgerNum());
+    }
 }
 
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
