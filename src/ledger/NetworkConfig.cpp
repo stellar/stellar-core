@@ -1379,6 +1379,7 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
     CxxRentFeeConfiguration res{};
     auto const& cfg = stateExpirationSettings();
     res.fee_per_write_1kb = feeWrite1KB();
+    res.fee_per_write_entry = feeWriteLedgerEntry();
     res.persistent_rent_rate_denominator = cfg.persistentRentRateDenominator;
     res.temporary_rent_rate_denominator = cfg.tempRentRateDenominator;
     return res;

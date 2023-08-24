@@ -222,7 +222,7 @@ deployContractWithSourceAccountWithResources(Application& app,
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
     submitTxToUploadWasm(app, uploadOp, uploadResources,
                          contractCodeLedgerKey.contractCode().hash,
-                         uploadHF.wasm(), 100'000, 1'200);
+                         uploadHF.wasm(), 100'000, DEFAULT_TEST_REFUNDABLE_FEE);
 
     // Check expirations for contract code
     {
@@ -289,9 +289,10 @@ deployContractWithSourceAccountWithResources(Application& app,
     createResources.footprint.readOnly = {contractCodeLedgerKey};
     createResources.footprint.readWrite = {contractSourceRefLedgerKey};
 
-    submitTxToCreateContract(
-        app, createOp, createResources, contractID, scContractSourceRefKey,
-        contractCodeLedgerKey.contractCode().hash, 100'000, 1200);
+    submitTxToCreateContract(app, createOp, createResources, contractID,
+                             scContractSourceRefKey,
+                             contractCodeLedgerKey.contractCode().hash, 100'000,
+                             DEFAULT_TEST_REFUNDABLE_FEE);
 
     // Check expirations for contract instance
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -352,8 +353,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         ihf.invokeContract().functionName = functionName;
         ihf.invokeContract().args.assign(args.begin(), args.end());
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources, 100'000,
+                                                 DEFAULT_TEST_REFUNDABLE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         return tx->checkValid(*app, ltx, 0, 0, 0);
@@ -384,7 +386,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 66'102);
+            REQUIRE(tx->getInclusionFee() == 46'302);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -413,10 +415,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 REQUIRE(changesAfter.size() == 2);
                 REQUIRE(changesAfter[1].updated().data.account().balance -
                             changesAfter[0].state().data.account().balance ==
-                        1180);
+                        DEFAULT_TEST_REFUNDABLE_FEE - 20);
             }
             // The account should receive a refund for unspent refundable fee.
-            REQUIRE(root.getBalance() - balanceAfterFeeCharged == 1180);
+            REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
+                    DEFAULT_TEST_REFUNDABLE_FEE - 20);
         }
         else
         {
@@ -483,7 +486,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     SECTION("correct invocation")
     {
-        call(resources, 1200, contractID, scFunc, {sc7, sc16}, true);
+        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+             {sc7, sc16}, true);
         REQUIRE(app->getMetrics()
                     .NewTimer({"soroban", "host-fn-op", "exec"})
                     .count() != 0);
@@ -498,35 +502,40 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         {
             SCAddress address(SC_ADDRESS_TYPE_CONTRACT);
             address.contractId()[0] = 1;
-            call(resources, 1200, address, scFunc, {sc7, sc16}, false);
+            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, address, scFunc,
+                 {sc7, sc16}, false);
         }
         SECTION("account address")
         {
             SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
             address.accountId() = root.getPublicKey();
-            call(resources, 1200, address, scFunc, {sc7, sc16}, false);
+            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, address, scFunc,
+                 {sc7, sc16}, false);
         }
         SECTION("too few parameters")
         {
-            call(resources, 1200, contractID, scFunc, {sc7}, false);
+            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+                 {sc7}, false);
         }
         SECTION("too many parameters")
         {
             // Too many parameters
-            call(resources, 1200, contractID, scFunc, {sc7, sc16, makeI32(0)},
-                 false);
+            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+                 {sc7, sc16, makeI32(0)}, false);
         }
     }
 
     SECTION("insufficient instructions")
     {
         resources.instructions = 10000;
-        call(resources, 1200, contractID, scFunc, {sc7, sc16}, false);
+        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+             {sc7, sc16}, false);
     }
     SECTION("insufficient read bytes")
     {
         resources.readBytes = 100;
-        call(resources, 1200, contractID, scFunc, {sc7, sc16}, false);
+        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+             {sc7, sc16}, false);
     }
     SECTION("insufficient refundable fee")
     {
@@ -901,11 +910,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpResources.readBytes = 5000;
         bumpResources.writeBytes = 0;
 
-        auto tx =
-            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {bumpOp},
-                                           {}, bumpResources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {bumpOp}, {}, bumpResources, 100'000,
+            DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size());
 
-        runExpirationOp(root, tx, 1200, expectedRefundableFeeCharged);
+        runExpirationOp(root, tx, DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size(),
+                        expectedRefundableFeeCharged);
     };
 
     auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite,
@@ -920,10 +930,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpResources.writeBytes = 5000;
 
         // submit operation
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {restoreOp}, {}, bumpResources,
-                                                 100'000, 1'200);
-        runExpirationOp(root, tx, 1200, expectedRefundableFeeCharged);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {restoreOp}, {}, bumpResources, 300'000,
+            DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size());
+        runExpirationOp(root, tx,
+                        DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size(),
+                        expectedRefundableFeeCharged);
     };
 
     auto delWithFootprint = [&](std::string const& key,
@@ -1093,7 +1105,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract instance and wasm")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 54);
+            restoreOp(contractKeys,
+                      125 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1112,7 +1125,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract instance, not wasm")
         {
             // Only restore contract instance
-            restoreOp({contractKeys[0]}, 3);
+            restoreOp({contractKeys[0]},
+                      39 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1131,7 +1145,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("restore contract wasm, not instance")
         {
             // Only restore WASM
-            restoreOp({contractKeys[1]}, 51);
+            restoreOp({contractKeys[1]},
+                      87 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1150,16 +1165,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SECTION("lifetime extensions")
         {
             // Restore Instance and WASM
-            restoreOp(contractKeys, 54);
+            restoreOp(contractKeys,
+                      125 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
 
             // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]}, 4);
+            bumpOp(instanceBumpAmount, {contractKeys[0]}, 20040);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 135);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20171);
 
             checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
                                      ledgerSeq + instanceBumpAmount);
@@ -1313,7 +1329,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                              ContractDataDurability::PERSISTENT, DATA_ENTRY),
              contractDataKey(contractID, makeSymbolSCVal("key3"),
                              ContractDataDurability::PERSISTENT, DATA_ENTRY)},
-            4);
+            40075); // only 2 ledger writes because key3 won't be bumped
 
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
@@ -1333,7 +1349,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 77);
+        bumpOp(10'000, contractKeys, 40148);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1376,7 +1392,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
 
         // Restore the entry
-        restoreOp({lk}, 3);
+        restoreOp({lk}, 20039);
 
         ledgerSeq = getLedgerSeq(*app);
         checkContractDataExpirationState(
@@ -1657,7 +1673,8 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.writeBytes = 1000;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100'000, 1200);
+                                             {}, resources, 100'000,
+                                             DEFAULT_TEST_REFUNDABLE_FEE);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -1748,7 +1765,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
         SECTION("single op")
         {
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 200'000, 1200);
+                app->getNetworkID(), root, {op}, {}, resources, 200'000,
+                DEFAULT_TEST_REFUNDABLE_FEE);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -1839,7 +1857,7 @@ TEST_CASE("Stellar asset contract XLM transfer",
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(
             app->getNetworkID(), root, {createOp}, {}, createResources, 200'000,
-            1200);
+            DEFAULT_TEST_REFUNDABLE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -1900,9 +1918,9 @@ TEST_CASE("Stellar asset contract XLM transfer",
 
     {
         // submit operation
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {transfer}, {}, resources,
-                                                 250'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
+            DEFAULT_TEST_REFUNDABLE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -1939,8 +1957,9 @@ TEST_CASE("errors roll back", "[tx][soroban]")
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100'000, 1200);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources, 100'000,
+                                                 DEFAULT_TEST_REFUNDABLE_FEE);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2178,6 +2197,25 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
+        }
+
+        {
+            // verify that the contract code, contract instance, and upgrade
+            // entry were all bumped by
+            // 518400 ledgers (30 days) -
+            // https://github.com/stellar/rs-soroban-env/blob/main/soroban-test-wasms/wasm-workspace/write_upgrade_bytes/src/lib.rs#L3-L5
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            auto bumpedKeys = contractKeys;
+            bumpedKeys.emplace_back(upgrade);
+
+            REQUIRE(bumpedKeys.size() == 3);
+            for (auto const& key : bumpedKeys)
+            {
+                auto ltxe = ltx.load(key);
+                REQUIRE(getExpirationLedger(ltxe.current()) ==
+                        ledgerSeq + 518400);
+            }
         }
 
         // arm the upgrade through commandHandler. This isn't required
