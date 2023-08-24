@@ -551,7 +551,9 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
             cfg.stateExpirationSettings().evictionScanSize >=
                 MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE &&
             cfg.stateExpirationSettings().startingEvictionScanLevel >=
-                MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL;
+                MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
+            cfg.stateExpirationSettings().startingEvictionScanLevel <
+                BucketList::kNumLevels;
 
         valid = valid &&
                 cfg.stateExpirationSettings().maxEntryExpiration >

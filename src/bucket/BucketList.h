@@ -449,7 +449,7 @@ class BucketList
     static bool keepDeadEntries(uint32_t level);
 
     // Number of ledgers it takes a bucket to spill/receive an incoming spill
-    static uint32_t bucketChangeRate(uint32_t level, bool isCurr);
+    static uint32_t bucketUpdatePeriod(uint32_t level, bool isCurr);
 
     // Create a new BucketList with every `kNumLevels` levels, each with
     // an empty bucket in `curr` and `snap`.
@@ -526,6 +526,7 @@ class BucketList
 
     void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                          uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
-                         medida::Counter& bytesScannedForEvictionMeter);
+                         medida::Counter& bytesScannedForEvictionCounter,
+                         medida::Counter& incompleteBucketScanCounter);
 };
 }

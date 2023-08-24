@@ -88,7 +88,6 @@ class InMemoryLedgerTxn : public LedgerTxn
     void eraseWithoutLoading(InternalLedgerKey const& key) override;
 
     LedgerTxnEntry create(InternalLedgerEntry const& entry) override;
-
     void erase(InternalLedgerKey const& key) override;
     LedgerTxnEntry load(InternalLedgerKey const& key) override;
     ConstLedgerTxnEntry

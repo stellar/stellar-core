@@ -1004,7 +1004,7 @@ bool
 Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
                         uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
-                        medida::Counter& bytesScannedForEvictionMeter)
+                        medida::Counter& bytesScannedForEvictionCounter)
 {
     ZoneScoped;
     if (isEmpty())
@@ -1049,8 +1049,8 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         auto newPos = stream.pos();
         auto bytesRead = newPos - iter.bucketFileOffset;
         iter.bucketFileOffset = newPos;
-        bytesScannedForEvictionMeter.inc(bytesRead);
-        if (bytesRead > bytesToScan)
+        bytesScannedForEvictionCounter.inc(bytesRead);
+        if (bytesRead >= bytesToScan)
         {
             // Reached end of scan region
             return true;

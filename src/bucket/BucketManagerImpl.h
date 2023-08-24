@@ -52,6 +52,7 @@ class BucketManagerImpl : public BucketManager
     medida::Meter& mBucketListDBBloomLookups;
     medida::Meter& mEntriesEvicted;
     medida::Counter& mBytesScannedForEviction;
+    medida::Counter& mIncompleteBucketScans;
     mutable UnorderedMap<LedgerEntryType, medida::Timer&>
         mBucketListDBPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
@@ -158,7 +159,6 @@ class BucketManagerImpl : public BucketManager
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 
     medida::Meter& getEntriesEvictedMeter() const override;
-    medida::Counter& getBytesScannedForEvictionCounter() const override;
 #endif
 
     std::set<Hash> getBucketListReferencedBuckets() const override;

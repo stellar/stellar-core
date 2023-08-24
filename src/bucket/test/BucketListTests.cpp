@@ -172,6 +172,67 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     }
 }
 
+TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
+{
+    std::map<uint32_t, uint32_t> currCalculatedUpdatePeriods;
+    std::map<uint32_t, uint32_t> snapCalculatedUpdatePeriods;
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        currCalculatedUpdatePeriods.emplace(
+            i, BucketList::bucketUpdatePeriod(i, /*isCurr=*/true));
+
+        // Last level has no snap
+        if (i != BucketList::kNumLevels - 1)
+        {
+            snapCalculatedUpdatePeriods.emplace(
+                i, BucketList::bucketUpdatePeriod(i, /*isSnap=*/false));
+        }
+    }
+
+    // Artificially "close" ledgers until we've checked all update periods
+    for (uint32_t ledgerSeq = 1; !currCalculatedUpdatePeriods.empty() ||
+                                 !snapCalculatedUpdatePeriods.empty();
+         ++ledgerSeq)
+    {
+        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        {
+            // Check if curr bucket is updated
+            auto currIter = currCalculatedUpdatePeriods.find(level);
+            if (currIter != currCalculatedUpdatePeriods.end())
+            {
+                // Level 0 curr bucket is updated every ledger
+                if (level == 0)
+                {
+                    REQUIRE(currIter->second == ledgerSeq);
+                    currCalculatedUpdatePeriods.erase(currIter);
+                }
+                else
+                {
+                    // For all other levels, an update occurs when the level
+                    // above spills
+                    if (BucketList::levelShouldSpill(ledgerSeq, level - 1))
+                    {
+                        REQUIRE(currIter->second == ledgerSeq);
+                        currCalculatedUpdatePeriods.erase(currIter);
+                    }
+                }
+            }
+
+            // Check if snap is updated
+            auto snapIter = snapCalculatedUpdatePeriods.find(level);
+            if (snapIter != snapCalculatedUpdatePeriods.end())
+            {
+                if (BucketList::levelShouldSpill(ledgerSeq, level))
+                {
+                    // Check that snap bucket calculation is correct
+                    REQUIRE(snapIter->second == ledgerSeq);
+                    snapCalculatedUpdatePeriods.erase(snapIter);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
                    "[bucket][bucketlist]")
 {
@@ -1007,7 +1068,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
                 // Advance until one ledger before bucket is updated
                 auto ledgersUntilUpdate =
-                    BucketList::bucketChangeRate(levelToTest, isCurr) -
+                    BucketList::bucketUpdatePeriod(levelToTest, isCurr) -
                     1; // updateNetworkCfg closes a ledger that we need to
                        // count
                 for (uint32_t i = 0; i < ledgersUntilUpdate - 1; ++i)

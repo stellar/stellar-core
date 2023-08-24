@@ -21,6 +21,9 @@
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+
+#include "medida/counter.h"
+
 #include <Tracy.hpp>
 #include <algorithm>
 #include <fmt/format.h>
@@ -664,13 +667,13 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
 // incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
 // incoming_spill_frequency(0) = 1
 uint32_t
-BucketList::bucketChangeRate(uint32_t level, bool isCurr)
+BucketList::bucketUpdatePeriod(uint32_t level, bool isCurr)
 {
     if (!isCurr)
     {
         // Snap bucket changeRate is the same as the change rate of the curr
         // bucket in the level below
-        return bucketChangeRate(level + 1, true);
+        return bucketUpdatePeriod(level + 1, true);
     }
 
     if (level == 0)
@@ -888,11 +891,12 @@ void
 BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                             uint32_t ledgerSeq,
                             medida::Meter& entriesEvictedMeter,
-                            medida::Counter& bytesScannedForEvictionMeter)
+                            medida::Counter& bytesScannedForEvictionCounter,
+                            medida::Counter& incompleteBucketScanCounter)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
-        auto& level = levels[iter.bucketListLevel];
+        auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.getCurr() : level.getSnap();
     };
 
@@ -905,7 +909,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             networkConfig.stateExpirationSettings().startingEvictionScanLevel;
         auto evictionIter = networkConfig.evictionIterator();
 
-        // Check if an upgrade has changed the starting scan level to above the
+        // Check if an upgrade has changed the starting scan level to below the
         // current iterator level
         if (evictionIter.bucketListLevel < firstScanLevel)
         {
@@ -919,6 +923,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         if (evictionIter.isCurrBucket)
         {
             // Check if bucket received an incoming spill
+            releaseAssert(evictionIter.bucketListLevel != 0);
             if (BucketList::levelShouldSpill(ledgerSeq,
                                              evictionIter.bucketListLevel - 1))
             {
@@ -941,20 +946,12 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto maxEntriesToEvict =
             networkConfig.stateExpirationSettings().maxEntriesToExpire;
 
-        auto b = getBucketFromIter(evictionIter);
-        auto changeRate = bucketChangeRate(evictionIter.bucketListLevel,
-                                           evictionIter.isCurrBucket);
-        if (changeRate * scanSize < b->getSize())
-        {
-            CLOG_WARNING(Bucket,
-                         "Bucket too large for current eviction scan size.");
-        }
-
         auto initialLevel = evictionIter.bucketListLevel;
         auto initialIsCurr = evictionIter.isCurrBucket;
+        auto b = getBucketFromIter(evictionIter);
         while (!b->scanForEviction(
             ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-            entriesEvictedMeter, bytesScannedForEvictionMeter))
+            entriesEvictedMeter, bytesScannedForEvictionCounter))
         {
             // If we reached eof in curr bucket, start scanning snap.
             // Last level has no snap so cycle back to the initial level.
@@ -987,6 +984,17 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             }
 
             b = getBucketFromIter(evictionIter);
+
+            // Check to see if we can finish scanning the new bucket before it
+            // receives an update
+            auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                             evictionIter.isCurrBucket);
+            if (period * scanSize < b->getSize())
+            {
+                CLOG_WARNING(
+                    Bucket, "Bucket too large for current eviction scan size.");
+                incompleteBucketScanCounter.inc();
+            }
         }
 
         networkConfig.updateEvictionIterator(ltx, evictionIter);
