@@ -1458,6 +1458,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                         "positive");
                 }
 
+                if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME <
+                    MinimumSorobanNetworkConfig::
+                        MINIMUM_PERSISTENT_ENTRY_LIFETIME)
+                {
+                    throw std::invalid_argument(
+                        "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME < "
+                        "MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_"
+                        "LIFETIME");
+                }
+
                 LOG_WARNING(
                     DEFAULT_LOG,
                     "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",

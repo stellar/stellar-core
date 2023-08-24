@@ -2066,6 +2066,25 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             ltx.commit();
         }
 
+        {
+            // verify that the contract code, contract instance, and upgrade
+            // entry were all bumped by
+            // 518400 ledgers (30 days) -
+            // https://github.com/stellar/rs-soroban-env/blob/main/soroban-test-wasms/wasm-workspace/write_upgrade_bytes/src/lib.rs#L3-L5
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            auto bumpedKeys = contractKeys;
+            bumpedKeys.emplace_back(upgrade);
+
+            REQUIRE(bumpedKeys.size() == 3);
+            for (auto const& key : bumpedKeys)
+            {
+                auto ltxe = ltx.load(key);
+                REQUIRE(getExpirationLedger(ltxe.current()) ==
+                        ledgerSeq + 518400);
+            }
+        }
+
         // arm the upgrade through commandHandler. This isn't required
         // because we'll trigger the upgrade through externalizeValue, but
         // this will test the submission and deserialization code.
