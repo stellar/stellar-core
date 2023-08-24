@@ -37,7 +37,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
     static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
 
-    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4'096;
+    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
 
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
@@ -115,9 +115,10 @@ struct InitialSorobanNetworkConfig
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME =
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
-    // Live until level 6
+    // Note that the initial MINIMUM_PERSISTENT_ENTRY_LIFETIME is greater
+    // than the minimum to allow for reductions during testing.
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME =
-        MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
+        4'096; // Live until level 6
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
