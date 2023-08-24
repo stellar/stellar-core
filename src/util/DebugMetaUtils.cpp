@@ -61,5 +61,14 @@ getNumberOfDebugFilesToKeep(uint32_t numLedgers)
     size_t segLen = META_DEBUG_LEDGER_SEGMENT_SIZE;
     return (numLedgers + segLen - 1) / segLen;
 }
+
+std::regex
+getDebugMetaRegexForLedger(uint32_t ledgerSeq)
+{
+    std::string const regexStr =
+        fmt::format("meta-debug-{:08x}-[[:xdigit:]]+\\.xdr(\\.gz)?", ledgerSeq);
+    return std::regex{regexStr};
+}
+
 }
 }

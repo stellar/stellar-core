@@ -1112,32 +1112,47 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
             mApp.getClock().getIOContext(),
             /*fsyncOnClose=*/true);
 
-        mMetaDebugPath = metautils::getMetaDebugFilePath(
+        auto metaDebugPath = metautils::getMetaDebugFilePath(
             mApp.getBucketManager().getBucketDir(), ledgerSeq);
-        releaseAssert(mMetaDebugPath.has_parent_path());
+        releaseAssert(metaDebugPath.has_parent_path());
         try
         {
-            if (fs::mkpath(mMetaDebugPath.parent_path().string()))
+            if (fs::mkpath(metaDebugPath.parent_path().string()))
             {
-                CLOG_DEBUG(Ledger, "Streaming debug metadata to '{}'",
-                           mMetaDebugPath.string());
-                tmpStream->open(mMetaDebugPath.string());
+                // Skip any files for the same ledger. This is useful in case of
+                // a crash-and-restart, where core emits duplicate meta (which
+                // isn't garbage-collected until core gets unstuck, risking a
+                // disk bloat).
+                auto const regexForLedger =
+                    metautils::getDebugMetaRegexForLedger(ledgerSeq);
+                auto files = fs::findfiles(metaDebugPath.parent_path().string(),
+                                           [&](std::string const& file) {
+                                               return std::regex_match(
+                                                   file, regexForLedger);
+                                           });
+                if (files.empty())
+                {
+                    CLOG_DEBUG(Ledger, "Streaming debug metadata to '{}'",
+                               metaDebugPath.string());
+                    tmpStream->open(metaDebugPath.string());
 
-                // If we get to this line, the stream is open.
-                mMetaDebugStream = std::move(tmpStream);
+                    // If we get to this line, the stream is open.
+                    mMetaDebugStream = std::move(tmpStream);
+                    mMetaDebugPath = metaDebugPath;
+                }
             }
             else
             {
                 CLOG_WARNING(Ledger,
                              "Failed to make directory '{}' for debug metadata",
-                             mMetaDebugPath.parent_path().string());
+                             metaDebugPath.parent_path().string());
             }
         }
         catch (std::runtime_error& e)
         {
             CLOG_WARNING(Ledger,
                          "Failed to open debug metadata stream '{}': {}",
-                         mMetaDebugPath.string(), e.what());
+                         metaDebugPath.string(), e.what());
         }
     }
 }

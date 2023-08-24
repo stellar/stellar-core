@@ -43,5 +43,7 @@ listMetaDebugFiles(std::filesystem::path const& bucketDir);
 bool isDebugSegmentBoundary(uint32_t ledgerSeq);
 
 size_t getNumberOfDebugFilesToKeep(uint32_t ledgersToKeep);
+
+std::regex getDebugMetaRegexForLedger(uint32_t ledgerSeq);
 }
 }
