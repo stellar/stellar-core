@@ -101,8 +101,10 @@ class ApplyLedgersFromMetaWork : public Work
         }
         else if (ledgerSeqToApply > lcl + 1)
         {
-            CLOG_FATAL(Work, "Ledger {} too far (lcl={}), can't apply",
-                       ledgerSeqToApply, lcl);
+            CLOG_FATAL(Work,
+                       "Ledger {} is too far (lcl={}), can't apply. Please run "
+                       "catchup {}/0` first.",
+                       ledgerSeqToApply, lcl, ledgerSeqToApply - 1);
             return BasicWork::State::WORK_FAILURE;
         }
 

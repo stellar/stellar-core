@@ -108,6 +108,11 @@ Command options can only by placed after command.
 * **publish**: Execute publish of all items remaining in publish queue without
   connecting to network. May not publish last checkpoint if last closed ledger
   is on checkpoint boundary.
+* **replay-debug-meta**: Replay state from debug meta available. This requires
+  core to be at an appropriate LCL to replay debug ledgers on top.
+  Option **--history-ledger** allows to specify target ledger.
+  Option **--meta-dir** is a (required) path to `meta-debug` directory, which
+  contains meta to replay by this command.
 * **report-last-history-checkpoint**: Download and report last history
   checkpoint from a history archive.
 * **run**: Runs stellar-core service.<br>
