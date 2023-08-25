@@ -73,7 +73,6 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         ledgerSeq + expirationSettings.minPersistentEntryExpiration - 1;
     for (auto const& lk : footprint.readWrite)
     {
-        auto keySize = static_cast<uint32>(xdr::xdr_size(lk));
         uint32_t entrySize = UINT32_MAX;
         {
             auto const_ltxe = ltx.loadWithoutRecord(lk);
@@ -84,7 +83,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             entrySize =
                 static_cast<uint32>(xdr::xdr_size(const_ltxe.current()));
-            metrics.mLedgerReadByte += keySize + entrySize;
+            metrics.mLedgerReadByte += entrySize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
                 innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
@@ -103,7 +102,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         auto ltxe = ltx.load(lk);
 
         auto& restoredEntry = ltxe.current();
-        metrics.mLedgerWriteByte += keySize + entrySize;
+        metrics.mLedgerWriteByte += entrySize;
 
         if (resources.writeBytes < metrics.mLedgerWriteByte ||
             resources.readBytes < metrics.mLedgerReadByte)
@@ -119,7 +118,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // for the rent fee purposes.
         rustChange.old_size_bytes = 0;
         rustChange.old_expiration_ledger = 0;
-        rustChange.new_size_bytes = keySize + entrySize;
+        rustChange.new_size_bytes = entrySize;
         rustChange.new_expiration_ledger = restoredExpirationLedger;
         setExpirationLedger(restoredEntry, restoredExpirationLedger);
     }
