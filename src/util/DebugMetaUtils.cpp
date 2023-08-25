@@ -48,18 +48,16 @@ listMetaDebugFiles(std::filesystem::path const& bucketDir)
 bool
 isDebugSegmentBoundary(uint32_t ledgerSeq)
 {
-    if (META_DEBUG_LEDGER_SEGMENT_SIZE == 1)
-    {
-        return true;
-    }
-    return ledgerSeq % (META_DEBUG_LEDGER_SEGMENT_SIZE - 1) == 0;
+    return ledgerSeq % META_DEBUG_LEDGER_SEGMENT_SIZE == 0;
 }
 
 size_t
 getNumberOfDebugFilesToKeep(uint32_t numLedgers)
 {
     size_t segLen = META_DEBUG_LEDGER_SEGMENT_SIZE;
-    return (numLedgers + segLen - 1) / segLen;
+    // Always keep an extra older file in case the newest file just got rotated,
+    // to preserve METADATA_DEBUG_LEDGERS at all times.
+    return ((numLedgers + segLen - 1) / segLen) + 1;
 }
 
 std::regex
