@@ -7,7 +7,7 @@ use crate::{
     rust_bridge::{
         CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
         CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
-        InvokeHostFunctionOutput, ReadOnlyBump, RustBuf, XDRFileHash,
+        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
 use log::debug;
@@ -209,30 +209,17 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
 
 fn extract_ledger_effects(
     entry_changes: Vec<LedgerEntryChange>,
-) -> (Vec<RustBuf>, Vec<ReadOnlyBump>) {
+) -> Vec<RustBuf> {
     let mut modified_entries = vec![];
-    let mut read_only_bumps = vec![];
 
     for change in entry_changes {
-        if change.read_only {
-            // Only return expiration bumps for read-only entries (if any).
-            if let Some(expiration_change) = change.expiration_change {
-                if expiration_change.new_expiration_ledger > expiration_change.old_expiration_ledger
-                {
-                    read_only_bumps.push(ReadOnlyBump {
-                        ledger_key: change.encoded_key.into(),
-                        min_expiration: expiration_change.new_expiration_ledger,
-                    });
-                }
-            }
-        } else {
+        assert!(!change.read_only);
             if let Some(encoded_new_value) = change.encoded_new_value {
                 modified_entries.push(encoded_new_value.into());
             }
-        }
     }
 
-    (modified_entries, read_only_bumps)
+    modified_entries
 }
 
 /// Deserializes an [`xdr::HostFunction`] host function XDR object an
@@ -250,6 +237,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    expiration_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
@@ -346,7 +334,7 @@ fn invoke_host_function_or_maybe_panic(
                     &rent_fee_configuration.into(),
                     ledger_seq_num,
                 );
-                let (modified_ledger_entries, read_only_bumps) =
+                let modified_ledger_entries =
                     extract_ledger_effects(res.ledger_changes);
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
@@ -357,7 +345,6 @@ fn invoke_host_function_or_maybe_panic(
 
                     result_value: result_value.into(),
                     modified_ledger_entries,
-                    read_only_bumps,
                     contract_events: res
                         .encoded_contract_events
                         .into_iter()
