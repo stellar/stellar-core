@@ -24,15 +24,6 @@ throwIfNotContractData(LedgerEntryType type)
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
 {
-    // SQL should never return a EXPIRATION_EXTENSION entry. LIFETIME entries
-    // are a BucketList specific construct, SQL just stores a single entry for
-    // ContractData and updates the expiration ledger accordingly whenever the
-    // BucketList writes a EXPIRATION_EXTENSION entry
-    if (getLeType(k) == EXPIRATION_EXTENSION)
-    {
-        return nullptr;
-    }
-
     auto contractID = toOpaqueBase64(k.contractData().contract);
     auto key = toOpaqueBase64(k.contractData().key);
     int32_t type = k.contractData().durability;
@@ -110,11 +101,6 @@ class BulkLoadContractDataOperation
         for (auto const& k : keys)
         {
             throwIfNotContractData(k.type());
-            if (getLeType(k) == EXPIRATION_EXTENSION)
-            {
-                continue;
-            }
-
             mContractIDs.emplace_back(
                 toOpaqueBase64(k.contractData().contract));
             mKeys.emplace_back(toOpaqueBase64(k.contractData().key));
@@ -236,11 +222,6 @@ class BulkDeleteContractDataOperation
         {
             releaseAssert(!e.entryExists());
             throwIfNotContractData(e.key().ledgerKey().type());
-            if (getLeType(e.key().ledgerKey()) == EXPIRATION_EXTENSION)
-            {
-                continue;
-            }
-
             mContractIDs.emplace_back(
                 toOpaqueBase64(e.key().ledgerKey().contractData().contract));
             mKeys.emplace_back(

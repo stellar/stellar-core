@@ -145,6 +145,8 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         return checkIsValid(le.data.contractCode(), previous, version);
     case CONFIG_SETTING:
         return checkIsValid(le.data.configSetting(), previous, version);
+    case EXPIRATION:
+        return checkIsValid(le.data.expiration(), previous, version);
 #endif
     default:
         return "LedgerEntry has invalid type";
@@ -524,12 +526,8 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
             {
                 return "Balance entry must be persistent";
             }
-            if (cde.body.bodyType() != DATA_ENTRY)
-            {
-                return "Expected data entry for balance";
-            }
 
-            auto const& val = cde.body.data().val;
+            auto const& val = cde.val;
             if (val.type() != SCV_MAP || val.map()->size() == 0)
             {
                 return "Balance entry val must be a populated Map";
@@ -553,11 +551,6 @@ LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
         }
     }
 
-    if (cde.body.bodyType() == DATA_ENTRY &&
-        (cde.body.data().flags & ~MASK_CONTRACT_DATA_FLAGS_V20) != 0)
-    {
-        return "Invalid contract data flags";
-    }
     return {};
 }
 
@@ -566,8 +559,7 @@ LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
                                  LedgerEntry const* previous,
                                  uint32 version) const
 {
-    if (cce.body.bodyType() == DATA_ENTRY &&
-        sha256(cce.body.code()) != cce.hash)
+    if (sha256(cce.code) != cce.hash)
     {
         return "Contract code doesn't match hash";
     }
@@ -587,13 +579,7 @@ LedgerEntryIsValid::checkIsValid(ContractCodeEntry const& cce,
         return "ContractCode hash modified";
     }
 
-    if (cce.body.bodyType() != prevCode.body.bodyType())
-    {
-        return "Mismatch on bodytype";
-    }
-
-    if (cce.body.bodyType() == DATA_ENTRY &&
-        cce.body.code() != prevCode.body.code())
+    if (cce.code != prevCode.code)
     {
         return "ContractCode code modified";
     }
@@ -607,6 +593,35 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
 {
     // ConfigSettingEntry is not affected on operation apply path, so invariants
     // will not be checked.
+    return {};
+}
+
+std::string
+LedgerEntryIsValid::checkIsValid(ExpirationEntry const& ee,
+                                 LedgerEntry const* previous,
+                                 uint32_t version) const
+{
+    if (!previous)
+    {
+        return {};
+    }
+
+    if (previous->data.type() != EXPIRATION)
+    {
+        return "Expiration used to be of different type";
+    }
+
+    if (previous->data.expiration().keyHash != ee.keyHash)
+    {
+        return "Expiration keyHash modified";
+    }
+
+    if (previous->data.expiration().expirationLedgerSeq >
+        ee.expirationLedgerSeq)
+    {
+        return "Expiration expirationLedgerSeq decreased";
+    }
+
     return {};
 }
 #endif

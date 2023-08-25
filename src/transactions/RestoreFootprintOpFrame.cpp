@@ -120,7 +120,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.old_expiration_ledger = 0;
         rustChange.new_size_bytes = entrySize;
         rustChange.new_expiration_ledger = restoredExpirationLedger;
-        setExpirationLedger(restoredEntry, restoredExpirationLedger);
+        // setExpirationLedger(restoredEntry, restoredExpirationLedger);
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
@@ -155,7 +155,7 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 
     for (auto const& lk : footprint.readWrite)
     {
-        if (!isSorobanDataEntry(lk) || isTemporaryEntry(lk))
+        if (!isPersistentEntry(lk))
         {
             innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
             return false;

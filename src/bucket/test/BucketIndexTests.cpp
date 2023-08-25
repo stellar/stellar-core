@@ -80,10 +80,7 @@ class BucketIndexTest
                 entries =
                     LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
                         {CONTRACT_DATA, CONTRACT_CODE}, 10);
-                for (auto& e : entries)
-                {
-                    setExpirationLedger(e, ORIGINAL_EXPIRATION);
-                }
+                // TODO: Insert ExpirationEntries
             }
             else
 #endif
@@ -194,65 +191,10 @@ class BucketIndexTest
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void
-    insertExpirationExtnesions()
-    {
-        std::vector<LedgerEntry> toInsert;
-        std::vector<LedgerEntry> shadows;
-
-        for (auto& [k, e] : mTestEntries)
-        {
-            // Select 50% of entries to have new expiration ledger
-            if (isSorobanDataEntry(e.data) && rand_flip())
-            {
-                auto extensionEntry = e;
-
-                // Also shadow 50% of expiration extensions
-                bool shadow = rand_flip();
-
-                setExpirationLedger(e, NEW_EXPIRATION);
-                setLeType(extensionEntry,
-                          ContractEntryBodyType::EXPIRATION_EXTENSION);
-                if (shadow)
-                {
-                    // Insert dummy expiration that will be shadowed later
-                    setExpirationLedger(extensionEntry, 0);
-                    shadows.emplace_back(extensionEntry);
-                }
-                else
-                {
-                    setExpirationLedger(extensionEntry, NEW_EXPIRATION);
-                }
-
-                // Insert in batches of 10
-                toInsert.emplace_back(extensionEntry);
-                if (toInsert.size() == 10)
-                {
-                    insertEntries(toInsert);
-                    toInsert.clear();
-                }
-            }
-        }
-
-        if (!toInsert.empty())
-        {
-            insertEntries(toInsert);
-        }
-
-        // Update shadows with correct expiration ledger and reinsert
-        for (auto& e : shadows)
-        {
-            setExpirationLedger(e, NEW_EXPIRATION);
-        }
-
-        insertEntries(shadows);
-    }
-
-    void
     insertSimilarContractDataKeys()
     {
         auto templateEntry =
             LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
-        templateEntry.data.contractData().body.bodyType(DATA_ENTRY);
 
         auto generateEntry = [&](ContractDataDurability t) {
             static uint32_t expiration = 10000;
@@ -260,7 +202,8 @@ class BucketIndexTest
             le.data.contractData().durability = t;
 
             // Distinguish entries via expiration ledger
-            le.data.contractData().expirationLedgerSeq = ++expiration;
+            // TODO: Expiraiton entry
+            // le.data.contractData().expirationLedgerSeq = ++expiration;
             return le;
         };
 
@@ -579,19 +522,6 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("load EXPIRATION_EXTENSION entries", "[bucket][bucketindex]")
-{
-    auto f = [&](Config& cfg) {
-        auto test =
-            BucketIndexTest(cfg, /*levels=*/6, /*expirationEntriesOnly=*/true);
-        test.buildGeneralTest();
-        test.insertExpirationExtnesions();
-        test.run();
-    };
-
-    testAllIndexTypes(f);
-}
-
 TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {

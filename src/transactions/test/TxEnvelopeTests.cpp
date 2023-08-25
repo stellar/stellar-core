@@ -2678,7 +2678,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2690,7 +2690,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readOnly.resize(1);
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
                 cfg.mMaxContractDataKeySizeBytes = 64;
             });
@@ -2705,7 +2705,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readWrite.resize(1);
             resources.footprint.readWrite.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
                 cfg.mMaxContractDataKeySizeBytes = 64;
             });

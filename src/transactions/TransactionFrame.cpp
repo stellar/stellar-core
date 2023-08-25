@@ -611,11 +611,6 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         return false;
     }
     auto footprintKeyIsValid = [&](LedgerKey const& key) -> bool {
-        if (isSorobanExtEntry(key))
-        {
-            return false;
-        }
-
         switch (key.type())
         {
         case ACCOUNT:
@@ -638,6 +633,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case CLAIMABLE_BALANCE:
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
+        case EXPIRATION:
             return false;
         default:
             throw std::runtime_error("unknown ledger key type");

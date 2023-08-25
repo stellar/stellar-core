@@ -68,8 +68,7 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
     for (auto const& lk : footprint.readOnly)
     {
-        // TODO: when we move to use EXPIRATION_EXTENSIONS, this should become a
-        // loadWithoutRecord, and the metrics should be updated.
+        // TODO: Insert ExpirationEntries
         auto ltxe = ltx.load(lk);
         if (!ltxe || !isLive(ltxe.current(), ledgerSeq))
         {
@@ -88,21 +87,21 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
                 BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
-        uint32_t currExpiration = getExpirationLedger(ltxe.current());
+        // uint32_t currExpiration = getExpirationLedger(ltxe.current());
 
-        if (currExpiration >= bumpLedger)
-        {
-            continue;
-        }
+        // if (currExpiration >= bumpLedger)
+        // {
+        //     continue;
+        // }
 
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(lk);
         rustChange.old_size_bytes = static_cast<uint32>(entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
-        rustChange.old_expiration_ledger = currExpiration;
-        rustChange.new_expiration_ledger = bumpLedger;
-        setExpirationLedger(ltxe.current(), bumpLedger);
+        // rustChange.old_expiration_ledger = currExpiration;
+        // rustChange.new_expiration_ledger = bumpLedger;
+        // setExpirationLedger(ltxe.current(), bumpLedger);
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // This may throw, but only in case of the Core version misconfiguration.
@@ -139,7 +138,7 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 
     for (auto const& lk : footprint.readOnly)
     {
-        if (!isSorobanDataEntry(lk))
+        if (!isSorobanEntry(lk))
         {
             innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
             return false;

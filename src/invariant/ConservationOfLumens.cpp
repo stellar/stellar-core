@@ -99,14 +99,13 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
 
         auto getAmount =
             [&lumenContractInfo](LedgerEntry const* entry) -> int64_t {
-            if (!entry ||
-                entry->data.contractData().body.bodyType() != DATA_ENTRY)
+            if (!entry)
             {
                 return 0;
             }
 
             // The amount should be the first entry in the SCMap
-            auto const& val = entry->data.contractData().body.data().val;
+            auto const& val = entry->data.contractData().val;
             if (val.type() == SCV_MAP && val.map() && val.map()->size() != 0)
             {
                 auto const& amountEntry = val.map()->at(0);
@@ -134,6 +133,8 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
     case CONTRACT_CODE:
         break;
     case CONFIG_SETTING:
+        break;
+    case EXPIRATION:
         break;
 #endif
     }

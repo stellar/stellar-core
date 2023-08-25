@@ -99,6 +99,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
+    case EXPIRATION:
 #endif
     default:
         abort();
@@ -124,6 +125,7 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
+    case EXPIRATION:
 #endif
         break;
     case OFFER:

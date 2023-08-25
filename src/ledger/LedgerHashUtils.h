@@ -161,16 +161,18 @@ template <> class hash<stellar::LedgerKey>
                 res, stellar::shortHash::xdrComputeHash(lk.contractData().key));
             stellar::hashMix(
                 res, std::hash<int32_t>()(lk.contractData().durability));
-            stellar::hashMix(res, std::hash<int32_t>()(getLeType(lk)));
             break;
         case stellar::CONTRACT_CODE:
             stellar::hashMix(
                 res, std::hash<stellar::uint256>()(lk.contractCode().hash));
-            stellar::hashMix(res, std::hash<int32_t>()(getLeType(lk)));
             break;
         case stellar::CONFIG_SETTING:
             stellar::hashMix(
                 res, std::hash<int32_t>()(lk.configSetting().configSettingID));
+            break;
+        case stellar::EXPIRATION:
+            stellar::hashMix(
+                res, std::hash<stellar::uint256>()(lk.expiration().keyHash));
             break;
 #endif
         default:

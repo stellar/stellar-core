@@ -60,6 +60,8 @@ class LedgerEntryIsValid : public Invariant
                              LedgerEntry const* previous, uint32 version) const;
     std::string checkIsValid(ConfigSettingEntry const& ce,
                              LedgerEntry const* previous, uint32 version) const;
+    std::string checkIsValid(ExpirationEntry const& ee,
+                             LedgerEntry const* previous, uint32 version) const;
     LumenContractInfo const mLumenContractInfo;
 #endif
     bool validatePredicate(ClaimPredicate const& pred, uint32_t depth) const;

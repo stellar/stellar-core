@@ -159,6 +159,11 @@ void
 InMemoryLedgerTxnRoot::dropConfigSettings(bool)
 {
 }
+
+void
+InMemoryLedgerTxnRoot::dropExpiration(bool)
+{
+}
 #endif
 
 double

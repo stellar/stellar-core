@@ -78,8 +78,6 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
         sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
     info.max_entry_expiration =
         sorobanConfig.stateExpirationSettings().maxEntryExpiration;
-    info.autobump_ledgers =
-        sorobanConfig.stateExpirationSettings().autoBumpLedgers;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
@@ -95,13 +93,9 @@ bool
 validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
                             SorobanNetworkConfig const& config)
 {
-    releaseAssertOrThrow(!isSorobanEntry(le.data) ||
-                         getLeType(le.data) == DATA_ENTRY);
-
     // check contract code size limit
     if (le.data.type() == CONTRACT_CODE &&
-        config.maxContractSizeBytes() <
-            le.data.contractCode().body.code().size())
+        config.maxContractSizeBytes() < le.data.contractCode().code.size())
     {
         return false;
     }
@@ -562,11 +556,10 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     {
         LedgerKey lk;
         xdr::xdr_from_opaque(bump.ledger_key.data, lk);
-        releaseAssertOrThrow(isSorobanDataEntry(lk));
         auto ltxe = ltx.load(lk);
         releaseAssertOrThrow(ltxe);
         // TODO: this should use expiration extension for RO entries.
-        setExpirationLedger(ltxe.current(), bump.min_expiration);
+        // setExpirationLedger(ltxe.current(), bump.min_expiration);
     }
 
     // Append events to the enclosing TransactionFrame, where

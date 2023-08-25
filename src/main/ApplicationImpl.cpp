@@ -214,6 +214,10 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
                     app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
                     break;
+                case EXPIRATION:
+                    LOG_INFO(DEFAULT_LOG, "Dropping expiration");
+                    app.getLedgerTxnRoot().dropExpiration(shouldRebuild);
+                    break;
 #endif
                 default:
                     abort();

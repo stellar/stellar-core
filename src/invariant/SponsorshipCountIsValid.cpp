@@ -51,6 +51,7 @@ getMult(LedgerEntry const& le)
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case CONFIG_SETTING:
+    case EXPIRATION:
 #endif
     case LIQUIDITY_POOL:
         throw std::runtime_error("invalid LedgerEntry type");
@@ -76,6 +77,7 @@ getAccountID(LedgerEntry const& le)
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case CONFIG_SETTING:
+    case EXPIRATION:
 #endif
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:

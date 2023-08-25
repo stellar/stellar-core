@@ -32,6 +32,7 @@ void makeValid(LiquidityPoolEntry& lp);
 void makeValid(ConfigSettingEntry& ce);
 void makeValid(ContractDataEntry& cde);
 void makeValid(ContractCodeEntry& cce);
+void makeValid(ExpirationEntry& ee);
 #endif
 void makeValid(LedgerHeaderHistoryEntry& lh,
                LedgerHeaderHistoryEntry firstLedger,
@@ -92,6 +93,9 @@ std::vector<ContractDataEntry> generateValidContractDataEntries(size_t n);
 
 ContractCodeEntry generateValidContractCodeEntry(size_t b = 3);
 std::vector<ContractCodeEntry> generateValidContractCodeEntries(size_t n);
+
+ExpirationEntry generateValidExpirationEntry(size_t b = 3);
+std::vector<ExpirationEntry> generateValidExpirationEntries(size_t n);
 #endif
 
 std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
