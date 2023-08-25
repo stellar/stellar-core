@@ -3,7 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTypeUtils.h"
+#include "crypto/SHA.h"
 #include "util/GlobalChecks.h"
+#include "util/types.h"
 
 namespace stellar
 {
@@ -17,5 +19,21 @@ isLive(LedgerEntry const& e, uint32_t expirationCutoff)
 #else
     return true;
 #endif
+}
+
+LedgerKey
+getExpirationKey(LedgerEntry const& e)
+{
+    return getExpirationKey(LedgerEntryKey(e));
+}
+
+LedgerKey
+getExpirationKey(LedgerKey const& e)
+{
+    releaseAssert(e.type() == CONTRACT_CODE || e.type() == CONTRACT_DATA);
+    LedgerKey k;
+    k.type(EXPIRATION);
+    k.expiration().keyHash = sha256(xdr::xdr_to_opaque(e));
+    return k;
 }
 };

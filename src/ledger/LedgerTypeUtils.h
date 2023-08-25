@@ -11,6 +11,9 @@ namespace stellar
 {
 bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
 
+LedgerKey getExpirationKey(LedgerEntry const& e);
+LedgerKey getExpirationKey(LedgerKey const& e);
+
 template <typename T>
 bool
 isSorobanEntry(T const& e)

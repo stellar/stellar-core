@@ -55,11 +55,6 @@ mod rust_bridge {
         hash: String,
     }
 
-    struct ReadOnlyBump {
-        ledger_key: RustBuf,
-        min_expiration: u32,
-    }
-
     // Result of invoking a host function.
     // When `success` is `false`, the function has failed. The diagnostic events
     // and metering data will be populated, but result value and effects won't
@@ -76,7 +71,6 @@ mod rust_bridge {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
-        read_only_bumps: Vec<ReadOnlyBump>,
         rent_fee: i64,
     }
 
@@ -194,6 +188,7 @@ mod rust_bridge {
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
+            expiration_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
             rent_fee_configuration: CxxRentFeeConfiguration,
         ) -> Result<InvokeHostFunctionOutput>;
@@ -630,6 +625,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    expiration_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
@@ -650,6 +646,7 @@ pub(crate) fn invoke_host_function(
                 auth_entries,
                 ledger_info,
                 ledger_entries,
+                expiration_entries,
                 base_prng_seed,
                 rent_fee_configuration,
             );
@@ -664,6 +661,7 @@ pub(crate) fn invoke_host_function(
         auth_entries,
         ledger_info,
         ledger_entries,
+        expiration_entries,
         base_prng_seed,
         rent_fee_configuration,
     )

@@ -6,7 +6,6 @@
 
 #include <type_traits>
 
-#include "ledger/LedgerTypeUtils.h"
 #include "overlay/StellarXDR.h"
 #include "util/XDROperators.h"
 
