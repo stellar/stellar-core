@@ -5339,3 +5339,63 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
     }
 }
+
+TEST_CASE("delay sending DONT_HAVE", "[herder]")
+{
+    VirtualClock clock;
+    auto const numNodes = 2;
+    std::vector<std::shared_ptr<Application>> apps;
+    std::chrono::milliseconds const epsilon{1};
+
+    for (auto i = 0; i < numNodes; i++)
+    {
+        Config cfg = getTestConfig(i);
+        cfg.FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(200);
+        cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
+        // Using a small tx set size such as 50 may lead to an unexpectedly
+        // small advert/demand size limit.
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        apps.push_back(createTestApplication(clock, cfg));
+    }
+
+    auto connection =
+        std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[1]);
+    testutil::crankFor(clock, std::chrono::seconds(5));
+    REQUIRE(connection->getInitiator()->isAuthenticated());
+    REQUIRE(connection->getAcceptor()->isAuthenticated());
+
+    auto createTxn = [](auto n) {
+        StellarMessage txn;
+        txn.type(TRANSACTION);
+        Memo memo(MEMO_TEXT);
+        memo.text() = "tx" + std::to_string(n);
+        txn.transaction().v0().tx.memo = memo;
+
+        return std::make_shared<StellarMessage>(txn);
+    };
+
+    auto createGetTxSet = [](uint256 const& setID) {
+        StellarMessage getTxSet;
+        getTxSet.type(GET_TX_SET);
+        getTxSet.txSetHash() = setID;
+
+        return std::make_shared<StellarMessage>(getTxSet);
+    };
+
+    auto tx = createTxn(1);
+    std::vector<TransactionFrameBasePtr> txs = {
+        TransactionFrameBase::makeTransactionFromWire(apps[0]->getNetworkID(),
+                                                      tx->transaction()),
+    };
+    auto txnSetFrame = TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0);
+    auto getTxSet = createGetTxSet(xdrSha256(txnSetFrame->getContentsHash()));
+
+    // Sending get tx set message.
+    connection->getAcceptor()->sendMessage(getTxSet, false);
+
+    CLOG_INFO(Herder, "pending requests size before crank: {}",
+              apps[0]->getOverlayManager().getPendingTxSetRequests().size());
+    testutil::crankFor(clock, epsilon);
+    CLOG_INFO(Herder, "pending requests size after crank: {}",
+              apps[0]->getOverlayManager().getPendingTxSetRequests().size());
+}
