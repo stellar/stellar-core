@@ -52,6 +52,11 @@ using namespace soci;
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 
+#ifdef BUILD_TESTS
+uint32_t Peer::mMaxNumPendingGetTxSetRequestsToKeepForTesting =
+    Peer::MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP;
+#endif
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -75,6 +80,15 @@ Peer::Peer(Application& app, PeerRole role)
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
+}
+
+const uint32_t
+Peer::getMaxNumPendingGetTxSetRequestsToKeep()
+{
+#ifdef BUILD_TESTS
+    return mMaxNumPendingGetTxSetRequestsToKeepForTesting;
+#endif
+    return MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP;
 }
 
 bool
@@ -1158,6 +1172,22 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     }
     else
     {
+        auto& pendingTxSetRequests =
+            mApp.getOverlayManager().getPendingTxSetRequests();
+
+        if (pendingTxSetRequests.size() >=
+            getMaxNumPendingGetTxSetRequestsToKeep())
+        {
+            CLOG_TRACE(Overlay,
+                       "Peer::recvGetTxSet {} rejects get txn set request "
+                       "because maximum number of pending get txn set requests "
+                       "({}) is reached",
+                       toString(), getMaxNumPendingGetTxSetRequestsToKeep());
+            // TODO: should we make a metric to keep track of dropped get txn
+            // set requests?
+            return;
+        }
+
         if (wait)
         {
             CLOG_INFO(Overlay,
@@ -1168,21 +1198,14 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
             mTxSetRequestTimer.expires_from_now(
                 mApp.getConfig().SEND_DONT_HAVE_DELAY);
             mTxSetRequestTimer.async_wait(
-                [this, msg] {
-                    CLOG_INFO(Overlay, "Dont have try again...");
-                    recvGetTxSet(msg, false);
-                },
+                [this, msg] { recvGetTxSet(msg, false); },
                 &VirtualTimer::onFailureNoop);
-
-            CLOG_INFO(Overlay, "Return after setting timer.");
             return;
         }
 
         // We do not have the tx set, so make a pending tx set request and
         // respond back to the node once we have it.
         std::weak_ptr<Peer> peer = shared_from_this();
-        auto& pendingTxSetRequests =
-            mApp.getOverlayManager().getPendingTxSetRequests();
         pendingTxSetRequests[msg.txSetHash()].emplace_back(peer);
 
         CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
@@ -1233,6 +1256,7 @@ Peer::recvTxSet(StellarMessage const& msg)
         }
     }
     pendingTxSetRequests[frame->getContentsHash()].clear();
+    pendingTxSetRequests.erase(frame->getContentsHash());
 }
 
 void
