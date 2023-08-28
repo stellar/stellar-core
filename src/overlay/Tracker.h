@@ -53,12 +53,15 @@ class Tracker
     medida::Meter& mTryNextPeer;
     uint64 mLastSeenSlotIndex{0};
     LogSlowExecution mFetchTime;
+    static constexpr std::chrono::milliseconds MS_TO_WAIT_FOR_FETCH_REPLY =
+        std::chrono::milliseconds{1500};
+
+#ifdef BUILD_TESTS
+    static std::optional<std::chrono::milliseconds>
+        mMillisecondsToWaitForFetchReplayForTesting;
+#endif
 
   public:
-    // Overwrite this with TX_SET_BACKOFF_DELAY_MS
-    // For the prototype, I made this a regular variable (not a const)
-    // but I'm not sure if it's a good idea.
-    static std::chrono::milliseconds MS_TO_WAIT_FOR_FETCH_REPLY;
     static int const MAX_REBUILD_FETCH_LIST;
     /**
      * Create Tracker that tracks data identified by @p hash. @p askPeer
@@ -66,6 +69,9 @@ class Tracker
      */
     explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer);
     virtual ~Tracker();
+
+    static std::chrono::milliseconds const
+    getMillisecondsToWaitForFetchReplay();
 
     /**
      * Return true if does not wait for any envelope.
@@ -165,6 +171,9 @@ class Tracker
     {
         return mLastAskedPeer;
     }
+
+    static void setMillisecondsToWaitForFetchReplayForTesting(
+        std::chrono::milliseconds duration);
 #endif
 };
 }

@@ -268,7 +268,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                     }
                 };
 
-                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_REPLY * 2);
+                crankFor(Tracker::getMillisecondsToWaitForFetchReplay() * 2);
 
                 REQUIRE(asked.size() == 2);
 
@@ -338,15 +338,16 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                         }
                         else
                         {
-                            REQUIRE(delta >=
-                                    Tracker::MS_TO_WAIT_FOR_FETCH_REPLY);
+                            REQUIRE(
+                                delta >=
+                                Tracker::getMillisecondsToWaitForFetchReplay());
                         }
                         if (i > 0)
                         {
                             auto deltaGroup = refTP - prevGroup;
                             // gap between groups depend on number of retries
                             auto nextTry =
-                                Tracker::MS_TO_WAIT_FOR_FETCH_REPLY *
+                                Tracker::getMillisecondsToWaitForFetchReplay() *
                                 std::min(Tracker::MAX_REBUILD_FETCH_LIST,
                                          (static_cast<int>(i - 1)) / 2);
                             REQUIRE(deltaGroup >= nextTry);

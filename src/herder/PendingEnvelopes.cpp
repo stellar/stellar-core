@@ -369,7 +369,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 if (mQSet != nullptr)
                 {
                     // The qset has been fetched.
-                    // Not all tx sets haven't been fetched,
+                    // Not all tx sets have been fetched,
                     // but we should process this nomination statement
                     // in case we can vote for some/all of them.
                     envelopeReady(envelope);

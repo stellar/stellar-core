@@ -798,10 +798,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             // If nomination, we should still process this.
             if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
             {
-                auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(
+                auto qSetHash = Slot::getCompanionQuorumSetHashFromStatement(
                     envelope.statement);
-                auto mQSet = mApp.getHerder().getQSet(qSetH);
-                if (mQSet != nullptr)
+                auto qSet = mApp.getHerder().getQSet(qSetHash);
+                if (qSet != nullptr)
                 {
                     processSCPQueue();
                 }
