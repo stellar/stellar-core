@@ -433,8 +433,15 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 if (shouldAddEntry)
                 {
                     auto leBuf = toCxxBuf(le);
+
+                    // For entry types that don't have an ExpirationEntry (i.e.
+                    // Accounts), the rust host expects an "empty" CxxBuf such
+                    // that the buffer has a non-null pointer that points to an
+                    // empty byte vector
                     auto expirationBuf =
-                        expirationEntry ? toCxxBuf(*expirationEntry) : CxxBuf{};
+                        expirationEntry
+                            ? toCxxBuf(*expirationEntry)
+                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
 
                     entrySize = static_cast<uint32>(leBuf.data->size());
                     if (expirationEntry)
