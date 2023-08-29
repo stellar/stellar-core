@@ -74,23 +74,34 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& lk : footprint.readWrite)
     {
         uint32_t entrySize = UINT32_MAX;
+        uint32_t expirationSize = UINT32_MAX;
+
+        // We must load the ContractCode/ContractData entry for fee purposes, as
+        // restore is considered a write
+        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
+        if (!constEntryLtxe)
         {
-            auto const_ltxe = ltx.loadWithoutRecord(lk);
-            if (!const_ltxe)
-            {
-                continue;
-            }
+            continue;
+        }
+
+        auto expirationKey = getExpirationKey(lk);
+        {
+            auto constExpirationLtxe = ltx.loadWithoutRecord(expirationKey);
+            releaseAssert(constExpirationLtxe);
 
             entrySize =
-                static_cast<uint32>(xdr::xdr_size(const_ltxe.current()));
-            metrics.mLedgerReadByte += entrySize;
+                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+            expirationSize = static_cast<uint32>(
+                xdr::xdr_size(constExpirationLtxe.current()));
+
+            metrics.mLedgerReadByte += entrySize + expirationSize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
                 innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
 
-            if (isLive(const_ltxe.current(), ledgerSeq))
+            if (isLive(constExpirationLtxe.current(), ledgerSeq))
             {
                 // Skip entries that are already live.
                 continue;
@@ -99,9 +110,10 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
         // Entry exists if we get this this point due to the loadWithoutRecord
         // logic above.
-        auto ltxe = ltx.load(lk);
+        auto expirationLtxe = ltx.load(expirationKey);
 
-        auto& restoredEntry = ltxe.current();
+        // To maintain consistency with InvokeHostFunction, ExpirationEntry
+        // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
 
         if (resources.writeBytes < metrics.mLedgerWriteByte ||
@@ -120,7 +132,8 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.old_expiration_ledger = 0;
         rustChange.new_size_bytes = entrySize;
         rustChange.new_expiration_ledger = restoredExpirationLedger;
-        // setExpirationLedger(restoredEntry, restoredExpirationLedger);
+        expirationLtxe.current().data.expiration().expirationLedgerSeq =
+            restoredExpirationLedger;
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(

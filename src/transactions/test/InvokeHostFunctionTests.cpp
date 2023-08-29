@@ -132,6 +132,17 @@ getLedgerSeq(Application& app)
     return ltx.loadHeader().current().ledgerSeq;
 }
 
+static void
+checkExpiration(LedgerTxn& ltx, LedgerKey const& key,
+                uint32_t expectedExpiration)
+{
+    auto expirationKey = getExpirationKey(key);
+    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+    REQUIRE(expirationLtxe);
+    REQUIRE(expirationLtxe.current().data.expiration().expirationLedgerSeq ==
+            expectedExpiration);
+}
+
 static LedgerEntry
 loadStorageEntry(Application& app, SCAddress const& contractID,
                  std::string const& key, ContractDataDurability type)
@@ -164,7 +175,6 @@ submitTxToUploadWasm(Application& app, Operation const& op,
     LedgerTxn ltx2(app.getLedgerTxnRoot());
     auto ltxe = loadContractCode(ltx2, expectedWasmHash);
     REQUIRE(ltxe);
-
     REQUIRE(ltxe.current().data.contractCode().code == expectedWasm);
 }
 
@@ -233,10 +243,7 @@ deployContractWithSourceAccountWithResources(Application& app,
 
         auto codeLtxe = ltx.load(contractCodeLedgerKey);
         REQUIRE(codeLtxe);
-
-        // TODO: Check expiation entry
-        // REQUIRE(codeLtxe.current().data.contractCode().expirationLedgerSeq ==
-        //         expectedExpiration);
+        checkExpiration(ltx, contractCodeLedgerKey, expectedExpiration);
     }
 
     // Deploy the contract instance
@@ -303,10 +310,7 @@ deployContractWithSourceAccountWithResources(Application& app,
 
     auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
     REQUIRE(instanceLtxe);
-
-    // TODO: Check expiation entry
-    // REQUIRE(instanceLtxe.current().data.contractData().expirationLedgerSeq ==
-    //       expectedExpiration);
+    checkExpiration(ltx, contractSourceRefLedgerKey, expectedExpiration);
 
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
@@ -387,7 +391,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         if (success)
         {
             REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 46'302);
+            REQUIRE(tx->getInclusionFee() == 46'318);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -826,9 +830,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         // TODO: Better bytes to write value
+
+        // TODO: Low/high watermark tests
         auto [tx, ltx, txm] =
             createTx(readOnly, readWrite, 1000, contractID, makeSymbol(funcStr),
-                     {keySymbol, bumpAmountU32});
+                     {keySymbol, bumpAmountU32, bumpAmountU32});
 
         if (expectSuccess)
         {
@@ -979,32 +985,39 @@ TEST_CASE("contract storage", "[tx][soroban]")
             type);
     };
 
-    auto checkContractDataExpirationLedger =
-        [&](std::string const& key, ContractDataDurability type,
-            uint32_t expectedExpirationLedger, uint32_t flags = 0) {
-            auto le = loadStorageEntry(*app, contractID, key, type);
-            // TODO: Expriation entry
-        };
-
     auto checkContractDataExpirationState =
         [&](std::string const& key, ContractDataDurability type,
             uint32_t ledgerSeq, bool expectedIsLive) {
             auto le = loadStorageEntry(*app, contractID, key, type);
-            REQUIRE(isLive(le, ledgerSeq) == expectedIsLive);
+            auto expirationKey = getExpirationKey(le);
+
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+                REQUIRE(expirationLtxe);
+                REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) ==
+                        expectedIsLive);
+            }
 
             // Make sure entry is accessible/inaccessible
             get(key, type, expectedIsLive);
         };
 
-    auto checkKeyExpirationLedger = [&](LedgerKey const& key,
-                                        uint32_t ledgerSeq,
-                                        uint32_t expectedExpirationLedger) {
+    // Check entries existence and expiration
+    auto checkEntry = [&](LedgerKey const& key,
+                          uint32_t expectedExpirationLedger) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = ltx.load(key);
+        auto ltxe = ltx.loadWithoutRecord(key);
         REQUIRE(ltxe);
-
-        // TODO: Expiration
+        checkExpiration(ltx, key, expectedExpirationLedger);
     };
+
+    auto checkContractDataExpirationLedger =
+        [&](std::string const& key, ContractDataDurability type,
+            uint32_t expectedExpirationLedger) {
+            auto le = loadStorageEntry(*app, contractID, key, type);
+            checkEntry(LedgerEntryKey(le), expectedExpirationLedger);
+        };
 
     auto ledgerSeq = getLedgerSeq(*app);
 
@@ -1091,7 +1104,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      123 /* rent bump */ + 40000 /* two LE-writes */);
+                      127 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1101,10 +1114,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ true,
                 ContractDataDurability::TEMPORARY);
 
-            checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
-                                     newExpectedExpiration);
-            checkKeyExpirationLedger(contractKeys[1], ledgerSeq,
-                                     newExpectedExpiration);
+            checkEntry(contractKeys[0], newExpectedExpiration);
+            checkEntry(contractKeys[1], newExpectedExpiration);
         }
 
         SECTION("restore contract instance, not wasm")
@@ -1121,17 +1132,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ false,
                 ContractDataDurability::TEMPORARY);
 
-            checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
-                                     newExpectedExpiration);
-            checkKeyExpirationLedger(contractKeys[1], ledgerSeq,
-                                     originalExpectedExpiration);
+            checkEntry(contractKeys[0], newExpectedExpiration);
+            checkEntry(contractKeys[1], originalExpectedExpiration);
         }
 
         SECTION("restore contract wasm, not instance")
         {
             // Only restore WASM
             restoreOp({contractKeys[1]},
-                      86 /* rent bump */ + 20000 /* one LE write */);
+                      90 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1141,17 +1150,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ false,
                 ContractDataDurability::TEMPORARY);
 
-            checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
-                                     originalExpectedExpiration);
-            checkKeyExpirationLedger(contractKeys[1], ledgerSeq,
-                                     newExpectedExpiration);
+            checkEntry(contractKeys[0], originalExpectedExpiration);
+            checkEntry(contractKeys[1], newExpectedExpiration);
         }
 
         SECTION("lifetime extensions")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      123 /* rent bump */ + 40000 /* two LE writes */);
+                      127 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
@@ -1160,12 +1167,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
             bumpOp(instanceBumpAmount, {contractKeys[0]}, 20039);
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20170);
+            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20178);
 
-            checkKeyExpirationLedger(contractKeys[0], ledgerSeq,
-                                     ledgerSeq + instanceBumpAmount);
-            checkKeyExpirationLedger(contractKeys[1], ledgerSeq,
-                                     ledgerSeq + wasmBumpAmount);
+            checkEntry(contractKeys[0], ledgerSeq + instanceBumpAmount);
+            checkEntry(contractKeys[1], ledgerSeq + wasmBumpAmount);
         }
     }
 
@@ -1292,7 +1297,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 40147);
+        bumpOp(10'000, contractKeys, 40151);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1394,7 +1399,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                            ContractDataDurability::PERSISTENT)},
                           false, ContractDataDurability::PERSISTENT);
 
-        // Now bump to max
+        // Make sure maximum bump succeeds
         bump("key", ContractDataDurability::PERSISTENT,
              stateExpirationSettings.maxEntryExpiration - 1);
 
@@ -1402,19 +1407,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
             ledgerSeq + stateExpirationSettings.maxEntryExpiration - 1;
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, maxExpiration);
-
-        // Manual bump to almost max, then autobump to check that autobump
-        // doesn't go over max
-        put("key2", 0, ContractDataDurability::PERSISTENT);
-        bump("key2", ContractDataDurability::PERSISTENT,
-             stateExpirationSettings.maxEntryExpiration - 2);
-        checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, maxExpiration - 1);
-
-        // Autobump should only add a single ledger to bring expiration to max
-        put("key2", 1, ContractDataDurability::PERSISTENT);
-        checkContractDataExpirationLedger(
-            "key2", ContractDataDurability::PERSISTENT, maxExpiration);
     }
     SECTION("footprint tests")
     {
@@ -2145,8 +2137,8 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             for (auto const& key : bumpedKeys)
             {
                 auto ltxe = ltx.load(key);
-                REQUIRE(getExpirationLedger(ltxe.current()) ==
-                        ledgerSeq + 518400);
+                REQUIRE(ltxe);
+                checkExpiration(ltx, key, ledgerSeq + 518400);
             }
         }
 
