@@ -6,6 +6,7 @@
 #include "xdr/Stellar-transaction.h"
 #include <iterator>
 #include <stdexcept>
+#include <xdrpp/printer.h>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 #include "crypto/Random.h"
@@ -74,14 +75,6 @@ makeI32(int32_t i32)
 }
 
 static SCVal
-makeU64(uint64_t u64)
-{
-    SCVal val(SCV_U64);
-    val.u64() = u64;
-    return val;
-}
-
-static SCVal
 makeI128(uint64_t u64)
 {
     Int128Parts p;
@@ -90,14 +83,6 @@ makeI128(uint64_t u64)
 
     SCVal val(SCV_I128);
     val.i128() = p;
-    return val;
-}
-
-static SCVal
-makeSymbolSCVal(std::string const& str)
-{
-    SCVal val(SCV_SYMBOL);
-    val.sym().assign(str.begin(), str.end());
     return val;
 }
 
@@ -784,7 +769,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                 uint32_t writeBytes, bool expectSuccess,
                                 ContractDataDurability type) {
         auto keySymbol = makeSymbolSCVal(key);
-        auto valU64 = makeU64(val);
+        auto valU64 = makeU64SCVal(val);
 
         std::string funcStr;
         switch (type)
@@ -1160,8 +1145,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key", uniqueVal, ContractDataDurability::PERSISTENT);
         put("key", temporaryVal, TEMPORARY);
 
-        auto uniqueScVal = makeU64(uniqueVal);
-        auto temporaryScVal = makeU64(temporaryVal);
+        auto uniqueScVal = makeU64SCVal(uniqueVal);
+        auto temporaryScVal = makeU64SCVal(temporaryVal);
         auto keySymbol = makeSymbolSCVal("key");
 
         checkContractData(keySymbol, ContractDataDurability::PERSISTENT,
@@ -1170,7 +1155,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         put("key2", 3, ContractDataDurability::PERSISTENT);
         auto key2Symbol = makeSymbolSCVal("key2");
-        auto uniqueScVal2 = makeU64(3);
+        auto uniqueScVal2 = makeU64SCVal(3);
 
         checkContractData(key2Symbol, ContractDataDurability::PERSISTENT,
                           &uniqueScVal2);
@@ -1638,7 +1623,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
                                 uint32_t writeBytes, bool expectSuccess,
                                 ContractDataDurability type) {
         auto keySymbol = makeSymbolSCVal(key);
-        auto valU64 = makeU64(val);
+        auto valU64 = makeU64SCVal(val);
 
         std::string funcStr;
         switch (type)
@@ -1774,6 +1759,57 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE((v0.topics.size() == 2 && v0.topics.at(0).sym() == "core_metrics" &&
              v0.topics.at(1).sym() == "read_entry"));
     REQUIRE(v0.data.type() == SCV_U64);
+}
+
+TEST_CASE("invalid tx with diagnostics", "[tx][soroban]")
+{
+    // This test produces a diagnostic event _during validation_, i.e. before
+    // it ever makes it to the soroban host.
+
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    auto root = TestAccount::createRoot(*app);
+
+    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
+    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
+    auto const& contractID = contractKeys[0].contractData().contract;
+
+    auto sc1 = makeI32(7);
+    auto scMax = makeI32(INT32_MAX);
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = contractID;
+    ihf.invokeContract().functionName = makeSymbol("add");
+    ihf.invokeContract().args = {sc1, scMax};
+    SorobanResources resources;
+    resources.footprint.readOnly = contractKeys;
+    resources.instructions = 2'000'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+
+    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
+                                             {}, resources, 100'000,
+                                             DEFAULT_TEST_REFUNDABLE_FEE);
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+    REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+
+    auto const& diagEvents = tx->getDiagnosticEvents();
+    REQUIRE(diagEvents.size() == 1);
+
+    DiagnosticEvent const& diag_ev = diagEvents.at(0);
+    LOG_INFO(DEFAULT_LOG, "event 0: {}", xdr::xdr_to_string(diag_ev));
+    REQUIRE(!diag_ev.inSuccessfulContractCall);
+    REQUIRE(diag_ev.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(diag_ev.event.body.v0().topics.at(0).sym() == "error");
+    REQUIRE(diag_ev.event.body.v0().data.vec()->at(0).str().find(
+                "instructions") != std::string::npos);
 }
 
 TEST_CASE("complex contract", "[tx][soroban]")

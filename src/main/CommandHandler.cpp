@@ -785,6 +785,16 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                if (transaction->getResultCode() == txSOROBAN_INVALID &&
+                    mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+                {
+                    auto diagsBin =
+                        xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
+                    auto diagsBase64 = decoder::encode_b64(diagsBin);
+                    root["diagnostic_events"] = diagsBase64;
+                }
+#endif
             }
         }
     }

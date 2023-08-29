@@ -15,6 +15,9 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "xdr/Stellar-contract.h"
+#endif
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 
@@ -1857,6 +1860,39 @@ getLumenContractInfo(std::string networkPassphrase)
 
     return {lumenContractID, balanceSymbol, amountSymbol};
 }
+
+SCVal
+makeSymbolSCVal(std::string&& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeSymbolSCVal(std::string const& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(str);
+    return val;
+}
+
+SCVal
+makeStringSCVal(std::string&& str)
+{
+    SCVal val(SCV_STRING);
+    val.str().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeU64SCVal(uint64_t u)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u;
+    return val;
+}
+
 #endif
 
 namespace detail

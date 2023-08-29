@@ -313,5 +313,11 @@ struct LumenContractInfo
     SCVal mAmountSymbol;
 };
 LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+
+SCVal makeSymbolSCVal(std::string&& str);
+SCVal makeSymbolSCVal(std::string const& str);
+SCVal makeStringSCVal(std::string&& str);
+SCVal makeU64SCVal(uint64_t u);
+
 #endif
 }

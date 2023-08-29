@@ -4,6 +4,7 @@
 
 // clang-format off
 // This needs to be included first
+#include "TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "xdr/Stellar-contract.h"
 #include "rust/RustVecXdrMarshal.h"
 #endif
 // clang-format on
@@ -108,34 +110,18 @@ validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
     return true;
 }
 
-SCVal
-makeSymbol(std::string const& str)
-{
-    SCVal val(SCV_SYMBOL);
-    val.sym().assign(str.begin(), str.end());
-    return val;
-}
-
-SCVal
-makeU64(uint64_t u)
-{
-    SCVal val(SCV_U64);
-    val.u64() = u;
-    return val;
-}
-
 DiagnosticEvent
-metricsEvent(bool success, std::string const& topic, uint32 value)
+metricsEvent(bool success, std::string&& topic, uint32 value)
 {
     DiagnosticEvent de;
     de.inSuccessfulContractCall = success;
     de.event.type = ContractEventType::DIAGNOSTIC;
     SCVec topics = {
-        makeSymbol("core_metrics"),
-        makeSymbol(topic),
+        makeSymbolSCVal("core_metrics"),
+        makeSymbolSCVal(std::move(topic)),
     };
     de.event.body.v0().topics = topics;
-    de.event.body.v0().data = makeU64(value);
+    de.event.body.v0().data = makeU64SCVal(value);
     return de;
 }
 
@@ -670,6 +656,11 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > config.maxContractSizeBytes())
     {
+        mParentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "uploaded WASM size exceeds network config maximum contract size",
+            {makeU64SCVal(hostFn.wasm().size()),
+             makeU64SCVal(config.maxContractSizeBytes())});
         return false;
     }
     if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
@@ -678,6 +669,9 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "invalid asset to create contract from");
             return false;
         }
     }

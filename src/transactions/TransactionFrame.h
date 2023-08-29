@@ -136,7 +136,7 @@ class TransactionFrame : public TransactionFrameBase
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config,
-                                  uint32_t protocolVersion) const;
+                                  uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx);
     FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
@@ -195,6 +195,11 @@ class TransactionFrame : public TransactionFrameBase
     void setReturnValue(SCVal&& returnValue);
     void pushInitialExpirations(
         UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
+    void pushDiagnosticEvent(DiagnosticEvent&& evt);
+    void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
+                                   std::string&& message,
+                                   xdr::xvector<SCVal>&& args = {});
+    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
 #ifdef BUILD_TESTS
     // Used to test the behavior of the transaction fee bump feature.
     std::optional<FeePair>

@@ -31,10 +31,14 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "xdr/Stellar-contract.h"
+#endif
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
+#include <iterator>
 #include <string>
 
 #include "medida/meter.h"
@@ -131,6 +135,46 @@ void
 TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
     mDiagnosticEvents = evts;
+}
+
+void
+TransactionFrame::pushDiagnosticEvent(DiagnosticEvent&& evt)
+{
+    mDiagnosticEvents.emplace_back(evt);
+}
+
+void
+TransactionFrame::pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
+                                            std::string&& message,
+                                            xdr::xvector<SCVal>&& args)
+{
+    ContractEvent ce;
+    ce.type = DIAGNOSTIC;
+    ce.body.v(0);
+
+    SCVal sym = makeSymbolSCVal("error"), err;
+    err.type(SCV_ERROR);
+    err.error().type(ty);
+    err.error().code() = code;
+    ce.body.v0().topics.assign({std::move(sym), std::move(err)});
+
+    if (args.empty())
+    {
+        ce.body.v0().data.type(SCV_STRING);
+        ce.body.v0().data.str().assign(std::move(message));
+    }
+    else
+    {
+        ce.body.v0().data.type(SCV_VEC);
+        ce.body.v0().data.vec().activate();
+        ce.body.v0().data.vec()->reserve(args.size() + 1);
+        ce.body.v0().data.vec()->emplace_back(
+            makeStringSCVal(std::move(message)));
+        std::move(std::begin(args), std::end(args),
+                  std::back_inserter(*ce.body.v0().data.vec()));
+    }
+    DiagnosticEvent evt(false, std::move(ce));
+    pushDiagnosticEvent(std::move(evt));
 }
 
 void
@@ -587,27 +631,55 @@ TransactionFrame::validateSorobanOpsConsistency() const
 
 bool
 TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
-                                           uint32_t protocolVersion) const
+                                           uint32_t protocolVersion)
 {
     auto const& resources = sorobanResources();
     auto const& readEntries = resources.footprint.readOnly;
     auto const& writeEntries = resources.footprint.readWrite;
     if (resources.instructions > config.txMaxInstructions())
     {
+        pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "transaction instructions resources exceed network config limit",
+            {makeU64SCVal(resources.instructions),
+             makeU64SCVal(config.txMaxInstructions())});
         return false;
     }
     if (resources.readBytes > config.txMaxReadBytes())
     {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction byte-read resources exceed network config limit",
+            {makeU64SCVal(resources.readBytes),
+             makeU64SCVal(config.txMaxReadBytes())});
         return false;
     }
     if (resources.writeBytes > config.txMaxWriteBytes())
     {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction byte-write resources exceed network config limit",
+            {makeU64SCVal(resources.writeBytes),
+             makeU64SCVal(config.txMaxWriteBytes())});
         return false;
     }
     if (readEntries.size() + writeEntries.size() >
-            config.txMaxReadLedgerEntries() ||
-        writeEntries.size() > config.txMaxWriteLedgerEntries())
+        config.txMaxReadLedgerEntries())
     {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction entry-read resources exceed network config limit",
+            {makeU64SCVal(readEntries.size() + writeEntries.size()),
+             makeU64SCVal(config.txMaxReadLedgerEntries())});
+        return false;
+    }
+    if (writeEntries.size() > config.txMaxWriteLedgerEntries())
+    {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction entry-write resources exceed network config limit",
+            {makeU64SCVal(writeEntries.size()),
+             makeU64SCVal(config.txMaxWriteLedgerEntries())});
         return false;
     }
     auto footprintKeyIsValid = [&](LedgerKey const& key) -> bool {
@@ -624,6 +696,9 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
                 (tl.asset.type() == ASSET_TYPE_NATIVE) ||
                 isIssuer(tl.accountID, tl.asset))
             {
+                this->pushSimpleDiagnosticError(
+                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    "transaction footprint contains invalid trustline asset");
                 return false;
             }
             break;
@@ -634,6 +709,10 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
         case EXPIRATION:
+            this->pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
+                "transaction footprint contains unsupported ledger key type",
+                {makeU64SCVal(key.type())});
             return false;
         default:
             throw std::runtime_error("unknown ledger key type");
@@ -641,6 +720,11 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 
         if (xdr::xdr_size(key) > config.maxContractDataKeySizeBytes())
         {
+            this->pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                "transaction footprint key exceeds network config limit",
+                {makeU64SCVal(xdr::xdr_size(key)),
+                 makeU64SCVal(config.maxContractDataKeySizeBytes())});
             return false;
         }
 
@@ -663,6 +747,10 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
     if (txSize > config.txMaxSizeBytes())
     {
+        pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "total transaction size exceeds network config limit",
+            {makeU64SCVal(txSize), makeU64SCVal(config.txMaxSizeBytes())});
         return false;
     }
     return true;
@@ -968,7 +1056,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
         if (!validateSorobanResources(sorobanConfig, ledgerVersion))
         {
-            getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
 
@@ -1719,4 +1807,12 @@ TransactionFrame::toStellarMessage() const
     msg.transaction() = mEnvelope;
     return msg;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+xdr::xvector<DiagnosticEvent> const&
+TransactionFrame::getDiagnosticEvents() const
+{
+    return mDiagnosticEvents;
+}
+#endif
 }
