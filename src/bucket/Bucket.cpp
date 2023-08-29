@@ -861,17 +861,28 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         if (be.type() == INITENTRY || be.type() == LIVEENTRY)
         {
             auto const& le = be.liveEntry();
-            if (isTemporaryEntry(le.data) && !isLive(le, ledgerSeq))
+            if (isTemporaryEntry(le.data))
             {
-                // This check ensures:
-                // 1. The entry being scanned is not deleted, i.e., has not been
-                //    evicted by a previous scan.
-                // 2. The entry being scanned is not shadowed by a newer, live
-                //    version of the entry.
-                auto ltxe = ltx.load(LedgerEntryKey(le));
-                if (ltxe && !isLive(ltxe.current(), ledgerSeq))
+                auto expirationKey = getExpirationKey(le);
+                auto shouldEvict = [&] {
+                    auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
+                    if (!entryLtxe)
+                    {
+                        // Entry was already deleted either manually or by an
+                        // earlier eviction scan, do nothing
+                        return false;
+                    }
+
+                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+                    releaseAssert(expirationLtxe);
+
+                    return !isLive(expirationLtxe.current(), ledgerSeq);
+                };
+
+                if (shouldEvict())
                 {
-                    ltxe.erase();
+                    ltx.erase(expirationKey);
+                    ltx.erase(LedgerEntryKey(le));
                     entriesEvictedMeter.Mark();
                     --maxEntriesToEvict;
                 }
