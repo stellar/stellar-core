@@ -1523,7 +1523,12 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         [&](std::string const& key, ContractDataDurability type,
             uint32_t ledgerSeq, bool expectedIsLive) {
             auto le = loadStorageEntry(*app, contractID, key, type);
-            REQUIRE(isLive(le, ledgerSeq) == expectedIsLive);
+            auto expirationKey = getExpirationKey(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+            REQUIRE(expirationLtxe);
+            REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) ==
+                    expectedIsLive);
         };
 
     auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY);
@@ -1553,8 +1558,10 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         REQUIRE(lcm.v() == 2);
         if (lcm.v2().ledgerHeader.header.ledgerSeq == 4097)
         {
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.size() == 1);
+            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.size() == 2);
             REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[0] == lk);
+            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[1] ==
+                    getExpirationKey(lk));
             evicted = true;
         }
         else

@@ -1760,9 +1760,15 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
     le.data.contractData().durability = TEMPORARY;
     le.data.contractData().key = key;
     le.data.contractData().val = val;
-    // TODO: Insert ExpirationEntries
+
+    LedgerEntry expiration;
+    expiration.data.type(EXPIRATION);
+    expiration.data.expiration().keyHash =
+        getExpirationKey(le).expiration().keyHash;
+    expiration.data.expiration().expirationLedgerSeq = UINT32_MAX;
 
     ltx.create(InternalLedgerEntry(le));
+    ltx.create(InternalLedgerEntry(expiration));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
     return ConfigUpgradeSetFrame::makeFromKey(ltx, upgradeKey);

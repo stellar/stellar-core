@@ -862,7 +862,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         std::vector<LedgerEntry> entries;
         for (auto& e :
              LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                 {CONTRACT_DATA}, 10))
+                 {CONTRACT_DATA}, 5))
         {
             // Set half of the entries to be persistent, half temporary
             if (rand_flip())
@@ -1025,7 +1025,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 lm.setNextLedgerEntryBatchForBucketTesting(
                     {},
                     LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {CONFIG_SETTING}, 10),
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE}, 10),
                     {});
                 closeLedger(*app);
             }
@@ -1069,7 +1069,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                         {},
                         LedgerTestUtils::
                             generateValidLedgerEntriesWithExclusions(
-                                {CONFIG_SETTING}, 10),
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE},
+                                10),
                         {});
                     closeLedger(*app);
                 }
