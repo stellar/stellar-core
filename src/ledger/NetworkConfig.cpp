@@ -31,40 +31,55 @@ createConfigSettingEntry(ConfigSettingEntry const& configSetting,
 }
 
 ConfigSettingEntry
-initialMaxContractSizeEntry()
+initialMaxContractSizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
 
     entry.contractMaxSizeBytes() =
         InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE;
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        entry.contractMaxSizeBytes() =
+            TestOverrideSorobanNetworkConfig::MAX_CONTRACT_SIZE;
+    }
 
     return entry;
 }
 
 ConfigSettingEntry
-initialMaxContractDataKeySizeEntry()
+initialMaxContractDataKeySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
 
     entry.contractDataKeySizeBytes() =
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        entry.contractDataKeySizeBytes() =
+            TestOverrideSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
+    }
 
     return entry;
 }
 
 ConfigSettingEntry
-initialMaxContractDataEntrySizeEntry()
+initialMaxContractDataEntrySizeEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
 
     entry.contractDataEntrySizeBytes() =
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        entry.contractDataEntrySizeBytes() = TestOverrideSorobanNetworkConfig::
+            MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
+    }
 
     return entry;
 }
 
 ConfigSettingEntry
-initialContractComputeSettingsEntry()
+initialContractComputeSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     auto& e = entry.contractCompute();
@@ -77,11 +92,20 @@ initialContractComputeSettingsEntry()
         InitialSorobanNetworkConfig::FEE_RATE_PER_INSTRUCTIONS_INCREMENT;
     e.txMemoryLimit = InitialSorobanNetworkConfig::MEMORY_LIMIT;
 
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        e.ledgerMaxInstructions =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+        e.txMaxInstructions =
+            TestOverrideSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+        e.txMemoryLimit = TestOverrideSorobanNetworkConfig::MEMORY_LIMIT;
+    }
+
     return entry;
 }
 
 ConfigSettingEntry
-initialContractLedgerAccessSettingsEntry()
+initialContractLedgerAccessSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
     auto& e = entry.contractLedgerCost();
@@ -114,6 +138,25 @@ initialContractLedgerAccessSettingsEntry()
     e.bucketListWriteFeeGrowthFactor =
         InitialSorobanNetworkConfig::BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR;
 
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        e.ledgerMaxReadLedgerEntries =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
+        e.ledgerMaxReadBytes =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
+        e.ledgerMaxWriteLedgerEntries =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+        e.ledgerMaxWriteBytes =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+        e.txMaxReadLedgerEntries =
+            TestOverrideSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+        e.txMaxReadBytes = TestOverrideSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        e.txMaxWriteLedgerEntries =
+            TestOverrideSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
+        e.txMaxWriteBytes =
+            TestOverrideSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+    }
+
     return entry;
 }
 
@@ -129,7 +172,7 @@ initialContractHistoricalDataSettingsEntry()
 }
 
 ConfigSettingEntry
-initialContractEventsSettingsEntry()
+initialContractEventsSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EVENTS_V0);
     auto& e = entry.contractEvents();
@@ -139,11 +182,16 @@ initialContractEventsSettingsEntry()
     e.feeContractEvents1KB =
         InitialSorobanNetworkConfig::FEE_CONTRACT_EVENTS_SIZE_1KB;
 
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        e.txMaxContractEventsSizeBytes =
+            TestOverrideSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
+    }
     return entry;
 }
 
 ConfigSettingEntry
-initialContractBandwidthSettingsEntry()
+initialContractBandwidthSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
     auto& e = entry.contractBandwidth();
@@ -154,15 +202,29 @@ initialContractBandwidthSettingsEntry()
 
     e.feeTxSize1KB = InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
 
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        e.ledgerMaxTxsSizeBytes = TestOverrideSorobanNetworkConfig::
+            LEDGER_MAX_TRANSACTION_SIZES_BYTES;
+        e.txMaxSizeBytes = TestOverrideSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+    }
+
     return entry;
 }
 
 ConfigSettingEntry
-initialContractExecutionLanesSettingsEntry()
+initialContractExecutionLanesSettingsEntry(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
     auto& e = entry.contractExecutionLanes();
     e.ledgerMaxTxCount = InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
+
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        e.ledgerMaxTxCount =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
+    }
+
     return entry;
 }
 
@@ -309,6 +371,12 @@ initialStateExpirationSettings(Config const& cfg)
         InitialSorobanNetworkConfig::PERSISTENT_RENT_RATE_DENOMINATOR;
     entry.stateExpirationSettings().tempRentRateDenominator =
         InitialSorobanNetworkConfig::TEMP_RENT_RATE_DENOMINATOR;
+
+    if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+    {
+        entry.stateExpirationSettings().maxEntryExpiration =
+            TestOverrideSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
+    }
     return entry;
 }
 
@@ -590,19 +658,21 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                                 Application& app)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    createConfigSettingEntry(initialMaxContractSizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(), ltx);
+    auto const& cfg = app.getConfig();
+    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg),
+                             ltx);
     createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractEventsSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(), ltx);
+    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
+                             ltx);
     createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
     createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialStateExpirationSettings(app.getConfig()),
-                             ltx);
+    createConfigSettingEntry(initialStateExpirationSettings(cfg), ltx);
     createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
     createConfigSettingEntry(initialEvictionIterator(), ltx);
 #endif
