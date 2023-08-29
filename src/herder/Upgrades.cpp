@@ -1300,11 +1300,20 @@ ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
 {
-    auto ltxe = ltx.loadWithoutRecord(ConfigUpgradeSetFrame::getLedgerKey(key));
-    if (!ltxe || !isLive(ltxe.current(), ltx.getHeader().ledgerSeq))
+    auto lk = ConfigUpgradeSetFrame::getLedgerKey(key);
+    auto ltxe = ltx.loadWithoutRecord(lk);
+    if (!ltxe)
     {
         return nullptr;
     }
+
+    auto expirationLtxe = ltx.loadWithoutRecord(getExpirationKey(lk));
+    releaseAssert(expirationLtxe);
+    if (!isLive(expirationLtxe.current(), ltx.getHeader().ledgerSeq))
+    {
+        return nullptr;
+    }
+
     auto const& contractData = ltxe.current().data.contractData();
     if (contractData.val.type() != SCV_BYTES ||
         contractData.durability != TEMPORARY)
