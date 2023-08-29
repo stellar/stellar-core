@@ -1478,8 +1478,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = readBool(item);
 
-                LOG_WARNING(DEFAULT_LOG, "Overriding Soroban limits with "
-                                         "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
+                if (TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+                {
+                    LOG_WARNING(DEFAULT_LOG,
+                                "Overriding Soroban limits with "
+                                "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
+                }
             }
 #endif
             else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")

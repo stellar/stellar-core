@@ -577,7 +577,7 @@ class Config : public std::enable_shared_from_this<Config>
     // for testing.
     uint32_t TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME;
 
-    //TODO: add comment
+    // Increase all initial max limits to higher values for testing
     bool TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE;
 #endif
 
