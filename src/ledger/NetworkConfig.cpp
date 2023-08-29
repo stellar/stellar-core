@@ -37,10 +37,10 @@ initialMaxContractSizeEntry(Config const& cfg)
 
     entry.contractMaxSizeBytes() =
         InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE;
-
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        entry.contractMaxSizeBytes() *= 32;
+        entry.contractMaxSizeBytes() =
+            TestOverrideSorobanNetworkConfig::MAX_CONTRACT_SIZE;
     }
 
     return entry;
@@ -55,7 +55,8 @@ initialMaxContractDataKeySizeEntry(Config const& cfg)
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        entry.contractDataKeySizeBytes() *= 10;
+        entry.contractDataKeySizeBytes() =
+            TestOverrideSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
     }
 
     return entry;
@@ -70,7 +71,8 @@ initialMaxContractDataEntrySizeEntry(Config const& cfg)
         InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        entry.contractDataEntrySizeBytes() *= 10;
+        entry.contractDataEntrySizeBytes() = TestOverrideSorobanNetworkConfig::
+            MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
     }
 
     return entry;
@@ -92,9 +94,11 @@ initialContractComputeSettingsEntry(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.ledgerMaxInstructions *= 50;
-        e.txMaxInstructions *= 50;
-        e.txMemoryLimit *= 10;
+        e.ledgerMaxInstructions =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
+        e.txMaxInstructions =
+            TestOverrideSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+        e.txMemoryLimit = TestOverrideSorobanNetworkConfig::MEMORY_LIMIT;
     }
 
     return entry;
@@ -136,14 +140,21 @@ initialContractLedgerAccessSettingsEntry(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.ledgerMaxReadLedgerEntries *= 10;
-        e.ledgerMaxReadBytes *= 10;
-        e.ledgerMaxWriteLedgerEntries *= 10;
-        e.ledgerMaxWriteBytes *= 10;
-        e.txMaxReadLedgerEntries *= 10;
-        e.txMaxReadBytes *= 10;
-        e.txMaxWriteLedgerEntries *= 10;
-        e.txMaxWriteBytes *= 10;
+        e.ledgerMaxReadLedgerEntries =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_LEDGER_ENTRIES;
+        e.ledgerMaxReadBytes =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_READ_BYTES;
+        e.ledgerMaxWriteLedgerEntries =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+        e.ledgerMaxWriteBytes =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_WRITE_BYTES;
+        e.txMaxReadLedgerEntries =
+            TestOverrideSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+        e.txMaxReadBytes = TestOverrideSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        e.txMaxWriteLedgerEntries =
+            TestOverrideSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
+        e.txMaxWriteBytes =
+            TestOverrideSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
     }
 
     return entry;
@@ -173,7 +184,8 @@ initialContractEventsSettingsEntry(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.txMaxContractEventsSizeBytes *= 20;
+        e.txMaxContractEventsSizeBytes =
+            TestOverrideSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     }
     return entry;
 }
@@ -192,8 +204,9 @@ initialContractBandwidthSettingsEntry(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.ledgerMaxTxsSizeBytes *= 5;
-        e.txMaxSizeBytes *= 5;
+        e.ledgerMaxTxsSizeBytes = TestOverrideSorobanNetworkConfig::
+            LEDGER_MAX_TRANSACTION_SIZES_BYTES;
+        e.txMaxSizeBytes = TestOverrideSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     }
 
     return entry;
@@ -208,7 +221,8 @@ initialContractExecutionLanesSettingsEntry(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        e.ledgerMaxTxCount *= 5;
+        e.ledgerMaxTxCount =
+            TestOverrideSorobanNetworkConfig::LEDGER_MAX_TX_COUNT;
     }
 
     return entry;
@@ -360,7 +374,8 @@ initialStateExpirationSettings(Config const& cfg)
 
     if (cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
     {
-        entry.stateExpirationSettings().maxEntryExpiration = 6307200; // 1 year
+        entry.stateExpirationSettings().maxEntryExpiration =
+            TestOverrideSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
     }
     return entry;
 }
