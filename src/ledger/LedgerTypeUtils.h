@@ -11,8 +11,10 @@ namespace stellar
 {
 bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey getExpirationKey(LedgerEntry const& e);
 LedgerKey getExpirationKey(LedgerKey const& e);
+#endif
 
 template <typename T>
 bool

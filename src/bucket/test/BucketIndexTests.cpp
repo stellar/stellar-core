@@ -39,11 +39,6 @@ class BucketIndexTest
     stellar::uniform_int_distribution<uint8_t> mDist;
     uint32_t mLevelsToBuild;
 
-    bool const mExpirationEntriesOnly;
-
-    uint32_t const ORIGINAL_EXPIRATION = 5000;
-    uint32_t const NEW_EXPIRATION = 6000;
-
     static void
     validateResults(UnorderedMap<LedgerKey, LedgerEntry> const& validEntries,
                     std::vector<LedgerEntry> const& blEntries)
@@ -72,38 +67,24 @@ class BucketIndexTest
         do
         {
             ++ledger;
-            std::vector<LedgerEntry> entries;
-
+            std::vector<LedgerEntry> entries =
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (mExpirationEntriesOnly)
-            {
-                entries =
-                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                        {CONTRACT_DATA, CONTRACT_CODE}, 10);
-                // TODO: Insert ExpirationEntries
-            }
-            else
+                        CONFIG_SETTING
 #endif
-                entries =
-                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        10);
+                    },
+                    10);
             f(entries);
             closeLedger(*mApp);
         } while (!BucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
     }
 
   public:
-    BucketIndexTest(Config const& cfg, uint32_t levels = 6,
-                    bool expirationEntriesOnly = false)
+    BucketIndexTest(Config const& cfg, uint32_t levels = 6)
         : mClock(std::make_unique<VirtualClock>())
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
-        , mExpirationEntriesOnly(expirationEntriesOnly)
     {
     }
 
@@ -200,10 +181,6 @@ class BucketIndexTest
             static uint32_t expiration = 10000;
             auto le = templateEntry;
             le.data.contractData().durability = t;
-
-            // Distinguish entries via expiration ledger
-            // TODO: Expiraiton entry
-            // le.data.contractData().expirationLedgerSeq = ++expiration;
             return le;
         };
 
@@ -525,8 +502,7 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
 TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
-        auto test =
-            BucketIndexTest(cfg, /*levels=*/1, /*expirationEntriesOnly=*/true);
+        auto test = BucketIndexTest(cfg, /*levels=*/1);
         test.buildGeneralTest();
         test.insertSimilarContractDataKeys();
         test.run();

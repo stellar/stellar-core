@@ -653,7 +653,9 @@ std::vector<LedgerKey>
 generateUniqueValidSorobanLedgerEntryKeys(size_t n)
 {
     return LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
-        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING}, n);
+        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING,
+         EXPIRATION},
+        n);
 }
 #endif
 

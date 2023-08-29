@@ -1519,17 +1519,17 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         closeLedger(*app, {tx});
     };
 
-    auto checkContractDataExpirationState =
-        [&](std::string const& key, ContractDataDurability type,
-            uint32_t ledgerSeq, bool expectedIsLive) {
-            auto le = loadStorageEntry(*app, contractID, key, type);
-            auto expirationKey = getExpirationKey(le);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-            REQUIRE(expirationLtxe);
-            REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) ==
-                    expectedIsLive);
-        };
+    auto checkContractDataExpirationState = [&](std::string const& key,
+                                                ContractDataDurability type,
+                                                uint32_t ledgerSeq,
+                                                bool expectedIsLive) {
+        auto le = loadStorageEntry(*app, contractID, key, type);
+        auto expirationKey = getExpirationKey(le);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+        REQUIRE(expirationLtxe);
+        REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) == expectedIsLive);
+    };
 
     auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY);
     putWithFootprint("temp", 0, contractKeys, {lk}, 1000, true, TEMPORARY);
