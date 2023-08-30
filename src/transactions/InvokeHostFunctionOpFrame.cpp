@@ -407,7 +407,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 {
                     auto expirationKey = getExpirationKey(lk);
                     auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-                    releaseAssert(expirationLtxe);
+                    releaseAssertOrThrow(expirationLtxe);
                     if (!isLive(expirationLtxe.current(),
                                 ltx.getHeader().ledgerSeq))
                     {
@@ -533,7 +533,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     }
 
     // Create or update every entry returned.
-    UnorderedSet<LedgerKey> remainingRWKeys;
+    UnorderedSet<LedgerKey> createdAndModifiedKeys;
+    UnorderedSet<LedgerKey> createdKeys;
     for (auto const& buf : out.modified_ledger_entries)
     {
         LedgerEntry le;
@@ -545,7 +546,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
 
         auto lk = LedgerEntryKey(le);
-        remainingRWKeys.insert(lk);
+        createdAndModifiedKeys.insert(lk);
 
         uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
         uint32 entrySize = static_cast<uint32>(buf.data.size());
@@ -571,6 +572,19 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         else
         {
             ltx.create(le);
+            createdKeys.insert(lk);
+        }
+    }
+
+    // Check that each newly created ContractCode or ContractData entry also
+    // creates an ExpirationEntry
+    for (auto const& key : createdKeys)
+    {
+        if (isSorobanEntry(key))
+        {
+            auto expirationKey = getExpirationKey(key);
+            releaseAssertOrThrow(createdKeys.find(expirationKey) !=
+                                 createdKeys.end());
         }
     }
 
@@ -580,7 +594,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     // that hasn't been removed by host explicitly.
     for (auto const& lk : footprint.readWrite)
     {
-        if (remainingRWKeys.find(lk) == remainingRWKeys.end())
+        if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
         {
             auto ltxe = ltx.load(lk);
             if (ltxe)
@@ -592,7 +606,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 {
                     auto expirationLK = getExpirationKey(lk);
                     auto expirationLtxe = ltx.load(expirationLK);
-                    releaseAssert(expirationLtxe);
+                    releaseAssertOrThrow(expirationLtxe);
                     ltx.erase(expirationLK);
                 }
             }

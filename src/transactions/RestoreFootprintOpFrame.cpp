@@ -87,7 +87,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         auto expirationKey = getExpirationKey(lk);
         {
             auto constExpirationLtxe = ltx.loadWithoutRecord(expirationKey);
-            releaseAssert(constExpirationLtxe);
+            releaseAssertOrThrow(constExpirationLtxe);
 
             entrySize =
                 static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));

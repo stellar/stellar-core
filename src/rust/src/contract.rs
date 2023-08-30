@@ -210,7 +210,7 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
 
 fn extract_ledger_effects(
     entry_changes: Vec<LedgerEntryChange>,
-) -> Vec<RustBuf> {
+) -> Result<Vec<RustBuf>, HostError> {
     let mut modified_entries = vec![];
 
     for change in entry_changes {
@@ -228,7 +228,12 @@ fn extract_ledger_effects(
                 // entry_changes only encode LedgerEntry changes for ContractCode and ContractData
                 // entries. Changes to ExpirationEntry are recorded in expiration_change, but does
                 // not contain an encoded ExpirationEntry. We must build that here.
-                let hash_bytes: [u8; 32] = expiration_change.key_hash.try_into().unwrap();
+                let hash_bytes: [u8; 32] = expiration_change.key_hash
+                    .try_into()
+                    .map_err(|_| {
+                        (ScErrorType::Value, ScErrorCode::InternalError)
+                    })?;
+
                 let le = LedgerEntry {
                     last_modified_ledger_seq: 0,
                     data: LedgerEntryData::Expiration(ExpirationEntry {
@@ -237,13 +242,14 @@ fn extract_ledger_effects(
                     ext: LedgerEntryExt::V0
                 };
 
-                let encoded = non_metered_xdr_to_rust_buf(&le).unwrap();
+                let encoded = non_metered_xdr_to_rust_buf(&le)
+                    .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
                 modified_entries.push(encoded);
             }
         }
     }
 
-    modified_entries
+    Ok(modified_entries)
 }
 
 /// Deserializes an [`xdr::HostFunction`] host function XDR object an
@@ -362,7 +368,7 @@ fn invoke_host_function_or_maybe_panic(
                     ledger_seq_num,
                 );
                 let modified_ledger_entries =
-                    extract_ledger_effects(res.ledger_changes);
+                    extract_ledger_effects(res.ledger_changes)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
                     diagnostic_events: encode_diagnostic_events(&diagnostic_events),

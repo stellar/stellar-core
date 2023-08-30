@@ -52,11 +52,11 @@ optional = true
 version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "5dc7547a4b15028787d57a849a7684802d899fc7"
+rev = "ee3896617f5eeb06d6346e2fbf70cb44d0823b27"
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "ee3896617f5eeb06d6346e2fbf70cb44d0823b27"
+rev = "eb5a9ba053a7b64a8eff605db625525378f7bea0"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"

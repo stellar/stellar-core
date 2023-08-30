@@ -87,7 +87,7 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             // Initially load without record since we may not need to modify
             // entry
             auto expirationConstLtxe = ltx.loadWithoutRecord(expirationKey);
-            releaseAssert(expirationConstLtxe);
+            releaseAssertOrThrow(expirationConstLtxe);
             if (!isLive(expirationConstLtxe.current(), ledgerSeq))
             {
                 // Also skip expired entries, as those must be restored

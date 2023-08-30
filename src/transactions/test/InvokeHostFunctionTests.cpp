@@ -366,6 +366,31 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         return tx->checkValid(*app, ltx, 0, 0, 0);
     };
 
+    auto isBumpOpValid = [&](SorobanResources const& resources) -> bool {
+        Operation op;
+        op.body.type(BUMP_FOOTPRINT_EXPIRATION);
+        op.body.bumpFootprintExpirationOp().ledgersToExpire = 10;
+
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources, 100'000,
+                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return tx->checkValid(*app, ltx, 0, 0, 0);
+    };
+
+    auto isRestorationOpValid = [&](SorobanResources const& resources) -> bool {
+        Operation op;
+        op.body.type(RESTORE_FOOTPRINT);
+
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources, 200'000,
+                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return tx->checkValid(*app, ltx, 0, 0, 0);
+    };
+
     auto call = [&](SorobanResources const& resources, uint32_t refundableFee,
                     SCAddress const& address, SCSymbol const& functionName,
                     std::vector<SCVal> const& args, bool success) {
@@ -548,6 +573,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     }
     SECTION("invalid footprint keys")
     {
+
+        auto persistentKey =
+            contractDataKey(contractID, makeSymbolSCVal("key1"),
+                            ContractDataDurability::PERSISTENT);
+        auto expirationKey = getExpirationKey(persistentKey);
         auto invalidFootprint = [&](xdr::xvector<stellar::LedgerKey>&
                                         footprint) {
             auto acc = root.create(
@@ -609,6 +639,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 footprint.emplace_back(configSettingKey(ConfigSettingID{}));
                 REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
             }
+            SECTION("expiration entry")
+            {
+                footprint.emplace_back(expirationKey);
+                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
+            }
         };
 
         SECTION("readOnly")
@@ -618,6 +653,66 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         SECTION("readWrite")
         {
             invalidFootprint(resources.footprint.readWrite);
+        }
+        SECTION("bumpOp")
+        {
+            SECTION("valid")
+            {
+                REQUIRE(isBumpOpValid(resources));
+            }
+            SECTION("non empty RW set")
+            {
+                resources.footprint.readWrite.emplace_back(persistentKey);
+                REQUIRE(!isBumpOpValid(resources));
+            }
+            SECTION("expiration entry")
+            {
+                resources.footprint.readOnly.emplace_back(expirationKey);
+                REQUIRE(!isBumpOpValid(resources));
+            }
+            SECTION("non soroban entry")
+            {
+                auto entries =
+                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                        {CONTRACT_CODE, CONTRACT_DATA}, 10);
+                for (auto const& entry : entries)
+                {
+                    resources.footprint.readOnly.emplace_back(entry);
+                    REQUIRE(!isBumpOpValid(resources));
+                    resources.footprint.readOnly.pop_back();
+                }
+            }
+        }
+        SECTION("restoreOp")
+        {
+            resources.footprint.readWrite = resources.footprint.readOnly;
+            resources.footprint.readOnly.clear();
+            SECTION("valid")
+            {
+                REQUIRE(isRestorationOpValid(resources));
+            }
+            SECTION("non empty RO set")
+            {
+                resources.footprint.readOnly.emplace_back(persistentKey);
+                REQUIRE(!isRestorationOpValid(resources));
+            }
+            SECTION("expiration entry")
+            {
+                resources.footprint.readWrite.emplace_back(expirationKey);
+                REQUIRE(!isRestorationOpValid(resources));
+            }
+            SECTION("non soroban entry")
+            {
+                auto entries =
+                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                        {CONTRACT_CODE, CONTRACT_DATA}, 10);
+                for (auto const& entry : entries)
+                {
+                    resources.footprint.readWrite.emplace_back(entry);
+                    REQUIRE(!isRestorationOpValid(resources));
+                    resources.footprint.readWrite.pop_back();
+                }
+            }
         }
     }
 }
@@ -810,13 +905,15 @@ TEST_CASE("contract storage", "[tx][soroban]")
             expectSuccess, type);
     };
 
-    auto bumpWithFootprint = [&](std::string const& key, uint32_t bumpAmount,
+    auto bumpWithFootprint = [&](std::string const& key, uint32_t lowLifetime,
+                                 uint32_t highLifetime,
                                  xdr::xvector<LedgerKey> const& readOnly,
                                  xdr::xvector<LedgerKey> const& readWrite,
                                  bool expectSuccess,
                                  ContractDataDurability type) {
         auto keySymbol = makeSymbolSCVal(key);
-        auto bumpAmountU32 = makeU32(bumpAmount);
+        auto lowLifetimeU32 = makeU32(lowLifetime);
+        auto highLifetimeU32 = makeU32(highLifetime);
 
         std::string funcStr;
         switch (type)
@@ -830,11 +927,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         // TODO: Better bytes to write value
-
-        // TODO: Low/high watermark tests
         auto [tx, ltx, txm] =
             createTx(readOnly, readWrite, 1000, contractID, makeSymbol(funcStr),
-                     {keySymbol, bumpAmountU32, bumpAmountU32});
+                     {keySymbol, lowLifetimeU32, highLifetimeU32});
 
         if (expectSuccess)
         {
@@ -848,12 +943,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
         ltx->commit();
     };
 
-    auto bump = [&](std::string const& key, ContractDataDurability type,
-                    uint32_t bumpAmount) {
+    auto bumpLowHigh = [&](std::string const& key, ContractDataDurability type,
+                           uint32_t lowLifetime, uint32_t highLifetime) {
         bumpWithFootprint(
-            key, bumpAmount, contractKeys,
+            key, lowLifetime, highLifetime, contractKeys,
             {contractDataKey(contractID, makeSymbolSCVal(key), type)}, true,
             type);
+    };
+
+    auto bumpExact = [&](std::string const& key, ContractDataDurability type,
+                         uint32_t bumpAmount) {
+        bumpLowHigh(key, type, bumpAmount, bumpAmount);
     };
 
     auto runExpirationOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
@@ -1249,23 +1349,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
     {
         // Large bump, followed by smaller bump
         put("key", 0, ContractDataDurability::PERSISTENT);
-        bump("key", ContractDataDurability::PERSISTENT, 10'000);
+        bumpExact("key", ContractDataDurability::PERSISTENT, 10'000);
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
         // Expiration already above 5'000, should be a no-op
-        bump("key", ContractDataDurability::PERSISTENT, 5'000);
+        bumpExact("key", ContractDataDurability::PERSISTENT, 5'000);
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
         // Small bump followed by larger bump
         put("key2", 0, ContractDataDurability::PERSISTENT);
-        bump("key2", ContractDataDurability::PERSISTENT, 5'000);
+        bumpExact("key2", ContractDataDurability::PERSISTENT, 5'000);
         checkContractDataExpirationLedger(
             "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 5'000);
 
         put("key3", 0, ContractDataDurability::PERSISTENT);
-        bump("key3", ContractDataDurability::PERSISTENT, 50'000);
+        bumpExact("key3", ContractDataDurability::PERSISTENT, 50'000);
         checkContractDataExpirationLedger(
             "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
 
@@ -1288,6 +1388,44 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // from now
         checkContractDataExpirationLedger(
             "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
+
+        SECTION("low/high watermark")
+        {
+            uint32_t intialExpiration =
+                stateExpirationSettings.minPersistentEntryExpiration +
+                ledgerSeq - 1;
+
+            put("key4", 0, ContractDataDurability::PERSISTENT);
+
+            // After the put op, key4's lifetime will be minimumLifetime - 1.
+            // Set low lifetime to minimumLifetime - 2 so bump does not occur
+            bumpLowHigh("key4", ContractDataDurability::PERSISTENT,
+                        stateExpirationSettings.minPersistentEntryExpiration -
+                            2,
+                        50'000);
+            checkContractDataExpirationLedger(
+                "key4", ContractDataDurability::PERSISTENT, intialExpiration);
+
+            // Close one ledger
+            ledgerSeq = app->getLedgerManager().getLastClosedLedgerNum();
+            closeLedgerOn(*app, ledgerSeq + 1, 2, 1, 2016);
+            ++ledgerSeq;
+
+            // Lifetime is now at low threshold, should be bumped
+            bumpLowHigh("key4", ContractDataDurability::PERSISTENT,
+                        stateExpirationSettings.minPersistentEntryExpiration -
+                            2,
+                        50'000);
+            checkContractDataExpirationLedger(
+                "key4", ContractDataDurability::PERSISTENT, 50'000 + ledgerSeq);
+
+            // Check that low watermark > high watermark fails
+            bumpWithFootprint(
+                "key4", 60'000, 50'000, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key4"),
+                                 ContractDataDurability::PERSISTENT)},
+                false, ContractDataDurability::PERSISTENT);
+        }
     }
 
     SECTION("restore expired entry")
@@ -1394,14 +1532,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
     {
         // Check that attempting to bump past max ledger results in error
         put("key", 0, ContractDataDurability::PERSISTENT);
-        bumpWithFootprint("key", UINT32_MAX, contractKeys,
+        bumpWithFootprint("key", UINT32_MAX, UINT32_MAX, contractKeys,
                           {contractDataKey(contractID, makeSymbolSCVal("key"),
                                            ContractDataDurability::PERSISTENT)},
                           false, ContractDataDurability::PERSISTENT);
 
         // Make sure maximum bump succeeds
-        bump("key", ContractDataDurability::PERSISTENT,
-             stateExpirationSettings.maxEntryExpiration - 1);
+        bumpExact("key", ContractDataDurability::PERSISTENT,
+                  stateExpirationSettings.maxEntryExpiration - 1);
 
         auto maxExpiration =
             ledgerSeq + stateExpirationSettings.maxEntryExpiration - 1;
