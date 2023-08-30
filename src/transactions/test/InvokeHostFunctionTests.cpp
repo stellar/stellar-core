@@ -1917,123 +1917,225 @@ TEST_CASE("complex contract", "[tx][soroban]")
     }
 }
 
-TEST_CASE("Stellar asset contract XLM transfer",
+TEST_CASE("Stellar asset contract transfer",
           "[tx][soroban][invariant][conservationoflumens]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    // Override the initial limits for the trustline to trustline transfer
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
+    auto app = createTestApplication(clock, cfg);
     overrideSorobanNetworkConfigForTest(*app);
     auto root = TestAccount::createRoot(*app);
-    auto xlm = txtest::makeNativeAsset();
 
-    // Create XLM contract
-    HashIDPreimage preImage;
-    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    preImage.contractID().contractIDPreimage.type(
-        CONTRACT_ID_PREIMAGE_FROM_ASSET);
-    preImage.contractID().contractIDPreimage.fromAsset() = xlm;
-    preImage.contractID().networkID = app->getNetworkID();
-    auto contractID = makeContractAddress(xdrSha256(preImage));
+    auto createAssetContract =
+        [&](Asset const& asset) -> std::pair<SCAddress, LedgerKey> {
+        HashIDPreimage preImage;
+        preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+        preImage.contractID().contractIDPreimage.type(
+            CONTRACT_ID_PREIMAGE_FROM_ASSET);
+        preImage.contractID().contractIDPreimage.fromAsset() = asset;
+        preImage.contractID().networkID = app->getNetworkID();
+        auto contractID = makeContractAddress(xdrSha256(preImage));
 
-    Operation createOp;
-    createOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& createHF = createOp.body.invokeHostFunctionOp();
-    createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.hostFunction.createContract();
+        Operation createOp;
+        createOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& createHF = createOp.body.invokeHostFunctionOp();
+        createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+        auto& createContractArgs = createHF.hostFunction.createContract();
 
-    ContractExecutable exec;
-    exec.type(CONTRACT_EXECUTABLE_TOKEN);
-    createContractArgs.contractIDPreimage.type(CONTRACT_ID_PREIMAGE_FROM_ASSET);
-    createContractArgs.contractIDPreimage.fromAsset() = xlm;
-    createContractArgs.executable = exec;
+        ContractExecutable exec;
+        exec.type(CONTRACT_EXECUTABLE_TOKEN);
+        createContractArgs.contractIDPreimage.type(
+            CONTRACT_ID_PREIMAGE_FROM_ASSET);
+        createContractArgs.contractIDPreimage.fromAsset() = asset;
+        createContractArgs.executable = exec;
 
-    SorobanResources createResources;
-    createResources.instructions = 400'000;
-    createResources.readBytes = 1000;
-    createResources.writeBytes = 1000;
+        SorobanResources createResources;
+        createResources.instructions = 400'000;
+        createResources.readBytes = 1000;
+        createResources.writeBytes = 1000;
 
-    LedgerKey contractExecutableKey(CONTRACT_DATA);
-    contractExecutableKey.contractData().contract = contractID;
-    contractExecutableKey.contractData().key =
-        SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    contractExecutableKey.contractData().durability =
-        ContractDataDurability::PERSISTENT;
+        LedgerKey contractExecutableKey(CONTRACT_DATA);
+        contractExecutableKey.contractData().contract = contractID;
+        contractExecutableKey.contractData().key =
+            SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+        contractExecutableKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
 
-    createResources.footprint.readWrite = {contractExecutableKey};
+        createResources.footprint.readWrite = {contractExecutableKey};
 
+        {
+            // submit operation
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {createOp}, {}, createResources,
+                200'000, DEFAULT_TEST_REFUNDABLE_FEE);
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+
+        return std::make_pair(contractID, contractExecutableKey);
+    };
+
+    SECTION("XLM")
     {
-        // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {createOp}, {}, createResources, 200'000,
-            DEFAULT_TEST_REFUNDABLE_FEE);
+        auto idAndExec = createAssetContract(txtest::makeNativeAsset());
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
+        auto contractID = idAndExec.first;
+        auto contractExecutableKey = idAndExec.second;
+
+        // transfer 10 XLM from root to contractID
+        SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
+        fromAccount.accountId() = root.getPublicKey();
+        SCVal from(SCV_ADDRESS);
+        from.address() = fromAccount;
+
+        SCVal to =
+            makeContractAddressSCVal(makeContractAddress(sha256("contract")));
+
+        auto fn = makeSymbol("transfer");
+        Operation transfer;
+        transfer.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = contractID;
+        ihf.invokeContract().functionName = fn;
+        ihf.invokeContract().args = {from, to, makeI128(10)};
+
+        // build auth
+        SorobanAuthorizedInvocation ai;
+        ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        ai.function.contractFn() = ihf.invokeContract();
+
+        SorobanAuthorizationEntry a;
+        a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        a.rootInvocation = ai;
+        transfer.body.invokeHostFunctionOp().auth = {a};
+
+        SorobanResources resources;
+        resources.instructions = 2'000'000;
+        resources.readBytes = 2000;
+        resources.writeBytes = 1072;
+
+        LedgerKey accountLedgerKey(ACCOUNT);
+        accountLedgerKey.account().accountID = root.getPublicKey();
+
+        LedgerKey balanceLedgerKey(CONTRACT_DATA);
+        balanceLedgerKey.contractData().contract = contractID;
+        SCVec balance = {makeSymbolSCVal("Balance"), to};
+        SCVal balanceKey(SCValType::SCV_VEC);
+        balanceKey.vec().activate() = balance;
+        balanceLedgerKey.contractData().key = balanceKey;
+        balanceLedgerKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+
+        resources.footprint.readOnly = {contractExecutableKey};
+        resources.footprint.readWrite = {accountLedgerKey, balanceLedgerKey};
+
+        auto preTransferRootBalance = root.getBalance();
+
+        {
+            // submit operation
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
+                DEFAULT_TEST_REFUNDABLE_FEE);
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+        REQUIRE(preTransferRootBalance - 10 == root.getBalance());
     }
 
-    // transfer 10 XLM from root to contractID
-    SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
-    fromAccount.accountId() = root.getPublicKey();
-    SCVal from(SCV_ADDRESS);
-    from.address() = fromAccount;
-
-    SCVal to =
-        makeContractAddressSCVal(makeContractAddress(sha256("contract")));
-
-    auto fn = makeSymbol("transfer");
-    Operation transfer;
-    transfer.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = contractID;
-    ihf.invokeContract().functionName = fn;
-    ihf.invokeContract().args = {from, to, makeI128(10)};
-
-    // build auth
-    SorobanAuthorizedInvocation ai;
-    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn() = ihf.invokeContract();
-
-    SorobanAuthorizationEntry a;
-    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    a.rootInvocation = ai;
-    transfer.body.invokeHostFunctionOp().auth = {a};
-
-    SorobanResources resources;
-    resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
-    resources.writeBytes = 1072;
-
-    LedgerKey accountLedgerKey(ACCOUNT);
-    accountLedgerKey.account().accountID = root.getPublicKey();
-
-    LedgerKey balanceLedgerKey(CONTRACT_DATA);
-    balanceLedgerKey.contractData().contract = contractID;
-    SCVec balance = {makeSymbolSCVal("Balance"), to};
-    SCVal balanceKey(SCValType::SCV_VEC);
-    balanceKey.vec().activate() = balance;
-    balanceLedgerKey.contractData().key = balanceKey;
-    balanceLedgerKey.contractData().durability =
-        ContractDataDurability::PERSISTENT;
-
-    resources.footprint.readOnly = {contractExecutableKey};
-
-    resources.footprint.readWrite = {accountLedgerKey, balanceLedgerKey};
-
+    SECTION("trustline")
     {
-        // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
-            DEFAULT_TEST_REFUNDABLE_FEE);
+        auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+        auto issuer = root.create("issuer", minBalance);
+        auto acc = root.create("acc", minBalance);
+        Asset idr = makeAsset(issuer, "IDR");
+        root.changeTrust(idr, 100);
+        acc.changeTrust(idr, 100);
+        issuer.pay(root, idr, 100);
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
-        ltx.commit();
+        auto idAndExec = createAssetContract(idr);
+
+        auto contractID = idAndExec.first;
+        auto contractExecutableKey = idAndExec.second;
+
+        SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
+        fromAccount.accountId() = root.getPublicKey();
+        SCVal from(SCV_ADDRESS);
+        from.address() = fromAccount;
+
+        SCAddress toAccount(SC_ADDRESS_TYPE_ACCOUNT);
+        toAccount.accountId() = acc.getPublicKey();
+        SCVal to(SCV_ADDRESS);
+        to.address() = toAccount;
+
+        auto fn = makeSymbol("transfer");
+        Operation transfer;
+        transfer.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = contractID;
+        ihf.invokeContract().functionName = fn;
+        ihf.invokeContract().args = {from, to, makeI128(10)};
+
+        // build auth
+        SorobanAuthorizedInvocation ai;
+        ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+        ai.function.contractFn() = ihf.invokeContract();
+
+        SorobanAuthorizationEntry a;
+        a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        a.rootInvocation = ai;
+        transfer.body.invokeHostFunctionOp().auth = {a};
+
+        SorobanResources resources;
+        resources.instructions = 2'000'000;
+        resources.readBytes = 2000;
+        resources.writeBytes = 1072;
+
+        LedgerKey accountLedgerKey(ACCOUNT);
+        accountLedgerKey.account().accountID = root.getPublicKey();
+
+        LedgerKey issuerLedgerKey(ACCOUNT);
+        issuerLedgerKey.account().accountID = issuer.getPublicKey();
+
+        LedgerKey rootTrustlineLedgerKey(TRUSTLINE);
+        rootTrustlineLedgerKey.trustLine().accountID = root.getPublicKey();
+        rootTrustlineLedgerKey.trustLine().asset = assetToTrustLineAsset(idr);
+
+        LedgerKey accTrustlineLedgerKey(TRUSTLINE);
+        accTrustlineLedgerKey.trustLine().accountID = acc.getPublicKey();
+        accTrustlineLedgerKey.trustLine().asset = assetToTrustLineAsset(idr);
+
+        resources.footprint.readOnly = {contractExecutableKey, issuerLedgerKey};
+
+        resources.footprint.readWrite = {rootTrustlineLedgerKey,
+                                         accTrustlineLedgerKey};
+
+        {
+            // submit operation
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
+                DEFAULT_TEST_REFUNDABLE_FEE);
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+
+        REQUIRE(root.getTrustlineBalance(idr) == 90);
+        REQUIRE(acc.getTrustlineBalance(idr) == 10);
     }
 }
 
