@@ -134,7 +134,7 @@ TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 void
 TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
-    mDiagnosticEvents = evts;
+    mDiagnosticEvents.insert(mDiagnosticEvents.end(), evts.begin(), evts.end());
 }
 
 void

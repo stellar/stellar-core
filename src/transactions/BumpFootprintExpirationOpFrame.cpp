@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "transactions/BumpFootprintExpirationOpFrame.h"
+#include "TransactionUtils.h"
 
 namespace stellar
 {
@@ -101,6 +102,12 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             metrics.mLedgerReadByte += entrySize + expirationSize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
+                mParentTx.pushSimpleDiagnosticError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-read resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerReadByte),
+                     makeU64SCVal(resources.readBytes)});
+
                 innerResult().code(
                     BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
                 return false;

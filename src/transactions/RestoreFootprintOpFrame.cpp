@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "transactions/RestoreFootprintOpFrame.h"
+#include "TransactionUtils.h"
 
 namespace stellar
 {
@@ -97,6 +98,11 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             metrics.mLedgerReadByte += entrySize + expirationSize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
+                mParentTx.pushSimpleDiagnosticError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-read resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerReadByte),
+                     makeU64SCVal(resources.readBytes)});
                 innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
@@ -116,9 +122,24 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
 
-        if (resources.writeBytes < metrics.mLedgerWriteByte ||
-            resources.readBytes < metrics.mLedgerReadByte)
+        if (resources.readBytes < metrics.mLedgerReadByte)
         {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(metrics.mLedgerReadByte),
+                 makeU64SCVal(resources.readBytes)});
+            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
+        if (resources.writeBytes < metrics.mLedgerWriteByte)
+        {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-write resources exceeds amount specified",
+                {makeU64SCVal(metrics.mLedgerWriteByte),
+                 makeU64SCVal(resources.writeBytes)});
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
