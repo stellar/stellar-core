@@ -210,6 +210,8 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     {
         switch (change.type())
         {
+        case LEDGER_ENTRY_CREATED:
+            throw std::runtime_error("unexpected create in eviction meta");
         case LEDGER_ENTRY_STATE:
             continue;
         case LEDGER_ENTRY_UPDATED:
@@ -219,7 +221,7 @@ LedgerCloseMetaFrame::populateEvictedEntries(
             continue;
         case LEDGER_ENTRY_REMOVED:
             auto const& key = change.removed();
-            releaseAssert(isTemporaryEntry(key));
+            releaseAssert(isTemporaryEntry(key) || key.type() == EXPIRATION);
             mLedgerCloseMeta.v2().evictedTemporaryLedgerKeys.push_back(key);
             break;
         }

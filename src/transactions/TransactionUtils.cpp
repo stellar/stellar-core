@@ -15,6 +15,9 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "xdr/Stellar-contract.h"
+#endif
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 
@@ -283,23 +286,20 @@ configSettingKey(ConfigSettingID const& configSettingID)
 
 LedgerKey
 contractDataKey(SCAddress const& contract, SCVal const& dataKey,
-                ContractDataDurability durability,
-                ContractEntryBodyType bodyType)
+                ContractDataDurability durability)
 {
     LedgerKey key(CONTRACT_DATA);
     key.contractData().contract = contract;
     key.contractData().key = dataKey;
     key.contractData().durability = durability;
-    key.contractData().bodyType = bodyType;
     return key;
 }
 
 LedgerKey
-contractCodeKey(Hash const& hash, ContractEntryBodyType bodyType)
+contractCodeKey(Hash const& hash)
 {
     LedgerKey key(CONTRACT_CODE);
     key.contractCode().hash = hash;
-    key.contractCode().bodyType = bodyType;
     return key;
 }
 #endif
@@ -438,15 +438,14 @@ loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
                  SCVal const& dataKey, ContractDataDurability type)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(
-        contractDataKey(contract, dataKey, type, DATA_ENTRY));
+    return ltx.loadWithoutRecord(contractDataKey(contract, dataKey, type));
 }
 
 ConstLedgerTxnEntry
 loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(contractCodeKey(hash, DATA_ENTRY));
+    return ltx.loadWithoutRecord(contractCodeKey(hash));
 }
 #endif
 
@@ -1861,6 +1860,39 @@ getLumenContractInfo(std::string networkPassphrase)
 
     return {lumenContractID, balanceSymbol, amountSymbol};
 }
+
+SCVal
+makeSymbolSCVal(std::string&& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeSymbolSCVal(std::string const& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(str);
+    return val;
+}
+
+SCVal
+makeStringSCVal(std::string&& str)
+{
+    SCVal val(SCV_STRING);
+    val.str().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeU64SCVal(uint64_t u)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u;
+    return val;
+}
+
 #endif
 
 namespace detail

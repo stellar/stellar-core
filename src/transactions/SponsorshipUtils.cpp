@@ -206,6 +206,7 @@ computeMultiplier(LedgerEntry const& le)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
+    case EXPIRATION:
 #endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
@@ -231,6 +232,7 @@ isSubentry(LedgerEntry const& le)
     case CONTRACT_DATA:
     case CONFIG_SETTING:
     case CONTRACT_CODE:
+    case EXPIRATION:
 #endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(

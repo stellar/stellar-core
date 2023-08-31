@@ -91,6 +91,8 @@ class TransactionFrameBase
     virtual bool isSoroban() const = 0;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual SorobanResources const& sorobanResources() const = 0;
+    virtual xdr::xvector<DiagnosticEvent> const&
+    getDiagnosticEvents() const = 0;
     virtual void
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,

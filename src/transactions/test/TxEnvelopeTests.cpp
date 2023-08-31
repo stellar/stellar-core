@@ -2511,8 +2511,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0) == valid);
         if (!valid)
         {
-            REQUIRE(tx->getResult().result.code() ==
-                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
     };
 
@@ -2600,8 +2599,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
                                                      1'000'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->getResult().result.code() ==
-                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
     }
     SECTION("fees")
@@ -2678,7 +2676,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2690,7 +2688,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readOnly.resize(1);
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
                 cfg.mMaxContractDataKeySizeBytes = 64;
             });
@@ -2705,7 +2703,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readWrite.resize(1);
             resources.footprint.readWrite.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
                 cfg.mMaxContractDataKeySizeBytes = 64;
             });

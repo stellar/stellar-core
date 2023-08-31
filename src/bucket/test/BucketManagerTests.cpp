@@ -1128,7 +1128,13 @@ class StopAndRestartBucketMergesTest
             auto nInits =
                 nEntriesInBatch - (liveEntries.size() + deadEntries.size());
             auto newRandom =
-                LedgerTestUtils::generateValidLedgerEntries(nInits);
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                        CONFIG_SETTING
+#endif
+                    },
+                    nInits);
             for (auto const& e : newRandom)
             {
                 auto k = LedgerEntryKey(e);

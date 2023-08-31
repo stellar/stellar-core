@@ -9,26 +9,12 @@
 
 namespace stellar
 {
+bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-
-uint32_t getExpirationLedger(LedgerEntry const& e);
-void setExpirationLedger(LedgerEntry& e, uint32_t expiration);
-
-ContractEntryBodyType getLeType(LedgerEntry::_data_t const& e);
-ContractEntryBodyType getLeType(LedgerKey const& k);
-
-void setLeType(LedgerEntry& e, ContractEntryBodyType leType);
-void setLeType(LedgerKey& k, ContractEntryBodyType leType);
-
-LedgerEntry expirationExtensionFromDataEntry(LedgerEntry const& le);
+LedgerKey getExpirationKey(LedgerEntry const& e);
+LedgerKey getExpirationKey(LedgerKey const& e);
 #endif
-
-bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
-bool autoBumpEnabled(LedgerEntry const& e);
-
-template <typename T> bool isSorobanExtEntry(T const& e);
-template <typename T> bool isSorobanDataEntry(T const& e);
 
 template <typename T>
 bool
@@ -53,4 +39,16 @@ isTemporaryEntry(T const& e)
 #endif
 }
 
+template <typename T>
+bool
+isPersistentEntry(T const& e)
+{
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    return e.type() == CONTRACT_CODE ||
+           (e.type() == CONTRACT_DATA &&
+            e.contractData().durability == PERSISTENT);
+#else
+    return false;
+#endif
+}
 }

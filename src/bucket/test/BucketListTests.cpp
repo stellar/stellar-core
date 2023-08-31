@@ -850,18 +850,20 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             {
                 auto txle = ltx.loadWithoutRecord(key);
                 REQUIRE(static_cast<bool>(txle) == shouldExist);
+
+                auto expirationTxle =
+                    ltx.loadWithoutRecord(getExpirationKey(key));
+                REQUIRE(static_cast<bool>(expirationTxle) == shouldExist);
             }
         };
 
         std::set<LedgerKey> tempEntries;
         std::set<LedgerKey> persistentEntries;
-        auto entries =
-            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                {CONTRACT_DATA}, 10);
-        for (auto& e : entries)
+        std::vector<LedgerEntry> entries;
+        for (auto& e :
+             LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                 {CONTRACT_DATA}, 5))
         {
-            setExpirationLedger(e, ledgerSeq + 1);
-
             // Set half of the entries to be persistent, half temporary
             if (rand_flip())
             {
@@ -873,6 +875,16 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 e.data.contractData().durability = PERSISTENT;
                 persistentEntries.emplace(LedgerEntryKey(e));
             }
+
+            LedgerEntry expirationEntry;
+            expirationEntry.data.type(EXPIRATION);
+            expirationEntry.data.expiration().keyHash =
+                getExpirationKey(e).expiration().keyHash;
+            expirationEntry.data.expiration().expirationLedgerSeq =
+                ledgerSeq + 1;
+
+            entries.emplace_back(e);
+            entries.emplace_back(expirationEntry);
         }
 
         lm.setNextLedgerEntryBatchForBucketTesting(entries, getNetworkCfgLE(),
@@ -925,7 +937,11 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             // Shadow expired entries with updated, not expired versions
             for (auto& e : entries)
             {
-                setExpirationLedger(e, ledgerSeq + 10);
+                // Only need to update ExpirationEntries
+                if (e.data.type() == EXPIRATION)
+                {
+                    e.data.expiration().expirationLedgerSeq = ledgerSeq + 10;
+                }
             }
             lm.setNextLedgerEntryBatchForBucketTesting({}, entries, {});
 
@@ -1009,7 +1025,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 lm.setNextLedgerEntryBatchForBucketTesting(
                     {},
                     LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {CONFIG_SETTING}, 10),
+                        {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE}, 10),
                     {});
                 closeLedger(*app);
             }
@@ -1053,7 +1069,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                         {},
                         LedgerTestUtils::
                             generateValidLedgerEntriesWithExclusions(
-                                {CONFIG_SETTING}, 10),
+                                {CONFIG_SETTING, CONTRACT_DATA, CONTRACT_CODE},
+                                10),
                         {});
                     closeLedger(*app);
                 }

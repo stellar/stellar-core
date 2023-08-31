@@ -340,8 +340,6 @@ initialStateExpirationSettings(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_STATE_EXPIRATION);
 
-    entry.stateExpirationSettings().autoBumpLedgers =
-        InitialSorobanNetworkConfig::AUTO_BUMP_NUM_LEDGERS;
     entry.stateExpirationSettings().maxEntryExpiration =
         InitialSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
@@ -605,10 +603,6 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
             cfg.stateExpirationSettings().minPersistentEntryExpiration >=
                 MinimumSorobanNetworkConfig::
                     MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
-            cfg.stateExpirationSettings().autoBumpLedgers >=
-                MinimumSorobanNetworkConfig::
-                    AUTOBUMP_LEDGERS && // autobumpLedgers can be disabled by
-                                        // setting to 0
             cfg.stateExpirationSettings().persistentRentRateDenominator > 0 &&
             cfg.stateExpirationSettings().tempRentRateDenominator > 0 &&
             cfg.stateExpirationSettings().maxEntriesToExpire >=

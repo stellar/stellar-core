@@ -68,9 +68,8 @@ LedgerKey poolShareTrustLineKey(AccountID const& accountID,
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey configSettingKey(ConfigSettingID const& configSettingID);
 LedgerKey contractDataKey(SCAddress const& contract, SCVal const& dataKey,
-                          ContractDataDurability type,
-                          ContractEntryBodyType leType);
-LedgerKey contractCodeKey(Hash const& hash, ContractEntryBodyType leType);
+                          ContractDataDurability type);
+LedgerKey contractCodeKey(Hash const& hash);
 #endif
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
@@ -314,5 +313,11 @@ struct LumenContractInfo
     SCVal mAmountSymbol;
 };
 LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+
+SCVal makeSymbolSCVal(std::string&& str);
+SCVal makeSymbolSCVal(std::string const& str);
+SCVal makeStringSCVal(std::string&& str);
+SCVal makeU64SCVal(uint64_t u);
+
 #endif
 }

@@ -4,6 +4,7 @@
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "transactions/BumpFootprintExpirationOpFrame.h"
+#include "TransactionUtils.h"
 
 namespace stellar
 {
@@ -64,14 +65,13 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
     // Bump for `ledgersToExpire` more ledgers since the current
     // ledger. Current ledger has to be payed for in order for entry
     // to be bump-able, hence don't include it.
-    uint32_t bumpLedger =
+    uint32_t newExpirationLedgerSeq =
         ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
     for (auto const& lk : footprint.readOnly)
     {
-        // TODO: when we move to use EXPIRATION_EXTENSIONS, this should become a
-        // loadWithoutRecord, and the metrics should be updated.
-        auto ltxe = ltx.load(lk);
-        if (!ltxe || !isLive(ltxe.current(), ledgerSeq))
+        // Load the ContractCode/ContractData entry for fee calculation.
+        auto entryLtxe = ltx.loadWithoutRecord(lk);
+        if (!entryLtxe)
         {
             // Skip the missing entries. Since this happens at apply
             // time and we refund the unspent fees, it is more beneficial
@@ -79,21 +79,51 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             continue;
         }
 
-        auto entrySize = static_cast<uint32>(xdr::xdr_size(ltxe.current()));
+        auto expirationKey = getExpirationKey(lk);
+        uint32_t entrySize = UINT32_MAX;
+        uint32_t expirationSize = UINT32_MAX;
+        uint32_t currExpiration = UINT32_MAX;
 
-        metrics.mLedgerReadByte += entrySize;
-        if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            innerResult().code(
-                BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
-            return false;
-        }
-        uint32_t currExpiration = getExpirationLedger(ltxe.current());
+            // Initially load without record since we may not need to modify
+            // entry
+            auto expirationConstLtxe = ltx.loadWithoutRecord(expirationKey);
+            releaseAssertOrThrow(expirationConstLtxe);
+            if (!isLive(expirationConstLtxe.current(), ledgerSeq))
+            {
+                // Also skip expired entries, as those must be restored
+                continue;
+            }
 
-        if (currExpiration >= bumpLedger)
-        {
-            continue;
+            entrySize = static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
+            expirationSize = static_cast<uint32>(
+                xdr::xdr_size(expirationConstLtxe.current()));
+
+            metrics.mLedgerReadByte += entrySize + expirationSize;
+            if (resources.readBytes < metrics.mLedgerReadByte)
+            {
+                mParentTx.pushSimpleDiagnosticError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-read resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerReadByte),
+                     makeU64SCVal(resources.readBytes)});
+
+                innerResult().code(
+                    BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
+
+            currExpiration = expirationConstLtxe.current()
+                                 .data.expiration()
+                                 .expirationLedgerSeq;
+            if (currExpiration >= newExpirationLedgerSeq)
+            {
+                continue;
+            }
         }
+
+        // We already checked that the expirationEntry exists in the logic above
+        auto expirationLtxe = ltx.load(expirationKey);
 
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
@@ -101,8 +131,9 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         rustChange.old_size_bytes = static_cast<uint32>(entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
         rustChange.old_expiration_ledger = currExpiration;
-        rustChange.new_expiration_ledger = bumpLedger;
-        setExpirationLedger(ltxe.current(), bumpLedger);
+        rustChange.new_expiration_ledger = newExpirationLedgerSeq;
+        expirationLtxe.current().data.expiration().expirationLedgerSeq =
+            newExpirationLedgerSeq;
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // This may throw, but only in case of the Core version misconfiguration.
@@ -139,7 +170,7 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 
     for (auto const& lk : footprint.readOnly)
     {
-        if (!isSorobanDataEntry(lk))
+        if (!isSorobanEntry(lk))
         {
             innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
             return false;

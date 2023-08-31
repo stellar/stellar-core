@@ -76,6 +76,8 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
         case CONFIG_SETTING:
+        case CONTRACT_CODE:
+        case EXPIRATION:
 #endif
         default:
             abort();

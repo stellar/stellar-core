@@ -6,7 +6,6 @@
 
 #include <type_traits>
 
-#include "ledger/LedgerTypeUtils.h"
 #include "overlay/StellarXDR.h"
 #include "util/XDROperators.h"
 
@@ -91,12 +90,10 @@ struct LedgerEntryIdCmp
             return lexCompare(a.contractData().contract,
                               b.contractData().contract, a.contractData().key,
                               b.contractData().key, a.contractData().durability,
-                              b.contractData().durability, getLeType(a),
-                              getLeType(b));
+                              b.contractData().durability);
         }
         case CONTRACT_CODE:
-            return lexCompare(a.contractCode().hash, b.contractCode().hash,
-                              getLeType(a), getLeType(b));
+            return lexCompare(a.contractCode().hash, b.contractCode().hash);
         case CONFIG_SETTING:
         {
             auto getConfigSettingId = [](auto const& v) -> ConfigSettingID {
@@ -117,6 +114,8 @@ struct LedgerEntryIdCmp
             };
             return getConfigSettingId(a) < getConfigSettingId(b);
         }
+        case EXPIRATION:
+            return lexCompare(a.expiration().keyHash, b.expiration().keyHash);
 #endif
         }
         return false;

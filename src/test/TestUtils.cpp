@@ -121,6 +121,7 @@ computeMultiplier(LedgerEntry const& le)
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
+    case EXPIRATION:
 #endif
     default:
         throw std::runtime_error("Unexpected LedgerEntry type");

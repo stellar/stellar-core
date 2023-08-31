@@ -522,6 +522,17 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         entry.data.contractCode().hash = cc.hash;
     }
 
+    void
+    modifyExpirationEntry(LedgerEntry& entry)
+    {
+        ExpirationEntry const& ee = mEntry.data.expiration();
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
+        entry.data.expiration() =
+            LedgerTestUtils::generateValidExpirationEntry(5);
+
+        entry.data.expiration().keyHash = ee.keyHash;
+    }
+
 #endif
 
   public:
@@ -575,6 +586,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                     break;
                 case CONTRACT_CODE:
                     modifyContractCodeEntry(entry.current());
+                    break;
+                case EXPIRATION:
+                    modifyExpirationEntry(entry.current());
                     break;
 #endif
                 default:

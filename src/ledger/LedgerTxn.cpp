@@ -2014,6 +2014,12 @@ LedgerTxn::dropConfigSettings(bool rebuild)
 {
     throw std::runtime_error("called dropConfigSettings on non-root LedgerTxn");
 }
+
+void
+LedgerTxn::dropExpiration(bool rebuild)
+{
+    throw std::runtime_error("called dropExpiration on non-root LedgerTxn");
+}
 #endif
 
 double
@@ -2584,6 +2590,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         accum(iter, mConfigSettingsToUpsert, emptyEntries);
         break;
     }
+    case EXPIRATION:
+        accum(iter, mExpirationToUpsert, mExpirationToDelete);
+        break;
 #endif
     default:
         abort();
@@ -2701,6 +2710,20 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         bulkDeleteContractCode(deleteContractCode, cons);
         deleteContractCode.clear();
     }
+
+    auto& upsertExpiration = bleca.getExpirationToUpsert();
+    if (upsertExpiration.size() > bufferThreshold)
+    {
+        bulkUpsertExpiration(upsertExpiration);
+        upsertExpiration.clear();
+    }
+
+    auto& deleteExpiration = bleca.getExpirationToDelete();
+    if (deleteExpiration.size() > bufferThreshold)
+    {
+        bulkDeleteExpiration(deleteExpiration, cons);
+        deleteExpiration.clear();
+    }
 #endif
 }
 
@@ -2802,6 +2825,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "contractcode";
     case CONFIG_SETTING:
         return "configsettings";
+    case EXPIRATION:
+        return "expiration";
 #endif
     default:
         throw std::runtime_error("Unknown ledger entry type");
@@ -2929,6 +2954,12 @@ LedgerTxnRoot::dropConfigSettings(bool rebuild)
 {
     mImpl->dropConfigSettings(rebuild);
 }
+
+void
+LedgerTxnRoot::dropExpiration(bool rebuild)
+{
+    mImpl->dropExpiration(rebuild);
+}
 #endif
 
 uint32_t
@@ -2983,6 +3014,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         UnorderedSet<LedgerKey> contractdata;
         UnorderedSet<LedgerKey> configSettings;
         UnorderedSet<LedgerKey> contractCode;
+        UnorderedSet<LedgerKey> expiration;
 #endif
 
         for (auto const& key : keys)
@@ -3062,6 +3094,13 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                     configSettings.clear();
                 }
                 break;
+            case EXPIRATION:
+                insertIfNotLoaded(expiration, key);
+                if (expiration.size() == mBulkLoadBatchSize)
+                {
+                    cacheResult(bulkLoadExpiration(expiration));
+                    expiration.clear();
+                }
 #endif
             }
         }
@@ -3077,6 +3116,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         cacheResult(bulkLoadConfigSettings(configSettings));
         cacheResult(bulkLoadContractData(contractdata));
         cacheResult(bulkLoadContractCode(contractCode));
+        cacheResult(bulkLoadExpiration(expiration));
 #endif
     }
 
@@ -3635,6 +3675,9 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
                 break;
             case CONFIG_SETTING:
                 entry = loadConfigSetting(key);
+                break;
+            case EXPIRATION:
+                entry = loadExpiration(key);
                 break;
 #endif
             default:

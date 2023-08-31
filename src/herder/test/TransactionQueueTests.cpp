@@ -1187,9 +1187,8 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
-                REQUIRE(
-                    tx2->getResultCode() ==
-                    TransactionResultCode::txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+                REQUIRE(tx2->getResultCode() ==
+                        TransactionResultCode::txSOROBAN_INVALID);
             }
             SECTION("too many ops")
             {

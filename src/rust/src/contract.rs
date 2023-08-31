@@ -7,10 +7,11 @@ use crate::{
     rust_bridge::{
         CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
         CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
-        InvokeHostFunctionOutput, ReadOnlyBump, RustBuf, XDRFileHash,
+        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
 use log::debug;
+use soroban_env_host_curr::{xdr::{LedgerEntryExt, ExpirationEntry},};
 use std::{fmt::Display, io::Cursor, panic, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -27,7 +28,7 @@ use super::soroban_env_host::{
         LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
     xdr::{
-        self, ContractCostParams, DiagnosticEvent, ReadXdr, ScErrorCode, ScErrorType, WriteXdr,
+        self, ContractCostParams, DiagnosticEvent, LedgerEntry, LedgerEntryData, ReadXdr, ScErrorCode, ScErrorType, WriteXdr,
         XDR_FILES_SHA256,
     },
     HostError, LedgerInfo,
@@ -44,8 +45,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             base_reserve: c.base_reserve,
             min_temp_entry_expiration: c.min_temp_entry_expiration,
             min_persistent_entry_expiration: c.min_persistent_entry_expiration,
-            max_entry_expiration: c.max_entry_expiration,
-            autobump_ledgers: c.autobump_ledgers,
+            max_entry_expiration: c.max_entry_expiration
         }
     }
 }
@@ -210,30 +210,46 @@ fn encode_diagnostic_events(events: &Vec<DiagnosticEvent>) -> Vec<RustBuf> {
 
 fn extract_ledger_effects(
     entry_changes: Vec<LedgerEntryChange>,
-) -> (Vec<RustBuf>, Vec<ReadOnlyBump>) {
+) -> Result<Vec<RustBuf>, HostError> {
     let mut modified_entries = vec![];
-    let mut read_only_bumps = vec![];
 
     for change in entry_changes {
-        if change.read_only {
-            // Only return expiration bumps for read-only entries (if any).
-            if let Some(expiration_change) = change.expiration_change {
-                if expiration_change.new_expiration_ledger > expiration_change.old_expiration_ledger
-                {
-                    read_only_bumps.push(ReadOnlyBump {
-                        ledger_key: change.encoded_key.into(),
-                        min_expiration: expiration_change.new_expiration_ledger,
-                    });
-                }
-            }
-        } else {
+        // Extract ContractCode and ContractData entry changes first
+        if !change.read_only {
             if let Some(encoded_new_value) = change.encoded_new_value {
                 modified_entries.push(encoded_new_value.into());
             }
         }
+
+        // Check for ExpirationEntry changes
+        if let Some(expiration_change) = change.expiration_change {
+            if expiration_change.new_expiration_ledger > expiration_change.old_expiration_ledger
+            {
+                // entry_changes only encode LedgerEntry changes for ContractCode and ContractData
+                // entries. Changes to ExpirationEntry are recorded in expiration_change, but does
+                // not contain an encoded ExpirationEntry. We must build that here.
+                let hash_bytes: [u8; 32] = expiration_change.key_hash
+                    .try_into()
+                    .map_err(|_| {
+                        (ScErrorType::Value, ScErrorCode::InternalError)
+                    })?;
+
+                let le = LedgerEntry {
+                    last_modified_ledger_seq: 0,
+                    data: LedgerEntryData::Expiration(ExpirationEntry {
+                        key_hash: hash_bytes.into(),
+                        expiration_ledger_seq: expiration_change.new_expiration_ledger}),
+                    ext: LedgerEntryExt::V0
+                };
+
+                let encoded = non_metered_xdr_to_rust_buf(&le)
+                    .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
+                modified_entries.push(encoded);
+            }
+        }
     }
 
-    (modified_entries, read_only_bumps)
+    Ok(modified_entries)
 }
 
 /// Deserializes an [`xdr::HostFunction`] host function XDR object an
@@ -251,6 +267,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    expiration_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
@@ -264,6 +281,7 @@ pub(crate) fn invoke_host_function(
             auth_entries,
             ledger_info,
             ledger_entries,
+            expiration_entries,
             base_prng_seed,
             rent_fee_configuration,
         )
@@ -283,6 +301,7 @@ fn invoke_host_function_or_maybe_panic(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    expiration_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
@@ -313,6 +332,7 @@ fn invoke_host_function_or_maybe_panic(
             auth_entries.iter(),
             ledger_info.into(),
             ledger_entries.iter(),
+            expiration_entries.iter(),
             base_prng_seed,
             &mut diagnostic_events,
         );
@@ -347,8 +367,8 @@ fn invoke_host_function_or_maybe_panic(
                     &rent_fee_configuration.into(),
                     ledger_seq_num,
                 );
-                let (modified_ledger_entries, read_only_bumps) =
-                    extract_ledger_effects(res.ledger_changes);
+                let modified_ledger_entries =
+                    extract_ledger_effects(res.ledger_changes)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
                     diagnostic_events: encode_diagnostic_events(&diagnostic_events),
@@ -358,7 +378,6 @@ fn invoke_host_function_or_maybe_panic(
 
                     result_value: result_value.into(),
                     modified_ledger_entries,
-                    read_only_bumps,
                     contract_events: res
                         .encoded_contract_events
                         .into_iter()
@@ -382,7 +401,6 @@ fn invoke_host_function_or_maybe_panic(
 
         result_value: vec![].into(),
         modified_ledger_entries: vec![],
-        read_only_bumps: vec![],
         contract_events: vec![],
         rent_fee: 0,
     });

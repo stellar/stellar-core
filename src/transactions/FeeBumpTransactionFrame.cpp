@@ -54,6 +54,11 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
+xdr::xvector<DiagnosticEvent> const&
+FeeBumpTransactionFrame::getDiagnosticEvents() const
+{
+    return mInnerTx->getDiagnosticEvents();
+}
 void
 FeeBumpTransactionFrame::maybeComputeSorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,

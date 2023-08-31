@@ -391,6 +391,8 @@ generateScaledLiveEntries(
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONFIG_SETTING:
         case CONTRACT_DATA:
+        case CONTRACT_CODE:
+        case EXPIRATION:
             // Don't do anything for now.
             break;
 #endif
@@ -432,7 +434,9 @@ scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
+    case CONTRACT_CODE:
     case CONTRACT_DATA:
+    case EXPIRATION:
 #endif
     default:
         throw std::runtime_error("invalid ledger key type");

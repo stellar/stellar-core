@@ -134,21 +134,20 @@ randomlyModifyEntry(LedgerEntry& e)
         break;
     }
     case CONTRACT_DATA:
-        if (e.data.contractData().body.bodyType() == DATA_ENTRY)
-        {
-            e.data.contractData().body.data().val.type(SCV_I32);
-            e.data.contractData().body.data().val.i32() =
-                autocheck::generator<int32_t>{}();
-        }
+        e.data.contractData().val.type(SCV_I32);
+        e.data.contractData().val.i32() = autocheck::generator<int32_t>{}();
         makeValid(e.data.contractData());
         break;
     case CONTRACT_CODE:
-        if (e.data.contractCode().body.bodyType() == DATA_ENTRY)
-        {
-            auto code = generateOpaqueVector<60000>();
-            e.data.contractCode().body.code().assign(code.begin(), code.end());
-        }
+    {
+        auto code = generateOpaqueVector<60000>();
+        e.data.contractCode().code.assign(code.begin(), code.end());
         makeValid(e.data.contractCode());
+        break;
+    }
+    case EXPIRATION:
+        e.data.expiration().expirationLedgerSeq =
+            autocheck::generator<uint32_t>{}();
         break;
 #endif
     }
@@ -345,10 +344,10 @@ makeValid(ConfigSettingEntry& ce)
 void
 makeValid(ContractDataEntry& cde)
 {
-    cde.body.bodyType(ContractEntryBodyType::DATA_ENTRY);
-    cde.body.data().flags = 0;
     int t = cde.durability;
-    cde.durability = static_cast<ContractDataDurability>(std::abs(t % 3));
+    auto modulo = static_cast<int64_t>(
+        xdr::xdr_traits<ContractDataDurability>::enum_values().size());
+    cde.durability = static_cast<ContractDataDurability>(std::abs(t % modulo));
 
     LedgerEntry le;
     le.data.type(CONTRACT_DATA);
@@ -372,7 +371,11 @@ makeValid(ContractDataEntry& cde)
 void
 makeValid(ContractCodeEntry& cce)
 {
-    cce.body.bodyType(ContractEntryBodyType::DATA_ENTRY);
+}
+
+void
+makeValid(ExpirationEntry& cce)
+{
 }
 #endif
 
@@ -470,6 +473,9 @@ static auto validLedgerEntryGenerator = autocheck::map(
         case CONTRACT_CODE:
             makeValid(led.contractCode());
             break;
+        case EXPIRATION:
+            makeValid(led.expiration());
+            break;
 #endif
         }
 
@@ -549,6 +555,13 @@ static auto validContractCodeEntryGenerator = autocheck::map(
         return std::move(c);
     },
     autocheck::generator<ContractCodeEntry>());
+
+static auto validExpirationEntryGenerator = autocheck::map(
+    [](ExpirationEntry&& c, size_t s) {
+        makeValid(c);
+        return std::move(c);
+    },
+    autocheck::generator<ExpirationEntry>());
 #endif
 
 LedgerEntry
@@ -640,7 +653,9 @@ std::vector<LedgerKey>
 generateUniqueValidSorobanLedgerEntryKeys(size_t n)
 {
     return LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
-        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING}, n);
+        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING,
+         EXPIRATION},
+        n);
 }
 #endif
 
@@ -833,6 +848,19 @@ std::vector<ContractCodeEntry>
 generateValidContractCodeEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validContractCodeEntryGenerator);
+    return vecgen(n);
+}
+
+ExpirationEntry
+generateValidExpirationEntry(size_t b)
+{
+    return validExpirationEntryGenerator(b);
+}
+
+std::vector<ExpirationEntry>
+generateValidExpirationEntries(size_t n)
+{
+    static auto vecgen = autocheck::list_of(validExpirationEntryGenerator);
     return vecgen(n);
 }
 #endif

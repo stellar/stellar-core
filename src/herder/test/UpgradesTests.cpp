@@ -702,16 +702,22 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 
                     LedgerEntry le;
                     le.data.type(CONTRACT_DATA);
-                    le.data.contractData().body.bodyType(DATA_ENTRY);
                     le.data.contractData().contract.type(
                         SC_ADDRESS_TYPE_CONTRACT);
                     le.data.contractData().contract.contractId() = contractID;
                     le.data.contractData().durability = PERSISTENT;
-                    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
                     le.data.contractData().key = key;
-                    le.data.contractData().body.data().val = val;
+                    le.data.contractData().val = val;
+
+                    LedgerEntry expiration;
+                    expiration.data.type(EXPIRATION);
+                    expiration.data.expiration().expirationLedgerSeq =
+                        UINT32_MAX;
+                    expiration.data.expiration().keyHash =
+                        getExpirationKey(le).expiration().keyHash;
 
                     ltx.create(InternalLedgerEntry(le));
+                    ltx.create(InternalLedgerEntry(expiration));
 
                     auto upgradeKey =
                         ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};

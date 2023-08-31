@@ -29,6 +29,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
                                        InvokeHostFunctionOutput const& output,
                                        HostFunctionMetrics const& metrics);
 
+    bool validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
+                                     SorobanNetworkConfig const& config);
+
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
   public:

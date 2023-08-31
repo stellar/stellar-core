@@ -186,14 +186,9 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // If we find the entry, we remove the found key from keys so that later buckets
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
-// expirationExtensions stores a map of LedgerKeys -> expiration extensions that
-// should vbe applied whenever the corresponding DATA_ENTRY is loaded. Note that
-// the keys in this map correspond to DATA_ENTRY, not EXPIRATION_EXTENSION
 void
-Bucket::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-    std::vector<LedgerEntry>& result,
-    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp>& expirationExtensions)
+Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                 std::vector<LedgerEntry>& result)
 {
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
@@ -210,44 +205,7 @@ Bucket::loadKeys(
             {
                 if (entryOp->type() != DEADENTRY)
                 {
-
-                    if (isSorobanExtEntry(*currKeyIt))
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        auto k = *currKeyIt;
-                        setLeType(k, ContractEntryBodyType::DATA_ENTRY);
-                        expirationExtensions.emplace(
-                            k, getExpirationLedger(entryOp->liveEntry()));
-#endif
-                    }
-                    else
-                    {
-                        if (isSorobanDataEntry(entryOp->liveEntry().data))
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            if (auto extIter =
-                                    expirationExtensions.find(*currKeyIt);
-                                extIter != expirationExtensions.end())
-                            {
-                                setExpirationLedger(entryOp->liveEntry(),
-                                                    extIter->second);
-                                expirationExtensions.erase(extIter);
-                            }
-                            else
-                            {
-                                // If we haven't found an EXPIRATION_EXTENSION
-                                // entry yet, ext key is still in keys to
-                                // search. Remove it to avoid redundant reads
-                                // since we already found a newer DATA_ENTRY
-                                auto extK = *currKeyIt;
-                                setLeType(extK, ContractEntryBodyType::
-                                                    EXPIRATION_EXTENSION);
-                                keys.erase(extK);
-                            }
-#endif
-                        }
-                        result.push_back(entryOp->liveEntry());
-                    }
+                    result.push_back(entryOp->liveEntry());
                 }
 
                 currKeyIt = keys.erase(currKeyIt);
@@ -705,37 +663,6 @@ calculateMergeProtocolVersion(
     }
 }
 
-// Expiration extensions have a different LedgerKey than the entry they bump,
-// but "refer" to the bumped entry. Returns true if inputs have the same key or
-// if one input is a expiration extension for the other entry
-template <class T>
-static bool
-refersToSameEntry(T const& lhs, T const& rhs)
-{
-    if (lhs == rhs)
-    {
-        return true;
-    }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Return key equality check but ignore ContractEntryBodyType
-    if (lhs.type() == rhs.type())
-    {
-        if (lhs.type() == CONTRACT_DATA)
-        {
-            return lhs.contractData().contract == rhs.contractData().contract &&
-                   lhs.contractData().key == rhs.contractData().key;
-        }
-        else if (lhs.type() == CONTRACT_CODE)
-        {
-            return lhs.contractCode().hash == rhs.contractCode().hash;
-        }
-    }
-#endif
-
-    return false;
-}
-
 // There are 4 "easy" cases for merging: exhausted iterators on either
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
@@ -747,27 +674,7 @@ mergeCasesWithDefaultAcceptance(
     std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
     bool keepShadowedLifecycleEntries)
 {
-
-    auto key = [](auto const& be) {
-        LedgerKey k;
-        switch (be.type())
-        {
-        case LIVEENTRY:
-        case INITENTRY:
-            k = LedgerEntryKey(be.liveEntry());
-            break;
-        case DEADENTRY:
-            k = be.deadEntry();
-            break;
-        case METAENTRY:
-            throw std::runtime_error("Malformed bucket: Unexpected metaentry.");
-        }
-
-        return k;
-    };
-
-    if (!ni ||
-        (oi && ni && !refersToSameEntry(key(*oi), key(*ni)) && cmp(*oi, *ni)))
+    if (!ni || (oi && ni && cmp(*oi, *ni)))
     {
         // Either of:
         //
@@ -782,8 +689,7 @@ mergeCasesWithDefaultAcceptance(
         ++oi;
         return true;
     }
-    else if (!oi || (oi && ni && !refersToSameEntry(key(*oi), key(*ni)) &&
-                     cmp(*ni, *oi)))
+    else if (!oi || (oi && ni && cmp(*ni, *oi)))
     {
         // Either of:
         //
@@ -872,26 +778,6 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     //     because even if there is a subsequent (newer) INIT entry, the
     //     invariant is maintained for that newer entry too (it is still
     //     preceded by a DEAD state).
-    //
-    // For Soroban types, we must also consider which entries are
-    // EXPIRATION_EXTENSION entries and DATA_ENTRIES. While EXPIRATION_EXTENSION
-    // and DATA_ENTRIES have different keys, newer EXPIRATION_EXTENSION entries
-    // merge into older DATA_ENTRY entries as follows:
-    //
-    //      old       |       new      |   result
-    // ---------------+----------------+-------------------------------
-    //  INIT          |  INIT          |   error
-    //  LIVE          |  INIT          |   error
-    //  DEAD          |  INIT=x        |   LIVE=x
-    //  INIT=x        |  LIVE - DATA=y |   INIT=y
-    //  INIT=x        |  LIVE - EXT=y  |   INIT with expiration=y, data=x
-    //  LIVE - EXT=x  |  LIVE - EXT=y  |   LIVE=y
-    //  LIVE - EXT=x  |  LIVE - DATA=y |   LIVE=y
-    //  LIVE - DATA=x |  LIVE - EXT=y  |   LIVE with expiration=y, data=x
-    //  INIT          |  DEAD          |   empty
-    //
-    // Note that EXPIRATION_EXTENSION entries may not be INIT entries but must
-    // be LIVEENTRIES
 
     BucketEntry const& oldEntry = *oi;
     BucketEntry const& newEntry = *ni;
@@ -899,27 +785,6 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     Bucket::checkProtocolLegality(newEntry, protocolVersion);
     countOldEntryType(mc, oldEntry);
     countNewEntryType(mc, newEntry);
-
-    auto replaceExpiration = [](LedgerEntry& outEntry,
-                                LedgerEntry const& expirationEntry) {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        releaseAssert(refersToSameEntry(outEntry.data, expirationEntry.data));
-        if (auto t = outEntry.data.type(); t == CONTRACT_CODE)
-        {
-            outEntry.data.contractCode().expirationLedgerSeq =
-                expirationEntry.data.contractCode().expirationLedgerSeq;
-        }
-        else if (t == CONTRACT_DATA)
-        {
-            outEntry.data.contractData().expirationLedgerSeq =
-                expirationEntry.data.contractData().expirationLedgerSeq;
-        }
-        else
-        {
-            releaseAssert(false);
-        }
-#endif
-    };
 
     if (newEntry.type() == INITENTRY)
     {
@@ -945,19 +810,7 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
             // Merge a create+update to a fresher create.
             BucketEntry newInit;
             newInit.type(INITENTRY);
-
-            if (isSorobanExtEntry(newEntry.liveEntry().data))
-            {
-                // New entry is expiration extension, keep oldEntry data with
-                // newEntry expiration
-                newInit.liveEntry() = oldEntry.liveEntry();
-                replaceExpiration(newInit.liveEntry(), newEntry.liveEntry());
-            }
-            else
-            {
-                newInit.liveEntry() = newEntry.liveEntry();
-            }
-
+            newInit.liveEntry() = newEntry.liveEntry();
             ++mc.mOldInitEntriesMergedWithNewLive;
             maybePut(out, newInit, shadowIterators,
                      keepShadowedLifecycleEntries, mc);
@@ -970,30 +823,10 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     }
     else
     {
-        // Neither is in INIT state
-
-        // TODO: Update merge counter with Soroban metrics
+        // Neither is in INIT state, take the newer one.
         ++mc.mNewEntriesMergedWithOldNeitherInit;
-
-        // If new entry is expiration extension and old
-        // entry is not, put oldEntry data with newEntry expiration
-        if (newEntry.type() == LIVEENTRY && oldEntry.type() == LIVEENTRY &&
-            isSorobanExtEntry(newEntry.liveEntry().data) &&
-            !isSorobanExtEntry(oldEntry.liveEntry().data))
-        {
-            BucketEntry newResult;
-            newResult.type(LIVEENTRY);
-            newResult.liveEntry() = oldEntry.liveEntry();
-            replaceExpiration(newResult.liveEntry(), newEntry.liveEntry());
-            maybePut(out, newResult, shadowIterators,
-                     keepShadowedLifecycleEntries, mc);
-        }
-        // Just take newer one
-        else
-        {
-            maybePut(out, newEntry, shadowIterators,
-                     keepShadowedLifecycleEntries, mc);
-        }
+        maybePut(out, newEntry, shadowIterators, keepShadowedLifecycleEntries,
+                 mc);
     }
     ++oi;
     ++ni;
@@ -1028,21 +861,40 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         if (be.type() == INITENTRY || be.type() == LIVEENTRY)
         {
             auto const& le = be.liveEntry();
-            if (isSorobanDataEntry(le.data) && isTemporaryEntry(le.data) &&
-                !isLive(le, ledgerSeq))
+            if (isTemporaryEntry(le.data))
             {
-                // This check ensures:
-                // 1. The entry being scanned is not deleted, i.e., has not been
-                //    evicted by a previous scan.
-                // 2. The entry being scanned is not shadowed by a newer, live
-                //    version of the entry.
-                auto ltxe = ltx.load(LedgerEntryKey(le));
-                if (ltxe && !isLive(ltxe.current(), ledgerSeq))
+                // All Buckets maintain a single stream object. This means
+                // that if an ExpirationEntry being loaded exists in the
+                // same bucket as the entry being evicted, the stream may be
+                // modified, so we must seek back to the starting position
+                // after any call to load
+                auto initialStreamPos = stream.pos();
+
+                auto expirationKey = getExpirationKey(le);
+                auto shouldEvict = [&] {
+                    auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
+                    if (!entryLtxe)
+                    {
+                        // Entry was already deleted either manually or by an
+                        // earlier eviction scan, do nothing
+                        return false;
+                    }
+
+                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+                    releaseAssert(expirationLtxe);
+
+                    return !isLive(expirationLtxe.current(), ledgerSeq);
+                };
+
+                if (shouldEvict())
                 {
-                    ltxe.erase();
+                    ltx.erase(expirationKey);
+                    ltx.erase(LedgerEntryKey(le));
                     entriesEvictedMeter.Mark();
                     --maxEntriesToEvict;
                 }
+
+                stream.seek(initialStreamPos);
             }
         }
 

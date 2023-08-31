@@ -25,7 +25,6 @@
 #include "medida/counter.h"
 
 #include <Tracy.hpp>
-#include <algorithm>
 #include <fmt/format.h>
 
 namespace stellar
@@ -405,47 +404,23 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
-    if (!isSorobanDataEntry(k))
-    {
-        auto f = [&](std::shared_ptr<Bucket> b) {
-            auto be = b->getBucketEntry(k);
-            if (be.has_value())
-            {
-                result =
-                    be.value().type() == DEADENTRY
-                        ? nullptr
-                        : std::make_shared<LedgerEntry>(be.value().liveEntry());
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        };
-
-        loopAllBuckets(f);
-    }
-    else
-    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        // Never directly return EXPIRATION_EXTENSION entries
-        if (isSorobanExtEntry(k))
+    auto f = [&](std::shared_ptr<Bucket> b) {
+        auto be = b->getBucketEntry(k);
+        if (be.has_value())
         {
-            return nullptr;
+            result =
+                be.value().type() == DEADENTRY
+                    ? nullptr
+                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            return true;
         }
-
-        // If entry can have a expiration extension, we need to use loadKeys
-        // which will search for both the DATA_ENTRY and EXPIRATION_EXTENSION
-        // entries.
-        auto resultV = loadKeys({k});
-        if (!resultV.empty())
+        else
         {
-            releaseAssert(resultV.size() == 1);
-            result = std::make_shared<LedgerEntry>(resultV.back());
+            return false;
         }
-#endif
-    }
+    };
 
+    loopAllBuckets(f);
     return result;
 }
 
@@ -454,51 +429,15 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
-    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> expirationExtensions;
 
-    // We will build a slightly modified key-set for the query (at least
-    // when looking up soroban keys that might have EXPIRATION_EXTENSIONS).
-    std::set<LedgerKey, LedgerEntryIdCmp> keys;
-
-    for (auto const& k : inKeys)
-    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (isSorobanExtEntry(k))
-        {
-            // Drop any _requested_ EXPIRATION_EXTENSION entries, they
-            // are not valid as inputs.
-            continue;
-        }
-        if (isSorobanDataEntry(k))
-        {
-            // Duplicate any DATA_ENTRY key as an EXPIRATION_EXTENSION
-            // ourselves, so the query below will look for exactly 2 keys
-            // per input DATA_ENTRY key.
-            LedgerKey e = k;
-            setLeType(e, ContractEntryBodyType::EXPIRATION_EXTENSION);
-            keys.emplace(e);
-        }
-#endif
-        keys.emplace(k);
-    }
-
+    // Make a copy of the key set, this loop is destructive
+    auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries, expirationExtensions);
+        b->loadKeys(keys, entries);
         return keys.empty();
     };
 
     loopAllBuckets(f);
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Remove any EXPIRATION_EXTENSION entries returned from the query, they
-    // should never be returned to callers.
-    entries.erase(std::remove_if(entries.begin(), entries.end(),
-                                 [](LedgerEntry const& e) {
-                                     return isSorobanExtEntry(e.data);
-                                 }),
-                  entries.end());
-#endif
-
     return entries;
 }
 

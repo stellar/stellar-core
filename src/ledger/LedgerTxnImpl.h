@@ -77,6 +77,8 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mContractCodeToUpsert;
     std::vector<EntryIterator> mContractCodeToDelete;
     std::vector<EntryIterator> mConfigSettingsToUpsert;
+    std::vector<EntryIterator> mExpirationToUpsert;
+    std::vector<EntryIterator> mExpirationToDelete;
 #endif
 
   public:
@@ -181,6 +183,18 @@ class BulkLedgerEntryChangeAccumulator
     getContractCodeToDelete()
     {
         return mContractCodeToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getExpirationToUpsert()
+    {
+        return mExpirationToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getExpirationToDelete()
+    {
+        return mExpirationToDelete;
     }
 #endif
 
@@ -773,6 +787,8 @@ class LedgerTxnRoot::Impl
     loadContractCode(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadConfigSetting(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const>
+    loadExpiration(LedgerKey const& key) const;
 #endif
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
@@ -803,6 +819,9 @@ class LedgerTxnRoot::Impl
     void bulkDeleteContractCode(std::vector<EntryIterator> const& entries,
                                 LedgerTxnConsistency cons);
     void bulkUpsertConfigSettings(std::vector<EntryIterator> const& entries);
+    void bulkUpsertExpiration(std::vector<EntryIterator> const& entries);
+    void bulkDeleteExpiration(std::vector<EntryIterator> const& entries,
+                              LedgerTxnConsistency cons);
 #endif
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
@@ -848,6 +867,8 @@ class LedgerTxnRoot::Impl
     bulkLoadContractCode(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadConfigSettings(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadExpiration(UnorderedSet<LedgerKey> const& keys) const;
 #endif
 
     std::deque<LedgerEntry>::const_iterator
@@ -895,6 +916,7 @@ class LedgerTxnRoot::Impl
     void dropContractData(bool rebuild);
     void dropContractCode(bool rebuild);
     void dropConfigSettings(bool rebuild);
+    void dropExpiration(bool rebuild);
 #endif
 
 #ifdef BUILD_TESTS

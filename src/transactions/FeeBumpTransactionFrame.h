@@ -111,6 +111,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool isSoroban() const override;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanResources const& sorobanResources() const override;
+    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
     void
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
