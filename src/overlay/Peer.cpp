@@ -1128,6 +1128,47 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     sendMessage(newMsgPtr);
 }
 
+//                        ┌─────────────Retry.─────────┐
+//                        │                            │
+//                        │                            │
+//                        │                      ┌──────────┐
+//                        ▼                      │  Delay   │
+//               ┏━━━━━━━━━━━━━━━━━┓             └──────────┘
+//               ┃                 ┃                   ▲
+//               ┃                 ┃                   │
+//      ┌────┬───┃Txn set fetching ┃                   │
+//      │    │   ┃                 ┃                   │
+//      │    │   ┃                 ┃                   │
+//      │    │   ┗━━━━━━━━━━━━━━━━━┛                  Y│
+//      │    │            │                            │
+//      Peer times    Peer recvs                       │
+//      │  out.       GetTxnSet                        │
+//      │    │         request.                        │
+//      │    │            │                            │
+//    Peer   │   Peer has Λ                   First    Λ
+//  receives │   txn set?▕ ▏───────────N──────time?──▶▕ ▏
+//  new txn  │            V                            V
+//      │    │           Y│                            │
+//      │    │            ▼                           N│
+//      │    │ ┌────────────────────┐                  │
+//      │    │ │Send txn set back to│                  │
+//      │    │ │       peer.        │                  │
+//      │    │ └────────────────────┘                  │
+//      │    │                                         │
+//      │    │  ┌────────────────────┐                 ▼
+//      │    │  │     Time out.      │       ┌───────────────────┐
+//      │    │  │   Clear pending    │       │Add txn set hash to│
+//      │    └─▶│ GetTxnSet requests │       │ pending GetTxnSet │
+//      │       │   and nominate.    │       │     requests.     │
+//      │       └────────────────────┘       └───────────────────┘
+//      │  ┌────────────────────────────┐
+//      │  │  Adds txn set to ledger.   │
+//      │  │ Address pending GetTxnSet  │
+//      └─▶│ requests (if any) for the  │
+//         │    given txn set hash.     │
+//         │                            │
+//         └────────────────────────────┘
+
 void
 Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 {

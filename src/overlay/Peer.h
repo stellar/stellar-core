@@ -73,7 +73,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
 
-    static constexpr uint32_t MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP = 5;
+    static constexpr uint32_t MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP = 1;
     static const uint32_t getMaxNumPendingGetTxSetRequestsToKeep();
 
 #ifdef BUILD_TESTS
