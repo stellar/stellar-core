@@ -173,6 +173,7 @@ struct HostFunctionMetrics
     uint32 mCpuInsn{0};
     uint32 mMemByte{0};
     uint32 mInvokeTimeNsecs{0};
+    uint32 mInsnNsecRatio{0};
 
     // max single entity size metrics
     uint32 mMaxReadWriteKeyByte{0};
@@ -262,6 +263,8 @@ struct HostFunctionMetrics
         mMetrics
             .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
             .Mark(mInvokeTimeNsecs);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "insn-nsec-ratio"}, "ratio")
+            .Mark(mInsnNsecRatio);
 
         mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
             .Mark(mMaxReadWriteKeyByte);
@@ -491,6 +494,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
     metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
     metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
+    metrics.mInsnNsecRatio =
+        metrics.mCpuInsn / std::max(metrics.mInvokeTimeNsecs, (uint32)1);
+
     if (!out.success)
     {
         if (resources.instructions < out.cpu_insns ||
