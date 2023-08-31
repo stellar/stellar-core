@@ -210,6 +210,8 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     {
         switch (change.type())
         {
+        case LEDGER_ENTRY_CREATED:
+            throw std::runtime_error("unexpected create in eviction meta");
         case LEDGER_ENTRY_STATE:
             continue;
         case LEDGER_ENTRY_UPDATED:

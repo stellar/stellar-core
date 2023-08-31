@@ -175,7 +175,7 @@ class BulkDeleteExpirationOperation : public DatabaseTypeSpecificOperation<void>
         mKeyHashes.reserve(entries.size());
         for (auto const& e : entries)
         {
-            releaseAssert(!e.entryExists());
+            releaseAssertOrThrow(!e.entryExists());
             throwIfNotExpiration(e.key().ledgerKey().type());
             mKeyHashes.emplace_back(
                 toOpaqueBase64(e.key().ledgerKey().expiration().keyHash));
@@ -320,7 +320,7 @@ class BulkUpsertExpirationOperation : public DatabaseTypeSpecificOperation<void>
 
         std::string sql = "WITH r AS "
                           "(SELECT unnest(:v1::TEXT[]), "
-                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
+                          "unnest(:v2::TEXT[]), unnest(:v3::INT[])) "
                           "INSERT INTO expiration "
                           "(keyHash, ledgerentry, lastmodified) "
                           "SELECT * FROM r "
