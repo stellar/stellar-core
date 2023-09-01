@@ -5,7 +5,15 @@ on:
   push:
     branches:
       - auto
+
 jobs:
+
+  rust-check-git-rev-deps:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: stellar/actions/rust-check-git-rev-deps@main
+
   build:
     runs-on: ubuntu-latest
 
