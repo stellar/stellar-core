@@ -1345,6 +1345,9 @@
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
