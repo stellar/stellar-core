@@ -27,6 +27,14 @@
 		19,
 		20
 	],
+	"Stellar asset contract transfer|trustline" : 
+	[
+		"E20P08yXd3g=",
+		"InKWm13ZUuM=",
+		"ciG7hHbwCSU=",
+		"q8B6IhL17rY=",
+		"IOYjlwjZ9lQ="
+	],
 	"basic contract invocation|invalid footprint keys|readOnly" : 
 	[
 		"3l7t9opHMbU=",
