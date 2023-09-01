@@ -95,6 +95,7 @@ AX_APPEND_COMPILE_FLAGS([-pthread])
 AC_LANG_POP(C)
 
 unset sanitizeopts
+unset rust_sanitizeopts
 
 AC_ARG_ENABLE([asan],
   AS_HELP_STRING([--enable-asan],
@@ -102,6 +103,9 @@ AC_ARG_ENABLE([asan],
 AS_IF([test "x$enable_asan" = "xyes"], [
   AC_MSG_NOTICE([ Enabling asan, see https://clang.llvm.org/docs/AddressSanitizer.html ])
   sanitizeopts="address"
+  rust_sanitizeopts="-Zsanitizer=address"
+  CARGOFLAGS="+nightly"
+  CARGOBUILDFLAGS="-Zbuild-std"
 ])
 
 AC_ARG_ENABLE([codecoverage],
@@ -126,6 +130,9 @@ AS_IF([test "x$enable_memcheck" = "xyes"], [
     AC_MSG_ERROR(Cannot enable multiple checkers at once)
   ])
   sanitizeopts="memory -fsanitize-memory-track-origins=2 -fsanitize-memory-use-after-dtor"
+  rust_sanitizeopts="-Zsanitizer=memory -Zsanitizer-memory-track-origins=2 -Zsanitizer-memory-use-after-dtor"
+  CARGOFLAGS="+nightly"
+  CARGOBUILDFLAGS="-Zbuild-std"
 
   if test -z "$LIBCXX_PATH"; then
    AC_MSG_ERROR(LIBCXX_PATH must be set for memcheck to work)
@@ -150,6 +157,9 @@ AS_IF([test "x$enable_undefinedcheck" = "xyes"], [
     AC_MSG_ERROR(Cannot enable multiple checkers at once)
   ])
   sanitizeopts="undefined"
+  rust_sanitizeopts="-Zsanitizer=thread"
+  CARGOFLAGS="+nightly"
+  CARGOBUILDFLAGS="-Zbuild-std"
 ])
 
 AS_IF([test x != "x$sanitizeopts"], [
@@ -157,6 +167,9 @@ AS_IF([test x != "x$sanitizeopts"], [
   sanflags="-fsanitize=$sanitizeopts -fno-omit-frame-pointer"
   CFLAGS="$CFLAGS $sanflags"
   CXXFLAGS="$CXXFLAGS $sanflags"
+  RUSTFLAGS="$RUSTFLAGS $rust_sanitizeopts"
+  CARGOFLAGS="+nightly"
+  CARGOBUILDFLAGS="-Zbuild-std"
 
   # compile our own libraries when sanitizers are enabled
   libsodium_INTERNAL=yes
@@ -455,6 +468,10 @@ if test x"$enable_next_protocol_version_unsafe_for_production" = xyes; then
     AC_MSG_ERROR([rustc version too old (need >= 1.57)])
   ])
   AC_ARG_VAR(RUSTC)
+  RUSTC_TARGET="$(${RUSTC} -vV | sed -n 's/host://p')"
+  AC_SUBST(RUSTC_TARGET)
+  AC_SUBST(RUSTFLAGS)
+  AC_SUBST(CARGOFLAGS)
 fi
 
 # Need this to pass through ccache for xdrpp, libsodium
