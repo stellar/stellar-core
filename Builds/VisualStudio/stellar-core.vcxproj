@@ -575,6 +575,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
