@@ -35,6 +35,14 @@ crankFor(VirtualClock& clock, VirtualClock::duration duration)
 }
 
 void
+crankForWithBlock(VirtualClock& clock, VirtualClock::duration duration)
+{
+    auto start = clock.now();
+    while (clock.now() < (start + duration) && clock.crank(true) > 0)
+        ;
+}
+
+void
 shutdownWorkScheduler(Application& app)
 {
     if (app.getClock().getIOContext().stopped())

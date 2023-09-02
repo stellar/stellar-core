@@ -5345,7 +5345,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     VirtualClock clock;
     auto const numNodes = 2;
     std::vector<std::shared_ptr<Application>> apps;
-    std::chrono::milliseconds const epsilon{1};
+    std::chrono::milliseconds const epsilon{50};
 
     for (auto i = 0; i < numNodes; i++)
     {
@@ -5360,7 +5360,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
 
     auto connection =
         std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[1]);
-    testutil::crankFor(clock, std::chrono::seconds(5));
+    testutil::crankForWithBlock(clock, std::chrono::seconds(5));
     REQUIRE(connection->getInitiator()->isAuthenticated());
     REQUIRE(connection->getAcceptor()->isAuthenticated());
 
@@ -5395,7 +5395,10 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
 
     CLOG_INFO(Herder, "pending requests size before crank: {}",
               apps[0]->getOverlayManager().getPendingTxSetRequests().size());
-    testutil::crankFor(clock, epsilon);
+    CLOG_INFO(Herder, "now: {}", clock.now().time_since_epoch().count());
+    testutil::crankForWithBlock(clock, epsilon);
+    CLOG_INFO(Herder, "now: {}", clock.now().time_since_epoch().count());
+    CLOG_INFO(Herder, "epsilon: {}", epsilon.count());
     CLOG_INFO(Herder, "pending requests size after crank: {}",
               apps[0]->getOverlayManager().getPendingTxSetRequests().size());
 }
