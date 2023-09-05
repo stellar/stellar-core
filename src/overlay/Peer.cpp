@@ -1162,7 +1162,7 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
 //      │       │   and nominate.    │       │     requests.     │
 //      │       └────────────────────┘       └───────────────────┘
 //      │  ┌────────────────────────────┐
-//      │  │  Adds txn set to ledger.   │
+//      │  │  Adds txn set to herder.   │
 //      │  │ Address pending GetTxnSet  │
 //      └─▶│ requests (if any) for the  │
 //         │    given txn set hash.     │
@@ -1296,7 +1296,6 @@ Peer::recvTxSet(StellarMessage const& msg)
             peer->sendTxSet(frame);
         }
     }
-    pendingTxSetRequests[frame->getContentsHash()].clear();
     pendingTxSetRequests.erase(frame->getContentsHash());
 }
 
