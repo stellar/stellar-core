@@ -59,13 +59,10 @@ generateRandomSubEntry(LedgerEntry const& acc)
     {
         le = LedgerTestUtils::generateValidLedgerEntry(5);
     } while (le.data.type() == ACCOUNT || le.data.type() == CLAIMABLE_BALANCE ||
-             le.data.type() == LIQUIDITY_POOL
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-             || le.data.type() == CONFIG_SETTING ||
+             le.data.type() == LIQUIDITY_POOL ||
+             le.data.type() == CONFIG_SETTING ||
              le.data.type() == CONTRACT_DATA ||
-             le.data.type() == CONTRACT_CODE || le.data.type() == EXPIRATION
-#endif
-    );
+             le.data.type() == CONTRACT_CODE || le.data.type() == EXPIRATION);
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
 
     switch (le.data.type())

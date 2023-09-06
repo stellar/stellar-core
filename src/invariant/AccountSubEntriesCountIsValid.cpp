@@ -96,12 +96,10 @@ updateChangedSubEntriesCount(
     }
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case CONFIG_SETTING:
     case EXPIRATION:
-#endif
         // Claimable balances, liquidity pools, contract data, configuration
         // settings, and expiration entries are not subentries
         break;

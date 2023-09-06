@@ -100,14 +100,12 @@ FlowControlByteCapacity::canRead() const
     return true;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
 {
     mCapacity.mFloodCapacity += increase;
     mCapacityLimits.mFloodCapacity += increase;
 }
-#endif
 
 FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
     : mApp(app), mNodeID(nodeID)

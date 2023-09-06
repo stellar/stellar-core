@@ -118,11 +118,10 @@ computeMultiplier(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
+    case CONTRACT_CODE:
     case EXPIRATION:
-#endif
     default:
         throw std::runtime_error("Unexpected LedgerEntry type");
     }
@@ -194,7 +193,7 @@ genesis(int minute, int second)
     return VirtualClock::tmToSystemPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
 }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn)
@@ -235,5 +234,4 @@ overrideSorobanNetworkConfigForTest(Application& app)
         cfg.mLedgerMaxTxCount = 100;
     });
 }
-#endif
 }

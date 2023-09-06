@@ -236,13 +236,11 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 19:
         mApp.getPersistentState().upgradeSCPDataV1Format();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 20:
         mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
         mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
         mApp.getPersistentState().setRebuildForType(CONTRACT_CODE);
         break;
-#endif
     default:
         throw std::runtime_error("Unknown DB schema version");
     }

@@ -1886,7 +1886,6 @@ Peer::fulfillDemand(FloodDemand const& dmd)
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 Peer::handleMaxTxSizeIncrease(uint32_t increase)
 {
@@ -1895,5 +1894,4 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
         mFlowControl->handleTxSizeIncrease(increase, shared_from_this());
     }
 }
-#endif
 }

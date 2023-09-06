@@ -1215,7 +1215,6 @@ class TxQueueTracker : public TxStack
     TransactionQueue::AccountState* mAccountState;
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
                                                  uint32 pendingDepth,
                                                  uint32 banDepth,
@@ -1341,8 +1340,6 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
         return 0;
     }
 }
-
-#endif
 
 bool
 ClassicTransactionQueue::broadcastSome()

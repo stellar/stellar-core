@@ -8,14 +8,12 @@
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include "rust/RustBridge.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/RustBridge.h"
-#endif
 
 #include <memory>
 #include <optional>
@@ -52,7 +50,6 @@ class TransactionFrame : public TransactionFrameBase
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     xdr::xvector<ContractEvent> mEvents;
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
     SCVal mReturnValue;
@@ -61,7 +58,6 @@ class TransactionFrame : public TransactionFrameBase
     uint32_t mConsumedContractEventsSizeBytes{};
     int64_t mConsumedRentFee{};
     int64_t mFeeRefund{};
-#endif
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
@@ -133,7 +129,6 @@ class TransactionFrame : public TransactionFrameBase
     std::optional<LedgerBounds const> const getLedgerBounds() const;
     bool extraSignersExist() const;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   uint32_t protocolVersion);
@@ -142,7 +137,6 @@ class TransactionFrame : public TransactionFrameBase
         uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
         Config const& cfg, bool useConsumedRefundableResources) const;
     int64 sorobanRefundableFee() const;
-#endif
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -189,7 +183,6 @@ class TransactionFrame : public TransactionFrameBase
     void resetResults(LedgerHeader const& header,
                       std::optional<int64_t> baseFee, bool applying);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
@@ -207,7 +200,6 @@ class TransactionFrame : public TransactionFrameBase
     {
         return mSorobanResourceFee;
     }
-#endif
 #endif
 
     TransactionEnvelope const& getEnvelope() const override;
@@ -291,7 +283,6 @@ class TransactionFrame : public TransactionFrameBase
     bool hasDexOperations() const override;
 
     bool isSoroban() const override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanResources const& sorobanResources() const override;
     void
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
@@ -302,6 +293,5 @@ class TransactionFrame : public TransactionFrameBase
                                       int64_t rentFee, uint32_t protocolVersion,
                                       SorobanNetworkConfig const& sorobanConfig,
                                       Config const& cfg);
-#endif
 };
 }

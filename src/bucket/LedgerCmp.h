@@ -84,7 +84,6 @@ struct LedgerEntryIdCmp
         case LIQUIDITY_POOL:
             return a.liquidityPool().liquidityPoolID <
                    b.liquidityPool().liquidityPoolID;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
         {
             return lexCompare(a.contractData().contract,
@@ -116,7 +115,6 @@ struct LedgerEntryIdCmp
         }
         case EXPIRATION:
             return lexCompare(a.expiration().keyHash, b.expiration().keyHash);
-#endif
         }
         return false;
     }

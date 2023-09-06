@@ -202,12 +202,10 @@ computeMultiplier(LedgerEntry const& le)
     case CLAIMABLE_BALANCE:
         return static_cast<uint32_t>(
             le.data.claimableBalance().claimants.size());
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case EXPIRATION:
-#endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
             "Invalid LedgerEntry type in SponsorshipUtils");
@@ -228,12 +226,10 @@ isSubentry(LedgerEntry const& le)
     case OFFER:
     case DATA:
         return true;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
     case CONFIG_SETTING:
     case CONTRACT_CODE:
     case EXPIRATION:
-#endif
     case LIQUIDITY_POOL:
         throw std::runtime_error(
             "Invalid LedgerEntry type in SponsorshipUtils");

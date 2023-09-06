@@ -326,7 +326,6 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case LIQUIDITY_POOL:
             ++mLiquidityPoolUpsert;
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
             ++mContractDataUpsert;
             break;
@@ -339,7 +338,6 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case EXPIRATION:
             ++mExpirationUpsert;
             break;
-#endif
         }
     }
     else
@@ -364,7 +362,6 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case LIQUIDITY_POOL:
             ++mLiquidityPoolDelete;
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
             ++mContractDataDelete;
             break;
@@ -376,7 +373,6 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case EXPIRATION:
             ++mExpirationDelete;
             break;
-#endif
         }
     }
 }

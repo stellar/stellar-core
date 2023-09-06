@@ -687,12 +687,7 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
             LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                5));
+                {CONFIG_SETTING}, 5));
 
         if ((i & 0xff) == 0xff)
         {

@@ -831,7 +831,6 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
                    uint32_t refundableFee, SorobanResources resources,
@@ -883,7 +882,6 @@ setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
     txbridge::getSignatures(tx).clear();
     tx->addSignature(source.getSecretKey());
 }
-#endif
 
 Asset
 makeNativeAsset()
@@ -1632,7 +1630,6 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     return tx;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static TransactionEnvelope
 sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
@@ -1663,7 +1660,6 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     }
     return tx;
 }
-#endif
 
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
@@ -1675,7 +1671,6 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFrameBasePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
@@ -1688,7 +1683,6 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
                                           resources, fee, refundableFee, memo));
 }
-#endif
 
 LedgerUpgrade
 makeBaseReserveUpgrade(int baseReserve)
@@ -1734,7 +1728,6 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
                            upgradeIgnored);
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigUpgradeSetFrameConstPtr
 makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
 {
@@ -1781,7 +1774,6 @@ makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
     result.newConfig() = configUpgradeSet.getKey();
     return result;
 }
-#endif
 
 // trades is a vector of pairs, where the bool indicates if assetA or assetB is
 // sent in the payment, and the int64_t is the amount

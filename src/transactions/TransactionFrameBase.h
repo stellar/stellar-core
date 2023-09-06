@@ -89,7 +89,6 @@ class TransactionFrameBase
     virtual bool hasDexOperations() const = 0;
 
     virtual bool isSoroban() const = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual SorobanResources const& sorobanResources() const = 0;
     virtual xdr::xvector<DiagnosticEvent> const&
     getDiagnosticEvents() const = 0;
@@ -97,6 +96,5 @@ class TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) = 0;
-#endif
 };
 }

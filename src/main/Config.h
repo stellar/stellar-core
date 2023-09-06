@@ -490,10 +490,8 @@ class Config : public std::enable_shared_from_this<Config>
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
     int FLOOD_TX_PERIOD_MS;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     double FLOOD_SOROBAN_RATE_PER_LEDGER;
     int FLOOD_SOROBAN_TX_PERIOD_MS;
-#endif
     int32_t FLOOD_ARB_TX_BASE_ALLOWANCE;
     double FLOOD_ARB_TX_DAMPING_FACTOR;
 
@@ -565,7 +563,6 @@ class Config : public std::enable_shared_from_this<Config>
     // The default value is false.
     bool HALT_ON_INTERNAL_TRANSACTION_ERROR;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If set to true, env will return additional diagnostic Soroban events
     // that are not part of the protocol. These events will be put into a list
     // in the non-hashed portion of the meta, and this list will contain all
@@ -579,7 +576,6 @@ class Config : public std::enable_shared_from_this<Config>
 
     // Increase all initial max limits to higher values for testing
     bool TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE;
-#endif
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test

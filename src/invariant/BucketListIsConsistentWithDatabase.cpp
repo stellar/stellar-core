@@ -126,7 +126,6 @@ struct EntryCounts
         case LIQUIDITY_POOL:
             ++mLiquidityPool;
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONTRACT_DATA:
             ++mContractData;
             break;
@@ -139,7 +138,6 @@ struct EntryCounts
         case EXPIRATION:
             ++mExpiration;
             break;
-#endif
         default:
             throw std::runtime_error(
                 fmt::format(FMT_STRING("unknown ledger entry type: {:d}"),
@@ -174,14 +172,11 @@ struct EntryCounts
         check(ACCOUNT, mAccounts) && check(TRUSTLINE, mTrustLines) &&
             check(OFFER, mOffers) && check(DATA, mData) &&
             check(CLAIMABLE_BALANCE, mClaimableBalance) &&
-            check(LIQUIDITY_POOL, mLiquidityPool)
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            && check(CONTRACT_DATA, mContractData) &&
+            check(LIQUIDITY_POOL, mLiquidityPool) &&
+            check(CONTRACT_DATA, mContractData) &&
             check(CONTRACT_CODE, mContractCode) &&
             check(CONFIG_SETTING, mConfigSettings) &&
-            check(EXPIRATION, mExpiration)
-#endif
-            ;
+            check(EXPIRATION, mExpiration);
         return msg;
     }
 };

@@ -144,12 +144,7 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                     *app, i, getAppLedgerVersion(app), {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        5));
+                        {CONFIG_SETTING}, 5));
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
@@ -273,12 +268,7 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
             bl.addBatch(
                 *app, i, getAppLedgerVersion(app), {}, liveBatch,
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5));
+                    {CONFIG_SETTING}, 5));
             if (i % 100 == 0)
             {
                 CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
@@ -354,24 +344,14 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5),
+                    {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
             level.setSnap(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5),
+                    {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
         }
@@ -387,12 +367,7 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                     *app, j, getAppLedgerVersion(app), {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        5));
+                        {CONFIG_SETTING}, 5));
                 app->getClock().crank(false);
                 for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
                 {
@@ -436,12 +411,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
         {
             std::vector<LedgerEntry> initEntries =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    8);
+                    {CONFIG_SETTING}, 8);
             std::vector<LedgerEntry> liveEntries;
             std::vector<LedgerKey> deadEntries;
             for (auto const& e : initEntries)
@@ -693,7 +663,6 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 {
     VirtualClock clock;
@@ -1128,8 +1097,6 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         }
     });
 }
-
-#endif
 
 static std::string
 formatX32(uint32_t v)

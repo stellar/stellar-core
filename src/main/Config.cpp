@@ -210,10 +210,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     FLOOD_SOROBAN_RATE_PER_LEDGER = 1.0;
     FLOOD_SOROBAN_TX_PERIOD_MS = 200;
-#endif
+
     FLOOD_ARB_TX_BASE_ALLOWANCE = 5;
     FLOOD_ARB_TX_DAMPING_FACTOR = 0.8;
 
@@ -261,11 +261,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MAX_DEX_TX_OPERATIONS_IN_TX_SET = std::nullopt;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 0;
     TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = false;
-#endif
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1222,7 +1220,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             else if (item.first == "FLOOD_SOROBAN_RATE_PER_LEDGER")
             {
                 FLOOD_SOROBAN_RATE_PER_LEDGER = readDouble(item);
@@ -1236,7 +1233,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 FLOOD_SOROBAN_TX_PERIOD_MS = readInt<int>(item, 1);
             }
-#endif
             else if (item.first == "FLOOD_DEMAND_PERIOD_MS")
             {
                 FLOOD_DEMAND_PERIOD_MS =
@@ -1443,7 +1439,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             else if (item.first == "ENABLE_SOROBAN_DIAGNOSTIC_EVENTS")
             {
                 ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
@@ -1485,7 +1480,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                                 "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
                 }
             }
-#endif
             else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")
             {
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =

@@ -247,7 +247,6 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
     return false;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
 {
@@ -262,7 +261,6 @@ FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
         sendSendMore(0, increase, peer);
     }
 }
-#endif
 
 bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)

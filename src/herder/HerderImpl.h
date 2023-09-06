@@ -185,9 +185,7 @@ class HerderImpl : public Herder
     PendingEnvelopes& getPendingEnvelopes();
 
     ClassicTransactionQueue& getTransactionQueue() override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanTransactionQueue& getSorobanTransactionQueue() override;
-#endif
     bool sourceAccountPending(AccountID const& accountID) const override;
 #endif
 
@@ -200,10 +198,9 @@ class HerderImpl : public Herder
     bool verifyStellarValueSignature(StellarValue const& sv);
 
     size_t getMaxQueueSizeOps() const override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     size_t getMaxQueueSizeSorobanOps() const override;
     void maybeHandleUpgrade() override;
-#endif
+
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 
@@ -231,9 +228,7 @@ class HerderImpl : public Herder
     void purgeOldPersistedTxSets();
 
     ClassicTransactionQueue mTransactionQueue;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanTransactionQueue mSorobanTransactionQueue;
-#endif
 
     void updateTransactionQueue(TxSetFrameConstPtr txSet);
 

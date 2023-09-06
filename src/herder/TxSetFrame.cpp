@@ -628,12 +628,10 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         {
             return false;
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (!checkFeeMap(getInclusionFeeMap(Phase::SOROBAN)))
         {
             return false;
         }
-#endif
     }
 
     if (this->size(lcl.header, Phase::CLASSIC) > lcl.header.maxTxSetSize)
@@ -919,7 +917,6 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     return it->second;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::optional<Resource>
 TxSetFrame::getTxSetSorobanResource() const
 {
@@ -938,7 +935,6 @@ TxSetFrame::getTxSetSorobanResource() const
     }
     return std::make_optional<Resource>(total);
 }
-#endif
 
 int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const
@@ -1297,12 +1293,10 @@ TxSetFrame::computeContentsHash()
 std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
 TxSetFrame::getInclusionFeeMap(Phase phase) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (phase == Phase::SOROBAN)
     {
         return mTxBaseFeeSoroban;
     }
-#endif
     releaseAssert(phase == Phase::CLASSIC);
     return mTxBaseFeeClassic;
 }
@@ -1314,10 +1308,8 @@ TxSetFrame::getPhaseName(Phase phase)
     {
     case Phase::CLASSIC:
         return "classic";
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case Phase::SOROBAN:
         return "soroban";
-#endif
     default:
         throw std::runtime_error("Unknown phase");
     }

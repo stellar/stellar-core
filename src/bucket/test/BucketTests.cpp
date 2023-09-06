@@ -65,12 +65,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
         CLOG_DEBUG(Bucket, "Generating 10000 random ledger entries");
         auto live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
         auto dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-            {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                CONFIG_SETTING
-#endif
-            },
-            1000);
+            {CONFIG_SETTING}, 1000);
         CLOG_DEBUG(Bucket, "Hashing entries");
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
@@ -83,12 +78,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
                        (i * 10000));
             live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
             dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                1000);
+                {CONFIG_SETTING}, 1000);
             {
                 b1 = Bucket::merge(
                     app->getBucketManager(),
@@ -151,7 +141,6 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.liquidityPool() =
                         LedgerTestUtils::generateValidLiquidityPoolEntry(10);
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case CONFIG_SETTING:
                     liveEntry.data.configSetting() =
                         LedgerTestUtils::generateValidConfigSettingEntry(10);
@@ -168,7 +157,6 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.expiration() =
                         LedgerTestUtils::generateValidExpirationEntry(10);
                     break;
-#endif
                 default:
                     abort();
                 }
@@ -196,11 +184,9 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         checkDeadAnnihilatesLive(DATA);
         checkDeadAnnihilatesLive(CLAIMABLE_BALANCE);
         checkDeadAnnihilatesLive(LIQUIDITY_POOL);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         checkDeadAnnihilatesLive(CONFIG_SETTING);
         checkDeadAnnihilatesLive(CONTRACT_DATA);
         checkDeadAnnihilatesLive(CONTRACT_CODE);
-#endif
 
         SECTION("random dead entries annihilates live entries")
         {
@@ -271,11 +257,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                 if (rand_flip())
                 {
                     e = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        });
+                        {CONFIG_SETTING});
                     ++liveCount;
                 }
             }

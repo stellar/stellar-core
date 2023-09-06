@@ -2471,7 +2471,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("soroban txs not allowed before protocol upgrade",
           "[tx][envelope][soroban]")
 {
@@ -2715,4 +2714,3 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
     }
 }
-#endif

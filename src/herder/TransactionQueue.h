@@ -245,7 +245,6 @@ class TransactionQueue
 #endif
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 class SorobanTransactionQueue : public TransactionQueue
 {
   public:
@@ -265,7 +264,6 @@ class SorobanTransactionQueue : public TransactionQueue
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
 };
-#endif
 
 class ClassicTransactionQueue : public TransactionQueue
 {

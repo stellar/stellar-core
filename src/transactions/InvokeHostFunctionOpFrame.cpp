@@ -11,10 +11,8 @@
 #include <json/json.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
 #include "rust/RustVecXdrMarshal.h"
-#endif
 // clang-format on
 
 #include "ledger/LedgerTxnImpl.h"
@@ -23,7 +21,6 @@
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "rust/RustBridge.h"
@@ -741,4 +738,3 @@ InvokeHostFunctionOpFrame::isSoroban() const
     return true;
 }
 }
-#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

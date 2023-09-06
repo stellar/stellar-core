@@ -28,9 +28,7 @@ class TxSetFrame : public NonMovableOrCopyable
     enum Phase
     {
         CLASSIC,
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         SOROBAN,
-#endif
         PHASE_COUNT
     };
 
@@ -219,12 +217,11 @@ class TxSetFrame : public NonMovableOrCopyable
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseFeeClassic;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseFeeSoroban;
     std::optional<Resource> getTxSetSorobanResource() const;
-#endif
+
     // Get _inclusion_ fee map for a given phase. The map contains lowest base
     // fee for each transaction (lowest base fee is identical for all
     // transactions in the same lane)

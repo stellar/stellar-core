@@ -187,7 +187,6 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
 TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
                                       uint32 nbOps, uint32_t fee);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
                    uint32_t refundableFee, SorobanResources resources,
@@ -196,7 +195,6 @@ createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
 void setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
                       uint32_t refundableFee, Application& app,
                       TestAccount& source);
-#endif
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
@@ -290,7 +288,7 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond = std::nullopt);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
 TransactionFrameBasePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
@@ -299,7 +297,6 @@ TransactionFrameBasePtr sorobanTransactionFrameFromOps(
 ConfigUpgradeSetFrameConstPtr
 makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet);
 LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet);
-#endif
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
 

@@ -138,7 +138,6 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
             return "LiquidityPool is sponsored";
         }
         return checkIsValid(le.data.liquidityPool(), previous, version);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         return checkIsValid(le.data.contractData(), previous, version);
     case CONTRACT_CODE:
@@ -147,7 +146,6 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         return checkIsValid(le.data.configSetting(), previous, version);
     case EXPIRATION:
         return checkIsValid(le.data.expiration(), previous, version);
-#endif
     default:
         return "LedgerEntry has invalid type";
     }
@@ -507,7 +505,6 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
     return {};
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::string
 LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
                                  LedgerEntry const* previous,
@@ -624,5 +621,4 @@ LedgerEntryIsValid::checkIsValid(ExpirationEntry const& ee,
 
     return {};
 }
-#endif
 }

@@ -69,12 +69,7 @@ class BucketIndexTest
             ++ledger;
             std::vector<LedgerEntry> entries =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    10);
+                    {CONFIG_SETTING}, 10);
             f(entries);
             closeLedger(*mApp);
         } while (!BucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
@@ -170,7 +165,6 @@ class BucketIndexTest
         buildBucketList(f);
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void
     insertSimilarContractDataKeys()
     {
@@ -200,7 +194,6 @@ class BucketIndexTest
 
         insertEntries(entries);
     }
-#endif
 
     virtual void
     run()
@@ -250,12 +243,7 @@ class BucketIndexTest
                 // Add keys not in bucket list as well
                 auto addKeys =
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        10);
+                        {CONFIG_SETTING}, 10);
 
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
@@ -271,12 +259,7 @@ class BucketIndexTest
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                10);
+                {CONFIG_SETTING}, 10);
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
@@ -498,7 +481,6 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
     testAllIndexTypes(f);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
@@ -510,7 +492,6 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 
     testAllIndexTypes(f);
 }
-#endif
 
 TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {
