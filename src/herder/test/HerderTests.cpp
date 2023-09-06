@@ -5524,15 +5524,14 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
     connection->getAcceptor()->sendMessage(getTxSet, false);
 
+    REQUIRE(!apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+    REQUIRE(!apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     // No pending requests yet.
     REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 0);
     // Should not add to pending getTxSet requests while we wait before
     // retrying.
     testutil::crankFor(clock, epsilon);
     REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 0);
-    // Added to pending getTxSet requests after timeout.
-    testutil::crankFor(clock, std::chrono::milliseconds{300});
-    REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 1);
 
     auto closedTime = apps[0]
                           ->getLedgerManager()
@@ -5544,22 +5543,48 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     auto envelope = makeNominationEnvelope(
         p, {}, apps[0]->getHerder().trackingConsensusLedgerIndex() + 1);
 
-    // Inject the transaction set.
     REQUIRE(apps[0]->getHerder().recvSCPEnvelope(envelope) ==
             Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(apps[1]->getHerder().recvSCPEnvelope(envelope) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
 
-    // Receives tx set.
-    auto txSetMsg = createTxSetMessage(txnSetFrame);
-    REQUIRE(!apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
-    REQUIRE(!apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+    SECTION("Tx set not received before timeout.")
+    {
+        // Added to pending getTxSet requests after timeout.
+        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+                1);
+        // Receives tx set.
+        auto txSetMsg = createTxSetMessage(txnSetFrame);
+        connection->getInitiator()->recvMessage(*txSetMsg);
 
-    connection->getInitiator()->recvMessage(*txSetMsg);
+        testutil::crankFor(clock, std::chrono::seconds{1});
+        // Check peer has the txn set hash.
+        REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        // Pending getTxSet requests are cleared.
+        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+                0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+    }
 
-    testutil::crankFor(clock, std::chrono::seconds{1});
+    SECTION("Tx set received before timeout.")
+    {
+        // Receives tx set.
+        auto txSetMsg = createTxSetMessage(txnSetFrame);
+        connection->getInitiator()->recvMessage(*txSetMsg);
 
-    // Check peer has the txn set hash.
-    REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
-    // Pending getTxSet requests are cleared.
-    REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 0);
-    // REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        // Pending getTxSet requests are empty since node already has the tx
+        // set.
+        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+                0);
+
+        testutil::crankFor(clock, std::chrono::seconds{1});
+        // Check peer has the txn set hash.
+        REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        // Pending getTxSet requests are cleared.
+        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+                0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+    }
 }
