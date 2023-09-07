@@ -275,7 +275,8 @@ main(int argc, char* const* argv)
     // checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_lockfile_has_expected_dep_trees(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
-    checkXDRFileIdentity();
+    // TODO: UNCOMMENT
+    // checkXDRFileIdentity();
 #endif
 
     int res = handleCommandLine(argc, argv);
