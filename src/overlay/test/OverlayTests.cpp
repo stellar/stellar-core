@@ -272,7 +272,6 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     }
     SECTION("transaction size upgrades")
     {
-        //#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
@@ -440,7 +439,6 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 }
             }
         }
-        //#endif
     }
 }
 

@@ -730,7 +730,6 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
             REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
         }
 
-        //#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         SECTION("fails for configuration")
         {
             auto configLe =
@@ -741,7 +740,6 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
             REQUIRE_THROWS_AS(ltx1.erase(LedgerEntryKey(configLe)),
                               std::runtime_error);
         }
-        //#endif
 
         SECTION("when key does not exist")
         {
@@ -825,7 +823,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key),
                               std::runtime_error);
         }
-        //#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
         SECTION("fails for configuration")
         {
             auto configLe =
@@ -836,7 +834,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
             REQUIRE_THROWS_AS(ltx1.erase(LedgerEntryKey(configLe)),
                               std::runtime_error);
         }
-        //#endif
+
         SECTION("when key does not exist")
         {
             LedgerTxn ltx1(app->getLedgerTxnRoot());
