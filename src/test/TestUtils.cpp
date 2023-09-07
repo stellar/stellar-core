@@ -234,4 +234,13 @@ overrideSorobanNetworkConfigForTest(Application& app)
         cfg.mLedgerMaxTxCount = 100;
     });
 }
+
+bool
+appProtocolVersionStartsFrom(Application& app, ProtocolVersion fromVersion)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+
+    return protocolVersionStartsFrom(ledgerVersion, fromVersion);
+}
 }

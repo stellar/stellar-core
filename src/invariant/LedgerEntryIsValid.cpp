@@ -22,28 +22,18 @@ signerCompare(Signer const& s1, Signer const& s2)
     return s1.key < s2.key;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerEntryIsValid::LedgerEntryIsValid(
     LumenContractInfo const& lumenContractInfo)
     : Invariant(false), mLumenContractInfo(lumenContractInfo)
 {
 }
-#else
-LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
-{
-}
-#endif
 
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
         lumenInfo);
-#else
-    return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>();
-#endif
 }
 
 std::string

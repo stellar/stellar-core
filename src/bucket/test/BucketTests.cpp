@@ -195,11 +195,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             std::vector<LedgerKey> dead;
             for (auto& e : live)
             {
-                if (rand_flip()
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    && e.data.type() != CONFIG_SETTING
-#endif
-                )
+                if (rand_flip() && e.data.type() != CONFIG_SETTING)
                 {
                     dead.push_back(LedgerEntryKey(e));
                 }

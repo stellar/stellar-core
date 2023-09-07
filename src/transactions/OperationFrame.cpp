@@ -264,7 +264,6 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
     resetResultSuccess();
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         auto const& sorobanConfig =
@@ -276,9 +275,6 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     {
         return doCheckValid(ledgerVersion);
     }
-#else
-    return doCheckValid(ledgerVersion);
-#endif
 }
 
 bool

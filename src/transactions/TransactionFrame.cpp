@@ -70,10 +70,9 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // Initialize the fee to 0, callers will compute the fee appropriately
     mSorobanResourceFee = std::make_optional<FeePair>();
-#endif
 }
 
 Hash const&
@@ -1018,7 +1017,6 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!validateSorobanOpsConsistency())
     {
         getResult().result.code(txMALFORMED);
@@ -1076,7 +1074,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             return false;
         }
     }
-#endif
+
     auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
@@ -1602,26 +1600,31 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // commit -> propagate the meta to the outer scope
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (!isSoroban() && !mEvents.empty())
-            {
-                throw std::runtime_error("unexpected events size");
-            }
 
-            outerMeta.pushContractEvents(std::move(mEvents));
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-            outerMeta.setReturnValue(std::move(mReturnValue));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                if (!isSoroban() && !mEvents.empty())
+                {
+                    throw std::runtime_error("unexpected events size");
+                }
+
+                outerMeta.pushContractEvents(std::move(mEvents));
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+                outerMeta.setReturnValue(std::move(mReturnValue));
+            }
         }
         else
         {
             markResultFailed();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            // If transaction fails, we don't charge for any
-            // refundable resources.
-            mFeeRefund = sorobanRefundableFee();
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                // If transaction fails, we don't charge for any
+                // refundable resources.
+                mFeeRefund = sorobanRefundableFee();
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+            }
         }
         return success;
     }

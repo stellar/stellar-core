@@ -266,9 +266,8 @@ HerderImpl::shutdown()
         mLastQuorumMapIntersectionState.mInterruptFlag = true;
     }
     mTransactionQueue.shutdown();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mSorobanTransactionQueue.shutdown();
-#endif
+
     mTxSetGarbageCollectTimer.cancel();
 }
 
@@ -319,10 +318,9 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
-#endif
 }
 
 void
@@ -472,37 +470,43 @@ TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     TransactionQueue::AddResult result;
 
-    // Allow txs of the same kind to reach the tx queue in case it can be
-    // replaced by fee
-    bool hasSoroban =
-        mSorobanTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
-        !tx->isSoroban();
-    bool hasClassic =
-        mTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
-        tx->isSoroban();
-    if (hasSoroban || hasClassic)
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
-        CLOG_DEBUG(Herder,
-                   "recv transaction {} for {} rejected due to 1 tx per source "
-                   "account per ledger limit",
-                   hexAbbrev(tx->getFullHash()),
-                   KeyUtils::toShortString(tx->getSourceID()));
-        result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
-    }
-    else if (tx->isSoroban())
-    {
-        result = mSorobanTransactionQueue.tryAdd(tx, submittedFromSelf);
+        // Allow txs of the same kind to reach the tx queue in case it can be
+        // replaced by fee
+        bool hasSoroban =
+            mSorobanTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
+            !tx->isSoroban();
+        bool hasClassic =
+            mTransactionQueue.sourceAccountPending(tx->getSourceID()) &&
+            tx->isSoroban();
+        if (hasSoroban || hasClassic)
+        {
+            CLOG_DEBUG(
+                Herder,
+                "recv transaction {} for {} rejected due to 1 tx per source "
+                "account per ledger limit",
+                hexAbbrev(tx->getFullHash()),
+                KeyUtils::toShortString(tx->getSourceID()));
+            result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        }
+        else if (tx->isSoroban())
+        {
+            result = mSorobanTransactionQueue.tryAdd(tx, submittedFromSelf);
+        }
+        else
+        {
+            result = mTransactionQueue.tryAdd(tx, submittedFromSelf);
+        }
     }
     else
     {
         result = mTransactionQueue.tryAdd(tx, submittedFromSelf);
     }
-#else
-    auto result = mTransactionQueue.tryAdd(tx, submittedFromSelf);
-#endif
 
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
@@ -784,12 +788,11 @@ HerderImpl::sourceAccountPending(AccountID const& accountID) const
 {
     auto pending =
         mApp.getHerder().getTransactionQueue().sourceAccountPending(accountID);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     pending =
         pending ||
         mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
             accountID);
-#endif
 
     return pending;
 }
@@ -1161,13 +1164,11 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
 SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (mSorobanTransactionQueue.sourceAccountPending(acc))
     {
         return mSorobanTransactionQueue.getAccountTransactionQueueInfo(acc)
             .mMaxSeq;
     }
-#endif
     return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
 }
 
@@ -1227,14 +1228,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     TxSetFrame::TxPhases txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
         txPhases.emplace_back(
             mSorobanTransactionQueue.getTransactions(lcl.header));
     }
-#endif
 
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
@@ -1274,14 +1273,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         txPhases, mApp, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
         invalidTxPhases);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   ProtocolVersion::V_20))
     {
         mSorobanTransactionQueue.ban(
             invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
     }
-#endif
+
     mTransactionQueue.ban(
         invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::CLASSIC)]);
 
@@ -1981,7 +1979,6 @@ void
 HerderImpl::start()
 {
     mMaxTxSize = mApp.getHerder().getMaxClassicTxSize();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                       /* shouldUpdateLastModified */ true,
@@ -1995,7 +1992,6 @@ HerderImpl::start()
             mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
         }
     }
-#endif
 
     auto const& cfg = mApp.getConfig();
     // Core will calculate default values automatically
@@ -2041,9 +2037,7 @@ HerderImpl::start()
     // make sure that the transaction queue is setup against
     // the lcl that we have right now
     mTransactionQueue.maybeVersionUpgraded();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     mSorobanTransactionQueue.maybeVersionUpgraded();
-#endif
 
     startTxSetGCTimer();
 }
@@ -2141,13 +2135,11 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
 
     updateQueue(mTransactionQueue,
                 txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (txSet->numPhases() > static_cast<size_t>(TxSetFrame::Phase::SOROBAN))
     {
         updateQueue(mSorobanTransactionQueue,
                     txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN));
     }
-#endif
 }
 
 void
@@ -2266,24 +2258,18 @@ HerderImpl::getMaxQueueSizeSorobanOps() const
 bool
 HerderImpl::isBannedTx(Hash const& hash) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     return mTransactionQueue.isBanned(hash) ||
            mSorobanTransactionQueue.isBanned(hash);
-#else
-    return mTransactionQueue.isBanned(hash);
-#endif
 }
 
 TransactionFrameBaseConstPtr
 HerderImpl::getTx(Hash const& hash) const
 {
     auto classic = mTransactionQueue.getTx(hash);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!classic)
     {
         return mSorobanTransactionQueue.getTx(hash);
     }
-#endif
     return classic;
 }
 

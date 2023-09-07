@@ -22,12 +22,7 @@ struct LedgerTxnDelta;
 class LedgerEntryIsValid : public Invariant
 {
   public:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerEntryIsValid(LumenContractInfo const& lumenContractInfo);
-#else
-    LedgerEntryIsValid();
-#endif
-
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
     virtual std::string getName() const override;

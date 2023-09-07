@@ -441,13 +441,11 @@ LedgerTxn::Impl::throwIfNotExactConsistency() const
 void
 LedgerTxn::Impl::throwIfErasingConfig(InternalLedgerKey const& key) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (key.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
         key.ledgerKey().type() == CONFIG_SETTING)
     {
         throw std::runtime_error("Configuration settings cannot be erased.");
     }
-#endif
 }
 
 void
@@ -2573,7 +2571,6 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
     case LIQUIDITY_POOL:
         accum(iter, mLiquidityPoolToUpsert, mLiquidityPoolToDelete);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         accum(iter, mContractDataToUpsert, mContractDataToDelete);
         break;
@@ -2591,7 +2588,6 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
     case EXPIRATION:
         accum(iter, mExpirationToUpsert, mExpirationToDelete);
         break;
-#endif
     default:
         abort();
     }
@@ -2814,7 +2810,6 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "claimablebalance";
     case LIQUIDITY_POOL:
         return "liquiditypool";
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         return "contractdata";
     case CONTRACT_CODE:
@@ -2823,7 +2818,6 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "configsettings";
     case EXPIRATION:
         return "expiration";
-#endif
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }

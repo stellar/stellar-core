@@ -4345,7 +4345,6 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
 
     auto classicTxs = txs;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     TxSetFrame::Transactions sorobanTxs;
     for (auto it = classicTxs.begin(); it != classicTxs.end();)
     {
@@ -4359,13 +4358,10 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
             ++it;
         }
     }
-#endif
 
     TxSetFrame::TxPhases txsPhases{classicTxs};
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     txsPhases.emplace_back(sorobanTxs);
-#endif
 
     auto txSet = TxSetFrame::makeFromTransactions(txsPhases, app, 0, 0);
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,

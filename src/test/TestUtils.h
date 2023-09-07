@@ -9,6 +9,7 @@
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "main/ApplicationImpl.h"
+#include "util/ProtocolVersion.h"
 #include <type_traits>
 
 namespace stellar
@@ -100,6 +101,9 @@ void overrideSorobanNetworkConfigForTest(Application& app);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);
+
+bool appProtocolVersionStartsFrom(Application& app,
+                                  ProtocolVersion fromVersion);
 
 // This is a rough guess at the refundable fee to include. 20k for a ledger
 // write plus 1000 for a little additional slop.

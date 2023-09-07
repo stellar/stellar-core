@@ -142,7 +142,6 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(res, std::hash<stellar::uint256>()(
                                       lk.liquidityPool().liquidityPoolID));
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case stellar::CONTRACT_DATA:
             switch (lk.contractData().contract.type())
             {
@@ -174,7 +173,6 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(
                 res, std::hash<stellar::uint256>()(lk.expiration().keyHash));
             break;
-#endif
         default:
             abort();
         }

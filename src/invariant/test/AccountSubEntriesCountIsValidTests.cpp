@@ -93,12 +93,10 @@ generateRandomSubEntry(LedgerEntry const& acc)
     case CLAIMABLE_BALANCE:
     case ACCOUNT:
     case LIQUIDITY_POOL:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case EXPIRATION:
-#endif
     default:
         abort();
     }
@@ -119,12 +117,10 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     case ACCOUNT:
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case EXPIRATION:
-#endif
         break;
     case OFFER:
         res.data.offer().offerID = se.data.offer().offerID;

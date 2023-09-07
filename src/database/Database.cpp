@@ -63,11 +63,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 13;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static unsigned long const SCHEMA_VERSION = 20;
-#else
-static unsigned long const SCHEMA_VERSION = 19;
-#endif
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone

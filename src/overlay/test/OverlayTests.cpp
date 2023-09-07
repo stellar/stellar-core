@@ -157,13 +157,16 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         auto app2 = createTestApplication(clock, cfg2, true, false);
         auto setupApp = [txSize](Application& app) {
             app.getHerder().setMaxClassicTxSize(txSize);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            overrideSorobanNetworkConfigForTest(app);
-            modifySorobanNetworkConfig(app,
-                                       [txSize](SorobanNetworkConfig& cfg) {
-                                           cfg.mTxMaxSizeBytes = txSize;
-                                       });
-#endif
+
+            if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
+            {
+                overrideSorobanNetworkConfigForTest(app);
+                modifySorobanNetworkConfig(app,
+                                           [txSize](SorobanNetworkConfig& cfg) {
+                                               cfg.mTxMaxSizeBytes = txSize;
+                                           });
+            }
+
             app.start();
         };
         setupApp(*app1);
@@ -269,7 +272,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     }
     SECTION("transaction size upgrades")
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        //#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
@@ -437,7 +440,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 }
             }
         }
-#endif
+        //#endif
     }
 }
 
@@ -610,15 +613,15 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
             cfg1.PEER_READING_CAPACITY = 2;
         }
         auto app1 = createTestApplication(clock, cfg1, true, false);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (fcBytes)
+        if (fcBytes &&
+            appProtocolVersionStartsFrom(*app1, SOROBAN_PROTOCOL_VERSION))
         {
             modifySorobanNetworkConfig(*app1,
                                        [txSize](SorobanNetworkConfig& cfg) {
                                            cfg.mTxMaxSizeBytes = txSize;
                                        });
         }
-#endif
+
         auto app2 = createTestApplication(clock, cfg2, true, false);
         app1->getHerder().setMaxClassicTxSize(txSize);
         app2->getHerder().setMaxClassicTxSize(txSize);
@@ -2164,15 +2167,18 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
         simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
         for (auto& node : simulation->getNodes())
         {
-            modifySorobanNetworkConfig(*node, [](SorobanNetworkConfig& cfg) {
-                cfg.mTxMaxSizeBytes =
-                    MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-            });
+            if (appProtocolVersionStartsFrom(*node, SOROBAN_PROTOCOL_VERSION))
+            {
+                modifySorobanNetworkConfig(
+                    *node, [](SorobanNetworkConfig& cfg) {
+                        cfg.mTxMaxSizeBytes =
+                            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+                    });
+            }
         }
-#endif
         simulation->startAllNodes();
     };
 

@@ -17,15 +17,12 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     // and runtime conditions.
     mVersion = 0;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_20))
     {
         mVersion = 2;
     }
-    else
-#endif
-        if (protocolVersionStartsFrom(protocolVersion,
-                                      GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    else if (protocolVersionStartsFrom(protocolVersion,
+                                       GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
         mVersion = 1;
     }
@@ -41,10 +38,8 @@ LedgerCloseMetaFrame::ledgerHeader()
         return mLedgerCloseMeta.v0().ledgerHeader;
     case 1:
         return mLedgerCloseMeta.v1().ledgerHeader;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         return mLedgerCloseMeta.v2().ledgerHeader;
-#endif
     default:
         releaseAssert(false);
     }
@@ -61,11 +56,9 @@ LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
     case 1:
         mLedgerCloseMeta.v1().txProcessing.reserve(n);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.reserve(n);
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -82,11 +75,9 @@ LedgerCloseMetaFrame::pushTxProcessingEntry()
     case 1:
         mLedgerCloseMeta.v1().txProcessing.emplace_back();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.emplace_back();
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -104,11 +95,9 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
     case 1:
         mLedgerCloseMeta.v1().txProcessing.back().feeProcessing = changes;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.back().feeProcessing = changes;
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -134,7 +123,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
     {
         auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
@@ -142,7 +130,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -157,10 +144,8 @@ LedgerCloseMetaFrame::upgradesProcessing()
         return mLedgerCloseMeta.v0().upgradesProcessing;
     case 1:
         return mLedgerCloseMeta.v1().upgradesProcessing;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         return mLedgerCloseMeta.v2().upgradesProcessing;
-#endif
     default:
         releaseAssert(false);
     }
@@ -177,17 +162,14 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
     case 1:
         txSet.toXDR(mLedgerCloseMeta.v1().txSet);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         txSet.toXDR(mLedgerCloseMeta.v2().txSet);
         break;
-#endif
     default:
         releaseAssert(false);
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
 {
@@ -227,7 +209,6 @@ LedgerCloseMetaFrame::populateEvictedEntries(
         }
     }
 }
-#endif
 
 LedgerCloseMeta const&
 LedgerCloseMetaFrame::getXDR() const

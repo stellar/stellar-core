@@ -833,7 +833,6 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                             medida::Counter& bytesScannedForEvictionCounter,
                             medida::Counter& incompleteBucketScanCounter)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.getCurr() : level.getSnap();
@@ -938,7 +937,6 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
 
         networkConfig.updateEvictionIterator(ltx, evictionIter);
     }
-#endif
 }
 
 void

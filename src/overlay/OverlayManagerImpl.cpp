@@ -1271,11 +1271,9 @@ OverlayManagerImpl::getMaxDemandSize() const
     int64_t queueSizeInOps = getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     queueSizeInOps +=
         getOpsFloodLedger(mApp.getHerder().getMaxQueueSizeSorobanOps(),
                           cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
-#endif
 
     size_t res = static_cast<size_t>(
         bigDivideOrThrow(queueSizeInOps, cfg.FLOOD_DEMAND_PERIOD_MS.count(),
