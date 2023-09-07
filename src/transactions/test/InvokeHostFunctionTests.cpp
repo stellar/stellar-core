@@ -317,11 +317,313 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
         app, contractWasm, uploadResources, createResources, salt);
 }
 
+// Fee constants from rs-soroban-env/soroban-env-host/src/fees.rs
+constexpr int64_t INSTRUCTION_INCREMENT = 10000;
+constexpr int64_t DATA_SIZE_1KB_INCREMENT = 1024;
+constexpr int64_t TX_BASE_RESULT_SIZE = 300;
+
+static int64_t
+computeFeePerIncrement(int64_t resourceVal, int64_t feeRate, int64_t increment)
+{
+    // ceiling division for (resourceVal * feeRate) / increment
+    int64_t num = (resourceVal * feeRate);
+    return (num + increment - 1) / increment;
+};
+
+static int64_t
+getRentFeeForBytes(int64_t entrySize, uint32_t numLedgersToBump,
+                   SorobanNetworkConfig const& cfg, bool isPersistent)
+{
+    auto num = entrySize * cfg.feeWrite1KB() * numLedgersToBump;
+    auto storageCoef =
+        isPersistent
+            ? cfg.stateExpirationSettings().persistentRentRateDenominator
+            : cfg.stateExpirationSettings().tempRentRateDenominator;
+
+    auto denom = DATA_SIZE_1KB_INCREMENT * storageCoef;
+
+    // Ceiling division
+    return (num + denom - 1) / denom;
+}
+
+static int64_t
+getExpirationEntryWriteFee(SorobanNetworkConfig const& cfg)
+{
+    LedgerEntry le;
+    le.data.type(EXPIRATION);
+
+    auto writeSize = xdr::xdr_size(le);
+    auto writeFee = computeFeePerIncrement(writeSize, cfg.feeWrite1KB(),
+                                           DATA_SIZE_1KB_INCREMENT);
+    writeFee += cfg.feeWriteLedgerEntry();
+    return writeFee;
+}
+
+static int64_t
+getRentFeeForBump(Application& app, LedgerKey const& key, uint32_t newLifetime,
+                  SorobanNetworkConfig const& cfg)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto ledgerSeq = ltx.getHeader().ledgerSeq;
+    auto expirationKey = getExpirationKey(key);
+    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+    releaseAssert(expirationLtxe);
+
+    ExpirationEntry const& expirationEntry =
+        expirationLtxe.current().data.expiration();
+
+    uint32_t numLedgersToBump = 0;
+    if (isLive(expirationLtxe.current(), ledgerSeq))
+    {
+        auto ledgerToBumpTo = ledgerSeq + newLifetime;
+        if (expirationEntry.expirationLedgerSeq >= ledgerToBumpTo)
+        {
+            return 0;
+        }
+
+        numLedgersToBump = ledgerToBumpTo - expirationEntry.expirationLedgerSeq;
+    }
+    else
+    {
+        // Expired entries are skipped, pay no rent fee
+        return 0;
+    }
+
+    auto txle = ltx.loadWithoutRecord(key);
+    releaseAssert(txle);
+
+    auto entrySize = xdr::xdr_size(txle.current());
+    auto rentFee = getRentFeeForBytes(entrySize, numLedgersToBump, cfg,
+                                      isPersistentEntry(key));
+
+    return rentFee + getExpirationEntryWriteFee(cfg);
+}
+
+TEST_CASE("non-refundable resource metering", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    overrideSorobanNetworkConfigForTest(*app);
+
+    uniform_int_distribution<uint64_t> feeDist(1, 100'000);
+    modifySorobanNetworkConfig(*app, [&feeDist](SorobanNetworkConfig& cfg) {
+        cfg.mFeeRatePerInstructionsIncrement = feeDist(Catch::rng());
+        cfg.mFeeReadLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeWriteLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeRead1KB = feeDist(Catch::rng());
+        cfg.mFeeWrite1KB = feeDist(Catch::rng());
+        cfg.mFeeHistorical1KB = feeDist(Catch::rng());
+        cfg.mFeeTransactionSize1KB = feeDist(Catch::rng());
+    });
+
+    SorobanNetworkConfig const& cfg = [&] {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }();
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+
+    SorobanResources resources;
+    resources.instructions = 0;
+    resources.readBytes = 0;
+    resources.writeBytes = 0;
+
+    auto root = TestAccount::createRoot(*app);
+
+    // The following computations are copies of compute_transaction_resource_fee
+    // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
+    // here so that we can check if the Cxx bridge introduced any fee related
+    // bugs.
+
+    // Fees that depend on TX size, historicalFee and bandwidthFee
+    auto txSizeFees = [&](TransactionFrameBasePtr tx) {
+        int64_t txSize = static_cast<uint32>(xdr::xdr_size(tx->getEnvelope()));
+        int64_t historicalFee = computeFeePerIncrement(
+            txSize + TX_BASE_RESULT_SIZE, cfg.mFeeHistorical1KB,
+            DATA_SIZE_1KB_INCREMENT);
+
+        int64_t bandwidthFee = computeFeePerIncrement(
+            txSize, cfg.feeTransactionSize1KB(), DATA_SIZE_1KB_INCREMENT);
+
+        return historicalFee + bandwidthFee;
+    };
+
+    auto computeFee = [&] {
+        return computeFeePerIncrement(resources.instructions,
+                                      cfg.feeRatePerInstructionsIncrement(),
+                                      INSTRUCTION_INCREMENT);
+    };
+
+    auto entryReadFee = [&] {
+        return (resources.footprint.readOnly.size() +
+                resources.footprint.readWrite.size()) *
+               cfg.feeReadLedgerEntry();
+    };
+
+    auto entryWriteFee = [&] {
+        return resources.footprint.readWrite.size() * cfg.feeWriteLedgerEntry();
+    };
+
+    auto readBytesFee = [&] {
+        return computeFeePerIncrement(resources.readBytes, cfg.feeRead1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    };
+
+    auto writeBytesFee = [&] {
+        return computeFeePerIncrement(resources.writeBytes, cfg.feeWrite1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    };
+
+    auto checkFees = [&](int64_t expectedNonRefundableFee,
+                         std::shared_ptr<TransactionFrameBase> rootTX) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        // This will compute soroban fees
+        REQUIRE(rootTX->checkValid(*app, ltx, 0, 0, 0));
+
+        auto actualFeePair = std::dynamic_pointer_cast<TransactionFrame>(rootTX)
+                                 ->getSorobanResourceFee();
+        REQUIRE(actualFeePair);
+        REQUIRE(expectedNonRefundableFee == actualFeePair->non_refundable_fee);
+
+        auto inclusionFee = getMinInclusionFee(*rootTX, ltx.getHeader());
+
+        // Check that minimum fee succeeds
+        auto minimalTX = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources,
+            expectedNonRefundableFee + inclusionFee, 0);
+        REQUIRE(minimalTX->checkValid(*app, ltx, 1, 0, 0));
+
+        // Check that just below minimum fee fails
+        auto badTX = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources,
+            expectedNonRefundableFee + inclusionFee - 1, 0);
+        REQUIRE(!badTX->checkValid(*app, ltx, 2, 0, 0));
+    };
+
+    // In the following tests, we isolate a single fee to test by zeroing out
+    // every other resource, as much as is possible
+    SECTION("tx size fees")
+    {
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Resources are all null, only include TX size based fees
+        auto expectedFee = txSizeFees(tx);
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("compute fee")
+    {
+        resources.instructions = feeDist(Catch::rng());
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Should only have instruction and TX size fees
+        auto expectedFee = txSizeFees(tx) + computeFee();
+        checkFees(expectedFee, tx);
+    }
+
+    uniform_int_distribution<> numKeysDist(1, 10);
+    SECTION("entry read/write fee")
+    {
+        SECTION("RO Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry fees and TX size fees
+            auto expectedFee = txSizeFees(tx) + entryReadFee();
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee =
+                txSizeFees(tx) + entryReadFee() + entryWriteFee();
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW and RO")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee =
+                txSizeFees(tx) + entryReadFee() + entryWriteFee();
+            checkFees(expectedFee, tx);
+        }
+    }
+
+    uniform_int_distribution<uint32_t> bytesDist(1, 100'000);
+    SECTION("readBytes fee")
+    {
+        resources.readBytes = bytesDist(Catch::rng());
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Only readBytes and TX size fees
+        auto expectedFee = txSizeFees(tx) + readBytesFee();
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("writeBytes fee")
+    {
+        resources.writeBytes = bytesDist(Catch::rng());
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Only writeBytes and TX size fees
+        auto expectedFee = txSizeFees(tx) + writeBytesFee();
+        checkFees(expectedFee, tx);
+    }
+}
+
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
     auto app = createTestApplication(clock, cfg);
     overrideSorobanNetworkConfigForTest(*app);
 
@@ -737,7 +1039,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                         xdr::xvector<LedgerKey> const& readWrite,
                         uint32_t writeBytes, SCAddress const& contractAddress,
                         SCSymbol const& functionName,
-                        std::vector<SCVal> const& args)
+                        std::vector<SCVal> const& args,
+                        std::optional<uint32_t> refundableFeeOp = {})
         -> std::tuple<TransactionFrameBasePtr, std::shared_ptr<LedgerTxn>,
                       std::shared_ptr<TransactionMetaFrame>> {
         Operation op;
@@ -754,8 +1057,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.readBytes = 5000;
         resources.writeBytes = writeBytes;
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
+        uint32_t refundableFee = 40'000;
+        if (refundableFeeOp)
+        {
+            refundableFee = *refundableFeeOp;
+        }
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                           resources, 200'000, refundableFee);
         auto ltx = std::make_shared<LedgerTxn>(app->getLedgerTxnRoot());
         auto txm = std::make_shared<TransactionMetaFrame>(
             ltx->loadHeader().current().ledgerVersion);
@@ -941,6 +1250,36 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpLowHigh(key, type, bumpAmount, bumpAmount);
     };
 
+    auto increaseEntrySizeAndBump =
+        [&](std::string const& key, uint32_t numKiloBytes, uint32_t lowLifetime,
+            uint32_t highLifetime, xdr::xvector<LedgerKey> const& readOnly,
+            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
+            uint32_t refundableFee) {
+            auto keySymbol = makeSymbolSCVal(key);
+            auto numKiloBytesU32 = makeU32(numKiloBytes);
+            auto lowLifetimeU32 = makeU32(lowLifetime);
+            auto highLifetimeU32 = makeU32(highLifetime);
+
+            std::string funcStr = "replace_with_bytes_and_bump";
+
+            // TODO: Better bytes to write value
+            auto [tx, ltx, txm] = createTx(
+                readOnly, readWrite, 2000, contractID, makeSymbol(funcStr),
+                {keySymbol, numKiloBytesU32, lowLifetimeU32, highLifetimeU32},
+                refundableFee);
+
+            if (expectSuccess)
+            {
+                REQUIRE(tx->apply(*app, *ltx, *txm));
+            }
+            else
+            {
+                REQUIRE(!tx->apply(*app, *ltx, *txm));
+            }
+
+            ltx->commit();
+        };
+
     auto runExpirationOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
                                int64_t refundableFee,
                                int64_t expectedRefundableFeeCharged) {
@@ -988,8 +1327,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
     };
 
     auto bumpOp = [&](uint32_t bumpAmount,
-                      xdr::xvector<LedgerKey> const& readOnly,
-                      int64_t expectedRefundableFeeCharged) {
+                      xdr::xvector<LedgerKey> const& readOnly) {
+        int64_t expectedRefundableFeeCharged = 0;
+        for (auto const& key : readOnly)
+        {
+            expectedRefundableFeeCharged +=
+                getRentFeeForBump(*app, key, bumpAmount, sorobanConfig);
+        }
+
         Operation bumpOp;
         bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
         bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire = bumpAmount;
@@ -1189,7 +1534,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      163 /* rent bump */ + 40000 /* two LE-writes */);
+                      161 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1225,7 +1570,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore WASM
             restoreOp({contractKeys[1]},
-                      114 /* rent bump */ + 20000 /* one LE write */);
+                      112 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1243,16 +1588,16 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      163 /* rent bump */ + 40000 /* two LE writes */);
+                      161 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
 
             // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]}, 20050);
+            bumpOp(instanceBumpAmount, {contractKeys[0]});
 
             // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]}, 20225);
+            bumpOp(wasmBumpAmount, {contractKeys[1]});
 
             checkEntry(contractKeys[0], ledgerSeq + instanceBumpAmount);
             checkEntry(contractKeys[1], ledgerSeq + wasmBumpAmount);
@@ -1355,14 +1700,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
 
         // Bump multiple keys to live 10100 ledger from now
-        bumpOp(10100,
-               {contractDataKey(contractID, makeSymbolSCVal("key"),
-                                ContractDataDurability::PERSISTENT),
-                contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                ContractDataDurability::PERSISTENT),
-                contractDataKey(contractID, makeSymbolSCVal("key3"),
-                                ContractDataDurability::PERSISTENT)},
-               40097); // only 2 ledger writes because key3 won't be bumped
+        bumpOp(
+            10100,
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
+                             ContractDataDurability::PERSISTENT),
+             contractDataKey(contractID, makeSymbolSCVal("key2"),
+                             ContractDataDurability::PERSISTENT),
+             contractDataKey(
+                 contractID, makeSymbolSCVal("key3"),
+                 ContractDataDurability::PERSISTENT)}); // only 2 ledger writes
+                                                        // because key3 won't be
+                                                        // bumped
 
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
@@ -1420,7 +1768,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1;
 
         // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys, 40194);
+        bumpOp(10'000, contractKeys);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
         checkContractDataExpirationLedger(
@@ -1455,7 +1803,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          ContractDataDurability::PERSISTENT);
 
         // Bump operation should skip expired entries
-        bumpOp(1'000, {lk}, 0);
+        bumpOp(1'000, {lk});
 
         // Make sure expirationLedger is unchanged by bumpOp
         checkContractDataExpirationLedger(
@@ -1511,6 +1859,99 @@ TEST_CASE("contract storage", "[tx][soroban]")
             app->getLedgerManager().getLastClosedLedgerNum() + minBump - 1;
         checkContractDataExpirationLedger(
             "key", ContractDataDurability::TEMPORARY, newExpirationLedger);
+    }
+
+    SECTION("charge rent fees for storage resize")
+    {
+        auto resizeKilobytes = 1;
+        put("key1", 0, ContractDataDurability::PERSISTENT);
+        auto key1lk =
+            contractDataKey(contractID, makeSymbolSCVal("key1"), PERSISTENT);
+
+        auto startingSizeBytes = 0;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto txle = ltx.loadWithoutRecord(key1lk);
+            REQUIRE(txle);
+            startingSizeBytes = xdr::xdr_size(txle.current());
+        }
+
+        // First, resize a key with large fee to guarantee success
+        increaseEntrySizeAndBump("key1", resizeKilobytes, 0, 0, contractKeys,
+                                 {key1lk}, true, 40'000);
+
+        auto sizeDeltaBytes = 0;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto txle = ltx.loadWithoutRecord(key1lk);
+            REQUIRE(txle);
+            sizeDeltaBytes = xdr::xdr_size(txle.current()) - startingSizeBytes;
+        }
+
+        // Now that we know the size delta, we can calculate the expected rent
+        // and check that another entry resize charges fee correctly
+        put("key2", 0, ContractDataDurability::PERSISTENT);
+
+        auto initialLifetime =
+            stateExpirationSettings.minPersistentEntryExpiration;
+
+        SECTION("resize with no bump")
+        {
+            auto expectedRentFee = getRentFeeForBytes(
+                sizeDeltaBytes, initialLifetime, sorobanConfig,
+                /*isPersistent=*/true);
+
+            // refundableFee = rent fee + (event size + return val) fee. So
+            // in order to succeed refundableFee needs to be expectedRentFee
+            // + 1 to account for the return val size. We are not changing the
+            // expirationLedgerSeq, so there is no ExpirationEntry write charge
+            auto refundableFee = expectedRentFee + 1;
+            increaseEntrySizeAndBump(
+                "key2", resizeKilobytes, 0, 0, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key2"),
+                                 PERSISTENT)},
+                false, refundableFee - 1);
+
+            // Size change should succeed with enough refundable fee
+            increaseEntrySizeAndBump(
+                "key2", resizeKilobytes, 0, 0, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key2"),
+                                 PERSISTENT)},
+                true, refundableFee);
+        }
+
+        SECTION("resize and bump")
+        {
+            auto newLifetime = initialLifetime + 1000;
+
+            // New bytes are charged rent for previous lifetime and new lifetime
+            auto resizeRentFee =
+                getRentFeeForBytes(sizeDeltaBytes, newLifetime, sorobanConfig,
+                                   /*isPersistent=*/true);
+
+            // Initial bytes just charged for new lifetime
+            auto bumpFee = getRentFeeForBytes(
+                startingSizeBytes, newLifetime - initialLifetime, sorobanConfig,
+                /*isPersistent=*/true);
+
+            // refundableFee = rent fee + (event size + return val) fee. So in
+            // order to success refundableFee needs to be expectedRentFee
+            // + 1 to account for the return val size.
+            auto refundableFee = resizeRentFee + bumpFee +
+                                 getExpirationEntryWriteFee(sorobanConfig) + 1;
+            increaseEntrySizeAndBump(
+                "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key2"),
+                                 PERSISTENT)},
+                false, refundableFee - 1);
+
+            // Size change should succeed with enough refundable fee
+            increaseEntrySizeAndBump(
+                "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
+                {contractDataKey(contractID, makeSymbolSCVal("key2"),
+                                 PERSISTENT)},
+                true, refundableFee);
+        }
     }
 
     SECTION("max expiration")
