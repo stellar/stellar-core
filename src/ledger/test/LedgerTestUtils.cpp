@@ -6,15 +6,13 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/UnorderedSet.h"
 #include "util/types.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
-#endif
-#include "ledger/NetworkConfig.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <autocheck/generator.hpp>
 #include <locale>
@@ -123,7 +121,6 @@ randomlyModifyEntry(LedgerEntry& e)
             autocheck::generator<int64>{}();
         makeValid(e.data.liquidityPool());
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     {
         e.data.configSetting().configSettingID(
@@ -149,7 +146,6 @@ randomlyModifyEntry(LedgerEntry& e)
         e.data.expiration().expirationLedgerSeq =
             autocheck::generator<uint32_t>{}();
         break;
-#endif
     }
 }
 
@@ -332,7 +328,6 @@ makeValid(LiquidityPoolEntry& lp)
     cp.poolSharesTrustLineCount = std::abs(cp.poolSharesTrustLineCount);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 makeValid(ConfigSettingEntry& ce)
 {
@@ -377,7 +372,6 @@ void
 makeValid(ExpirationEntry& cce)
 {
 }
-#endif
 
 void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
@@ -463,7 +457,6 @@ static auto validLedgerEntryGenerator = autocheck::map(
         case LIQUIDITY_POOL:
             makeValid(led.liquidityPool());
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case CONFIG_SETTING:
             makeValid(led.configSetting());
             break;
@@ -476,21 +469,15 @@ static auto validLedgerEntryGenerator = autocheck::map(
         case EXPIRATION:
             makeValid(led.expiration());
             break;
-#endif
         }
 
         return std::move(le);
     },
     autocheck::generator<LedgerEntry>());
 
-static auto ledgerKeyGenerator =
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    autocheck::such_that(
-        [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
-        autocheck::generator<LedgerKey>());
-#else
-    autocheck::generator<LedgerKey>();
-#endif
+static auto ledgerKeyGenerator = autocheck::such_that(
+    [](LedgerKey const& k) { return k.type() != CONFIG_SETTING; },
+    autocheck::generator<LedgerKey>());
 
 static auto validAccountEntryGenerator = autocheck::map(
     [](AccountEntry&& ae, size_t s) {
@@ -534,7 +521,6 @@ static auto validLiquidityPoolEntryGenerator = autocheck::map(
     },
     autocheck::generator<LiquidityPoolEntry>());
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static auto validConfigSettingEntryGenerator = autocheck::map(
     [](ConfigSettingEntry&& c, size_t s) {
         makeValid(c);
@@ -562,7 +548,6 @@ static auto validExpirationEntryGenerator = autocheck::map(
         return std::move(c);
     },
     autocheck::generator<ExpirationEntry>());
-#endif
 
 LedgerEntry
 generateValidLedgerEntry(size_t b)
@@ -648,7 +633,7 @@ generateValidLedgerEntryKeysWithExclusions(
     }
     return keys;
 }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
 std::vector<LedgerKey>
 generateUniqueValidSorobanLedgerEntryKeys(size_t n)
 {
@@ -657,7 +642,6 @@ generateUniqueValidSorobanLedgerEntryKeys(size_t n)
          EXPIRATION},
         n);
 }
-#endif
 
 std::vector<LedgerKey>
 generateValidUniqueLedgerEntryKeysWithExclusions(
@@ -811,7 +795,6 @@ generateValidLiquidityPoolEntries(size_t n)
     return vecgen(n);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigSettingEntry
 generateValidConfigSettingEntry(size_t b)
 {
@@ -863,7 +846,6 @@ generateValidExpirationEntries(size_t n)
     static auto vecgen = autocheck::list_of(validExpirationEntryGenerator);
     return vecgen(n);
 }
-#endif
 
 std::vector<LedgerHeaderHistoryEntry>
 generateLedgerHeadersForCheckpoint(

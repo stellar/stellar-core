@@ -82,9 +82,7 @@ class FlowControlByteCapacity : public FlowControlCapacity
     virtual ReadingCapacity getCapacityLimits() const override;
     virtual void releaseOutboundCapacity(StellarMessage const& msg) override;
     bool canRead() const override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void handleTxSizeIncrease(uint32_t increase);
-#endif
 };
 
 class FlowControlMessageCapacity : public FlowControlCapacity

@@ -13,15 +13,10 @@ namespace stellar
 bool
 isLive(LedgerEntry const& e, uint32_t expirationCutoff)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     releaseAssert(e.data.type() == EXPIRATION);
     return e.data.expiration().expirationLedgerSeq >= expirationCutoff;
-#else
-    return true;
-#endif
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey
 getExpirationKey(LedgerEntry const& e)
 {
@@ -37,5 +32,4 @@ getExpirationKey(LedgerKey const& e)
     k.expiration().keyHash = sha256(xdr::xdr_to_opaque(e));
     return k;
 }
-#endif
 };

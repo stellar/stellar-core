@@ -6,11 +6,9 @@
 
 #include "ledger/LedgerTxn.h"
 #include "main/Config.h"
+#include "rust/RustBridge.h"
 #include <cstdint>
 #include <deque>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/RustBridge.h"
-#endif
 
 namespace stellar
 {
@@ -298,7 +296,6 @@ class SorobanNetworkConfig
     std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
     static bool
     isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
@@ -321,7 +318,6 @@ class SorobanNetworkConfig
 #ifdef BUILD_TESTS
     StateExpirationSettings& stateExpirationSettings();
     EvictionIterator& evictionIterator();
-#endif
 #endif
 
   private:
@@ -349,10 +345,8 @@ class SorobanNetworkConfig
     // window until it has newSize entries.
     void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
     void updateBucketListSizeAverage();
-#endif
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.
 // Access this via
@@ -415,7 +409,6 @@ class SorobanNetworkConfig
     void writeAllSettings(AbstractLedgerTxn& ltx) const;
 #endif
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Host cost params
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
@@ -423,8 +416,6 @@ class SorobanNetworkConfig
     // State expiration settings
     StateExpirationSettings mStateExpirationSettings{};
     mutable EvictionIterator mEvictionIterator{};
-
-#endif
 };
 
 }

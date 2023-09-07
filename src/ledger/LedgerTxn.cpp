@@ -1996,7 +1996,6 @@ LedgerTxn::dropLiquidityPools(bool rebuild)
     throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 LedgerTxn::dropContractData(bool rebuild)
 {
@@ -2020,7 +2019,6 @@ LedgerTxn::dropExpiration(bool rebuild)
 {
     throw std::runtime_error("called dropExpiration on non-root LedgerTxn");
 }
-#endif
 
 double
 LedgerTxn::getPrefetchHitRate() const
@@ -2678,7 +2676,6 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         bulkDeleteLiquidityPool(deleteLiquidityPool, cons);
         deleteLiquidityPool.clear();
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto& upsertConfigSettings = bleca.getConfigSettingsToUpsert();
     if (upsertConfigSettings.size() > bufferThreshold)
     {
@@ -2724,7 +2721,6 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         bulkDeleteExpiration(deleteExpiration, cons);
         deleteExpiration.clear();
     }
-#endif
 }
 
 void
@@ -2936,7 +2932,6 @@ LedgerTxnRoot::dropLiquidityPools(bool rebuild)
     mImpl->dropLiquidityPools(rebuild);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 LedgerTxnRoot::dropContractData(bool rebuild)
 {
@@ -2960,7 +2955,6 @@ LedgerTxnRoot::dropExpiration(bool rebuild)
 {
     mImpl->dropExpiration(rebuild);
 }
-#endif
 
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
@@ -3010,12 +3004,10 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         UnorderedSet<LedgerKey> data;
         UnorderedSet<LedgerKey> claimablebalance;
         UnorderedSet<LedgerKey> liquiditypool;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         UnorderedSet<LedgerKey> contractdata;
         UnorderedSet<LedgerKey> configSettings;
         UnorderedSet<LedgerKey> contractCode;
         UnorderedSet<LedgerKey> expiration;
-#endif
 
         for (auto const& key : keys)
         {
@@ -3069,7 +3061,6 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                     liquiditypool.clear();
                 }
                 break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case CONTRACT_DATA:
                 insertIfNotLoaded(contractdata, key);
                 if (contractdata.size() == mBulkLoadBatchSize)
@@ -3101,7 +3092,6 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                     cacheResult(bulkLoadExpiration(expiration));
                     expiration.clear();
                 }
-#endif
             }
         }
 
@@ -3112,12 +3102,10 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         cacheResult(bulkLoadData(data));
         cacheResult(bulkLoadClaimableBalance(claimablebalance));
         cacheResult(bulkLoadLiquidityPool(liquiditypool));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         cacheResult(bulkLoadConfigSettings(configSettings));
         cacheResult(bulkLoadContractData(contractdata));
         cacheResult(bulkLoadContractCode(contractCode));
         cacheResult(bulkLoadExpiration(expiration));
-#endif
     }
 
     return total;
@@ -3666,7 +3654,6 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             case LIQUIDITY_POOL:
                 entry = loadLiquidityPool(key);
                 break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case CONTRACT_DATA:
                 entry = loadContractData(key);
                 break;
@@ -3679,7 +3666,6 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             case EXPIRATION:
                 entry = loadExpiration(key);
                 break;
-#endif
             default:
                 throw std::runtime_error("Unknown key type");
             }
