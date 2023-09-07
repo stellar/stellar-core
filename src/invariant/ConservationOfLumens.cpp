@@ -14,14 +14,9 @@
 namespace stellar
 {
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static int64_t
 calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
                       LedgerEntry const* current, LedgerEntry const* previous)
-#else
-static int64_t
-calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
-#endif
 {
     releaseAssert(current || previous);
     auto let = current ? current->data.type() : previous->data.type();
@@ -76,7 +71,6 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
         }
         return delta;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
     {
         auto const& contractData = current ? current->data.contractData()
@@ -136,23 +130,15 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
         break;
     case EXPIRATION:
         break;
-#endif
     }
     return 0;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static int64_t
 calculateDeltaBalance(
     LumenContractInfo const& lumenContractInfo,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
-#else
-static int64_t
-calculateDeltaBalance(
-    std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
-    std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
-#endif
 {
     auto type = genCurrent ? genCurrent->type() : genPrevious->type();
     if (type == InternalLedgerEntryType::LEDGER_ENTRY)
@@ -161,32 +147,20 @@ calculateDeltaBalance(
         auto const* previous =
             genPrevious ? &genPrevious->ledgerEntry() : nullptr;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         return calculateDeltaBalance(lumenContractInfo, current, previous);
-#else
-        return calculateDeltaBalance(current, previous);
-#endif
     }
     return 0;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConservationOfLumens::ConservationOfLumens(
     LumenContractInfo const& lumenContractInfo)
     : Invariant(false), mLumenContractInfo(lumenContractInfo)
 {
 }
 
-#else
-ConservationOfLumens::ConservationOfLumens() : Invariant(false)
-{
-}
-#endif
-
 std::shared_ptr<Invariant>
 ConservationOfLumens::registerInvariant(Application& app)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // We need to keep track of lumens in the Stellar Asset Contract, so
     // calculate the lumen contractID, the key of the Balance entry, and the
     // amount field within that entry.
@@ -194,9 +168,6 @@ ConservationOfLumens::registerInvariant(Application& app)
 
     return app.getInvariantManager().registerInvariant<ConservationOfLumens>(
         lumenInfo);
-#else
-    return app.getInvariantManager().registerInvariant<ConservationOfLumens>();
-#endif
 }
 
 std::string
@@ -218,14 +189,9 @@ ConservationOfLumens::checkOnOperationApply(Operation const& operation,
     int64_t deltaBalances = std::accumulate(
         ltxDelta.entry.begin(), ltxDelta.entry.end(), static_cast<int64_t>(0),
         [this](int64_t lhs, decltype(ltxDelta.entry)::value_type const& rhs) {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             return lhs + stellar::calculateDeltaBalance(mLumenContractInfo,
                                                         rhs.second.current,
                                                         rhs.second.previous);
-#else
-            return lhs + stellar::calculateDeltaBalance(rhs.second.current,
-                                                        rhs.second.previous);
-#endif
         });
 
     if (result.tr().type() == INFLATION)
